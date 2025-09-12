@@ -358,7 +358,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                             normalized = use_address.rstrip(".").lower()
                             cache_args.extend(
                                 [
-                                    "--mdns-lookup-cache",
+                                    "--mdns-address-cache",
                                     f"{normalized}={','.join(sort_ip_addresses(cached))}",
                                 ]
                             )
@@ -372,7 +372,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                         normalized = use_address.rstrip(".").lower()
                         cache_args.extend(
                             [
-                                "--dns-lookup-cache",
+                                "--dns-address-cache",
                                 f"{normalized}={','.join(sort_ip_addresses(cached))}",
                             ]
                         )
@@ -396,7 +396,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
                         normalized = mdns_name.rstrip(".").lower()
                         cache_args.extend(
                             [
-                                "--mdns-lookup-cache",
+                                "--mdns-address-cache",
                                 f"{normalized}={','.join(sort_ip_addresses(cached))}",
                             ]
                         )

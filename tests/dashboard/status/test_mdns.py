@@ -153,19 +153,23 @@ def test_get_cached_addresses_empty_list(mdns_status: MDNSStatus) -> None:
 
 def test_async_setup_success(mock_dashboard: Mock) -> None:
     """Test successful async_setup."""
-    mdns_status = MDNSStatus(mock_dashboard)
-    with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
-        mock_zc.return_value = Mock()
-        result = mdns_status.async_setup()
-        assert result is True
-        assert mdns_status.aiozc is not None
+    with patch("asyncio.get_running_loop") as mock_loop:
+        mock_loop.return_value = Mock()
+        mdns_status = MDNSStatus(mock_dashboard)
+        with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
+            mock_zc.return_value = Mock()
+            result = mdns_status.async_setup()
+            assert result is True
+            assert mdns_status.aiozc is not None
 
 
 def test_async_setup_failure(mock_dashboard: Mock) -> None:
     """Test async_setup with OSError."""
-    mdns_status = MDNSStatus(mock_dashboard)
-    with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
-        mock_zc.side_effect = OSError("Network error")
-        result = mdns_status.async_setup()
-        assert result is False
-        assert mdns_status.aiozc is None
+    with patch("asyncio.get_running_loop") as mock_loop:
+        mock_loop.return_value = Mock()
+        mdns_status = MDNSStatus(mock_dashboard)
+        with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
+            mock_zc.side_effect = OSError("Network error")
+            result = mdns_status.async_setup()
+            assert result is False
+            assert mdns_status.aiozc is None
