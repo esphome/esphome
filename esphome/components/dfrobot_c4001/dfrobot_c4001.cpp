@@ -14,7 +14,9 @@ static const char *TAG = "dfrobot_c4001";
  * Called once when the component is initialized.
  * We call update_config_param() to load device configuration and publish initial values.
  */
-void c4001Component::setup() { update_config_param(); }
+void c4001Component::setup() {
+  update_config_param();
+}
 
 /**
  * print_config
@@ -57,18 +59,15 @@ void c4001Component::loop() {
  */
 int parse_dfhpd(const std::string &line) {
   // Check if contains $DFHPD
-  if (line.find("$DFHPD") == std::string::npos)
-    return -1;
+  if (line.find("$DFHPD") == std::string::npos) return -1;
 
   // Find first comma
   size_t pos1 = line.find(',');
-  if (pos1 == std::string::npos)
-    return -1;
+  if (pos1 == std::string::npos) return -1;
 
   // Find second comma
   size_t pos2 = line.find(',', pos1 + 1);
-  if (pos2 == std::string::npos)
-    return -1;
+  if (pos2 == std::string::npos) return -1;
 
   // Extract first field
   std::string param_str = line.substr(pos1 + 1, pos2 - pos1 - 1);
@@ -77,14 +76,11 @@ int parse_dfhpd(const std::string &line) {
   param_str.erase(0, param_str.find_first_not_of(" "));
   param_str.erase(param_str.find_last_not_of(" ") + 1);
 
-  if (param_str.empty())
-    return -1;
+  if (param_str.empty()) return -1;
 
   // Manually check for 0 or 1
-  if (param_str == "0")
-    return 0;
-  if (param_str == "1")
-    return 1;
+  if (param_str == "0") return 0;
+  if (param_str == "1") return 1;
   return -1;
 }
 
@@ -125,16 +121,14 @@ MotData parse_dfdmd(const std::string &line) {
 
   // Safe conversion lambdas to avoid exceptions (embedded builds typically disable exceptions)
   auto safe_stoi = [](const std::string &s, int &out) -> bool {
-    if (s.empty())
-      return false;
+    if (s.empty()) return false;
     char *endptr;
     out = strtol(s.c_str(), &endptr, 10);
     return (*endptr == '\0');
   };
 
   auto safe_stof = [](const std::string &s, float &out) -> bool {
-    if (s.empty())
-      return false;
+    if (s.empty()) return false;
     char *endptr;
     out = strtof(s.c_str(), &endptr);
     return (*endptr == '\0');
@@ -144,7 +138,9 @@ MotData parse_dfdmd(const std::string &line) {
   float dist_tmp, speed_tmp;
 
   // Parse tokens[1] -> exist, tokens[3] -> distance, tokens[4] -> speed
-  if (safe_stoi(tokens[1], exist_tmp) && safe_stof(tokens[3], dist_tmp) && safe_stof(tokens[4], speed_tmp)) {
+  if (safe_stoi(tokens[1], exist_tmp) &&
+      safe_stof(tokens[3], dist_tmp) &&
+      safe_stof(tokens[4], speed_tmp)) {
     result.exist = exist_tmp;
     result.distance = dist_tmp;
     result.speed = speed_tmp;
@@ -166,7 +162,7 @@ void c4001Component::get_data() {
   MotData data;
   if (run_mode_ == MODE_MOTION) {
     char buf[50];
-    int len = uart_read_raw(buf, sizeof(buf) - 1, 100);  // Read UART data
+    int len = uart_read_raw(buf, sizeof(buf) - 1, 100); // Read UART data
     if (len <= 0) {
       ESP_LOGW(TAG, "No data received from UART");
     }
@@ -179,7 +175,7 @@ void c4001Component::get_data() {
   } else if (run_mode_ == MODE_SPEED) {
     uart_clear_buffer();  // Clear buffer first to avoid stale data
     char buf[50];
-    int len = uart_read_raw(buf, sizeof(buf) - 1, 100);  // Read UART data
+    int len = uart_read_raw(buf, sizeof(buf) - 1, 100); // Read UART data
     if (len <= 0) {
       ESP_LOGW(TAG, "No data received from UART");
     }
@@ -325,8 +321,7 @@ void c4001Component::uart_clear_buffer() {
  * Note: bufsize should be >= 2 (we reserve one byte for terminating NUL).
  */
 size_t c4001Component::uart_read_raw(char *buf, size_t bufsize, uint32_t timeout_ms) {
-  if (!buf || bufsize < 2)
-    return 0;
+  if (!buf || bufsize < 2) return 0;
   size_t idx = 0;
   uint32_t start = millis();
   buf[0] = '\0';
@@ -336,8 +331,7 @@ size_t c4001Component::uart_read_raw(char *buf, size_t bufsize, uint32_t timeout
       size_t toread = std::min(avail, bufsize - 1 - idx);
       this->read_array(reinterpret_cast<uint8_t *>(buf + idx), toread);
       idx += toread;
-      if (idx >= bufsize - 1)
-        break;
+      if (idx >= bufsize - 1) break;
       // Continue reading until timeout or buffer full
       continue;
     }
@@ -352,7 +346,9 @@ size_t c4001Component::uart_read_raw(char *buf, size_t bufsize, uint32_t timeout
  * str_match
  * Helper to check whether 'pattern' exists inside 'text'.
  */
-bool str_match(const std::string &text, const std::string &pattern) { return text.find(pattern) != std::string::npos; }
+bool str_match(const std::string &text, const std::string &pattern) {
+  return text.find(pattern) != std::string::npos;
+}
 
 /**
  * sensor_stop
@@ -399,32 +395,28 @@ void c4001Component::save_config(void) {
  *
  * Example: buf contains "... Response: 1.2, 3.4 ..." -> out1=1.2 out2=3.4 -> returns 2
  */
-int extract_two_numbers_after_keyword(const std::string &buf, const std::string &keyword, float *out1, float *out2) {
-  if (buf.empty() || keyword.empty())
-    return 0;
+int extract_two_numbers_after_keyword(const std::string &buf,
+                                      const std::string &keyword,
+                                      float *out1, float *out2) {
+  if (buf.empty() || keyword.empty()) return 0;
 
   const char *p = strstr(buf.c_str(), keyword.c_str());
-  if (!p)
-    return 0;
+  if (!p) return 0;
 
   p += keyword.size();
 
-  while (*p == ' ' || *p == '\t' || *p == ':' || *p == '=')
-    p++;
+  while (*p == ' ' || *p == '\t' || *p == ':' || *p == '=') p++;
 
   errno = 0;
   char *endptr = nullptr;
 
   // First number
   double v1 = strtod(p, &endptr);
-  if (p == endptr || errno == ERANGE)
-    return 0;
-  if (out1)
-    *out1 = floorf(static_cast<float>(v1) * 10.0f + 0.5f) / 10.0f;
+  if (p == endptr || errno == ERANGE) return 0;
+  if (out1) *out1 = floorf(static_cast<float>(v1) * 10.0f + 0.5f) / 10.0f;
 
   p = endptr;
-  while (*p == ' ' || *p == '\t' || *p == ',')
-    p++;
+  while (*p == ' ' || *p == '\t' || *p == ',') p++;
 
   if (*p == '\0') {
     return 1;  // Only one parameter parsed
@@ -433,10 +425,8 @@ int extract_two_numbers_after_keyword(const std::string &buf, const std::string 
   // Second number
   errno = 0;
   double v2 = strtod(p, &endptr);
-  if (p == endptr || errno == ERANGE)
-    return 1;
-  if (out2)
-    *out2 = floorf(static_cast<float>(v2) * 10.0f + 0.5f) / 10.0f;
+  if (p == endptr || errno == ERANGE) return 1;
+  if (out2) *out2 = floorf(static_cast<float>(v2) * 10.0f + 0.5f) / 10.0f;
 
   return 2;
 }
@@ -460,14 +450,14 @@ MotionMode parse_mode(const std::string &line) {
  */
 int c4001Component::get_run_mode() {
   char buf[100];
-  uart_clear_buffer();                                 // Clear buffer
-  int len = uart_read_raw(buf, sizeof(buf) - 1, 400);  // Read UART data
+  uart_clear_buffer();  // Clear buffer
+  int len = uart_read_raw(buf, sizeof(buf) - 1, 400); // Read UART data
   if (len <= 0) {
     ESP_LOGW(TAG, "No data received from UART");
-    return -1;  // Unknown mode
+    return -1; // Unknown mode
   }
 
-  buf[len] = 0;  // Ensure null-terminated string
+  buf[len] = 0; // Ensure null-terminated string
 
   std::string line(buf);
   ESP_LOGD(TAG, "UART line: %s", line.c_str());
@@ -478,13 +468,13 @@ int c4001Component::get_run_mode() {
   switch (mode) {
     case MODE_SPEED:
       ESP_LOGD(TAG, "Detected speed mode");
-      return 1;  // Return speed
+      return 1; // Return speed
     case MODE_MOTION:
       ESP_LOGD(TAG, "Detected motion mode");
-      return 0;  // Return motion
+      return 0; // Return motion
     default:
       ESP_LOGW(TAG, "Unknown mode");
-      return -1;  // Unknown
+      return -1; // Unknown
   }
 }
 
@@ -492,8 +482,8 @@ int c4001Component::get_run_mode() {
  * getSensitivity
  * Query device for sensitivity settings and return them in SenResult.
  */
-<<<<<<< HEAD
 SenResult c4001Component::getSensitivity() {
+<<<<<<< HEAD
   SenResult result{0, 0};
   float val1 = 0.0, val2 = 0.0;
 =======
@@ -501,6 +491,10 @@ sSensitivity_t c4001Component::getSensitivity() {
   sSensitivity_t result{0, 0};
   float val1 = 0.0, val2 = 0.0;
 >>>>>>> a8f3455730261805ada59c777b5e77763ad17173
+=======
+  SenResult result{0,0};
+  float val1=0.0, val2=0.0;
+>>>>>>> 31ed362f2 (update c4001)
   const char *cmd = "getSensitivity\r\n";
   char buf[100];
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
@@ -508,11 +502,11 @@ sSensitivity_t c4001Component::getSensitivity() {
   int n = extract_two_numbers_after_keyword(buf, "Response", &val1, &val2);
   ESP_LOGD(TAG, "sensitivity_: %f %f", val1, val2);
 
-  if (n >= 1) {
-    result.keep = (int) val1;
+  if(n >= 1){
+    result.keep = (int)val1;
   }
-  if (n >= 2) {
-    result.trig = (int) val2;
+  if(n >= 2){
+    result.trig = (int)val2;
   }
   ESP_LOGD(TAG, "sensitivity_: %d %d", result.keep, result.trig);
   return result;
@@ -522,20 +516,23 @@ sSensitivity_t c4001Component::getSensitivity() {
  * get_trig_uart
  * Query device for trigger range value.
  */
-<<<<<<< HEAD
 float c4001Component::get_trig_uart() {
+<<<<<<< HEAD
   float val1 = 0.0, val2 = 0.0;
 =======
 float c4001Component::getRangeTrig() {
   float val1 = 0.0, val2 = 0.0;
 >>>>>>> a8f3455730261805ada59c777b5e77763ad17173
+=======
+  float val1=0.0, val2=0.0;
+>>>>>>> 31ed362f2 (update c4001)
   float result = 0.0f;
   const char *cmd = "getTrigRange\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[100];
   uart_read_raw(buf, sizeof(buf), 100);
   int n = extract_two_numbers_after_keyword(buf, "Response", &val1, &val2);
-  if (n >= 1) {
+  if(n >= 1){
     result = val1;
   }
   ESP_LOGD(TAG, "trig range: %f", result);
@@ -546,23 +543,18 @@ float c4001Component::getRangeTrig() {
  * get_range_uart
  * Query device for min/max detection range.
  */
-<<<<<<< HEAD
 SRange c4001Component::get_range_uart() {
   SRange range{0, 0};
-=======
-sRange_t c4001Component::getRange() {
-  sRange_t range{0, 0};
->>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   float val1 = 0.0f, val2 = 0.0f;
   const char *cmd = "get_range_uart\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[100];
   uart_read_raw(buf, sizeof(buf), 100);
   int n = extract_two_numbers_after_keyword(buf, "Response", &val1, &val2);
-  if (n >= 1) {
+  if(n >= 1){
     range.min = val1;
   }
-  if (n >= 2) {
+  if(n >= 2){
     range.max = val2;
   }
   return range;
@@ -572,24 +564,18 @@ sRange_t c4001Component::getRange() {
  * get_delay_uart
  * Query device for confirm and disappear delays.
  */
-<<<<<<< HEAD
 DelResult c4001Component::get_delay_uart() {
   DelResult result{0, 0};
   float val1 = 0.0, val2 = 0.0;
-=======
-sDelays_t c4001Component::getDelays() {
-  sDelays_t result{0, 0};
-  float val1 = 0.0, val2 = 0.0;
->>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   const char *cmd = "getLatency\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[100];
   uart_read_raw(buf, sizeof(buf), 100);
   int n = extract_two_numbers_after_keyword(buf, "Response", &val1, &val2);
-  if (n >= 1) {
+  if(n >= 1){
     result.confirm = val1;
   }
-  if (n >= 2) {
+  if(n >= 2){
     result.disappear = val2;
   }
   return result;
@@ -599,21 +585,16 @@ sDelays_t c4001Component::getDelays() {
  * get_threshold_uart
  * Query device for threshold factor (integer).
  */
-<<<<<<< HEAD
 int c4001Component::get_threshold_uart() {
   float val1 = 0.0, val2 = 0.0;
-=======
-int c4001Component::getThreshold() {
-  float val1 = 0.0, val2 = 0.0;
->>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   int result = 0.0f;
   const char *cmd = "getThrFactor\r\n";
   char buf[100];
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   uart_read_raw(buf, sizeof(buf), 100);
   int n = extract_two_numbers_after_keyword(buf, "Response", &val1, &val2);
-  if (n >= 1) {
-    result = (int) val1;
+  if(n >= 1){
+    result = (int)val1;
   }
   return result;
 }
@@ -622,21 +603,16 @@ int c4001Component::getThreshold() {
  * get_micro_uart
  * Query device for micro-motion (microswitch) state.
  */
-<<<<<<< HEAD
 int c4001Component::get_micro_uart() {
   float val1 = 0.0, val2 = 0.0;
-=======
-int c4001Component::getMicroSwitch() {
-  float val1 = 0.0, val2 = 0.0;
->>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   int result = 0.0f;
   const char *cmd = "getMicroMotion\r\n";
   char buf[100];
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   uart_read_raw(buf, sizeof(buf), 100);
   int n = extract_two_numbers_after_keyword(buf, "Response", &val1, &val2);
-  if (n >= 1) {
-    result = (int) val1;
+  if(n >= 1){
+    result = (int)val1;
   }
   return result;
 }
@@ -760,7 +736,7 @@ void c4001Component::set_operating_mode(const std::string &state) {
   char full_cmd[64];
   snprintf(full_cmd, sizeof(full_cmd), "%s %d\r\n", cmd, value);
   send_cmd_with_param(full_cmd);
-  if (value != run_mode_) {
+  if(value != run_mode_) {
     update_config_param();
     run_mode_ = value;
   }
@@ -783,6 +759,7 @@ void c4001Component::set_micro_switch_state(bool state) {
   send_cmd_with_param(full_cmd);
   ESP_LOGD("dfrobot_c4001", "Setting micro switch to %s", state ? "ON" : "OFF");
 }
+
 
 }  // namespace dfrobot_c4001
 }  // namespace esphome

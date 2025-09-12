@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, DEVICE_CLASS_MOTION, ICON_MOTION_SENSOR
+from esphome.const import CONF_ID, DEVICE_CLASS_MOTION,ICON_MOTION_SENSOR
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import dfrobot_c4001_ns, c4001Component, CONF_C4001_ID
 
 C4001BinarySensor = dfrobot_c4001_ns.class_(
     "C4001BinarySensor", binary_sensor.BinarySensor, cg.Component

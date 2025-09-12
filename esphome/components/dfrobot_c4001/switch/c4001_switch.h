@@ -3,6 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../dfrobot_c4001.h"
 
+
 namespace esphome {
 namespace dfrobot_c4001 {
 

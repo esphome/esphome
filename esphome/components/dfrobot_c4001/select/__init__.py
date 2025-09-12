@@ -3,7 +3,7 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import CONF_C4001_ID, dfrobot_c4001_ns, c4001Component
 
 CONF_SELECTS = [
     "speed",
