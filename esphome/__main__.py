@@ -1,7 +1,6 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 from datetime import datetime
-from enum import Enum
 import functools
 import getpass
 import importlib
@@ -46,6 +45,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
+from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
@@ -109,9 +109,9 @@ def choose_prompt(options, purpose: str = None):
     return options[opt - 1][1]
 
 
-class Purpose(Enum):
-    UPLOADING = 1
-    LOGGING = 2
+class Purpose(StrEnum):
+    UPLOADING = "uploading"
+    LOGGING = "logging"
 
 
 def choose_upload_log_host(
