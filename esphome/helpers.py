@@ -9,9 +9,13 @@ from pathlib import Path
 import platform
 import re
 import tempfile
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
+
+if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
 
 # Type aliases for socket address information
 AddrInfo = tuple[
@@ -174,7 +178,7 @@ def addr_preference_(res: AddrInfo) -> int:
 
 
 def resolve_ip_address(
-    host: str | list[str], port: int, address_cache: object | None = None
+    host: str | list[str], port: int, address_cache: AddressCache | None = None
 ) -> list[AddrInfo]:
     import socket
 
