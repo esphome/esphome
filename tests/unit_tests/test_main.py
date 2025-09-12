@@ -16,12 +16,15 @@ from esphome.const import (
     CONF_BROKER,
     CONF_DISABLED,
     CONF_ESPHOME,
+    CONF_LEVEL,
+    CONF_LOG_TOPIC,
     CONF_MDNS,
     CONF_MQTT,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
+    CONF_TOPIC,
     CONF_USE_ADDRESS,
     CONF_WIFI,
     KEY_CORE,
@@ -1155,3 +1158,42 @@ def test_show_logs_platform_specific_handler(
     assert result == 0
     mock_import.assert_called_once_with("esphome.components.custom_platform")
     mock_module.show_logs.assert_called_once_with(config, args, devices)
+
+
+def test_has_mqtt_logging_no_log_topic() -> None:
+    """Test has_mqtt_logging returns True when CONF_LOG_TOPIC is not in mqtt_config."""
+    from esphome.__main__ import has_mqtt_logging
+
+    # Setup MQTT config without CONF_LOG_TOPIC (defaults to enabled - this is the missing test case)
+    setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local"}})
+    assert has_mqtt_logging() is True
+
+    # Setup MQTT config with CONF_LOG_TOPIC set to None (explicitly disabled)
+    setup_core(config={CONF_MQTT: {CONF_BROKER: "mqtt.local", CONF_LOG_TOPIC: None}})
+    assert has_mqtt_logging() is False
+
+    # Setup MQTT config with CONF_LOG_TOPIC set with topic and level (explicitly enabled)
+    setup_core(
+        config={
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+                CONF_LOG_TOPIC: {CONF_TOPIC: "esphome/logs", CONF_LEVEL: "DEBUG"},
+            }
+        }
+    )
+    assert has_mqtt_logging() is True
+
+    # Setup MQTT config with CONF_LOG_TOPIC set but level is NONE (disabled)
+    setup_core(
+        config={
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+                CONF_LOG_TOPIC: {CONF_TOPIC: "esphome/logs", CONF_LEVEL: "NONE"},
+            }
+        }
+    )
+    assert has_mqtt_logging() is False
+
+    # Setup without MQTT config at all
+    setup_core(config={})
+    assert has_mqtt_logging() is False
