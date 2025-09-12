@@ -122,6 +122,7 @@ esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
+esphome/components/dfrobot_c4001/* @96liuzhixin
 esphome/components/dfrobot_sen0395/* @niklasweber
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68

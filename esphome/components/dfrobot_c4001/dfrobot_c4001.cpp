@@ -365,13 +365,8 @@ bool C4001Component::sensor_stop() {
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[50];
   uart_read_raw(buf, sizeof(buf), 200);
-  if (str_match(buf, "sensor stopped already")) {
-    // Match successful
-    return true;
-  }
-  return false;
+  return str_match(buf, "sensor stopped already");
 }
-
 /**
  * sensor_start
  * Send a start command to the device.
@@ -621,7 +616,7 @@ void C4001Component::send_cmd_with_param(const char *cmd) {
 
   // Read data (just to clear buffer)
   char buf[100] = {0};
-  size_t n = uart_read_raw(buf, sizeof(buf), 100);
+  uart_read_raw(buf, sizeof(buf), 100);
   save_config();
   sensor_start();
 }
