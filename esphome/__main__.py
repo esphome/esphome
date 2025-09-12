@@ -551,26 +551,28 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if get_port_type(port) == "SERIAL":
         check_permissions(port)
         return run_miniterm(config, port, args)
-    if (
-        get_port_type(port) == "NETWORK"
-        and has_api()
-        and (has_mdns() or is_ip_address(port))
-    ):
-        from esphome.components.api.client import run_logs
 
-        return run_logs(config, devices)
-    if (
-        get_port_type(port) in ("NETWORK", "MQTT", "MQTTIP")
-        and has_api()
-        and has_mqtt_ip_lookup()
-    ):
-        addresses_to_use = mqtt_get_ip(
-            config, args.username, args.password, args.client_id
-        )
-        from esphome.components.api.client import run_logs
+    port_type = get_port_type(port)
 
-        return run_logs(config, addresses_to_use)
-    if get_port_type(port) in ("NETWORK", "MQTT") and has_mqtt_logging():
+    # Check if we should use API for logging
+    if has_api():
+        addresses_to_use: list[str] | None = None
+
+        if port_type == "NETWORK" and (has_mdns() or is_ip_address(port)):
+            addresses_to_use = devices
+        elif port_type in ("NETWORK", "MQTT", "MQTTIP") and has_mqtt_ip_lookup():
+            # Only use MQTT IP lookup if the first condition didn't match
+            # (for MQTT/MQTTIP types, or for NETWORK when mdns/ip check fails)
+            addresses_to_use = mqtt_get_ip(
+                config, args.username, args.password, args.client_id
+            )
+
+        if addresses_to_use is not None:
+            from esphome.components.api.client import run_logs
+
+            return run_logs(config, addresses_to_use)
+
+    if port_type in ("NETWORK", "MQTT") and has_mqtt_logging():
         from esphome import mqtt
 
         return mqtt.show_logs(
