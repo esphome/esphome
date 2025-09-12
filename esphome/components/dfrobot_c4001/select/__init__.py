@@ -3,7 +3,7 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import CONF_C4001_ID, C4001Component, dfrobot_c4001_ns
 
 CONF_SELECTS = [
     "speed",
@@ -15,7 +15,7 @@ CONF_OPERATING_MODE = "operating_mode"
 C4001Select = dfrobot_c4001_ns.class_("C4001Select", cg.Component)
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_C4001_ID): cv.use_id(c4001Component),
+    cv.GenerateID(CONF_C4001_ID): cv.use_id(C4001Component),
     cv.Required(CONF_OPERATING_MODE): select.select_schema(
         C4001Select,
         entity_category=ENTITY_CATEGORY_CONFIG,

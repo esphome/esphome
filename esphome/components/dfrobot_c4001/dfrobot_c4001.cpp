@@ -14,13 +14,13 @@ static const char *TAG = "dfrobot_c4001";
  * Called once when the component is initialized.
  * We call update_config_param() to load device configuration and publish initial values.
  */
-void c4001Component::setup() { update_config_param(); }
+void C4001Component::setup() { update_config_param(); }
 
 /**
  * print_config
  * Print current configuration values to the log for debugging.
  */
-void c4001Component::print_config() {
+void C4001Component::print_config() {
   ESP_LOGD(TAG, "min_range_: %.1f m", min_range_);
   ESP_LOGD(TAG, "max_range_: %.1f m", max_range_);
   ESP_LOGD(TAG, "trig_range_: %.1f m", trig_range_);
@@ -38,7 +38,7 @@ void c4001Component::print_config() {
  * Main periodic loop called frequently by ESPHome.
  * We call get_data() every 1000 ms to read and parse UART data.
  */
-void c4001Component::loop() {
+void C4001Component::loop() {
   // Perform periodic tasks here
   static unsigned long last_time = 0;
   unsigned long now = millis();
@@ -162,7 +162,7 @@ MotData parse_dfdmd(const std::string &line) {
  *
  * After parsing, update exist_, speed_, distance_ members.
  */
-void c4001Component::get_data() {
+void C4001Component::get_data() {
   MotData data;
   if (run_mode_ == MODE_MOTION) {
     char buf[50];
@@ -205,7 +205,7 @@ void c4001Component::get_data() {
  * Query device settings and update all configured number entities and other state.
  * This is typically called on setup or when settings change.
  */
-void c4001Component::update_config_param() {
+void C4001Component::update_config_param() {
   exist_ = 0;
   speed_ = 0.0;
   distance_ = 0.0;
@@ -308,7 +308,7 @@ void c4001Component::update_config_param() {
  * Drain and discard any pending bytes from the UART RX buffer.
  * Useful to ensure subsequent read returns fresh data.
  */
-void c4001Component::uart_clear_buffer() {
+void C4001Component::uart_clear_buffer() {
   uint8_t tmp[64];  // Temporary buffer
   while (this->available() > 0) {
     size_t toread = std::min(static_cast<size_t>(this->available()), sizeof(tmp));
@@ -324,7 +324,7 @@ void c4001Component::uart_clear_buffer() {
  *
  * Note: bufsize should be >= 2 (we reserve one byte for terminating NUL).
  */
-size_t c4001Component::uart_read_raw(char *buf, size_t bufsize, uint32_t timeout_ms) {
+size_t C4001Component::uart_read_raw(char *buf, size_t bufsize, uint32_t timeout_ms) {
   if (!buf || bufsize < 2)
     return 0;
   size_t idx = 0;
@@ -359,7 +359,7 @@ bool str_match(const std::string &text, const std::string &pattern) { return tex
  * Send a stop command to the device and check the response.
  * Returns true if device indicates it is already stopped.
  */
-bool c4001Component::sensor_stop(void) {
+bool C4001Component::sensor_stop(void) {
   uint8_t len = 0;
   uart_clear_buffer();  // Clear buffer
   // Send stop command
@@ -378,7 +378,7 @@ bool c4001Component::sensor_stop(void) {
  * sensor_start
  * Send a start command to the device.
  */
-void c4001Component::sensor_start(void) {
+void C4001Component::sensor_start(void) {
   const char *cmd = "sensor_start\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
 }
@@ -387,7 +387,7 @@ void c4001Component::sensor_start(void) {
  * save_config
  * Send save_config command to persist device configuration.
  */
-void c4001Component::save_config(void) {
+void C4001Component::save_config(void) {
   const char *cmd = "save_config\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
 }
@@ -458,7 +458,7 @@ MotionMode parse_mode(const std::string &line) {
  * Read a single UART line and use parse_mode() to determine the current run mode.
  * Returns: 1 for speed, 0 for motion, -1 for unknown/error.
  */
-int c4001Component::get_run_mode() {
+int C4001Component::get_run_mode() {
   char buf[100];
   uart_clear_buffer();                                 // Clear buffer
   int len = uart_read_raw(buf, sizeof(buf) - 1, 400);  // Read UART data
@@ -492,7 +492,7 @@ int c4001Component::get_run_mode() {
  * get_sensitivity_uart
  * Query device for sensitivity settings and return them in SenResult.
  */
-SenResult c4001Component::get_sensitivity_uart() {
+SenResult C4001Component::get_sensitivity_uart() {
   SenResult result{0, 0};
   float val1 = 0.0, val2 = 0.0;
   const char *cmd = "get_sensitivity_uart\r\n";
@@ -516,7 +516,7 @@ SenResult c4001Component::get_sensitivity_uart() {
  * get_trig_uart
  * Query device for trigger range value.
  */
-float c4001Component::get_trig_uart() {
+float C4001Component::get_trig_uart() {
   float val1 = 0.0, val2 = 0.0;
   float result = 0.0f;
   const char *cmd = "getTrigRange\r\n";
@@ -535,7 +535,7 @@ float c4001Component::get_trig_uart() {
  * get_range_uart
  * Query device for min/max detection range.
  */
-SRange c4001Component::get_range_uart() {
+SRange C4001Component::get_range_uart() {
   SRange range{0, 0};
   float val1 = 0.0f, val2 = 0.0f;
   const char *cmd = "get_range_uart\r\n";
@@ -556,7 +556,7 @@ SRange c4001Component::get_range_uart() {
  * get_delay_uart
  * Query device for confirm and disappear delays.
  */
-DelResult c4001Component::get_delay_uart() {
+DelResult C4001Component::get_delay_uart() {
   DelResult result{0, 0};
   float val1 = 0.0, val2 = 0.0;
   const char *cmd = "getLatency\r\n";
@@ -577,7 +577,7 @@ DelResult c4001Component::get_delay_uart() {
  * get_threshold_uart
  * Query device for threshold factor (integer).
  */
-int c4001Component::get_threshold_uart() {
+int C4001Component::get_threshold_uart() {
   float val1 = 0.0, val2 = 0.0;
   int result = 0.0f;
   const char *cmd = "getThrFactor\r\n";
@@ -595,7 +595,7 @@ int c4001Component::get_threshold_uart() {
  * get_micro_uart
  * Query device for micro-motion (microswitch) state.
  */
-int c4001Component::get_micro_uart() {
+int C4001Component::get_micro_uart() {
   float val1 = 0.0, val2 = 0.0;
   int result = 0.0f;
   const char *cmd = "getMicroMotion\r\n";
@@ -615,7 +615,7 @@ int c4001Component::get_micro_uart() {
  * This will stop the sensor, write the command, attempt a read to clear the response,
  * save config and then restart the sensor.
  */
-void c4001Component::send_cmd_with_param(const char *cmd) {
+void C4001Component::send_cmd_with_param(const char *cmd) {
   sensor_stop();
 
   // Send command
@@ -633,7 +633,7 @@ void c4001Component::send_cmd_with_param(const char *cmd) {
  * Setter functions that update internal state and send corresponding device commands.
  * Each uses send_cmd_with_param() to perform the command round trip.
  */
-void c4001Component::set_min_range(float value) {
+void C4001Component::set_min_range(float value) {
   if (value > max_range_) {
     ESP_LOGW(TAG, "Min range %.1f is greater than current max range %.1f, ignoring", value, max_range_);
     return;
@@ -645,7 +645,7 @@ void c4001Component::set_min_range(float value) {
   send_cmd_with_param(full_cmd);
 }
 
-void c4001Component::set_max_range(float value) {
+void C4001Component::set_max_range(float value) {
   if (value < min_range_) {
     ESP_LOGW(TAG, "Max range %.1f is less than current min range %.1f, ignoring", value, min_range_);
     return;
@@ -657,7 +657,7 @@ void c4001Component::set_max_range(float value) {
   send_cmd_with_param(full_cmd);
 }
 
-void c4001Component::set_trig_range(float value) {
+void C4001Component::set_trig_range(float value) {
   trig_range_ = value;
   ESP_LOGD(TAG, "Trig range set to %.1f", value);
   const char *cmd = "setTrigRange";
@@ -667,7 +667,7 @@ void c4001Component::set_trig_range(float value) {
 }
 
 // Set keep sensitivity
-void c4001Component::set_keep_sensitivity(int value) {
+void C4001Component::set_keep_sensitivity(int value) {
   keep_sensitivity_ = value;
   const char *cmd = "setSensitivity";
   char full_cmd[64];
@@ -677,7 +677,7 @@ void c4001Component::set_keep_sensitivity(int value) {
 }
 
 // Set trigger sensitivity
-void c4001Component::set_trig_sensitivity(int value) {
+void C4001Component::set_trig_sensitivity(int value) {
   trig_sensitivity_ = value;
   const char *cmd = "setSensitivity";
   char full_cmd[64];
@@ -688,7 +688,7 @@ void c4001Component::set_trig_sensitivity(int value) {
 }
 
 // Set confirmation delay (in seconds)
-void c4001Component::set_confirm_delay(float value) {
+void C4001Component::set_confirm_delay(float value) {
   confirm_delay_ = value;
   const char *cmd = "setLatency";
   char full_cmd[64];
@@ -698,7 +698,7 @@ void c4001Component::set_confirm_delay(float value) {
 }
 
 // Set disappearance delay (in seconds)
-void c4001Component::set_disappear_delay(float value) {
+void C4001Component::set_disappear_delay(float value) {
   disappear_delay_ = value;
   const char *cmd = "setLatency";
   char full_cmd[64];
@@ -708,7 +708,7 @@ void c4001Component::set_disappear_delay(float value) {
 }
 
 // Set threshold factor
-void c4001Component::set_threshold_factor(int value) {
+void C4001Component::set_threshold_factor(int value) {
   threshold_factor_ = value;
   const char *cmd = "setThrFactor";
   char full_cmd[64];
@@ -722,7 +722,7 @@ void c4001Component::set_threshold_factor(int value) {
  * Convert a string ("motion" or "speed") into the device run-mode and send command.
  * After changing mode, re-read configuration via update_config_param().
  */
-void c4001Component::set_operating_mode(const std::string &state) {
+void C4001Component::set_operating_mode(const std::string &state) {
   int value = (state == "motion") ? 0 : 1;
   const char *cmd = "setRunApp";
   char full_cmd[64];
@@ -740,7 +740,7 @@ void c4001Component::set_operating_mode(const std::string &state) {
  * set_micro_switch_state
  * Toggle micro-motion hardware setting and send command to device.
  */
-void c4001Component::set_micro_switch_state(bool state) {
+void C4001Component::set_micro_switch_state(bool state) {
   // Implement hardware control logic here
   const char *cmd = "setMicroMotion";
   int value;

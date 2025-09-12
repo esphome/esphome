@@ -3,7 +3,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_MOTION, ICON_MOTION_SENSOR
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import CONF_C4001_ID, C4001Component, dfrobot_c4001_ns
 
 C4001BinarySensor = dfrobot_c4001_ns.class_(
     "C4001BinarySensor", binary_sensor.BinarySensor, cg.Component
@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(C4001BinarySensor),
-            cv.GenerateID(CONF_C4001_ID): cv.use_id(c4001Component),
+            cv.GenerateID(CONF_C4001_ID): cv.use_id(C4001Component),
             cv.Optional(CONF_EXIST_STATE): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_MOTION,
                 icon=ICON_MOTION_SENSOR,

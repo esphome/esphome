@@ -74,9 +74,9 @@ class C4001Listener {
  * This class handles UART communication, parsing, and publishing to
  * Home Assistant via child components (sensors, binary sensors, numbers, switches).
  */
-class c4001Component : public Component, public uart::UARTDevice {
+class C4001Component : public Component, public uart::UARTDevice {
  public:
-  explicit c4001Component(uart::UARTComponent *parent = nullptr) : uart::UARTDevice(parent) {}
+  explicit C4001Component(uart::UARTComponent *parent = nullptr) : uart::UARTDevice(parent) {}
 
   /** Lifecycle hooks */
   void setup() override;

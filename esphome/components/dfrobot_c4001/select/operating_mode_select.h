@@ -6,7 +6,7 @@
 namespace esphome {
 namespace dfrobot_c4001 {
 
-class C4001Select : public Component, public select::Select, public Parented<c4001Component> {
+class C4001Select : public Component, public select::Select, public Parented<C4001Component> {
  public:
   C4001Select() = default;
 

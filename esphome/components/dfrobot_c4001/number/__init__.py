@@ -9,7 +9,7 @@ from esphome.const import (
     UNIT_SECOND,
 )
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import CONF_C4001_ID, C4001Component, dfrobot_c4001_ns
 
 MinRangeNumber = dfrobot_c4001_ns.class_("MinRangeNumber", number.Number)
 MaxRangeNumber = dfrobot_c4001_ns.class_("MaxRangeNumber", number.Number)
@@ -29,7 +29,7 @@ CONF_THRESHOLD_FACTOR = "threshold_factor"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_C4001_ID): cv.use_id(c4001Component),
+        cv.GenerateID(CONF_C4001_ID): cv.use_id(C4001Component),
         cv.Optional(CONF_MIN_RANGE): number.number_schema(
             MinRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,

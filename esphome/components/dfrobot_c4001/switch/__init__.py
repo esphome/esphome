@@ -3,7 +3,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import CONF_C4001_ID, C4001Component, dfrobot_c4001_ns
 
 CONF_MOTION_SWITCH = "motion_switch"
 
@@ -11,7 +11,7 @@ C4001Switch = dfrobot_c4001_ns.class_("C4001Switch", switch.Switch)
 
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_C4001_ID): cv.use_id(c4001Component),
+    cv.GenerateID(CONF_C4001_ID): cv.use_id(C4001Component),
     cv.Optional(CONF_MOTION_SWITCH): switch.switch_schema(
         C4001Switch,
         device_class=DEVICE_CLASS_SWITCH,

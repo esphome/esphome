@@ -11,14 +11,14 @@ from esphome.const import (
     UNIT_METER,
 )
 
-from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
+from .. import CONF_C4001_ID, C4001Component, dfrobot_c4001_ns
 
 C4001Sensor = dfrobot_c4001_ns.class_("C4001Sensor", cg.Component)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(C4001Sensor),
-        cv.Required(CONF_C4001_ID): cv.use_id(c4001Component),
+        cv.Required(CONF_C4001_ID): cv.use_id(C4001Component),
         cv.Optional(CONF_SPEED): sensor.sensor_schema(
             device_class=DEVICE_CLASS_SPEED,
             unit_of_measurement="m/s",

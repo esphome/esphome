@@ -1,4 +1,3 @@
-
 uart:
   id: uart_bus
   tx_pin: ${tx_pin}

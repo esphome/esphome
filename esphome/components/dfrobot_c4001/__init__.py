@@ -9,8 +9,8 @@ CODEOWNERS = ["@96liuzhixin"]
 
 
 dfrobot_c4001_ns = cg.esphome_ns.namespace("dfrobot_c4001")
-c4001Component = dfrobot_c4001_ns.class_(
-    "c4001Component", cg.Component, uart.UARTDevice
+C4001Component = dfrobot_c4001_ns.class_(
+    "C4001Component", cg.Component, uart.UARTDevice
 )
 
 
@@ -19,7 +19,7 @@ CONF_C4001_ID = "c4001_id"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(c4001Component),
+            cv.GenerateID(): cv.declare_id(C4001Component),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
