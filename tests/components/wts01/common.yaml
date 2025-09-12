@@ -1,7 +1,9 @@
 uart:
+  id: uart_bus
   rx_pin: ${rx_pin}
   baud_rate: 9600
 
 sensor:
   - platform: wts01
     id: wts01_sensor
+    uart_id: uart_bus
