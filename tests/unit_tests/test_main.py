@@ -9,10 +9,13 @@ from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from pytest import CaptureFixture
 
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
+    command_rename,
+    command_wizard,
     get_port_type,
     has_ip_address,
     has_mqtt,
@@ -33,10 +36,12 @@ from esphome.const import (
     CONF_LOG_TOPIC,
     CONF_MDNS,
     CONF_MQTT,
+    CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
+    CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     CONF_USE_ADDRESS,
     CONF_WIFI,
@@ -191,6 +196,14 @@ def mock_no_mqtt_logging() -> Generator[Mock]:
 def mock_has_mqtt_logging() -> Generator[Mock]:
     """Mock has_mqtt_logging to return True."""
     with patch("esphome.__main__.has_mqtt_logging", return_value=True) as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_external_process() -> Generator[Mock]:
+    """Mock run_external_process for testing."""
+    with patch("esphome.__main__.run_external_process") as mock:
+        mock.return_value = 0  # Default to success
         yield mock
 
 
@@ -741,6 +754,9 @@ class MockArgs:
     password: str | None = None
     client_id: str | None = None
     topic: str | None = None
+    configuration: str | None = None
+    name: str | None = None
+    dashboard: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -1340,3 +1356,178 @@ def test_has_resolvable_address() -> None:
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
     assert has_resolvable_address() is False
+
+
+def test_command_wizard(tmp_path: Path) -> None:
+    """Test command_wizard function."""
+    config_file = tmp_path / "test.yaml"
+
+    # Mock wizard.wizard to avoid interactive prompts
+    with patch("esphome.wizard.wizard") as mock_wizard:
+        mock_wizard.return_value = 0
+
+        args = MockArgs(configuration=str(config_file))
+        result = command_wizard(args)
+
+        assert result == 0
+        mock_wizard.assert_called_once_with(str(config_file))
+
+
+def test_command_rename_invalid_characters(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """Test command_rename with invalid characters in name."""
+    setup_core(tmp_path=tmp_path)
+
+    # Test with invalid character (space)
+    args = MockArgs(name="invalid name")
+    result = command_rename(args, {})
+
+    assert result == 1
+    captured = capfd.readouterr()
+    assert "invalid character" in captured.out.lower()
+
+
+def test_command_rename_complex_yaml(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """Test command_rename with complex YAML that cannot be renamed."""
+    config_file = tmp_path / "test.yaml"
+    config_file.write_text("# Complex YAML without esphome section\nsome_key: value\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = str(config_file)
+
+    args = MockArgs(name="newname")
+    result = command_rename(args, {})
+
+    assert result == 1
+    captured = capfd.readouterr()
+    assert "complex yaml" in captured.out.lower()
+
+
+def test_command_rename_success(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test successful rename of a simple configuration."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+esphome:
+  name: oldname
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ssid: "test"
+  password: "test1234"
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = str(config_file)
+
+    # Set up CORE.config to avoid ValueError when accessing CORE.address
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+
+    args = MockArgs(name="newname", dashboard=False)
+
+    # Simulate successful validation and upload
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+
+    # Verify new file was created
+    new_file = tmp_path / "newname.yaml"
+    assert new_file.exists()
+
+    # Verify old file was removed
+    assert not config_file.exists()
+
+    # Verify content was updated
+    content = new_file.read_text()
+    assert (
+        'name: "newname"' in content
+        or "name: 'newname'" in content
+        or "name: newname" in content
+    )
+
+    captured = capfd.readouterr()
+    assert "SUCCESS" in captured.out
+
+
+def test_command_rename_with_substitutions(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename with substitutions in YAML."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+substitutions:
+  device_name: oldname
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = str(config_file)
+
+    # Set up CORE.config to avoid ValueError when accessing CORE.address
+    CORE.config = {
+        CONF_ESPHOME: {CONF_NAME: "oldname"},
+        CONF_SUBSTITUTIONS: {"device_name": "oldname"},
+    }
+
+    args = MockArgs(name="newname", dashboard=False)
+
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+
+    # Verify substitution was updated
+    new_file = tmp_path / "newname.yaml"
+    content = new_file.read_text()
+    assert 'device_name: "newname"' in content
+
+
+def test_command_rename_validation_failure(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename when validation fails."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+esphome:
+  name: oldname
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = str(config_file)
+
+    args = MockArgs(name="newname", dashboard=False)
+
+    # First call for validation fails
+    mock_run_external_process.return_value = 1
+
+    result = command_rename(args, {})
+
+    assert result == 1
+
+    # Verify new file was created but then removed due to failure
+    new_file = tmp_path / "newname.yaml"
+    assert not new_file.exists()
+
+    # Verify old file still exists (not removed on failure)
+    assert config_file.exists()
+
+    captured = capfd.readouterr()
+    assert "Rename failed" in captured.out
