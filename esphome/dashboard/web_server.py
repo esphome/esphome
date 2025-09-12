@@ -50,8 +50,8 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .const import DASHBOARD_COMMAND
-from .core import DASHBOARD
-from .entries import UNKNOWN_STATE, entry_state_to_bool
+from .core import DASHBOARD, ESPHomeDashboard
+from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
 from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
@@ -314,6 +314,73 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         raise NotImplementedError
 
 
+def build_cache_arguments(
+    entry: DashboardEntry | None,
+    dashboard: ESPHomeDashboard,
+    now: float,
+) -> list[str]:
+    """Build cache arguments for passing to CLI.
+
+    Args:
+        entry: Dashboard entry for the configuration
+        dashboard: Dashboard instance with cache access
+        now: Current monotonic time for DNS cache expiry checks
+
+    Returns:
+        List of cache arguments to pass to CLI
+    """
+    cache_args: list[str] = []
+
+    if not entry:
+        return cache_args
+
+    _LOGGER.debug(
+        "Building cache for entry (address=%s, name=%s)",
+        entry.address,
+        entry.name,
+    )
+
+    def add_cache_entry(hostname: str, addresses: list[str], cache_type: str) -> None:
+        """Add a cache entry to the command arguments."""
+        if not addresses:
+            return
+        normalized = hostname.rstrip(".").lower()
+        cache_args.extend(
+            [
+                f"--{cache_type}-address-cache",
+                f"{normalized}={','.join(sort_ip_addresses(addresses))}",
+            ]
+        )
+
+    # Check entry.address for cached addresses
+    if use_address := entry.address:
+        if use_address.endswith(".local"):
+            # mDNS cache for .local addresses
+            if (mdns := dashboard.mdns_status) and (
+                cached := mdns.get_cached_addresses(use_address)
+            ):
+                _LOGGER.debug("mDNS cache hit for %s: %s", use_address, cached)
+                add_cache_entry(use_address, cached, "mdns")
+        # DNS cache for non-.local addresses
+        elif cached := dashboard.dns_cache.get_cached_addresses(use_address, now):
+            _LOGGER.debug("DNS cache hit for %s: %s", use_address, cached)
+            add_cache_entry(use_address, cached, "dns")
+
+    # Check entry.name if we haven't already cached via address
+    # For mDNS devices, entry.name typically doesn't have .local suffix
+    if entry.name and not use_address:
+        mdns_name = (
+            f"{entry.name}.local" if not entry.name.endswith(".local") else entry.name
+        )
+        if (mdns := dashboard.mdns_status) and (
+            cached := mdns.get_cached_addresses(mdns_name)
+        ):
+            _LOGGER.debug("mDNS cache hit for %s: %s", mdns_name, cached)
+            add_cache_entry(mdns_name, cached, "mdns")
+
+    return cache_args
+
+
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
@@ -336,57 +403,7 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            now = time.monotonic()
-            _LOGGER.debug(
-                "Building cache for %s (address=%s, name=%s)",
-                configuration,
-                entry.address,
-                entry.name,
-            )
-
-            def add_cache_entry(
-                hostname: str, addresses: list[str], cache_type: str
-            ) -> None:
-                """Add a cache entry to the command arguments."""
-                if not addresses:
-                    return
-                normalized = hostname.rstrip(".").lower()
-                cache_args.extend(
-                    [
-                        f"--{cache_type}-address-cache",
-                        f"{normalized}={','.join(sort_ip_addresses(addresses))}",
-                    ]
-                )
-
-            # Check entry.address for cached addresses
-            if use_address := entry.address:
-                if use_address.endswith(".local"):
-                    # mDNS cache for .local addresses
-                    if (mdns := dashboard.mdns_status) and (
-                        cached := mdns.get_cached_addresses(use_address)
-                    ):
-                        _LOGGER.debug("mDNS cache hit for %s: %s", use_address, cached)
-                        add_cache_entry(use_address, cached, "mdns")
-                # DNS cache for non-.local addresses
-                elif cached := dashboard.dns_cache.get_cached_addresses(
-                    use_address, now
-                ):
-                    _LOGGER.debug("DNS cache hit for %s: %s", use_address, cached)
-                    add_cache_entry(use_address, cached, "dns")
-
-            # Check entry.name if we haven't already cached via address
-            # For mDNS devices, entry.name typically doesn't have .local suffix
-            if entry.name and not use_address:
-                mdns_name = (
-                    f"{entry.name}.local"
-                    if not entry.name.endswith(".local")
-                    else entry.name
-                )
-                if (mdns := dashboard.mdns_status) and (
-                    cached := mdns.get_cached_addresses(mdns_name)
-                ):
-                    _LOGGER.debug("mDNS cache hit for %s: %s", mdns_name, cached)
-                    add_cache_entry(mdns_name, cached, "mdns")
+            cache_args = build_cache_arguments(entry, dashboard, time.monotonic())
 
         # Cache arguments must come before the subcommand
         cmd = [*DASHBOARD_COMMAND, *cache_args, *args, config_file, "--device", port]
