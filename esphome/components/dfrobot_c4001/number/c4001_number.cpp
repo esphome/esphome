@@ -23,7 +23,7 @@ void MaxRangeNumber::control(float value) {
   if (this->parent_) {
     float min_range = this->parent_->get_min_range();
     float max_range = this->parent_->get_max_range();
-    if (value > min_range) {
+    if(value > min_range){
       this->publish_state(value);
       ESP_LOGD(TAG, "Set max range to %.1f", value);
       this->parent_->set_max_range(value);
