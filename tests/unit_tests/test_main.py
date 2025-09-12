@@ -1148,10 +1148,8 @@ wifi:
 
     args = MockArgs(name="newname", dashboard=False)
 
-    # Use the fixture for run_external_process
-    mock_run_external_process.return_value = (
-        0  # Simulate successful validation and upload
-    )
+    # Simulate successful validation and upload
+    mock_run_external_process.return_value = 0
 
     result = command_rename(args, {})
 
