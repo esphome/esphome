@@ -1161,19 +1161,9 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     # Create address cache from command-line arguments
-    address_cache = AddressCache.from_cli_args(
+    CORE.address_cache = AddressCache.from_cli_args(
         args.mdns_address_cache, args.dns_address_cache
     )
-
-    # Store cache in CORE for access throughout the application
-    CORE.address_cache = address_cache
-    if address_cache.has_cache():
-        _LOGGER.debug(
-            "Address cache initialized with %d mDNS and %d DNS entries",
-            len(address_cache.mdns_cache),
-            len(address_cache.dns_cache),
-        )
-
     # Override log level if verbose is set
     if args.verbose:
         args.log_level = "DEBUG"
