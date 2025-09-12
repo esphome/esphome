@@ -1,4 +1,5 @@
 import re
+import math
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -249,8 +250,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
-            cv.SplitDefault(CONF_RX_FULL_THRESHOLD, esp32=120): cv.All(
-                cv.only_on_esp32, cv.validate_bytes, cv.uint8_t
+            cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=120)
             ),
             cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
@@ -317,6 +318,12 @@ async def to_code(config):
         cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     if CORE.is_esp32:
+        if CONF_RX_FULL_THRESHOLD not in config:
+            # Calculate rx_full_threshold to be 10ms
+            bytelength = config[CONF_DATA_BITS] + config[CONF_STOP_BITS] + 1
+            if config[CONF_PARITY] != "NONE":
+                bytelength += 1
+            config[CONF_RX_FULL_THRESHOLD] = max(0, min(120, math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1)))
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
