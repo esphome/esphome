@@ -14,6 +14,7 @@ from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
     get_port_type,
+    has_ip_address,
     has_mqtt,
     has_mqtt_ip_lookup,
     has_mqtt_logging,
@@ -1275,3 +1276,22 @@ def test_has_non_ip_address() -> None:
 
     setup_core(address="my-device")
     assert has_non_ip_address() is True
+
+
+def test_has_ip_address() -> None:
+    """Test has_ip_address function."""
+
+    setup_core(address=None)
+    assert has_ip_address() is False
+
+    setup_core(address="192.168.1.100")
+    assert has_ip_address() is True
+
+    setup_core(address="10.0.0.1")
+    assert has_ip_address() is True
+
+    setup_core(address="esphome-device.local")
+    assert has_ip_address() is False
+
+    setup_core(address="my-device")
+    assert has_ip_address() is False
