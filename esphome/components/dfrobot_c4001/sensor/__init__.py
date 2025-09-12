@@ -5,7 +5,7 @@ from esphome.const import (
     UNIT_METER,
     CONF_ID,
     DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_SPEED, 
+    DEVICE_CLASS_SPEED,
     ICON_RULER,
     CONF_SPEED,
     CONF_DISTANCE,
@@ -14,12 +14,9 @@ from .. import dfrobot_c4001_ns, c4001Component, CONF_C4001_ID
 
 C4001Sensor = dfrobot_c4001_ns.class_("C4001Sensor", cg.Component)
 
-
-
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(C4001Sensor),
     cv.Required(CONF_C4001_ID): cv.use_id(c4001Component),
-    
     cv.Optional(CONF_SPEED): sensor.sensor_schema(
         device_class=DEVICE_CLASS_SPEED,
         unit_of_measurement="m/s",
@@ -38,16 +35,13 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     c4001_sensor = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(c4001_sensor, config)
-
     if CONF_SPEED in config:
         sens_conf = config[CONF_SPEED]
         sens = await sensor.new_sensor(sens_conf)
         cg.add(c4001_sensor.set_speed_sensor(sens))
-
     if CONF_DISTANCE in config:
         sens_conf = config[CONF_DISTANCE]
         sens = await sensor.new_sensor(sens_conf)
         cg.add(c4001_sensor.set_distance_sensor(sens))
-        
     c4001_component = await cg.get_variable(config[CONF_C4001_ID])
     cg.add(c4001_component.register_listener(c4001_sensor))

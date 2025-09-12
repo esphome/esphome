@@ -216,7 +216,7 @@ void c4001Component::update_config_param() {
   int trig = get_trig_uart();
   SRange range = get_range_uart();
   DelResult delays = get_delay_uart();
-  SenResult sensitivity = getSensitivity();
+  SenResult sensitivity = get_sensitivity_uart();
   int micro = get_micro_uart();
 
   // Update internal members with values from device
@@ -479,23 +479,13 @@ int c4001Component::get_run_mode() {
 }
 
 /**
- * getSensitivity
+ * get_sensitivity_uart
  * Query device for sensitivity settings and return them in SenResult.
  */
-SenResult c4001Component::getSensitivity() {
-<<<<<<< HEAD
+SenResult c4001Component::get_sensitivity_uart() {
   SenResult result{0, 0};
   float val1 = 0.0, val2 = 0.0;
-=======
-sSensitivity_t c4001Component::getSensitivity() {
-  sSensitivity_t result{0, 0};
-  float val1 = 0.0, val2 = 0.0;
->>>>>>> a8f3455730261805ada59c777b5e77763ad17173
-=======
-  SenResult result{0,0};
-  float val1=0.0, val2=0.0;
->>>>>>> 31ed362f2 (update c4001)
-  const char *cmd = "getSensitivity\r\n";
+  const char *cmd = "get_sensitivity_uart\r\n";
   char buf[100];
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   uart_read_raw(buf, sizeof(buf), 100);
@@ -517,15 +507,7 @@ sSensitivity_t c4001Component::getSensitivity() {
  * Query device for trigger range value.
  */
 float c4001Component::get_trig_uart() {
-<<<<<<< HEAD
   float val1 = 0.0, val2 = 0.0;
-=======
-float c4001Component::getRangeTrig() {
-  float val1 = 0.0, val2 = 0.0;
->>>>>>> a8f3455730261805ada59c777b5e77763ad17173
-=======
-  float val1=0.0, val2=0.0;
->>>>>>> 31ed362f2 (update c4001)
   float result = 0.0f;
   const char *cmd = "getTrigRange\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));

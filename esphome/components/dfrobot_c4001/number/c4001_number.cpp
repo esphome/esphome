@@ -1,11 +1,8 @@
 #include "c4001_number.h"
 #include "esphome/core/log.h"
-
 namespace esphome {
 namespace dfrobot_c4001 {
-
 static const char *TAG = "c4001.number";
-
 // -------- Min Range --------
 void MinRangeNumber::control(float value) {
   if (this->parent_) {
@@ -20,9 +17,7 @@ void MinRangeNumber::control(float value) {
       this->publish_state(min_range);
     }
   }
-  
 }
-
 // -------- Max Range --------
 void MaxRangeNumber::control(float value) {
   if (this->parent_) {
@@ -38,7 +33,6 @@ void MaxRangeNumber::control(float value) {
     }
   }
 }
-
 // -------- Trigger Range --------
 void TrigRangeNumber::control(float value) {
   if (this->parent_) {
@@ -47,7 +41,6 @@ void TrigRangeNumber::control(float value) {
   }
   this->publish_state(value);
 }
-
 // -------- Keep Sensitivity --------
 void KeepSensitivityNumber::control(float value) {
   if (this->parent_) {
@@ -56,7 +49,6 @@ void KeepSensitivityNumber::control(float value) {
   }
   this->publish_state(value);
 }
-
 // -------- Trigger Sensitivity --------
 void TrigSensitivityNumber::control(float value) {
   if (this->parent_) {
@@ -65,7 +57,6 @@ void TrigSensitivityNumber::control(float value) {
   }
   this->publish_state(value);
 }
-
 // -------- Confirm Delay --------
 void ConfirmDelayNumber::control(float value) {
   if (this->parent_) {
@@ -74,7 +65,6 @@ void ConfirmDelayNumber::control(float value) {
   }
   this->publish_state(value);
 }
-
 // -------- Disappear Delay --------
 void DisappearDelayNumber::control(float value) {
   if (this->parent_) {
@@ -83,7 +73,6 @@ void DisappearDelayNumber::control(float value) {
   }
   this->publish_state(value);
 }
-
 // -------- Threshold Factor --------
 void ThresholdFactorNumber::control(float value) {
   if (this->parent_) {
@@ -92,6 +81,5 @@ void ThresholdFactorNumber::control(float value) {
   }
   this->publish_state(value);
 }
-
 }  // namespace dfrobot_c4001
 }  // namespace esphome

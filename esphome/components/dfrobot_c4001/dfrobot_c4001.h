@@ -129,7 +129,7 @@ class c4001Component : public Component, public uart::UARTDevice {
   /** Sensitivity interface */
   void set_keep_sensitivity(int value);
   void set_trig_sensitivity(int value);
-  SenResult getSensitivity();
+  SenResult get_sensitivity_uart();
 
   /** Delay interface */
   void set_confirm_delay(float value);
