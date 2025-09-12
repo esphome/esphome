@@ -8,6 +8,7 @@ from hypothesis.strategies import ip_addresses
 import pytest
 
 from esphome import helpers
+from esphome.address_cache import AddressCache
 from esphome.core import EsphomeError
 
 
@@ -598,8 +599,6 @@ def test_resolve_ip_address_sorting() -> None:
 
 def test_resolve_ip_address_with_cache() -> None:
     """Test that the cache is used when provided."""
-    from esphome.address_cache import AddressCache
-
     cache = AddressCache(
         mdns_cache={"test.local": ["192.168.1.100", "192.168.1.101"]},
         dns_cache={
@@ -626,8 +625,6 @@ def test_resolve_ip_address_with_cache() -> None:
 
 def test_resolve_ip_address_cache_miss() -> None:
     """Test that resolver is called when not in cache."""
-    from esphome.address_cache import AddressCache
-
     cache = AddressCache(mdns_cache={"other.local": ["192.168.1.200"]})
 
     mock_addr_info = AddrInfo(
@@ -651,8 +648,6 @@ def test_resolve_ip_address_cache_miss() -> None:
 
 def test_resolve_ip_address_mixed_cached_uncached() -> None:
     """Test resolution with mix of cached and uncached hosts."""
-    from esphome.address_cache import AddressCache
-
     cache = AddressCache(mdns_cache={"cached.local": ["192.168.1.50"]})
 
     mock_addr_info = AddrInfo(
