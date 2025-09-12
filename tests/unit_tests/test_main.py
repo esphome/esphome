@@ -19,6 +19,8 @@ from esphome.__main__ import (
     has_mqtt_ip_lookup,
     has_mqtt_logging,
     has_non_ip_address,
+    has_resolvable_address,
+    mqtt_get_ip,
     show_logs,
     upload_program,
 )
@@ -1295,3 +1297,46 @@ def test_has_ip_address() -> None:
 
     setup_core(address="my-device")
     assert has_ip_address() is False
+
+
+def test_mqtt_get_ip() -> None:
+    """Test mqtt_get_ip function."""
+    config = {CONF_MQTT: {CONF_BROKER: "mqtt.local"}}
+
+    with patch("esphome.mqtt.get_esphome_device_ip") as mock_get_ip:
+        mock_get_ip.return_value = ["192.168.1.100", "192.168.1.101"]
+
+        result = mqtt_get_ip(config, "user", "pass", "client-id")
+
+        assert result == ["192.168.1.100", "192.168.1.101"]
+        mock_get_ip.assert_called_once_with(config, "user", "pass", "client-id")
+
+
+def test_has_resolvable_address() -> None:
+    """Test has_resolvable_address function."""
+
+    # Test with mDNS enabled and hostname address
+    setup_core(config={}, address="esphome-device.local")
+    assert has_resolvable_address() is True
+
+    # Test with mDNS disabled and hostname address
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    assert has_resolvable_address() is False
+
+    # Test with IP address (mDNS doesn't matter)
+    setup_core(config={}, address="192.168.1.100")
+    assert has_resolvable_address() is True
+
+    # Test with IP address and mDNS disabled
+    setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="192.168.1.100")
+    assert has_resolvable_address() is True
+
+    # Test with no address but mDNS enabled (can still resolve mDNS names)
+    setup_core(config={}, address=None)
+    assert has_resolvable_address() is True
+
+    # Test with no address and mDNS disabled
+    setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
+    assert has_resolvable_address() is False

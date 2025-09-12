@@ -178,13 +178,13 @@ def choose_upload_log_host(
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_mdns() or has_ip_address():
+            if has_resolvable_address():
                 options.append((f"Over The Air ({CORE.address})", CORE.address))
             if has_mqtt_ip_lookup():
                 options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_mdns() or has_ip_address():
+        if has_resolvable_address():
             options.append((f"Over The Air ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
@@ -253,6 +253,11 @@ def has_non_ip_address() -> bool:
 def has_ip_address() -> bool:
     """Check if CORE.address is a valid IP address."""
     return CORE.address is not None and is_ip_address(CORE.address)
+
+
+def has_resolvable_address() -> bool:
+    """Check if CORE.address is resolvable (via mDNS or is an IP address)."""
+    return has_mdns() or has_ip_address()
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
