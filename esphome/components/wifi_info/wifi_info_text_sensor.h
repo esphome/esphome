@@ -13,7 +13,17 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
  public:
   void update() override {
     auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
-    if (ips != this->last_ips_) {
+
+    // Check if any set IP has changed (ignore unset IPs to avoid false positives)
+    bool changed = false;
+    for (size_t i = 0; i < ips.size(); i++) {
+      if ((ips[i].is_set() || this->last_ips_[i].is_set()) && ips[i] != this->last_ips_[i]) {
+        changed = true;
+        break;
+      }
+    }
+
+    if (changed) {
       this->last_ips_ = ips;
       this->publish_state(ips[0].str());
       uint8_t sensor = 0;
