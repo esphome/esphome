@@ -5,6 +5,5 @@ namespace dfrobot_c4001 {
 
 static const char *const TAG = "c4001.binary_sensor";
 
-
 }  // namespace dfrobot_c4001
 }  // namespace esphome

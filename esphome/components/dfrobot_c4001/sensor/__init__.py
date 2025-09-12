@@ -2,34 +2,37 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    UNIT_METER,
+    CONF_DISTANCE,
     CONF_ID,
+    CONF_SPEED,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     ICON_RULER,
-    CONF_SPEED,
-    CONF_DISTANCE,
+    UNIT_METER,
 )
-from .. import dfrobot_c4001_ns, c4001Component, CONF_C4001_ID
+
+from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
 
 C4001Sensor = dfrobot_c4001_ns.class_("C4001Sensor", cg.Component)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(C4001Sensor),
-    cv.Required(CONF_C4001_ID): cv.use_id(c4001Component),
-    cv.Optional(CONF_SPEED): sensor.sensor_schema(
-        device_class=DEVICE_CLASS_SPEED,
-        unit_of_measurement="m/s",
-        icon="mdi:speedometer",
-        accuracy_decimals=1,
-    ),
-    cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
-        device_class=DEVICE_CLASS_DISTANCE,
-        unit_of_measurement=UNIT_METER,
-        icon=ICON_RULER,
-        accuracy_decimals=1,
-    ),
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(C4001Sensor),
+        cv.Required(CONF_C4001_ID): cv.use_id(c4001Component),
+        cv.Optional(CONF_SPEED): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_SPEED,
+            unit_of_measurement="m/s",
+            icon="mdi:speedometer",
+            accuracy_decimals=1,
+        ),
+        cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_DISTANCE,
+            unit_of_measurement=UNIT_METER,
+            icon=ICON_RULER,
+            accuracy_decimals=1,
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):

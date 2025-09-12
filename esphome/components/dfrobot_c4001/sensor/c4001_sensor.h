@@ -10,10 +10,10 @@ class C4001Sensor : public C4001Listener, public Component, sensor::Sensor {
  public:
   void setup() override {
     if (this->distance_sensor_ != nullptr) {
-        this->distance_sensor_->publish_state(0.0);
+      this->distance_sensor_->publish_state(0.0);
     }
     if (this->speed_sensor_ != nullptr) {
-        this->speed_sensor_->publish_state(0.0);
+      this->speed_sensor_->publish_state(0.0);
     }
   }
 
@@ -38,8 +38,6 @@ class C4001Sensor : public C4001Listener, public Component, sensor::Sensor {
  protected:
   sensor::Sensor *distance_sensor_{nullptr};
   sensor::Sensor *speed_sensor_{nullptr};
-
-
 };
 
 }  // namespace dfrobot_c4001

@@ -1,10 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_SWITCH,ENTITY_CATEGORY_CONFIG
+from esphome.const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
 
-from .. import CONF_C4001_ID, dfrobot_c4001_ns, c4001Component
-
+from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
 
 CONF_MOTION_SWITCH = "motion_switch"
 
@@ -20,6 +19,7 @@ CONFIG_SCHEMA = {
         icon="mdi:radar",
     ),
 }
+
 
 async def to_code(config):
     switch_component = await cg.get_variable(config[CONF_C4001_ID])
