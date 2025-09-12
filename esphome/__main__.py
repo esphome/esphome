@@ -173,16 +173,6 @@ def choose_upload_log_host(
                 resolved.append(device)
         if not resolved:
             _LOGGER.error("All specified devices: %s could not be resolved.", defaults)
-
-        _LOGGER.error("resolved  %s", resolved)
-        _LOGGER.warning("has_api %d has_ota %d", has_api(), has_ota())
-        _LOGGER.warning(
-            "has_mdns %d has_mqtt_ip_lookup %d has_mqtt_logging %d",
-            has_mdns(),
-            has_mqtt_ip_lookup(),
-            has_mqtt_logging(),
-        )
-
         return resolved
 
     # No devices specified, show interactive chooser
