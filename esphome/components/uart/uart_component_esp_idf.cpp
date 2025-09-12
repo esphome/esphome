@@ -182,9 +182,11 @@ void IDFUARTComponent::dump_config() {
   LOG_PIN("  RX Pin: ", rx_pin_);
   LOG_PIN("  Flow Control Pin: ", flow_control_pin_);
   if (this->rx_pin_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
-    ESP_LOGCONFIG(TAG, "  RX Full Threshold: %u", this->rx_full_threshold_);
-    ESP_LOGCONFIG(TAG, "  RX Timeout: %u", this->rx_timeout_);
+    ESP_LOGCONFIG(TAG,
+                  "  RX Buffer Size: %u\n"
+                  "  RX Full Threshold: %u\n"
+                  "  RX Timeout: %u",
+                  this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
   }
   ESP_LOGCONFIG(TAG,
                 "  Baud Rate: %" PRIu32 " baud\n"
