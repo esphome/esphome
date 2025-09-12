@@ -71,6 +71,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.polling_component_schema("60s")),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.only_with_esp_idf,  # When trying to add library via platformio it breaks, using as an idf component works fine
 )
 
 

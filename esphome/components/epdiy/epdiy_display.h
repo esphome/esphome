@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/component.h"
 
@@ -60,4 +60,4 @@ class EPDiyDisplay : public display::Display {
 
 }  // namespace esphome::epdiy
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

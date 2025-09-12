@@ -2,7 +2,7 @@
 
 #include "esphome/core/application.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/log.h"
 
@@ -73,4 +73,4 @@ void HOT EPDiyDisplay::draw_pixel_at(int x, int y, Color color) {
 
 }  // namespace esphome::epdiy
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF
