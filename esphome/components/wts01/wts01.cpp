@@ -8,8 +8,8 @@ namespace wts01 {
 static const char *const TAG = "wts01";
 
 void WTS01Sensor::loop() {
-  // Process one character at a time received from the sensor
-  if (this->available()) {
+  // Process all available data at once
+  while (this->available()) {
     uint8_t c;
     if (this->read_byte(&c)) {
       this->handle_char_(c);
