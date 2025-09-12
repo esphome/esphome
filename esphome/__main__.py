@@ -261,14 +261,16 @@ def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
 
 
+_PORT_TO_PORT_TYPE = {
+    "MQTT": "MQTT",
+    "MQTTIP": "MQTTIP",
+}
+
+
 def get_port_type(port: str) -> str:
     if port.startswith("/") or port.startswith("COM"):
         return "SERIAL"
-    if port == "MQTT":
-        return "MQTT"
-    if port == "MQTTIP":
-        return "MQTTIP"
-    return "NETWORK"
+    return _PORT_TO_PORT_TYPE.get(port, "NETWORK")
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
