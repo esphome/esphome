@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import Mock, patch
 
 import pytest
+import pytest_asyncio
 from zeroconf import AddressResolver, IPVersion
 
 from esphome.dashboard.core import ESPHomeDashboard
@@ -23,22 +24,23 @@ def mock_dashboard() -> Mock:
     return dashboard
 
 
-@pytest.fixture
-def mdns_status(mock_dashboard: Mock) -> MDNSStatus:
-    """Create an MDNSStatus instance."""
-    with patch("asyncio.get_running_loop") as mock_loop:
-        mock_loop.return_value = Mock()
-        return MDNSStatus(mock_dashboard)
+@pytest_asyncio.fixture
+async def mdns_status(mock_dashboard: Mock) -> MDNSStatus:
+    """Create an MDNSStatus instance in async context."""
+    # We're in an async context so get_running_loop will work
+    return MDNSStatus(mock_dashboard)
 
 
-def test_get_cached_addresses_no_zeroconf(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_no_zeroconf(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses when no zeroconf instance is available."""
     mdns_status.aiozc = None
     result = mdns_status.get_cached_addresses("device.local")
     assert result is None
 
 
-def test_get_cached_addresses_not_in_cache(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_not_in_cache(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses when address is not in cache."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -53,7 +55,8 @@ def test_get_cached_addresses_not_in_cache(mdns_status: MDNSStatus) -> None:
         mock_info.load_from_cache.assert_called_once_with(mdns_status.aiozc.zeroconf)
 
 
-def test_get_cached_addresses_found_in_cache(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_found_in_cache(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses when address is found in cache."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -70,7 +73,8 @@ def test_get_cached_addresses_found_in_cache(mdns_status: MDNSStatus) -> None:
         mock_info.parsed_scoped_addresses.assert_called_once_with(IPVersion.All)
 
 
-def test_get_cached_addresses_with_trailing_dot(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_with_trailing_dot(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses with hostname having trailing dot."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -87,7 +91,8 @@ def test_get_cached_addresses_with_trailing_dot(mdns_status: MDNSStatus) -> None
         mock_resolver.assert_called_once_with("device.local.")
 
 
-def test_get_cached_addresses_uppercase_hostname(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_uppercase_hostname(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses with uppercase hostname."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -104,7 +109,8 @@ def test_get_cached_addresses_uppercase_hostname(mdns_status: MDNSStatus) -> Non
         mock_resolver.assert_called_once_with("device.local.")
 
 
-def test_get_cached_addresses_simple_hostname(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_simple_hostname(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses with simple hostname (no domain)."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -121,7 +127,8 @@ def test_get_cached_addresses_simple_hostname(mdns_status: MDNSStatus) -> None:
         mock_resolver.assert_called_once_with("device.local.")
 
 
-def test_get_cached_addresses_ipv6_only(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_ipv6_only(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses returning only IPv6 addresses."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -136,7 +143,8 @@ def test_get_cached_addresses_ipv6_only(mdns_status: MDNSStatus) -> None:
         assert result == ["fe80::1", "2001:db8::1"]
 
 
-def test_get_cached_addresses_empty_list(mdns_status: MDNSStatus) -> None:
+@pytest.mark.asyncio
+async def test_get_cached_addresses_empty_list(mdns_status: MDNSStatus) -> None:
     """Test get_cached_addresses returning empty list from cache."""
     mdns_status.aiozc = Mock()
     mdns_status.aiozc.zeroconf = Mock()
@@ -151,25 +159,23 @@ def test_get_cached_addresses_empty_list(mdns_status: MDNSStatus) -> None:
         assert result == []
 
 
-def test_async_setup_success(mock_dashboard: Mock) -> None:
+@pytest.mark.asyncio
+async def test_async_setup_success(mock_dashboard: Mock) -> None:
     """Test successful async_setup."""
-    with patch("asyncio.get_running_loop") as mock_loop:
-        mock_loop.return_value = Mock()
-        mdns_status = MDNSStatus(mock_dashboard)
-        with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
-            mock_zc.return_value = Mock()
-            result = mdns_status.async_setup()
-            assert result is True
-            assert mdns_status.aiozc is not None
+    mdns_status = MDNSStatus(mock_dashboard)
+    with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
+        mock_zc.return_value = Mock()
+        result = mdns_status.async_setup()
+        assert result is True
+        assert mdns_status.aiozc is not None
 
 
-def test_async_setup_failure(mock_dashboard: Mock) -> None:
+@pytest.mark.asyncio
+async def test_async_setup_failure(mock_dashboard: Mock) -> None:
     """Test async_setup with OSError."""
-    with patch("asyncio.get_running_loop") as mock_loop:
-        mock_loop.return_value = Mock()
-        mdns_status = MDNSStatus(mock_dashboard)
-        with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
-            mock_zc.side_effect = OSError("Network error")
-            result = mdns_status.async_setup()
-            assert result is False
-            assert mdns_status.aiozc is None
+    mdns_status = MDNSStatus(mock_dashboard)
+    with patch("esphome.dashboard.status.mdns.AsyncEsphomeZeroconf") as mock_zc:
+        mock_zc.side_effect = OSError("Network error")
+        result = mdns_status.async_setup()
+        assert result is False
+        assert mdns_status.aiozc is None
