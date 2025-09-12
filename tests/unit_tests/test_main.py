@@ -1164,7 +1164,11 @@ wifi:
 
     # Verify content was updated
     content = new_file.read_text()
-    assert 'name: "newname"' in content or 'name: "newname"' in content
+    assert (
+        'name: "newname"' in content
+        or "name: 'newname'" in content
+        or "name: newname" in content
+    )
 
     captured = capfd.readouterr()
     assert "SUCCESS" in captured.out
