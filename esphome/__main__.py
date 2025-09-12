@@ -1,6 +1,7 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 from datetime import datetime
+from enum import Enum
 import functools
 import getpass
 import importlib
@@ -19,6 +20,7 @@ from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    CONF_API,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -107,13 +109,15 @@ def choose_prompt(options, purpose: str = None):
     return options[opt - 1][1]
 
 
+class Purpose(Enum):
+    UPLOADING = 1
+    LOGGING = 2
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
-    show_ota: bool,
-    show_mqtt: bool,
-    show_api: bool,
-    purpose: str | None = None,
+    purpose: Purpose,
 ) -> list[str]:
     # Convert to list for uniform handling
     defaults = [default] if isinstance(default, str) else default or []
@@ -133,66 +137,115 @@ def choose_upload_log_host(
                 ]
                 resolved.append(choose_prompt(options, purpose=purpose))
             elif device == "OTA":
-                if show_mqtt and purpose == "logging" and has_mqtt_logging():
-                    resolved.append("MQTT")
-
-                if CORE.address and (
-                    (show_ota and "ota" in CORE.config)
-                    or (show_api and "api" in CORE.config)
+                # ensure IP adresses are used first
+                if is_ip_address(CORE.address) and (
+                    (purpose == Purpose.LOGGING and has_api())
+                    or (purpose == Purpose.UPLOADING and has_ota())
                 ):
-                    # IP lookup via MQTT, prefer API logging over MQTT
-                    if show_mqtt and has_mqtt_ip_lookup():
-                        resolved.insert(0, "MQTTIP")
+                    resolved.append(CORE.address)
 
-                    # ensure IPs are tried first and mDNS / DNS last
-                    if is_ip_address(CORE.address):
-                        resolved.insert(0, CORE.address)
-                    else:
+                if purpose == Purpose.LOGGING:
+                    if has_api() and has_mqtt_ip_lookup():
+                        resolved.append("MQTTIP")
+
+                    if has_mqtt_logging():
+                        resolved.append("MQTT")
+
+                    if (
+                        has_api()
+                        and not is_ip_address(CORE.address)
+                        and CORE.address is not None
+                    ):
                         resolved.append(CORE.address)
+
+                elif purpose == Purpose.UPLOADING:
+                    if has_ota() and has_mqtt_ip_lookup():
+                        resolved.append("MQTTIP")
+
+                    if (
+                        has_ota()
+                        and not is_ip_address(CORE.address)
+                        and CORE.address is not None
+                    ):
+                        resolved.append(CORE.address)
+
             else:
                 resolved.append(device)
         if not resolved:
             _LOGGER.error("All specified devices: %s could not be resolved.", defaults)
+
+        _LOGGER.error("resolved  %s", resolved)
+        _LOGGER.warning("has_api %d has_ota %d", has_api(), has_ota())
+        _LOGGER.warning(
+            "has_mdns %d has_mqtt_ip_lookup %d has_mqtt_logging %d",
+            has_mdns(),
+            has_mqtt_ip_lookup(),
+            has_mqtt_logging(),
+        )
+
         return resolved
 
     # No devices specified, show interactive chooser
     options = [
         (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
     ]
-    if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
+
+    if purpose == Purpose.LOGGING:
+        if has_mqtt_logging():
+            mqtt_config = CORE.config[CONF_MQTT]
+            options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
+
+        if has_api():
+            if has_mdns() or is_ip_address(CORE.address):
+                options.append((f"Over The Air ({CORE.address})", CORE.address))
+            if has_mqtt_ip_lookup():
+                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
+    elif purpose == Purpose.UPLOADING and has_ota():
         if has_mdns() or is_ip_address(CORE.address):
             options.append((f"Over The Air ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
-
-    if show_mqtt and purpose == "logging" and has_mqtt_logging():
-        mqtt_config = CORE.config[CONF_MQTT]
-        options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return [check_default]
     return [choose_prompt(options, purpose=purpose)]
 
 
-def mqtt_logging_enabled(mqtt_config):
+def has_mqtt_logging() -> bool:
+    """Check if MQTT logging is available."""
+    if CONF_MQTT not in CORE.config:
+        return False
+
+    mqtt_config = CORE.config[CONF_MQTT]
+
+    # enabled by default
+    if CONF_LOG_TOPIC not in mqtt_config:
+        return True
+
     log_topic = mqtt_config[CONF_LOG_TOPIC]
     if log_topic is None:
         return False
+
     if CONF_TOPIC not in log_topic:
         return False
-    return log_topic.get(CONF_LEVEL, None) != "NONE"
 
-
-def has_mqtt_logging() -> bool:
-    """Check if MQTT logging is available."""
-    return (mqtt_config := CORE.config.get(CONF_MQTT)) and mqtt_logging_enabled(
-        mqtt_config
-    )
+    return log_topic[CONF_LEVEL] != "NONE"
 
 
 def has_mqtt() -> bool:
     """Check if MQTT is available."""
     return CONF_MQTT in CORE.config
+
+
+def has_api() -> bool:
+    """Check if API is available."""
+    return CONF_API in CORE.config
+
+
+def has_ota() -> bool:
+    """Check if OTA is available."""
+    return CONF_OTA in CORE.config
 
 
 def has_mqtt_ip_lookup() -> bool:
@@ -208,6 +261,12 @@ def has_mqtt_ip_lookup() -> bool:
 def has_mdns() -> bool:
     """Check if MDNS is available."""
     return CONF_MDNS not in CORE.config or not CORE.config[CONF_MDNS][CONF_DISABLED]
+
+
+def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+    from esphome import mqtt
+
+    return mqtt.get_esphome_device_ip(config, username, password, client_id)
 
 
 def get_port_type(port: str) -> str:
@@ -477,13 +536,7 @@ def upload_program(
 
     # MQTT address resolution
     if get_port_type(host) in ("MQTT", "MQTTIP"):
-        from esphome import mqtt
-
-        devices = [
-            mqtt.get_esphome_device_ip(
-                config, args.username, args.password, args.client_id
-            )
-        ]
+        devices = mqtt_get_ip(config, args.username, args.password, args.client_id)
 
     return espota2.run_ota(devices, remote_port, password, binary)
 
@@ -504,21 +557,26 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if get_port_type(port) == "SERIAL":
         check_permissions(port)
         return run_miniterm(config, port, args)
-    if get_port_type(port) == "NETWORK" and "api" in config:
+    if (
+        get_port_type(port) == "NETWORK"
+        and has_api()
+        and (has_mdns() or is_ip_address(port))
+    ):
         from esphome.components.api.client import run_logs
 
         return run_logs(config, devices)
-    if get_port_type(port) == "MQTTIP" and "api" in config and "mqtt" in config:
-        from esphome import mqtt
-
-        addresses_to_use = mqtt.get_esphome_device_ip(
+    if (
+        get_port_type(port) in ("NETWORK", "MQTT", "MQTTIP")
+        and has_api()
+        and has_mqtt_ip_lookup()
+    ):
+        addresses_to_use = mqtt_get_ip(
             config, args.username, args.password, args.client_id
         )
-
         from esphome.components.api.client import run_logs
 
         return run_logs(config, addresses_to_use)
-    if get_port_type(port) in ("NETWORK", "MQTT") and "mqtt" in config:
+    if get_port_type(port) in ("NETWORK", "MQTT") and has_mqtt_logging():
         from esphome import mqtt
 
         return mqtt.show_logs(
@@ -584,10 +642,7 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
     devices = choose_upload_log_host(
         default=args.device,
         check_default=None,
-        show_ota=True,
-        show_mqtt=True,
-        show_api=False,
-        purpose="uploading",
+        purpose=Purpose.UPLOADING,
     )
 
     exit_code, _ = upload_program(config, args, devices)
@@ -612,10 +667,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
     devices = choose_upload_log_host(
         default=args.device,
         check_default=None,
-        show_ota=False,
-        show_mqtt=True,
-        show_api=True,
-        purpose="logging",
+        purpose=Purpose.LOGGING,
     )
     return show_logs(config, args, devices)
 
@@ -641,10 +693,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     devices = choose_upload_log_host(
         default=args.device,
         check_default=None,
-        show_ota=True,
-        show_mqtt=True,
-        show_api=True,
-        purpose="uploading",
+        purpose=Purpose.UPLOADING,
     )
 
     exit_code, successful_device = upload_program(config, args, devices)
@@ -661,10 +710,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     devices = choose_upload_log_host(
         default=successful_device,
         check_default=successful_device,
-        show_ota=False,
-        show_mqtt=True,
-        show_api=True,
-        purpose="logging",
+        purpose=Purpose.LOGGING,
     )
     return show_logs(config, args, devices)
 

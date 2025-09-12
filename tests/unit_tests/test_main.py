@@ -10,8 +10,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome.__main__ import choose_upload_log_host, show_logs, upload_program
+from esphome.__main__ import Purpose, choose_upload_log_host, show_logs, upload_program
 from esphome.const import (
+    CONF_API,
     CONF_BROKER,
     CONF_DISABLED,
     CONF_ESPHOME,
@@ -139,6 +140,13 @@ def mock_is_ip_address() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_mqtt_get_ip() -> Generator[Mock]:
+    """Mock mqtt_get_ip for testing."""
+    with patch("esphome.__main__.mqtt_get_ip") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_serial_ports() -> Generator[Mock]:
     """Mock get_serial_ports to return test ports."""
     mock_ports = [
@@ -172,62 +180,56 @@ def mock_has_mqtt_logging() -> Generator[Mock]:
 
 def test_choose_upload_log_host_with_string_default() -> None:
     """Test with a single string default device."""
+    setup_core()
     result = choose_upload_log_host(
         default="192.168.1.100",
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100"]
 
 
 def test_choose_upload_log_host_with_list_default() -> None:
     """Test with a list of default devices."""
+    setup_core()
     result = choose_upload_log_host(
         default=["192.168.1.100", "192.168.1.101"],
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100", "192.168.1.101"]
 
 
 def test_choose_upload_log_host_with_multiple_ip_addresses() -> None:
     """Test with multiple IP addresses as defaults."""
+    setup_core()
     result = choose_upload_log_host(
         default=["1.2.3.4", "4.5.5.6"],
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.LOGGING,
     )
     assert result == ["1.2.3.4", "4.5.5.6"]
 
 
 def test_choose_upload_log_host_with_mixed_hostnames_and_ips() -> None:
     """Test with a mix of hostnames and IP addresses."""
+    setup_core()
     result = choose_upload_log_host(
         default=["host.one", "host.one.local", "1.2.3.4"],
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["host.one", "host.one.local", "1.2.3.4"]
 
 
 def test_choose_upload_log_host_with_ota_list() -> None:
     """Test with OTA as the only item in the list."""
-    setup_core(config={"ota": {}}, address="192.168.1.100")
+    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
 
     result = choose_upload_log_host(
         default=["OTA"],
         check_default=None,
-        show_ota=True,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100"]
 
@@ -235,16 +237,27 @@ def test_choose_upload_log_host_with_ota_list() -> None:
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
 def test_choose_upload_log_host_with_ota_list_mqtt_fallback() -> None:
     """Test with OTA list falling back to MQTT when no address."""
-    setup_core()
+    setup_core(config={CONF_OTA: {}, "mqtt": {}})
 
     result = choose_upload_log_host(
         default=["OTA"],
         check_default=None,
-        show_ota=False,
-        show_mqtt=True,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
-    assert result == ["MQTT"]
+    assert result == ["MQTTIP"]
+
+
+@pytest.mark.usefixtures("mock_has_mqtt_logging")
+def test_choose_upload_log_host_with_ota_list_mqtt_fallback_logging() -> None:
+    """Test with OTA list with API and MQTT when no address."""
+    setup_core(config={CONF_API: {}, "mqtt": {}})
+
+    result = choose_upload_log_host(
+        default=["OTA"],
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["MQTTIP", "MQTT"]
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports")
@@ -252,12 +265,11 @@ def test_choose_upload_log_host_with_serial_device_no_ports(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test SERIAL device when no serial ports are found."""
+    setup_core()
     result = choose_upload_log_host(
         default="SERIAL",
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == []
     assert "No serial ports found, skipping SERIAL device" in caplog.text
@@ -268,13 +280,11 @@ def test_choose_upload_log_host_with_serial_device_with_ports(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test SERIAL device when serial ports are available."""
+    setup_core()
     result = choose_upload_log_host(
         default="SERIAL",
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
-        purpose="testing",
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["/dev/ttyUSB0"]
     mock_choose_prompt.assert_called_once_with(
@@ -282,34 +292,42 @@ def test_choose_upload_log_host_with_serial_device_with_ports(
             ("/dev/ttyUSB0 (USB Serial)", "/dev/ttyUSB0"),
             ("/dev/ttyUSB1 (Another USB Serial)", "/dev/ttyUSB1"),
         ],
-        purpose="testing",
+        purpose=Purpose.UPLOADING,
     )
 
 
 def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
     """Test OTA device when OTA is configured."""
-    setup_core(config={"ota": {}}, address="192.168.1.100")
+    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
 
     result = choose_upload_log_host(
         default="OTA",
         check_default=None,
-        show_ota=True,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100"]
 
 
 def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
-    """Test OTA device when API is configured."""
-    setup_core(config={"api": {}}, address="192.168.1.100")
+    """Test OTA device when API is configured (no upload without OTA in config)."""
+    setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
     result = choose_upload_log_host(
         default="OTA",
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=True,
+        purpose=Purpose.UPLOADING,
+    )
+    assert result == []
+
+
+def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> None:
+    """Test OTA device when API is configured."""
+    setup_core(config={CONF_API: {}}, address="192.168.1.100")
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
     )
     assert result == ["192.168.1.100"]
 
@@ -317,14 +335,12 @@ def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
 def test_choose_upload_log_host_with_ota_device_fallback_to_mqtt() -> None:
     """Test OTA device fallback to MQTT when no OTA/API config."""
-    setup_core()
+    setup_core(config={"mqtt": {}})
 
     result = choose_upload_log_host(
         default="OTA",
         check_default=None,
-        show_ota=False,
-        show_mqtt=True,
-        show_api=False,
+        purpose=Purpose.LOGGING,
     )
     assert result == ["MQTT"]
 
@@ -337,9 +353,7 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
     result = choose_upload_log_host(
         default="OTA",
         check_default=None,
-        show_ota=True,
-        show_mqtt=True,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == []
 
@@ -347,7 +361,7 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
 @pytest.mark.usefixtures("mock_choose_prompt")
 def test_choose_upload_log_host_multiple_devices() -> None:
     """Test with multiple devices including special identifiers."""
-    setup_core(config={"ota": {}}, address="192.168.1.100")
+    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
 
     mock_ports = [MockSerialPort("/dev/ttyUSB0", "USB Serial")]
 
@@ -355,9 +369,7 @@ def test_choose_upload_log_host_multiple_devices() -> None:
         result = choose_upload_log_host(
             default=["192.168.1.50", "OTA", "SERIAL"],
             check_default=None,
-            show_ota=True,
-            show_mqtt=False,
-            show_api=False,
+            purpose=Purpose.UPLOADING,
         )
         assert result == ["192.168.1.50", "192.168.1.100", "/dev/ttyUSB0"]
 
@@ -376,22 +388,19 @@ def test_choose_upload_log_host_no_defaults_with_serial_ports(
         result = choose_upload_log_host(
             default=None,
             check_default=None,
-            show_ota=False,
-            show_mqtt=False,
-            show_api=False,
-            purpose="uploading",
+            purpose=Purpose.UPLOADING,
         )
         assert result == ["/dev/ttyUSB0"]
         mock_choose_prompt.assert_called_once_with(
             [("/dev/ttyUSB0 (USB Serial)", "/dev/ttyUSB0")],
-            purpose="uploading",
+            purpose=Purpose.UPLOADING,
         )
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_no_defaults_with_ota() -> None:
     """Test interactive mode with OTA option."""
-    setup_core(config={"ota": {}}, address="192.168.1.100")
+    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
 
     with patch(
         "esphome.__main__.choose_prompt", return_value="192.168.1.100"
@@ -399,21 +408,19 @@ def test_choose_upload_log_host_no_defaults_with_ota() -> None:
         result = choose_upload_log_host(
             default=None,
             check_default=None,
-            show_ota=True,
-            show_mqtt=False,
-            show_api=False,
+            purpose=Purpose.UPLOADING,
         )
         assert result == ["192.168.1.100"]
         mock_prompt.assert_called_once_with(
             [("Over The Air (192.168.1.100)", "192.168.1.100")],
-            purpose=None,
+            purpose=Purpose.UPLOADING,
         )
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_no_defaults_with_api() -> None:
     """Test interactive mode with API option."""
-    setup_core(config={"api": {}}, address="192.168.1.100")
+    setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
     with patch(
         "esphome.__main__.choose_prompt", return_value="192.168.1.100"
@@ -421,14 +428,12 @@ def test_choose_upload_log_host_no_defaults_with_api() -> None:
         result = choose_upload_log_host(
             default=None,
             check_default=None,
-            show_ota=False,
-            show_mqtt=False,
-            show_api=True,
+            purpose=Purpose.LOGGING,
         )
         assert result == ["192.168.1.100"]
         mock_prompt.assert_called_once_with(
             [("Over The Air (192.168.1.100)", "192.168.1.100")],
-            purpose=None,
+            purpose=Purpose.LOGGING,
         )
 
 
@@ -441,14 +446,12 @@ def test_choose_upload_log_host_no_defaults_with_mqtt() -> None:
         result = choose_upload_log_host(
             default=None,
             check_default=None,
-            show_ota=False,
-            show_mqtt=True,
-            show_api=False,
+            purpose=Purpose.LOGGING,
         )
         assert result == ["MQTT"]
         mock_prompt.assert_called_once_with(
             [("MQTT (mqtt.local)", "MQTT")],
-            purpose=None,
+            purpose=Purpose.LOGGING,
         )
 
 
@@ -458,7 +461,7 @@ def test_choose_upload_log_host_no_defaults_with_all_options(
 ) -> None:
     """Test interactive mode with all options available."""
     setup_core(
-        config={"ota": {}, "api": {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
+        config={CONF_OTA: {}, CONF_API: {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
         address="192.168.1.100",
     )
 
@@ -468,32 +471,59 @@ def test_choose_upload_log_host_no_defaults_with_all_options(
         result = choose_upload_log_host(
             default=None,
             check_default=None,
-            show_ota=True,
-            show_mqtt=True,
-            show_api=True,
-            purpose="testing",
+            purpose=Purpose.UPLOADING,
         )
         assert result == ["/dev/ttyUSB0"]
 
         expected_options = [
             ("/dev/ttyUSB0 (USB Serial)", "/dev/ttyUSB0"),
             ("Over The Air (192.168.1.100)", "192.168.1.100"),
-            ("MQTT (mqtt.local)", "MQTT"),
+            ("Over The Air (MQTT IP lookup)", "MQTTIP"),
         ]
-        mock_choose_prompt.assert_called_once_with(expected_options, purpose="testing")
+        mock_choose_prompt.assert_called_once_with(
+            expected_options, purpose=Purpose.UPLOADING
+        )
+
+
+def test_choose_upload_log_host_no_defaults_with_all_options_logging(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test interactive mode with all options available."""
+    setup_core(
+        config={CONF_OTA: {}, CONF_API: {}, CONF_MQTT: {CONF_BROKER: "mqtt.local"}},
+        address="192.168.1.100",
+    )
+
+    mock_ports = [MockSerialPort("/dev/ttyUSB0", "USB Serial")]
+
+    with patch("esphome.__main__.get_serial_ports", return_value=mock_ports):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+        assert result == ["/dev/ttyUSB0"]
+
+        expected_options = [
+            ("/dev/ttyUSB0 (USB Serial)", "/dev/ttyUSB0"),
+            ("MQTT (mqtt.local)", "MQTT"),
+            ("Over The Air (192.168.1.100)", "192.168.1.100"),
+            ("Over The Air (MQTT IP lookup)", "MQTTIP"),
+        ]
+        mock_choose_prompt.assert_called_once_with(
+            expected_options, purpose=Purpose.LOGGING
+        )
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_check_default_matches() -> None:
     """Test when check_default matches an available option."""
-    setup_core(config={"ota": {}}, address="192.168.1.100")
+    setup_core(config={CONF_OTA: {}}, address="192.168.1.100")
 
     result = choose_upload_log_host(
         default=None,
         check_default="192.168.1.100",
-        show_ota=True,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100"]
 
@@ -509,9 +539,7 @@ def test_choose_upload_log_host_check_default_no_match() -> None:
         result = choose_upload_log_host(
             default=None,
             check_default="192.168.1.100",
-            show_ota=False,
-            show_mqtt=False,
-            show_api=False,
+            purpose=Purpose.UPLOADING,
         )
         assert result == ["fallback"]
         mock_prompt.assert_called_once()
@@ -520,13 +548,12 @@ def test_choose_upload_log_host_check_default_no_match() -> None:
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_empty_defaults_list() -> None:
     """Test with an empty list as default."""
+    setup_core()
     with patch("esphome.__main__.choose_prompt", return_value="chosen") as mock_prompt:
         result = choose_upload_log_host(
             default=[],
             check_default=None,
-            show_ota=False,
-            show_mqtt=False,
-            show_api=False,
+            purpose=Purpose.UPLOADING,
         )
         assert result == ["chosen"]
         mock_prompt.assert_called_once()
@@ -542,9 +569,7 @@ def test_choose_upload_log_host_all_devices_unresolved(
     result = choose_upload_log_host(
         default=["SERIAL", "OTA"],
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == []
     assert (
@@ -560,38 +585,132 @@ def test_choose_upload_log_host_mixed_resolved_unresolved() -> None:
     result = choose_upload_log_host(
         default=["192.168.1.50", "SERIAL", "OTA"],
         check_default=None,
-        show_ota=False,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.50"]
 
 
 def test_choose_upload_log_host_ota_both_conditions() -> None:
     """Test OTA device when both OTA and API are configured and enabled."""
-    setup_core(config={"ota": {}, "api": {}}, address="192.168.1.100")
+    setup_core(config={CONF_OTA: {}, CONF_API: {}}, address="192.168.1.100")
 
     result = choose_upload_log_host(
         default="OTA",
         check_default=None,
-        show_ota=True,
-        show_mqtt=False,
-        show_api=True,
+        purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100"]
+
+
+@pytest.mark.usefixtures("mock_serial_ports")
+def test_choose_upload_log_host_ota_ip_all_options() -> None:
+    """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
+    setup_core(
+        config={
+            CONF_OTA: {},
+            CONF_API: {},
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+            },
+            CONF_MDNS: {
+                CONF_DISABLED: True,
+            },
+        },
+        address="192.168.1.100",
+    )
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.UPLOADING,
+    )
+    assert result == ["192.168.1.100", "MQTTIP"]
+
+
+@pytest.mark.usefixtures("mock_serial_ports")
+def test_choose_upload_log_host_ota_local_all_options() -> None:
+    """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
+    setup_core(
+        config={
+            CONF_OTA: {},
+            CONF_API: {},
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+            },
+            CONF_MDNS: {
+                CONF_DISABLED: True,
+            },
+        },
+        address="test.local",
+    )
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.UPLOADING,
+    )
+    assert result == ["MQTTIP", "test.local"]
+
+
+@pytest.mark.usefixtures("mock_serial_ports")
+def test_choose_upload_log_host_ota_ip_all_options_logging() -> None:
+    """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
+    setup_core(
+        config={
+            CONF_OTA: {},
+            CONF_API: {},
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+            },
+            CONF_MDNS: {
+                CONF_DISABLED: True,
+            },
+        },
+        address="192.168.1.100",
+    )
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["192.168.1.100", "MQTTIP", "MQTT"]
+
+
+@pytest.mark.usefixtures("mock_serial_ports")
+def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
+    """Test OTA device when both static IP, OTA, API and MQTT are configured and enabled but MDNS not."""
+    setup_core(
+        config={
+            CONF_OTA: {},
+            CONF_API: {},
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+            },
+            CONF_MDNS: {
+                CONF_DISABLED: True,
+            },
+        },
+        address="test.local",
+    )
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["MQTTIP", "MQTT", "test.local"]
 
 
 @pytest.mark.usefixtures("mock_no_mqtt_logging")
 def test_choose_upload_log_host_no_address_with_ota_config() -> None:
     """Test OTA device when OTA is configured but no address is set."""
-    setup_core(config={"ota": {}})
+    setup_core(config={CONF_OTA: {}})
 
     result = choose_upload_log_host(
         default="OTA",
         check_default=None,
-        show_ota=True,
-        show_mqtt=False,
-        show_api=False,
+        purpose=Purpose.UPLOADING,
     )
     assert result == []
 
@@ -786,18 +905,15 @@ def test_upload_program_ota_no_config(
         upload_program(config, args, devices)
 
 
-@patch("esphome.mqtt.get_esphome_device_ip")
 def test_upload_program_ota_with_mqtt_resolution(
     mock_mqtt_get_ip: Mock,
     mock_is_ip_address: Mock,
     mock_run_ota: Mock,
-    mock_get_port_type: Mock,
     tmp_path: Path,
 ) -> None:
     """Test upload_program with OTA using MQTT for address resolution."""
     setup_core(address="device.local", platform=PLATFORM_ESP32, tmp_path=tmp_path)
 
-    mock_get_port_type.side_effect = ["MQTT", "NETWORK"]
     mock_is_ip_address.return_value = False
     mock_mqtt_get_ip.return_value = ["192.168.1.100"]
     mock_run_ota.return_value = (0, "192.168.1.100")
@@ -827,9 +943,7 @@ def test_upload_program_ota_with_mqtt_resolution(
     expected_firmware = str(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
-    mock_run_ota.assert_called_once_with(
-        [["192.168.1.100"]], 3232, "", expected_firmware
-    )
+    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
 
 
 @patch("esphome.__main__.importlib.import_module")
@@ -890,18 +1004,16 @@ def test_show_logs_no_logger() -> None:
 @patch("esphome.components.api.client.run_logs")
 def test_show_logs_api(
     mock_run_logs: Mock,
-    mock_get_port_type: Mock,
 ) -> None:
     """Test show_logs with API."""
     setup_core(
         config={
             "logger": {},
-            "api": {},
+            CONF_API: {},
             CONF_MDNS: {CONF_DISABLED: False},
         },
         platform=PLATFORM_ESP32,
     )
-    mock_get_port_type.return_value = "NETWORK"
     mock_run_logs.return_value = 0
 
     args = MockArgs()
@@ -915,24 +1027,21 @@ def test_show_logs_api(
     )
 
 
-@patch("esphome.mqtt.get_esphome_device_ip")
 @patch("esphome.components.api.client.run_logs")
 def test_show_logs_api_with_mqtt_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
-    mock_get_port_type: Mock,
 ) -> None:
     """Test show_logs with API using MQTT for address resolution."""
     setup_core(
         config={
             "logger": {},
-            "api": {},
+            CONF_API: {},
             CONF_MDNS: {CONF_DISABLED: True},
             CONF_MQTT: {CONF_BROKER: "mqtt.local"},
         },
         platform=PLATFORM_ESP32,
     )
-    mock_get_port_type.return_value = "NETWORK"
     mock_run_logs.return_value = 0
     mock_mqtt_get_ip.return_value = ["192.168.1.200"]
 
@@ -949,7 +1058,6 @@ def test_show_logs_api_with_mqtt_fallback(
 @patch("esphome.mqtt.show_logs")
 def test_show_logs_mqtt(
     mock_mqtt_show_logs: Mock,
-    mock_get_port_type: Mock,
 ) -> None:
     """Test show_logs with MQTT."""
     setup_core(
@@ -959,7 +1067,6 @@ def test_show_logs_mqtt(
         },
         platform=PLATFORM_ESP32,
     )
-    mock_get_port_type.return_value = "MQTT"
     mock_mqtt_show_logs.return_value = 0
 
     args = MockArgs(
@@ -981,7 +1088,6 @@ def test_show_logs_mqtt(
 @patch("esphome.mqtt.show_logs")
 def test_show_logs_network_with_mqtt_only(
     mock_mqtt_show_logs: Mock,
-    mock_get_port_type: Mock,
 ) -> None:
     """Test show_logs with network port but only MQTT configured."""
     setup_core(
@@ -992,7 +1098,6 @@ def test_show_logs_network_with_mqtt_only(
         },
         platform=PLATFORM_ESP32,
     )
-    mock_get_port_type.return_value = "NETWORK"
     mock_mqtt_show_logs.return_value = 0
 
     args = MockArgs(
@@ -1011,9 +1116,7 @@ def test_show_logs_network_with_mqtt_only(
     )
 
 
-def test_show_logs_no_method_configured(
-    mock_get_port_type: Mock,
-) -> None:
+def test_show_logs_no_method_configured() -> None:
     """Test show_logs when no remote logging method is configured."""
     setup_core(
         config={
@@ -1022,7 +1125,6 @@ def test_show_logs_no_method_configured(
         },
         platform=PLATFORM_ESP32,
     )
-    mock_get_port_type.return_value = "NETWORK"
 
     args = MockArgs()
     devices = ["192.168.1.100"]

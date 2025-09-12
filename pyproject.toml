@@ -52,6 +52,10 @@ test = { file = ["requirements_test.txt"] }
 [tool.setuptools.packages.find]
 include = ["esphome*"]
 
+[pytest]
+log_cli = true
+log_level = "DEBUG"
+
 [tool.pytest.ini_options]
 testpaths = [
   "tests",
