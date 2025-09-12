@@ -438,9 +438,10 @@ def upload_program(
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD, "")
-    binary = (
-        args.file if getattr(args, "file", None) is not None else str(CORE.firmware_bin)
-    )
+    if getattr(args, "file", None) is not None:
+        binary = Path(args.file)
+    else:
+        binary = CORE.firmware_bin
 
     # Check if we should use MQTT for address resolution
     # This happens when no device was specified, or the current host is "MQTT"/"OTA"
