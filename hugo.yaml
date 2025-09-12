@@ -14,9 +14,6 @@ params:
     - logo.svg
   api_docs_url: https://api-docs.esphome.io
   math: true
-  seo:
-    webmaster_verifications:
-      google: Q5q5TFbCofxA8-cSa1Frv5Hj4RopF5zwEZf_zaNHqf4
 
 
   # Social media links
