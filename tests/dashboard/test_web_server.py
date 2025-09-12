@@ -556,6 +556,66 @@ def test_start_web_server_with_address_port(
     assert (archive_dir / "old.yaml").exists()
 
 
+@pytest.mark.asyncio
+async def test_edit_request_handler_get(dashboard: DashboardTestHelper) -> None:
+    """Test EditRequestHandler.get method."""
+    # Test getting a valid yaml file
+    response = await dashboard.fetch("/edit?configuration=pico.yaml")
+    assert response.code == 200
+    assert response.headers["content-type"] == "application/yaml"
+    content = response.body.decode()
+    assert "esphome:" in content  # Verify it's a valid ESPHome config
+
+    # Test getting a non-existent file
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch("/edit?configuration=nonexistent.yaml")
+    assert exc_info.value.code == 404
+
+    # Test getting a non-yaml file
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch("/edit?configuration=test.txt")
+    assert exc_info.value.code == 404
+
+    # Test path traversal attempt
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch("/edit?configuration=../../../etc/passwd")
+    assert exc_info.value.code == 404
+
+
+@pytest.mark.asyncio
+async def test_archive_request_handler_post(
+    dashboard: DashboardTestHelper,
+    mock_archive_storage_path: MagicMock,
+    mock_ext_storage_path: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test ArchiveRequestHandler.post method."""
+
+    # Set up temp directories
+    config_dir = Path(get_fixture_path("conf"))
+    archive_dir = tmp_path / "archive"
+
+    # Create a test configuration file
+    test_config = config_dir / "test_archive.yaml"
+    test_config.write_text("esphome:\n  name: test_archive\n")
+
+    # Archive the configuration
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body="configuration=test_archive.yaml",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
+
+    # Verify file was moved to archive
+    assert not test_config.exists()
+    assert (archive_dir / "test_archive.yaml").exists()
+    assert (
+        archive_dir / "test_archive.yaml"
+    ).read_text() == "esphome:\n  name: test_archive\n"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Unix sockets are not supported on Windows")
 @pytest.mark.usefixtures("mock_trash_storage_path", "mock_archive_storage_path")
 def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
