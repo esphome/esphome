@@ -251,7 +251,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
-                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=120)
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
             ),
             cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
@@ -324,7 +324,7 @@ async def to_code(config):
             if config[CONF_PARITY] != "NONE":
                 bytelength += 1
             config[CONF_RX_FULL_THRESHOLD] = max(
-                0,
+                1,
                 min(
                     120,
                     math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1),
