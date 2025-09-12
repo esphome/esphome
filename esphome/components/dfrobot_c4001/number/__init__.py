@@ -2,11 +2,11 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_MAX_RANGE,
+    CONF_MIN_RANGE,
     DEVICE_CLASS_DISTANCE,
     ENTITY_CATEGORY_CONFIG,
     UNIT_SECOND,
-    CONF_MIN_RANGE,
-    CONF_MAX_RANGE,
 )
 
 from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns

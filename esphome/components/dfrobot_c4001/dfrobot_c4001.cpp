@@ -494,8 +494,8 @@ int c4001Component::get_run_mode() {
  */
 <<<<<<< HEAD
 SenResult c4001Component::getSensitivity() {
-  SenResult result{0,0};
-  float val1=0.0, val2=0.0;
+  SenResult result{0, 0};
+  float val1 = 0.0, val2 = 0.0;
 =======
 sSensitivity_t c4001Component::getSensitivity() {
   sSensitivity_t result{0, 0};
@@ -524,7 +524,7 @@ sSensitivity_t c4001Component::getSensitivity() {
  */
 <<<<<<< HEAD
 float c4001Component::get_trig_uart() {
-  float val1=0.0, val2=0.0;
+  float val1 = 0.0, val2 = 0.0;
 =======
 float c4001Component::getRangeTrig() {
   float val1 = 0.0, val2 = 0.0;
@@ -548,7 +548,7 @@ float c4001Component::getRangeTrig() {
  */
 <<<<<<< HEAD
 SRange c4001Component::get_range_uart() {
-  SRange range{0,0};
+  SRange range{0, 0};
 =======
 sRange_t c4001Component::getRange() {
   sRange_t range{0, 0};
@@ -574,8 +574,8 @@ sRange_t c4001Component::getRange() {
  */
 <<<<<<< HEAD
 DelResult c4001Component::get_delay_uart() {
-  DelResult result{0,0};
-  float val1=0.0, val2=0.0;
+  DelResult result{0, 0};
+  float val1 = 0.0, val2 = 0.0;
 =======
 sDelays_t c4001Component::getDelays() {
   sDelays_t result{0, 0};
@@ -601,7 +601,7 @@ sDelays_t c4001Component::getDelays() {
  */
 <<<<<<< HEAD
 int c4001Component::get_threshold_uart() {
-  float val1=0.0, val2=0.0;
+  float val1 = 0.0, val2 = 0.0;
 =======
 int c4001Component::getThreshold() {
   float val1 = 0.0, val2 = 0.0;
@@ -624,7 +624,7 @@ int c4001Component::getThreshold() {
  */
 <<<<<<< HEAD
 int c4001Component::get_micro_uart() {
-  float val1=0.0, val2=0.0;
+  float val1 = 0.0, val2 = 0.0;
 =======
 int c4001Component::getMicroSwitch() {
   float val1 = 0.0, val2 = 0.0;

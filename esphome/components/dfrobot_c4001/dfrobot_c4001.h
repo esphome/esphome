@@ -150,14 +150,17 @@ class c4001Component : public Component, public uart::UARTDevice {
 
 <<<<<<< HEAD
   void register_listener(C4001Listener *listener) { this->listeners_.push_back(listener); }
-  
+
 =======
   void register_listener(c4001Listener *listener) { this->listeners_.push_back(listener); }
 
 >>>>>>> a8f3455730261805ada59c777b5e77763ad17173
 #ifdef USE_NUMBER
-  /** Setters for Number child entities (Home Assistant number entities) */
-  void set_min_range_number(number::Number *number) { this->min_range_number_ = number; }
+      /** Setters for Number child entities (Home Assistant number entities) */
+      void
+      set_min_range_number(number::Number *number) {
+    this->min_range_number_ = number;
+  }
   void set_max_range_number(number::Number *number) { this->max_range_number_ = number; }
   void set_trig_range_number(number::Number *number) { this->trig_range_number_ = number; }
   void set_keep_sensitivity_number(number::Number *number) { this->keep_sensitivity_number_ = number; }
@@ -245,8 +248,8 @@ class c4001Component : public Component, public uart::UARTDevice {
   uint32_t update_interval_{1000};  ///< default update interval (ms)
   uint32_t last_update_{0};
 <<<<<<< HEAD
-  uint8_t test_value_{0}; ///< test value (0-255)
-  
+  uint8_t test_value_{0};  ///< test value (0-255)
+
   std::vector<C4001Listener *> listeners_{};
 =======
   uint8_t test_value_{0};  ///< test value (0-255)
