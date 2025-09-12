@@ -7,8 +7,6 @@ namespace lm75b {
 
 static const char *const TAG = "lm75b";
 
-float LM75BComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void LM75BComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LM75B:");
   LOG_I2C_DEVICE(this);

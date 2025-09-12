@@ -13,7 +13,6 @@ class LM75BComponent : public PollingComponent, public i2c::I2CDevice, public se
  public:
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 };
 
 }  // namespace lm75b
