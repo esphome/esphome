@@ -1,0 +1,62 @@
+
+uart:
+  id: uart_bus
+  tx_pin: ${tx_pin}
+  rx_pin: ${rx_pin}
+  baud_rate: 9600
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/96liuzhixin/esphome
+      ref: dev
+    components:
+      dfrobot_c4001
+
+dfrobot_c4001:
+  id: my_c4001
+  uart_id: uart_bus
+
+select:
+  - platform: dfrobot_c4001
+    operating_mode:
+      name: "mode select"
+
+number:
+  - platform: dfrobot_c4001
+    max_range:
+      name: "Max detection distance"
+    trig_range:
+      name: "trigger range"
+    keep_sensitivity:
+      name: "keep_sensitivity"
+    trig_sensitivity:
+      name: "trig_sensitivity"
+    confirm_delay:
+      name: "confirm_delay"
+    disappear_delay:
+      name: "disappear_delay"
+    threshold_factor:
+      name: "threshold_factor"
+    min_range:
+      name: "Min detection distance"
+
+switch:
+  - platform: dfrobot_c4001
+    motion_switch:
+      name: "Motion Switch"
+
+sensor:
+  - platform: dfrobot_c4001
+    c4001_id: my_c4001
+    speed:
+      name: "Speed"
+      id: c4001_speed
+    distance:
+      name: "Distance"
+      id: c4001_distance
+
+binary_sensor:
+  - platform: dfrobot_c4001
+    exist_state:
+      name: presence

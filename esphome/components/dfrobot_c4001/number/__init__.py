@@ -2,10 +2,11 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     DEVICE_CLASS_DISTANCE,
     ENTITY_CATEGORY_CONFIG,
     UNIT_SECOND,
+    CONF_MIN_RANGE,
+    CONF_MAX_RANGE,
 )
 
 from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
@@ -19,8 +20,6 @@ ConfirmDelayNumber = dfrobot_c4001_ns.class_("ConfirmDelayNumber", number.Number
 DisappearDelayNumber = dfrobot_c4001_ns.class_("DisappearDelayNumber", number.Number)
 ThresholdFactorNumber = dfrobot_c4001_ns.class_("ThresholdFactorNumber", number.Number)
 
-CONF_MIN_RANGE = "min_range"
-CONF_MAX_RANGE = "max_range"
 CONF_TRIG_RANGE = "trig_range"
 CONF_KEEP_SENSITIVITY = "keep_sensitivity"
 CONF_TRIG_SENSITIVITY = "trig_sensitivity"

@@ -95,12 +95,12 @@ int parse_dfhpd(const std::string &line) {
  *  - distance (tokens[3], meters)
  *  - speed (tokens[4], m/s)
  *
- * Returns a sMontionData_t with valid=true on success.
+ * Returns a MotData with valid=true on success.
  *
  * Example: "$DFDMD,1,1,4.885,-0.464,346, , *"
  */
-sMontionData_t parse_dfdmd(const std::string &line) {
-  sMontionData_t result{0, 0.0f, 0.0f, false};
+MotData parse_dfdmd(const std::string &line) {
+  MotData result{0, 0.0f, 0.0f, false};
 
   // Ensure this is a DFDMD line
   if (line.find("$DFDMD") == std::string::npos) {
@@ -163,7 +163,7 @@ sMontionData_t parse_dfdmd(const std::string &line) {
  * After parsing, update exist_, speed_, distance_ members.
  */
 void c4001Component::get_data() {
-  sMontionData_t data;
+  MotData data;
   if (run_mode_ == MODE_MOTION) {
     char buf[50];
     int len = uart_read_raw(buf, sizeof(buf) - 1, 100);  // Read UART data
@@ -213,15 +213,15 @@ void c4001Component::update_config_param() {
   run_mode_ = mode;
 
   // Temporarily stop sensor while fetching settings
-  sensorStop();
+  sensor_stop();
 
   // Read settings from device
-  int threshold = getThreshold();
-  int trig = getRangeTrig();
-  sRange_t range = getRange();
-  sDelays_t delays = getDelays();
-  sSensitivity_t sensitivity = getSensitivity();
-  int micro = getMicroSwitch();
+  int threshold = get_threshold_uart();
+  int trig = get_trig_uart();
+  SRange range = get_range_uart();
+  DelResult delays = get_delay_uart();
+  SenResult sensitivity = getSensitivity();
+  int micro = get_micro_uart();
 
   // Update internal members with values from device
   min_range_ = range.min;
@@ -235,7 +235,7 @@ void c4001Component::update_config_param() {
   micro_motion_ = micro;
 
   // Restart sensor after configuration
-  sensorStart();
+  sensor_start();
 
   // Publish the retrieved values to Home Assistant number entities if they exist
   if (min_range_number_ != nullptr) {
@@ -355,15 +355,15 @@ size_t c4001Component::uart_read_raw(char *buf, size_t bufsize, uint32_t timeout
 bool str_match(const std::string &text, const std::string &pattern) { return text.find(pattern) != std::string::npos; }
 
 /**
- * sensorStop
+ * sensor_stop
  * Send a stop command to the device and check the response.
  * Returns true if device indicates it is already stopped.
  */
-bool c4001Component::sensorStop(void) {
+bool c4001Component::sensor_stop(void) {
   uint8_t len = 0;
   uart_clear_buffer();  // Clear buffer
   // Send stop command
-  const char *cmd = "sensorStop\r\n";
+  const char *cmd = "sensor_stop\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[50];
   size_t n = uart_read_raw(buf, sizeof(buf), 200);
@@ -375,20 +375,20 @@ bool c4001Component::sensorStop(void) {
 }
 
 /**
- * sensorStart
+ * sensor_start
  * Send a start command to the device.
  */
-void c4001Component::sensorStart(void) {
-  const char *cmd = "sensorStart\r\n";
+void c4001Component::sensor_start(void) {
+  const char *cmd = "sensor_start\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
 }
 
 /**
- * saveConfig
- * Send saveConfig command to persist device configuration.
+ * save_config
+ * Send save_config command to persist device configuration.
  */
-void c4001Component::saveConfig(void) {
-  const char *cmd = "saveConfig\r\n";
+void c4001Component::save_config(void) {
+  const char *cmd = "save_config\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
 }
 
@@ -490,11 +490,17 @@ int c4001Component::get_run_mode() {
 
 /**
  * getSensitivity
- * Query device for sensitivity settings and return them in sSensitivity_t.
+ * Query device for sensitivity settings and return them in SenResult.
  */
+<<<<<<< HEAD
+SenResult c4001Component::getSensitivity() {
+  SenResult result{0,0};
+  float val1=0.0, val2=0.0;
+=======
 sSensitivity_t c4001Component::getSensitivity() {
   sSensitivity_t result{0, 0};
   float val1 = 0.0, val2 = 0.0;
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   const char *cmd = "getSensitivity\r\n";
   char buf[100];
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
@@ -513,11 +519,16 @@ sSensitivity_t c4001Component::getSensitivity() {
 }
 
 /**
- * getRangeTrig
+ * get_trig_uart
  * Query device for trigger range value.
  */
+<<<<<<< HEAD
+float c4001Component::get_trig_uart() {
+  float val1=0.0, val2=0.0;
+=======
 float c4001Component::getRangeTrig() {
   float val1 = 0.0, val2 = 0.0;
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   float result = 0.0f;
   const char *cmd = "getTrigRange\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
@@ -532,13 +543,18 @@ float c4001Component::getRangeTrig() {
 }
 
 /**
- * getRange
+ * get_range_uart
  * Query device for min/max detection range.
  */
+<<<<<<< HEAD
+SRange c4001Component::get_range_uart() {
+  SRange range{0,0};
+=======
 sRange_t c4001Component::getRange() {
   sRange_t range{0, 0};
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   float val1 = 0.0f, val2 = 0.0f;
-  const char *cmd = "getRange\r\n";
+  const char *cmd = "get_range_uart\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[100];
   uart_read_raw(buf, sizeof(buf), 100);
@@ -553,12 +569,18 @@ sRange_t c4001Component::getRange() {
 }
 
 /**
- * getDelays
+ * get_delay_uart
  * Query device for confirm and disappear delays.
  */
+<<<<<<< HEAD
+DelResult c4001Component::get_delay_uart() {
+  DelResult result{0,0};
+  float val1=0.0, val2=0.0;
+=======
 sDelays_t c4001Component::getDelays() {
   sDelays_t result{0, 0};
   float val1 = 0.0, val2 = 0.0;
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   const char *cmd = "getLatency\r\n";
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
   char buf[100];
@@ -574,11 +596,16 @@ sDelays_t c4001Component::getDelays() {
 }
 
 /**
- * getThreshold
+ * get_threshold_uart
  * Query device for threshold factor (integer).
  */
+<<<<<<< HEAD
+int c4001Component::get_threshold_uart() {
+  float val1=0.0, val2=0.0;
+=======
 int c4001Component::getThreshold() {
   float val1 = 0.0, val2 = 0.0;
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   int result = 0.0f;
   const char *cmd = "getThrFactor\r\n";
   char buf[100];
@@ -592,11 +619,16 @@ int c4001Component::getThreshold() {
 }
 
 /**
- * getMicroSwitch
+ * get_micro_uart
  * Query device for micro-motion (microswitch) state.
  */
+<<<<<<< HEAD
+int c4001Component::get_micro_uart() {
+  float val1=0.0, val2=0.0;
+=======
 int c4001Component::getMicroSwitch() {
   float val1 = 0.0, val2 = 0.0;
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
   int result = 0.0f;
   const char *cmd = "getMicroMotion\r\n";
   char buf[100];
@@ -616,7 +648,7 @@ int c4001Component::getMicroSwitch() {
  * save config and then restart the sensor.
  */
 void c4001Component::send_cmd_with_param(const char *cmd) {
-  sensorStop();
+  sensor_stop();
 
   // Send command
   this->write_array(reinterpret_cast<const uint8_t *>(cmd), strlen(cmd));
@@ -624,8 +656,8 @@ void c4001Component::send_cmd_with_param(const char *cmd) {
   // Read data (just to clear buffer)
   char buf[100] = {0};
   size_t n = uart_read_raw(buf, sizeof(buf), 100);
-  saveConfig();
-  sensorStart();
+  save_config();
+  sensor_start();
 }
 
 /**

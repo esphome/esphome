@@ -6,15 +6,19 @@ from esphome.const import (
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     ICON_RULER,
+<<<<<<< HEAD
+    CONF_SPEED,
+    CONF_DISTANCE,
+=======
     UNIT_METER,
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
 )
 
 from .. import CONF_C4001_ID, c4001Component, dfrobot_c4001_ns
 
 C4001Sensor = dfrobot_c4001_ns.class_("C4001Sensor", cg.Component)
 
-CONF_SPEED = "speed"
-CONF_DISTANCE = "distance"
+
 
 CONFIG_SCHEMA = cv.Schema(
     {

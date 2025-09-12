@@ -6,7 +6,7 @@
 namespace esphome {
 namespace dfrobot_c4001 {
 
-class C4001BinarySensor : public c4001Listener, public Component, binary_sensor::BinarySensor {
+class C4001BinarySensor : public C4001Listener, public Component, binary_sensor::BinarySensor {
  public:
   void setup() override {
     if (this->presence_bsensor_ != nullptr) {

@@ -21,22 +21,24 @@
 #endif
 
 /** @brief Range result structure (min/max detection range). */
-typedef struct RangeResult {
+struct RangeResult {
   float min;
   float max;
-} sRange_t;
-
+};
+using SRange = RangeResult;
 /** @brief Sensitivity result structure (keep and trigger sensitivity). */
-typedef struct SensitivityResult {
+struct SensitivityResult {
   int keep;
   int trig;
-} sSensitivity_t;
+};
+using SenResult = SensitivityResult;
 
 /** @brief Delay result structure (confirm and disappear delays in seconds). */
-typedef struct DelayResult {
+struct DelayResult {
   float confirm;
   float disappear;
-} sDelays_t;
+};
+using DelResult = DelayResult;
 
 /**
  * @brief Motion data parsed from $DFDMD lines.
@@ -45,12 +47,13 @@ typedef struct DelayResult {
  * @param speed    measured speed (m/s)
  * @param valid    true if parsed successfully
  */
-typedef struct motionData {
+struct MotionData {
   int exist;       ///< presence flag (0/1)
   float distance;  ///< distance in meters
   float speed;     ///< speed in m/s
   bool valid;      ///< parsing result flag
-} sMontionData_t;
+};
+using MotData = MotionData;
 
 /** @brief Running mode of the device. */
 enum MotionMode { MODE_UNKNOWN = -1, MODE_MOTION = 0, MODE_SPEED = 1 };
@@ -58,7 +61,7 @@ enum MotionMode { MODE_UNKNOWN = -1, MODE_MOTION = 0, MODE_SPEED = 1 };
 namespace esphome {
 namespace dfrobot_c4001 {
 
-class c4001Listener {
+class C4001Listener {
  public:
   virtual void on_presence(bool presence){};
   virtual void on_distance(float distance){};
@@ -106,13 +109,13 @@ class c4001Component : public Component, public uart::UARTDevice {
   void send_cmd_with_param(const char *cmd);
 
   /** Sensor control helpers */
-  bool sensorStop(void);
-  void saveConfig(void);
-  void sensorStart(void);
+  bool sensor_stop();
+  void save_config();
+  void sensor_start();
 
   /** Query helpers for device settings */
-  float getRangeTrig();
-  sRange_t getRange();
+  float get_trig_uart();
+  SRange get_range_uart();
 
   float get_min_range() const { return min_range_; }
   float get_max_range() const { return max_range_; }
@@ -121,20 +124,20 @@ class c4001Component : public Component, public uart::UARTDevice {
   /** Sensitivity interface */
   void set_keep_sensitivity(int value);
   void set_trig_sensitivity(int value);
-  sSensitivity_t getSensitivity();
+  SenResult getSensitivity();
 
   /** Delay interface */
   void set_confirm_delay(float value);
   void set_disappear_delay(float value);
-  sDelays_t getDelays();
+  DelResult get_delay_uart();
 
   /** Threshold factor interface */
   void set_threshold_factor(int value);
-  int getThreshold();
+  int get_threshold_uart();
 
   /** Micro-switch control */
   void set_micro_switch_state(bool state);
-  int getMicroSwitch();
+  int get_micro_uart();
 
   /** Operating mode setter (expects "motion" or "speed") */
   void set_operating_mode(const std::string &state);
@@ -145,8 +148,13 @@ class c4001Component : public Component, public uart::UARTDevice {
   /** Read and parse incoming UART data according to current mode */
   void get_data();
 
+<<<<<<< HEAD
+  void register_listener(C4001Listener *listener) { this->listeners_.push_back(listener); }
+  
+=======
   void register_listener(c4001Listener *listener) { this->listeners_.push_back(listener); }
 
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
 #ifdef USE_NUMBER
   /** Setters for Number child entities (Home Assistant number entities) */
   void set_min_range_number(number::Number *number) { this->min_range_number_ = number; }
@@ -236,7 +244,13 @@ class c4001Component : public Component, public uart::UARTDevice {
   /** Timing and internal helpers */
   uint32_t update_interval_{1000};  ///< default update interval (ms)
   uint32_t last_update_{0};
+<<<<<<< HEAD
+  uint8_t test_value_{0}; ///< test value (0-255)
+  
+  std::vector<C4001Listener *> listeners_{};
+=======
   uint8_t test_value_{0};  ///< test value (0-255)
+>>>>>>> a8f3455730261805ada59c777b5e77763ad17173
 
   std::vector<c4001Listener *> listeners_{};
 };

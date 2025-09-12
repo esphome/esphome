@@ -6,7 +6,7 @@
 namespace esphome {
 namespace dfrobot_c4001 {
 static const char *const TAG = "dfrobot_c4001.select";
-class C4001Sensor : public c4001Listener, public Component, sensor::Sensor {
+class C4001Sensor : public C4001Listener, public Component, sensor::Sensor {
  public:
   void setup() override {
     if (this->distance_sensor_ != nullptr) {

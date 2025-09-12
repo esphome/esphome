@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
-CODEOWNERS = ["zhixin.liu@dfrobot.com"]
+CODEOWNERS = ["@96liuzhixin"]
 
 
 dfrobot_c4001_ns = cg.esphome_ns.namespace("dfrobot_c4001")
