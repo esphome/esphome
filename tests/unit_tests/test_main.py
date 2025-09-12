@@ -734,7 +734,7 @@ def test_upload_program_ota_success(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    expected_firmware = str(
+    expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
@@ -768,7 +768,9 @@ def test_upload_program_ota_with_file_arg(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", "custom.bin")
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, "", Path("custom.bin")
+    )
 
 
 def test_upload_program_ota_no_config(
@@ -824,7 +826,7 @@ def test_upload_program_ota_with_mqtt_resolution(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
-    expected_firmware = str(
+    expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
