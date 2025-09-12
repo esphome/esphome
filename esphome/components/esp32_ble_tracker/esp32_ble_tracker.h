@@ -159,8 +159,6 @@ enum class ClientState : uint8_t {
   IDLE,
   // Device advertisement found.
   DISCOVERED,
-  // Device is discovered and the scanner is stopped
-  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.
@@ -313,7 +311,6 @@ class ESP32BLETracker : public Component,
           counts.discovered++;
           break;
         case ClientState::CONNECTING:
-        case ClientState::READY_TO_CONNECT:
           counts.connecting++;
           break;
         default:
