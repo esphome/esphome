@@ -114,6 +114,14 @@ class Purpose(StrEnum):
     LOGGING = "logging"
 
 
+def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
+    """Resolve an address using cache if available, otherwise return the address itself."""
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(address)):
+        _LOGGER.debug("Using cached addresses for %s: %s", purpose.value, cached)
+        return cached
+    return [address]
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -142,14 +150,7 @@ def choose_upload_log_host(
                     (purpose == Purpose.LOGGING and has_api())
                     or (purpose == Purpose.UPLOADING and has_ota())
                 ):
-                    # Check if we have cached addresses for CORE.address
-                    if CORE.address_cache and (
-                        cached := CORE.address_cache.get_addresses(CORE.address)
-                    ):
-                        _LOGGER.debug("Using cached addresses for OTA: %s", cached)
-                        resolved.extend(cached)
-                    else:
-                        resolved.append(CORE.address)
+                    resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 if purpose == Purpose.LOGGING:
                     if has_api() and has_mqtt_ip_lookup():
@@ -159,32 +160,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address():
-                        # Check if we have cached addresses for CORE.address
-                        if CORE.address_cache and (
-                            cached := CORE.address_cache.get_addresses(CORE.address)
-                        ):
-                            _LOGGER.debug(
-                                "Using cached addresses for logging: %s", cached
-                            )
-                            resolved.extend(cached)
-                        else:
-                            resolved.append(CORE.address)
+                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address():
-                        # Check if we have cached addresses for CORE.address
-                        if CORE.address_cache and (
-                            cached := CORE.address_cache.get_addresses(CORE.address)
-                        ):
-                            _LOGGER.debug(
-                                "Using cached addresses for uploading: %s", cached
-                            )
-                            resolved.extend(cached)
-                        else:
-                            resolved.append(CORE.address)
+                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
         if not resolved:
