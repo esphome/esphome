@@ -31,7 +31,6 @@ inline uint32_t read_mem_u32(uintptr_t addr) {
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
 const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
-#define SDM_INFO_FIELD_INVALID (0)
 #define MBR_SIZE (0x1000)
 #define SOFTDEVICE_INFO_STRUCT_OFFSET (0x2000)
 #define SD_ID_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10)
@@ -41,14 +40,14 @@ const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
 #define SD_INFO_STRUCT_SIZE_GET(baseaddr) (*((uint8_t *) ((baseaddr) + SD_INFO_STRUCT_SIZE_OFFSET)))
 #define SD_ID_GET(baseaddr) \
   ((SD_INFO_STRUCT_SIZE_GET(baseaddr) > (SD_ID_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) \
-       ? (*((uint32_t *) ((baseaddr) + SD_ID_OFFSET))) \
-       : SDM_INFO_FIELD_INVALID)
+       ? read_mem_u32((baseaddr) + SD_ID_OFFSET) \
+       : 0)
 #define SD_VERSION_GET(baseaddr) \
   ((SD_INFO_STRUCT_SIZE_GET(baseaddr) > (SD_VERSION_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) \
-       ? (*((uint32_t *) ((baseaddr) + SD_VERSION_OFFSET))) \
-       : SDM_INFO_FIELD_INVALID)
+       ? read_mem_u32((baseaddr) + SD_VERSION_OFFSET) \
+       : 0)
 
-static inline bool is_sd_existed() { return *((uint32_t *) (SOFTDEVICE_INFO_STRUCT_ADDRESS + 4)) == SD_MAGIC_NUMBER; }
+static inline bool is_sd_existed() { return read_mem_u32(SOFTDEVICE_INFO_STRUCT_ADDRESS + 4) == SD_MAGIC_NUMBER; }
 
 std::string DebugComponent::get_reset_reason_() {
   uint32_t cause;
