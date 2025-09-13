@@ -28,7 +28,7 @@ from ..const import (
 
 AUTO_LOAD = ["zigbee"]
 
-ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", sensor.Sensor, cg.Component)
+ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.All(
     (
@@ -44,6 +44,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             }
         )
+        .extend(cv.polling_component_schema("60s"))
         .extend(cv.COMPONENT_SCHEMA)
         .extend(ZigbeeBaseSchema)
     ),

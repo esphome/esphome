@@ -62,13 +62,13 @@ void zb_zcl_analog_input_init_client(void);
 namespace esphome {
 namespace zigbee {
 
-class ZigbeeSensor : public ZigbeeEntity, public sensor::Sensor, public Component {
+class ZigbeeSensor : public ZigbeeEntity, public sensor::Sensor, public PollingComponent {
  public:
   void set_template(std::function<optional<bool>()> &&f) { this->f_ = f; }
   void set_cluster_attributes(AnalogAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }
 
   void setup() override;
-  void loop() override;
+  void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
