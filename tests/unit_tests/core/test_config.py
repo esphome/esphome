@@ -3,8 +3,9 @@
 from collections.abc import Callable
 import os
 from pathlib import Path
+import types
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -267,8 +268,7 @@ def test_add_platform_defines_priority() -> None:
 
 def test_valid_include_with_angle_brackets() -> None:
     """Test valid_include accepts angle bracket includes."""
-    result = valid_include("<ArduinoJson.h>")
-    assert result == "<ArduinoJson.h>"
+    assert valid_include("<ArduinoJson.h>") == "<ArduinoJson.h>"
 
 
 def test_valid_include_with_valid_file(tmp_path: Path) -> None:
@@ -277,8 +277,7 @@ def test_valid_include_with_valid_file(tmp_path: Path) -> None:
     include_file = tmp_path / "include.h"
     include_file.touch()
 
-    result = valid_include(str(include_file))
-    assert result == str(include_file)
+    assert valid_include(str(include_file)) == str(include_file)
 
 
 def test_valid_include_with_valid_directory(tmp_path: Path) -> None:
@@ -287,8 +286,7 @@ def test_valid_include_with_valid_directory(tmp_path: Path) -> None:
     include_dir = tmp_path / "includes"
     include_dir.mkdir()
 
-    result = valid_include(str(include_dir))
-    assert result == str(include_dir)
+    assert valid_include(str(include_dir)) == str(include_dir)
 
 
 def test_valid_include_invalid_extension(tmp_path: Path) -> None:
@@ -303,8 +301,7 @@ def test_valid_include_invalid_extension(tmp_path: Path) -> None:
 
 def test_valid_project_name_valid() -> None:
     """Test valid_project_name accepts valid project names."""
-    result = valid_project_name("esphome.my_project")
-    assert result == "esphome.my_project"
+    assert valid_project_name("esphome.my_project") == "esphome.my_project"
 
 
 def test_valid_project_name_no_namespace() -> None:
@@ -322,8 +319,7 @@ def test_valid_project_name_multiple_dots() -> None:
 def test_validate_hostname_valid() -> None:
     """Test validate_hostname accepts valid hostnames."""
     config = {CONF_NAME: "my-device", CONF_NAME_ADD_MAC_SUFFIX: False}
-    result = validate_hostname(config)
-    assert result == config
+    assert validate_hostname(config) == config
 
 
 def test_validate_hostname_too_long() -> None:
@@ -349,8 +345,7 @@ def test_validate_hostname_too_long_with_mac_suffix() -> None:
 def test_validate_hostname_with_underscore(caplog) -> None:
     """Test validate_hostname warns about underscores."""
     config = {CONF_NAME: "my_device", CONF_NAME_ADD_MAC_SUFFIX: False}
-    result = validate_hostname(config)
-    assert result == config
+    assert validate_hostname(config) == config
     assert (
         "Using the '_' (underscore) character in the hostname is discouraged"
         in caplog.text
@@ -450,7 +445,7 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
         preload_core_config(config, result)
 
 
-def test_include_file_header(tmp_path: Path) -> None:
+def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) -> None:
     """Test include_file adds include statement for header files."""
     src_file = tmp_path / "source.h"
     src_file.write_text("// Header content")
@@ -468,29 +463,25 @@ def test_include_file_header(tmp_path: Path) -> None:
 
         mock_cg.RawStatement.side_effect = raw_statement_side_effect
 
-        with patch("esphome.core.config.copy_file_if_changed") as mock_copy:
-            config.include_file(str(src_file), "test.h")
+        config.include_file(str(src_file), "test.h")
 
-            mock_copy.assert_called_once()
-            mock_cg.add_global.assert_called_once()
-            # Check that include statement was added
-            assert '#include "test.h"' in mock_raw_statement.text
+        mock_copy_file_if_changed.assert_called_once()
+        mock_cg.add_global.assert_called_once()
+        # Check that include statement was added
+        assert '#include "test.h"' in mock_raw_statement.text
 
 
-def test_include_file_cpp(tmp_path: Path) -> None:
+def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> None:
     """Test include_file does not add include for cpp files."""
     src_file = tmp_path / "source.cpp"
     src_file.write_text("// CPP content")
 
     CORE.build_path = str(tmp_path / "build")
 
-    with (
-        patch("esphome.core.config.cg") as mock_cg,
-        patch("esphome.core.config.copy_file_if_changed") as mock_copy,
-    ):
+    with patch("esphome.core.config.cg") as mock_cg:
         config.include_file(str(src_file), "test.cpp")
 
-        mock_copy.assert_called_once()
+        mock_copy_file_if_changed.assert_called_once()
         # Should not add include statement for .cpp files
         mock_cg.add_global.assert_not_called()
 
@@ -506,7 +497,6 @@ def test_get_usable_cpu_count_with_process_cpu_count() -> None:
     """Test get_usable_cpu_count uses process_cpu_count when available."""
     # Test with process_cpu_count (Python 3.13+)
     # Create a mock os module with process_cpu_count
-    import types
 
     mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
 

@@ -9,9 +9,10 @@ not be part of a unit test suite.
 
 """
 
+from collections.abc import Generator
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -47,42 +48,42 @@ def setup_core(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def mock_write_file_if_changed():
+def mock_write_file_if_changed() -> Generator[Mock, None, None]:
     """Mock write_file_if_changed for storage_json."""
     with patch("esphome.storage_json.write_file_if_changed") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_copy_file_if_changed():
+def mock_copy_file_if_changed() -> Generator[Mock, None, None]:
     """Mock copy_file_if_changed for core.config."""
     with patch("esphome.core.config.copy_file_if_changed") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_run_platformio_cli():
+def mock_run_platformio_cli() -> Generator[Mock, None, None]:
     """Mock run_platformio_cli for platformio_api."""
     with patch("esphome.platformio_api.run_platformio_cli") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_run_platformio_cli_run():
+def mock_run_platformio_cli_run() -> Generator[Mock, None, None]:
     """Mock run_platformio_cli_run for platformio_api."""
     with patch("esphome.platformio_api.run_platformio_cli_run") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_run_idedata():
+def mock_run_idedata() -> Generator[Mock, None, None]:
     """Mock _run_idedata for platformio_api."""
     with patch("esphome.platformio_api._run_idedata") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_decode_pc():
+def mock_decode_pc() -> Generator[Mock, None, None]:
     """Mock _decode_pc for platformio_api."""
     with patch("esphome.platformio_api._decode_pc") as mock:
         yield mock

@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -119,7 +119,7 @@ def test_storage_json_firmware_bin_path_property(setup_core: Path) -> None:
 
 
 def test_storage_json_save_creates_directory(
-    setup_core: Path, tmp_path: Path, mock_write_file_if_changed
+    setup_core: Path, tmp_path: Path, mock_write_file_if_changed: Mock
 ) -> None:
     """Test StorageJSON.save creates storage directory if it doesn't exist."""
     storage_dir = tmp_path / "new_data" / "storage"
