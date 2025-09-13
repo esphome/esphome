@@ -390,8 +390,6 @@ def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
 def test_patch_structhash(setup_core: Path) -> None:
     """Test patch_structhash monkey patches platformio functions."""
     # Create simple namespace objects to act as modules
-    from types import SimpleNamespace
-
     mock_cli = SimpleNamespace()
     mock_helpers = SimpleNamespace()
     mock_run = SimpleNamespace(cli=mock_cli, helpers=mock_helpers)
