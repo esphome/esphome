@@ -371,32 +371,39 @@ def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
 
 def test_patch_structhash(setup_core: Path) -> None:
     """Test patch_structhash monkey patches platformio functions."""
+    # Create simple namespace objects to act as modules
+    from types import SimpleNamespace
+
+    mock_cli = SimpleNamespace()
+    mock_helpers = SimpleNamespace()
+    mock_run = SimpleNamespace(cli=mock_cli, helpers=mock_helpers)
+
     # Mock platformio modules
     with patch.dict(
         "sys.modules",
         {
-            "platformio.run.cli": MagicMock(),
-            "platformio.run.helpers": MagicMock(),
-            "platformio.run": MagicMock(),
+            "platformio.run.cli": mock_cli,
+            "platformio.run.helpers": mock_helpers,
+            "platformio.run": mock_run,
             "platformio.project.helpers": MagicMock(),
             "platformio.fs": MagicMock(),
             "platformio": MagicMock(),
         },
     ):
-        import sys
-
-        mock_cli = sys.modules["platformio.run.cli"]
-        mock_helpers = sys.modules["platformio.run.helpers"]
-
         # Call patch_structhash
         platformio_api.patch_structhash()
 
-        # Verify functions were patched
-        assert mock_cli.clean_build_dir is not None
-        assert mock_helpers.clean_build_dir is not None
+        # Verify both modules had clean_build_dir patched
+        # Check that clean_build_dir was set on both modules
+        assert hasattr(mock_cli, "clean_build_dir")
+        assert hasattr(mock_helpers, "clean_build_dir")
 
-        # Both should be the same function
+        # Verify they got the same function assigned
         assert mock_cli.clean_build_dir is mock_helpers.clean_build_dir
+
+        # Verify it's a real function (not a Mock)
+        assert callable(mock_cli.clean_build_dir)
+        assert mock_cli.clean_build_dir.__name__ == "patched_clean_build_dir"
 
 
 def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:

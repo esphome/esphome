@@ -357,7 +357,7 @@ def test_validate_hostname_with_underscore(caplog) -> None:
     )
 
 
-def test_preload_core_config_basic() -> None:
+def test_preload_core_config_basic(setup_core: Path) -> None:
     """Test preload_core_config sets basic CORE attributes."""
     config = {
         CONF_ESPHOME: {
@@ -367,8 +367,7 @@ def test_preload_core_config_basic() -> None:
     }
     result = {}
 
-    with patch.object(CORE, "relative_internal_path", return_value="/test/build"):
-        platform = preload_core_config(config, result)
+    platform = preload_core_config(config, result)
 
     assert CORE.name == "test_device"
     assert platform == "esp32"
@@ -376,7 +375,7 @@ def test_preload_core_config_basic() -> None:
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
 
 
-def test_preload_core_config_with_build_path() -> None:
+def test_preload_core_config_with_build_path(setup_core: Path) -> None:
     """Test preload_core_config uses provided build path."""
     config = {
         CONF_ESPHOME: {
@@ -387,16 +386,13 @@ def test_preload_core_config_with_build_path() -> None:
     }
     result = {}
 
-    with patch.object(
-        CORE, "relative_internal_path", return_value="/custom/build/path"
-    ):
-        platform = preload_core_config(config, result)
+    platform = preload_core_config(config, result)
 
     assert config[CONF_ESPHOME][CONF_BUILD_PATH] == "/custom/build/path"
     assert platform == "esp8266"
 
 
-def test_preload_core_config_env_build_path() -> None:
+def test_preload_core_config_env_build_path(setup_core: Path) -> None:
     """Test preload_core_config uses ESPHOME_BUILD_PATH env var."""
     config = {
         CONF_ESPHOME: {
@@ -406,11 +402,7 @@ def test_preload_core_config_env_build_path() -> None:
     }
     result = {}
 
-    with (
-        patch.dict(os.environ, {"ESPHOME_BUILD_PATH": "/env/build"}),
-        patch.object(CORE, "relative_internal_path") as mock_rel,
-    ):
-        mock_rel.return_value = "/env/build/test_device"
+    with patch.dict(os.environ, {"ESPHOME_BUILD_PATH": "/env/build"}):
         platform = preload_core_config(config, result)
 
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
@@ -418,7 +410,7 @@ def test_preload_core_config_env_build_path() -> None:
     assert platform == "rp2040"
 
 
-def test_preload_core_config_no_platform() -> None:
+def test_preload_core_config_no_platform(setup_core: Path) -> None:
     """Test preload_core_config raises when no platform is specified."""
     config = {
         CONF_ESPHOME: {
@@ -427,11 +419,17 @@ def test_preload_core_config_no_platform() -> None:
     }
     result = {}
 
-    with pytest.raises(cv.Invalid, match="Platform missing"):
+    with (
+        patch(
+            "esphome.core.config._list_target_platforms",
+            return_value=["esp32", "esp8266", "rp2040"],
+        ),
+        pytest.raises(cv.Invalid, match="Platform missing"),
+    ):
         preload_core_config(config, result)
 
 
-def test_preload_core_config_multiple_platforms() -> None:
+def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
     """Test preload_core_config raises when multiple platforms are specified."""
     config = {
         CONF_ESPHOME: {
@@ -442,7 +440,13 @@ def test_preload_core_config_multiple_platforms() -> None:
     }
     result = {}
 
-    with pytest.raises(cv.Invalid, match="Found multiple target platform blocks"):
+    with (
+        patch(
+            "esphome.core.config._list_target_platforms",
+            return_value=["esp32", "esp8266", "rp2040"],
+        ),
+        pytest.raises(cv.Invalid, match="Found multiple target platform blocks"),
+    ):
         preload_core_config(config, result)
 
 
@@ -501,15 +505,20 @@ def test_get_usable_cpu_count() -> None:
 def test_get_usable_cpu_count_with_process_cpu_count() -> None:
     """Test get_usable_cpu_count uses process_cpu_count when available."""
     # Test with process_cpu_count (Python 3.13+)
-    with patch("os.process_cpu_count", return_value=8):
+    # Create a mock os module with process_cpu_count
+    import types
+
+    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
+
+    with patch("esphome.core.config.os", mock_os):
+        # When process_cpu_count exists, it should be used
         count = config.get_usable_cpu_count()
         assert count == 8
 
-    # Test fallback to cpu_count
-    with (
-        patch("os.process_cpu_count", side_effect=AttributeError),
-        patch("os.cpu_count", return_value=4),
-    ):
+    # Test fallback to cpu_count when process_cpu_count not available
+    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
+
+    with patch("esphome.core.config.os", mock_os_no_process):
         count = config.get_usable_cpu_count()
         assert count == 4
 

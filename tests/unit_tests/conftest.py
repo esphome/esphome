@@ -11,6 +11,7 @@ not be part of a unit test suite.
 
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -43,3 +44,31 @@ def setup_core(tmp_path: Path) -> Path:
     """Set up CORE with test paths."""
     CORE.config_path = str(tmp_path / "test.yaml")
     return tmp_path
+
+
+@pytest.fixture
+def mock_write_file_if_changed():
+    """Mock write_file_if_changed for storage_json."""
+    with patch("esphome.storage_json.write_file_if_changed") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_copy_file_if_changed():
+    """Mock copy_file_if_changed for core.config."""
+    with patch("esphome.core.config.copy_file_if_changed") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_platformio_cli():
+    """Mock run_platformio_cli for platformio_api."""
+    with patch("esphome.platformio_api.run_platformio_cli") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_platformio_cli_run():
+    """Mock run_platformio_cli_run for platformio_api."""
+    with patch("esphome.platformio_api.run_platformio_cli_run") as mock:
+        yield mock
