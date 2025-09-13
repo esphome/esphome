@@ -135,7 +135,7 @@ def test_load_idedata_returns_dict(
 
 
 def test_load_idedata_uses_cache_when_valid(
-    setup_core: Path, mock_run_idedata: Mock
+    setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
     """Test _load_idedata uses cached data when unchanged."""
     CORE.build_path = str(setup_core / "build" / "test")
@@ -159,13 +159,13 @@ def test_load_idedata_uses_cache_when_valid(
     result = platformio_api._load_idedata(config)
 
     # Should not call _run_idedata since cache is valid
-    mock_run_idedata.assert_not_called()
+    mock_run_platformio_cli_run.assert_not_called()
 
     assert result["prog_path"] == "/cached/firmware.elf"
 
 
 def test_load_idedata_regenerates_when_platformio_ini_newer(
-    setup_core: Path, mock_run_idedata
+    setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
     """Test _load_idedata regenerates when platformio.ini is newer."""
     CORE.build_path = str(setup_core / "build" / "test")
@@ -184,19 +184,21 @@ def test_load_idedata_regenerates_when_platformio_ini_newer(
     # Make platformio.ini newer than idedata
     os.utime(platformio_ini, (idedata_mtime + 1, idedata_mtime + 1))
 
-    mock_run_idedata.return_value = {"prog_path": "/new/firmware.elf"}
+    # Mock platformio to return new data
+    new_data = {"prog_path": "/new/firmware.elf"}
+    mock_run_platformio_cli_run.return_value = json.dumps(new_data)
 
     config = {"name": "test"}
     result = platformio_api._load_idedata(config)
 
     # Should call _run_idedata since platformio.ini is newer
-    mock_run_idedata.assert_called_once_with(config)
+    mock_run_platformio_cli_run.assert_called_once()
 
     assert result["prog_path"] == "/new/firmware.elf"
 
 
 def test_load_idedata_regenerates_on_corrupted_cache(
-    setup_core: Path, mock_run_idedata
+    setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
     """Test _load_idedata regenerates when cache file is corrupted."""
     CORE.build_path = str(setup_core / "build" / "test")
@@ -216,13 +218,15 @@ def test_load_idedata_regenerates_on_corrupted_cache(
     platformio_ini_mtime = platformio_ini.stat().st_mtime
     os.utime(idedata_path, (platformio_ini_mtime + 1, platformio_ini_mtime + 1))
 
-    mock_run_idedata.return_value = {"prog_path": "/new/firmware.elf"}
+    # Mock platformio to return new data
+    new_data = {"prog_path": "/new/firmware.elf"}
+    mock_run_platformio_cli_run.return_value = json.dumps(new_data)
 
     config = {"name": "test"}
     result = platformio_api._load_idedata(config)
 
     # Should call _run_idedata since cache is corrupted
-    mock_run_idedata.assert_called_once_with(config)
+    mock_run_platformio_cli_run.assert_called_once()
 
     assert result["prog_path"] == "/new/firmware.elf"
 
@@ -301,58 +305,66 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "arg" in args
 
 
-def test_run_platformio_cli_run_builds_command(setup_core: Path) -> None:
+def test_run_platformio_cli_run_builds_command(
+    setup_core: Path, mock_run_platformio_cli: Mock
+) -> None:
     """Test run_platformio_cli_run builds correct command."""
     CORE.build_path = str(setup_core / "build" / "test")
+    mock_run_platformio_cli.return_value = 0
 
-    with patch("esphome.platformio_api.run_platformio_cli") as mock_cli:
-        mock_cli.return_value = 0
+    config = {"name": "test"}
+    platformio_api.run_platformio_cli_run(config, True, "extra", "args")
 
-        config = {"name": "test"}
-        platformio_api.run_platformio_cli_run(config, True, "extra", "args")
-
-        mock_cli.assert_called_once_with(
-            "run", "-d", CORE.build_path, "-v", "extra", "args"
-        )
+    mock_run_platformio_cli.assert_called_once_with(
+        "run", "-d", CORE.build_path, "-v", "extra", "args"
+    )
 
 
-def test_run_compile(setup_core: Path) -> None:
+def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> None:
     """Test run_compile with process limit."""
     from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 
     CORE.build_path = str(setup_core / "build" / "test")
-
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
+    mock_run_platformio_cli_run.return_value = 0
 
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
-        mock_run.return_value = 0
+    platformio_api.run_compile(config, verbose=True)
 
-        platformio_api.run_compile(config, verbose=True)
-
-        mock_run.assert_called_once_with(config, True, "-j4")
+    mock_run_platformio_cli_run.assert_called_once_with(config, True, "-j4")
 
 
-def test_get_idedata_caches_result(setup_core: Path, mock_load_idedata: Mock) -> None:
+def test_get_idedata_caches_result(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
     """Test get_idedata caches result in CORE.data."""
     from esphome.const import KEY_CORE
 
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
     CORE.data[KEY_CORE] = {}
-    mock_load_idedata.return_value = {"prog_path": "/test/firmware.elf"}
+
+    # Create platformio.ini to avoid regeneration
+    platformio_ini = setup_core / "build" / "test" / "platformio.ini"
+    platformio_ini.parent.mkdir(parents=True, exist_ok=True)
+    platformio_ini.write_text("content")
+
+    # Mock platformio to return data
+    idedata = {"prog_path": "/test/firmware.elf"}
+    mock_run_platformio_cli_run.return_value = json.dumps(idedata)
 
     config = {"name": "test"}
 
-    # First call should load
+    # First call should load and cache
     result1 = platformio_api.get_idedata(config)
-    mock_load_idedata.assert_called_once()
+    mock_run_platformio_cli_run.assert_called_once()
 
-    # Second call should use cache
+    # Second call should use cache from CORE.data
     result2 = platformio_api.get_idedata(config)
-    mock_load_idedata.assert_called_once()  # Still only called once
+    mock_run_platformio_cli_run.assert_called_once()  # Still only called once
 
     assert result1 is result2
     assert isinstance(result1, platformio_api.IDEData)
+    assert result1.firmware_elf_path == "/test/firmware.elf"
 
 
 def test_idedata_addr2line_path_windows(setup_core: Path) -> None:

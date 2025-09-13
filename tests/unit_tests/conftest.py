@@ -76,13 +76,6 @@ def mock_run_platformio_cli_run() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_run_idedata() -> Generator[Mock, None, None]:
-    """Mock _run_idedata for platformio_api."""
-    with patch("esphome.platformio_api._run_idedata") as mock:
-        yield mock
-
-
-@pytest.fixture
 def mock_decode_pc() -> Generator[Mock, None, None]:
     """Mock _decode_pc for platformio_api."""
     with patch("esphome.platformio_api._decode_pc") as mock:
@@ -93,11 +86,4 @@ def mock_decode_pc() -> Generator[Mock, None, None]:
 def mock_run_external_command() -> Generator[Mock, None, None]:
     """Mock run_external_command for platformio_api."""
     with patch("esphome.platformio_api.run_external_command") as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_load_idedata() -> Generator[Mock, None, None]:
-    """Mock _load_idedata for platformio_api."""
-    with patch("esphome.platformio_api._load_idedata") as mock:
         yield mock
