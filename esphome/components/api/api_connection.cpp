@@ -1427,7 +1427,6 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   std::string mac_address = get_mac_address_pretty();
   resp.set_mac_address(StringRef(mac_address));
 
-  // Use the ESPHOME_VERSION_REF constant defined in send_hello_response
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
   resp.set_compilation_time(App.get_compilation_time_ref());
