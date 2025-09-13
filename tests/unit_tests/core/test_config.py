@@ -414,7 +414,7 @@ def test_preload_core_config_no_platform(setup_core: Path) -> None:
     }
     result = {}
 
-    # Simply mock _is_target_platform to avoid expensive component loading
+    # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
         mock_is_platform.side_effect = lambda name: name in [
@@ -438,7 +438,7 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
     }
     result = {}
 
-    # Simply mock _is_target_platform to avoid expensive component loading
+    # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
         mock_is_platform.side_effect = lambda name: name in [
