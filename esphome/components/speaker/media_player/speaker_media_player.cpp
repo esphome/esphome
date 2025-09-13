@@ -553,10 +553,10 @@ media_player::MediaPlayerTraits SpeakerMediaPlayer::get_traits() {
   auto traits = media_player::MediaPlayerTraits();
   if (!this->single_pipeline_()) {
     traits.set_supports_pause(true);
-#ifdef USE_SUPPORTS_TURN_OFF_ON
-    traits.set_supports_turn_off_on(true);
-#endif
   }
+#ifdef USE_SUPPORTS_TURN_OFF_ON
+  traits.set_supports_turn_off_on(true);
+#endif
 
   if (this->announcement_format_.has_value()) {
     traits.get_supported_formats().push_back(this->announcement_format_.value());
