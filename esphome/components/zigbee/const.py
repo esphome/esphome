@@ -20,6 +20,7 @@ CONF_GROUPS_ATTRS = "groups_attrs"
 CONF_SCENES_ATTRS = "scenes_attrs"
 CONF_BINARY_ATTRS = "binary_attrs"
 CONF_TIME_ATTRS = "time_attrs"
+CONF_ANALOG_ATTRS = "analog_attrs"
 
 CONF_BASIC_ATTRIB_LIST_EXT = "basic_attrib_list_ext"
 CONF_IDENTIFY_ATTRIB_LIST = "identify_attrib_list"
@@ -43,9 +44,13 @@ ZB_ZCL_DECLARE_SCENES_ATTRIB_LIST = cg.global_ns.class_(
 
 # input/output
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
+AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
+
 
 # input
 CONF_BINARY_INPUT_ATTRIB_LIST = "binary_input_attrib_list"
+CONF_ANALOG_INPUT_ATTRIB_LIST = "analog_input_attrib_list"
+
 
 # output
 CONF_BINARY_OUTPUT_ATTRIB_LIST = "binary_output_attrib_list"
@@ -67,3 +72,4 @@ ZB_ZCL_CLUSTER_ID_SCENES = "ZB_ZCL_CLUSTER_ID_SCENES"
 ZB_ZCL_CLUSTER_ID_BINARY_INPUT = "ZB_ZCL_CLUSTER_ID_BINARY_INPUT"
 ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT = "ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT"
 ZB_ZCL_CLUSTER_ID_TIME = "ZB_ZCL_CLUSTER_ID_TIME"
+ZB_ZCL_CLUSTER_ID_ANALOG_INPUT = "ZB_ZCL_CLUSTER_ID_ANALOG_INPUT"

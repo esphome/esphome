@@ -31,6 +31,13 @@ binary_sensor:
     id: zigbee_binary_sensor_2
     lambda: return true;
 
+sensor:
+  - platform: zigbee
+    id: zigbee_sensor_1
+  - platform: zigbee
+    id: zigbee_sensor_2
+    lambda: return 10;
+
 zigbee:
   wipe_on_boot: true
   on_join:
