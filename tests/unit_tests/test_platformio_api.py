@@ -182,19 +182,20 @@ def test_load_idedata_regenerates_when_platformio_ini_newer(
     # Make platformio.ini newer than idedata
     os.utime(platformio_ini, (idedata_mtime + 1, idedata_mtime + 1))
 
-    with patch("esphome.platformio_api._run_idedata") as mock_run:
-        mock_run.return_value = {"prog_path": "/new/firmware.elf"}
+    mock_run_idedata.return_value = {"prog_path": "/new/firmware.elf"}
 
-        config = {"name": "test"}
-        result = platformio_api._load_idedata(config)
+    config = {"name": "test"}
+    result = platformio_api._load_idedata(config)
 
-        # Should call _run_idedata since platformio.ini is newer
-        mock_run.assert_called_once_with(config)
+    # Should call _run_idedata since platformio.ini is newer
+    mock_run_idedata.assert_called_once_with(config)
 
     assert result["prog_path"] == "/new/firmware.elf"
 
 
-def test_load_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
+def test_load_idedata_regenerates_on_corrupted_cache(
+    setup_core: Path, mock_run_idedata
+) -> None:
     """Test _load_idedata regenerates when cache file is corrupted."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
@@ -213,14 +214,13 @@ def test_load_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
     platformio_ini_mtime = platformio_ini.stat().st_mtime
     os.utime(idedata_path, (platformio_ini_mtime + 1, platformio_ini_mtime + 1))
 
-    with patch("esphome.platformio_api._run_idedata") as mock_run:
-        mock_run.return_value = {"prog_path": "/new/firmware.elf"}
+    mock_run_idedata.return_value = {"prog_path": "/new/firmware.elf"}
 
-        config = {"name": "test"}
-        result = platformio_api._load_idedata(config)
+    config = {"name": "test"}
+    result = platformio_api._load_idedata(config)
 
-        # Should call _run_idedata since cache is corrupted
-        mock_run.assert_called_once_with(config)
+    # Should call _run_idedata since cache is corrupted
+    mock_run_idedata.assert_called_once_with(config)
 
     assert result["prog_path"] == "/new/firmware.elf"
 
