@@ -127,6 +127,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
 
   bool is_paused_{false};
   bool is_muted_{false};
+#ifdef USE_SUPPORTS_TURN_OFF_ON
+  bool is_turn_off_{false};
+#endif
 
   // The amount to change the volume on volume up/down commands
   float volume_increment_;

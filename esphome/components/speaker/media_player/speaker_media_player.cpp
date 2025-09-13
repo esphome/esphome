@@ -136,6 +136,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
 
     if (media_command.url.has_value() || media_command.file.has_value()) {
 #ifdef USE_SUPPORTS_TURN_OFF_ON
+      this->is_turn_off_ = false;
       if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
         this->state = media_player::MEDIA_PLAYER_STATE_ON;
         publish_state();
@@ -203,6 +204,9 @@ void SpeakerMediaPlayer::watch_media_commands_() {
     }
 
     if (media_command.command.has_value()) {
+#ifdef USE_SUPPORTS_TURN_OFF_ON
+      this->is_turn_off_ = false;
+#endif
       switch (media_command.command.value()) {
         case media_player::MEDIA_PLAYER_COMMAND_PLAY:
 #ifdef USE_SUPPORTS_TURN_OFF_ON
@@ -222,6 +226,16 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           }
           this->is_paused_ = true;
           break;
+#ifdef USE_SUPPORTS_TURN_OFF_ON
+        case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
+          if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+            this->state = media_player::MEDIA_PLAYER_STATE_ON;
+            this->publish_state();
+          }
+          break;
+        case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
+          this->is_turn_off_ = true;
+#endif
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
           // This avoids an audible short segment playing after receiving the stop command in a paused state.
@@ -255,49 +269,6 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           }
 
           break;
-#ifdef USE_SUPPORTS_TURN_OFF_ON
-        case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
-          if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
-            this->state = media_player::MEDIA_PLAYER_STATE_ON;
-            this->publish_state();
-          }
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
-          if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
-            if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
-              if (this->announcement_pipeline_ != nullptr) {
-                this->cancel_timeout("next_ann");
-                this->announcement_playlist_.clear();
-                this->announcement_pipeline_->stop();
-                this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
-                  if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-                    this->media_pipeline_->set_pause_state(false);
-                    this->is_paused_ = false;
-                    return RetryResult::DONE;
-                  }
-                  return RetryResult::RETRY;
-                });
-              }
-            } else {
-              if (this->media_pipeline_ != nullptr) {
-                this->cancel_timeout("next_media");
-                this->media_playlist_.clear();
-                this->media_pipeline_->stop();
-                this->set_retry("unpause_med", 50, 3, [this](const uint8_t remaining_attempts) {
-                  if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-                    this->media_pipeline_->set_pause_state(false);
-                    this->is_paused_ = false;
-                    return RetryResult::DONE;
-                  }
-                  return RetryResult::RETRY;
-                });
-              }
-            }
-            this->state = media_player::MEDIA_PLAYER_STATE_OFF;
-            this->publish_state();
-          }
-          break;
-#endif
         case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
           if (this->media_pipeline_ != nullptr) {
             if (this->is_paused_) {
@@ -429,13 +400,7 @@ void SpeakerMediaPlayer::loop() {
         this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
 #endif
       } else if (this->media_pipeline_state_ == AudioPipelineState::PLAYING) {
-#ifdef USE_SUPPORTS_TURN_OFF_ON
-        if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
-          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-        }
-#else
         this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-#endif
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
         if (!media_playlist_.empty()) {
           uint32_t timeout_ms = 0;
@@ -482,6 +447,20 @@ void SpeakerMediaPlayer::loop() {
     this->publish_state();
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
   }
+#ifdef USE_SUPPORTS_TURN_OFF_ON
+  if (this->is_turn_off_ && (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED
+      || this->state == media_player::MEDIA_PLAYER_STATE_IDLE)) {
+    this->is_turn_off_ = false;
+    if (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
+      this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+      this->publish_state();
+      ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+    }
+    this->state = media_player::MEDIA_PLAYER_STATE_OFF;
+    this->publish_state();
+    ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+  }
+#endif
 }
 
 void SpeakerMediaPlayer::play_file(audio::AudioFile *media_file, bool announcement, bool enqueue) {
