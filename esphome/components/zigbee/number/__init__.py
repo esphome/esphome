@@ -19,9 +19,9 @@ from .. import (
 )
 from ..const import (
     CONF_ANALOG_ATTRS,
-    CONF_ANALOG_INPUT_ATTRIB_LIST,
+    CONF_ANALOG_OUTPUT_ATTRIB_LIST,
     CONF_ZIGBEE_ID,
-    ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
     AnalogAttrs,
     zigbee_ns,
 )
@@ -36,9 +36,9 @@ CONFIG_SCHEMA = cv.All(
         .extend(
             {
                 cv.GenerateID(CONF_ANALOG_ATTRS): cv.declare_id(AnalogAttrs),
-                cv.GenerateID(CONF_ANALOG_INPUT_ATTRIB_LIST): cv.declare_id(
+                cv.GenerateID(CONF_ANALOG_OUTPUT_ATTRIB_LIST): cv.declare_id(
                     cg.global_ns.namespace(
-                        "ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST"
+                        "ESPHOME_ZB_ZCL_DECLARE_ANALOG_OUTPUT_ATTRIB_LIST"
                     )
                 ),
                 cv.Optional(CONF_LAMBDA): cv.returning_lambda,
@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     analog_attrs = zigbee_new_variable(config[CONF_ANALOG_ATTRS])
     attr_list = zigbee_new_attr_list(
-        config[CONF_ANALOG_INPUT_ATTRIB_LIST],
+        config[CONF_ANALOG_OUTPUT_ATTRIB_LIST],
         zigbee_assign(analog_attrs.out_of_service, 0),
         zigbee_assign(analog_attrs.present_value, 0),
         zigbee_assign(analog_attrs.status_flags, 0),
@@ -63,7 +63,7 @@ async def to_code(config):
     )
 
     cluster_id, clusters = zigbee_new_cluster_list(
-        config, [ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_ANALOG_INPUT, attr_list)]
+        config, [ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, attr_list)]
     )
 
     zigbee_register_ep(config, cluster_id, 2, clusters)
