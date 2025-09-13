@@ -108,7 +108,9 @@ def test_flash_image_dataclass() -> None:
     assert image.offset == "0x10000"
 
 
-def test_load_idedata_returns_dict(setup_core: Path) -> None:
+def test_load_idedata_returns_dict(
+    setup_core: Path, mock_run_platformio_cli_run
+) -> None:
     """Test _load_idedata returns parsed idedata dict when successful."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
@@ -122,18 +124,17 @@ def test_load_idedata_returns_dict(setup_core: Path) -> None:
     idedata_path.parent.mkdir(parents=True, exist_ok=True)
     idedata_path.write_text('{"prog_path": "/test/firmware.elf"}')
 
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
-        mock_run.return_value = '{"prog_path": "/test/firmware.elf"}'
+    mock_run_platformio_cli_run.return_value = '{"prog_path": "/test/firmware.elf"}'
 
-        config = {"name": "test"}
-        result = platformio_api._load_idedata(config)
+    config = {"name": "test"}
+    result = platformio_api._load_idedata(config)
 
     assert result is not None
     assert isinstance(result, dict)
     assert result["prog_path"] == "/test/firmware.elf"
 
 
-def test_load_idedata_uses_cache_when_valid(setup_core: Path) -> None:
+def test_load_idedata_uses_cache_when_valid(setup_core: Path, mock_run_idedata) -> None:
     """Test _load_idedata uses cached data when unchanged."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
@@ -152,17 +153,18 @@ def test_load_idedata_uses_cache_when_valid(setup_core: Path) -> None:
     platformio_ini_mtime = platformio_ini.stat().st_mtime
     os.utime(idedata_path, (platformio_ini_mtime + 1, platformio_ini_mtime + 1))
 
-    with patch("esphome.platformio_api._run_idedata") as mock_run:
-        config = {"name": "test"}
-        result = platformio_api._load_idedata(config)
+    config = {"name": "test"}
+    result = platformio_api._load_idedata(config)
 
-        # Should not call _run_idedata since cache is valid
-        mock_run.assert_not_called()
+    # Should not call _run_idedata since cache is valid
+    mock_run_idedata.assert_not_called()
 
     assert result["prog_path"] == "/cached/firmware.elf"
 
 
-def test_load_idedata_regenerates_when_platformio_ini_newer(setup_core: Path) -> None:
+def test_load_idedata_regenerates_when_platformio_ini_newer(
+    setup_core: Path, mock_run_idedata
+) -> None:
     """Test _load_idedata regenerates when platformio.ini is newer."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
