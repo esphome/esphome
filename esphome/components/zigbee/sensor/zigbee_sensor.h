@@ -64,7 +64,7 @@ namespace zigbee {
 
 class ZigbeeSensor : public ZigbeeEntity, public sensor::Sensor, public PollingComponent {
  public:
-  void set_template(std::function<optional<bool>()> &&f) { this->f_ = f; }
+  void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
   void set_cluster_attributes(AnalogAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }
 
   void setup() override;
@@ -73,7 +73,7 @@ class ZigbeeSensor : public ZigbeeEntity, public sensor::Sensor, public PollingC
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  std::function<optional<bool>()> f_{nullptr};
+  std::function<optional<float>()> f_{nullptr};
   AnalogAttrs *cluster_attributes_{nullptr};
 };
 
