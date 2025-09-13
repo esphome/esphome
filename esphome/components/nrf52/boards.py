@@ -17,6 +17,14 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
         ]
     },
+    "xiao_ble": {
+        KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            BOOTLOADER_ADAFRUIT,
+            BOOTLOADER_ADAFRUIT_NRF52_SD132,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+        ]
+    },
 }
 
 # https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go

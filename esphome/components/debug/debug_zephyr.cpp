@@ -29,6 +29,29 @@ inline uint32_t read_mem_u32(uintptr_t addr) {
   return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
 }
 
+// defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
+#define SD_MAGIC_NUMBER 0x51B1E5DB
+#define SDM_INFO_FIELD_INVALID (0)
+#define MBR_SIZE (0x1000)
+#define SOFTDEVICE_INFO_STRUCT_OFFSET (0x2000)
+#define SD_ID_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10)
+#define SD_VERSION_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x14)
+#define SD_INFO_STRUCT_SIZE_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET)
+#define SOFTDEVICE_INFO_STRUCT_ADDRESS (SOFTDEVICE_INFO_STRUCT_OFFSET + MBR_SIZE)
+#define SD_INFO_STRUCT_SIZE_GET(baseaddr) (*((uint8_t *) ((baseaddr) + SD_INFO_STRUCT_SIZE_OFFSET)))
+#define SD_ID_GET(baseaddr) \
+  ((SD_INFO_STRUCT_SIZE_GET(baseaddr) > (SD_ID_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) \
+       ? (*((uint32_t *) ((baseaddr) + SD_ID_OFFSET))) \
+       : SDM_INFO_FIELD_INVALID)
+#define SD_VERSION_GET(baseaddr) \
+  ((SD_INFO_STRUCT_SIZE_GET(baseaddr) > (SD_VERSION_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) \
+       ? (*((uint32_t *) ((baseaddr) + SD_VERSION_OFFSET))) \
+       : SDM_INFO_FIELD_INVALID)
+
+static inline bool is_sd_existed(void) {
+  return *((uint32_t *) (SOFTDEVICE_INFO_STRUCT_ADDRESS + 4)) == SD_MAGIC_NUMBER;
+}
+
 std::string DebugComponent::get_reset_reason_() {
   uint32_t cause;
   auto ret = hwinfo_get_reset_cause(&cause);
@@ -271,6 +294,29 @@ void DebugComponent::get_device_info_(std::string &device_info) {
            NRF_UICR->NRFFW[0]);
   ESP_LOGD(TAG, "MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
+  if (is_sd_existed()) {
+    uint32_t const sd_id = SD_ID_GET(MBR_SIZE);
+    uint32_t const sd_version = SD_VERSION_GET(MBR_SIZE);
+
+    uint32_t ver[3];
+    ver[0] = sd_version / 1000000;
+    ver[1] = (sd_version - ver[0] * 1000000) / 1000;
+    ver[2] = (sd_version - ver[0] * 1000000 - ver[1] * 1000);
+
+    ESP_LOGD(TAG, "SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
+#ifdef USE_SOFTDEVICE_ID
+#ifdef USE_SOFTDEVICE_VERSION
+    if (USE_SOFTDEVICE_ID != sd_id || USE_SOFTDEVICE_VERSION != ver[0]) {
+      ESP_LOGE(TAG, "Built for SoftDevice S%u %u.x.y. It may crash due to mismatch of bootloader.", USE_SOFTDEVICE_ID,
+               USE_SOFTDEVICE_VERSION);
+    }
+#else
+    if (USE_SOFTDEVICE_ID != sd_id) {
+      ESP_LOGE(TAG, "Built for SoftDevice S%u. It may crash due to mismatch of bootloader.", USE_SOFTDEVICE_ID);
+    }
+#endif
+#endif
+  }
 #endif
 }
 
