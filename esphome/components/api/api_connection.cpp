@@ -1081,12 +1081,6 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 }
 #endif
 
-bool APIConnection::send_get_time_response(const GetTimeRequest &msg) {
-  GetTimeResponse resp;
-  resp.epoch_seconds = ::time(nullptr);
-  return this->send_message(resp, GetTimeResponse::MESSAGE_TYPE);
-}
-
 #ifdef USE_BLUETOOTH_PROXY
 void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this, msg.flags);
