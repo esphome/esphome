@@ -1,5 +1,6 @@
 #include "cover.h"
 #include "esphome/core/log.h"
+#include <strings.h>
 
 namespace esphome {
 namespace cover {
