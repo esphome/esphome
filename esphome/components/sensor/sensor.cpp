@@ -17,15 +17,16 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                 "%s  State Class: '%s'\n"
                 "%s  Unit of Measurement: '%s'\n"
                 "%s  Accuracy Decimals: %d",
-                prefix, type, obj->get_name().c_str(), prefix, state_class_to_string(obj->get_state_class()).c_str(),
-                prefix, obj->get_unit_of_measurement().c_str(), prefix, obj->get_accuracy_decimals());
+                prefix, type, obj->get_name().c_str(), prefix,
+                LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
+                obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
 
-  if (!obj->get_device_class().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
+  if (!obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
   }
 
-  if (!obj->get_icon().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
+  if (!obj->get_icon_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
   }
 
   if (obj->get_force_update()) {
@@ -33,17 +34,17 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
   }
 }
 
-std::string state_class_to_string(StateClass state_class) {
+const LogString *state_class_to_string(StateClass state_class) {
   switch (state_class) {
     case STATE_CLASS_MEASUREMENT:
-      return "measurement";
+      return LOG_STR("measurement");
     case STATE_CLASS_TOTAL_INCREASING:
-      return "total_increasing";
+      return LOG_STR("total_increasing");
     case STATE_CLASS_TOTAL:
-      return "total";
+      return LOG_STR("total");
     case STATE_CLASS_NONE:
     default:
-      return "";
+      return LOG_STR("");
   }
 }
 
@@ -128,7 +129,7 @@ void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
   this->state = state;
   ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
-           this->get_unit_of_measurement().c_str(), this->get_accuracy_decimals());
+           this->get_unit_of_measurement_ref().c_str(), this->get_accuracy_decimals());
   this->callback_.call(state);
 }
 
