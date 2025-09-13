@@ -13,9 +13,9 @@ void Modbus::setup() {
     this->flow_control_pin_->setup();
   }
   // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
-  this->frame_delay_ms_ = (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
-  if (this->frame_delay_ms_ < 2)
-    this->frame_delay_ms_ = 2;  // 1750us minimium per spec - rounded up to 2ms.
+  this->frame_delay_ms_ = std::max(
+      2, // 1750us minimium per spec - rounded up to 2ms.
+      (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1));
 
   this->long_rx_buffer_delay_ms_ =
       (this->parent_->get_rx_full_threshold() * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
