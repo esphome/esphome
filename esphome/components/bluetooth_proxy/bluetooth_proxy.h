@@ -161,7 +161,8 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   // Group 4: 1-byte types grouped together
   bool active_;
   uint8_t connection_count_{0};
-  // 2 bytes used, 2 bytes padding
+  bool configured_scan_active_{false};  // Configured scan mode from YAML
+  // 3 bytes used, 1 byte padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

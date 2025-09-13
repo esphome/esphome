@@ -226,7 +226,7 @@ class Logger : public Component {
   }
 
 #ifndef USE_HOST
-  const char *get_uart_selection_();
+  const LogString *get_uart_selection_();
 #endif
 
   // Group 4-byte aligned members first
