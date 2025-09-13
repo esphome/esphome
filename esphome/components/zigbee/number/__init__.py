@@ -1,8 +1,7 @@
-from esphome import automation
 import esphome.codegen as cg
-from esphome.components import sensor
+from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE
+from esphome.const import CONF_LAMBDA, CONF_NAME
 from esphome.core import coroutine_with_priority
 
 from .. import (
@@ -28,11 +27,11 @@ from ..const import (
 
 AUTO_LOAD = ["zigbee"]
 
-ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", sensor.Sensor, cg.PollingComponent)
+ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", number.Number, cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.All(
     (
-        sensor.sensor_schema(ZigbeeSensor)
+        number.number_schema(ZigbeeNumber)
         .extend(
             {
                 cv.GenerateID(CONF_ANALOG_ATTRS): cv.declare_id(AnalogAttrs),
@@ -68,7 +67,7 @@ async def to_code(config):
 
     zigbee_register_ep(config, cluster_id, 2, clusters)
 
-    var = await sensor.new_sensor(config)
+    var = await number.new_number(config)
     await cg.register_component(var, config)
 
     if CONF_LAMBDA in config:
@@ -83,19 +82,19 @@ async def to_code(config):
     cg.add(var.set_parent(hub))
 
 
-@automation.register_action(
-    "sensor.zigbee.publish",
-    sensor.SensorPublishAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
-            cv.Required(CONF_STATE): cv.templatable(cv.float_),
-        }
-    ),
-)
-async def sensor_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, float)
-    cg.add(var.set_state(template_))
-    return var
+# @automation.register_action(
+#     "number.zigbee.publish",
+#     number.NumberPublishAction,
+#     cv.Schema(
+#         {
+#             cv.Required(CONF_ID): cv.use_id(number.Number),
+#             cv.Required(CONF_STATE): cv.templatable(cv.float_),
+#         }
+#     ),
+# )
+# async def number_template_publish_to_code(config, action_id, template_arg, args):
+#     paren = await cg.get_variable(config[CONF_ID])
+#     var = cg.new_Pvariable(action_id, template_arg, paren)
+#     template_ = await cg.templatable(config[CONF_STATE], args, float)
+#     cg.add(var.set_state(template_))
+#     return var
