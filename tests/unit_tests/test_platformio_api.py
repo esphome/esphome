@@ -1,10 +1,14 @@
 """Tests for platformio_api.py path functions."""
 
+import json
+import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from esphome import platformio_api
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -127,3 +131,333 @@ def test_load_idedata_returns_dict(setup_core: Path) -> None:
     assert result is not None
     assert isinstance(result, dict)
     assert result["prog_path"] == "/test/firmware.elf"
+
+
+def test_load_idedata_uses_cache_when_valid(setup_core: Path) -> None:
+    """Test _load_idedata uses cached data when unchanged."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    # Create platformio.ini
+    platformio_ini = setup_core / "build" / "test" / "platformio.ini"
+    platformio_ini.parent.mkdir(parents=True, exist_ok=True)
+    platformio_ini.write_text("content")
+
+    # Create idedata cache file that's newer
+    idedata_path = setup_core / ".esphome" / "idedata" / "test.json"
+    idedata_path.parent.mkdir(parents=True, exist_ok=True)
+    idedata_path.write_text('{"prog_path": "/cached/firmware.elf"}')
+
+    # Make idedata newer than platformio.ini
+    platformio_ini_mtime = platformio_ini.stat().st_mtime
+    os.utime(idedata_path, (platformio_ini_mtime + 1, platformio_ini_mtime + 1))
+
+    with patch("esphome.platformio_api._run_idedata") as mock_run:
+        config = {"name": "test"}
+        result = platformio_api._load_idedata(config)
+
+        # Should not call _run_idedata since cache is valid
+        mock_run.assert_not_called()
+
+    assert result["prog_path"] == "/cached/firmware.elf"
+
+
+def test_load_idedata_regenerates_when_platformio_ini_newer(setup_core: Path) -> None:
+    """Test _load_idedata regenerates when platformio.ini is newer."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    # Create idedata cache file first
+    idedata_path = setup_core / ".esphome" / "idedata" / "test.json"
+    idedata_path.parent.mkdir(parents=True, exist_ok=True)
+    idedata_path.write_text('{"prog_path": "/old/firmware.elf"}')
+
+    # Create platformio.ini that's newer
+    idedata_mtime = idedata_path.stat().st_mtime
+    platformio_ini = setup_core / "build" / "test" / "platformio.ini"
+    platformio_ini.parent.mkdir(parents=True, exist_ok=True)
+    platformio_ini.write_text("content")
+    # Make platformio.ini newer than idedata
+    os.utime(platformio_ini, (idedata_mtime + 1, idedata_mtime + 1))
+
+    with patch("esphome.platformio_api._run_idedata") as mock_run:
+        mock_run.return_value = {"prog_path": "/new/firmware.elf"}
+
+        config = {"name": "test"}
+        result = platformio_api._load_idedata(config)
+
+        # Should call _run_idedata since platformio.ini is newer
+        mock_run.assert_called_once_with(config)
+
+    assert result["prog_path"] == "/new/firmware.elf"
+
+
+def test_load_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
+    """Test _load_idedata regenerates when cache file is corrupted."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    # Create platformio.ini
+    platformio_ini = setup_core / "build" / "test" / "platformio.ini"
+    platformio_ini.parent.mkdir(parents=True, exist_ok=True)
+    platformio_ini.write_text("content")
+
+    # Create corrupted idedata cache file
+    idedata_path = setup_core / ".esphome" / "idedata" / "test.json"
+    idedata_path.parent.mkdir(parents=True, exist_ok=True)
+    idedata_path.write_text('{"prog_path": invalid json')
+
+    # Make idedata newer so it would be used if valid
+    platformio_ini_mtime = platformio_ini.stat().st_mtime
+    os.utime(idedata_path, (platformio_ini_mtime + 1, platformio_ini_mtime + 1))
+
+    with patch("esphome.platformio_api._run_idedata") as mock_run:
+        mock_run.return_value = {"prog_path": "/new/firmware.elf"}
+
+        config = {"name": "test"}
+        result = platformio_api._load_idedata(config)
+
+        # Should call _run_idedata since cache is corrupted
+        mock_run.assert_called_once_with(config)
+
+    assert result["prog_path"] == "/new/firmware.elf"
+
+
+def test_run_idedata_parses_json_from_output(setup_core: Path) -> None:
+    """Test _run_idedata extracts JSON from platformio output."""
+    config = {"name": "test"}
+
+    expected_data = {
+        "prog_path": "/path/to/firmware.elf",
+        "cc_path": "/path/to/gcc",
+        "extra": {"flash_images": []},
+    }
+
+    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
+        # Simulate platformio output with JSON embedded
+        mock_run.return_value = (
+            f"Some preamble\n{json.dumps(expected_data)}\nSome postamble"
+        )
+
+        result = platformio_api._run_idedata(config)
+
+    assert result == expected_data
+
+
+def test_run_idedata_raises_on_no_json(setup_core: Path) -> None:
+    """Test _run_idedata raises EsphomeError when no JSON found."""
+    config = {"name": "test"}
+
+    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
+        mock_run.return_value = "No JSON in this output"
+
+        with pytest.raises(EsphomeError):
+            platformio_api._run_idedata(config)
+
+
+def test_run_idedata_raises_on_invalid_json(setup_core: Path) -> None:
+    """Test _run_idedata raises on malformed JSON."""
+    config = {"name": "test"}
+
+    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
+        mock_run.return_value = '{"invalid": json"}'
+
+        with pytest.raises(ValueError):
+            platformio_api._run_idedata(config)
+
+
+def test_run_platformio_cli_sets_environment_variables(setup_core: Path) -> None:
+    """Test run_platformio_cli sets correct environment variables."""
+    CORE.build_path = str(setup_core / "build" / "test")
+
+    with (
+        patch("esphome.platformio_api.run_external_command") as mock_run,
+        patch.dict(os.environ, {}, clear=False),
+    ):
+        mock_run.return_value = 0
+        platformio_api.run_platformio_cli("test", "arg")
+
+        # Check environment variables were set
+        assert os.environ["PLATFORMIO_FORCE_COLOR"] == "true"
+        assert (
+            setup_core / "build" / "test"
+            in Path(os.environ["PLATFORMIO_BUILD_DIR"]).parents
+            or Path(os.environ["PLATFORMIO_BUILD_DIR"]) == setup_core / "build" / "test"
+        )
+        assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
+        assert "PYTHONWARNINGS" in os.environ
+
+        # Check command was called correctly
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0]
+        assert "platformio" in args
+        assert "test" in args
+        assert "arg" in args
+
+
+def test_run_platformio_cli_run_builds_command(setup_core: Path) -> None:
+    """Test run_platformio_cli_run builds correct command."""
+    CORE.build_path = str(setup_core / "build" / "test")
+
+    with patch("esphome.platformio_api.run_platformio_cli") as mock_cli:
+        mock_cli.return_value = 0
+
+        config = {"name": "test"}
+        platformio_api.run_platformio_cli_run(config, True, "extra", "args")
+
+        mock_cli.assert_called_once_with(
+            "run", "-d", CORE.build_path, "-v", "extra", "args"
+        )
+
+
+def test_run_compile(setup_core: Path) -> None:
+    """Test run_compile with process limit."""
+    from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
+
+    CORE.build_path = str(setup_core / "build" / "test")
+
+    config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
+
+    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
+        mock_run.return_value = 0
+
+        platformio_api.run_compile(config, verbose=True)
+
+        mock_run.assert_called_once_with(config, True, "-j4")
+
+
+def test_get_idedata_caches_result(setup_core: Path) -> None:
+    """Test get_idedata caches result in CORE.data."""
+    from esphome.const import KEY_CORE
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+    CORE.data[KEY_CORE] = {}
+
+    with patch("esphome.platformio_api._load_idedata") as mock_load:
+        mock_load.return_value = {"prog_path": "/test/firmware.elf"}
+
+        config = {"name": "test"}
+
+        # First call should load
+        result1 = platformio_api.get_idedata(config)
+        mock_load.assert_called_once()
+
+        # Second call should use cache
+        result2 = platformio_api.get_idedata(config)
+        mock_load.assert_called_once()  # Still only called once
+
+        assert result1 is result2
+        assert isinstance(result1, platformio_api.IDEData)
+
+
+def test_idedata_addr2line_path_windows(setup_core: Path) -> None:
+    """Test IDEData.addr2line_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.addr2line_path
+    assert result == "C:\\tools\\addr2line.exe"
+
+
+def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
+    """Test IDEData.addr2line_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.addr2line_path
+    assert result == "/usr/bin/addr2line"
+
+
+def test_patch_structhash(setup_core: Path) -> None:
+    """Test patch_structhash monkey patches platformio functions."""
+    # Mock platformio modules
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio.run.cli": MagicMock(),
+            "platformio.run.helpers": MagicMock(),
+            "platformio.run": MagicMock(),
+            "platformio.project.helpers": MagicMock(),
+            "platformio.fs": MagicMock(),
+            "platformio": MagicMock(),
+        },
+    ):
+        import sys
+
+        mock_cli = sys.modules["platformio.run.cli"]
+        mock_helpers = sys.modules["platformio.run.helpers"]
+
+        # Call patch_structhash
+        platformio_api.patch_structhash()
+
+        # Verify functions were patched
+        assert mock_cli.clean_build_dir is not None
+        assert mock_helpers.clean_build_dir is not None
+
+        # Both should be the same function
+        assert mock_cli.clean_build_dir is mock_helpers.clean_build_dir
+
+
+def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:
+    """Test process_stacktrace handles ESP8266 exceptions."""
+    config = {"name": "test"}
+
+    # Test exception type parsing
+    line = "Exception (28):"
+    backtrace_state = False
+
+    result = platformio_api.process_stacktrace(config, line, backtrace_state)
+
+    assert "Access to invalid address: LOAD (wild pointer?)" in caplog.text
+    assert result is False
+
+
+def test_process_stacktrace_esp8266_backtrace(setup_core: Path) -> None:
+    """Test process_stacktrace handles ESP8266 multi-line backtrace."""
+    config = {"name": "test"}
+
+    with patch("esphome.platformio_api._decode_pc") as mock_decode:
+        # Start of backtrace
+        line1 = ">>>stack>>>"
+        state = platformio_api.process_stacktrace(config, line1, False)
+        assert state is True
+
+        # Backtrace content with addresses
+        line2 = "40201234 40205678"
+        state = platformio_api.process_stacktrace(config, line2, state)
+        assert state is True
+        assert mock_decode.call_count == 2
+
+        # End of backtrace
+        line3 = "<<<stack<<<"
+        state = platformio_api.process_stacktrace(config, line3, state)
+        assert state is False
+
+
+def test_process_stacktrace_esp32_backtrace(setup_core: Path) -> None:
+    """Test process_stacktrace handles ESP32 single-line backtrace."""
+    config = {"name": "test"}
+
+    with patch("esphome.platformio_api._decode_pc") as mock_decode:
+        line = "Backtrace: 0x40081234:0x3ffb1234 0x40085678:0x3ffb5678"
+        state = platformio_api.process_stacktrace(config, line, False)
+
+        # Should decode both addresses
+        assert mock_decode.call_count == 2
+        mock_decode.assert_any_call(config, "40081234")
+        mock_decode.assert_any_call(config, "40085678")
+        assert state is False
+
+
+def test_process_stacktrace_bad_alloc(setup_core: Path, caplog) -> None:
+    """Test process_stacktrace handles bad alloc messages."""
+    config = {"name": "test"}
+
+    with patch("esphome.platformio_api._decode_pc") as mock_decode:
+        line = "last failed alloc call: 40201234(512)"
+        state = platformio_api.process_stacktrace(config, line, False)
+
+        assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
+        mock_decode.assert_called_once_with(config, "40201234")
+        assert state is False
