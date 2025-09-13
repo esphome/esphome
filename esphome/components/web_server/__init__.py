@@ -106,7 +106,7 @@ def validate_gui(config: ConfigType) -> ConfigType:
         # captive_portal uses the web_server for its captive page so force GUI
         if isinstance(full, dict) and "captive_portal" in full:
             raise cv.Invalid(
-                "'gui: false' no es compatible con 'captive_portal'. Elimina captive_portal o activa gui."
+                "'gui: false' is not compatible with 'captive_portal'. Remove captive_portal or enable gui."
             )
     return config
 
