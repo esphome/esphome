@@ -13,6 +13,8 @@ enum ZWaveResponseTypes : uint8_t {
   ZWAVE_FRAME_TYPE_CAN = 0x18,
   ZWAVE_FRAME_TYPE_NAK = 0x15,
   ZWAVE_FRAME_TYPE_START = 0x01,
+  ZWAVE_FRAME_TYPE_BL_MENU = 0x0D,
+  ZWAVE_FRAME_TYPE_BL_BEGIN_UPLOAD = 0x43,
 };
 
 enum ZWaveParsingState : uint8_t {
@@ -25,6 +27,7 @@ enum ZWaveParsingState : uint8_t {
   ZWAVE_PARSING_STATE_SEND_ACK,
   ZWAVE_PARSING_STATE_SEND_CAN,
   ZWAVE_PARSING_STATE_SEND_NAK,
+  ZWAVE_PARSING_STATE_READ_BL_MENU,
 };
 
 enum ZWaveProxyFeature : uint32_t {
@@ -44,7 +47,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
   uint32_t get_feature_flags() const { return ZWaveProxyFeature::FEATURE_ZWAVE_PROXY_ENABLED; }
 
-  void send_frame(const uint8_t *data, size_t length = 0);
+  void send_frame(const uint8_t *data, size_t length);
 
  protected:
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
@@ -59,6 +62,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   uint8_t end_frame_after_{0};                          // Payload reception ends after this index
   uint8_t last_response_{0};                            // Last response type sent
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
+  bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;

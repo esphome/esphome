@@ -1,6 +1,7 @@
 #include "zwave_proxy.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/util.h"
 
 namespace esphome {
 namespace zwave_proxy {
@@ -11,9 +12,9 @@ ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
 void ZWaveProxy::loop() {
   if (this->response_handler_()) {
-    // return;  // If a response was handled, exit early to avoid a CAN
+    ESP_LOGV(TAG, "Handled late response");
   }
-  if (this->api_connection_ != nullptr && !this->api_connection_->is_connection_setup()) {
+  if (this->api_connection_ != nullptr && (!this->api_connection_->is_connection_setup() || !api_is_connected())) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
   }
@@ -21,14 +22,19 @@ void ZWaveProxy::loop() {
   while (this->available()) {
     uint8_t byte;
     if (!this->read_byte(&byte)) {
-      this->status_set_warning("Failed reading from UART");
+      this->status_set_warning("UART read failed");
       return;
     }
     if (this->parse_byte_(byte)) {
-      ESP_LOGD(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
+      ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
         // minimize copying to reduce CPU overhead
-        this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
+        if (this->in_bootloader_) {
+          this->outgoing_proto_msg_.data_len = this->buffer_index_;
+        } else {
+          // If this is a data frame, use frame length indicator + 2 (for SoF + checksum), else assume 1 for ACK/NAK/CAN
+          this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
+        }
         std::memcpy(this->outgoing_proto_msg_.data, this->buffer_, this->outgoing_proto_msg_.data_len);
         this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
       }
@@ -56,18 +62,11 @@ void ZWaveProxy::unsubscribe_api_connection(api::APIConnection *api_connection) 
 }
 
 void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
-  if (!length) {
-    if (data[0] == ZWAVE_FRAME_TYPE_START) {
-      length = data[1] + 2;  // data[1] is payload length, not including SoF + checksum
-    } else {
-      length = 1;  // assume ACK/NAK/CAN
-    }
-  }
   if (length == 1 && data[0] == this->last_response_) {
-    ESP_LOGW(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
+    ESP_LOGV(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
     return;
   }
-  ESP_LOGD(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
+  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
   this->write_array(data, length);
 }
 
@@ -84,7 +83,7 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
         return false;
       }
-      ESP_LOGD(TAG, "Received LENGTH: %u", byte);
+      ESP_LOGVV(TAG, "Received LENGTH: %u", byte);
       this->end_frame_after_ = this->buffer_index_ + byte;
       ESP_LOGVV(TAG, "Calculated EOF: %u", this->end_frame_after_);
       this->buffer_[this->buffer_index_++] = byte;
@@ -93,13 +92,13 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       break;
     case ZWAVE_PARSING_STATE_WAIT_TYPE:
       this->buffer_[this->buffer_index_++] = byte;
-      ESP_LOGD(TAG, "Received TYPE: 0x%02X", byte);
+      ESP_LOGVV(TAG, "Received TYPE: 0x%02X", byte);
       this->checksum_ ^= byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_COMMAND_ID;
       break;
     case ZWAVE_PARSING_STATE_WAIT_COMMAND_ID:
       this->buffer_[this->buffer_index_++] = byte;
-      ESP_LOGD(TAG, "Received COMMAND ID: 0x%02X", byte);
+      ESP_LOGVV(TAG, "Received COMMAND ID: 0x%02X", byte);
       this->checksum_ ^= byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_PAYLOAD;
       break;
@@ -113,23 +112,31 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       break;
     case ZWAVE_PARSING_STATE_WAIT_CHECKSUM:
       this->buffer_[this->buffer_index_++] = byte;
-      ESP_LOGD(TAG, "Received CHECKSUM: 0x%02X", byte);
+      ESP_LOGVV(TAG, "Received CHECKSUM: 0x%02X", byte);
       ESP_LOGV(TAG, "Calculated CHECKSUM: 0x%02X", this->checksum_);
       if (this->checksum_ != byte) {
         ESP_LOGW(TAG, "Bad checksum: expected 0x%02X, got 0x%02X", this->checksum_, byte);
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-        ESP_LOGD(TAG, "Received frame: %s", format_hex_pretty(this->buffer_, this->buffer_index_).c_str());
+        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(this->buffer_, this->buffer_index_).c_str());
         frame_completed = true;
       }
       this->response_handler_();
+      break;
+    case ZWAVE_PARSING_STATE_READ_BL_MENU:
+      this->buffer_[this->buffer_index_++] = byte;
+      if (!byte) {
+        this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
+        frame_completed = true;
+      }
       break;
     case ZWAVE_PARSING_STATE_SEND_ACK:
     case ZWAVE_PARSING_STATE_SEND_NAK:
       break;  // Should not happen, handled in loop()
     default:
-      ESP_LOGD(TAG, "Received unknown byte: 0x%02X", byte);
+      ESP_LOGW(TAG, "Bad parsing state; resetting");
+      this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
       break;
   }
   return frame_completed;
@@ -141,12 +148,28 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
   switch (byte) {
     case ZWAVE_FRAME_TYPE_START:
-      ESP_LOGD(TAG, "Received START");
+      ESP_LOGVV(TAG, "Received START");
+      if (this->in_bootloader_) {
+        ESP_LOGD(TAG, "Exited bootloader mode");
+        this->in_bootloader_ = false;
+      }
       this->buffer_[this->buffer_index_++] = byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_LENGTH;
       return;
+    case ZWAVE_FRAME_TYPE_BL_MENU:
+      ESP_LOGVV(TAG, "Received BL_MENU");
+      if (!this->in_bootloader_) {
+        ESP_LOGD(TAG, "Entered bootloader mode");
+        this->in_bootloader_ = true;
+      }
+      this->buffer_[this->buffer_index_++] = byte;
+      this->parsing_state_ = ZWAVE_PARSING_STATE_READ_BL_MENU;
+      return;
+    case ZWAVE_FRAME_TYPE_BL_BEGIN_UPLOAD:
+      ESP_LOGVV(TAG, "Received BL_BEGIN_UPLOAD");
+      break;
     case ZWAVE_FRAME_TYPE_ACK:
-      ESP_LOGD(TAG, "Received ACK");
+      ESP_LOGVV(TAG, "Received ACK");
       break;
     case ZWAVE_FRAME_TYPE_NAK:
       ESP_LOGW(TAG, "Received NAK");
@@ -155,7 +178,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
       ESP_LOGW(TAG, "Received CAN");
       break;
     default:
-      ESP_LOGW(TAG, "Unexpected type: 0x%02X", byte);
+      ESP_LOGW(TAG, "Unrecognized START: 0x%02X", byte);
       return;
   }
   // Forward response (ACK/NAK/CAN) back to client for processing
@@ -181,8 +204,8 @@ bool ZWaveProxy::response_handler_() {
       return false;  // No response handled
   }
 
-  ESP_LOGD(TAG, "Sending %s (0x%02X)", this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN",
-           this->last_response_);
+  ESP_LOGVV(TAG, "Sending %s (0x%02X)", this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN",
+            this->last_response_);
   this->write_byte(this->last_response_);
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
   return true;

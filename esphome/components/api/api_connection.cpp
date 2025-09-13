@@ -1214,7 +1214,7 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
 
 #ifdef USE_ZWAVE_PROXY
 void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
-  zwave_proxy::global_zwave_proxy->send_frame(msg.data);
+  zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
 }
 
 void APIConnection::zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) {
