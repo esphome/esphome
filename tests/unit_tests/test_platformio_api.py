@@ -3,6 +3,8 @@
 import json
 import os
 from pathlib import Path
+import shutil
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -420,6 +422,153 @@ def test_patch_structhash(setup_core: Path) -> None:
         # Verify it's a real function (not a Mock)
         assert callable(mock_cli.clean_build_dir)
         assert mock_cli.clean_build_dir.__name__ == "patched_clean_build_dir"
+
+
+def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
+    """Test patched_clean_build_dir removes build dir when platformio.ini is newer."""
+    build_dir = setup_core / "build"
+    build_dir.mkdir()
+    platformio_ini = setup_core / "platformio.ini"
+    platformio_ini.write_text("config")
+
+    # Make platformio.ini newer than build_dir
+    build_mtime = build_dir.stat().st_mtime
+    os.utime(platformio_ini, (build_mtime + 1, build_mtime + 1))
+
+    # Track if directory was removed
+    removed_paths: list[str] = []
+
+    def track_rmtree(path: str) -> None:
+        removed_paths.append(path)
+        shutil.rmtree(path)
+
+    # Create mock modules that patch_structhash expects
+    mock_cli = SimpleNamespace()
+    mock_helpers = SimpleNamespace()
+    mock_project_helpers = MagicMock()
+    mock_project_helpers.get_project_dir.return_value = str(setup_core)
+    mock_fs = SimpleNamespace(rmtree=track_rmtree)
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio": SimpleNamespace(fs=mock_fs),
+            "platformio.fs": mock_fs,
+            "platformio.project.helpers": mock_project_helpers,
+            "platformio.run": SimpleNamespace(cli=mock_cli, helpers=mock_helpers),
+            "platformio.run.cli": mock_cli,
+            "platformio.run.helpers": mock_helpers,
+        },
+    ):
+        # Call patch_structhash to install the patched function
+        platformio_api.patch_structhash()
+
+        # Call the patched function
+        mock_helpers.clean_build_dir(str(build_dir), [])
+
+        # Verify directory was removed and recreated
+        assert len(removed_paths) == 1
+        assert removed_paths[0] == str(build_dir)
+        assert build_dir.exists()  # makedirs recreated it
+
+
+def test_patched_clean_build_dir_keeps_updated(setup_core: Path) -> None:
+    """Test patched_clean_build_dir keeps build dir when it's up to date."""
+    build_dir = setup_core / "build"
+    build_dir.mkdir()
+    test_file = build_dir / "test.txt"
+    test_file.write_text("test content")
+
+    platformio_ini = setup_core / "platformio.ini"
+    platformio_ini.write_text("config")
+
+    # Make build_dir newer than platformio.ini
+    ini_mtime = platformio_ini.stat().st_mtime
+    os.utime(build_dir, (ini_mtime + 1, ini_mtime + 1))
+
+    # Track if rmtree is called
+    removed_paths: list[str] = []
+
+    def track_rmtree(path: str) -> None:
+        removed_paths.append(path)
+
+    # Create mock modules
+    mock_cli = SimpleNamespace()
+    mock_helpers = SimpleNamespace()
+    mock_project_helpers = MagicMock()
+    mock_project_helpers.get_project_dir.return_value = str(setup_core)
+    mock_fs = SimpleNamespace(rmtree=track_rmtree)
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio": SimpleNamespace(fs=mock_fs),
+            "platformio.fs": mock_fs,
+            "platformio.project.helpers": mock_project_helpers,
+            "platformio.run": SimpleNamespace(cli=mock_cli, helpers=mock_helpers),
+            "platformio.run.cli": mock_cli,
+            "platformio.run.helpers": mock_helpers,
+        },
+    ):
+        # Call patch_structhash to install the patched function
+        platformio_api.patch_structhash()
+
+        # Call the patched function
+        mock_helpers.clean_build_dir(str(build_dir), [])
+
+        # Verify rmtree was NOT called
+        assert len(removed_paths) == 0
+
+        # Verify directory and file still exist
+        assert build_dir.exists()
+        assert test_file.exists()
+        assert test_file.read_text() == "test content"
+
+
+def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
+    """Test patched_clean_build_dir creates build dir when it doesn't exist."""
+    build_dir = setup_core / "build"
+    platformio_ini = setup_core / "platformio.ini"
+    platformio_ini.write_text("config")
+
+    # Ensure build_dir doesn't exist
+    assert not build_dir.exists()
+
+    # Track if rmtree is called
+    removed_paths: list[str] = []
+
+    def track_rmtree(path: str) -> None:
+        removed_paths.append(path)
+
+    # Create mock modules
+    mock_cli = SimpleNamespace()
+    mock_helpers = SimpleNamespace()
+    mock_project_helpers = MagicMock()
+    mock_project_helpers.get_project_dir.return_value = str(setup_core)
+    mock_fs = SimpleNamespace(rmtree=track_rmtree)
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio": SimpleNamespace(fs=mock_fs),
+            "platformio.fs": mock_fs,
+            "platformio.project.helpers": mock_project_helpers,
+            "platformio.run": SimpleNamespace(cli=mock_cli, helpers=mock_helpers),
+            "platformio.run.cli": mock_cli,
+            "platformio.run.helpers": mock_helpers,
+        },
+    ):
+        # Call patch_structhash to install the patched function
+        platformio_api.patch_structhash()
+
+        # Call the patched function
+        mock_helpers.clean_build_dir(str(build_dir), [])
+
+        # Verify rmtree was NOT called
+        assert len(removed_paths) == 0
+
+        # Verify directory was created
+        assert build_dir.exists()
 
 
 def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:
