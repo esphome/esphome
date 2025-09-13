@@ -1,11 +1,8 @@
+from esphome import pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import pins
 from esphome.components import spi
-from esphome import pins
-from esphome.const import (
-    CONF_ID,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@miikasyvanen"]
 DEPENDENCIES = ["spi"]
@@ -27,6 +24,7 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema(None))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

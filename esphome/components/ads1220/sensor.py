@@ -1,19 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import pins
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAIN,
+    CONF_ID,
     CONF_MULTIPLEXER,
-    DEVICE_CLASS_VOLTAGE,
+    CONF_TYPE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_VOLT,
-    CONF_TYPE,
-    CONF_ID,
 )
-from . import ads1220_ns, ADS1220Component
+
+from . import ADS1220Component, ads1220_ns
 
 CODEOWNERS = ["@miikasyvanen"]
 DEPENDENCIES = ["ads1220"]
@@ -70,13 +70,13 @@ OP_MODE = {
 
 ADS1220ConvMode = ads1220_ns.enum("ADS1220ConvMode")
 CONV_MODE = {
-	"SINGLE_SHOT": ADS1220ConvMode.ADS1220_SINGLE_SHOT,
-	"CONTINUOUS": ADS1220ConvMode.ADS1220_CONTINUOUS,
+    "SINGLE_SHOT": ADS1220ConvMode.ADS1220_SINGLE_SHOT,
+    "CONTINUOUS": ADS1220ConvMode.ADS1220_CONTINUOUS,
 }
 
 ADS1220VRef = ads1220_ns.enum("ADS1220VRef")
 VREF = {
-	"INTERNAL": ADS1220VRef.ADS1220_VREF_INT,
+    "INTERNAL": ADS1220VRef.ADS1220_VREF_INT,
     "REFP0_REFN0": ADS1220VRef.ADS1220_VREF_REFP0_REFN0,
     "REFP1_REFN1": ADS1220VRef.ADS1220_VREF_REFP1_REFN1,
     "AVDD_AVSS": ADS1220VRef.ADS1220_VREF_AVDD_AVSS,
@@ -131,6 +131,7 @@ FAULT_TEST_MODE = {
     "TEST_ON": ADS1220FaultTestMode.ADS1220_TEST_ON,
 }
 
+
 def validate_gain(value):
     if isinstance(value, float):
         value = f"{value:0.03f}"
@@ -138,6 +139,7 @@ def validate_gain(value):
         raise cv.Invalid(f'invalid gain "{value}"')
 
     return cv.enum(GAIN)(value)
+
 
 ADS1220Sensor = ads1220_ns.class_(
     "ADS1220Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
@@ -157,7 +159,7 @@ CONF_IDAC_1_ROUTING = "idac_1_routing"
 CONF_IDAC_2_ROUTING = "idac_2_routing"
 CONF_DRDY_MODE = "drdy_mode"
 CONF_FAULT_TEST_MODE = "fault_test_mode"
-#CONF_DRDY_PIN = "drdy_pin"
+# CONF_DRDY_PIN = "drdy_pin"
 
 TYPE_ADC = "adc"
 TYPE_TEMPERATURE = "temperature"
@@ -176,17 +178,39 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.GenerateID(CONF_ADS1220_ID): cv.use_id(ADS1220Component),
                 cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
                 cv.Required(CONF_GAIN): validate_gain,
-                cv.Optional(CONF_DATARATE, default="DR_LVL_0"): cv.enum(DATARATE, upper=True, space="_"),
-                cv.Optional(CONF_OP_MODE, default="TURBO"): cv.enum(OP_MODE, upper=True, space="_"),
-                cv.Optional(CONF_CONV_MODE, default="SINGLE_SHOT"): cv.enum(CONV_MODE, upper=True, space="_"),
-                cv.Optional(CONF_VREF, default="INTERNAL"): cv.enum(VREF, upper=True, space="_"),
-                cv.Optional(CONF_FIR, default="NONE"): cv.enum(FIR, upper=True, space="_"),
-                cv.Optional(CONF_PSW, default="OPEN"): cv.enum(PSW, upper=True, space="_"),
-                cv.Optional(CONF_IDAC_CURRENT, default="OFF"): cv.enum(IDAC_CURRENT, upper=True, space="_"),
-                cv.Optional(CONF_IDAC_1_ROUTING, default="NONE"): cv.enum(IDAC_ROUTING, upper=True, space="_"),
-                cv.Optional(CONF_IDAC_2_ROUTING, default="NONE"): cv.enum(IDAC_ROUTING, upper=True, space="_"),
-                cv.Optional(CONF_DRDY_MODE, default="DRDY_ONLY"): cv.enum(DRDY_MODE, upper=True, space="_"),
-                cv.Optional(CONF_FAULT_TEST_MODE, default="TEST_OFF"): cv.enum(FAULT_TEST_MODE, upper=True, space="_"),
+                cv.Optional(CONF_DATARATE, default="DR_LVL_0"): cv.enum(
+                    DATARATE, upper=True, space="_"
+                ),
+                cv.Optional(CONF_OP_MODE, default="TURBO"): cv.enum(
+                    OP_MODE, upper=True, space="_"
+                ),
+                cv.Optional(CONF_CONV_MODE, default="SINGLE_SHOT"): cv.enum(
+                    CONV_MODE, upper=True, space="_"
+                ),
+                cv.Optional(CONF_VREF, default="INTERNAL"): cv.enum(
+                    VREF, upper=True, space="_"
+                ),
+                cv.Optional(CONF_FIR, default="NONE"): cv.enum(
+                    FIR, upper=True, space="_"
+                ),
+                cv.Optional(CONF_PSW, default="OPEN"): cv.enum(
+                    PSW, upper=True, space="_"
+                ),
+                cv.Optional(CONF_IDAC_CURRENT, default="OFF"): cv.enum(
+                    IDAC_CURRENT, upper=True, space="_"
+                ),
+                cv.Optional(CONF_IDAC_1_ROUTING, default="NONE"): cv.enum(
+                    IDAC_ROUTING, upper=True, space="_"
+                ),
+                cv.Optional(CONF_IDAC_2_ROUTING, default="NONE"): cv.enum(
+                    IDAC_ROUTING, upper=True, space="_"
+                ),
+                cv.Optional(CONF_DRDY_MODE, default="DRDY_ONLY"): cv.enum(
+                    DRDY_MODE, upper=True, space="_"
+                ),
+                cv.Optional(CONF_FAULT_TEST_MODE, default="TEST_OFF"): cv.enum(
+                    FAULT_TEST_MODE, upper=True, space="_"
+                ),
             }
         )
         .extend(cv.polling_component_schema("60s")),
@@ -206,6 +230,7 @@ CONFIG_SCHEMA = cv.typed_schema(
     },
     default_type=TYPE_ADC,
 )
+
 
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_ADS1220_ID])
