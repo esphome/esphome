@@ -523,14 +523,46 @@ def test_get_usable_cpu_count_with_process_cpu_count() -> None:
         assert count == 4
 
 
-def test_list_target_platforms() -> None:
+def test_list_target_platforms(tmp_path: Path) -> None:
     """Test _list_target_platforms returns available platforms."""
-    platforms = config._list_target_platforms()
+    # Create mock components directory structure
+    components_dir = tmp_path / "components"
+    components_dir.mkdir()
+
+    # Create platform and non-platform directories with __init__.py
+    platforms = ["esp32", "esp8266", "rp2040", "libretiny", "host"]
+    non_platforms = ["sensor"]
+
+    for component in platforms + non_platforms:
+        component_dir = components_dir / component
+        component_dir.mkdir()
+        (component_dir / "__init__.py").touch()
+
+    # Create a file (not a directory)
+    (components_dir / "README.md").touch()
+
+    # Create a directory without __init__.py
+    (components_dir / "no_init").mkdir()
+
+    # Mock Path(__file__).parents[1] to return our tmp_path
+    with patch("esphome.core.config.Path") as mock_path:
+        mock_file_path = MagicMock()
+        mock_file_path.parents = [MagicMock(), tmp_path]
+        mock_path.return_value = mock_file_path
+
+        platforms = config._list_target_platforms()
+
     assert isinstance(platforms, list)
-    # Should include at least these common platforms
+    # Should include platform components
     assert "esp32" in platforms
     assert "esp8266" in platforms
     assert "rp2040" in platforms
+    assert "libretiny" in platforms
+    assert "host" in platforms
+    # Should not include non-platform components
+    assert "sensor" not in platforms
+    assert "README.md" not in platforms
+    assert "no_init" not in platforms
 
 
 def test_is_target_platform() -> None:
