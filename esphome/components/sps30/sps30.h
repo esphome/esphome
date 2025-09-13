@@ -30,12 +30,12 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   bool start_fan_cleaning();
 
  protected:
-  char serial_number_[17] = {0};  /// Terminating NULL character
   uint16_t raw_firmware_version_;
-  bool start_continuous_measurement_();
+  char serial_number_[17] = {0};  /// Terminating NULL character
   uint8_t skipped_data_read_cycles_ = 0;
+  bool start_continuous_measurement_();
 
-  enum ErrorCode {
+  enum ErrorCode : uint8_t {
     COMMUNICATION_FAILED,
     FIRMWARE_VERSION_REQUEST_FAILED,
     FIRMWARE_VERSION_READ_FAILED,
