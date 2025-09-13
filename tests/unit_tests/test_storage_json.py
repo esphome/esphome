@@ -118,7 +118,9 @@ def test_storage_json_firmware_bin_path_property(setup_core: Path) -> None:
     assert storage.firmware_bin_path == "/path/to/firmware.bin"
 
 
-def test_storage_json_save_creates_directory(setup_core: Path, tmp_path: Path) -> None:
+def test_storage_json_save_creates_directory(
+    setup_core: Path, tmp_path: Path, mock_write_file_if_changed
+) -> None:
     """Test StorageJSON.save creates storage directory if it doesn't exist."""
     storage_dir = tmp_path / "new_data" / "storage"
     storage_file = storage_dir / "test.json"
@@ -142,11 +144,10 @@ def test_storage_json_save_creates_directory(setup_core: Path, tmp_path: Path) -
         no_mdns=False,
     )
 
-    with patch("esphome.storage_json.write_file_if_changed") as mock_write:
-        storage.save(str(storage_file))
-        mock_write.assert_called_once()
-        call_args = mock_write.call_args[0]
-        assert call_args[0] == str(storage_file)
+    storage.save(str(storage_file))
+    mock_write_file_if_changed.assert_called_once()
+    call_args = mock_write_file_if_changed.call_args[0]
+    assert call_args[0] == str(storage_file)
 
 
 def test_storage_json_from_wizard(setup_core: Path) -> None:
