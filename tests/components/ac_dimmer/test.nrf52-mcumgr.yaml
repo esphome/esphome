@@ -1,5 +1,0 @@
-substitutions:
-  gate_pin: P0.15
-  zero_cross_pin: P1.11
-
-<<: !include common.yaml
