@@ -28,7 +28,7 @@ enum zb_zcl_analog_input_attr_e {
   { \
     ZB_ZCL_ATTR_ANALOG_INPUT_OUT_OF_SERVICE_ID, ZB_ZCL_ATTR_TYPE_BOOL, \
         ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) data_ptr \
+        (void *) (data_ptr) \
   }
 
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID(data_ptr) \
@@ -42,7 +42,7 @@ enum zb_zcl_analog_input_attr_e {
   { \
     ZB_ZCL_ATTR_ANALOG_INPUT_STATUS_FLAG_ID, ZB_ZCL_ATTR_TYPE_8BITMAP, \
         ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) data_ptr \
+        (void *) (data_ptr) \
   }
 
 #define ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST(attr_list, out_of_service, present_value, status_flag, \
@@ -54,8 +54,8 @@ enum zb_zcl_analog_input_attr_e {
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID, (description)) \
   ZB_ZCL_FINISH_DECLARE_ATTRIB_LIST
 
-void zb_zcl_analog_input_init_server(void);
-void zb_zcl_analog_input_init_client(void);
+void zb_zcl_analog_input_init_server();
+void zb_zcl_analog_input_init_client();
 #define ZB_ZCL_CLUSTER_ID_ANALOG_INPUT_SERVER_ROLE_INIT zb_zcl_analog_input_init_server
 #define ZB_ZCL_CLUSTER_ID_ANALOG_INPUT_CLIENT_ROLE_INIT zb_zcl_analog_input_init_client
 
