@@ -316,7 +316,9 @@ async def to_code(config):
     if gui_enabled:
         if version >= 2:
             # Don't compress the index HTML as the data sizes are almost the same.
-            add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
+            add_resource_as_progmem(
+                "INDEX_HTML", build_index_html(config), compress=False
+            )
         else:
             cg.add(var.set_css_url(config[CONF_CSS_URL]))
             cg.add(var.set_js_url(config[CONF_JS_URL]))
