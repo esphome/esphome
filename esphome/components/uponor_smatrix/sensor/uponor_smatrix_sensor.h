@@ -11,6 +11,7 @@ class UponorSmatrixSensor : public sensor::Sensor, public Component, public Upon
   SUB_SENSOR(temperature)
   SUB_SENSOR(external_temperature)
   SUB_SENSOR(humidity)
+  SUB_SENSOR(target_temperature)
 
  public:
   void dump_config() override;

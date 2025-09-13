@@ -118,8 +118,9 @@ std::unique_ptr<Command> CircularCommandQueue::dequeue() {
   if (front_ == rear_) {
     front_ = -1;
     rear_ = -1;
-  } else
+  } else {
     front_ = (front_ + 1) % COMMAND_QUEUE_SIZE;
+  }
 
   return dequeued_cmd;
 }

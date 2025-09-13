@@ -1,0 +1,7 @@
+packages:
+  base: !include common.yaml
+
+sensor:
+  - id: !extend my_sensor
+    pin: P23
+    attenuation: !remove

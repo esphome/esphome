@@ -1,12 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import uart
-from esphome.const import (
-    CONF_ID,
-    CONF_UART_ID,
-    CONF_RECEIVE_TIMEOUT,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_UART_ID
 
 CODEOWNERS = ["@glmnet", "@zuidwijk"]
 

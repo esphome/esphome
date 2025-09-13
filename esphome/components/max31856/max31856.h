@@ -50,7 +50,6 @@ enum MAX31856Registers {
 
 /**
  * Multiple types of thermocouples supported by the chip.
- * Currently only K type implemented here.
  */
 enum MAX31856ThermocoupleType {
   MAX31856_TCTYPE_B = 0b0000,   // 0x00
@@ -78,11 +77,15 @@ class MAX31856Sensor : public sensor::Sensor,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_filter(MAX31856ConfigFilter filter) { filter_ = filter; }
+  void set_filter(MAX31856ConfigFilter filter) { this->filter_ = filter; }
+  void set_thermocouple_type(MAX31856ThermocoupleType thermocouple_type) {
+    this->thermocouple_type_ = thermocouple_type;
+  }
   void update() override;
 
  protected:
   MAX31856ConfigFilter filter_;
+  MAX31856ThermocoupleType thermocouple_type_;
 
   uint8_t read_register_(uint8_t reg);
   uint32_t read_register24_(uint8_t reg);

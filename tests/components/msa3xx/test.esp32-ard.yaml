@@ -1,0 +1,6 @@
+i2c:
+  - id: i2c_msa3xx
+    scl: GPIO16
+    sda: GPIO17
+
+<<: !include common.yaml

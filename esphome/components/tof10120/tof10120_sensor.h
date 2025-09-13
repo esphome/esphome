@@ -12,7 +12,6 @@ class TOF10120Sensor : public sensor::Sensor, public PollingComponent, public i2
   void setup() override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
 };
 }  // namespace tof10120

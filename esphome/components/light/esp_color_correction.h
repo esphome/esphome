@@ -41,29 +41,29 @@ class ESPColorCorrection {
     if (this->max_brightness_.red == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[red] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.red) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.red) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
   inline uint8_t color_uncorrect_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.green == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[green] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.green) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.green) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
   inline uint8_t color_uncorrect_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.blue == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[blue] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.blue) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.blue) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
   inline uint8_t color_uncorrect_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.white == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[white] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.white) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.white) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
 
  protected:

@@ -53,6 +53,13 @@ class GPIOPin {
 
   virtual void pin_mode(gpio::Flags flags) = 0;
 
+  /**
+   * @brief Retrieve GPIO pin flags.
+   *
+   * @return The GPIO flags describing the pin mode and properties.
+   */
+  virtual gpio::Flags get_flags() const = 0;
+
   virtual bool digital_read() = 0;
 
   virtual void digital_write(bool value) = 0;
@@ -61,24 +68,6 @@ class GPIOPin {
 
   virtual bool is_internal() { return false; }
 };
-
-/**
- * A pin to replace those that don't exist.
- */
-class NullPin : public GPIOPin {
- public:
-  void setup() override {}
-
-  void pin_mode(gpio::Flags _) override {}
-
-  bool digital_read() override { return false; }
-
-  void digital_write(bool _) override {}
-
-  std::string dump_summary() const override { return {"Not used"}; }
-};
-
-static GPIOPin *const NULL_PIN = new NullPin();
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {

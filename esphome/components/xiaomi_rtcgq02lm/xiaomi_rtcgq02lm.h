@@ -23,7 +23,6 @@ class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceL
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
 #ifdef USE_BINARY_SENSOR
   void set_motion(binary_sensor::BinarySensor *motion) { this->motion_ = motion; }

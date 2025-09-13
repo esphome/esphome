@@ -40,21 +40,19 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
  public:
   void setup() override;
   void update_touches() override;
-  void register_button_listener(CST816ButtonListener *listener) { this->button_listeners_.push_back(listener); }
   void dump_config() override;
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
+  void set_skip_probe(bool skip_probe) { this->skip_probe_ = skip_probe; }
 
  protected:
   void continue_setup_();
-  void update_button_state_(bool state);
 
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{};
   uint8_t chip_id_{};
-  std::vector<CST816ButtonListener *> button_listeners_;
-  bool button_touched_{};
+  bool skip_probe_{};  // if set, do not expect to be able to probe the controller on the i2c bus.
 };
 
 }  // namespace cst816

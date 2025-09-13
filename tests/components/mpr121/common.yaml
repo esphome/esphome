@@ -1,0 +1,41 @@
+i2c:
+  - id: i2c_mpr121
+    scl: ${i2c_scl}
+    sda: ${i2c_sda}
+
+mpr121:
+  id: mpr121_first
+  address: 0x5A
+
+binary_sensor:
+  - platform: mpr121
+    id: touchkey0
+    name: touchkey0
+    channel: 0
+  - platform: mpr121
+    id: bin1
+    name: touchkey1
+    channel: 1
+  - platform: mpr121
+    id: bin2
+    name: touchkey2
+    channel: 2
+  - platform: mpr121
+    id: bin3
+    name: touchkey3
+    channel: 6
+
+output:
+  - platform: gpio
+    id: gpio1
+    pin:
+      mpr121: mpr121_first
+      number: 7
+      mode: OUTPUT
+  - platform: gpio
+    id: gpio2
+    pin:
+      mpr121: mpr121_first
+      number: 11
+      mode: OUTPUT
+      inverted: true

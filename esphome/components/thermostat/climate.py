@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import climate, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
@@ -15,15 +15,15 @@ from esphome.const import (
     CONF_DRY_ACTION,
     CONF_DRY_MODE,
     CONF_FAN_MODE,
-    CONF_FAN_MODE_ON_ACTION,
-    CONF_FAN_MODE_OFF_ACTION,
     CONF_FAN_MODE_AUTO_ACTION,
+    CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_FOCUS_ACTION,
+    CONF_FAN_MODE_HIGH_ACTION,
     CONF_FAN_MODE_LOW_ACTION,
     CONF_FAN_MODE_MEDIUM_ACTION,
-    CONF_FAN_MODE_HIGH_ACTION,
     CONF_FAN_MODE_MIDDLE_ACTION,
-    CONF_FAN_MODE_FOCUS_ACTION,
-    CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_OFF_ACTION,
+    CONF_FAN_MODE_ON_ACTION,
     CONF_FAN_MODE_QUIET_ACTION,
     CONF_FAN_ONLY_ACTION,
     CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER,
@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_FAN_WITH_COOLING,
     CONF_FAN_WITH_HEATING,
     CONF_HEAT_ACTION,
+    CONF_HEAT_COOL_MODE,
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
@@ -50,8 +51,8 @@ from esphome.const import (
     CONF_MIN_HEATING_RUN_TIME,
     CONF_MIN_IDLE_TIME,
     CONF_MIN_TEMPERATURE,
-    CONF_NAME,
     CONF_MODE,
+    CONF_NAME,
     CONF_OFF_MODE,
     CONF_PRESET,
     CONF_SENSOR,
@@ -137,7 +138,7 @@ def validate_temperature_preset(preset, root_config, name, requirements):
 
 
 def generate_comparable_preset(config, name):
-    comparable_preset = f"{CONF_PRESET}:\n" f"  -  {CONF_NAME}: {name}\n"
+    comparable_preset = f"{CONF_PRESET}:\n  -  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
         comparable_preset += f"     {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"
@@ -150,7 +151,7 @@ def generate_comparable_preset(config, name):
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
-        CONF_AUTO_MODE: [
+        CONF_HEAT_COOL_MODE: [
             CONF_COOL_ACTION,
             CONF_HEAT_ACTION,
             CONF_MIN_COOLING_OFF_TIME,
@@ -477,11 +478,11 @@ def validate_thermostat(config):
     if (
         CONF_ON_BOOT_RESTORE_FROM in config
         and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
+        and CONF_DEFAULT_PRESET not in config
     ):
-        if CONF_DEFAULT_PRESET not in config:
-            raise cv.Invalid(
-                f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
-            )
+        raise cv.Invalid(
+            f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
+        )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
@@ -516,9 +517,9 @@ def validate_thermostat(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(ThermostatClimate)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(ThermostatClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
@@ -538,6 +539,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COOL_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_DRY_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
@@ -631,7 +635,8 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
         CONF_COOL_ACTION, CONF_DRY_ACTION, CONF_FAN_ONLY_ACTION, CONF_HEAT_ACTION
     ),
@@ -640,11 +645,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
 
-    heat_cool_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (
         CONF_COOL_ACTION in config
         or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
@@ -739,11 +742,6 @@ async def to_code(config):
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
-    if heat_cool_mode_available is True:
-        cg.add(var.set_supports_heat_cool(True))
-    else:
-        cg.add(var.set_supports_heat_cool(False))
-
     if CONF_COOL_ACTION in config:
         await automation.build_automation(
             var.get_cool_action_trigger(), [], config[CONF_COOL_ACTION]
@@ -780,6 +778,7 @@ async def to_code(config):
         await automation.build_automation(
             var.get_auto_mode_trigger(), [], config[CONF_AUTO_MODE]
         )
+        cg.add(var.set_supports_auto(True))
     if CONF_COOL_MODE in config:
         await automation.build_automation(
             var.get_cool_mode_trigger(), [], config[CONF_COOL_MODE]
@@ -800,6 +799,11 @@ async def to_code(config):
             var.get_heat_mode_trigger(), [], config[CONF_HEAT_MODE]
         )
         cg.add(var.set_supports_heat(True))
+    if CONF_HEAT_COOL_MODE in config:
+        await automation.build_automation(
+            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+        )
+        cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(
             var.get_off_mode_trigger(), [], config[CONF_OFF_MODE]
@@ -892,7 +896,7 @@ async def to_code(config):
             if name.upper() in climate.CLIMATE_PRESETS:
                 standard_preset = climate.CLIMATE_PRESETS[name.upper()]
 
-            if two_points_available is True:
+            if two_points_available:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
@@ -905,6 +909,8 @@ async def to_code(config):
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
+            else:
+                preset_target_config = None
 
             preset_target_variable = cg.new_variable(
                 preset_config[CONF_ID], preset_target_config

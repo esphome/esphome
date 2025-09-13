@@ -469,7 +469,8 @@ class LWIPRawImpl : public Socket {
   }
   ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
     // return ::sendto(fd_, buf, len, flags, to, tolen);
-    return 0;
+    errno = ENOSYS;
+    return -1;
   }
   int setblocking(bool blocking) override {
     if (pcb_ == nullptr) {
@@ -603,6 +604,11 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   auto *sock = new LWIPRawImpl((sa_family_t) domain, pcb);  // NOLINT(cppcoreguidelines-owning-memory)
   sock->init();
   return std::unique_ptr<Socket>{sock};
+}
+
+std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol) {
+  // LWIPRawImpl doesn't use file descriptors, so monitoring is not applicable
+  return socket(domain, type, protocol);
 }
 
 }  // namespace socket

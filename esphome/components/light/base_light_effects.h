@@ -25,7 +25,7 @@ class PulseLightEffect : public LightEffect {
       return;
     }
     auto call = this->state_->turn_on();
-    float out = this->on_ ? this->max_brightness : this->min_brightness;
+    float out = this->on_ ? this->max_brightness_ : this->min_brightness_;
     call.set_brightness_if_supported(out);
     call.set_transition_length_if_supported(this->on_ ? this->transition_on_length_ : this->transition_off_length_);
     this->on_ = !this->on_;
@@ -43,8 +43,8 @@ class PulseLightEffect : public LightEffect {
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
   void set_min_max_brightness(float min, float max) {
-    this->min_brightness = min;
-    this->max_brightness = max;
+    this->min_brightness_ = min;
+    this->max_brightness_ = max;
   }
 
  protected:
@@ -53,8 +53,8 @@ class PulseLightEffect : public LightEffect {
   uint32_t transition_on_length_{};
   uint32_t transition_off_length_{};
   uint32_t update_interval_{};
-  float min_brightness{0.0};
-  float max_brightness{1.0};
+  float min_brightness_{0.0};
+  float max_brightness_{1.0};
 };
 
 /// Random effect. Sets random colors every 10 seconds and slowly transitions between them.
@@ -125,6 +125,10 @@ class LambdaLightEffect : public LightEffect {
     }
   }
 
+  /// Get the current effect index for use in lambda functions.
+  /// This can be useful for lambda effects that need to know their own index.
+  uint32_t get_current_index() const { return this->get_index(); }
+
  protected:
   std::function<void(bool initial_run)> f_;
   uint32_t update_interval_;
@@ -142,6 +146,10 @@ class AutomationLightEffect : public LightEffect {
     }
   }
   Trigger<> *get_trig() const { return trig_; }
+
+  /// Get the current effect index for use in automations.
+  /// Useful for automations that need to know which effect is running.
+  uint32_t get_current_index() const { return this->get_index(); }
 
  protected:
   Trigger<> *trig_{new Trigger<>};

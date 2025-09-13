@@ -7,8 +7,6 @@ namespace ufire_ec {
 static const char *const TAG = "ufire_ec";
 
 void UFireECComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up uFire_ec...");
-
   uint8_t version;
   if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
     this->mark_failed();
@@ -106,12 +104,14 @@ void UFireECComponent::write_data_(uint8_t reg, float data) {
 void UFireECComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "uFire-EC");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "EC Sensor", this->ec_sensor_)
-  LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_)
-  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_)
-  ESP_LOGCONFIG(TAG, "  Temperature Compensation: %f", this->temperature_compensation_);
-  ESP_LOGCONFIG(TAG, "  Temperature Coefficient: %f", this->temperature_coefficient_);
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "EC Sensor", this->ec_sensor_);
+  LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
+  ESP_LOGCONFIG(TAG,
+                "  Temperature Compensation: %f\n"
+                "  Temperature Coefficient: %f",
+                this->temperature_compensation_, this->temperature_coefficient_);
 }
 
 }  // namespace ufire_ec

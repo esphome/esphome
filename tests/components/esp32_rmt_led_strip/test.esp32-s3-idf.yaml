@@ -1,0 +1,12 @@
+substitutions:
+  pin1: GPIO3
+  pin2: GPIO4
+
+packages:
+  common: !include common.yaml
+
+light:
+  - id: !extend led_strip1
+    use_dma: "true"
+  - id: !extend led_strip2
+    use_dma: "false"

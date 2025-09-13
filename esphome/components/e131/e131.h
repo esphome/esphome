@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 
@@ -53,3 +54,4 @@ class E131Component : public esphome::Component {
 
 }  // namespace e131
 }  // namespace esphome
+#endif

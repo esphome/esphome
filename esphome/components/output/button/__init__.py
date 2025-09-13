@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button, output
-from esphome.const import CONF_ID, CONF_OUTPUT, CONF_DURATION
+import esphome.config_validation as cv
+from esphome.const import CONF_DURATION, CONF_ID, CONF_OUTPUT
+
 from .. import output_ns
 
 OutputButton = output_ns.class_("OutputButton", button.Button, cg.Component)

@@ -2,6 +2,7 @@ import difflib
 import itertools
 
 import voluptuous as vol
+
 from esphome.schema_extractors import schema_extractor_extended
 
 
@@ -14,7 +15,9 @@ class ExtraKeysInvalid(vol.Invalid):
 def ensure_multiple_invalid(err):
     if isinstance(err, vol.MultipleInvalid):
         return err
-    return vol.MultipleInvalid(err)
+    if isinstance(err, list):
+        return vol.MultipleInvalid(err)
+    return vol.MultipleInvalid([err])
 
 
 # pylint: disable=protected-access, unidiomatic-typecheck
@@ -222,7 +225,10 @@ class _Schema(vol.Schema):
             return ret
 
         schema = schemas[0]
+        extra_schemas = self._extra_schemas.copy()
+        if isinstance(schema, _Schema):
+            extra_schemas.extend(schema._extra_schemas)
         if isinstance(schema, vol.Schema):
             schema = schema.schema
         ret = super().extend(schema, extra=extra)
-        return _Schema(ret.schema, extra=ret.extra, extra_schemas=self._extra_schemas)
+        return _Schema(ret.schema, extra=ret.extra, extra_schemas=extra_schemas)

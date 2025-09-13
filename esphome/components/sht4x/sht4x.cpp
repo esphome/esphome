@@ -12,14 +12,20 @@ void SHT4XComponent::start_heater_() {
   uint8_t cmd[] = {MEASURECOMMANDS[this->heater_command_]};
 
   ESP_LOGD(TAG, "Heater turning on");
-  this->write(cmd, 1);
+  if (this->write(cmd, 1) != i2c::ERROR_OK) {
+    this->status_set_error("Failed to turn on heater");
+  }
 }
 
 void SHT4XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sht4x...");
+  auto err = this->write(nullptr, 0);
+  if (err != i2c::ERROR_OK) {
+    this->mark_failed();
+    return;
+  }
 
-  if (this->duty_cycle_ > 0.0) {
-    uint32_t heater_interval = (uint32_t) (this->heater_time_ / this->duty_cycle_);
+  if (std::isfinite(this->duty_cycle_) && this->duty_cycle_ > 0.0f) {
+    uint32_t heater_interval = static_cast<uint32_t>(static_cast<uint16_t>(this->heater_time_) / this->duty_cycle_);
     ESP_LOGD(TAG, "Heater interval: %" PRIu32, heater_interval);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
@@ -47,37 +53,50 @@ void SHT4XComponent::setup() {
   }
 }
 
-void SHT4XComponent::dump_config() { LOG_I2C_DEVICE(this); }
+void SHT4XComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "SHT4x:");
+  LOG_I2C_DEVICE(this);
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  }
+}
 
 void SHT4XComponent::update() {
   // Send command
-  this->write_command(MEASURECOMMANDS[this->precision_]);
+  if (!this->write_command(MEASURECOMMANDS[this->precision_])) {
+    // Warning will be printed only if warning status is not set yet
+    this->status_set_warning(LOG_STR("Failed to send measurement command"));
+    return;
+  }
 
   this->set_timeout(10, [this]() {
     uint16_t buffer[2];
 
     // Read measurement
-    bool read_status = this->read_data(buffer, 2);
+    if (!this->read_data(buffer, 2)) {
+      // Using ESP_LOGW to force the warning to be printed
+      ESP_LOGW(TAG, "Sensor read failed");
+      this->status_set_warning();
+      return;
+    }
 
-    if (read_status) {
-      // Evaluate and publish measurements
-      if (this->temp_sensor_ != nullptr) {
-        // Temp is contained in the first result word
-        float sensor_value_temp = buffer[0];
-        float temp = -45 + 175 * sensor_value_temp / 65535;
+    this->status_clear_warning();
 
-        this->temp_sensor_->publish_state(temp);
-      }
+    // Evaluate and publish measurements
+    if (this->temp_sensor_ != nullptr) {
+      // Temp is contained in the first result word
+      float sensor_value_temp = buffer[0];
+      float temp = -45 + 175 * sensor_value_temp / 65535;
 
-      if (this->humidity_sensor_ != nullptr) {
-        // Relative humidity is in the second result word
-        float sensor_value_rh = buffer[1];
-        float rh = -6 + 125 * sensor_value_rh / 65535;
+      this->temp_sensor_->publish_state(temp);
+    }
 
-        this->humidity_sensor_->publish_state(rh);
-      }
-    } else {
-      ESP_LOGD(TAG, "Sensor read failed");
+    if (this->humidity_sensor_ != nullptr) {
+      // Relative humidity is in the second result word
+      float sensor_value_rh = buffer[1];
+      float rh = -6 + 125 * sensor_value_rh / 65535;
+
+      this->humidity_sensor_->publish_state(rh);
     }
   });
 }

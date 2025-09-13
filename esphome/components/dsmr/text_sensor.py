@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
+from esphome.const import CONF_INTERNAL
 
-from . import Dsmr, CONF_DSMR_ID
+from . import CONF_DSMR_ID, Dsmr
 
 AUTO_LOAD = ["dsmr"]
 
@@ -22,6 +23,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("water_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("sub_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("gas_delivered_text"): text_sensor.text_sensor_schema(),
+        cv.Optional("telegram"): text_sensor.text_sensor_schema().extend(
+            {cv.Optional(CONF_INTERNAL, default=True): cv.boolean}
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -37,7 +41,9 @@ async def to_code(config):
         if id and id.type == text_sensor.TextSensor:
             var = await text_sensor.new_text_sensor(conf)
             cg.add(getattr(hub, f"set_{key}")(var))
-            text_sensors.append(f"F({key})")
+            if key != "telegram":
+                # telegram is not handled by dsmr
+                text_sensors.append(f"F({key})")
 
     if text_sensors:
         cg.add_define(

@@ -12,6 +12,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace htu31d {
 
@@ -73,8 +75,6 @@ uint8_t compute_crc(uint32_t value) {
  * I2C.
  */
 void HTU31DComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up esphome/components/htu31d HTU31D...");
-
   if (!this->reset_()) {
     this->mark_failed();
     return;
@@ -159,7 +159,7 @@ void HTU31DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU31D:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with HTU31D failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
@@ -204,7 +204,7 @@ uint32_t HTU31DComponent::read_serial_num_() {
     return 0;
   }
 
-  ESP_LOGD(TAG, "Found serial: 0x%X", serial);
+  ESP_LOGD(TAG, "Found serial: 0x%" PRIX32, serial);
 
   return serial;
 }

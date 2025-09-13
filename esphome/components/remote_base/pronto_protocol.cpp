@@ -201,9 +201,6 @@ std::string ProntoProtocol::compensate_and_dump_sequence_(const RawTimings &data
     out += dump_duration_(t_duration, timebase);
   }
 
-  // append minimum gap
-  out += dump_duration_(PRONTO_DEFAULT_GAP, timebase, true);
-
   return out;
 }
 

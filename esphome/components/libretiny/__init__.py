@@ -1,10 +1,6 @@
 import json
 import logging
-from os.path import (
-    dirname,
-    isfile,
-    join,
-)
+from os.path import dirname, isfile, join
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -24,6 +20,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    ThreadModel,
     __version__,
 )
 from esphome.core import CORE
@@ -50,7 +47,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
-AUTO_LOAD = []
+AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def _detect_variant(value):
@@ -174,12 +172,11 @@ def _notify_old_style(config):
     return config
 
 
-# NOTE: Keep this in mind when updating the recommended version:
-#  * For all constants below, update platformio.ini (in this repo)
+# The dev and latest branches will be at *least* this version, which is what matters.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(0, 0, 0), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 5, 1), None),
+    "dev": (cv.Version(1, 9, 1), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (cv.Version(1, 9, 1), "libretiny"),
+    "recommended": (cv.Version(1, 9, 1), None),
 }
 
 
@@ -264,13 +261,16 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
+    cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
+    cg.set_cpp_standard("gnu++20")
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
     # dummy version code
@@ -282,10 +282,10 @@ async def component_to_code(config):
     # if platform version is a valid version constraint, prefix the default package
     framework = config[CONF_FRAMEWORK]
     cv.platformio_version_constraint(framework[CONF_VERSION])
-    if str(framework[CONF_VERSION]) != "0.0.0":
-        cg.add_platformio_option("platform", f"libretiny @ {framework[CONF_VERSION]}")
-    elif framework[CONF_SOURCE]:
+    if framework[CONF_SOURCE]:
         cg.add_platformio_option("platform", framework[CONF_SOURCE])
+    elif str(framework[CONF_VERSION]) != "0.0.0":
+        cg.add_platformio_option("platform", f"libretiny @ {framework[CONF_VERSION]}")
     else:
         cg.add_platformio_option("platform", "libretiny")
 

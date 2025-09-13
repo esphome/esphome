@@ -15,10 +15,11 @@ from esphome.components.libretiny.const import (
 )
 from esphome.core import CORE
 
-from .boards import BK72XX_BOARDS, BK72XX_BOARD_PINS
+from .boards import BK72XX_BOARD_PINS, BK72XX_BOARDS
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["libretiny"]
+IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(
     name=COMPONENT_BK72XX,

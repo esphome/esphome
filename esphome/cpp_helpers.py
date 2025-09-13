@@ -1,29 +1,18 @@
 import logging
 
 from esphome.const import (
-    CONF_DISABLED_BY_DEFAULT,
-    CONF_ENTITY_CATEGORY,
-    CONF_ESPHOME,
-    CONF_ICON,
-    CONF_INTERNAL,
-    CONF_NAME,
-    CONF_OTA,
-    CONF_PLATFORM,
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
     KEY_PAST_SAFE_MODE,
 )
-
-from esphome.core import coroutine, ID, CORE
+from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
-from esphome.types import ConfigType, ConfigFragmentType
-from esphome.cpp_generator import add, get_variable
+from esphome.cpp_generator import LogStringLiteral, add, get_variable
 from esphome.cpp_types import App
+from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
-from esphome.helpers import snake_case, sanitize
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +76,7 @@ async def register_component(var, config):
             "Error while finding name of component, please report this", exc_info=e
         )
     if name is not None:
-        add(var.set_component_source(name))
+        add(var.set_component_source(LogStringLiteral(name)))
 
     add(App.register_component(var))
     return var
@@ -99,22 +88,6 @@ async def register_parented(var, value):
     else:
         paren = value
     add(var.set_parent(paren))
-
-
-async def setup_entity(var, config):
-    """Set up generic properties of an Entity"""
-    add(var.set_name(config[CONF_NAME]))
-    if not config[CONF_NAME]:
-        add(var.set_object_id(sanitize(snake_case(CORE.friendly_name))))
-    else:
-        add(var.set_object_id(sanitize(snake_case(config[CONF_NAME]))))
-    add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        add(var.set_internal(config[CONF_INTERNAL]))
-    if CONF_ICON in config:
-        add(var.set_icon(config[CONF_ICON]))
-    if CONF_ENTITY_CATEGORY in config:
-        add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
 def extract_registry_entry_config(
@@ -141,22 +114,12 @@ async def build_registry_list(registry, config):
 
 
 async def past_safe_mode():
-    ota_conf = {}
-    for ota_item in CORE.config.get(CONF_OTA, []):
-        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
-            ota_conf = ota_item
-            break
-
-    if not ota_conf:
-        return
-
-    safe_mode_enabled = ota_conf[CONF_SAFE_MODE]
-    if not safe_mode_enabled:
-        return
+    if CONF_SAFE_MODE not in CORE.config:
+        return None
 
     def _safe_mode_generator():
         while True:
-            if CORE.data.get(CONF_OTA, {}).get(KEY_PAST_SAFE_MODE, False):
+            if CORE.data.get(CONF_SAFE_MODE, {}).get(KEY_PAST_SAFE_MODE, False):
                 return
             yield
 

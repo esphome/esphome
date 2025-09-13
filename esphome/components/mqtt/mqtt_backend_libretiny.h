@@ -1,8 +1,9 @@
 #pragma once
+#include "mqtt_backend.h"
 
+#ifdef USE_MQTT
 #ifdef USE_LIBRETINY
 
-#include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
 
 namespace esphome {
@@ -70,3 +71,4 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
 }  // namespace esphome
 
 #endif  // defined(USE_LIBRETINY)
+#endif

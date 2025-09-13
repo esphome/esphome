@@ -1,8 +1,10 @@
+import re
+
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
+from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
 from esphome.core import CORE
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
 IS_PLATFORM_COMPONENT = True
@@ -20,9 +22,8 @@ def validate_id(config):
     if CONF_CAN_ID in config:
         can_id = config[CONF_CAN_ID]
         id_ext = config[CONF_USE_EXTENDED_ID]
-        if not id_ext:
-            if can_id > 0x7FF:
-                raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
+        if not id_ext and can_id > 0x7FF:
+            raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
     return config
 
 
@@ -68,6 +69,16 @@ CAN_SPEEDS = {
     "800KBPS": CanSpeed.CAN_800KBPS,
     "1000KBPS": CanSpeed.CAN_1000KBPS,
 }
+
+
+def get_rate(value):
+    match = re.match(r"(\d+)(?:K(\d+)?)?BPS", value, re.IGNORECASE)
+    if not match:
+        raise ValueError(f"Invalid rate format: {value}")
+    fraction = match.group(2) or "0"
+    return int((float(match.group(1)) + float(f"0.{fraction}")) * 1000)
+
+
 CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),

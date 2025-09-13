@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BSSID,
+    CONF_DNS_ADDRESS,
     CONF_IP_ADDRESS,
+    CONF_MAC_ADDRESS,
     CONF_SCAN_RESULTS,
     CONF_SSID,
-    CONF_MAC_ADDRESS,
-    CONF_DNS_ADDRESS,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 

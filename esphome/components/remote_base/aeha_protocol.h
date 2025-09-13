@@ -30,12 +30,14 @@ template<typename... Ts> class AEHAAction : public RemoteTransmitterActionBase<T
  public:
   TEMPLATABLE_VALUE(uint16_t, address)
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data)
+  TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
   void set_data(const std::vector<uint8_t> &data) { data_ = data; }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     AEHAData data{};
     data.address = this->address_.value(x...);
     data.data = this->data_.value(x...);
+    dst->set_carrier_frequency(this->carrier_frequency_.value(x...));
     AEHAProtocol().encode(dst, data);
   }
 };

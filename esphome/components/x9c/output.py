@@ -1,13 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_CS_PIN,
+    CONF_ID,
     CONF_INC_PIN,
-    CONF_UD_PIN,
     CONF_INITIAL_VALUE,
+    CONF_STEP_DELAY,
+    CONF_UD_PIN,
 )
 
 CODEOWNERS = ["@EtienneMD"]
@@ -25,6 +26,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_UD_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_INITIAL_VALUE, default=1.0): cv.float_range(
                 min=0.01, max=1.0
+            ),
+            cv.Optional(CONF_STEP_DELAY, default="1us"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(
+                    min=cv.TimePeriod(microseconds=1),
+                    max=cv.TimePeriod(microseconds=100),
+                ),
             ),
         }
     )
@@ -44,3 +52,4 @@ async def to_code(config):
     cg.add(var.set_ud_pin(ud_pin))
 
     cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
+    cg.add(var.set_step_delay(config[CONF_STEP_DELAY]))

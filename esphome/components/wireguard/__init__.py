@@ -1,16 +1,13 @@
-import re
 import ipaddress
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_TIME_ID,
-    CONF_ADDRESS,
-    CONF_REBOOT_TIMEOUT,
-)
-from esphome.components import time
-from esphome.core import TimePeriod
+import re
+
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import time
+from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_REBOOT_TIMEOUT, CONF_TIME_ID
+from esphome.core import TimePeriod
 
 CONF_NETMASK = "netmask"
 CONF_PRIVATE_KEY = "private_key"
@@ -63,8 +60,8 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Wireguard),
         cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-        cv.Required(CONF_ADDRESS): cv.ipv4,
-        cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4,
+        cv.Required(CONF_ADDRESS): cv.ipv4address,
+        cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4address,
         cv.Required(CONF_PRIVATE_KEY): _wireguard_key,
         cv.Required(CONF_PEER_ENDPOINT): cv.string,
         cv.Required(CONF_PEER_PUBLIC_KEY): _wireguard_key,
@@ -87,6 +84,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+
+    cg.add_define("USE_WIREGUARD")
 
     cg.add(var.set_address(str(config[CONF_ADDRESS])))
     cg.add(var.set_netmask(str(config[CONF_NETMASK])))
@@ -117,12 +116,17 @@ async def to_code(config):
     if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
         cg.add(var.disable_auto_proceed())
 
+    # Workaround for crash on IDF 5+
+    # See https://github.com/trombik/esp_wireguard/issues/33#issuecomment-1568503651
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
+
     # This flag is added here because the esp_wireguard library statically
     # set the size of its allowed_ips list at compile time using this value;
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.0")
+    cg.add_library("droscy/esp_wireguard", "0.4.2")
 
     await cg.register_component(var, config)
 

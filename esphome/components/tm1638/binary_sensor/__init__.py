@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_KEY
-from ..display import tm1638_ns, TM1638Component, CONF_TM1638_ID
+
+from ..display import CONF_TM1638_ID, TM1638Component, tm1638_ns
 
 TM1638Key = tm1638_ns.class_("TM1638Key", binary_sensor.BinarySensor)
 

@@ -1,0 +1,8 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+  hardware_uart: USB_CDC
+
+improv_serial:

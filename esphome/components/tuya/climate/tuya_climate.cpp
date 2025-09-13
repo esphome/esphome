@@ -24,6 +24,14 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
+  if (this->heating_state_pin_ != nullptr) {
+    this->heating_state_pin_->setup();
+    this->heating_state_ = this->heating_state_pin_->digital_read();
+  }
+  if (this->cooling_state_pin_ != nullptr) {
+    this->cooling_state_pin_->setup();
+    this->cooling_state_ = this->cooling_state_pin_->digital_read();
+  }
   if (this->active_state_id_.has_value()) {
     this->parent_->register_listener(*this->active_state_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported active state is: %u", datapoint.value_enum);
@@ -31,15 +39,6 @@ void TuyaClimate::setup() {
       this->compute_state_();
       this->publish_state();
     });
-  } else {
-    if (this->heating_state_pin_ != nullptr) {
-      this->heating_state_pin_->setup();
-      this->heating_state_ = this->heating_state_pin_->digital_read();
-    }
-    if (this->cooling_state_pin_ != nullptr) {
-      this->cooling_state_pin_->setup();
-      this->cooling_state_ = this->cooling_state_pin_->digital_read();
-    }
   }
   if (this->target_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint &datapoint) {
@@ -113,9 +112,6 @@ void TuyaClimate::setup() {
 }
 
 void TuyaClimate::loop() {
-  if (this->active_state_id_.has_value())
-    return;
-
   bool state_changed = false;
   if (this->heating_state_pin_ != nullptr) {
     bool heating_state = this->heating_state_pin_->digital_read();
@@ -147,14 +143,18 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     this->parent_->set_boolean_datapoint_value(*this->switch_id_, switch_state);
     const climate::ClimateMode new_mode = *call.get_mode();
 
-    if (new_mode == climate::CLIMATE_MODE_HEAT && this->supports_heat_) {
-      this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_heating_value_);
-    } else if (new_mode == climate::CLIMATE_MODE_COOL && this->supports_cool_) {
-      this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_cooling_value_);
-    } else if (new_mode == climate::CLIMATE_MODE_DRY && this->active_state_drying_value_.has_value()) {
-      this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_drying_value_);
-    } else if (new_mode == climate::CLIMATE_MODE_FAN_ONLY && this->active_state_fanonly_value_.has_value()) {
-      this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_fanonly_value_);
+    if (this->active_state_id_.has_value()) {
+      if (new_mode == climate::CLIMATE_MODE_HEAT && this->supports_heat_) {
+        this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_heating_value_);
+      } else if (new_mode == climate::CLIMATE_MODE_COOL && this->supports_cool_) {
+        this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_cooling_value_);
+      } else if (new_mode == climate::CLIMATE_MODE_DRY && this->active_state_drying_value_.has_value()) {
+        this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_drying_value_);
+      } else if (new_mode == climate::CLIMATE_MODE_FAN_ONLY && this->active_state_fanonly_value_.has_value()) {
+        this->parent_->set_enum_datapoint_value(*this->active_state_id_, *this->active_state_fanonly_value_);
+      }
+    } else {
+      ESP_LOGW(TAG, "Active state (mode) datapoint not configured");
     }
   }
 
@@ -422,7 +422,32 @@ void TuyaClimate::compute_state_() {
   }
 
   climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
-  if (this->active_state_id_.has_value()) {
+  if (this->heating_state_pin_ != nullptr || this->cooling_state_pin_ != nullptr) {
+    // Use state from input pins
+    if (this->heating_state_) {
+      target_action = climate::CLIMATE_ACTION_HEATING;
+      this->mode = climate::CLIMATE_MODE_HEAT;
+    } else if (this->cooling_state_) {
+      target_action = climate::CLIMATE_ACTION_COOLING;
+      this->mode = climate::CLIMATE_MODE_COOL;
+    }
+    if (this->active_state_id_.has_value()) {
+      // Both are available, use MCU datapoint as mode
+      if (this->supports_heat_ && this->active_state_heating_value_.has_value() &&
+          this->active_state_ == this->active_state_heating_value_) {
+        this->mode = climate::CLIMATE_MODE_HEAT;
+      } else if (this->supports_cool_ && this->active_state_cooling_value_.has_value() &&
+                 this->active_state_ == this->active_state_cooling_value_) {
+        this->mode = climate::CLIMATE_MODE_COOL;
+      } else if (this->active_state_drying_value_.has_value() &&
+                 this->active_state_ == this->active_state_drying_value_) {
+        this->mode = climate::CLIMATE_MODE_DRY;
+      } else if (this->active_state_fanonly_value_.has_value() &&
+                 this->active_state_ == this->active_state_fanonly_value_) {
+        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+      }
+    }
+  } else if (this->active_state_id_.has_value()) {
     // Use state from MCU datapoint
     if (this->supports_heat_ && this->active_state_heating_value_.has_value() &&
         this->active_state_ == this->active_state_heating_value_) {
@@ -440,15 +465,6 @@ void TuyaClimate::compute_state_() {
                this->active_state_ == this->active_state_fanonly_value_) {
       target_action = climate::CLIMATE_ACTION_FAN;
       this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-    }
-  } else if (this->heating_state_pin_ != nullptr || this->cooling_state_pin_ != nullptr) {
-    // Use state from input pins
-    if (this->heating_state_) {
-      target_action = climate::CLIMATE_ACTION_HEATING;
-      this->mode = climate::CLIMATE_MODE_HEAT;
-    } else if (this->cooling_state_) {
-      target_action = climate::CLIMATE_ACTION_COOLING;
-      this->mode = climate::CLIMATE_MODE_COOL;
     }
   } else {
     // Fallback to active state calc based on temp and hysteresis

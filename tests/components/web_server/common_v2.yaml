@@ -1,0 +1,6 @@
+packages:
+  device_base: !include common.yaml
+
+web_server:
+  port: 8080
+  version: 2

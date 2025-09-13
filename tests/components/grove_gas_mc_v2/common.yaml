@@ -1,0 +1,17 @@
+i2c:
+  - id: i2c_grove_gas_mc_v2
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: grove_gas_mc_v2
+    nitrogen_dioxide:
+      name: "Nitrogen Dioxide"
+    ethanol:
+      name: "Ethanol"
+    carbon_monoxide:
+      name: "Carbon Monoxide"
+    tvoc:
+      name: "Volatile Organic Compounds"
+    update_interval: 30s
+    address: 0xAD

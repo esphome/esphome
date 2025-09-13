@@ -18,10 +18,11 @@ class BinaryLightOutput : public light::LightOutput {
   void write_state(light::LightState *state) override {
     bool binary;
     state->current_values_as_binary(&binary);
-    if (binary)
+    if (binary) {
       this->output_->turn_on();
-    else
+    } else {
       this->output_->turn_off();
+    }
   }
 
  protected:

@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_WIFI
 #include <array>
 
 namespace esphome {
@@ -27,7 +28,6 @@ class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSenso
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-ip"; }
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
@@ -50,7 +50,6 @@ class DNSAddressWifiInfo : public PollingComponent, public text_sensor::TextSens
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-dns"; }
   void dump_config() override;
 
  protected:
@@ -79,7 +78,6 @@ class ScanResultsWiFiInfo : public PollingComponent, public text_sensor::TextSen
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-scanresults"; }
   void dump_config() override;
 
  protected:
@@ -96,7 +94,6 @@ class SSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-ssid"; }
   void dump_config() override;
 
  protected:
@@ -115,7 +112,6 @@ class BSSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-bssid"; }
   void dump_config() override;
 
  protected:
@@ -125,9 +121,9 @@ class BSSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
 class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
  public:
   void setup() override { this->publish_state(get_mac_address_pretty()); }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-macadr"; }
   void dump_config() override;
 };
 
 }  // namespace wifi_info
 }  // namespace esphome
+#endif

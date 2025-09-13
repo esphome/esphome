@@ -7,34 +7,41 @@ namespace esphome {
 
 namespace media_player {
 
-#define MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(ACTION_CLASS, ACTION_COMMAND) \
-  template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<MediaPlayer> { \
-    void play(Ts... x) override { \
-      this->parent_->make_call().set_command(MediaPlayerCommand::MEDIA_PLAYER_COMMAND_##ACTION_COMMAND).perform(); \
-    } \
-  };
+template<MediaPlayerCommand Command, typename... Ts>
+class MediaPlayerCommandAction : public Action<Ts...>, public Parented<MediaPlayer> {
+ public:
+  TEMPLATABLE_VALUE(bool, announcement);
+  void play(Ts... x) override {
+    this->parent_->make_call().set_command(Command).set_announcement(this->announcement_.value(x...)).perform();
+  }
+};
 
-#define MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(TRIGGER_CLASS, TRIGGER_STATE) \
-  class TRIGGER_CLASS : public Trigger<> { \
-   public: \
-    explicit TRIGGER_CLASS(MediaPlayer *player) { \
-      player->add_on_state_callback([this, player]() { \
-        if (player->state == MediaPlayerState::MEDIA_PLAYER_STATE_##TRIGGER_STATE) \
-          this->trigger(); \
-      }); \
-    } \
-  };
-
-MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PlayAction, PLAY)
-MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PauseAction, PAUSE)
-MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(StopAction, STOP)
-MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(ToggleAction, TOGGLE)
-MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(VolumeUpAction, VOLUME_UP)
-MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(VolumeDownAction, VOLUME_DOWN)
+template<typename... Ts>
+using PlayAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY, Ts...>;
+template<typename... Ts>
+using PauseAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PAUSE, Ts...>;
+template<typename... Ts>
+using StopAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP, Ts...>;
+template<typename... Ts>
+using ToggleAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TOGGLE, Ts...>;
+template<typename... Ts>
+using VolumeUpAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_VOLUME_UP, Ts...>;
+template<typename... Ts>
+using VolumeDownAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_VOLUME_DOWN, Ts...>;
+template<typename... Ts>
+using TurnOnAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TURN_ON, Ts...>;
+template<typename... Ts>
+using TurnOffAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TURN_OFF, Ts...>;
 
 template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
-  void play(Ts... x) override { this->parent_->make_call().set_media_url(this->media_url_.value(x...)).perform(); }
+  TEMPLATABLE_VALUE(bool, announcement)
+  void play(Ts... x) override {
+    this->parent_->make_call()
+        .set_media_url(this->media_url_.value(x...))
+        .set_announcement(this->announcement_.value(x...))
+        .perform();
+  }
 };
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
@@ -49,10 +56,22 @@ class StateTrigger : public Trigger<> {
   }
 };
 
-MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(IdleTrigger, IDLE)
-MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PlayTrigger, PLAYING)
-MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PauseTrigger, PAUSED)
-MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(AnnouncementTrigger, ANNOUNCING)
+template<MediaPlayerState State> class MediaPlayerStateTrigger : public Trigger<> {
+ public:
+  explicit MediaPlayerStateTrigger(MediaPlayer *player) {
+    player->add_on_state_callback([this, player]() {
+      if (player->state == State)
+        this->trigger();
+    });
+  }
+};
+
+using IdleTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>;
+using PlayTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING>;
+using PauseTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED>;
+using AnnouncementTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING>;
+using OnTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ON>;
+using OffTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_OFF>;
 
 template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
@@ -62,6 +81,26 @@ template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
+};
+
+template<typename... Ts> class IsPausedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED; }
+};
+
+template<typename... Ts> class IsAnnouncingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING; }
+};
+
+template<typename... Ts> class IsOnCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
+};
+
+template<typename... Ts> class IsOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
 };
 
 }  // namespace media_player

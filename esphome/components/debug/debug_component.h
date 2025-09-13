@@ -2,8 +2,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/macros.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/macros.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -36,7 +36,13 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_ESP32
   void set_psram_sensor(sensor::Sensor *psram_sensor) { this->psram_sensor_ = psram_sensor; }
 #endif  // USE_ESP32
+  void set_cpu_frequency_sensor(sensor::Sensor *cpu_frequency_sensor) {
+    this->cpu_frequency_sensor_ = cpu_frequency_sensor;
+  }
 #endif  // USE_SENSOR
+#ifdef USE_ESP32
+  void on_shutdown() override;
+#endif  // USE_ESP32
  protected:
   uint32_t free_heap_{};
 
@@ -53,7 +59,22 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_ESP32
   sensor::Sensor *psram_sensor_{nullptr};
 #endif  // USE_ESP32
+  sensor::Sensor *cpu_frequency_sensor_{nullptr};
 #endif  // USE_SENSOR
+
+#ifdef USE_ESP32
+  /**
+   * @brief Logs information about the device's partition table.
+   *
+   * This function iterates through the ESP32's partition table and logs details
+   * about each partition, including its name, type, subtype, starting address,
+   * and size. The information is useful for diagnosing issues related to flash
+   * memory or verifying the partition configuration dynamically at runtime.
+   *
+   * Only available when compiled for ESP32 platforms.
+   */
+  void log_partition_info_();
+#endif  // USE_ESP32
 
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *device_info_{nullptr};
@@ -61,6 +82,7 @@ class DebugComponent : public PollingComponent {
 #endif  // USE_TEXT_SENSOR
 
   std::string get_reset_reason_();
+  std::string get_wakeup_cause_();
   uint32_t get_free_heap_();
   void get_device_info_(std::string &device_info);
   void update_platform_();

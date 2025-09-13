@@ -14,7 +14,7 @@ namespace esphome {
 namespace json {
 
 /// Callback function typedef for parsing JsonObjects.
-using json_parse_t = std::function<void(JsonObject)>;
+using json_parse_t = std::function<bool(JsonObject)>;
 
 /// Callback function typedef for building JsonObjects.
 using json_build_t = std::function<void(JsonObject)>;
@@ -23,7 +23,7 @@ using json_build_t = std::function<void(JsonObject)>;
 std::string build_json(const json_build_t &f);
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
-void parse_json(const std::string &data, const json_parse_t &f);
+bool parse_json(const std::string &data, const json_parse_t &f);
 
 }  // namespace json
 }  // namespace esphome

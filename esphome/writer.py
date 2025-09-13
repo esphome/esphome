@@ -1,27 +1,25 @@
+import importlib
 import logging
 import os
-import re
 from pathlib import Path
-from typing import Union
+import re
 
-from esphome.config import iter_components, iter_component_configs
+from esphome import loader
+from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
+    PLATFORM_ESP32,
     SOURCE_FILE_EXTENSIONS,
     __version__,
-    ENV_NOGITIGNORE,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
-    mkdir_p,
-    read_file,
-    write_file_if_changed,
-    walk_files,
     copy_file_if_changed,
-    get_bool_env,
+    read_file,
+    walk_files,
+    write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,8 +27,6 @@ CPP_AUTO_GENERATE_BEGIN = "// ========== AUTO GENERATED CODE BEGIN ==========="
 CPP_AUTO_GENERATE_END = "// =========== AUTO GENERATED CODE END ============"
 CPP_INCLUDE_BEGIN = "// ========== AUTO GENERATED INCLUDE BLOCK BEGIN ==========="
 CPP_INCLUDE_END = "// ========== AUTO GENERATED INCLUDE BLOCK END ==========="
-INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
-INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
 
 CPP_BASE_FORMAT = (
     """// Auto generated code by esphome
@@ -46,20 +42,6 @@ void setup() {
 void loop() {
   App.loop();
 }
-""",
-)
-
-INI_BASE_FORMAT = (
-    """; Auto generated code by esphome
-
-[common]
-lib_deps =
-build_flags =
-upload_flags =
-
-""",
-    """
-
 """,
 )
 
@@ -94,11 +76,11 @@ def get_include_text():
 
 
 def replace_file_content(text, pattern, repl):
-    content_new, count = re.subn(pattern, repl, text, flags=re.M)
+    content_new, count = re.subn(pattern, repl, text, flags=re.MULTILINE)
     return content_new, count
 
 
-def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
+def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old is None:
         return True
 
@@ -106,10 +88,22 @@ def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
+    # Check if any components have been removed
+    return bool(old.loaded_integrations - new.loaded_integrations)
+
+
+def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
+    if (
+        old.loaded_integrations != new.loaded_integrations
+        or old.loaded_platforms != new.loaded_platforms
+    ) and new.core_platform == PLATFORM_ESP32:
+        from esphome.components.esp32 import FRAMEWORK_ESP_IDF
+
+        return new.framework == FRAMEWORK_ESP_IDF
     return False
 
 
-def update_storage_json():
+def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -117,38 +111,20 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info("Core config or version changed, cleaning build files...")
+        if old is not None and old.loaded_integrations - new.loaded_integrations:
+            removed = old.loaded_integrations - new.loaded_integrations
+            _LOGGER.info(
+                "Components removed (%s), cleaning build files...",
+                ", ".join(sorted(removed)),
+            )
+        else:
+            _LOGGER.info("Core config or version changed, cleaning build files...")
         clean_build()
+    elif storage_should_update_cmake_cache(old, new):
+        _LOGGER.info("Integrations changed, cleaning cmake cache...")
+        clean_cmake_cache()
 
     new.save(path)
-
-
-def format_ini(data: dict[str, Union[str, list[str]]]) -> str:
-    content = ""
-    for key, value in sorted(data.items()):
-        if isinstance(value, list):
-            content += f"{key} =\n"
-            for x in value:
-                content += f"    {x}\n"
-        else:
-            content += f"{key} = {value}\n"
-    return content
-
-
-def get_ini_content():
-    CORE.add_platformio_option(
-        "lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"]
-    )
-    # Sort to avoid changing build flags order
-    CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
-
-    content = "[platformio]\n"
-    content += f"description = ESPHome {__version__}\n"
-
-    content += f"[env:{CORE.name}]\n"
-    content += format_ini(CORE.platformio_options)
-
-    return content
 
 
 def find_begin_end(text, begin_s, end_s):
@@ -178,34 +154,7 @@ def find_begin_end(text, begin_s, end_s):
     return text[:begin_index], text[(end_index + len(end_s)) :]
 
 
-def write_platformio_ini(content):
-    update_storage_json()
-    path = CORE.relative_build_path("platformio.ini")
-
-    if os.path.isfile(path):
-        text = read_file(path)
-        content_format = find_begin_end(
-            text, INI_AUTO_GENERATE_BEGIN, INI_AUTO_GENERATE_END
-        )
-    else:
-        content_format = INI_BASE_FORMAT
-    full_file = f"{content_format[0] + INI_AUTO_GENERATE_BEGIN}\n{content}"
-    full_file += INI_AUTO_GENERATE_END + content_format[1]
-    write_file_if_changed(path, full_file)
-
-
-def write_platformio_project():
-    mkdir_p(CORE.build_path)
-
-    content = get_ini_content()
-    if not get_bool_env(ENV_NOGITIGNORE):
-        write_gitignore()
-    write_platformio_ini(content)
-
-
-DEFINES_H_FORMAT = (
-    ESPHOME_H_FORMAT
-) = """\
+DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
@@ -291,25 +240,13 @@ def copy_src_tree():
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
 
-    if CORE.is_esp32:
-        from esphome.components.esp32 import copy_files
-
+    platform = "esphome.components." + CORE.target_platform
+    try:
+        module = importlib.import_module(platform)
+        copy_files = getattr(module, "copy_files")
         copy_files()
-
-    elif CORE.is_esp8266:
-        from esphome.components.esp8266 import copy_files
-
-        copy_files()
-
-    elif CORE.is_rp2040:
-        from esphome.components.rp2040 import copy_files
-
-        (pio) = copy_files()
-        if pio:
-            write_file_if_changed(
-                CORE.relative_src_path("esphome.h"),
-                ESPHOME_H_FORMAT.format(include_s + '\n#include "pio_includes.h"'),
-            )
+    except AttributeError:
+        pass
 
 
 def generate_defines_h():
@@ -353,6 +290,15 @@ def write_cpp(code_s):
     write_file_if_changed(path, full_file)
 
 
+def clean_cmake_cache():
+    pioenvs = CORE.relative_pioenvs_path()
+    if os.path.isdir(pioenvs):
+        pioenvs_cmake_path = CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt")
+        if os.path.isfile(pioenvs_cmake_path):
+            _LOGGER.info("Deleting %s", pioenvs_cmake_path)
+            os.remove(pioenvs_cmake_path)
+
+
 def clean_build():
     import shutil
 
@@ -364,6 +310,10 @@ def clean_build():
     if os.path.isdir(piolibdeps):
         _LOGGER.info("Deleting %s", piolibdeps)
         shutil.rmtree(piolibdeps)
+    dependencies_lock = CORE.relative_build_path("dependencies.lock")
+    if os.path.isfile(dependencies_lock):
+        _LOGGER.info("Deleting %s", dependencies_lock)
+        os.remove(dependencies_lock)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

@@ -1,6 +1,6 @@
 #include "pipsolar.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace pipsolar {
@@ -23,20 +23,18 @@ void Pipsolar::loop() {
   // Read message
   if (this->state_ == STATE_IDLE) {
     this->empty_uart_buffer_();
-    switch (this->send_next_command_()) {
-      case 0:
-        // no command send (empty queue) time to poll
-        if (millis() - this->last_poll_ > this->update_interval_) {
-          this->send_next_poll_();
-          this->last_poll_ = millis();
-        }
-        return;
-        break;
-      case 1:
-        // command send
-        return;
-        break;
+
+    if (this->send_next_command_()) {
+      // command sent
+      return;
     }
+
+    if (this->send_next_poll_()) {
+      // poll sent
+      return;
+    }
+
+    return;
   }
   if (this->state_ == STATE_COMMAND_COMPLETE) {
     if (this->check_incoming_length_(4)) {
@@ -135,6 +133,9 @@ void Pipsolar::loop() {
         }
         if (this->output_source_priority_battery_switch_) {
           this->output_source_priority_battery_switch_->publish_state(value_output_source_priority_ == 2);
+        }
+        if (this->output_source_priority_hybrid_switch_) {
+          this->output_source_priority_hybrid_switch_->publish_state(value_output_source_priority_ == 3);
         }
         if (this->charger_source_priority_) {
           this->charger_source_priority_->publish_state(value_charger_source_priority_);
@@ -527,7 +528,7 @@ void Pipsolar::loop() {
         // '(00000000000000000000000000000000'
         // iterate over all available flag (as not all models have all flags, but at least in the same order)
         this->value_warnings_present_ = false;
-        this->value_faults_present_ = true;
+        this->value_faults_present_ = false;
 
         for (size_t i = 1; i < strlen(tmp); i++) {
           enabled = tmp[i] == '1';
@@ -705,6 +706,7 @@ void Pipsolar::loop() {
         return;
       }
       // crc ok
+      this->used_polling_commands_[this->last_polling_command_].needs_update = false;
       this->state_ = STATE_POLL_CHECKED;
       return;
     } else {
@@ -785,9 +787,9 @@ uint8_t Pipsolar::check_incoming_crc_() {
 }
 
 // send next command used
-uint8_t Pipsolar::send_next_command_() {
+bool Pipsolar::send_next_command_() {
   uint16_t crc16;
-  if (this->command_queue_[this->command_queue_position_].length() != 0) {
+  if (!this->command_queue_[this->command_queue_position_].empty()) {
     const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
     uint8_t length = this->command_queue_[this->command_queue_position_].length();
@@ -806,44 +808,50 @@ uint8_t Pipsolar::send_next_command_() {
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending command from queue: %s with length %d", command, length);
-    return 1;
+    return true;
   }
-  return 0;
+  return false;
 }
 
-void Pipsolar::send_next_poll_() {
+bool Pipsolar::send_next_poll_() {
   uint16_t crc16;
-  this->last_polling_command_ = (this->last_polling_command_ + 1) % 15;
-  if (this->used_polling_commands_[this->last_polling_command_].length == 0) {
-    this->last_polling_command_ = 0;
+
+  for (uint8_t i = 0; i < POLLING_COMMANDS_MAX; i++) {
+    this->last_polling_command_ = (this->last_polling_command_ + 1) % POLLING_COMMANDS_MAX;
+    if (this->used_polling_commands_[this->last_polling_command_].length == 0) {
+      // not enabled
+      continue;
+    }
+    if (!this->used_polling_commands_[this->last_polling_command_].needs_update) {
+      // no update requested
+      continue;
+    }
+    this->state_ = STATE_POLL;
+    this->command_start_millis_ = millis();
+    this->empty_uart_buffer_();
+    this->read_pos_ = 0;
+    crc16 = this->pipsolar_crc_(this->used_polling_commands_[this->last_polling_command_].command,
+                                this->used_polling_commands_[this->last_polling_command_].length);
+    this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
+                      this->used_polling_commands_[this->last_polling_command_].length);
+    // checksum
+    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
+    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    // end Byte
+    this->write(0x0D);
+    ESP_LOGD(TAG, "Sending polling command : %s with length %d",
+             this->used_polling_commands_[this->last_polling_command_].command,
+             this->used_polling_commands_[this->last_polling_command_].length);
+    return true;
   }
-  if (this->used_polling_commands_[this->last_polling_command_].length == 0) {
-    // no command specified
-    return;
-  }
-  this->state_ = STATE_POLL;
-  this->command_start_millis_ = millis();
-  this->empty_uart_buffer_();
-  this->read_pos_ = 0;
-  crc16 = this->pipsolar_crc_(this->used_polling_commands_[this->last_polling_command_].command,
-                              this->used_polling_commands_[this->last_polling_command_].length);
-  this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
-                    this->used_polling_commands_[this->last_polling_command_].length);
-  // checksum
-  this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-  this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
-  // end Byte
-  this->write(0x0D);
-  ESP_LOGD(TAG, "Sending polling command : %s with length %d",
-           this->used_polling_commands_[this->last_polling_command_].command,
-           this->used_polling_commands_[this->last_polling_command_].length);
+  return false;
 }
 
 void Pipsolar::queue_command_(const char *command, uint8_t length) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
-    if (command_queue_[testposition].length() == 0) {
+    if (command_queue_[testposition].empty()) {
       command_queue_[testposition] = command;
       ESP_LOGD(TAG, "Command queued successfully: %s with length %u at position %d", command,
                command_queue_[testposition].length(), testposition);
@@ -858,15 +866,21 @@ void Pipsolar::switch_command(const std::string &command) {
   queue_command_(command.c_str(), command.length());
 }
 void Pipsolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pipsolar:");
-  ESP_LOGCONFIG(TAG, "used commands:");
+  ESP_LOGCONFIG(TAG, "Pipsolar:\n"
+                     "used commands:");
   for (auto &used_polling_command : this->used_polling_commands_) {
     if (used_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", used_polling_command.command);
     }
   }
 }
-void Pipsolar::update() {}
+void Pipsolar::update() {
+  for (auto &used_polling_command : this->used_polling_commands_) {
+    if (used_polling_command.length != 0) {
+      used_polling_command.needs_update = true;
+    }
+  }
+}
 
 void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand polling_command) {
   for (auto &used_polling_command : this->used_polling_commands_) {
@@ -888,6 +902,7 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
       used_polling_command.errors = 0;
       used_polling_command.identifier = polling_command;
       used_polling_command.length = length - 1;
+      used_polling_command.needs_update = true;
       return;
     }
   }

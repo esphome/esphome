@@ -1,0 +1,5 @@
+substitutions:
+  tx_pin: TX1
+  rx_pin: RX1
+
+<<: !include common.yaml

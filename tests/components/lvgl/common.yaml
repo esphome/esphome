@@ -1,0 +1,111 @@
+touchscreen:
+  - platform: ft63x6
+    id: tft_touch
+    display: tft_display
+    update_interval: 50ms
+    threshold: 1
+
+font:
+  - file: "$component_dir/roboto.ttf"
+    id: roboto20
+    size: 20
+
+  - file: "$component_dir/helvetica.ttf"
+    id: helvetica20
+  - file: "$component_dir/roboto.ttf"
+    id: roboto10
+    size: 10
+    bpp: 4
+
+sensor:
+  - platform: lvgl
+    id: lvgl_sensor_id
+    name: "LVGL Arc Sensor"
+    widget: lv_arc
+  - platform: lvgl
+    widget: slider_id
+    name: LVGL Slider Sensor
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_sensor
+    name: LVGL Bar Sensor
+  - platform: lvgl
+    widget: spinbox_id
+    name: LVGL Spinbox Sensor
+
+number:
+  - platform: lvgl
+    widget: slider_id
+    name: LVGL Slider Number
+    update_on_release: true
+    restore_value: true
+  - platform: lvgl
+    widget: lv_arc
+    id: lvgl_arc_number
+    name: LVGL Arc Number
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_number
+    name: LVGL Bar Number
+  - platform: lvgl
+    widget: spinbox_id
+    id: lvgl_spinbox_number
+    name: LVGL Spinbox Number
+
+light:
+  - platform: lvgl
+    name: LVGL LED
+    id: lv_light
+    widget: lv_led
+
+binary_sensor:
+  - platform: lvgl
+    id: lvgl_pressbutton
+    name: Pressbutton
+    widget: spin_up
+    trigger_on_initial_state: true
+  - platform: lvgl
+    name: ButtonMatrix button
+    widget: button_a
+  - platform: lvgl
+    id: switch_d
+    name: Matrix switch D
+    widget: button_d
+    on_click:
+      then:
+        - lvgl.page.previous:
+            animation: move_right
+            time: 600ms
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: spin_up
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda return x;
+            text: Unchecked
+  - platform: lvgl
+    name: LVGL checkbox
+    widget: checkbox_id
+    on_state:
+      then:
+        - lvgl.image.update:
+            id: lv_image
+            src: !lambda if (x) return id(cat_image); else return id(dog_image);
+
+wifi:
+  ssid: SSID
+  password: PASSWORD123
+
+time:
+  platform: sntp
+  id: time_id
+
+text:
+  - id: lvgl_text
+    platform: lvgl
+    widget: hello_label
+    mode: text

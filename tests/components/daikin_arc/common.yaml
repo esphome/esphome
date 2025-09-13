@@ -1,0 +1,19 @@
+remote_transmitter:
+  pin: ${tx_pin}
+  carrier_duty_percent: 50%
+  id: tsvr
+
+remote_receiver:
+  id: rcvr
+  pin:
+    number: ${rx_pin}
+    inverted: true
+    mode:
+      input: true
+      pullup: true
+  tolerance: 40%
+
+climate:
+  - platform: daikin_arc
+    name: Daikin AC
+    receiver_id: rcvr

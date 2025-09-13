@@ -1,0 +1,6 @@
+i2c:
+  - id: i2c_als_ps
+    scl: 16
+    sda: 17
+
+<<: !include common.yaml

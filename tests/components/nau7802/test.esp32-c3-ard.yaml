@@ -1,0 +1,6 @@
+i2c:
+  - id: i2c_nau7802
+    scl: 5
+    sda: 4
+
+<<: !include common.yaml

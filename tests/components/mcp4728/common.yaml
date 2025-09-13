@@ -1,0 +1,31 @@
+i2c:
+  - id: i2c_mcp4728
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+mcp4728:
+  - id: mcp4728_dac
+
+output:
+  - platform: mcp4728
+    id: mcp4728_dac_output_a
+    channel: A
+    vref: vdd
+    power_down: normal
+  - platform: mcp4728
+    id: mcp4728_dac_output_b
+    channel: B
+    vref: internal
+    gain: X1
+    power_down: gnd_1k
+  - platform: mcp4728
+    id: mcp4728_dac_output_c
+    channel: C
+    vref: vdd
+    power_down: gnd_100k
+  - platform: mcp4728
+    id: mcp4728_dac_output_d
+    channel: D
+    vref: internal
+    gain: X2
+    power_down: gnd_500k

@@ -5,15 +5,11 @@ esphome:
           event: esphome.button_pressed
           data:
             message: Button was pressed
-      - homeassistant.service:
-          service: notify.html5
+      - homeassistant.action:
+          action: notify.html5
           data:
             message: Button was pressed
       - homeassistant.tag_scanned: pulse
-
-wifi:
-  ssid: MySSID
-  password: password1
 
 api:
   port: 8000
@@ -21,8 +17,8 @@ api:
   reboot_timeout: 0min
   encryption:
     key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
-  services:
-    - service: hello_world
+  actions:
+    - action: hello_world
       variables:
         name: string
       then:
@@ -30,10 +26,10 @@ api:
             format: Hello World %s!
             args:
               - name.c_str()
-    - service: empty_service
+    - action: empty_action
       then:
-        - logger.log: Service Called
-    - service: all_types
+        - logger.log: Action Called
+    - action: all_types
       variables:
         bool_: bool
         int_: int
@@ -41,7 +37,7 @@ api:
         string_: string
       then:
         - logger.log: Something happened
-    - service: array_types
+    - action: array_types
       variables:
         bool_arr: bool[]
         int_arr: int[]
@@ -50,12 +46,12 @@ api:
       then:
         - logger.log:
             # yamllint disable rule:line-length
-            format: "Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)"
+            format: "Bool: %s (%u), Int: %ld (%u), Float: %f (%u), String: %s (%u)"
             # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
               - bool_arr.size()
-              - int_arr[0]
+              - (long) int_arr[0]
               - int_arr.size()
               - float_arr[0]
               - float_arr.size()

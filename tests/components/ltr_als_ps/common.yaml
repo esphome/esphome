@@ -1,0 +1,11 @@
+sensor:
+  - platform: ltr_als_ps
+    address: 0x23
+    i2c_id: i2c_als_ps
+    gain: 1x
+    integration_time: 100ms
+    ps_cooldown: 5 s
+    ambient_light: "Ambient light"
+    full_spectrum_counts: "Full spectrum counts"
+    infrared_counts: "Infrared counts"
+    actual_gain: "Actual gain"

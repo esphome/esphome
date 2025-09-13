@@ -1,0 +1,5 @@
+switch:
+  - name: ${door_name} Garage Door Switch
+    platform: gpio
+    pin: ${door_pin}
+    id: ${door_id}

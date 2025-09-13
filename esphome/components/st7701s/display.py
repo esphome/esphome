@@ -1,64 +1,55 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import (
-    spi,
-    display,
+import esphome.codegen as cg
+from esphome.components import display, spi
+from esphome.components.esp32 import const, only_on_variant
+from esphome.components.mipi import (
+    CONF_DE_PIN,
+    CONF_HSYNC_BACK_PORCH,
+    CONF_HSYNC_FRONT_PORCH,
+    CONF_HSYNC_PULSE_WIDTH,
+    CONF_PCLK_FREQUENCY,
+    CONF_PCLK_INVERTED,
+    CONF_PCLK_PIN,
+    CONF_VSYNC_BACK_PORCH,
+    CONF_VSYNC_FRONT_PORCH,
+    CONF_VSYNC_PULSE_WIDTH,
 )
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DC_PIN,
-    CONF_HSYNC_PIN,
-    CONF_RESET_PIN,
+    CONF_BLUE,
+    CONF_COLOR_ORDER,
     CONF_DATA_PINS,
-    CONF_ID,
+    CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_VSYNC_PIN,
-    CONF_WIDTH,
+    CONF_GREEN,
     CONF_HEIGHT,
+    CONF_HSYNC_PIN,
+    CONF_ID,
+    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_INIT_SEQUENCE,
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
-    CONF_COLOR_ORDER,
-    CONF_TRANSFORM,
+    CONF_NUMBER,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
-    CONF_INVERT_COLORS,
     CONF_RED,
-    CONF_GREEN,
-    CONF_BLUE,
-    CONF_NUMBER,
-    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_RESET_PIN,
+    CONF_TRANSFORM,
+    CONF_VSYNC_PIN,
+    CONF_WIDTH,
 )
+from esphome.core import TimePeriod
 
-from esphome.components.esp32 import (
-    only_on_variant,
-    const,
-)
-from esphome.components.rpi_dpi_rgb.display import (
-    CONF_PCLK_FREQUENCY,
-    CONF_PCLK_INVERTED,
-)
-from .init_sequences import (
-    ST7701S_INITS,
-    cmd,
-)
-
-CONF_INIT_SEQUENCE = "init_sequence"
-CONF_DE_PIN = "de_pin"
-CONF_PCLK_PIN = "pclk_pin"
-
-CONF_HSYNC_PULSE_WIDTH = "hsync_pulse_width"
-CONF_HSYNC_BACK_PORCH = "hsync_back_porch"
-CONF_HSYNC_FRONT_PORCH = "hsync_front_porch"
-CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
-CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
-CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
+from .init_sequences import ST7701S_INITS, cmd
 
 DEPENDENCIES = ["spi", "esp32"]
 
 st7701s_ns = cg.esphome_ns.namespace("st7701s")
 ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDevice)
 ColorOrder = display.display_ns.enum("ColorMode")
+ST7701S_DELAY_FLAG = 0xFF
 
 COLOR_ORDERS = {
     "RGB": ColorOrder.COLOR_ORDER_RGB,
@@ -93,18 +84,23 @@ def map_sequence(value):
     """
     An initialisation sequence can be selected from one of the pre-defined sequences in init_sequences.py,
     or can be a literal array of data bytes.
-    The format is a repeated sequence of [CMD, LEN, <data>] where <data> is LEN bytes.
+    The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
+    from the length of the sequence and should not be explicit.
+    A delay can be inserted by specifying "- delay N" where N is in ms
     """
+    if isinstance(value, str) and value.lower().startswith("delay "):
+        value = value.lower()[6:]
+        delay = cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
+        )(value)
+        return [delay, ST7701S_DELAY_FLAG]
     if not isinstance(value, list):
         value = cv.int_(value)
         value = cv.one_of(*ST7701S_INITS)(value)
         return ST7701S_INITS[value]
-    # value = cv.ensure_list(cv.uint8_t)(value)
-    data_length = len(value)
-    if data_length == 0:
-        raise cv.Invalid("Empty sequence")
-    value = cmd(*value)
-    return value
+    value = cv.Length(min=1, max=254)(value)
+    return cmd(*value)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -169,6 +165,10 @@ CONFIG_SCHEMA = cv.All(
     cv.only_with_esp_idf,
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "st7701s", require_miso=False, require_mosi=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -189,7 +189,6 @@ async def to_code(config):
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
-    index = 0
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:
         red_pins = config[CONF_DATA_PINS][CONF_RED]
@@ -207,10 +206,9 @@ async def to_code(config):
         dpins = dpins[8:16] + dpins[0:8]
     else:
         dpins = config[CONF_DATA_PINS]
-    for pin in dpins:
+    for index, pin in enumerate(dpins):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
-        index += 1
 
     if dc_pin := config.get(CONF_DC_PIN):
         dc = await cg.gpio_pin_expression(dc_pin)

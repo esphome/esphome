@@ -280,7 +280,7 @@ bool DisplayMenuComponent::cursor_down_() {
 bool DisplayMenuComponent::enter_menu_() {
   this->displayed_item_->on_leave();
   this->displayed_item_ = static_cast<MenuItemMenu *>(this->get_selected_item_());
-  this->selection_stack_.push_front({this->top_index_, this->cursor_index_});
+  this->selection_stack_.emplace_front(this->top_index_, this->cursor_index_);
   this->cursor_index_ = this->top_index_ = 0;
   this->displayed_item_->on_enter();
 

@@ -2,7 +2,9 @@ ethernet:
   type: LAN8720
   mdc_pin: 23
   mdio_pin: 25
-  clk_mode: GPIO0_IN
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
   phy_addr: 0
   power_pin: 26
   manual_ip:
@@ -17,3 +19,5 @@ text_sensor:
       name: IP Address
     dns_address:
       name: DNS Address
+    mac_address:
+      name: MAC Address

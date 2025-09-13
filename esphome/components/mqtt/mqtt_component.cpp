@@ -16,6 +16,8 @@ static const char *const TAG = "mqtt.component";
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
+void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
+
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
@@ -62,12 +64,13 @@ bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
   if (discovery_info.clean) {
-    ESP_LOGV(TAG, "'%s': Cleaning discovery...", this->friendly_name().c_str());
+    ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name().c_str());
     return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
   }
 
-  ESP_LOGV(TAG, "'%s': Sending discovery...", this->friendly_name().c_str());
+  ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name().c_str());
 
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
       this->get_discovery_topic_(discovery_info),
       [this](JsonObject root) {
@@ -76,6 +79,10 @@ bool MQTTComponent::send_discovery_() {
         config.command_topic = true;
 
         this->send_discovery(root, config);
+        // Set subscription QoS (default is 0)
+        if (this->subscribe_qos_ != 0) {
+          root[MQTT_QOS] = this->subscribe_qos_;
+        }
 
         // Fields from EntityBase
         if (this->get_entity()->has_own_name()) {
@@ -122,21 +129,16 @@ bool MQTTComponent::send_discovery_() {
             root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
         }
 
-        std::string unique_id = this->unique_id();
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
-        if (!unique_id.empty()) {
-          root[MQTT_UNIQUE_ID] = unique_id;
+        if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+          char friendly_name_hash[9];
+          sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name()));
+          friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
+          root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
         } else {
-          if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
-            char friendly_name_hash[9];
-            sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name()));
-            friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
-            root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
-          } else {
-            // default to almost-unique ID. It's a hack but the only way to get that
-            // gorgeous device registry view.
-            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
-          }
+          // default to almost-unique ID. It's a hack but the only way to get that
+          // gorgeous device registry view.
+          root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
         }
 
         const std::string &node_name = App.get_name();
@@ -147,17 +149,46 @@ bool MQTTComponent::send_discovery_() {
         if (node_friendly_name.empty()) {
           node_friendly_name = node_name;
         }
-        const std::string &node_area = App.get_area();
+        std::string node_area = App.get_area();
 
-        JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
-        device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
+        JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
+        const auto mac = get_mac_address();
+        device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
-        device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
+#ifdef ESPHOME_PROJECT_NAME
+        device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_PROJECT_VERSION " (ESPHome " ESPHOME_VERSION ")";
+        const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
+        if (model == nullptr) {  // must never happen but check anyway
+          device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
+          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
+        } else {
+          device_info[MQTT_DEVICE_MODEL] = model + 1;
+          device_info[MQTT_DEVICE_MANUFACTURER] = std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
+        }
+#else
+        device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_VERSION " (" + App.get_compilation_time() + ")";
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
-        device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
-        device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
+#elif defined(USE_RP2040)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Raspberry Pi";
+#elif defined(USE_BK72XX)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Beken";
+#elif defined(USE_RTL87XX)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Realtek";
+#elif defined(USE_HOST)
+        device_info[MQTT_DEVICE_MANUFACTURER] = "Host";
+#endif
+#endif
+        if (!node_area.empty()) {
+          device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
+        }
+
+        device_info[MQTT_DEVICE_CONNECTIONS][0][0] = "mac";
+        device_info[MQTT_DEVICE_CONNECTIONS][0][1] = mac;
       },
       this->qos_, discovery_info.retain);
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 uint8_t MQTTComponent::get_qos() const { return this->qos_; }
@@ -250,7 +281,6 @@ void MQTTComponent::call_dump_config() {
   this->dump_config();
 }
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
-std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden

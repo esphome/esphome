@@ -1,0 +1,4 @@
+substitutions:
+  pin: GPIO5
+
+<<: !include common.yaml

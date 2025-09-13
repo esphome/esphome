@@ -1,43 +1,5 @@
-i2c:
-  - id: i2c_dac7678
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-dac7678:
-  address: 0x4A
-  id: dac7678_hub
-  internal_reference: true
-
-output:
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 0
-    id: dac7678_1_ch0
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 1
-    id: dac7678_1_ch1
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 2
-    id: dac7678_1_ch2
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 3
-    id: dac7678_1_ch3
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 4
-    id: dac7678_1_ch4
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 5
-    id: dac7678_1_ch5
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 6
-    id: dac7678_1_ch6
-  - platform: dac7678
-    dac7678_id: dac7678_hub
-    channel: 7
-    id: dac7678_1_ch7
+<<: !include common.yaml

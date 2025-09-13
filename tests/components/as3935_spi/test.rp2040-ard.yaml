@@ -1,0 +1,8 @@
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+  irq_pin: GPIO5
+  cs_pin: GPIO6
+
+<<: !include common.yaml

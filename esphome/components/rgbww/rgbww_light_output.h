@@ -20,10 +20,11 @@ class RGBWWLightOutput : public light::LightOutput {
   void set_color_interlock(bool color_interlock) { color_interlock_ = color_interlock; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    if (this->color_interlock_)
+    if (this->color_interlock_) {
       traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::COLD_WARM_WHITE});
-    else
+    } else {
       traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
+    }
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
     return traits;

@@ -5,16 +5,17 @@ from esphome.const import (
     CONF_FACTORY_RESET,
     CONF_RESTART,
     DEVICE_CLASS_RESTART,
-    ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
     ICON_RESTART,
     ICON_RESTART_ALERT,
-    ICON_DATABASE,
 )
+
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
+FactoryResetButton = ld2410_ns.class_("FactoryResetButton", button.Button)
 QueryButton = ld2410_ns.class_("QueryButton", button.Button)
-ResetButton = ld2410_ns.class_("ResetButton", button.Button)
 RestartButton = ld2410_ns.class_("RestartButton", button.Button)
 
 CONF_QUERY_PARAMS = "query_params"
@@ -22,7 +23,7 @@ CONF_QUERY_PARAMS = "query_params"
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
-        ResetButton,
+        FactoryResetButton,
         device_class=DEVICE_CLASS_RESTART,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART_ALERT,
@@ -46,7 +47,7 @@ async def to_code(config):
     if factory_reset_config := config.get(CONF_FACTORY_RESET):
         b = await button.new_button(factory_reset_config)
         await cg.register_parented(b, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_reset_button(b))
+        cg.add(ld2410_component.set_factory_reset_button(b))
     if restart_config := config.get(CONF_RESTART):
         b = await button.new_button(restart_config)
         await cg.register_parented(b, config[CONF_LD2410_ID])

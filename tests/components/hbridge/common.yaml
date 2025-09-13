@@ -1,0 +1,39 @@
+output:
+  - platform: ${pwm_platform}
+    pin: ${output1_pin}
+    id: gpio_output1
+  - platform: ${pwm_platform}
+    pin: ${output2_pin}
+    id: gpio_output2
+  - platform: ${pwm_platform}
+    pin: ${output3_pin}
+    id: gpio_output3
+  - platform: ${pwm_platform}
+    pin: ${output4_pin}
+    id: gpio_output4
+
+light:
+  - platform: hbridge
+    name: Icicle Lights
+    pin_a: gpio_output3
+    pin_b: gpio_output4
+
+fan:
+  - platform: hbridge
+    id: fan_hbridge
+    speed_count: 4
+    name: H-bridge Fan with Presets
+    pin_a: gpio_output1
+    pin_b: gpio_output2
+    preset_modes:
+      - Preset 1
+      - Preset 2
+    on_preset_set:
+      then:
+        - logger.log: Preset mode was changed!
+
+switch:
+  - platform: hbridge
+    id: switch_hbridge
+    on_pin: ${hbridge_on_pin}
+    off_pin: ${hbridge_off_pin}

@@ -123,8 +123,8 @@ enum class NCIState : uint8_t {
   RFST_POLL_ACTIVE,
   EP_DEACTIVATING,
   EP_SELECTING,
-  TEST = 0XFE,
-  FAILED = 0XFF,
+  TEST = 0xFE,
+  FAILED = 0xFF,
 };
 
 enum class TestMode : uint8_t {
@@ -146,7 +146,6 @@ class PN7150 : public nfc::Nfcc, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override;
 
   void set_irq_pin(GPIOPin *irq_pin) { this->irq_pin_ = irq_pin; }
