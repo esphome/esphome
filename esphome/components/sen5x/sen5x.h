@@ -167,7 +167,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<TemperatureCompensation> temperature_compensation_;
   optional<bool> co2_auto_calibrate_;
   optional<uint16_t> co2_altitude_compensation_;
-  
+
   ESPPreferenceObject pref_;
   std::string product_name_ = "Unknown";
   std::string serial_number_ = "Unknown";
