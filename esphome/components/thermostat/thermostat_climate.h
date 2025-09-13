@@ -14,17 +14,17 @@ namespace esphome {
 namespace thermostat {
 
 enum ThermostatClimateTimerIndex : uint8_t {
-  TIMER_COOLING_MAX_RUN_TIME = 0,
-  TIMER_COOLING_OFF = 1,
-  TIMER_COOLING_ON = 2,
-  TIMER_FAN_MODE = 3,
-  TIMER_FANNING_OFF = 4,
-  TIMER_FANNING_ON = 5,
-  TIMER_HEATING_MAX_RUN_TIME = 6,
-  TIMER_HEATING_OFF = 7,
-  TIMER_HEATING_ON = 8,
-  TIMER_IDLE_ON = 9,
-  TIMER_COUNT = 10,
+  THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME = 0,
+  THERMOSTAT_TIMER_COOLING_OFF = 1,
+  THERMOSTAT_TIMER_COOLING_ON = 2,
+  THERMOSTAT_TIMER_FAN_MODE = 3,
+  THERMOSTAT_TIMER_FANNING_OFF = 4,
+  THERMOSTAT_TIMER_FANNING_ON = 5,
+  THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME = 6,
+  THERMOSTAT_TIMER_HEATING_OFF = 7,
+  THERMOSTAT_TIMER_HEATING_ON = 8,
+  THERMOSTAT_TIMER_IDLE_ON = 9,
+  THERMOSTAT_TIMER_COUNT = 10,
 };
 
 enum OnBootRestoreFrom : uint8_t {
@@ -467,7 +467,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   std::string default_custom_preset_{};
 
   /// Climate action timers
-  std::array<ThermostatClimateTimer, TIMER_COUNT> timer_{
+  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{
       ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
       ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)),
       ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)),
