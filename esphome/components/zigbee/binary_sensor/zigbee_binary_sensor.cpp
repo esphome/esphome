@@ -15,22 +15,20 @@ static const char *const TAG = "zigbee.binary_sensor";
 
 void ZigbeeBinarySensor::setup() {
   add_on_state_callback([this](bool state) {
-    if (state) {
-      cluster_attributes_->present_value = 1;
-    } else {
-      cluster_attributes_->present_value = 0;
-    }
+    cluster_attributes_->present_value = state ? 1 : 0;
     ESP_LOGD(TAG, "set attribute ep: %d, present_value %d", ep_, cluster_attributes_->present_value);
     ZB_ZCL_SET_ATTRIBUTE(ep_, ZB_ZCL_CLUSTER_ID_BINARY_INPUT, ZB_ZCL_CLUSTER_SERVER_ROLE,
                          ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &cluster_attributes_->present_value, ZB_FALSE);
     this->parent_->flush();
   });
 
+  bool init = false;
+
   if (this->f_ != nullptr) {
-    this->publish_initial_state(this->f_().value_or(false));
-  } else {
-    this->publish_initial_state(false);
+    init = this->f_().value_or(false);
   }
+  cluster_attributes_->present_value = init ? 1 : 0;
+  this->publish_initial_state(init);
 }
 
 void ZigbeeBinarySensor::loop() {
@@ -45,7 +43,7 @@ void ZigbeeBinarySensor::loop() {
 
 void ZigbeeBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Zigbee Binary Sensor", this);
-  ESP_LOGCONFIG(TAG, "  EP: %d", ep_);
+  ESP_LOGCONFIG(TAG, "  EP: %d, present_value %u", ep_, cluster_attributes_->present_value);
 }
 
 }  // namespace zigbee
