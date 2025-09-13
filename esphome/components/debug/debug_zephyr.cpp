@@ -30,7 +30,7 @@ inline uint32_t read_mem_u32(uintptr_t addr) {
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
-#define SD_MAGIC_NUMBER 0x51B1E5DB
+const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
 #define SDM_INFO_FIELD_INVALID (0)
 #define MBR_SIZE (0x1000)
 #define SOFTDEVICE_INFO_STRUCT_OFFSET (0x2000)
