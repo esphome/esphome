@@ -5,6 +5,8 @@
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/core/component.h"
 
+#include <driver/twai.h>
+
 namespace esphome {
 namespace esp32_can {
 
@@ -29,6 +31,7 @@ class ESP32Can : public canbus::Canbus {
   TickType_t tx_enqueue_timeout_ticks_{};
   optional<uint32_t> tx_queue_len_{};
   optional<uint32_t> rx_queue_len_{};
+  twai_handle_t twai_handle_{nullptr};
 };
 
 }  // namespace esp32_can
