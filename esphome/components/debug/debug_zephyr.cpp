@@ -48,9 +48,7 @@ const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
        ? (*((uint32_t *) ((baseaddr) + SD_VERSION_OFFSET))) \
        : SDM_INFO_FIELD_INVALID)
 
-static inline bool is_sd_existed(void) {
-  return *((uint32_t *) (SOFTDEVICE_INFO_STRUCT_ADDRESS + 4)) == SD_MAGIC_NUMBER;
-}
+static inline bool is_sd_existed() { return *((uint32_t *) (SOFTDEVICE_INFO_STRUCT_ADDRESS + 4)) == SD_MAGIC_NUMBER; }
 
 std::string DebugComponent::get_reset_reason_() {
   uint32_t cause;
