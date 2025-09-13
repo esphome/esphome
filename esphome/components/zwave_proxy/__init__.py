@@ -1,12 +1,26 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
+import esphome.final_validate as fv
 
 DEPENDENCIES = ["api", "uart"]
 
 zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")
 ZWaveProxy = zwave_proxy_ns.class_("ZWaveProxy", cg.Component, uart.UARTDevice)
+
+
+def final_validate(config):
+    full_config = fv.full_config.get()
+    if (wifi_conf := full_config.get(CONF_WIFI)) and (
+        wifi_conf.get(CONF_POWER_SAVE_MODE).lower() != "none"
+    ):
+        raise cv.Invalid(
+            f"{CONF_WIFI} {CONF_POWER_SAVE_MODE} must be set to 'none' when using Z-Wave proxy"
+        )
+
+    return config
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -17,6 +31,8 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):
