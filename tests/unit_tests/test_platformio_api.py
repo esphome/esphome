@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -134,7 +134,9 @@ def test_load_idedata_returns_dict(
     assert result["prog_path"] == "/test/firmware.elf"
 
 
-def test_load_idedata_uses_cache_when_valid(setup_core: Path, mock_run_idedata) -> None:
+def test_load_idedata_uses_cache_when_valid(
+    setup_core: Path, mock_run_idedata: Mock
+) -> None:
     """Test _load_idedata uses cached data when unchanged."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
@@ -225,7 +227,9 @@ def test_load_idedata_regenerates_on_corrupted_cache(
     assert result["prog_path"] == "/new/firmware.elf"
 
 
-def test_run_idedata_parses_json_from_output(setup_core: Path) -> None:
+def test_run_idedata_parses_json_from_output(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
     """Test _run_idedata extracts JSON from platformio output."""
     config = {"name": "test"}
 
@@ -235,48 +239,48 @@ def test_run_idedata_parses_json_from_output(setup_core: Path) -> None:
         "extra": {"flash_images": []},
     }
 
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
-        # Simulate platformio output with JSON embedded
-        mock_run.return_value = (
-            f"Some preamble\n{json.dumps(expected_data)}\nSome postamble"
-        )
+    # Simulate platformio output with JSON embedded
+    mock_run_platformio_cli_run.return_value = (
+        f"Some preamble\n{json.dumps(expected_data)}\nSome postamble"
+    )
 
-        result = platformio_api._run_idedata(config)
+    result = platformio_api._run_idedata(config)
 
     assert result == expected_data
 
 
-def test_run_idedata_raises_on_no_json(setup_core: Path) -> None:
+def test_run_idedata_raises_on_no_json(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
     """Test _run_idedata raises EsphomeError when no JSON found."""
     config = {"name": "test"}
 
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
-        mock_run.return_value = "No JSON in this output"
+    mock_run_platformio_cli_run.return_value = "No JSON in this output"
 
-        with pytest.raises(EsphomeError):
-            platformio_api._run_idedata(config)
+    with pytest.raises(EsphomeError):
+        platformio_api._run_idedata(config)
 
 
-def test_run_idedata_raises_on_invalid_json(setup_core: Path) -> None:
+def test_run_idedata_raises_on_invalid_json(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
     """Test _run_idedata raises on malformed JSON."""
     config = {"name": "test"}
+    mock_run_platformio_cli_run.return_value = '{"invalid": json"}'
 
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock_run:
-        mock_run.return_value = '{"invalid": json"}'
-
-        with pytest.raises(ValueError):
-            platformio_api._run_idedata(config)
+    # The ValueError from json.loads is re-raised
+    with pytest.raises(ValueError):
+        platformio_api._run_idedata(config)
 
 
-def test_run_platformio_cli_sets_environment_variables(setup_core: Path) -> None:
+def test_run_platformio_cli_sets_environment_variables(
+    setup_core: Path, mock_run_external_command: Mock
+) -> None:
     """Test run_platformio_cli sets correct environment variables."""
     CORE.build_path = str(setup_core / "build" / "test")
 
-    with (
-        patch("esphome.platformio_api.run_external_command") as mock_run,
-        patch.dict(os.environ, {}, clear=False),
-    ):
-        mock_run.return_value = 0
+    with patch.dict(os.environ, {}, clear=False):
+        mock_run_external_command.return_value = 0
         platformio_api.run_platformio_cli("test", "arg")
 
         # Check environment variables were set
@@ -290,8 +294,8 @@ def test_run_platformio_cli_sets_environment_variables(setup_core: Path) -> None
         assert "PYTHONWARNINGS" in os.environ
 
         # Check command was called correctly
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0]
+        mock_run_external_command.assert_called_once()
+        args = mock_run_external_command.call_args[0]
         assert "platformio" in args
         assert "test" in args
         assert "arg" in args
@@ -328,29 +332,27 @@ def test_run_compile(setup_core: Path) -> None:
         mock_run.assert_called_once_with(config, True, "-j4")
 
 
-def test_get_idedata_caches_result(setup_core: Path) -> None:
+def test_get_idedata_caches_result(setup_core: Path, mock_load_idedata: Mock) -> None:
     """Test get_idedata caches result in CORE.data."""
     from esphome.const import KEY_CORE
 
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.name = "test"
     CORE.data[KEY_CORE] = {}
+    mock_load_idedata.return_value = {"prog_path": "/test/firmware.elf"}
 
-    with patch("esphome.platformio_api._load_idedata") as mock_load:
-        mock_load.return_value = {"prog_path": "/test/firmware.elf"}
+    config = {"name": "test"}
 
-        config = {"name": "test"}
+    # First call should load
+    result1 = platformio_api.get_idedata(config)
+    mock_load_idedata.assert_called_once()
 
-        # First call should load
-        result1 = platformio_api.get_idedata(config)
-        mock_load.assert_called_once()
+    # Second call should use cache
+    result2 = platformio_api.get_idedata(config)
+    mock_load_idedata.assert_called_once()  # Still only called once
 
-        # Second call should use cache
-        result2 = platformio_api.get_idedata(config)
-        mock_load.assert_called_once()  # Still only called once
-
-        assert result1 is result2
-        assert isinstance(result1, platformio_api.IDEData)
+    assert result1 is result2
+    assert isinstance(result1, platformio_api.IDEData)
 
 
 def test_idedata_addr2line_path_windows(setup_core: Path) -> None:
@@ -422,51 +424,54 @@ def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:
     assert result is False
 
 
-def test_process_stacktrace_esp8266_backtrace(setup_core: Path) -> None:
+def test_process_stacktrace_esp8266_backtrace(
+    setup_core: Path, mock_decode_pc: Mock
+) -> None:
     """Test process_stacktrace handles ESP8266 multi-line backtrace."""
     config = {"name": "test"}
 
-    with patch("esphome.platformio_api._decode_pc") as mock_decode:
-        # Start of backtrace
-        line1 = ">>>stack>>>"
-        state = platformio_api.process_stacktrace(config, line1, False)
-        assert state is True
+    # Start of backtrace
+    line1 = ">>>stack>>>"
+    state = platformio_api.process_stacktrace(config, line1, False)
+    assert state is True
 
-        # Backtrace content with addresses
-        line2 = "40201234 40205678"
-        state = platformio_api.process_stacktrace(config, line2, state)
-        assert state is True
-        assert mock_decode.call_count == 2
+    # Backtrace content with addresses
+    line2 = "40201234 40205678"
+    state = platformio_api.process_stacktrace(config, line2, state)
+    assert state is True
+    assert mock_decode_pc.call_count == 2
 
-        # End of backtrace
-        line3 = "<<<stack<<<"
-        state = platformio_api.process_stacktrace(config, line3, state)
-        assert state is False
+    # End of backtrace
+    line3 = "<<<stack<<<"
+    state = platformio_api.process_stacktrace(config, line3, state)
+    assert state is False
 
 
-def test_process_stacktrace_esp32_backtrace(setup_core: Path) -> None:
+def test_process_stacktrace_esp32_backtrace(
+    setup_core: Path, mock_decode_pc: Mock
+) -> None:
     """Test process_stacktrace handles ESP32 single-line backtrace."""
     config = {"name": "test"}
 
-    with patch("esphome.platformio_api._decode_pc") as mock_decode:
-        line = "Backtrace: 0x40081234:0x3ffb1234 0x40085678:0x3ffb5678"
-        state = platformio_api.process_stacktrace(config, line, False)
+    line = "Backtrace: 0x40081234:0x3ffb1234 0x40085678:0x3ffb5678"
+    state = platformio_api.process_stacktrace(config, line, False)
 
-        # Should decode both addresses
-        assert mock_decode.call_count == 2
-        mock_decode.assert_any_call(config, "40081234")
-        mock_decode.assert_any_call(config, "40085678")
-        assert state is False
+    # Should decode both addresses
+    assert mock_decode_pc.call_count == 2
+    mock_decode_pc.assert_any_call(config, "40081234")
+    mock_decode_pc.assert_any_call(config, "40085678")
+    assert state is False
 
 
-def test_process_stacktrace_bad_alloc(setup_core: Path, caplog) -> None:
+def test_process_stacktrace_bad_alloc(
+    setup_core: Path, mock_decode_pc: Mock, caplog
+) -> None:
     """Test process_stacktrace handles bad alloc messages."""
     config = {"name": "test"}
 
-    with patch("esphome.platformio_api._decode_pc") as mock_decode:
-        line = "last failed alloc call: 40201234(512)"
-        state = platformio_api.process_stacktrace(config, line, False)
+    line = "last failed alloc call: 40201234(512)"
+    state = platformio_api.process_stacktrace(config, line, False)
 
-        assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
-        mock_decode.assert_called_once_with(config, "40201234")
-        assert state is False
+    assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
+    mock_decode_pc.assert_called_once_with(config, "40201234")
+    assert state is False
