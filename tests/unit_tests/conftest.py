@@ -72,3 +72,17 @@ def mock_run_platformio_cli_run():
     """Mock run_platformio_cli_run for platformio_api."""
     with patch("esphome.platformio_api.run_platformio_cli_run") as mock:
         yield mock
+
+
+@pytest.fixture
+def mock_run_idedata():
+    """Mock _run_idedata for platformio_api."""
+    with patch("esphome.platformio_api._run_idedata") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_decode_pc():
+    """Mock _decode_pc for platformio_api."""
+    with patch("esphome.platformio_api._decode_pc") as mock:
+        yield mock
