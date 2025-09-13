@@ -448,8 +448,8 @@ void SpeakerMediaPlayer::loop() {
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
   }
 #ifdef USE_SUPPORTS_TURN_OFF_ON
-  if (this->is_turn_off_ && (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED
-      || this->state == media_player::MEDIA_PLAYER_STATE_IDLE)) {
+  if (this->is_turn_off_ && (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED ||
+                             this->state == media_player::MEDIA_PLAYER_STATE_IDLE)) {
     this->is_turn_off_ = false;
     if (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
       this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
