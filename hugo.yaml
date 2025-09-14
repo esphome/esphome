@@ -14,9 +14,6 @@ params:
     - logo.svg
   api_docs_url: https://api-docs.esphome.io
   math: true
-  seo:
-    webmaster_verifications:
-      google: Q5q5TFbCofxA8-cSa1Frv5Hj4RopF5zwEZf_zaNHqf4
 
 
   # Social media links
@@ -150,9 +147,10 @@ outputs:
   home:
     - HTML
     - RSS
+    - ComponentsJSON
 
 # Static file configuration
-staticDir: 
+staticDir:
   - static
 
 mediaTypes:
@@ -165,6 +163,12 @@ outputFormats:
     mediaType: image/svg+xml
     isPlainText: true
     isHTML: false
+  ComponentsJSON:
+    mediaType: application/json
+    baseName: components
+    isPlainText: true
+    isHTML: false
+    path: ""
 
 module:
   mounts:
