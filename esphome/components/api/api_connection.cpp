@@ -1217,12 +1217,8 @@ void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
   zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
 }
 
-void APIConnection::zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) {
-  zwave_proxy::global_zwave_proxy->subscribe_api_connection(this, msg.flags);
-}
-
-void APIConnection::zwave_proxy_unsubscribe(const ZWaveProxyUnsubscribeRequest &msg) {
-  zwave_proxy::global_zwave_proxy->unsubscribe_api_connection(this);
+void APIConnection::zwave_proxy_request(const ZWaveProxyRequest &msg) {
+  zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
 }
 #endif
 

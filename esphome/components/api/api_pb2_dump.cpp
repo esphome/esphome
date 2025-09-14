@@ -655,6 +655,18 @@ template<> const char *proto_enum_to_string<enums::UpdateCommand>(enums::UpdateC
   }
 }
 #endif
+#ifdef USE_ZWAVE_PROXY
+template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums::ZWaveProxyRequestType value) {
+  switch (value) {
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return "ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE";
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return "ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -2118,8 +2130,10 @@ void ZWaveProxyFrame::dump_to(std::string &out) const {
   out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
 }
-void ZWaveProxySubscribeRequest::dump_to(std::string &out) const { dump_field(out, "flags", this->flags); }
-void ZWaveProxyUnsubscribeRequest::dump_to(std::string &out) const { out.append("ZWaveProxyUnsubscribeRequest {}"); }
+void ZWaveProxyRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ZWaveProxyRequest");
+  dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
+}
 #endif
 
 }  // namespace esphome::api

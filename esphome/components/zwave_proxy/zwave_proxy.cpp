@@ -45,20 +45,26 @@ void ZWaveProxy::loop() {
 
 void ZWaveProxy::dump_config() { ESP_LOGCONFIG(TAG, "Z-Wave Proxy"); }
 
-void ZWaveProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
-  if (this->api_connection_ != nullptr) {
-    ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
-    return;
+void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
+  switch (type) {
+    case api::enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      if (this->api_connection_ != nullptr) {
+        ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+        return;
+      }
+      this->api_connection_ = api_connection;
+      ESP_LOGV(TAG, "API connection is now subscribed");
+      break;
+    case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      if (this->api_connection_ != api_connection) {
+        ESP_LOGV(TAG, "API connection is not subscribed");
+        return;
+      }
+      this->api_connection_ = nullptr;
+    default:
+      ESP_LOGW(TAG, "Unknown request type: %d", type);
+      break;
   }
-  this->api_connection_ = api_connection;
-}
-
-void ZWaveProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
-  if (this->api_connection_ != api_connection) {
-    ESP_LOGV(TAG, "API connection is not subscribed");
-    return;
-  }
-  this->api_connection_ = nullptr;
 }
 
 void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {

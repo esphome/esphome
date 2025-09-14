@@ -71,8 +71,7 @@ service APIConnection {
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
-  rpc zwave_proxy_subscribe(ZWaveProxySubscribeRequest) returns (void) {}
-  rpc zwave_proxy_unsubscribe(ZWaveProxyUnsubscribeRequest) returns (void) {}
+  rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 }
 
 
@@ -2296,16 +2295,14 @@ message ZWaveProxyFrame {
   bytes data = 1 [(fixed_array_size) = 257];
 }
 
-message ZWaveProxySubscribeRequest {
+enum ZWaveProxyRequestType {
+  ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
+  ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+}
+message ZWaveProxyRequest {
   option (id) = 129;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ZWAVE_PROXY";
 
-  uint32 flags = 1;
-}
-
-message ZWaveProxyUnsubscribeRequest {
-  option (id) = 130;
-  option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_ZWAVE_PROXY";
+  ZWaveProxyRequestType type = 1;
 }

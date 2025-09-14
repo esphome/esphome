@@ -210,10 +210,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_z_wave_proxy_frame(const ZWaveProxyFrame &value){};
 #endif
 #ifdef USE_ZWAVE_PROXY
-  virtual void on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &value){};
-#endif
-#ifdef USE_ZWAVE_PROXY
-  virtual void on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &value){};
+  virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
@@ -346,10 +343,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void zwave_proxy_frame(const ZWaveProxyFrame &msg) = 0;
 #endif
 #ifdef USE_ZWAVE_PROXY
-  virtual void zwave_proxy_subscribe(const ZWaveProxySubscribeRequest &msg) = 0;
-#endif
-#ifdef USE_ZWAVE_PROXY
-  virtual void zwave_proxy_unsubscribe(const ZWaveProxyUnsubscribeRequest &msg) = 0;
+  virtual void zwave_proxy_request(const ZWaveProxyRequest &msg) = 0;
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
@@ -477,10 +471,7 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
-  void on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &msg) override;
-#endif
-#ifdef USE_ZWAVE_PROXY
-  void on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &msg) override;
+  void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
 };
 

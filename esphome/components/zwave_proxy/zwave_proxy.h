@@ -41,8 +41,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   void loop() override;
   void dump_config() override;
 
-  void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
-  void unsubscribe_api_connection(api::APIConnection *api_connection);
+  void zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
   uint32_t get_feature_flags() const { return ZWaveProxyFeature::FEATURE_ZWAVE_PROXY_ENABLED; }

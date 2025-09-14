@@ -3044,10 +3044,10 @@ bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited valu
 }
 void ZWaveProxyFrame::encode(ProtoWriteBuffer buffer) const { buffer.encode_bytes(1, this->data, this->data_len); }
 void ZWaveProxyFrame::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_len); }
-bool ZWaveProxySubscribeRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1:
-      this->flags = value.as_uint32();
+      this->type = static_cast<enums::ZWaveProxyRequestType>(value.as_uint32());
       break;
     default:
       return false;

@@ -608,24 +608,13 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
 #endif
 #ifdef USE_ZWAVE_PROXY
-    case ZWaveProxySubscribeRequest::MESSAGE_TYPE: {
-      ZWaveProxySubscribeRequest msg;
+    case ZWaveProxyRequest::MESSAGE_TYPE: {
+      ZWaveProxyRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_subscribe_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_z_wave_proxy_request: %s", msg.dump().c_str());
 #endif
-      this->on_z_wave_proxy_subscribe_request(msg);
-      break;
-    }
-#endif
-#ifdef USE_ZWAVE_PROXY
-    case ZWaveProxyUnsubscribeRequest::MESSAGE_TYPE: {
-      ZWaveProxyUnsubscribeRequest msg;
-      // Empty message: no decode needed
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_z_wave_proxy_unsubscribe_request: %s", msg.dump().c_str());
-#endif
-      this->on_z_wave_proxy_unsubscribe_request(msg);
+      this->on_z_wave_proxy_request(msg);
       break;
     }
 #endif
@@ -950,16 +939,9 @@ void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_subscribe_request(const ZWaveProxySubscribeRequest &msg) {
+void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
   if (this->check_authenticated_()) {
-    this->zwave_proxy_subscribe(msg);
-  }
-}
-#endif
-#ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_unsubscribe_request(const ZWaveProxyUnsubscribeRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->zwave_proxy_unsubscribe(msg);
+    this->zwave_proxy_request(msg);
   }
 }
 #endif
