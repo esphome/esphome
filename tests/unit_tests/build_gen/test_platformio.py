@@ -19,7 +19,9 @@ def mock_update_storage_json() -> Generator[MagicMock]:
         yield mock
 
 
-def test_write_ini_creates_new_file(tmp_path: Path) -> None:
+def test_write_ini_creates_new_file(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
     """Test write_ini creates a new platformio.ini file."""
     CORE.build_path = str(tmp_path)
 
@@ -30,8 +32,7 @@ board = esp32dev
 framework = arduino
 """
 
-    with patch("esphome.build_gen.platformio.update_storage_json"):
-        platformio.write_ini(content)
+    platformio.write_ini(content)
 
     ini_file = tmp_path / "platformio.ini"
     assert ini_file.exists()
@@ -42,7 +43,9 @@ framework = arduino
     assert platformio.INI_AUTO_GENERATE_END in file_content
 
 
-def test_write_ini_updates_existing_file(tmp_path: Path) -> None:
+def test_write_ini_updates_existing_file(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
     """Test write_ini updates existing platformio.ini file."""
     CORE.build_path = str(tmp_path)
 
@@ -88,7 +91,9 @@ framework = arduino
     assert "platform = old" not in file_content
 
 
-def test_write_ini_preserves_custom_sections(tmp_path: Path) -> None:
+def test_write_ini_preserves_custom_sections(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
     """Test write_ini preserves custom sections outside auto-generate markers."""
     CORE.build_path = str(tmp_path)
 
@@ -136,20 +141,25 @@ monitor_speed = 115200
     assert "[env:old]" not in file_content
 
 
-def test_write_ini_no_change_when_content_same(tmp_path: Path) -> None:
+def test_write_ini_no_change_when_content_same(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
     """Test write_ini doesn't rewrite file when content is unchanged."""
     CORE.build_path = str(tmp_path)
 
     content = "[env:test]\nplatform = esp32"
-    full_content = f"{platformio.INI_BASE_FORMAT[0]}{platformio.INI_AUTO_GENERATE_BEGIN}\n{content}{platformio.INI_AUTO_GENERATE_END}{platformio.INI_BASE_FORMAT[1]}"
+    full_content = (
+        f"{platformio.INI_BASE_FORMAT[0]}"
+        f"{platformio.INI_AUTO_GENERATE_BEGIN}\n"
+        f"{content}"
+        f"{platformio.INI_AUTO_GENERATE_END}"
+        f"{platformio.INI_BASE_FORMAT[1]}"
+    )
 
     ini_file = tmp_path / "platformio.ini"
     ini_file.write_text(full_content)
 
-    with (
-        patch("esphome.build_gen.platformio.update_storage_json"),
-        patch("esphome.build_gen.platformio.write_file_if_changed") as mock_write,
-    ):
+    with patch("esphome.build_gen.platformio.write_file_if_changed") as mock_write:
         mock_write.return_value = False  # Indicate no change
         platformio.write_ini(content)
 
@@ -160,12 +170,13 @@ def test_write_ini_no_change_when_content_same(tmp_path: Path) -> None:
         assert content in call_args[1]
 
 
-def test_write_ini_calls_update_storage_json(tmp_path: Path) -> None:
+def test_write_ini_calls_update_storage_json(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
     """Test write_ini calls update_storage_json."""
     CORE.build_path = str(tmp_path)
 
     content = "[env:test]\nplatform = esp32"
 
-    with patch("esphome.build_gen.platformio.update_storage_json") as mock_update:
-        platformio.write_ini(content)
-        mock_update.assert_called_once()
+    platformio.write_ini(content)
+    mock_update_storage_json.assert_called_once()

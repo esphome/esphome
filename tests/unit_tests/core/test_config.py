@@ -758,6 +758,7 @@ async def test_add_includes_overwrites_existing_files(
         await config.add_includes([str(include_file)])
 
     # Verify copy_file_if_changed was called (it handles overwriting)
+    # Note: add_includes adds files to a src/ subdirectory
     mock_copy_file_if_changed.assert_called_once_with(
-        str(include_file), str(Path(CORE.build_path) / "header.h")
+        str(include_file), str(Path(CORE.build_path) / "src" / "header.h")
     )
