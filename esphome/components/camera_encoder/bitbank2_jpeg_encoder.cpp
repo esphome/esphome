@@ -37,8 +37,8 @@ camera::EncoderError Bitbank2JPEGEncoder::encode_pixels(camera::CameraImageSpec 
   ssize_t mcus = this->mcu_count_;
   // Encodes until done or until the MCU limit per call is reached.
   while (encoder_state_.y < spec->height && rc == JPEGE_SUCCESS && (this->mcu_count_ == 0 || mcus > 0)) {
-    rc = encoder_.addMCU(&encoder_state_,
-                         &pixels->get_data_buffer()[(encoder_state_.x * bpp) + (encoder_state_.y * bpr)], bpr);
+    rc =
+        encoder_.addMCU(&encoder_state_, &pixels->get_data()[(encoder_state_.x * bpp) + (encoder_state_.y * bpr)], bpr);
     --mcus;
   }
 

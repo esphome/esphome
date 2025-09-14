@@ -6,10 +6,13 @@
 #include "processor.h"
 #include "sensor.h"
 
+#include <queue>
+#include <vector>
+
 namespace esphome {
 namespace camera {
 
-/** Camera interface implemenation.
+/** Camera pipeline implemenation.
  */
 class CameraImpl : public Camera {
  public:
@@ -23,6 +26,7 @@ class CameraImpl : public Camera {
     CAMERA_STATE_OVERLAYING,
     CAMERA_STATE_ENCODE_BEGIN,
     CAMERA_STATE_ENCODING,
+    CAMERA_STATE_RATE_LIMIT_BEGIN,
     CAMERA_STATE_RATE_LIMITING,
     CAMERA_STATE_PUBLISHING,
     CAMERA_STATE_CLEAR_REQUEST,
@@ -60,9 +64,11 @@ class CameraImpl : public Camera {
   void append_processor(Processor *processor) { this->processors_.push_back(processor); }
 
  protected:
+  bool is_publishing_{};
+  std::queue<std::shared_ptr<CameraImageImpl> > send_queue_{};
+  Buffer *frame_buffer_{};
   Buffer *input_image_{};
-  CameraImageSpec *input_image_spec_{};
-  std::shared_ptr<CameraImageAdapter> jpeg_;
+  CameraImageSpec input_image_spec_;
   CameraIncrementalContext camera_incremental_context_;
   CameraState state_{CAMERA_STATE_INIT};
   std::vector<Processor *> processors_;
@@ -76,6 +82,15 @@ class CameraImpl : public Camera {
   uint32_t max_update_interval_{};
   uint32_t skip_frame_counter_{};
   uint32_t retry_frame_counter_{};
+
+  uint32_t timing_fps_{};
+  uint32_t timing_capture_{};
+  uint32_t timing_capture_callback_{};
+  uint32_t timing_processing_{};
+  uint32_t timing_overlay_{};
+  uint32_t timing_limiter_{};
+  uint32_t timing_encoding_{};
+  uint32_t timing_wait_{};
 };
 
 }  // namespace camera

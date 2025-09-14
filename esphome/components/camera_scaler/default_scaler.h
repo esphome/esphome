@@ -3,8 +3,7 @@
 #include "esphome/components/camera/processor.h"
 #include "esphome/core/color.h"
 
-namespace esphome {
-namespace camera_scaler {
+namespace esphome::camera_scaler {
 
 /** Enumeration of different scaling algorithms.
  */
@@ -20,7 +19,7 @@ class DefaultScaler : public camera::Processor {
   void set_margin_right(uint16_t margin) { this->margin_right_ = margin; }
   void set_margin_top(uint16_t margin) { this->margin_top_ = margin; }
   void set_margin_bottom(uint16_t margin) { this->margin_bottom_ = margin; }
-  // -------- Scaler --------
+  // ------ Processor ------
   size_t process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
   camera::Buffer *get_output_image() override { return this->output_image_; }
@@ -54,5 +53,4 @@ class DefaultScaler : public camera::Processor {
   camera::Buffer *output_image_{};
 };
 
-}  // namespace camera_scaler
-}  // namespace esphome
+}  // namespace esphome::camera_scaler

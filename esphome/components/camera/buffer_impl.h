@@ -12,8 +12,8 @@ class BufferImpl : public Buffer {
   explicit BufferImpl(size_t size);
   explicit BufferImpl(CameraImageSpec *spec);
   // -------- Buffer --------
-  uint8_t *get_data_buffer() override { return data_; }
-  size_t get_data_length() override { return size_; }
+  uint8_t *get_data() const override { return data_; }
+  size_t get_size() const override { return size_; }
   // ------------------------
   ~BufferImpl() override;
 

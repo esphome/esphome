@@ -50,18 +50,12 @@ inline const char *to_string(EncoderError error) {
 }
 
 /// Interface for an encoder buffer supporting resizing and variable-length data.
-class EncoderBuffer {
+class EncoderBuffer : public Buffer {
  public:
   ///  Sets logical buffer size, reallocates if needed.
   ///  @param size Required size in bytes.
   ///  @return true on success, false on allocation failure.
   virtual bool set_buffer_size(size_t size) = 0;
-
-  /// Returns a pointer to the buffer data.
-  virtual uint8_t *get_data() const = 0;
-
-  /// Returns number of bytes currently used.
-  virtual size_t get_size() const = 0;
 
   ///  Returns total allocated buffer size.
   virtual size_t get_max_size() const = 0;

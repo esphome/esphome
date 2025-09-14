@@ -28,7 +28,6 @@ CameraImageSpec = camera_ns.struct("CameraImageSpec")
 CameraIncrementalContext = camera_ns.struct("CameraIncrementalContext")
 CameraIncrementalContextRef = CameraIncrementalContext.operator("ref")
 
-CameraImageImpl = camera_ns.class_("CameraImageImpl")
 CameraImageTrigger = camera_ns.class_(
     "CameraImageTrigger", automation.Trigger.template()
 )
@@ -87,8 +86,8 @@ _CAMERA_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Camera),
-            cv.Required(CONF_CAMERA_ENCODER_ID): cv.use_id(camera_encoder.Encoder),
             cv.Required(CONF_CAMERA_SENSOR_ID): cv.use_id(camera_sensor.Sensor),
+            cv.Optional(CONF_CAMERA_ENCODER_ID): cv.use_id(camera_encoder.Encoder),
             cv.Optional(CONF_IDLE_UPDATE_INTERVAL, default=0): cv.int_range(0),
             cv.Optional(CONF_MAX_UPDATE_INTERVAL, default=100): cv.int_range(0),
         }

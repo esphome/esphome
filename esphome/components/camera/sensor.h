@@ -3,56 +3,42 @@
 #include "buffer.h"
 #include "camera.h"
 
-namespace esphome {
-namespace camera {
+#include <optional>
 
-/// Result codes from the sensor used to control camera pipeline flow.
-enum SensorError : uint8_t {
-  SENSOR_ERROR_SUCCESS = 0,   ///< Capture succeeded, get_image_buffer() returns the new image.
-  SENSOR_ERROR_RETRY,         ///< No new image captured yet, retry later.
-  SENSOR_ERROR_CONFIGURATION  ///< Fatal config error, shut down pipeline.
-};
-
-/// Converts SensorError to string.
-inline const char *to_string(SensorError error) {
-  switch (error) {
-    case SENSOR_ERROR_SUCCESS:
-      return "SENSOR_ERROR_SUCCESS";
-    case SENSOR_ERROR_RETRY:
-      return "SENSOR_ERROR_RETRY";
-    case SENSOR_ERROR_CONFIGURATION:
-      return "SENSOR_ERROR_CONFIGURATION";
-  }
-  return "SENSOR_ERROR_INVALID";
-}
+namespace esphome::camera {
 
 /// Interface represents the first stage of the camera pipeline,
-/// responsible for capturing raw image data from the camera sensor.
+/// responsible for capturing image data from the camera sensor.
 class Sensor {
  public:
-  /// Captures raw pixels from the camera sensor.
-  /// @return SensorError Indicating the result of the capture operation.
-  virtual SensorError capture_pixels() = 0;
-
-  /// Returns the sensor's image buffer.
-  /// Buffer is valid **only until the next call** to get_image_buffer().
-  /// I.e.. only one buffer can be in flight at a time.
-  /// @return Pointer to a Buffer containing the last captured frame.
-  virtual Buffer *get_image_buffer() = 0;
-
-  /// @return the camera's image specification.
-  virtual CameraImageSpec *get_image_spec() = 0;
-
   /// Sets up the camera sensor, configures resolution and applies
-  /// sensor-specific settings before image caputure can begin.
+  /// sensor-specific settings before image capture can begin.
   /// @return `true` if camera setup succeeded, `false` otherwise.
-  virtual bool camera_sensor_setup() = 0;
+  virtual bool configure() = 0;
 
-  /// Prints the camera sensor's configuration to the log.
-  virtual void camera_sensor_dump_config() = 0;
+  /// Acquires a frame buffer that contains pixel or encoded data.
+  /// Previously acquired buffers must be returned via return_frame_buffer().
+  /// @return a captured frame or nullptr if no buffer is available.
+  virtual Buffer *acquire_frame_buffer() = 0;
+
+  /// Returns a previously acquired frame buffer back to the sensor for reuse.
+  /// @param buffer The buffer obtained from acquire_frame_buffer().
+  virtual void return_frame_buffer(Buffer *buffer) = 0;
+
+  /// @return the resolution of the captured frames.
+  virtual Resolution get_resolution() = 0;
+
+  /// @return the overall image format.
+  virtual ImageFormat get_image_format() = 0;
+
+  /// @return the pixel format if image format is uncompressed (RAW).
+  /// @note Only valid when get_image_format() returns IMAGE_FORMAT_RAW.
+  virtual std::optional<PixelFormat> get_pixel_format() = 0;
+
+  /// Logs the camera sensor's configuration to the log.
+  virtual void log_config() = 0;
 
   virtual ~Sensor() = default;
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

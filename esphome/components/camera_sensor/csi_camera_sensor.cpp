@@ -34,9 +34,8 @@ bool IRAM_ATTR CSICameraSensor::finished_transaction(esp_cam_ctlr_trans_t *trans
   return false;
 }
 
-CSICameraSensor::CSICameraSensor(camera::CameraImageSpec *spec) : i2c_adapter_(this) {
-  this->image_spec_ = spec;
-  this->buffer_.data_buffer_ = NULL;
+CSICameraSensor::CSICameraSensor(uint16_t width, uint16_t height, camera::PixelFormat pixel_format)
+    : i2c_adapter_(this), image_spec_(width, height, pixel_format) {
   this->format_ = NULL;
 }
 
@@ -46,25 +45,9 @@ void CSICameraSensor::set_pins(int xclk, int pwdn, int reset) {
   this->xclk_pin_ = xclk;
 }
 
-camera::SensorError CSICameraSensor::capture_pixels() {
-  if (uxQueueMessagesWaiting(this->produced_) > 0)
-    return camera::SENSOR_ERROR_SUCCESS;
-
-  return camera::SENSOR_ERROR_RETRY;
-}
-
-camera::Buffer *CSICameraSensor::get_image_buffer() {
-  if (this->buffer_.data_buffer_ != NULL)
-    assert(xQueueSendToBack(this->consumed_, &this->buffer_.data_buffer_, 0) == pdPASS);
-
-  assert(xQueueReceive(this->produced_, &this->buffer_.data_buffer_, 0) == pdPASS);
-  this->buffer_.data_length_ = this->frame_buffer_size_;
-  return &this->buffer_;
-}
-
-bool CSICameraSensor::camera_sensor_setup() {
-  this->produced_ = xQueueCreate(this->framebuffers_, sizeof(void *));
-  this->consumed_ = xQueueCreate(this->framebuffers_, sizeof(void *));
+bool CSICameraSensor::configure() {
+  this->produced_ = xQueueCreate(this->buffers_, sizeof(void *));
+  this->consumed_ = xQueueCreate(this->buffers_, sizeof(void *));
 
   esp_ldo_channel_config_t ldo_channel_config = {
       .chan_id = 3,
@@ -102,7 +85,7 @@ bool CSICameraSensor::camera_sensor_setup() {
   esp_cam_sensor_query_format(this->sensor_, &sensor_format_array);
   const esp_cam_sensor_format_t *sensor_format = sensor_format_array.format_array;
   for (int i = 0; i < sensor_format_array.count; i++) {
-    if (this->image_spec_->width == sensor_format[i].width && this->image_spec_->height == sensor_format[i].height) {
+    if (this->image_spec_.width == sensor_format[i].width && this->image_spec_.height == sensor_format[i].height) {
       this->format_ = (esp_cam_sensor_format_t *) &sensor_format[i];
       break;
     }
@@ -153,11 +136,15 @@ bool CSICameraSensor::camera_sensor_setup() {
   }
 
   // Init framebuffers
-  this->frame_buffer_size_ = this->image_spec_->bytes_per_image();
+  this->pool_.init(this->buffers_, [] { return new CSICameraSensorBuffer(); });
+  this->frame_buffer_size_ = this->image_spec_.bytes_per_image();
   size_t frame_buffer_alignment = 64;
-  for (int i = 0; i < this->framebuffers_; ++i) {
+  for (int i = 0; i < this->buffers_; ++i) {
     void *frame_buffer = heap_caps_aligned_calloc(frame_buffer_alignment, 1, this->frame_buffer_size_,
                                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_CACHE_ALIGNED);
+    if (!frame_buffer)
+      return false;
+
     if (xQueueSendToBack(this->consumed_, &frame_buffer, 0) != pdPASS) {
       ESP_LOGE(TAG, "Buffer allocation failed. %i", i);
       return false;
@@ -208,16 +195,36 @@ bool CSICameraSensor::camera_sensor_setup() {
   return true;
 }
 
-void CSICameraSensor::camera_sensor_dump_config() {
+camera::Buffer *CSICameraSensor::acquire_frame_buffer() {
+  if (uxQueueMessagesWaiting(this->produced_) <= 0)
+    return nullptr;
+
+  CSICameraSensorBuffer *buffer = this->pool_.acquire();
+  if (!buffer)
+    return nullptr;
+
+  assert(xQueueReceive(this->produced_, &buffer->data_buffer_, 0) == pdPASS);
+  buffer->data_length_ = this->frame_buffer_size_;
+  return buffer;
+}
+
+void CSICameraSensor::return_frame_buffer(camera::Buffer *buffer) {
+  CSICameraSensorBuffer *b = reinterpret_cast<CSICameraSensorBuffer *>(buffer);
+  assert(xQueueSendToBack(this->consumed_, &b->data_buffer_, 0) == pdPASS);
+  this->pool_.release(b);
+}
+
+void CSICameraSensor::log_config() {
   ESP_LOGCONFIG(TAG,
                 "CSI Camera Sensor: %s\n"
                 "  %s\n"
+                "  Buffers: %u\n"
                 "  MIPI CSI:\n"
                 "    Clock: %d MHz\n"
                 "    Lanes: %d\n"
                 "    Line Sync: %s\n"
                 "  ISP: %s\n",
-                this->sensor_->name, this->format_->name, this->format_->mipi_info.mipi_clk / 1000000,
+                this->sensor_->name, this->format_->name, this->buffers_, this->format_->mipi_info.mipi_clk / 1000000,
                 this->format_->mipi_info.lane_num, YESNO(this->format_->mipi_info.line_sync_en),
                 YESNO(this->format_->isp_info));
 }

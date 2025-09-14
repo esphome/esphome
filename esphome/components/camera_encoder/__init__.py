@@ -129,7 +129,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:
         if CORE.using_esp_idf:
-            add_idf_component(name="espressif/esp32-camera", ref="2.1.0")
+            add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
         cg.add_build_flag("-DUSE_ESP32_CAMERA_JPEG_ENCODER")
         var = cg.new_Pvariable(
             config[CONF_ID],

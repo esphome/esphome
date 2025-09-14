@@ -1,5 +1,8 @@
 camera_sensor:
   id: camera_sensor_id
+  type: software
+  buffers: 2
+  clear: False
   width: 256
   height: 256
   format: BGR888

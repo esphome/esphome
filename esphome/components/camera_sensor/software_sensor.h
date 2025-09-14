@@ -1,23 +1,31 @@
 #pragma once
 
+#include "esphome/components/camera/buffer_impl.h"
+#include "esphome/components/camera/buffer_pool.h"
 #include "esphome/components/camera/sensor.h"
 
 namespace esphome::camera_sensor {
 
 class SoftwareSensor : public camera::Sensor {
  public:
-  SoftwareSensor(camera::CameraImageSpec *spec, camera::Buffer *buffer);
+  SoftwareSensor(uint16_t width, uint16_t height, camera::PixelFormat pixel_format);
+  void set_buffers(uint16_t buffers) { this->buffers_ = buffers; }
+  void set_clear(bool clear) { this->clear_ = clear; }
   // -------- Sensor --------
-  camera::SensorError capture_pixels() override { return camera::SensorError::SENSOR_ERROR_SUCCESS; }
-  camera::Buffer *get_image_buffer() override { return this->buffer_; }
-  camera::CameraImageSpec *get_image_spec() override { return this->image_spec_; }
-  bool camera_sensor_setup() override { return true; }
-  void camera_sensor_dump_config() override;
+  bool configure() override;
+  camera::Buffer *acquire_frame_buffer() override;
+  void return_frame_buffer(camera::Buffer *buffer) override;
+  camera::Resolution get_resolution() override { return this->image_spec_; }
+  camera::ImageFormat get_image_format() override { return camera::IMAGE_FORMAT_RAW; }
+  std::optional<camera::PixelFormat> get_pixel_format() override { return this->image_spec_.format; }
+  void log_config() override;
   // -------------------------
 
  protected:
-  camera::Buffer *buffer_{};
-  camera::CameraImageSpec *image_spec_;
+  uint16_t buffers_{};
+  bool clear_{};
+  camera::BufferPool<camera::BufferImpl> pool_;
+  camera::CameraImageSpec image_spec_;
 };
 
 }  // namespace esphome::camera_sensor

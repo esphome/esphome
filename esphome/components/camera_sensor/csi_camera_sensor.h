@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_CSI_CAMERA_SENSOR
+#include "esphome/components/camera/buffer_pool.h"
 #include "esphome/components/camera/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -18,8 +19,8 @@ namespace esphome::camera_sensor {
 class CSICameraSensorBuffer : public camera::Buffer {
  public:
   // -------- Buffer --------
-  uint8_t *get_data_buffer() override { return this->data_buffer_; }
-  size_t get_data_length() override { return this->data_length_; }
+  uint8_t *get_data() const override { return this->data_buffer_; }
+  size_t get_size() const override { return this->data_length_; }
   // ------------------------
   uint8_t *data_buffer_;
   size_t data_length_;
@@ -27,16 +28,18 @@ class CSICameraSensorBuffer : public camera::Buffer {
 
 class CSICameraSensor : public camera::Sensor, public i2c::I2CDevice {
  public:
-  CSICameraSensor(camera::CameraImageSpec *spec);
+  CSICameraSensor(uint16_t width, uint16_t height, camera::PixelFormat pixel_format);
   void set_pins(int xclk, int pwdn, int reset);
-  void set_framebuffers(int framebuffers) { this->framebuffers_ = framebuffers; }
+  void set_buffers(uint16_t buffers) { this->buffers_ = buffers; }
   void set_byte_swap(bool byte_swap) { this->byte_swap_ = byte_swap; }
   // -------- Sensor --------
-  camera::SensorError capture_pixels() override;
-  camera::Buffer *get_image_buffer() override;
-  camera::CameraImageSpec *get_image_spec() override { return this->image_spec_; }
-  bool camera_sensor_setup() override;
-  void camera_sensor_dump_config() override;
+  bool configure() override;
+  camera::Buffer *acquire_frame_buffer() override;
+  void return_frame_buffer(camera::Buffer *buffer) override;
+  camera::Resolution get_resolution() override { return this->image_spec_; }
+  camera::ImageFormat get_image_format() override { return camera::IMAGE_FORMAT_RAW; }
+  std::optional<camera::PixelFormat> get_pixel_format() override { return this->image_spec_.format; }
+  void log_config() override;
   // -------------------------
   bool init_transaction(esp_cam_ctlr_trans_t *trans);
   bool finished_transaction(esp_cam_ctlr_trans_t *trans);
@@ -51,19 +54,19 @@ class CSICameraSensor : public camera::Sensor, public i2c::I2CDevice {
   QueueHandle_t consumed_{};
   size_t frame_buffer_size_{};
   I2CSCCBAdapter i2c_adapter_;
-  camera::CameraImageSpec *image_spec_{};
-  int framebuffers_{};
+  uint16_t buffers_{};
   int reset_pin_{};
   int pwdn_pin_{};
   int xclk_pin_{};
   bool byte_swap_{};
-  CSICameraSensorBuffer buffer_{};
+  camera::CameraImageSpec image_spec_;
   esp_ldo_channel_handle_t ldo_mipi_phy_{};
   esp_cam_sensor_device_t *sensor_{};
   esp_cam_ctlr_handle_t cam_ctrl_handle_{};
   esp_cam_ctlr_evt_cbs_t cam_ctlr_evt_cbs_{};
   esp_cam_sensor_format_t *format_{};
   isp_proc_handle_t isp_proc_handle_{};
+  camera::BufferPool<CSICameraSensorBuffer> pool_;
 };
 
 }  // namespace esphome::camera_sensor

@@ -37,8 +37,8 @@ camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *
       .image_quality = this->quality_,
   };
 
-  esp_err_t error = jpeg_encoder_process(this->encoder_engine_, &enc_config, pixels->get_data_buffer(),
-                                         pixels->get_data_length(), buffer, buffer_length, &bytes_written);
+  esp_err_t error = jpeg_encoder_process(this->encoder_engine_, &enc_config, pixels->get_data(), pixels->get_size(),
+                                         buffer, buffer_length, &bytes_written);
   this->output_->set_buffer_size(bytes_written);
   if (error != ESP_OK)
     return camera::ENCODER_ERROR_CONFIGURATION;

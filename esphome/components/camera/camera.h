@@ -45,6 +45,23 @@ inline const char *to_string(PixelFormat format) {
   return "PIXEL_FORMAT_UNKNOWN";
 }
 
+/// Enumeration of different image formats.
+enum ImageFormat : uint8_t {
+  IMAGE_FORMAT_RAW = 0,  ///< Uncompressed pixel data.
+  IMAGE_FORMAT_JPEG,     ///< JPEG compressed image.
+};
+
+/// Returns string name for a given ImageFormat.
+inline const char *to_string(ImageFormat format) {
+  switch (format) {
+    case IMAGE_FORMAT_RAW:
+      return "IMAGE_FORMAT_RAW";
+    case IMAGE_FORMAT_JPEG:
+      return "IMAGE_FORMAT_JPEG";
+  }
+  return "IMAGE_FORMAT_UNKNOWN";
+}
+
 /** Abstract camera image base class.
  *  Encapsulates the JPEG encoded data and it is shared among
  *  all connected clients.
@@ -79,6 +96,12 @@ struct CameraImageData {
   size_t length;
 };
 
+/// Represents the resolution of an image or frame in pixels.
+struct Resolution {
+  uint16_t width;
+  uint16_t height;
+};
+
 /// Specification of a caputured camera image.
 /// This struct defines the format and size details for images captured
 /// or processed by a camera component.
@@ -100,6 +123,7 @@ struct CameraImageSpec {
   }
   size_t bytes_per_row() { return bytes_per_pixel() * width; }
   size_t bytes_per_image() { return bytes_per_pixel() * width * height; }
+  operator Resolution() const { return Resolution{width, height}; }
 };
 
 /** Abstract camera base class. Collaborates with API.
@@ -158,8 +182,8 @@ class CameraCaptureImageTrigger : public Trigger<CameraImageData, CameraImageSpe
   explicit CameraCaptureImageTrigger(Camera *camera) {
     camera->add_capture_callback([this](Buffer &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
       CameraImageData camera_image_data{};
-      camera_image_data.length = image.get_data_length();
-      camera_image_data.data = image.get_data_buffer();
+      camera_image_data.length = image.get_size();
+      camera_image_data.data = image.get_data();
       this->trigger(camera_image_data, spec, context);
     });
   }
@@ -174,8 +198,8 @@ class CameraOverlayTrigger : public Trigger<CameraImageData, CameraImageSpec, Ca
     camera->add_overlay_callback(
         [this](camera::Buffer &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
           CameraImageData camera_image_data{};
-          camera_image_data.length = image.get_data_length();
-          camera_image_data.data = image.get_data_buffer();
+          camera_image_data.length = image.get_size();
+          camera_image_data.data = image.get_data();
           this->trigger(camera_image_data, spec, context);
         });
   }

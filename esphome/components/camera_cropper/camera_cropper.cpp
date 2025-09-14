@@ -1,9 +1,7 @@
-// camera_cropper.cpp
 #include "camera_cropper.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace camera_cropper {
+namespace esphome::camera_cropper {
 
 static const char *const TAG = "camera.cropper";
 
@@ -31,11 +29,11 @@ size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera
   size_t bytes_per_pixel = input_spec->bytes_per_pixel();
 
   // Get source image data
-  const uint8_t *source_data = input->get_data_buffer();
+  const uint8_t *source_data = input->get_data();
   size_t source_width = input_spec->width;
 
   // Get destination buffer
-  uint8_t *dest_data = this->output_image_->get_data_buffer();
+  uint8_t *dest_data = this->output_image_->get_data();
 
   // Perform cropping
   for (size_t y = 0; y < crop_height_; y++) {
@@ -59,5 +57,4 @@ size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera
   return this->output_spec_->bytes_per_image();
 }
 
-}  // namespace camera_cropper
-}  // namespace esphome
+}  // namespace esphome::camera_cropper

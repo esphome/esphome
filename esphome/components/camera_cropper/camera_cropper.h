@@ -1,17 +1,15 @@
-// camera_cropper.h
 #pragma once
 
 #include "esphome/components/camera/processor.h"
 
-namespace esphome {
-namespace camera_cropper {
+namespace esphome::camera_cropper {
 
 class CameraCropper : public camera::Processor {
  public:
   CameraCropper(camera::CameraImageSpec *spec, camera::Buffer *output, int crop_x, int crop_y, int crop_width,
                 int crop_height);
 
-  // Processor interface methods
+  // ------ Processor ------
   size_t process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
   camera::Buffer *get_output_image() override { return this->output_image_; }
@@ -30,5 +28,4 @@ class CameraCropper : public camera::Processor {
   camera::Buffer *output_image_{};
 };
 
-}  // namespace camera_cropper
-}  // namespace esphome
+}  // namespace esphome::camera_cropper

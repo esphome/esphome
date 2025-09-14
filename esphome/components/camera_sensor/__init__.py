@@ -20,8 +20,6 @@ CODEOWNERS = ["@DT-art1"]
 
 AUTO_LOAD = ["camera", "i2c"]
 
-CONF_SENSOR_BUFFER_ID = "sensor_buffer_id"
-
 SOFTWARE_SENSOR = "software"
 ESP32_CAMERA_SENSOR = "esp32_camera"
 CSI_CAMERA_SENSOR = "csi_camera"
@@ -30,10 +28,7 @@ camera_ns = cg.esphome_ns.namespace("camera")
 camera_sensor_ns = cg.esphome_ns.namespace("camera_sensor")
 PixelFormat = camera_ns.enum("PixelFormat")
 
-CameraImageSpec = camera_ns.struct("CameraImageSpec")
 Sensor = camera_ns.class_("Sensor")
-Buffer = camera_ns.class_("Buffer")
-BufferImpl = camera_ns.class_("BufferImpl")
 
 SoftwareSensor = camera_sensor_ns.class_("SoftwareSensor", Sensor)
 ESP32CameraSensor = camera_sensor_ns.class_("ESP32CameraSensor", Sensor)
@@ -53,8 +48,11 @@ CONF_PWDN = "pwdn"
 CONF_VSYNC = "vsync"
 CONF_XCLK = "xclk"
 
+CONF_JPEG_QUALITY = "jpeg_quality"
+
 CONF_BUFFERS = "buffers"
 CONF_BYTE_SWAP = "byte_swap"
+CONF_CLEAR = "clear"
 
 PINS_SCHEMA = cv.Schema(
     {
@@ -118,7 +116,6 @@ CONF_FORMAT_SELECTS = {
     "RGB565": PixelFormat.PIXEL_FORMAT_RGB565,
     "BGR888": PixelFormat.PIXEL_FORMAT_BGR888,
 }
-CONF_IMAGE_SPEC_ID = "image_spec_id"
 
 SOFTWARE_SCHEMA = cv.Schema(
     {
@@ -126,8 +123,8 @@ SOFTWARE_SCHEMA = cv.Schema(
         cv.Required(CONF_HEIGHT): cv.int_range(0),
         cv.Required(CONF_WIDTH): cv.int_range(0),
         cv.Required(CONF_FORMAT): cv.enum(CONF_FORMAT_SELECTS, upper=True),
-        cv.GenerateID(CONF_SENSOR_BUFFER_ID): cv.declare_id(BufferImpl),
-        cv.GenerateID(CONF_IMAGE_SPEC_ID): cv.declare_id(CameraImageSpec),
+        cv.Optional(CONF_BUFFERS, default=1): cv.int_range(1, 2),
+        cv.Optional(CONF_CLEAR, default=True): cv.boolean,
     }
 )
 
@@ -145,10 +142,12 @@ ESP32_CAMERA_SCHEMA = cv.All(
             ),
             cv.Required(CONF_HEIGHT): cv.int_range(0),
             cv.Required(CONF_WIDTH): cv.int_range(0),
-            cv.Required(CONF_FORMAT): cv.enum(CONF_FORMAT_SELECTS, upper=True),
-            cv.GenerateID(CONF_IMAGE_SPEC_ID): cv.declare_id(CameraImageSpec),
+            cv.Optional(CONF_FORMAT): cv.enum(CONF_FORMAT_SELECTS, upper=True),
+            cv.Optional(CONF_BUFFERS, default=1): cv.int_range(1, 2),
+            cv.Optional(CONF_JPEG_QUALITY): cv.int_range(0, 100),
         }
     ),
+    cv.has_exactly_one_key(CONF_FORMAT, CONF_JPEG_QUALITY),
     validate_resolution,
 )
 
@@ -167,9 +166,8 @@ CSI_CAMERA_SCHEMA = cv.Schema(
         cv.Optional(CONF_PWDN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_RESET): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_XCLK): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_BUFFERS, default=2): cv.int_range(2, 16),
+        cv.Optional(CONF_BUFFERS, default=1): cv.int_range(1, 2),
         cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
-        cv.GenerateID(CONF_IMAGE_SPEC_ID): cv.declare_id(CameraImageSpec),
     }
 )
 
@@ -185,40 +183,23 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config):
     if config[CONF_TYPE] == SOFTWARE_SENSOR:
-        image_spec = cg.new_Pvariable(
-            config[CONF_IMAGE_SPEC_ID],
-            cg.StructInitializer(
-                CameraImageSpec,
-                ("width", config[CONF_WIDTH]),
-                ("height", config[CONF_HEIGHT]),
-                ("format", config[CONF_FORMAT]),
-            ),
-        )
-        buffer = cg.new_Pvariable(
-            config[CONF_SENSOR_BUFFER_ID],
-            image_spec,
-        )
-        cg.new_Pvariable(
+        var = cg.new_Pvariable(
             config[CONF_ID],
-            image_spec,
-            buffer,
+            config[CONF_WIDTH],
+            config[CONF_HEIGHT],
+            config[CONF_FORMAT],
         )
+        cg.add(var.set_buffers(config[CONF_BUFFERS]))
+        cg.add(var.set_clear(config[CONF_CLEAR]))
     if config[CONF_TYPE] == ESP32_CAMERA_SENSOR:
         if CORE.using_esp_idf:
             add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
         cg.add_build_flag("-DUSE_ESP32_CAMERA_SENSOR")
-        image_spec = cg.new_Pvariable(
-            config[CONF_IMAGE_SPEC_ID],
-            cg.StructInitializer(
-                CameraImageSpec,
-                ("width", config[CONF_WIDTH]),
-                ("height", config[CONF_HEIGHT]),
-                ("format", config[CONF_FORMAT]),
-            ),
-        )
+        cg.add_build_flag("-DCONFIG_CAMERA_PSRAM_DMA=1")
         var = cg.new_Pvariable(
             config[CONF_ID],
-            image_spec,
+            config[CONF_WIDTH],
+            config[CONF_HEIGHT],
         )
         reset_pin = config.get(CONF_RESET, -1)
         pwdn_pin = config.get(CONF_PWDN, -1)
@@ -245,27 +226,26 @@ async def to_code(config):
         cg.add(var.set_frequency(config[CONF_FREQUENCY]))
         resolution = (config[CONF_WIDTH], config[CONF_HEIGHT])
         cg.add(var.set_framesize(FRAME_SIZES[resolution]))
+        cg.add(var.set_buffers(config[CONF_BUFFERS]))
+        if CONF_FORMAT in config:
+            cg.add(var.set_pixel_format(config[CONF_FORMAT]))
+        if CONF_JPEG_QUALITY in config:
+            cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
+
     if config[CONF_TYPE] == CSI_CAMERA_SENSOR:
         if CORE.using_esp_idf:
             add_idf_component(name="espressif/esp_cam_sensor", ref="1.3.0")
         cg.add_build_flag("-DUSE_CSI_CAMERA_SENSOR")
-        image_spec = cg.new_Pvariable(
-            config[CONF_IMAGE_SPEC_ID],
-            cg.StructInitializer(
-                CameraImageSpec,
-                ("width", config[CONF_WIDTH]),
-                ("height", config[CONF_HEIGHT]),
-                ("format", config[CONF_FORMAT]),
-            ),
-        )
         var = cg.new_Pvariable(
             config[CONF_ID],
-            image_spec,
+            config[CONF_WIDTH],
+            config[CONF_HEIGHT],
+            config[CONF_FORMAT],
         )
         xclk_pin = config.get(CONF_XCLK, -1)
         pwdn_pin = config.get(CONF_PWDN, -1)
         reset_pin = config.get(CONF_RESET, -1)
         cg.add(var.set_pins(xclk_pin, pwdn_pin, reset_pin))
-        cg.add(var.set_framebuffers(config[CONF_BUFFERS]))
+        cg.add(var.set_buffers(config[CONF_BUFFERS]))
         cg.add(var.set_byte_swap(config[CONF_BYTE_SWAP]))
         await i2c.register_i2c_device(var, config)

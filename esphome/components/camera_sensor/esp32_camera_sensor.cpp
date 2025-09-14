@@ -6,7 +6,7 @@ namespace esphome::camera_sensor {
 
 static const char *const TAG = "camera_sensor";
 
-ESP32CameraSensor::ESP32CameraSensor(camera::CameraImageSpec *spec) { this->image_spec_ = spec; }
+ESP32CameraSensor::ESP32CameraSensor(uint16_t width, uint16_t height) : resolution_{width, height} {}
 
 void ESP32CameraSensor::set_pins(int d0, int d1, int d2, int d3, int d4, int d5, int d6, int d7, int xclk, int vsync,
                                  int href, int pclk, int pwdn, int reset) {
@@ -29,8 +29,13 @@ void ESP32CameraSensor::set_pins(int d0, int d1, int d2, int d3, int d4, int d5,
   this->camera_config_.pin_sccb_scl = -1;
   this->camera_config_.ledc_timer = LEDC_TIMER_0;
   this->camera_config_.ledc_channel = LEDC_CHANNEL_0;
+}
 
-  switch (this->image_spec_->format) {
+void ESP32CameraSensor::set_buffers(uint16_t buffers) { this->camera_config_.fb_count = buffers; }
+
+void ESP32CameraSensor::set_pixel_format(camera::PixelFormat pixel_format) {
+  this->pixel_format_ = pixel_format;
+  switch (pixel_format) {
     case camera::PIXEL_FORMAT_GRAYSCALE: {
       this->camera_config_.pixel_format = PIXFORMAT_GRAYSCALE;
     } break;
@@ -41,34 +46,19 @@ void ESP32CameraSensor::set_pins(int d0, int d1, int d2, int d3, int d4, int d5,
       this->camera_config_.pixel_format = PIXFORMAT_RGB888;
     } break;
   }
-  // No direct JPEG currently.
-  //    this->camera_config_.pixel_format = PIXFORMAT_JPEG;
-  //    this->camera_config_.jpeg_quality = 12; //0-63, for OV series camera sensors, lower number means higher quality
-  this->camera_config_.jpeg_quality = 0;  // 0-63, for OV series camera sensors, lower number means higher quality
-  this->camera_config_.fb_count =
-      2;  // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
-  this->camera_config_.fb_location = CAMERA_FB_IN_PSRAM;    // CAMERA_FB_IN_DRAM
-  this->camera_config_.grab_mode = CAMERA_GRAB_WHEN_EMPTY;  // CAMERA_GRAB_LATEST
-  // this->camera_config_.grab_mode = CAMERA_GRAB_LATEST; // CAMERA_GRAB_LATEST
+
+  this->camera_config_.jpeg_quality = 0;
 }
 
-camera::SensorError ESP32CameraSensor::capture_pixels() {
-  if (this->frame_buffer_in_use_) {
-    esp_camera_fb_return(this->frame_buffer_in_use_);
-    this->frame_buffer_in_use_ = nullptr;
-  }
-
-  this->frame_buffer_in_use_ = esp_camera_fb_get();
-
-  if (this->frame_buffer_in_use_) {
-    this->buffer_.set_frame_buffer(this->frame_buffer_in_use_);
-    return camera::SensorError::SENSOR_ERROR_SUCCESS;
-  }
-
-  return camera::SensorError::SENSOR_ERROR_RETRY;
+void ESP32CameraSensor::set_jpeg_quality(unsigned int jpeg_quality) {
+  this->camera_config_.jpeg_quality = jpeg_quality;
+  this->camera_config_.pixel_format = PIXFORMAT_JPEG;
 }
 
-bool ESP32CameraSensor::camera_sensor_setup() {
+bool ESP32CameraSensor::configure() {
+  this->pool_.init(this->camera_config_.fb_count, [] { return new ESP32CameraSensorBuffer(); });
+  this->camera_config_.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  this->camera_config_.fb_location = CAMERA_FB_IN_PSRAM;
   this->camera_config_.sccb_i2c_port = this->i2c_bus_->get_port();
   esp_err_t err = esp_camera_init(&this->camera_config_);
   if (err == ESP_OK)
@@ -78,14 +68,42 @@ bool ESP32CameraSensor::camera_sensor_setup() {
   return false;
 }
 
-void ESP32CameraSensor::camera_sensor_dump_config() {
+camera::Buffer *ESP32CameraSensor::acquire_frame_buffer() {
+  ESP32CameraSensorBuffer *buffer = this->pool_.acquire();
+  if (!buffer)
+    return nullptr;
+
+  camera_fb_t *frame_buffer = esp_camera_fb_get();
+  if (!frame_buffer) {
+    this->pool_.release(buffer);
+    return nullptr;
+  }
+
+  buffer->set_frame_buffer(frame_buffer);
+  return buffer;
+}
+
+void ESP32CameraSensor::return_frame_buffer(camera::Buffer *buffer) {
+  ESP32CameraSensorBuffer *b = reinterpret_cast<ESP32CameraSensorBuffer *>(buffer);
+  esp_camera_fb_return(b->get_frame_buffer());
+  this->pool_.release(b);
+}
+
+camera::ImageFormat ESP32CameraSensor::get_image_format() {
+  return this->camera_config_.pixel_format == PIXFORMAT_JPEG ? camera::IMAGE_FORMAT_JPEG : camera::IMAGE_FORMAT_RAW;
+}
+
+void ESP32CameraSensor::log_config() {
   ESP_LOGCONFIG(TAG,
                 "ESP32 Camera Sensor:\n"
-                "  Resolution: %dx%d\n"
+                "  Resolution: %ux%u\n"
+                "  Buffers: %zu\n"
                 "  xclk_freq_hz %d\n"
                 "  %s\n",
-                this->image_spec_->width, this->image_spec_->height, this->camera_config_.xclk_freq_hz,
-                to_string(this->image_spec_->format));
+                this->resolution_.width, this->resolution_.height, this->camera_config_.fb_count,
+                this->camera_config_.xclk_freq_hz, to_string(get_image_format()));
+  if (this->pixel_format_.has_value())
+    ESP_LOGCONFIG(TAG, "  %s\n", to_string(this->pixel_format_.value()));
 }
 
 }  // namespace esphome::camera_sensor

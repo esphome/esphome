@@ -22,7 +22,7 @@ class CameraOverlayDisplay : public display::Display {
     Camera::instance()->add_overlay_callback(
         [this](camera::Buffer &image, camera::CameraImageSpec spec, camera::CameraIncrementalContext &context) {
           this->context_ = &context;
-          this->data_buffer_ = image.get_data_buffer();
+          this->data_buffer_ = image.get_data();
           this->spec_ = spec;
           this->bpr_ = spec.bytes_per_row();
           if (spec.format == camera::PIXEL_FORMAT_GRAYSCALE) {
