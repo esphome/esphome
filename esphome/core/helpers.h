@@ -380,6 +380,35 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
   return parse_hex<T>(str.c_str(), str.length());
 }
 
+/// Convert a nibble (0-15) to lowercase hex char
+inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+
+/// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
+/// This always uses uppercase (A-F) for pretty/human-readable output
+inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+
+/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
+inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
+  for (size_t i = 0; i < 6; i++) {
+    uint8_t byte = mac[i];
+    output[i * 3] = format_hex_pretty_char(byte >> 4);
+    output[i * 3 + 1] = format_hex_pretty_char(byte & 0x0F);
+    if (i < 5)
+      output[i * 3 + 2] = ':';
+  }
+  output[17] = '\0';
+}
+
+/// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
+inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
+  for (size_t i = 0; i < 6; i++) {
+    uint8_t byte = mac[i];
+    output[i * 2] = format_hex_char(byte >> 4);
+    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
+  }
+  output[12] = '\0';
+}
+
 /// Format the six-byte array \p mac into a MAC address.
 std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.

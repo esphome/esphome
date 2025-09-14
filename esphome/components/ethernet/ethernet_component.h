@@ -102,6 +102,7 @@ class EthernetComponent : public Component {
 #endif /* LWIP_IPV6 */
 
   void start_connect_();
+  void finish_connect_();
   void dump_connect_params_();
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
@@ -144,6 +145,7 @@ class EthernetComponent : public Component {
   bool got_ipv4_address_{false};
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
+  bool ipv6_setup_done_{false};
 #endif /* LWIP_IPV6 */
 
   // Pointers at the end (naturally aligned)
