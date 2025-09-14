@@ -219,7 +219,6 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
 #endif
-  bool send_get_time_response(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
 #endif
