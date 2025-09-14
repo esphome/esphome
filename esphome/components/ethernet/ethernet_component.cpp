@@ -498,7 +498,11 @@ void EthernetComponent::finish_connect_() {
     if (err == ESP_OK) {
       ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
     }
-    this->ipv6_setup_done_ = true;  // Only try once in CONNECTED state
+    // Always set the flag to prevent continuous retries
+    // If IPv6 setup fails here with the interface up and stable, it's likely
+    // a persistent issue (IPv6 disabled at router, hardware limitation, etc.)
+    // that won't be resolved by further retries. The device continues to work with IPv4.
+    this->ipv6_setup_done_ = true;
   }
 #endif /* USE_NETWORK_IPV6 */
 }
