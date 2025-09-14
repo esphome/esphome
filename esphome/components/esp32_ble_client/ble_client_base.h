@@ -60,11 +60,14 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
     if (address == 0) {
       this->address_str_ = "";
     } else {
-      this->address_str_ =
-          str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, (uint8_t) (this->address_ >> 40) & 0xff,
-                       (uint8_t) (this->address_ >> 32) & 0xff, (uint8_t) (this->address_ >> 24) & 0xff,
-                       (uint8_t) (this->address_ >> 16) & 0xff, (uint8_t) (this->address_ >> 8) & 0xff,
-                       (uint8_t) (this->address_ >> 0) & 0xff);
+      char buf[18];
+      uint8_t mac[6] = {
+          (uint8_t) ((this->address_ >> 40) & 0xff), (uint8_t) ((this->address_ >> 32) & 0xff),
+          (uint8_t) ((this->address_ >> 24) & 0xff), (uint8_t) ((this->address_ >> 16) & 0xff),
+          (uint8_t) ((this->address_ >> 8) & 0xff),  (uint8_t) ((this->address_ >> 0) & 0xff),
+      };
+      format_mac_addr_upper(mac, buf);
+      this->address_str_ = buf;
     }
   }
   const std::string &address_str() const { return this->address_str_; }
