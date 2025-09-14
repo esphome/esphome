@@ -136,21 +136,21 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
-def valid_include(value):
+def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
         return value
     try:
-        return cv.directory(value)
+        return str(cv.directory(value))
     except cv.Invalid:
         pass
-    value = cv.file_(value)
-    ext = value.suffix
+    path = cv.file_(value)
+    ext = path.suffix
     if ext not in VALID_INCLUDE_EXTS:
         raise cv.Invalid(
             f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
-    return value
+    return str(path)
 
 
 def valid_project_name(value: str):

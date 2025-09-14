@@ -273,7 +273,7 @@ def test_valid_include_with_angle_brackets() -> None:
 
 def test_valid_include_with_valid_file(tmp_path: Path) -> None:
     """Test valid_include accepts valid include files."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     include_file = tmp_path / "include.h"
     include_file.touch()
 
@@ -282,7 +282,7 @@ def test_valid_include_with_valid_file(tmp_path: Path) -> None:
 
 def test_valid_include_with_valid_directory(tmp_path: Path) -> None:
     """Test valid_include accepts valid directories."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     include_dir = tmp_path / "includes"
     include_dir.mkdir()
 
@@ -291,7 +291,7 @@ def test_valid_include_with_valid_directory(tmp_path: Path) -> None:
 
 def test_valid_include_invalid_extension(tmp_path: Path) -> None:
     """Test valid_include rejects files with invalid extensions."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     invalid_file = tmp_path / "file.txt"
     invalid_file.touch()
 
@@ -456,7 +456,7 @@ def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) ->
     src_file = tmp_path / "source.h"
     src_file.write_text("// Header content")
 
-    CORE.build_path = str(tmp_path / "build")
+    CORE.build_path = tmp_path / "build"
 
     with patch("esphome.core.config.cg") as mock_cg:
         # Mock RawStatement to capture the text
@@ -469,7 +469,7 @@ def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) ->
 
         mock_cg.RawStatement.side_effect = raw_statement_side_effect
 
-        config.include_file(str(src_file), "test.h")
+        config.include_file(src_file, Path("test.h"))
 
         mock_copy_file_if_changed.assert_called_once()
         mock_cg.add_global.assert_called_once()
@@ -482,10 +482,10 @@ def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> No
     src_file = tmp_path / "source.cpp"
     src_file.write_text("// CPP content")
 
-    CORE.build_path = str(tmp_path / "build")
+    CORE.build_path = tmp_path / "build"
 
     with patch("esphome.core.config.cg") as mock_cg:
-        config.include_file(str(src_file), "test.cpp")
+        config.include_file(src_file, Path("test.cpp"))
 
         mock_copy_file_if_changed.assert_called_once()
         # Should not add include statement for .cpp files

@@ -375,7 +375,7 @@ def test_storage_json_load_valid_file(tmp_path: Path) -> None:
     file_path = tmp_path / "storage.json"
     file_path.write_text(json.dumps(storage_data))
 
-    result = storage_json.StorageJSON.load(str(file_path))
+    result = storage_json.StorageJSON.load(file_path)
 
     assert result is not None
     assert result.name == "loaded_device"
@@ -386,8 +386,8 @@ def test_storage_json_load_valid_file(tmp_path: Path) -> None:
     assert result.address == "10.0.0.1"
     assert result.web_port == 8080
     assert result.target_platform == "ESP32"
-    assert result.build_path == "/loaded/build"
-    assert result.firmware_bin_path == "/loaded/firmware.bin"
+    assert result.build_path == Path("/loaded/build")
+    assert result.firmware_bin_path == Path("/loaded/firmware.bin")
     assert result.loaded_integrations == {"wifi", "api"}
     assert result.loaded_platforms == {"sensor"}
     assert result.no_mdns is True
@@ -400,7 +400,7 @@ def test_storage_json_load_invalid_file(tmp_path: Path) -> None:
     file_path = tmp_path / "invalid.json"
     file_path.write_text("not valid json{")
 
-    result = storage_json.StorageJSON.load(str(file_path))
+    result = storage_json.StorageJSON.load(file_path)
 
     assert result is None
 
@@ -654,7 +654,7 @@ def test_storage_json_load_legacy_esphomeyaml_version(tmp_path: Path) -> None:
     file_path = tmp_path / "legacy.json"
     file_path.write_text(json.dumps(storage_data))
 
-    result = storage_json.StorageJSON.load(str(file_path))
+    result = storage_json.StorageJSON.load(file_path)
 
     assert result is not None
     assert result.esphome_version == "1.14.0"  # Should map to esphome_version

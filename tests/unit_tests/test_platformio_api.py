@@ -366,7 +366,7 @@ def test_get_idedata_caches_result(
 
     assert result1 is result2
     assert isinstance(result1, platformio_api.IDEData)
-    assert result1.firmware_elf_path == "/test/firmware.elf"
+    assert result1.firmware_elf_path == Path("/test/firmware.elf")
 
 
 def test_idedata_addr2line_path_windows(setup_core: Path) -> None:
@@ -434,9 +434,9 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
     os.utime(platformio_ini, (build_mtime + 1, build_mtime + 1))
 
     # Track if directory was removed
-    removed_paths: list[str] = []
+    removed_paths: list[Path] = []
 
-    def track_rmtree(path: str) -> None:
+    def track_rmtree(path: Path) -> None:
         removed_paths.append(path)
         shutil.rmtree(path)
 
@@ -466,7 +466,7 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
 
         # Verify directory was removed and recreated
         assert len(removed_paths) == 1
-        assert removed_paths[0] == str(build_dir)
+        assert removed_paths[0] == build_dir
         assert build_dir.exists()  # makedirs recreated it
 
 
