@@ -19,6 +19,13 @@ def mock_update_storage_json() -> Generator[MagicMock]:
         yield mock
 
 
+@pytest.fixture
+def mock_write_file_if_changed() -> Generator[MagicMock]:
+    """Mock write_file_if_changed for tests."""
+    with patch("esphome.build_gen.platformio.write_file_if_changed") as mock:
+        yield mock
+
+
 def test_write_ini_creates_new_file(
     tmp_path: Path, mock_update_storage_json: MagicMock
 ) -> None:
@@ -74,8 +81,7 @@ board = esp32dev
 framework = arduino
 """
 
-    with patch("esphome.build_gen.platformio.update_storage_json"):
-        platformio.write_ini(new_content)
+    platformio.write_ini(new_content)
 
     file_content = ini_file.read_text()
 
@@ -122,8 +128,7 @@ monitor_speed = 115200
 
     new_content = "[env:auto]\nplatform = new"
 
-    with patch("esphome.build_gen.platformio.update_storage_json"):
-        platformio.write_ini(new_content)
+    platformio.write_ini(new_content)
 
     file_content = ini_file.read_text()
 
@@ -142,7 +147,9 @@ monitor_speed = 115200
 
 
 def test_write_ini_no_change_when_content_same(
-    tmp_path: Path, mock_update_storage_json: MagicMock
+    tmp_path: Path,
+    mock_update_storage_json: MagicMock,
+    mock_write_file_if_changed: MagicMock,
 ) -> None:
     """Test write_ini doesn't rewrite file when content is unchanged."""
     CORE.build_path = str(tmp_path)
@@ -159,15 +166,14 @@ def test_write_ini_no_change_when_content_same(
     ini_file = tmp_path / "platformio.ini"
     ini_file.write_text(full_content)
 
-    with patch("esphome.build_gen.platformio.write_file_if_changed") as mock_write:
-        mock_write.return_value = False  # Indicate no change
-        platformio.write_ini(content)
+    mock_write_file_if_changed.return_value = False  # Indicate no change
+    platformio.write_ini(content)
 
-        # write_file_if_changed should be called with the same content
-        mock_write.assert_called_once()
-        call_args = mock_write.call_args[0]
-        assert call_args[0] == str(ini_file)
-        assert content in call_args[1]
+    # write_file_if_changed should be called with the same content
+    mock_write_file_if_changed.assert_called_once()
+    call_args = mock_write_file_if_changed.call_args[0]
+    assert call_args[0] == str(ini_file)
+    assert content in call_args[1]
 
 
 def test_write_ini_calls_update_storage_json(
