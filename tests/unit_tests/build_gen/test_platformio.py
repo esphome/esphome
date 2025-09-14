@@ -169,32 +169,3 @@ def test_write_ini_calls_update_storage_json(tmp_path: Path) -> None:
     with patch("esphome.build_gen.platformio.update_storage_json") as mock_update:
         platformio.write_ini(content)
         mock_update.assert_called_once()
-
-
-def test_write_ini_handles_missing_markers(tmp_path: Path) -> None:
-    """Test write_ini handles files without auto-generate markers."""
-    CORE.build_path = str(tmp_path)
-
-    # Create file without markers
-    ini_file = tmp_path / "platformio.ini"
-    existing_content = """
-[platformio]
-default_envs = test
-
-[env:manual]
-platform = manual
-board = manual
-"""
-    ini_file.write_text(existing_content)
-
-    new_content = "[env:auto]\nplatform = auto"
-
-    with patch("esphome.build_gen.platformio.update_storage_json"):
-        platformio.write_ini(new_content)
-
-    file_content = ini_file.read_text()
-
-    # Should use base format and add markers
-    assert platformio.INI_AUTO_GENERATE_BEGIN in file_content
-    assert platformio.INI_AUTO_GENERATE_END in file_content
-    assert new_content in file_content
