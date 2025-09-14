@@ -576,9 +576,9 @@ void EthernetComponent::start_connect_() {
       // This is a programming error, not a transient failure
       ESPHL_ERROR_CHECK(err, "esp_netif_create_ip6_linklocal invalid parameters");
     } else {
-      // ESP_FAIL typically means the interface isn't fully up yet
-      // This is a timing issue that can occur after network interruptions
-      // We'll retry once we reach CONNECTED state and the interface is stable
+      // ESP_FAIL means the interface isn't up yet (e.g., cable unplugged, link down)
+      // This is expected during reconnection attempts after network interruptions
+      // We'll retry once we reach CONNECTED state and the interface is actually up
       ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(err));
       // Don't mark component as failed - this is a transient error
     }
