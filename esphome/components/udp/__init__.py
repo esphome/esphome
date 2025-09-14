@@ -151,9 +151,9 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         ),
         cv.Optional(
             CONF_LISTEN_ADDRESS, default="255.255.255.255"
-        ): cv.ipv4address_multi_broadcast,
+        ): cv.ipaddress_multi_broadcast,
         cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-            cv.ipv4address,
+            cv.ipaddress,
         ),
         cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
             {
