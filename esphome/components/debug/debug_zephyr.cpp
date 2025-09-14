@@ -29,25 +29,32 @@ inline uint32_t read_mem_u32(uintptr_t addr) {
   return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
 }
 
+inline uint8_t read_mem_u8(uintptr_t addr) {
+  return *reinterpret_cast<volatile uint8_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+}
+
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
 const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
 #define MBR_SIZE (0x1000)
 #define SOFTDEVICE_INFO_STRUCT_OFFSET (0x2000)
 #define SD_ID_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10)
 #define SD_VERSION_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x14)
-#define SD_INFO_STRUCT_SIZE_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET)
-#define SOFTDEVICE_INFO_STRUCT_ADDRESS (SOFTDEVICE_INFO_STRUCT_OFFSET + MBR_SIZE)
-#define SD_INFO_STRUCT_SIZE_GET(baseaddr) (*((uint8_t *) ((baseaddr) + SD_INFO_STRUCT_SIZE_OFFSET)))
-#define SD_ID_GET(baseaddr) \
-  ((SD_INFO_STRUCT_SIZE_GET(baseaddr) > (SD_ID_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) \
-       ? read_mem_u32((baseaddr) + SD_ID_OFFSET) \
-       : 0)
-#define SD_VERSION_GET(baseaddr) \
-  ((SD_INFO_STRUCT_SIZE_GET(baseaddr) > (SD_VERSION_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) \
-       ? read_mem_u32((baseaddr) + SD_VERSION_OFFSET) \
-       : 0)
 
-static inline bool is_sd_existed() { return read_mem_u32(SOFTDEVICE_INFO_STRUCT_ADDRESS + 4) == SD_MAGIC_NUMBER; }
+static inline bool is_sd_existed() {
+  return read_mem_u32(SOFTDEVICE_INFO_STRUCT_OFFSET + MBR_SIZE + 4) == SD_MAGIC_NUMBER;
+}
+static inline uint32_t sd_id_get() {
+  if (read_mem_u8(MBR_SIZE + SOFTDEVICE_INFO_STRUCT_OFFSET) > (SD_ID_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) {
+    return read_mem_u32(MBR_SIZE + SD_ID_OFFSET);
+  }
+  return 0;
+}
+static inline uint32_t sd_version_get() {
+  if (read_mem_u8(MBR_SIZE + SOFTDEVICE_INFO_STRUCT_OFFSET) > (SD_VERSION_OFFSET - SOFTDEVICE_INFO_STRUCT_OFFSET)) {
+    return read_mem_u32(MBR_SIZE + SD_VERSION_OFFSET);
+  }
+  return 0;
+}
 
 std::string DebugComponent::get_reset_reason_() {
   uint32_t cause;
@@ -292,8 +299,8 @@ void DebugComponent::get_device_info_(std::string &device_info) {
   ESP_LOGD(TAG, "MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
   if (is_sd_existed()) {
-    uint32_t const sd_id = SD_ID_GET(MBR_SIZE);
-    uint32_t const sd_version = SD_VERSION_GET(MBR_SIZE);
+    uint32_t const sd_id = sd_id_get();
+    uint32_t const sd_version = sd_version_get();
 
     uint32_t ver[3];
     ver[0] = sd_version / 1000000;
