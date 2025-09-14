@@ -11,8 +11,11 @@ extern "C" {
 
 enum zb_zcl_analog_output_attr_e {
   ZB_ZCL_ATTR_ANALOG_OUTPUT_DESCRIPTION_ID = 0x001C,
+  ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID = 0x0041,
+  ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID = 0x0045,
   ZB_ZCL_ATTR_ANALOG_OUTPUT_OUT_OF_SERVICE_ID = 0x0051,
   ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID = 0x0055,
+  ZB_ZCL_ATTR_ANALOG_OUTPUT_RESOLUTION_ID = 0x006A,
   ZB_ZCL_ATTR_ANALOG_OUTPUT_STATUS_FLAG_ID = 0x006F,
 };
 
@@ -30,11 +33,32 @@ enum zb_zcl_analog_output_attr_e {
         ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
         (void *) (data_ptr) \
   }
-
+// PresentValue
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID(data_ptr) \
   { \
     ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
         ZB_ZCL_ATTR_ACCESS_READ_WRITE | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
+        (void *) data_ptr \
+  }
+// MaxPresentValue
+#define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID(data_ptr) \
+  { \
+    ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
+        ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
+        (void *) data_ptr \
+  }
+// MinPresentValue
+#define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID(data_ptr) \
+  { \
+    ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
+        ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
+        (void *) data_ptr \
+  }
+// Resolution
+#define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_RESOLUTION_ID(data_ptr) \
+  { \
+    ZB_ZCL_ATTR_ANALOG_OUTPUT_RESOLUTION_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
+        ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
         (void *) data_ptr \
   }
 
@@ -46,12 +70,16 @@ enum zb_zcl_analog_output_attr_e {
   }
 
 #define ESPHOME_ZB_ZCL_DECLARE_ANALOG_OUTPUT_ATTRIB_LIST(attr_list, out_of_service, present_value, status_flag, \
-                                                         description) \
+                                                         description, max_present_value, min_present_value, \
+                                                         resolution) \
   ZB_ZCL_START_DECLARE_ATTRIB_LIST_CLUSTER_REVISION(attr_list, ZB_ZCL_ANALOG_INPUT) \
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_OUT_OF_SERVICE_ID, (out_of_service)) \
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, (present_value)) \
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_STATUS_FLAG_ID, (status_flag)) \
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_DESCRIPTION_ID, (description)) \
+  ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID, (max_present_value)) \
+  ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID, (min_present_value)) \
+  ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_OUTPUT_RESOLUTION_ID, (resolution)) \
   ZB_ZCL_FINISH_DECLARE_ATTRIB_LIST
 
 void zb_zcl_analog_output_init_server();
@@ -73,6 +101,8 @@ class ZigbeeNumber : public ZigbeeEntity, public number::Number, public PollingC
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
+  void control(float value) override;
+  void zcl_device_cb_(zb_bufid_t bufid);
   std::function<optional<float>()> f_{nullptr};
   AnalogAttrs *cluster_attributes_{nullptr};
 };

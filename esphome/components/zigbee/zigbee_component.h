@@ -55,9 +55,12 @@ struct BinaryAttrs {
 
 struct AnalogAttrs {
   zb_bool_t out_of_service;
-  zb_int32_t present_value;
+  float present_value;
   zb_uint8_t status_flags;
   zb_uchar_t description[ZB_ZCL_MAX_STRING_SIZE];
+  float max_present_value;
+  float min_present_value;
+  float resolution;
 };
 
 class Zigbee : public Component {

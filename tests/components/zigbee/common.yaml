@@ -38,6 +38,20 @@ sensor:
     id: zigbee_sensor_2
     lambda: return 10;
 
+number:
+  - platform: zigbee
+    id: zigbee_number_1
+    min_value: -10
+    max_value: 2000
+    step: 0.5
+
+  - platform: zigbee
+    id: zigbee_number_2
+    min_value: -100
+    max_value: 1000
+    step: 0.3
+    lambda: return 10;
+
 zigbee:
   wipe_on_boot: true
   on_join:

@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_LAMBDA, CONF_NAME
+from esphome.const import (
+    CONF_LAMBDA,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_NAME,
+    CONF_STEP,
+)
 from esphome.core import coroutine_with_priority
 
 from .. import (
@@ -41,6 +47,9 @@ CONFIG_SCHEMA = cv.All(
                     )
                 ),
                 cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+                cv.Required(CONF_MAX_VALUE): cv.float_,
+                cv.Required(CONF_MIN_VALUE): cv.float_,
+                cv.Required(CONF_STEP): cv.positive_float,
             }
         )
         .extend(cv.polling_component_schema("60s"))
@@ -59,6 +68,9 @@ async def to_code(config):
         zigbee_assign(analog_attrs.present_value, 0),
         zigbee_assign(analog_attrs.status_flags, 0),
         zigbee_set_string(analog_attrs.description, config[CONF_NAME]),
+        zigbee_assign(analog_attrs.max_present_value, config[CONF_MAX_VALUE]),
+        zigbee_assign(analog_attrs.min_present_value, config[CONF_MIN_VALUE]),
+        zigbee_assign(analog_attrs.resolution, config[CONF_STEP]),
     )
 
     cluster_id, clusters = zigbee_new_cluster_list(
@@ -67,7 +79,12 @@ async def to_code(config):
 
     zigbee_register_ep(config, cluster_id, 2, clusters)
 
-    var = await number.new_number(config)
+    var = await number.new_number(
+        config,
+        min_value=config[CONF_MIN_VALUE],
+        max_value=config[CONF_MAX_VALUE],
+        step=config[CONF_STEP],
+    )
     await cg.register_component(var, config)
 
     if CONF_LAMBDA in config:
@@ -80,21 +97,3 @@ async def to_code(config):
     cg.add(var.set_cluster_attributes(analog_attrs))
     hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
     cg.add(var.set_parent(hub))
-
-
-# @automation.register_action(
-#     "number.zigbee.publish",
-#     number.NumberPublishAction,
-#     cv.Schema(
-#         {
-#             cv.Required(CONF_ID): cv.use_id(number.Number),
-#             cv.Required(CONF_STATE): cv.templatable(cv.float_),
-#         }
-#     ),
-# )
-# async def number_template_publish_to_code(config, action_id, template_arg, args):
-#     paren = await cg.get_variable(config[CONF_ID])
-#     var = cg.new_Pvariable(action_id, template_arg, paren)
-#     template_ = await cg.templatable(config[CONF_STATE], args, float)
-#     cg.add(var.set_state(template_))
-#     return var
