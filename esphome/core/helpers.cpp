@@ -264,8 +264,8 @@ std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
   ret.resize(length * 2);
   for (size_t i = 0; i < length; i++) {
-    ret[2 * i] = format_hex_char_lower(data[i] >> 4);
-    ret[2 * i + 1] = format_hex_char_lower(data[i] & 0x0F);
+    ret[2 * i] = format_hex_char(data[i] >> 4);
+    ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
   }
   return ret;
 }

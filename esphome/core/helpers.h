@@ -381,7 +381,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 }
 
 /// Convert a nibble (0-15) to lowercase hex char
-inline char format_hex_char_lower(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
 /// This always uses uppercase (A-F) for pretty/human-readable output
@@ -403,8 +403,8 @@ inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
 inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   for (size_t i = 0; i < 6; i++) {
     uint8_t byte = mac[i];
-    output[i * 2] = format_hex_char_lower(byte >> 4);
-    output[i * 2 + 1] = format_hex_char_lower(byte & 0x0F);
+    output[i * 2] = format_hex_char(byte >> 4);
+    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
   }
   output[12] = '\0';
 }
