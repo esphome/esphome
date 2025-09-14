@@ -345,7 +345,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Execute callback without holding lock to prevent deadlocks
     // if the callback tries to call defer() again
     if (!this->should_skip_item_(item.get())) {
-      this->execute_item_(item.get(), now);
+      now = this->execute_item_(item.get(), now);
     }
     // Recycle the defer item after execution
     this->recycle_item_(std::move(item));
@@ -483,7 +483,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Warning: During callback(), a lot of stuff can happen, including:
     //  - timeouts/intervals get added, potentially invalidating vector pointers
     //  - timeouts/intervals get cancelled
-    this->execute_item_(item.get(), now);
+    now = this->execute_item_(item.get(), now);
 
     LockGuard guard{this->lock_};
 
@@ -568,11 +568,11 @@ void HOT Scheduler::pop_raw_() {
 }
 
 // Helper to execute a scheduler item
-void HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
+uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
-  guard.finish();
+  return guard.finish();
 }
 
 // Common implementation for cancel operations
