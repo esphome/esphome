@@ -1609,7 +1609,7 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
-def directory(value):
+def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
@@ -1621,10 +1621,10 @@ def directory(value):
         raise Invalid(
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
         )
-    return value
+    return path
 
 
-def file_(value) -> Path:
+def file_(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
