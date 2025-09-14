@@ -96,7 +96,12 @@ bool CameraImpl::camera_loop() {
       Resolution r = this->sensor_->get_resolution();
       this->input_image_spec_.width = r.width;
       this->input_image_spec_.height = r.height;
-      this->input_image_spec_.format = this->sensor_->get_pixel_format().value();
+      if (this->sensor_->get_pixel_format().has_value()) {
+        this->input_image_spec_.format = this->sensor_->get_pixel_format().value();
+      } else {
+        this->mark_failed("Camera sensor provides raw data without pixel format!");
+        return false;
+      }
       state_ = CAMERA_STATE_CAPTURING;
     } else {
       state_ = CAMERA_STATE_RATE_LIMIT_BEGIN;
