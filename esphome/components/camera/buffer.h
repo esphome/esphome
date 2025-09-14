@@ -9,9 +9,9 @@ namespace esphome::camera {
 class Buffer {
  public:
   /// Returns a pointer to the buffer's data.
-  virtual uint8_t *get_data_buffer() = 0;
+  virtual uint8_t *get_data() const = 0;
   /// Returns the length of the buffer in bytes.
-  virtual size_t get_data_length() = 0;
+  virtual size_t get_size() const = 0;
   virtual ~Buffer() = default;
 };
 
