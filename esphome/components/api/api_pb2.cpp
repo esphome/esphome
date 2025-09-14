@@ -901,6 +901,16 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
   return true;
 }
 #endif
+bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2:
+      this->timezone = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1:
@@ -911,8 +921,6 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-void GetTimeResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->epoch_seconds); }
-void GetTimeResponse::calculate_size(ProtoSize &size) const { size.add_fixed32(1, this->epoch_seconds); }
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
@@ -2153,10 +2161,12 @@ void BluetoothDeviceClearCacheResponse::calculate_size(ProtoSize &size) const {
 void BluetoothScannerStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, static_cast<uint32_t>(this->state));
   buffer.encode_uint32(2, static_cast<uint32_t>(this->mode));
+  buffer.encode_uint32(3, static_cast<uint32_t>(this->configured_mode));
 }
 void BluetoothScannerStateResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->state));
   size.add_uint32(1, static_cast<uint32_t>(this->mode));
+  size.add_uint32(1, static_cast<uint32_t>(this->configured_mode));
 }
 bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {

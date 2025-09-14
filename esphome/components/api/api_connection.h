@@ -219,7 +219,6 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
 #endif
-  bool send_get_time_response(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
 #endif
@@ -303,11 +302,13 @@ class APIConnection final : public APIServerConnection {
     msg.key = entity->get_object_id_hash();
     // Try to use static reference first to avoid allocation
     StringRef static_ref = entity->get_object_id_ref_for_api_();
+    // Store dynamic string outside the if-else to maintain lifetime
+    std::string object_id;
     if (!static_ref.empty()) {
       msg.set_object_id(static_ref);
     } else {
       // Dynamic case - need to allocate
-      std::string object_id = entity->get_object_id();
+      object_id = entity->get_object_id();
       msg.set_object_id(StringRef(object_id));
     }
 
@@ -730,7 +731,7 @@ class APIConnection final : public APIServerConnection {
   }
 
   // Helper function to log API errors with errno
-  void log_warning_(const char *message, APIError err);
+  void log_warning_(const LogString *message, APIError err);
   // Specific helper for duplicated error message
   void log_socket_operation_failed_(APIError err);
 };
