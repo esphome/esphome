@@ -492,9 +492,10 @@ void EthernetComponent::finish_connect_() {
   // Retry IPv6 link-local setup if it failed during initial connect
   // This handles the case where min_ipv6_addr_count is NOT set (or is 0),
   // allowing us to reach CONNECTED state with just IPv4.
-  // If IPv6 setup failed in start_connect_() because the interface wasn't ready
-  // (usually cable unplugged/link down, rarely a timing issue during state transitions),
-  // we can now retry since we're in CONNECTED state and the interface is definitely up.
+  // If IPv6 setup failed in start_connect_() because the interface wasn't ready:
+  // - Bootup timing issues (#10281)
+  // - Cable unplugged/network interruption (#10705)
+  // We can now retry since we're in CONNECTED state and the interface is definitely up.
   if (!this->ipv6_setup_done_) {
     esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
     if (err == ESP_OK) {
