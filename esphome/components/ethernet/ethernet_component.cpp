@@ -682,7 +682,9 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
 std::string EthernetComponent::get_eth_mac_address_pretty() {
   uint8_t mac[6];
   get_eth_mac_address_raw(mac);
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[18];
+  format_mac_addr_upper(mac, buf);
+  return std::string(buf);
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
