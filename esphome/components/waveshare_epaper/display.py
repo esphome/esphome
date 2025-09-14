@@ -16,6 +16,8 @@ from esphome.const import (
 
 DEPENDENCIES = ["spi"]
 
+CONF_POWER_PIN = "power_pin"
+
 waveshare_epaper_ns = cg.esphome_ns.namespace("waveshare_epaper")
 WaveshareEPaperBase = waveshare_epaper_ns.class_(
     "WaveshareEPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
@@ -122,6 +124,9 @@ WaveshareEPaper2P13InV3 = waveshare_epaper_ns.class_(
 WaveshareEPaper13P3InK = waveshare_epaper_ns.class_(
     "WaveshareEPaper13P3InK", WaveshareEPaper
 )
+WaveshareEPaper7P5InH = waveshare_epaper_ns.class_(
+    "WaveshareEPaper7P5InH", WaveshareEPaper
+)
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
@@ -168,6 +173,7 @@ MODELS = {
     "7.50inv2alt": ("b", WaveshareEPaper7P5InV2alt),
     "7.50inv2p": ("c", WaveshareEPaper7P5InV2P),
     "7.50in-hd-b": ("b", WaveshareEPaper7P5InHDB),
+    "7.50in-h": ("b", WaveshareEPaper7P5InH),
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
     "2.13inv3": ("c", WaveshareEPaper2P13InV3),
     "1.54in-m5coreink-m09": ("b", GDEW0154M09),
@@ -206,6 +212,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(WaveshareEPaperBase),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
+            cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_FULL_UPDATE_EVERY): cv.int_range(min=1, max=4294967295),
@@ -249,6 +256,9 @@ async def to_code(config):
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+    if CONF_POWER_PIN in config:
+        reset = await cg.gpio_pin_expression(config[CONF_POWER_PIN])
+        cg.add(var.set_power_pin(reset))
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))

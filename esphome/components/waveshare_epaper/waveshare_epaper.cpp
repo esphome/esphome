@@ -128,6 +128,10 @@ void WaveshareEPaperBase::setup_pins_() {
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();  // INPUT
   }
+  if (this->power_pin_ != nullptr) {
+    this->power_pin_->setup();  // OUTPUT
+    this->power_pin_->digital_write(true);
+  }
 }
 float WaveshareEPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void WaveshareEPaperBase::command(uint8_t value) {
@@ -4530,6 +4534,191 @@ int WaveshareEPaper7P5InHDB::get_height_internal() { return 528; }
 void WaveshareEPaper7P5InHDB::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in-HD-b");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+namespace cmddata_7P5InH {
+// WaveshareEPaper7P5InH commands
+// https://files.waveshare.com/wiki/7.5inch_e-Paper_(H)/7.5inch_e-Paper_(H).pdf
+
+// R00H (PSR): Panel setting Register
+static const uint8_t R00_CMD_PSR[] = {0x00, 0x0f, 0x29};
+
+// R01H (PWR): Power setting Register
+// internal DC-DC power generation
+static const uint8_t R01_CMD_PWR[] = {0x01, 0x07, 0x00, 0x00, 0x00};
+
+// R02H (POF): Power OFF Command
+static const uint8_t R02_CMD_POF[] = {0x02, 00};
+
+// R03H (PFS): Power off sequence setting Register
+// T_VDS_OFF (00) = 1 frame
+static const uint8_t R03_CMD_PFS[] = {0x03, 0x00};
+
+// R04H (PON): Power ON Command
+static const uint8_t R04_CMD_PON[] = {0x04};
+
+// R06h (BTST): Booster Soft Start
+static const uint8_t R06_CMD_BTST[] = {0x06, 0x0f, 0x8b, 0x93, 0xa1};
+
+// R07H (DSLP): Deep sleep
+static const uint8_t R07_CMD_DSLP[] = {0x07, 0xA5};
+
+// R10H (DTM): Data Start Transmission
+static const uint8_t R10_CMD_DTM1[] = {0x10};
+
+// R11H (DSP): Data Stop
+static const uint8_t R11_CMD_DSP[] = {0x11};
+
+// R12H (DRF): Display Refresh
+static const uint8_t R12_CMD_DRF[] = {0x12, 0x00};
+
+// R30H (PLL): PLL Control
+static const uint8_t R30_CMD_PLL[] = {0x30, 0x08};
+
+// R41H (TSE): Temperature Sensor Enable
+static const uint8_t R41_CMD_TSE[] = {0x41, 0x00};
+
+// R50H (CDI) VCOM and Data interval setting
+static const uint8_t R50_CMD_CDI[] = {0x50, 0x97};
+
+// R60H (TCON) Gate and Source non overlap period command
+static const uint8_t R60_CMD_TCON[] = {0x60, 0x02, 0x02};
+
+// R61H (TRES) Resolution Setting
+// 0x320 = 800
+// 0x1e0 = 480
+static const uint8_t R61_CMD_TRES[] = {0x61, 0x03, 0x20, 0x01, 0xe0};
+
+// R62H (???) ???
+static const uint8_t R62_CMD[] = {0x62, 0x98, 0x98, 0x98, 0x75, 0xca, 0xb2, 0x98, 0x7e};
+
+// R65H (GSST) Gate/Source Start Setting Register
+static const uint8_t R65_CMD_GSST[] = {0x65, 0x00, 0x00, 0x00, 0x00};
+
+// RE3H (PWS) Power Savings
+static const uint8_t RE3_CMD_PWS[] = {0xe3, 0x00};
+
+// RE7H (???) ???
+static const uint8_t RE7_CMD[] = {0xe7, 0x1c};
+
+// RE9H (???) ???
+static const uint8_t RE9_CMD[] = {0xe9, 0x01};
+}  // namespace cmddata_7P5InH
+
+void WaveshareEPaper7P5InH::initialize() {
+  ESP_LOGI(TAG, "Initialize");
+
+  this->reset_();
+
+  using namespace cmddata_7P5InH;
+  this->cmd_data(R00_CMD_PSR, sizeof(R00_CMD_PSR));
+  this->cmd_data(R06_CMD_BTST, sizeof(R06_CMD_BTST));
+  this->cmd_data(R41_CMD_TSE, sizeof(R41_CMD_TSE));
+  this->cmd_data(R50_CMD_CDI, sizeof(R50_CMD_CDI));
+  this->cmd_data(R60_CMD_TCON, sizeof(R60_CMD_TCON));
+  this->cmd_data(R61_CMD_TRES, sizeof(R61_CMD_TRES));
+  this->cmd_data(R62_CMD, sizeof(R62_CMD));
+  this->cmd_data(R65_CMD_GSST, sizeof(R65_CMD_GSST));
+  this->cmd_data(RE7_CMD, sizeof(RE7_CMD));
+  this->cmd_data(RE3_CMD_PWS, sizeof(RE3_CMD_PWS));
+  this->cmd_data(RE9_CMD, sizeof(RE9_CMD));
+  this->cmd_data(R30_CMD_PLL, sizeof(R30_CMD_PLL));
+  this->cmd_data(R04_CMD_PON, sizeof(R04_CMD_PON));
+  this->wait_until_idle_();
+}
+
+bool WaveshareEPaper7P5InH::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (!this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  return true;
+}
+
+void WaveshareEPaper7P5InH::deep_sleep() {
+  this->cmd_data(cmddata_7P5InH::R02_CMD_POF, sizeof(cmddata_7P5InH::R02_CMD_POF));
+  this->wait_until_idle_();
+  this->cmd_data(cmddata_7P5InH::R07_CMD_DSLP, sizeof(cmddata_7P5InH::R07_CMD_DSLP));
+}
+
+void HOT WaveshareEPaper7P5InH::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+
+  this->command(cmddata_7P5InH::R10_CMD_DTM1[0]);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  this->cmd_data(cmddata_7P5InH::R12_CMD_DRF, sizeof(cmddata_7P5InH::R12_CMD_DRF));
+  this->wait_until_idle_();
+}
+
+uint32_t WaveshareEPaper7P5InH::get_buffer_length_() {
+  // 4 pixels packed into 1 byte
+  return this->get_width_controller() * this->get_height_internal() / 4u;
+}
+
+void WaveshareEPaper7P5InH::fill(Color color) {
+  const uint8_t bits = this->color_to_2bit(color);
+  const uint8_t byte_val = bits | (bits << 2) | (bits << 4) | (bits << 6);  // replicate 4 pixels
+  memset(this->buffer_, byte_val, this->get_buffer_length_());
+}
+
+uint8_t WaveshareEPaper7P5InH::color_to_2bit(const Color &color) {
+  if (color.red > 127) {
+    if (color.green > 170) {
+      if (color.blue > 127) {
+        // white
+        return 0b01;
+      }
+
+      // yellow
+      return 0b10;
+    }
+
+    // red
+    return 0b11;
+  }
+
+  // black
+  return 0b00;
+}
+
+void HOT WaveshareEPaper7P5InH::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal())
+    return;
+
+  const uint32_t pixel_index = x + y * this->get_width_internal();
+  const uint32_t byte_index = pixel_index >> 2;
+  const uint8_t pos = pixel_index & 0x03;
+  const uint8_t shift = (3 - pos) * 2;
+
+  const uint8_t bits = this->color_to_2bit(color);
+  const uint8_t mask = (uint8_t) (0x03u << shift);
+
+  this->buffer_[byte_index] = (uint8_t) ((this->buffer_[byte_index] & ~mask) | (uint8_t) (bits << shift));
+}
+
+int WaveshareEPaper7P5InH::get_width_internal() { return 800; }
+int WaveshareEPaper7P5InH::get_height_internal() { return 480; }
+uint32_t WaveshareEPaper7P5InH::idle_timeout_() { return 10000; }
+void WaveshareEPaper7P5InH::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5inH");
+  LOG_PIN("  Power Pin: ", this->power_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

@@ -773,6 +773,25 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+  - platform: waveshare_epaper
+    id: epd_7_50h
+    model: 7.50in-h
+    spi_id: spi_waveshare_epaper
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
   # 13.3 inch displays
   - platform: waveshare_epaper
     id: epd_13_3k

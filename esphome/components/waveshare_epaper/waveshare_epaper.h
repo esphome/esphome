@@ -13,6 +13,7 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
+  void set_power_pin(GPIOPin *power) { this->power_pin_ = power; }
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
@@ -55,6 +56,7 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
   void start_data_();
   void end_data_();
 
+  GPIOPin *power_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
@@ -1011,6 +1013,49 @@ class WaveshareEPaper7P5InHDB : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+};
+
+class WaveshareEPaper7P5InH : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+  void deep_sleep() override;
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+
+  uint32_t get_buffer_length_() override;
+
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  bool wait_until_idle_();
+
+  void reset_() {
+    if (this->reset_pin_ == nullptr) {
+      return;
+    }
+
+    this->reset_pin_->digital_write(true);
+    delay(200);  // NOLINT
+    this->reset_pin_->digital_write(false);
+    delay(2);
+    this->reset_pin_->digital_write(true);
+    delay(200);  // NOLINT
+  };
+
+  uint8_t color_to_2bit(const Color &color);
 };
 
 class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
