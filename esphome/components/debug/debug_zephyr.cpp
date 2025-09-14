@@ -311,12 +311,12 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #ifdef USE_SOFTDEVICE_ID
 #ifdef USE_SOFTDEVICE_VERSION
     if (USE_SOFTDEVICE_ID != sd_id || USE_SOFTDEVICE_VERSION != ver[0]) {
-      ESP_LOGE(TAG, "Built for SoftDevice S%u %u.x.y. It may crash due to mismatch of bootloader.", USE_SOFTDEVICE_ID,
-               USE_SOFTDEVICE_VERSION);
+      ESP_LOGE(TAG, "Built for SoftDevice S%u %u.x.y. It may crash due to mismatch of bootloader version.",
+               USE_SOFTDEVICE_ID, USE_SOFTDEVICE_VERSION);
     }
 #else
     if (USE_SOFTDEVICE_ID != sd_id) {
-      ESP_LOGE(TAG, "Built for SoftDevice S%u. It may crash due to mismatch of bootloader.", USE_SOFTDEVICE_ID);
+      ESP_LOGE(TAG, "Built for SoftDevice S%u. It may crash due to mismatch of bootloader version.", USE_SOFTDEVICE_ID);
     }
 #endif
 #endif
