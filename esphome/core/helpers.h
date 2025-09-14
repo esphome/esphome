@@ -408,6 +408,7 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   }
   output[12] = '\0';
 }
+
 /// Format the six-byte array \p mac into a MAC address.
 std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.

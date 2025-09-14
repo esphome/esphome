@@ -27,9 +27,6 @@ service APIConnection {
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
   rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
-  rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
-    option (needs_authentication) = false;
-  }
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
   rpc noise_encryption_set_key (NoiseEncryptionSetKeyRequest) returns (NoiseEncryptionSetKeyResponse) {}
 
@@ -809,12 +806,12 @@ message HomeAssistantStateResponse {
 // ==================== IMPORT TIME ====================
 message GetTimeRequest {
   option (id) = 36;
-  option (source) = SOURCE_BOTH;
+  option (source) = SOURCE_SERVER;
 }
 
 message GetTimeResponse {
   option (id) = 37;
-  option (source) = SOURCE_BOTH;
+  option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
