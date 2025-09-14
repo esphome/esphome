@@ -490,10 +490,12 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 void EthernetComponent::finish_connect_() {
 #if USE_NETWORK_IPV6
   // Retry IPv6 link-local setup if it failed during initial connect
-  // This handles the case where IPv6 setup failed in start_connect_()
-  // because the interface wasn't ready (usually cable unplugged/link down,
-  // rarely a timing issue during state transitions).
-  // By now we're in CONNECTED state so the interface is definitely up.
+  // This handles the case where min_ipv6_addr_count is NOT set (or is 0),
+  // allowing us to reach CONNECTED state with just IPv4.
+  // If IPv6 setup failed in start_connect_() because the interface wasn't ready:
+  // - Bootup timing issues (#10281)
+  // - Cable unplugged/network interruption (#10705)
+  // We can now retry since we're in CONNECTED state and the interface is definitely up.
   if (!this->ipv6_setup_done_) {
     esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
     if (err == ESP_OK) {
@@ -570,18 +572,23 @@ void EthernetComponent::start_connect_() {
   }
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
-  // Note: this may fail with ESP_FAIL if the interface is not up yet
-  // (typically cable unplugged, but could be timing during link transitions).
-  // We'll retry in the CONNECTED state if it fails here.
+  // We MUST attempt this here, not just in finish_connect_(), because with
+  // min_ipv6_addr_count set, the component won't reach CONNECTED state without IPv6.
+  // However, this may fail with ESP_FAIL if the interface is not up yet:
+  // - At bootup when link isn't ready (#10281)
+  // - After disconnection/cable unplugged (#10705)
+  // We'll retry in finish_connect_() if it fails here.
   err = esp_netif_create_ip6_linklocal(this->eth_netif_);
   if (err != ESP_OK) {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
       // This is a programming error, not a transient failure
       ESPHL_ERROR_CHECK(err, "esp_netif_create_ip6_linklocal invalid parameters");
     } else {
-      // ESP_FAIL means the interface isn't up yet (e.g., cable unplugged, link down)
-      // This is expected during reconnection attempts after network interruptions
-      // We'll retry once we reach CONNECTED state and the interface is actually up
+      // ESP_FAIL means the interface isn't up yet
+      // This is expected and non-fatal, happens in multiple scenarios:
+      // - During reconnection after network interruptions (#10705)
+      // - At bootup when the link isn't ready yet (#10281)
+      // We'll retry once we reach CONNECTED state and the interface is up
       ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(err));
       // Don't mark component as failed - this is a transient error
     }
