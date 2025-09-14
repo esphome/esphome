@@ -51,8 +51,6 @@ const char *client_state_to_string(ClientState state) {
       return "IDLE";
     case ClientState::DISCOVERED:
       return "DISCOVERED";
-    case ClientState::READY_TO_CONNECT:
-      return "READY_TO_CONNECT";
     case ClientState::CONNECTING:
       return "CONNECTING";
     case ClientState::CONNECTED:
@@ -795,7 +793,7 @@ void ESP32BLETracker::try_promote_discovered_clients_() {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(true);
 #endif
-    client->set_state(ClientState::READY_TO_CONNECT);
+    client->connect();
     break;
   }
 }
