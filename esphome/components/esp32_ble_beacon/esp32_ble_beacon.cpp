@@ -1,6 +1,5 @@
 #include "esp32_ble_beacon.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
 
