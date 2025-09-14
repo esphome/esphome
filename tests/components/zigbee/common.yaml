@@ -27,9 +27,10 @@ output:
 binary_sensor:
   - platform: zigbee
     id: zigbee_binary_sensor_1
-  - platform: zigbee
-    id: zigbee_binary_sensor_2
-    lambda: return true;
+  # endpoints limit is 8 TODO reuse the same endpoint a few times
+  # - platform: zigbee
+  #   id: zigbee_binary_sensor_2
+  #   lambda: return true;
 
 sensor:
   - platform: zigbee
