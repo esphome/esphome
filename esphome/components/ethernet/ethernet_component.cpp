@@ -491,8 +491,9 @@ void EthernetComponent::finish_connect_() {
 #if USE_NETWORK_IPV6
   // Retry IPv6 link-local setup if it failed during initial connect
   // This handles the case where IPv6 setup failed in start_connect_()
-  // because the interface was still down (e.g., cable unplugged).
-  // By now we're in CONNECTED state so the interface is up.
+  // because the interface wasn't ready (usually cable unplugged/link down,
+  // rarely a timing issue during state transitions).
+  // By now we're in CONNECTED state so the interface is definitely up.
   if (!this->ipv6_setup_done_) {
     esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
     if (err == ESP_OK) {
@@ -569,9 +570,9 @@ void EthernetComponent::start_connect_() {
   }
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
-  // Note: this may fail with ESP_FAIL if the interface is not fully up yet,
-  // which can happen after network interruptions. We'll retry in the
-  // CONNECTED state if it fails here.
+  // Note: this may fail with ESP_FAIL if the interface is not up yet
+  // (typically cable unplugged, but could be timing during link transitions).
+  // We'll retry in the CONNECTED state if it fails here.
   err = esp_netif_create_ip6_linklocal(this->eth_netif_);
   if (err != ESP_OK) {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
