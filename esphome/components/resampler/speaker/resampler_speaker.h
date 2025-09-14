@@ -27,8 +27,8 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   void stop() override;
   void finish() override;
 
-  bool is_running() const { return this->output_->is_running() && this->state_ == speaker::STATE_RUNNING; }
-  bool is_stopped() const { return this->output_->is_stopped(); }
+  bool is_running() const { return this->output_speaker_->is_running() && this->state_ == speaker::STATE_RUNNING; }
+  bool is_stopped() const { return this->output_speaker_->is_stopped(); }
 
   void set_pause_state(bool pause_state) override { this->output_speaker_->set_pause_state(pause_state); }
   bool get_pause_state() const override { return this->output_speaker_->get_pause_state(); }
