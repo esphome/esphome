@@ -1055,7 +1055,7 @@ class WaveshareEPaper7P5InH : public WaveshareEPaper {
     delay(200);  // NOLINT
   };
 
-  uint8_t color_to_2bit(const Color &color);
+  uint8_t color_to_2bit_(const Color &color);
 };
 
 class WaveshareEPaper2P13InDKE : public WaveshareEPaper {

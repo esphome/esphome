@@ -4655,8 +4655,6 @@ void WaveshareEPaper7P5InH::deep_sleep() {
 }
 
 void HOT WaveshareEPaper7P5InH::display() {
-  uint32_t buf_len = this->get_buffer_length_();
-
   this->command(cmddata_7P5InH::R10_CMD_DTM1[0]);
   this->start_data_();
   this->write_array(this->buffer_, this->get_buffer_length_());
@@ -4672,12 +4670,12 @@ uint32_t WaveshareEPaper7P5InH::get_buffer_length_() {
 }
 
 void WaveshareEPaper7P5InH::fill(Color color) {
-  const uint8_t bits = this->color_to_2bit(color);
+  const uint8_t bits = this->color_to_2bit_(color);
   const uint8_t byte_val = bits | (bits << 2) | (bits << 4) | (bits << 6);  // replicate 4 pixels
   memset(this->buffer_, byte_val, this->get_buffer_length_());
 }
 
-uint8_t WaveshareEPaper7P5InH::color_to_2bit(const Color &color) {
+uint8_t WaveshareEPaper7P5InH::color_to_2bit_(const Color &color) {
   if (color.red > 127) {
     if (color.green > 170) {
       if (color.blue > 127) {
@@ -4706,7 +4704,7 @@ void HOT WaveshareEPaper7P5InH::draw_absolute_pixel_internal(int x, int y, Color
   const uint8_t pos = pixel_index & 0x03;
   const uint8_t shift = (3 - pos) * 2;
 
-  const uint8_t bits = this->color_to_2bit(color);
+  const uint8_t bits = this->color_to_2bit_(color);
   const uint8_t mask = (uint8_t) (0x03u << shift);
 
   this->buffer_[byte_index] = (uint8_t) ((this->buffer_[byte_index] & ~mask) | (uint8_t) (bits << shift));
