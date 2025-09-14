@@ -605,9 +605,8 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
 }
 
 std::string ESPBTDevice::address_str() const {
-  char mac[24];
-  snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", this->address_[0], this->address_[1], this->address_[2],
-           this->address_[3], this->address_[4], this->address_[5]);
+  char mac[18];
+  format_mac_addr_upper(this->address_, mac);
   return mac;
 }
 
