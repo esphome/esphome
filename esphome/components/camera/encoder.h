@@ -59,8 +59,6 @@ class EncoderBuffer : public Buffer {
 
   ///  Returns total allocated buffer size.
   virtual size_t get_max_size() const = 0;
-
-  virtual ~EncoderBuffer() = default;
 };
 
 /// Interface for image encoders used in a camera pipeline.

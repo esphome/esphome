@@ -159,7 +159,7 @@ bool CameraImpl::camera_loop() {
 
   if (state_ == CAMERA_STATE_ENCODE_BEGIN) {
     // Wait to get the encoder output buffer back.
-    if (this->is_publishing_ || this->send_queue_.size() > 0)
+    if (this->is_publishing_ || !this->send_queue_.empty())
       return true;
 
     timing_encoding_ = millis();
@@ -242,15 +242,16 @@ bool CameraImpl::camera_loop() {
     if (this->timing_fps_ != 0)
       fps = 1000.0f / this->timing_fps_;
 
-    if (this->encoder_)
+    if (this->encoder_) {
       ESP_LOGD(TAG, "F=%.1f, S=%zu, C=%u ms, CC=%u ms, P=%u ms, O=%u ms, L=%u ms, W=%u ms, E=%u ms", fps,
                this->input_image_->get_size(), this->timing_capture_, this->timing_capture_callback_,
                this->timing_processing_, this->timing_overlay_, this->timing_limiter_, this->timing_wait_,
                this->timing_encoding_);
-    else
+    } else {
       ESP_LOGD(TAG, "F=%.1f, S=%zu, C=%u ms, CC=%u ms, P=%u ms, O=%u ms, L=%u ms, ", fps,
                this->input_image_->get_size(), this->timing_capture_, this->timing_capture_callback_,
                this->timing_processing_, this->timing_overlay_, this->timing_limiter_);
+    }
   }
 
   if (state_ == CAMERA_STATE_CLEAR_REQUEST) {
