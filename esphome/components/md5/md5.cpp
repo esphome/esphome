@@ -44,10 +44,8 @@ void MD5Digest::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 16); 
 void MD5Digest::get_hex(char *output) {
   for (size_t i = 0; i < 16; i++) {
     uint8_t byte = this->digest_[i];
-    uint8_t high = byte >> 4;
-    uint8_t low = byte & 0x0F;
-    output[i * 2] = high < 10 ? '0' + high : 'a' + (high - 10);
-    output[i * 2 + 1] = low < 10 ? '0' + low : 'a' + (low - 10);
+    output[i * 2] = format_hex_char(byte >> 4);
+    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
   }
 }
 
