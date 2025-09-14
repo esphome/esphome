@@ -136,7 +136,6 @@ void SpeakerMediaPlayer::watch_media_commands_() {
 
     if (media_command.url.has_value() || media_command.file.has_value()) {
 #ifdef USE_SUPPORTS_TURN_OFF_ON
-      this->is_turn_off_ = false;
       if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
         this->state = media_player::MEDIA_PLAYER_STATE_ON;
         publish_state();
@@ -204,9 +203,6 @@ void SpeakerMediaPlayer::watch_media_commands_() {
     }
 
     if (media_command.command.has_value()) {
-#ifdef USE_SUPPORTS_TURN_OFF_ON
-      this->is_turn_off_ = false;
-#endif
       switch (media_command.command.value()) {
         case media_player::MEDIA_PLAYER_COMMAND_PLAY:
 #ifdef USE_SUPPORTS_TURN_OFF_ON
