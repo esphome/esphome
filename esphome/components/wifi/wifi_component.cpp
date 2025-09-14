@@ -593,7 +593,7 @@ void WiFiComponent::check_scanning_finished() {
   for (auto &res : this->scan_result_) {
     char bssid_s[18];
     auto bssid = res.get_bssid();
-    format_mac_addr_upper(bssid, bssid_s);
+    format_mac_addr_upper(bssid.data(), bssid_s);
 
     if (res.get_matches()) {
       ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
