@@ -300,6 +300,7 @@ void EthernetComponent::loop() {
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       } else {
+        this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
         this->disable_loop();
       }
@@ -486,10 +487,27 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 }
 #endif /* USE_NETWORK_IPV6 */
 
+void EthernetComponent::finish_connect_() {
+#if USE_NETWORK_IPV6
+  // Retry IPv6 link-local setup if it failed during initial connect
+  // This handles the case where IPv6 setup failed in start_connect_()
+  // due to the interface not being fully ready (timing issue).
+  // By now the interface is stable since we're in CONNECTED state.
+  if (!this->ipv6_setup_done_) {
+    esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+    if (err == ESP_OK) {
+      ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
+    }
+    this->ipv6_setup_done_ = true;  // Only try once in CONNECTED state
+  }
+#endif /* USE_NETWORK_IPV6 */
+}
+
 void EthernetComponent::start_connect_() {
   global_eth_component->got_ipv4_address_ = false;
 #if USE_NETWORK_IPV6
   global_eth_component->ipv6_count_ = 0;
+  this->ipv6_setup_done_ = false;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
   this->status_set_warning(LOG_STR("waiting for IP configuration"));
@@ -545,9 +563,21 @@ void EthernetComponent::start_connect_() {
     }
   }
 #if USE_NETWORK_IPV6
+  // Attempt to create IPv6 link-local address
+  // Note: this may fail with ESP_FAIL if the interface is not fully up yet,
+  // which can happen after network interruptions. We'll retry in the CONNECTED state if it fails here.
   err = esp_netif_create_ip6_linklocal(this->eth_netif_);
   if (err != ESP_OK) {
-    ESPHL_ERROR_CHECK(err, "Enable IPv6 link local failed");
+    if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
+      // This is a programming error, not a transient failure
+      ESPHL_ERROR_CHECK(err, "esp_netif_create_ip6_linklocal invalid parameters");
+    } else {
+      // ESP_FAIL typically means the interface isn't fully up yet
+      // This is a timing issue that can occur after network interruptions
+      // We'll retry once we reach CONNECTED state and the interface is stable
+      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(err));
+      // Don't mark component as failed - this is a transient error
+    }
   }
 #endif /* USE_NETWORK_IPV6 */
 
