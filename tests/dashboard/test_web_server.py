@@ -616,6 +616,96 @@ async def test_archive_request_handler_post(
     ).read_text() == "esphome:\n  name: test_archive\n"
 
 
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dashboard_settings", "mock_archive_storage_path")
+async def test_archive_handler_with_storage_json(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+    mock_ext_storage_path: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test ArchiveRequestHandler.post with storage_json present."""
+    # Set up temp directories
+    config_dir = Path(get_fixture_path("conf"))
+    archive_dir = tmp_path / "archive"
+    archive_dir.mkdir()
+
+    # Create a test configuration file
+    test_config = config_dir / "test_with_storage.yaml"
+    test_config.write_text("esphome:\n  name: test_device\n")
+
+    # Set up storage path
+    storage_path = tmp_path / "test_with_storage" / ".esphome" / "storage.json"
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    mock_ext_storage_path.return_value = str(storage_path)
+
+    # Mock storage JSON
+    mock_storage = MagicMock()
+    mock_storage.name = "test_device"
+    mock_storage_json.load.return_value = mock_storage
+
+    # Create build folder
+    build_folder = config_dir / "test_device"
+    build_folder.mkdir(exist_ok=True)
+    (build_folder / "some_file.txt").write_text("build content")
+
+    # Archive the configuration
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body="configuration=test_with_storage.yaml",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
+
+    # Verify storage JSON was loaded with correct path
+    mock_storage_json.load.assert_called_once_with(str(storage_path))
+
+    # Verify files were moved to archive
+    assert not test_config.exists()
+    assert (archive_dir / "test_with_storage.yaml").exists()
+
+    # Note: The actual build folder move would be handled by shutil.rmtree
+    # which we don't want to test here as it involves real filesystem operations
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dashboard_settings", "mock_archive_storage_path")
+async def test_archive_handler_without_storage_json(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+    mock_ext_storage_path: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test ArchiveRequestHandler.post when storage_json is None."""
+    # Set up temp directories
+    config_dir = Path(get_fixture_path("conf"))
+    archive_dir = tmp_path / "archive"
+    archive_dir.mkdir()
+
+    # Create a test configuration file
+    test_config = config_dir / "test_no_storage.yaml"
+    test_config.write_text("esphome:\n  name: test_no_storage\n")
+
+    # Mock storage JSON to return None
+    mock_storage_json.load.return_value = None
+
+    # Archive the configuration
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body="configuration=test_no_storage.yaml",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
+
+    # Verify file was moved to archive
+    assert not test_config.exists()
+    assert (archive_dir / "test_no_storage.yaml").exists()
+
+    # Build folder operations should not happen when storage_json is None
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Unix sockets are not supported on Windows")
 @pytest.mark.usefixtures("mock_trash_storage_path", "mock_archive_storage_path")
 def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
