@@ -18,7 +18,7 @@ void IRAM_ATTR PulseWidthSensorStore::gpio_intr(PulseWidthSensorStore *arg) {
 
 void PulseWidthSensor::dump_config() {
   LOG_SENSOR("", "Pulse Width", this);
-  LOG_UPDATE_INTERVAL(this)
+  LOG_UPDATE_INTERVAL(this);
   LOG_PIN("  Pin: ", this->pin_);
 }
 void PulseWidthSensor::update() {

@@ -848,10 +848,17 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def public_content(self) -> list[str]:
+        len_type = (
+            "uint8_t"
+            if self.array_size <= 255
+            else "uint16_t"
+            if self.array_size <= 65535
+            else "size_t"
+        )
         # Add both the array and length fields
         return [
             f"uint8_t {self.field_name}[{self.array_size}]{{}};",
-            f"uint8_t {self.field_name}_len{{0}};",
+            f"{len_type} {self.field_name}_len{{0}};",
         ]
 
     @property
@@ -1059,7 +1066,9 @@ def _generate_array_dump_content(
     # Check if underlying type can use dump_field
     if ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
-        o += f'  dump_field(out, "{name}", {ti.dump_field_value("it")}, 4);\n'
+        # std::vector<bool> iterators return proxy objects, need explicit cast
+        value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
+        o += f'  dump_field(out, "{name}", {value_expr}, 4);\n'
     else:
         # For complex types (messages, bytes), use the old pattern
         o += f'  out.append("  {name}: ");\n'

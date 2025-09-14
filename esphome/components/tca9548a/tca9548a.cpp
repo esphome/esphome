@@ -6,23 +6,15 @@ namespace tca9548a {
 
 static const char *const TAG = "tca9548a";
 
-i2c::ErrorCode TCA9548AChannel::readv(uint8_t address, i2c::ReadBuffer *buffers, size_t cnt) {
+i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
+                                            uint8_t *read_buffer, size_t read_count) {
   auto err = this->parent_->switch_to_channel(channel_);
   if (err != i2c::ERROR_OK)
     return err;
-  err = this->parent_->bus_->readv(address, buffers, cnt);
+  err = this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
   this->parent_->disable_all_channels();
   return err;
 }
-i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt, bool stop) {
-  auto err = this->parent_->switch_to_channel(channel_);
-  if (err != i2c::ERROR_OK)
-    return err;
-  err = this->parent_->bus_->writev(address, buffers, cnt, stop);
-  this->parent_->disable_all_channels();
-  return err;
-}
-
 void TCA9548AComponent::setup() {
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
