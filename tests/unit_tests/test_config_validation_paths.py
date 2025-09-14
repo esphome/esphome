@@ -15,7 +15,7 @@ def test_directory_valid_path(setup_core: Path) -> None:
 
     result = cv.directory("test_directory")
 
-    assert result == "test_directory"
+    assert result == test_dir
 
 
 def test_directory_absolute_path(setup_core: Path) -> None:
@@ -25,7 +25,7 @@ def test_directory_absolute_path(setup_core: Path) -> None:
 
     result = cv.directory(str(test_dir))
 
-    assert result == str(test_dir)
+    assert result == test_dir
 
 
 def test_directory_nonexistent_path(setup_core: Path) -> None:
@@ -52,7 +52,7 @@ def test_directory_with_parent_directory(setup_core: Path) -> None:
 
     result = cv.directory("parent/child/grandchild")
 
-    assert result == "parent/child/grandchild"
+    assert result == nested_dir
 
 
 def test_file_valid_path(setup_core: Path) -> None:
@@ -108,10 +108,10 @@ def test_directory_handles_trailing_slash(setup_core: Path) -> None:
     test_dir.mkdir()
 
     result = cv.directory("test_dir/")
-    assert result == "test_dir/"
+    assert result == test_dir
 
     result = cv.directory("test_dir")
-    assert result == "test_dir"
+    assert result == test_dir
 
 
 def test_file_handles_various_extensions(setup_core: Path) -> None:
@@ -142,7 +142,7 @@ def test_directory_with_symlink(setup_core: Path) -> None:
     symlink_dir.symlink_to(actual_dir)
 
     result = cv.directory("symlink_directory")
-    assert result == "symlink_directory"
+    assert result == symlink_dir
 
 
 def test_file_with_symlink(setup_core: Path) -> None:
@@ -175,7 +175,7 @@ def test_directory_with_spaces_in_name(setup_core: Path) -> None:
     dir_with_spaces.mkdir()
 
     result = cv.directory("my test directory")
-    assert result == "my test directory"
+    assert result == dir_with_spaces
 
 
 def test_file_with_spaces_in_name(setup_core: Path) -> None:
