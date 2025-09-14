@@ -254,7 +254,7 @@ class Scheduler {
   }
 
   // Helper to execute a scheduler item
-  void execute_item_(SchedulerItem *item, uint32_t now);
+  uint32_t execute_item_(SchedulerItem *item, uint32_t now);
 
   // Helper to check if item should be skipped
   bool should_skip_item_(SchedulerItem *item) const {
