@@ -1,5 +1,7 @@
 import logging
+from pathlib import Path
 import socket
+import stat
 from unittest.mock import patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
@@ -552,6 +554,167 @@ def test_addr_preference_ipv6_link_local_with_scope() -> None:
         ("fe80::1", 6053, 0, 2),  # link-local with scope_id=2
     )
     assert helpers.addr_preference_(addr_info) == 1  # Has scope, so it's usable
+
+
+def test_mkdir_p(tmp_path: Path) -> None:
+    """Test mkdir_p creates directories recursively."""
+    # Test creating nested directories
+    nested_path = tmp_path / "level1" / "level2" / "level3"
+    helpers.mkdir_p(nested_path)
+    assert nested_path.exists()
+    assert nested_path.is_dir()
+
+    # Test that mkdir_p is idempotent (doesn't fail if directory exists)
+    helpers.mkdir_p(nested_path)
+    assert nested_path.exists()
+
+    # Test with empty path (should do nothing)
+    helpers.mkdir_p("")
+
+    # Test with existing directory
+    existing_dir = tmp_path / "existing"
+    existing_dir.mkdir()
+    helpers.mkdir_p(existing_dir)
+    assert existing_dir.exists()
+
+
+def test_mkdir_p_file_exists_error(tmp_path: Path) -> None:
+    """Test mkdir_p raises error when path is a file."""
+    # Create a file
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text("test content")
+
+    # Try to create directory with same name as existing file
+    with pytest.raises(EsphomeError, match=r"Error creating directories"):
+        helpers.mkdir_p(file_path)
+
+
+def test_mkdir_p_with_existing_file_raises_error(tmp_path: Path) -> None:
+    """Test mkdir_p raises error when trying to create dir over existing file."""
+    # Create a file where we want to create a directory
+    file_path = tmp_path / "existing_file"
+    file_path.write_text("content")
+
+    # Try to create a directory with a path that goes through the file
+    dir_path = file_path / "subdir"
+
+    with pytest.raises(EsphomeError, match=r"Error creating directories"):
+        helpers.mkdir_p(dir_path)
+
+
+def test_read_file(tmp_path: Path) -> None:
+    """Test read_file reads file content correctly."""
+    # Test reading regular file
+    test_file = tmp_path / "test.txt"
+    expected_content = "Test content\nLine 2\n"
+    test_file.write_text(expected_content)
+
+    content = helpers.read_file(test_file)
+    assert content == expected_content
+
+    # Test reading file with UTF-8 characters
+    utf8_file = tmp_path / "utf8.txt"
+    utf8_content = "Hello 世界 🌍"
+    utf8_file.write_text(utf8_content, encoding="utf-8")
+
+    content = helpers.read_file(utf8_file)
+    assert content == utf8_content
+
+
+def test_read_file_not_found() -> None:
+    """Test read_file raises error for non-existent file."""
+    with pytest.raises(EsphomeError, match=r"Error reading file"):
+        helpers.read_file("/nonexistent/file.txt")
+
+
+def test_read_file_unicode_decode_error(tmp_path: Path) -> None:
+    """Test read_file raises error for invalid UTF-8."""
+    test_file = tmp_path / "invalid.txt"
+    # Write invalid UTF-8 bytes
+    test_file.write_bytes(b"\xff\xfe")
+
+    with pytest.raises(EsphomeError, match=r"Error reading file"):
+        helpers.read_file(test_file)
+
+
+def test_write_file(tmp_path: Path) -> None:
+    """Test write_file writes content correctly."""
+    # Test writing string content
+    test_file = tmp_path / "test.txt"
+    content = "Test content\nLine 2"
+    helpers.write_file(test_file, content)
+
+    assert test_file.read_text() == content
+    # Check file permissions
+    assert oct(test_file.stat().st_mode)[-3:] == "644"
+
+    # Test overwriting existing file
+    new_content = "New content"
+    helpers.write_file(test_file, new_content)
+    assert test_file.read_text() == new_content
+
+    # Test writing to nested directories (should create them)
+    nested_file = tmp_path / "dir1" / "dir2" / "file.txt"
+    helpers.write_file(nested_file, content)
+    assert nested_file.read_text() == content
+
+
+def test_write_file_to_non_writable_directory(tmp_path: Path) -> None:
+    """Test write_file raises error when directory is not writable."""
+    # Create a directory and make it read-only
+    read_only_dir = tmp_path / "readonly"
+    read_only_dir.mkdir()
+    test_file = read_only_dir / "test.txt"
+
+    # Make directory read-only (no write permission)
+    read_only_dir.chmod(0o555)
+
+    with pytest.raises(EsphomeError, match=r"Could not write file"):
+        helpers.write_file(test_file, "content")
+
+
+def test_write_file_with_permission_bits(tmp_path: Path) -> None:
+    """Test that write_file sets correct permissions."""
+    test_file = tmp_path / "test.txt"
+    helpers.write_file(test_file, "content")
+
+    # Check that file has 644 permissions
+    file_mode = test_file.stat().st_mode
+    assert stat.S_IMODE(file_mode) == 0o644
+
+
+def test_copy_file_if_changed_permission_recovery(tmp_path: Path) -> None:
+    """Test copy_file_if_changed handles permission errors correctly."""
+    # Test with read-only destination file
+    src = tmp_path / "source.txt"
+    dst = tmp_path / "dest.txt"
+    src.write_text("new content")
+    dst.write_text("old content")
+    dst.chmod(0o444)  # Make destination read-only
+
+    # Should handle permission error by deleting and retrying
+    helpers.copy_file_if_changed(src, dst)
+    assert dst.read_text() == "new content"
+
+
+def test_copy_file_if_changed_creates_directories(tmp_path: Path) -> None:
+    """Test copy_file_if_changed creates missing directories."""
+    src = tmp_path / "source.txt"
+    dst = tmp_path / "subdir" / "nested" / "dest.txt"
+    src.write_text("content")
+
+    helpers.copy_file_if_changed(src, dst)
+    assert dst.exists()
+    assert dst.read_text() == "content"
+
+
+def test_copy_file_if_changed_nonexistent_source(tmp_path: Path) -> None:
+    """Test copy_file_if_changed with non-existent source."""
+    src = tmp_path / "nonexistent.txt"
+    dst = tmp_path / "dest.txt"
+
+    with pytest.raises(EsphomeError, match=r"Error copying file"):
+        helpers.copy_file_if_changed(src, dst)
 
 
 def test_resolve_ip_address_sorting() -> None:
