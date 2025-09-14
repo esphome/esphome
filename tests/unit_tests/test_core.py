@@ -1,3 +1,6 @@
+import os
+from unittest.mock import patch
+
 from hypothesis import given
 import pytest
 from strategies import mac_addr_strings
@@ -577,3 +580,48 @@ class TestEsphomeCore:
 
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
+
+    def test_data_dir_default(self, target):
+        """Test data_dir returns .esphome in config directory by default."""
+        target.config_path = "/home/user/config.yaml"
+
+        assert target.data_dir == "/home/user/.esphome"
+
+    def test_data_dir_ha_addon(self, target):
+        """Test data_dir returns /data when running as Home Assistant addon."""
+        target.config_path = "/config/test.yaml"
+
+        with patch.dict(os.environ, {"ESPHOME_IS_HA_ADDON": "true"}):
+            assert target.data_dir == "/data"
+
+    def test_data_dir_env_override(self, target):
+        """Test data_dir uses ESPHOME_DATA_DIR environment variable when set."""
+        target.config_path = "/home/user/config.yaml"
+
+        with patch.dict(os.environ, {"ESPHOME_DATA_DIR": "/custom/data/path"}):
+            assert target.data_dir == "/custom/data/path"
+
+    def test_data_dir_priority(self, target):
+        """Test data_dir priority: HA addon > env var > default."""
+        target.config_path = "/config/test.yaml"
+
+        # Test HA addon takes priority over env var
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "true", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/data"
+
+        # Test env var is used when not HA addon
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "false", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/custom/path"
+
+        # Test default when neither is set
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure these env vars are not set
+            os.environ.pop("ESPHOME_IS_HA_ADDON", None)
+            os.environ.pop("ESPHOME_DATA_DIR", None)
+            assert target.data_dir == "/config/.esphome"
