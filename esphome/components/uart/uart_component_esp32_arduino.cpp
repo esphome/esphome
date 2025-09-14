@@ -140,11 +140,6 @@ void ESP32ArduinoUARTComponent::load_settings(bool dump_config) {
     invert = true;
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
-  if (this->rx_full_threshold_is_set_)
-    this->hw_serial_->setRxFIFOFull(this->rx_full_threshold_);
-  if (this->rx_timeout_is_set_)
-    this->hw_serial_->setRxTimeout(this->rx_timeout_);
-
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->number_);
     this->dump_config();
@@ -164,10 +159,6 @@ void ESP32ArduinoUARTComponent::dump_config() {
                 "  Parity: %s\n"
                 "  Stop bits: %u",
                 this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
-  if (this->rx_full_threshold_is_set_)
-    ESP_LOGCONFIG(TAG, "  RX Full Threshold: %u", this->get_rx_full_threshold());
-  if (this->rx_timeout_is_set_)
-    ESP_LOGCONFIG(TAG, "  RX Timeout: %u", this->get_rx_timeout());
   this->check_logger_conflict();
 }
 

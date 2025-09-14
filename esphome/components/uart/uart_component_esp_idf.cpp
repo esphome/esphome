@@ -133,24 +133,6 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  if (this->rx_full_threshold_is_set_) {
-    err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
-      this->mark_failed();
-      return;
-    }
-  }
-
-  if (this->rx_timeout_is_set_) {
-    err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
-      this->mark_failed();
-      return;
-    }
-  }
-
   xSemaphoreGive(this->lock_);
 }
 
@@ -180,10 +162,6 @@ void IDFUARTComponent::dump_config() {
                 "  Parity: %s\n"
                 "  Stop bits: %u",
                 this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
-  if (this->rx_full_threshold_is_set_)
-    ESP_LOGCONFIG(TAG, "  RX Full Threshold: %u", this->get_rx_full_threshold());
-  if (this->rx_timeout_is_set_)
-    ESP_LOGCONFIG(TAG, "  RX Timeout: %u", this->get_rx_timeout());
   this->check_logger_conflict();
 }
 

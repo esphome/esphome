@@ -122,28 +122,6 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
-  // Set the RX full threshold for UART communication.
-  // @param rx_full_threshold in bytes.
-  void set_rx_full_threshold(uint8_t rx_full_threshold) {
-    rx_full_threshold_ = rx_full_threshold;
-    rx_full_threshold_is_set_ = true;
-  }
-
-  // Get the RX full threshold for UART communication.
-  // @return RX full threshold in bytes.
-  uint8_t get_rx_full_threshold() const { return rx_full_threshold_; }
-
-  // Set the RX timeout for UART communication.
-  // @param rx_timeout in bytes.
-  void set_rx_timeout(uint8_t rx_timeout) {
-    rx_timeout_ = rx_timeout;
-    rx_timeout_is_set_ = true;
-  }
-
-  // Get the RX timeout for UART communication.
-  // @return RX timeout in bytes.
-  uint8_t get_rx_timeout() const { return rx_timeout_; }
-
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -188,10 +166,6 @@ class UARTComponent {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
-  uint8_t rx_full_threshold_;
-  bool rx_full_threshold_is_set_;
-  uint8_t rx_timeout_;
-  bool rx_timeout_is_set_;
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif
