@@ -665,9 +665,6 @@ async def test_archive_handler_with_storage_json(
     assert not test_config.exists()
     assert (archive_dir / "test_with_storage.yaml").exists()
 
-    # Note: The actual build folder move would be handled by shutil.rmtree
-    # which we don't want to test here as it involves real filesystem operations
-
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dashboard_settings", "mock_archive_storage_path")
@@ -703,7 +700,7 @@ async def test_archive_handler_without_storage_json(
     assert not test_config.exists()
     assert (archive_dir / "test_no_storage.yaml").exists()
 
-    # Build folder operations should not happen when storage_json is None
+    # When storage_json is None, no build folder operations occur
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Unix sockets are not supported on Windows")
