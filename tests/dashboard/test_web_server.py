@@ -671,31 +671,24 @@ async def test_archive_handler_no_build_folder(
     tmp_path: Path,
 ) -> None:
     """Test ArchiveRequestHandler.post with storage_json but no build folder."""
-    # Set up temp directories
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     archive_dir = tmp_path / "archive"
     archive_dir.mkdir()
 
-    # Create a test configuration file
     configuration = "test_device.yaml"
     test_config = config_dir / configuration
     test_config.write_text("esphome:\n  name: test_device\n")
 
-    # Note: No build folder created
-
-    # Mock settings to use our temp directory
     mock_dashboard_settings.config_dir = str(config_dir)
     mock_dashboard_settings.rel_path.return_value = str(test_config)
     mock_archive_storage_path.return_value = str(archive_dir)
 
-    # Mock storage_json with device name but no build_path
     mock_storage = MagicMock()
     mock_storage.name = "test_device"
     mock_storage.build_path = None
     mock_storage_json.load.return_value = mock_storage
 
-    # Archive the configuration (should not fail even without build folder)
     response = await dashboard.fetch(
         "/archive",
         method="POST",
@@ -704,11 +697,8 @@ async def test_archive_handler_no_build_folder(
     )
     assert response.code == 200
 
-    # Verify config file was moved to archive
     assert not test_config.exists()
     assert (archive_dir / configuration).exists()
-
-    # Verify no build folder in archive (since it didn't exist)
     assert not (archive_dir / "test_device").exists()
 
 
