@@ -590,16 +590,12 @@ async def test_archive_request_handler_post(
     tmp_path: Path,
 ) -> None:
     """Test ArchiveRequestHandler.post method without storage_json."""
-
-    # Set up temp directories
     config_dir = Path(get_fixture_path("conf"))
     archive_dir = tmp_path / "archive"
 
-    # Create a test configuration file
     test_config = config_dir / "test_archive.yaml"
     test_config.write_text("esphome:\n  name: test_archive\n")
 
-    # Archive the configuration
     response = await dashboard.fetch(
         "/archive",
         method="POST",
@@ -608,7 +604,6 @@ async def test_archive_request_handler_post(
     )
     assert response.code == 200
 
-    # Verify file was moved to archive
     assert not test_config.exists()
     assert (archive_dir / "test_archive.yaml").exists()
     assert (
