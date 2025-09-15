@@ -360,6 +360,7 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_PASSWORD
 class ConnectRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 3;
@@ -391,6 +392,7 @@ class ConnectResponse final : public ProtoMessage {
 
  protected:
 };
+#endif
 class DisconnectRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
@@ -1180,10 +1182,6 @@ class GetTimeResponse final : public ProtoDecodableMessage {
 #endif
   uint32_t epoch_seconds{0};
   std::string timezone{};
-  StringRef timezone_ref_{};
-  void set_timezone(const StringRef &ref) { this->timezone_ref_ = ref; }
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
