@@ -51,8 +51,6 @@ const char *client_state_to_string(ClientState state) {
       return "IDLE";
     case ClientState::DISCOVERED:
       return "DISCOVERED";
-    case ClientState::READY_TO_CONNECT:
-      return "READY_TO_CONNECT";
     case ClientState::CONNECTING:
       return "CONNECTING";
     case ClientState::CONNECTED:
@@ -607,9 +605,8 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
 }
 
 std::string ESPBTDevice::address_str() const {
-  char mac[24];
-  snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", this->address_[0], this->address_[1], this->address_[2],
-           this->address_[3], this->address_[4], this->address_[5]);
+  char mac[18];
+  format_mac_addr_upper(this->address_, mac);
   return mac;
 }
 
@@ -795,7 +792,7 @@ void ESP32BLETracker::try_promote_discovered_clients_() {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(true);
 #endif
-    client->set_state(ClientState::READY_TO_CONNECT);
+    client->connect();
     break;
   }
 }
