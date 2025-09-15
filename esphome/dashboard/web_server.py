@@ -50,8 +50,8 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from .const import DASHBOARD_COMMAND
-from .core import DASHBOARD
-from .entries import UNKNOWN_STATE, entry_state_to_bool
+from .core import DASHBOARD, ESPHomeDashboard
+from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
 from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
@@ -314,6 +314,73 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         raise NotImplementedError
 
 
+def build_cache_arguments(
+    entry: DashboardEntry | None,
+    dashboard: ESPHomeDashboard,
+    now: float,
+) -> list[str]:
+    """Build cache arguments for passing to CLI.
+
+    Args:
+        entry: Dashboard entry for the configuration
+        dashboard: Dashboard instance with cache access
+        now: Current monotonic time for DNS cache expiry checks
+
+    Returns:
+        List of cache arguments to pass to CLI
+    """
+    cache_args: list[str] = []
+
+    if not entry:
+        return cache_args
+
+    _LOGGER.debug(
+        "Building cache for entry (address=%s, name=%s)",
+        entry.address,
+        entry.name,
+    )
+
+    def add_cache_entry(hostname: str, addresses: list[str], cache_type: str) -> None:
+        """Add a cache entry to the command arguments."""
+        if not addresses:
+            return
+        normalized = hostname.rstrip(".").lower()
+        cache_args.extend(
+            [
+                f"--{cache_type}-address-cache",
+                f"{normalized}={','.join(sort_ip_addresses(addresses))}",
+            ]
+        )
+
+    # Check entry.address for cached addresses
+    if use_address := entry.address:
+        if use_address.endswith(".local"):
+            # mDNS cache for .local addresses
+            if (mdns := dashboard.mdns_status) and (
+                cached := mdns.get_cached_addresses(use_address)
+            ):
+                _LOGGER.debug("mDNS cache hit for %s: %s", use_address, cached)
+                add_cache_entry(use_address, cached, "mdns")
+        # DNS cache for non-.local addresses
+        elif cached := dashboard.dns_cache.get_cached_addresses(use_address, now):
+            _LOGGER.debug("DNS cache hit for %s: %s", use_address, cached)
+            add_cache_entry(use_address, cached, "dns")
+
+    # Check entry.name if we haven't already cached via address
+    # For mDNS devices, entry.name typically doesn't have .local suffix
+    if entry.name and not use_address:
+        mdns_name = (
+            f"{entry.name}.local" if not entry.name.endswith(".local") else entry.name
+        )
+        if (mdns := dashboard.mdns_status) and (
+            cached := mdns.get_cached_addresses(mdns_name)
+        ):
+            _LOGGER.debug("mDNS cache hit for %s: %s", mdns_name, cached)
+            add_cache_entry(mdns_name, cached, "mdns")
+
+    return cache_args
+
+
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
@@ -326,52 +393,22 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
-        addresses: list[str] = []
+
+        # Build cache arguments to pass to CLI
+        cache_args: list[str] = []
+
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            # First priority: entry.address AKA use_address
-            if (
-                (use_address := entry.address)
-                and (
-                    address_list := await dashboard.dns_cache.async_resolve(
-                        use_address, time.monotonic()
-                    )
-                )
-                and not isinstance(address_list, Exception)
-            ):
-                addresses.extend(sort_ip_addresses(address_list))
+            cache_args = build_cache_arguments(entry, dashboard, time.monotonic())
 
-            # Second priority: mDNS
-            if (
-                (mdns := dashboard.mdns_status)
-                and (address_list := await mdns.async_resolve_host(entry.name))
-                and (
-                    new_addresses := [
-                        addr for addr in address_list if addr not in addresses
-                    ]
-                )
-            ):
-                # Use the IP address if available but only
-                # if the API is loaded and the device is online
-                # since MQTT logging will not work otherwise
-                addresses.extend(sort_ip_addresses(new_addresses))
-
-        if not addresses:
-            # If no address was found, use the port directly
-            # as otherwise they will get the chooser which
-            # does not work with the dashboard as there is no
-            # interactive way to get keyboard input
-            addresses = [port]
-
-        device_args: list[str] = [
-            arg for address in addresses for arg in ("--device", address)
-        ]
-
-        return [*DASHBOARD_COMMAND, *args, config_file, *device_args]
+        # Cache arguments must come before the subcommand
+        cmd = [*DASHBOARD_COMMAND, *cache_args, *args, config_file, "--device", port]
+        _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):

@@ -7,7 +7,7 @@ service APIConnection {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc connect (ConnectRequest) returns (ConnectResponse) {
+  rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
@@ -129,7 +129,7 @@ message HelloResponse {
 
 // Message sent at the beginning of each connection to authenticate the client
 // Can only be sent by the client and only at the beginning of the connection
-message ConnectRequest {
+message AuthenticationRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
@@ -141,7 +141,7 @@ message ConnectRequest {
 
 // Confirmation of successful connection. After this the connection is available for all traffic.
 // Can only be sent by the server and only at the beginning of the connection
-message ConnectResponse {
+message AuthenticationResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
