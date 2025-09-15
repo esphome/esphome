@@ -1,5 +1,7 @@
 """Tests for esphome.util module."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest
@@ -308,3 +310,85 @@ def test_filter_yaml_files_case_sensitive() -> None:
     assert "/path/to/config.YAML" not in result
     assert "/path/to/config.YML" not in result
     assert "/path/to/config.Yaml" not in result
+
+
+@pytest.mark.parametrize(
+    ("input_str", "expected"),
+    [
+        # Empty string
+        ("", "''"),
+        # Simple strings that don't need quoting
+        ("hello", "hello"),
+        ("test123", "test123"),
+        ("file.txt", "file.txt"),
+        ("/path/to/file", "/path/to/file"),
+        ("user@host", "user@host"),
+        ("value:123", "value:123"),
+        ("item,list", "item,list"),
+        ("path-with-dash", "path-with-dash"),
+        # Strings that need quoting
+        ("hello world", "'hello world'"),
+        ("test\ttab", "'test\ttab'"),
+        ("line\nbreak", "'line\nbreak'"),
+        ("semicolon;here", "'semicolon;here'"),
+        ("pipe|symbol", "'pipe|symbol'"),
+        ("redirect>file", "'redirect>file'"),
+        ("redirect<file", "'redirect<file'"),
+        ("background&", "'background&'"),
+        ("dollar$sign", "'dollar$sign'"),
+        ("backtick`cmd", "'backtick`cmd'"),
+        ('double"quote', "'double\"quote'"),
+        ("backslash\\path", "'backslash\\path'"),
+        ("question?mark", "'question?mark'"),
+        ("asterisk*wild", "'asterisk*wild'"),
+        ("bracket[test]", "'bracket[test]'"),
+        ("paren(test)", "'paren(test)'"),
+        ("curly{brace}", "'curly{brace}'"),
+        # Single quotes in string (special escaping)
+        ("it's", "'it'\"'\"'s'"),
+        ("don't", "'don'\"'\"'t'"),
+        ("'quoted'", "''\"'\"'quoted'\"'\"''"),
+        # Complex combinations
+        ("test 'with' quotes", "'test '\"'\"'with'\"'\"' quotes'"),
+        ("path/to/file's.txt", "'path/to/file'\"'\"'s.txt'"),
+    ],
+)
+def test_shlex_quote(input_str: str, expected: str) -> None:
+    """Test shlex_quote properly escapes shell arguments."""
+    assert util.shlex_quote(input_str) == expected
+
+
+def test_shlex_quote_safe_characters() -> None:
+    """Test that safe characters are not quoted."""
+    # These characters are considered safe and shouldn't be quoted
+    safe_chars = (
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@%+=:,./-_"
+    )
+    for char in safe_chars:
+        assert util.shlex_quote(char) == char
+        assert util.shlex_quote(f"test{char}test") == f"test{char}test"
+
+
+def test_shlex_quote_unsafe_characters() -> None:
+    """Test that unsafe characters trigger quoting."""
+    # These characters should trigger quoting
+    unsafe_chars = ' \t\n;|>&<$`"\\?*[](){}!#~^'
+    for char in unsafe_chars:
+        result = util.shlex_quote(f"test{char}test")
+        assert result.startswith("'")
+        assert result.endswith("'")
+
+
+def test_shlex_quote_edge_cases() -> None:
+    """Test edge cases for shlex_quote."""
+    # Multiple single quotes
+    assert util.shlex_quote("'''") == "''\"'\"''\"'\"''\"'\"''"
+
+    # Mixed quotes
+    assert util.shlex_quote('"\'"') == "'\"'\"'\"'\"'"
+
+    # Only whitespace
+    assert util.shlex_quote(" ") == "' '"
+    assert util.shlex_quote("\t") == "'\t'"
+    assert util.shlex_quote("\n") == "'\n'"
+    assert util.shlex_quote("   ") == "'   '"
