@@ -628,12 +628,14 @@ def test_read_file_windows(tmp_path: Path) -> None:
     """Test read_file reads file content correctly on Windows."""
     # Test reading regular file
     test_file = tmp_path / "test.txt"
-    expected_content = "Test content\nLine 2\n"
-    test_file.write_text(expected_content)
+    # On Windows, write_text converts \n to \r\n
+    test_content = "Test content\nLine 2\n"
+    test_file.write_text(test_content)
 
+    # read_file reads in binary mode, so it gets the actual file content
+    # which on Windows will have \r\n line endings after write_text
     content = helpers.read_file(test_file)
-    # On Windows, text mode reading converts \n to \r\n
-    assert content == expected_content.replace("\n", "\r\n")
+    assert content == "Test content\r\nLine 2\r\n"
 
     # Test reading file with UTF-8 characters
     utf8_file = tmp_path / "utf8.txt"

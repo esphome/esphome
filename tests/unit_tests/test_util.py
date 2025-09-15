@@ -306,11 +306,20 @@ def test_filter_yaml_files_case_sensitive() -> None:
 
     # Should only match lowercase .yaml and .yml
     assert len(result) == 2
-    assert Path("/path/to/config.yaml") in result
-    assert Path("/path/to/config.yml") in result
-    assert Path("/path/to/config.YAML") not in result
-    assert Path("/path/to/config.YML") not in result
-    assert Path("/path/to/config.Yaml") not in result
+
+    # Check the actual suffixes to ensure case-sensitive filtering
+    result_suffixes = [p.suffix for p in result]
+    assert ".yaml" in result_suffixes
+    assert ".yml" in result_suffixes
+
+    # Verify the filtered files have the expected names
+    result_names = [p.name for p in result]
+    assert "config.yaml" in result_names
+    assert "config.yml" in result_names
+    # Ensure uppercase extensions are NOT included
+    assert "config.YAML" not in result_names
+    assert "config.YML" not in result_names
+    assert "config.Yaml" not in result_names
 
 
 @pytest.mark.parametrize(
