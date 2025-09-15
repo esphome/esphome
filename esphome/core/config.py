@@ -384,11 +384,11 @@ async def add_includes(includes: list[str]) -> None:
         if path.is_dir():
             # Directory, copy tree
             for p in walk_files(path):
-                basename = p.relative_to(path)
+                basename = p.relative_to(path.parent)
                 include_file(p, basename)
         else:
             # Copy file
-            basename = path.name
+            basename = Path(path.name)
             include_file(path, basename)
 
 

@@ -647,7 +647,7 @@ def test_read_file_windows(tmp_path: Path) -> None:
 def test_read_file_not_found() -> None:
     """Test read_file raises error for non-existent file."""
     with pytest.raises(EsphomeError, match=r"Error reading file"):
-        helpers.read_file("/nonexistent/file.txt")
+        helpers.read_file(Path("/nonexistent/file.txt"))
 
 
 def test_read_file_unicode_decode_error(tmp_path: Path) -> None:
