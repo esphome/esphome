@@ -133,6 +133,7 @@ message ConnectRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_PASSWORD";
 
   // The password to log in with
   string password = 1;
@@ -144,6 +145,7 @@ message ConnectResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_PASSWORD";
 
   bool invalid_password = 1;
 }
