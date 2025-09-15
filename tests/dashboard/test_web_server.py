@@ -599,18 +599,14 @@ async def test_archive_request_handler_post(
     test_config = config_dir / "test_archive.yaml"
     test_config.write_text("esphome:\n  name: test_archive\n")
 
-    # Mock storage_json to return None (no storage)
-    with patch("esphome.dashboard.web_server.StorageJSON.load") as mock_load:
-        mock_load.return_value = None
-
-        # Archive the configuration
-        response = await dashboard.fetch(
-            "/archive",
-            method="POST",
-            body="configuration=test_archive.yaml",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        assert response.code == 200
+    # Archive the configuration
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body="configuration=test_archive.yaml",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
 
     # Verify file was moved to archive
     assert not test_config.exists()
@@ -626,6 +622,7 @@ async def test_archive_handler_with_build_folder(
     mock_archive_storage_path: MagicMock,
     mock_ext_storage_path: MagicMock,
     mock_dashboard_settings: MagicMock,
+    mock_storage_json: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Test ArchiveRequestHandler.post with storage_json and build folder."""
@@ -654,20 +651,19 @@ async def test_archive_handler_with_build_folder(
     mock_archive_storage_path.return_value = str(archive_dir)
 
     # Mock storage_json with device name and build_path
-    with patch("esphome.dashboard.web_server.StorageJSON.load") as mock_load:
-        mock_storage = MagicMock()
-        mock_storage.name = "test_device"
-        mock_storage.build_path = str(build_folder)
-        mock_load.return_value = mock_storage
+    mock_storage = MagicMock()
+    mock_storage.name = "test_device"
+    mock_storage.build_path = str(build_folder)
+    mock_storage_json.load.return_value = mock_storage
 
-        # Archive the configuration
-        response = await dashboard.fetch(
-            "/archive",
-            method="POST",
-            body=f"configuration={configuration}",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        assert response.code == 200
+    # Archive the configuration
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body=f"configuration={configuration}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
 
     # Verify config file was moved to archive
     assert not test_config.exists()
@@ -685,6 +681,7 @@ async def test_archive_handler_no_build_folder(
     mock_archive_storage_path: MagicMock,
     mock_ext_storage_path: MagicMock,
     mock_dashboard_settings: MagicMock,
+    mock_storage_json: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Test ArchiveRequestHandler.post with storage_json but no build folder."""
@@ -707,20 +704,19 @@ async def test_archive_handler_no_build_folder(
     mock_archive_storage_path.return_value = str(archive_dir)
 
     # Mock storage_json with device name but no build_path
-    with patch("esphome.dashboard.web_server.StorageJSON.load") as mock_load:
-        mock_storage = MagicMock()
-        mock_storage.name = "test_device"
-        mock_storage.build_path = None
-        mock_load.return_value = mock_storage
+    mock_storage = MagicMock()
+    mock_storage.name = "test_device"
+    mock_storage.build_path = None
+    mock_storage_json.load.return_value = mock_storage
 
-        # Archive the configuration (should not fail even without build folder)
-        response = await dashboard.fetch(
-            "/archive",
-            method="POST",
-            body=f"configuration={configuration}",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        assert response.code == 200
+    # Archive the configuration (should not fail even without build folder)
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body=f"configuration={configuration}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
 
     # Verify config file was moved to archive
     assert not test_config.exists()
