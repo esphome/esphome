@@ -35,25 +35,10 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
 
 std::string build_json(const json_build_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-#ifdef USE_PSRAM
-  auto doc_allocator = SpiRamAllocator();
-  JsonDocument json_document(&doc_allocator);
-#else
-  JsonDocument json_document;
-#endif
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
-    return "{}";
-  }
-  JsonObject root = json_document.to<JsonObject>();
+  JsonBuilder builder;
+  JsonObject root = builder.root();
   f(root);
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
-    return "{}";
-  }
-  std::string output;
-  serializeJson(json_document, output);
-  return output;
+  return builder.serialize();
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
@@ -82,6 +67,54 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
   ESP_LOGE(TAG, "Parse error: %s", err.c_str());
   return false;
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+}
+
+// JsonBuilder implementation
+class JsonBuilder::Impl {
+ public:
+  Impl() {
+#ifdef USE_PSRAM
+    allocator_ = std::make_unique<SpiRamAllocator>();
+    doc_ = std::make_unique<JsonDocument>(allocator_.get());
+#else
+    doc_ = std::make_unique<JsonDocument>();
+#endif
+  }
+
+  JsonObject root() {
+    if (!root_created_) {
+      root_ = doc_->to<JsonObject>();
+      root_created_ = true;
+    }
+    return root_;
+  }
+
+  bool overflowed() const { return doc_->overflowed(); }
+
+  void serialize_to(std::string &output) { serializeJson(*doc_, output); }
+
+ private:
+#ifdef USE_PSRAM
+  std::unique_ptr<SpiRamAllocator> allocator_;
+#endif
+  std::unique_ptr<JsonDocument> doc_;
+  JsonObject root_;
+  bool root_created_{false};
+};
+
+JsonBuilder::JsonBuilder() : impl_(std::make_unique<Impl>()) {}
+JsonBuilder::~JsonBuilder() = default;
+
+JsonObject JsonBuilder::root() { return impl_->root(); }
+
+std::string JsonBuilder::serialize() {
+  if (impl_->overflowed()) {
+    ESP_LOGE(TAG, "JSON document overflow");
+    return "{}";
+  }
+  std::string output;
+  impl_->serialize_to(output);
+  return output;
 }
 
 }  // namespace json
