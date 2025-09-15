@@ -354,7 +354,7 @@ async def to_code(config):
         ):
             cg.add_build_flag("-DARDUINO_USB_MODE=1")
 
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
