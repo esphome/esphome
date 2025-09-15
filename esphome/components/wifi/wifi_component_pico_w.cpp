@@ -51,7 +51,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return ret == 0;
 }
 
-// TODO: The driver doesnt seem to have an API for this
+// TODO: The driver doesn't seem to have an API for this
 bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
@@ -210,6 +210,7 @@ void WiFiComponent::wifi_loop_() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
+    this->wifi_scan_state_callback_.call(this->scan_result_);
   }
 }
 

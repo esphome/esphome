@@ -559,7 +559,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
 #if USE_NETWORK_IPV6
       this->set_timeout(100, [] { WiFi.enableIPv6(); });
 #endif /* USE_NETWORK_IPV6 */
-
+      this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
@@ -586,6 +586,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       }
 
       s_sta_connecting = false;
+      this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
@@ -614,6 +615,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
 #else
       s_sta_connecting = false;
 #endif /* USE_NETWORK_IPV6 */
+      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
       break;
     }
 #if USE_NETWORK_IPV6
@@ -622,6 +624,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip));
       this->num_ipv6_addresses_++;
       s_sta_connecting = !(this->got_ipv4_address_ & (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT));
+      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
       break;
     }
 #endif /* USE_NETWORK_IPV6 */
@@ -715,6 +718,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   }
   WiFi.scanDelete();
   this->scan_done_ = true;
+  this->wifi_scan_state_callback_.call(this->scan_result_);
 }
 
 #ifdef USE_WIFI_AP

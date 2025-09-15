@@ -713,6 +713,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
              format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
     s_sta_connected = true;
+    this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
@@ -734,6 +735,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
+    this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
@@ -743,12 +745,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
     this->got_ipv4_address_ = true;
+    this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
     this->num_ipv6_addresses_++;
+    this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
 #endif /* USE_NETWORK_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
@@ -789,6 +793,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       WiFiScanResult result(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN, ssid.empty());
       scan_result_.push_back(result);
     }
+    this->wifi_scan_state_callback_.call(this->scan_result_);
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
     ESP_LOGV(TAG, "AP start");

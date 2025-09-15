@@ -15,31 +15,27 @@ DEPENDENCIES = ["wifi"]
 
 wifi_info_ns = cg.esphome_ns.namespace("wifi_info")
 IPAddressWiFiInfo = wifi_info_ns.class_(
-    "IPAddressWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
+    "IPAddressWiFiInfo", text_sensor.TextSensor, cg.Component
 )
 ScanResultsWiFiInfo = wifi_info_ns.class_(
-    "ScanResultsWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
+    "ScanResultsWiFiInfo", text_sensor.TextSensor, cg.Component
 )
-SSIDWiFiInfo = wifi_info_ns.class_(
-    "SSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
-)
+SSIDWiFiInfo = wifi_info_ns.class_("SSIDWiFiInfo", text_sensor.TextSensor, cg.Component)
 BSSIDWiFiInfo = wifi_info_ns.class_(
-    "BSSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
+    "BSSIDWiFiInfo", text_sensor.TextSensor, cg.Component
 )
 MacAddressWifiInfo = wifi_info_ns.class_(
     "MacAddressWifiInfo", text_sensor.TextSensor, cg.Component
 )
 DNSAddressWifiInfo = wifi_info_ns.class_(
-    "DNSAddressWifiInfo", text_sensor.TextSensor, cg.PollingComponent
+    "DNSAddressWifiInfo", text_sensor.TextSensor, cg.Component
 )
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IP_ADDRESS): text_sensor.text_sensor_schema(
             IPAddressWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        )
-        .extend(cv.polling_component_schema("1s"))
-        .extend(
+        ).extend(
             {
                 cv.Optional(f"address_{x}"): text_sensor.text_sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -49,19 +45,19 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_SCAN_RESULTS): text_sensor.text_sensor_schema(
             ScanResultsWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("60s")),
+        ),
         cv.Optional(CONF_SSID): text_sensor.text_sensor_schema(
             SSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s")),
+        ),
         cv.Optional(CONF_BSSID): text_sensor.text_sensor_schema(
             BSSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s")),
+        ),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
             MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_DNS_ADDRESS): text_sensor.text_sensor_schema(
             DNSAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ).extend(cv.polling_component_schema("1s")),
+        ),
     }
 )
 
