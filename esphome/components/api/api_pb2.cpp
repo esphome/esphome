@@ -921,14 +921,6 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-void GetTimeResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_fixed32(1, this->epoch_seconds);
-  buffer.encode_string(2, this->timezone_ref_);
-}
-void GetTimeResponse::calculate_size(ProtoSize &size) const {
-  size.add_fixed32(1, this->epoch_seconds);
-  size.add_length(1, this->timezone_ref_.size());
-}
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);

@@ -42,6 +42,8 @@ static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
 
+static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
+
 static const char *const TAG = "api.connection";
 #ifdef USE_CAMERA
 static const int CAMERA_STOP_STREAM = 5000;
@@ -1081,12 +1083,6 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 }
 #endif
 
-bool APIConnection::send_get_time_response(const GetTimeRequest &msg) {
-  GetTimeResponse resp;
-  resp.epoch_seconds = ::time(nullptr);
-  return this->send_message(resp, GetTimeResponse::MESSAGE_TYPE);
-}
-
 #ifdef USE_BLUETOOTH_PROXY
 void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this, msg.flags);
@@ -1376,9 +1372,8 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   HelloResponse resp;
   resp.api_version_major = 1;
   resp.api_version_minor = 12;
-  // Temporary string for concatenation - will be valid during send_message call
-  std::string server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
-  resp.set_server_info(StringRef(server_info));
+  // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
+  resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
 
 #ifdef USE_API_PASSWORD
@@ -1425,8 +1420,6 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   std::string mac_address = get_mac_address_pretty();
   resp.set_mac_address(StringRef(mac_address));
 
-  // Compile-time StringRef constants
-  static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
   resp.set_compilation_time(App.get_compilation_time_ref());
