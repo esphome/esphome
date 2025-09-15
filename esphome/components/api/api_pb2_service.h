@@ -26,7 +26,9 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_hello_request(const HelloRequest &value){};
 
+#ifdef USE_API_PASSWORD
   virtual void on_connect_request(const ConnectRequest &value){};
+#endif
 
   virtual void on_disconnect_request(const DisconnectRequest &value){};
   virtual void on_disconnect_response(const DisconnectResponse &value){};
@@ -71,7 +73,7 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value){};
 #endif
-  virtual void on_get_time_request(const GetTimeRequest &value){};
+
   virtual void on_get_time_response(const GetTimeResponse &value){};
 
 #ifdef USE_API_SERVICES
@@ -213,7 +215,9 @@ class APIServerConnectionBase : public ProtoService {
 class APIServerConnection : public APIServerConnectionBase {
  public:
   virtual bool send_hello_response(const HelloRequest &msg) = 0;
+#ifdef USE_API_PASSWORD
   virtual bool send_connect_response(const ConnectRequest &msg) = 0;
+#endif
   virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
   virtual bool send_ping_response(const PingRequest &msg) = 0;
   virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
@@ -226,7 +230,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_HOMEASSISTANT_STATES
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
 #endif
-  virtual bool send_get_time_response(const GetTimeRequest &msg) = 0;
 #ifdef USE_API_SERVICES
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
 #endif
@@ -335,7 +338,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
+#ifdef USE_API_PASSWORD
   void on_connect_request(const ConnectRequest &msg) override;
+#endif
   void on_disconnect_request(const DisconnectRequest &msg) override;
   void on_ping_request(const PingRequest &msg) override;
   void on_device_info_request(const DeviceInfoRequest &msg) override;
@@ -348,7 +353,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
 #endif
-  void on_get_time_request(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
 #endif
