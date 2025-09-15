@@ -5,6 +5,7 @@
 #include "esphome/components/display/display.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome::runtime_image {
 
@@ -59,12 +60,32 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     this->bits_per_pixel_ = encode_uint16(buffer[29], buffer[28]);
     this->compression_method_ = encode_uint32(buffer[33], buffer[32], buffer[31], buffer[30]);
     this->image_data_size_ = encode_uint32(buffer[37], buffer[36], buffer[35], buffer[34]);
-    this->color_table_entries_ = encode_uint32(buffer[49], buffer[48], buffer[47], buffer[46]);
+    this->color_table_entries_ =
+        std::min(encode_uint32(buffer[49], buffer[48], buffer[47], buffer[46]), (uint32_t) 256);
 
     switch (this->bits_per_pixel_) {
       case 1:
         this->width_bytes_ = (this->width_ % 8 == 0) ? (this->width_ / 8) : (this->width_ / 8 + 1);
         break;
+      case 8: {
+        this->width_bytes_ = this->width_;
+        size_t header_size = encode_uint32(buffer[17], buffer[16], buffer[15], buffer[14]);
+        size_t offset = 14 + header_size;
+
+        this->color_table_ = new uint32_t[this->color_table_entries_];
+
+        for (size_t i = 0; i < this->color_table_entries_; i++) {
+          this->color_table_[i] = encode_uint32(buffer[offset + i * 4 + 3], buffer[offset + i * 4 + 2],
+                                                buffer[offset + i * 4 + 1], buffer[offset + i * 4]);
+        }
+
+        this->padding_bytes_ = 4 - (this->width_bytes_ % 4);
+        if (this->padding_bytes_ == 4) {
+          this->padding_bytes_ = 0;
+        }
+
+        break;
+      }
       case 24:
         this->width_bytes_ = this->width_ * 3;
         if (this->width_bytes_ % 4 != 0) {
@@ -101,6 +122,34 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         this->paint_index_ += 8;
         this->current_index_++;
         index++;
+      }
+      break;
+    }
+    case 8: {
+      while (index < size) {
+        uint8_t color_index = buffer[index];
+
+        if (color_index >= this->color_table_entries_) {
+          ESP_LOGE(TAG, "Invalid color index: %d", color_index);
+          return DECODE_ERROR_UNSUPPORTED_FORMAT;
+        }
+
+        uint32_t rgb = this->color_table_[color_index];
+        uint8_t b = rgb & 0xff;
+        uint8_t g = (rgb >> 8) & 0xff;
+        uint8_t r = (rgb >> 16) & 0xff;
+
+        size_t x = this->paint_index_ % this->width_;
+        size_t y = (this->height_ - 1) - (this->paint_index_ / this->width_);
+        Color c = Color(r, g, b);
+        this->draw(x, y, 1, 1, c);
+        this->paint_index_++;
+        this->current_index_++;
+        index++;
+        if (x == (size_t) (this->width_ - 1) && this->padding_bytes_ > 0) {
+          index += this->padding_bytes_;
+          this->current_index_ += this->padding_bytes_;
+        }
       }
       break;
     }
