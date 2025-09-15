@@ -35,25 +35,10 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
 
 std::string build_json(const json_build_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-#ifdef USE_PSRAM
-  auto doc_allocator = SpiRamAllocator();
-  JsonDocument json_document(&doc_allocator);
-#else
-  JsonDocument json_document;
-#endif
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
-    return "{}";
-  }
-  JsonObject root = json_document.to<JsonObject>();
+  JsonBuilder builder;
+  JsonObject root = builder.root();
   f(root);
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
-    return "{}";
-  }
-  std::string output;
-  serializeJson(json_document, output);
-  return output;
+  return builder.serialize();
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
