@@ -581,11 +581,17 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
 
-    def test_data_dir_default(self, target):
-        """Test data_dir returns .esphome in config directory by default."""
+    @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+    def test_data_dir_default_unix(self, target):
+        """Test data_dir returns .esphome in config directory by default on Unix."""
         target.config_path = "/home/user/config.yaml"
-
         assert target.data_dir == "/home/user/.esphome"
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+    def test_data_dir_default_windows(self, target):
+        """Test data_dir returns .esphome in config directory by default on Windows."""
+        target.config_path = "D:\\home\\user\\config.yaml"
+        assert target.data_dir == "D:\\home\\user\\.esphome"
 
     def test_data_dir_ha_addon(self, target):
         """Test data_dir returns /data when running as Home Assistant addon."""
@@ -601,9 +607,11 @@ class TestEsphomeCore:
         with patch.dict(os.environ, {"ESPHOME_DATA_DIR": "/custom/data/path"}):
             assert target.data_dir == "/custom/data/path"
 
-    def test_data_dir_priority(self, target):
-        """Test data_dir priority: HA addon > env var > default."""
+    @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+    def test_data_dir_priority_unix(self, target):
+        """Test data_dir priority on Unix: HA addon > env var > default."""
         target.config_path = "/config/test.yaml"
+        expected_default = "/config/.esphome"
 
         # Test HA addon takes priority over env var
         with patch.dict(
@@ -624,4 +632,31 @@ class TestEsphomeCore:
             # Ensure these env vars are not set
             os.environ.pop("ESPHOME_IS_HA_ADDON", None)
             os.environ.pop("ESPHOME_DATA_DIR", None)
-            assert target.data_dir == "/config/.esphome"
+            assert target.data_dir == expected_default
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+    def test_data_dir_priority_windows(self, target):
+        """Test data_dir priority on Windows: HA addon > env var > default."""
+        target.config_path = "D:\\config\\test.yaml"
+        expected_default = "D:\\config\\.esphome"
+
+        # Test HA addon takes priority over env var
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "true", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/data"
+
+        # Test env var is used when not HA addon
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "false", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/custom/path"
+
+        # Test default when neither is set
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure these env vars are not set
+            os.environ.pop("ESPHOME_IS_HA_ADDON", None)
+            os.environ.pop("ESPHOME_DATA_DIR", None)
+            assert target.data_dir == expected_default

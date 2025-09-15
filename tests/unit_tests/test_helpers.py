@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 import socket
 import stat
@@ -637,8 +638,9 @@ def test_read_file_unicode_decode_error(tmp_path: Path) -> None:
         helpers.read_file(test_file)
 
 
-def test_write_file(tmp_path: Path) -> None:
-    """Test write_file writes content correctly."""
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+def test_write_file_unix(tmp_path: Path) -> None:
+    """Test write_file writes content correctly on Unix."""
     # Test writing string content
     test_file = tmp_path / "test.txt"
     content = "Test content\nLine 2"
@@ -659,8 +661,31 @@ def test_write_file(tmp_path: Path) -> None:
     assert nested_file.read_text() == content
 
 
-def test_write_file_to_non_writable_directory(tmp_path: Path) -> None:
-    """Test write_file raises error when directory is not writable."""
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_write_file_windows(tmp_path: Path) -> None:
+    """Test write_file writes content correctly on Windows."""
+    # Test writing string content
+    test_file = tmp_path / "test.txt"
+    content = "Test content\nLine 2"
+    helpers.write_file(test_file, content)
+
+    assert test_file.read_text() == content
+    # Windows doesn't have Unix-style 644 permissions
+
+    # Test overwriting existing file
+    new_content = "New content"
+    helpers.write_file(test_file, new_content)
+    assert test_file.read_text() == new_content
+
+    # Test writing to nested directories (should create them)
+    nested_file = tmp_path / "dir1" / "dir2" / "file.txt"
+    helpers.write_file(nested_file, content)
+    assert nested_file.read_text() == content
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_write_file_to_non_writable_directory_unix(tmp_path: Path) -> None:
+    """Test write_file raises error when directory is not writable on Unix."""
     # Create a directory and make it read-only
     read_only_dir = tmp_path / "readonly"
     read_only_dir.mkdir()
@@ -669,12 +694,32 @@ def test_write_file_to_non_writable_directory(tmp_path: Path) -> None:
     # Make directory read-only (no write permission)
     read_only_dir.chmod(0o555)
 
+    try:
+        with pytest.raises(EsphomeError, match=r"Could not write file"):
+            helpers.write_file(test_file, "content")
+    finally:
+        # Restore write permissions for cleanup
+        read_only_dir.chmod(0o755)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_write_file_to_non_writable_directory_windows(tmp_path: Path) -> None:
+    """Test write_file error handling on Windows."""
+    # Windows handles permissions differently - test a different error case
+    # Try to write to a file path that contains an existing file as a directory component
+    existing_file = tmp_path / "file.txt"
+    existing_file.write_text("content")
+
+    # Try to write to a path that treats the file as a directory
+    invalid_path = existing_file / "subdir" / "test.txt"
+
     with pytest.raises(EsphomeError, match=r"Could not write file"):
-        helpers.write_file(test_file, "content")
+        helpers.write_file(invalid_path, "content")
 
 
-def test_write_file_with_permission_bits(tmp_path: Path) -> None:
-    """Test that write_file sets correct permissions."""
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_write_file_with_permission_bits_unix(tmp_path: Path) -> None:
+    """Test that write_file sets correct permissions on Unix."""
     test_file = tmp_path / "test.txt"
     helpers.write_file(test_file, "content")
 
@@ -683,8 +728,9 @@ def test_write_file_with_permission_bits(tmp_path: Path) -> None:
     assert stat.S_IMODE(file_mode) == 0o644
 
 
-def test_copy_file_if_changed_permission_recovery(tmp_path: Path) -> None:
-    """Test copy_file_if_changed handles permission errors correctly."""
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_copy_file_if_changed_permission_recovery_unix(tmp_path: Path) -> None:
+    """Test copy_file_if_changed handles permission errors correctly on Unix."""
     # Test with read-only destination file
     src = tmp_path / "source.txt"
     dst = tmp_path / "dest.txt"
@@ -692,9 +738,14 @@ def test_copy_file_if_changed_permission_recovery(tmp_path: Path) -> None:
     dst.write_text("old content")
     dst.chmod(0o444)  # Make destination read-only
 
-    # Should handle permission error by deleting and retrying
-    helpers.copy_file_if_changed(src, dst)
-    assert dst.read_text() == "new content"
+    try:
+        # Should handle permission error by deleting and retrying
+        helpers.copy_file_if_changed(src, dst)
+        assert dst.read_text() == "new content"
+    finally:
+        # Restore write permissions for cleanup
+        if dst.exists():
+            dst.chmod(0o644)
 
 
 def test_copy_file_if_changed_creates_directories(tmp_path: Path) -> None:
