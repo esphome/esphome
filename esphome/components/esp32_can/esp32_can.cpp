@@ -138,6 +138,7 @@ canbus::CanEventFlags ESP32Can::get_events() {
     if (alerts & TWAI_ALERT_BUS_RECOVERED) {
       if (twai_start_v2(this->twai_handle_) == ESP_OK) {
         events |= canbus::CAN_EVENT_BUS_RECOVERED;
+        events |= canbus::CAN_EVENT_ACTIVE;
       } else {
         this->mark_failed("Restart after bus off failed");
       }
