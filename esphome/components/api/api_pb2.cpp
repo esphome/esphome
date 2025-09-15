@@ -42,6 +42,7 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->server_info_ref_.size());
   size.add_length(1, this->name_ref_.size());
 }
+#ifdef USE_API_PASSWORD
 bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1:
@@ -54,6 +55,7 @@ bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value
 }
 void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
 void ConnectResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
+#endif
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
