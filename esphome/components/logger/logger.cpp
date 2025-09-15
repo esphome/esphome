@@ -175,21 +175,7 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 
 #ifndef USE_ZEPHYR
 #if defined(USE_LOGGER_USB_CDC) || defined(USE_ESP32)
-void Logger::loop() {
-#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
-  if (this->uart_ == UART_SELECTION_USB_CDC) {
-    static bool opened = false;
-    if (opened == Serial) {
-      return;
-    }
-    if (false == opened) {
-      App.schedule_dump_config();
-    }
-    opened = !opened;
-  }
-#endif
-  this->process_messages_();
-}
+void Logger::loop() { this->process_messages_(); }
 #endif
 #endif
 

@@ -845,6 +845,7 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
@@ -879,9 +880,15 @@ async def to_code(config):
     advanced = conf[CONF_ADVANCED]
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
+    # When using Arduino with Ethernet, DHCP server functions must be available
+    # for the Network library to compile, even if not actively used
     if (
         CONF_ENABLE_LWIP_DHCP_SERVER in advanced
         and not advanced[CONF_ENABLE_LWIP_DHCP_SERVER]
+        and not (
+            conf[CONF_TYPE] == FRAMEWORK_ARDUINO
+            and "ethernet" in CORE.loaded_integrations
+        )
     ):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
     if not advanced.get(CONF_ENABLE_LWIP_MDNS_QUERIES, True):
