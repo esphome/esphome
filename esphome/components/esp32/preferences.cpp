@@ -17,7 +17,14 @@ static const char *const TAG = "esp32.preferences";
 
 struct NVSData {
   std::string key;
-  std::vector<uint8_t> data;
+  std::unique_ptr<uint8_t[]> data;
+  size_t len;
+
+  void set_data(const uint8_t *src, size_t size) {
+    data = std::make_unique<uint8_t[]>(size);
+    memcpy(data.get(), src, size);
+    len = size;
+  }
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -30,14 +37,14 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and update that
     for (auto &obj : s_pending_save) {
       if (obj.key == key) {
-        obj.data.assign(data, data + len);
+        obj.set_data(data, len);
         return true;
       }
     }
     NVSData save{};
     save.key = key;
-    save.data.assign(data, data + len);
-    s_pending_save.emplace_back(save);
+    save.set_data(data, len);
+    s_pending_save.emplace_back(std::move(save));
     ESP_LOGVV(TAG, "s_pending_save: key: %s, len: %d", key.c_str(), len);
     return true;
   }
@@ -45,11 +52,11 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and load from that
     for (auto &obj : s_pending_save) {
       if (obj.key == key) {
-        if (obj.data.size() != len) {
+        if (obj.len != len) {
           // size mismatch
           return false;
         }
-        memcpy(data, obj.data.data(), len);
+        memcpy(data, obj.data.get(), len);
         return true;
       }
     }
@@ -123,11 +130,10 @@ class ESP32Preferences : public ESPPreferences {
       const auto &save = s_pending_save[i];
       ESP_LOGVV(TAG, "Checking if NVS data %s has changed", save.key.c_str());
       if (is_changed(nvs_handle, save)) {
-        esp_err_t err = nvs_set_blob(nvs_handle, save.key.c_str(), save.data.data(), save.data.size());
-        ESP_LOGV(TAG, "sync: key: %s, len: %d", save.key.c_str(), save.data.size());
+        esp_err_t err = nvs_set_blob(nvs_handle, save.key.c_str(), save.data.get(), save.len);
+        ESP_LOGV(TAG, "sync: key: %s, len: %d", save.key.c_str(), save.len);
         if (err != 0) {
-          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.data.size(),
-                   esp_err_to_name(err));
+          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.len, esp_err_to_name(err));
           failed++;
           last_err = err;
           last_key = save.key;
@@ -135,7 +141,7 @@ class ESP32Preferences : public ESPPreferences {
         }
         written++;
       } else {
-        ESP_LOGV(TAG, "NVS data not changed skipping %s  len=%u", save.key.c_str(), save.data.size());
+        ESP_LOGV(TAG, "NVS data not changed skipping %s  len=%u", save.key.c_str(), save.len);
         cached++;
       }
       s_pending_save.erase(s_pending_save.begin() + i);
@@ -164,7 +170,7 @@ class ESP32Preferences : public ESPPreferences {
       return true;
     }
     // Check size first before allocating memory
-    if (actual_len != to_save.data.size()) {
+    if (actual_len != to_save.len) {
       return true;
     }
     auto stored_data = std::make_unique<uint8_t[]>(actual_len);
@@ -173,7 +179,7 @@ class ESP32Preferences : public ESPPreferences {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    return memcmp(to_save.data.data(), stored_data.get(), to_save.data.size()) != 0;
+    return memcmp(to_save.data.get(), stored_data.get(), to_save.len) != 0;
   }
 
   bool reset() override {
