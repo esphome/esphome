@@ -1290,9 +1290,11 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
   request->send(404);
 }
 std::string WebServer::climate_state_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return web_server->climate_json((climate::Climate *) (source), DETAIL_STATE);
 }
 std::string WebServer::climate_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return web_server->climate_json((climate::Climate *) (source), DETAIL_ALL);
 }
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
@@ -1697,9 +1699,11 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::update_state_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::update_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_config) {
