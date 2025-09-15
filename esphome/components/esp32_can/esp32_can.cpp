@@ -67,9 +67,16 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
 }
 
 bool ESP32Can::setup_internal() {
+  static int next_twai_ctrl_num = 0;
+  if (next_twai_ctrl_num >= SOC_TWAI_CONTROLLER_NUM) {
+    ESP_LOGW(TAG, "Maximum number of esp32_can components created already");
+    this->mark_failed();
+    return false;
+  }
+
   twai_general_config_t g_config =
       TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, TWAI_MODE_NORMAL);
-
+  g_config.controller_id = next_twai_ctrl_num++;
   g_config.alerts_enabled = TWAI_ALERT_ABOVE_ERR_WARN | TWAI_ALERT_BELOW_ERR_WARN | TWAI_ALERT_ERR_PASS |
                             TWAI_ALERT_ERR_ACTIVE | TWAI_ALERT_BUS_OFF | TWAI_ALERT_BUS_RECOVERED |
                             TWAI_ALERT_RX_QUEUE_FULL;
@@ -90,14 +97,14 @@ bool ESP32Can::setup_internal() {
   }
 
   // Install TWAI driver
-  if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
+  if (twai_driver_install_v2(&g_config, &t_config, &f_config, &(this->twai_handle_)) != ESP_OK) {
     // Failed to install driver
     this->mark_failed();
     return false;
   }
 
   // Start TWAI driver
-  if (twai_start() != ESP_OK) {
+  if (twai_start_v2(this->twai_handle_) != ESP_OK) {
     // Failed to start driver
     this->mark_failed();
     return false;
@@ -108,7 +115,7 @@ bool ESP32Can::setup_internal() {
 canbus::CanEventFlags ESP32Can::get_events() {
   uint32_t events = 0;
   uint32_t alerts;
-  if (twai_read_alerts(&alerts, 0) == ESP_OK) {
+  if (twai_read_alerts_v2(this->twai_handle_, &alerts, 0) == ESP_OK) {
     if (alerts & TWAI_ALERT_ABOVE_ERR_WARN) {
       events |= canbus::CAN_EVENT_ABOVE_WARNING;
     }
@@ -126,10 +133,10 @@ canbus::CanEventFlags ESP32Can::get_events() {
     if (alerts & TWAI_ALERT_BUS_OFF) {
       events |= canbus::CAN_EVENT_BUS_OFF;
       // immediately initiate bus recovery, like MCP2515 does as well
-      twai_initiate_recovery();
+      twai_initiate_recovery_v2(this->twai_handle_);
     }
     if (alerts & TWAI_ALERT_BUS_RECOVERED) {
-      if (twai_start() == ESP_OK) {
+      if (twai_start_v2(this->twai_handle_) == ESP_OK) {
         events |= canbus::CAN_EVENT_BUS_RECOVERED;
       } else {
         this->mark_failed("Restart after bus off failed");
@@ -148,7 +155,7 @@ canbus::CanStatus ESP32Can::get_status() {
 
   twai_status_info_t twai_status;
 
-  if (twai_get_status_info(&twai_status) == ESP_OK) {
+  if (twai_get_status_info_v2(this->twai_handle_, &twai_status) == ESP_OK) {
     status.bus_off = (twai_status.state == TWAI_STATE_BUS_OFF) || (twai_status.state == TWAI_STATE_RECOVERING);
     status.rx_error_counter = twai_status.rx_error_counter;
     status.tx_error_counter = twai_status.tx_error_counter;
@@ -164,6 +171,11 @@ canbus::CanStatus ESP32Can::get_status() {
 }
 
 canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
+  if (this->twai_handle_ == nullptr) {
+    // not setup yet or setup failed
+    return canbus::ERROR_FAIL;
+  }
+
   if (frame->can_data_length_code > canbus::CAN_MAX_DATA_LENGTH) {
     return canbus::ERROR_FAILTX;
   }
@@ -186,7 +198,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
     memcpy(message.data, frame->data, frame->can_data_length_code);
   }
 
-  if (twai_transmit(&message, this->tx_enqueue_timeout_ticks_) == ESP_OK) {
+  if (twai_transmit_v2(this->twai_handle_, &message, this->tx_enqueue_timeout_ticks_) == ESP_OK) {
     return canbus::ERROR_OK;
   } else {
     return canbus::ERROR_ALLTXBUSY;
@@ -194,9 +206,14 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
 }
 
 canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
+  if (this->twai_handle_ == nullptr) {
+    // not setup yet or setup failed
+    return canbus::ERROR_FAIL;
+  }
+
   twai_message_t message;
 
-  if (twai_receive(&message, 0) != ESP_OK) {
+  if (twai_receive_v2(this->twai_handle_, &message, 0) != ESP_OK) {
     return canbus::ERROR_NOMSG;
   }
 
