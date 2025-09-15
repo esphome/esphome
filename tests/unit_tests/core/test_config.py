@@ -35,6 +35,22 @@ from .common import load_config_from_fixture
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
 
+@pytest.fixture
+def mock_cg_with_include_capture() -> tuple[Mock, list[str]]:
+    """Mock code generation with include capture."""
+    includes_added: list[str] = []
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_raw_statement = MagicMock()
+
+        def capture_include(text: str) -> MagicMock:
+            includes_added.append(text)
+            return mock_raw_statement
+
+        mock_cg.RawStatement.side_effect = capture_include
+        yield mock_cg, includes_added
+
+
 def test_validate_area_config_with_string() -> None:
     """Test that string area config is converted to structured format."""
     result = validate_area_config("Living Room")
@@ -572,7 +588,9 @@ def test_is_target_platform() -> None:
 
 @pytest.mark.asyncio
 async def test_add_includes_with_single_file(
-    tmp_path: Path, mock_copy_file_if_changed: Mock
+    tmp_path: Path,
+    mock_copy_file_if_changed: Mock,
+    mock_cg_with_include_capture: tuple[Mock, list[str]],
 ) -> None:
     """Test add_includes copies a single header file to build directory."""
     CORE.config_path = str(tmp_path / "config.yaml")
@@ -583,19 +601,9 @@ async def test_add_includes_with_single_file(
     include_file = tmp_path / "my_header.h"
     include_file.write_text("#define MY_CONSTANT 42")
 
-    # Mock the code generation to capture includes
-    includes_added: list[str] = []
+    mock_cg, includes_added = mock_cg_with_include_capture
 
-    with patch("esphome.core.config.cg") as mock_cg:
-        mock_raw_statement = MagicMock()
-
-        def capture_include(text: str) -> MagicMock:
-            includes_added.append(text)
-            return mock_raw_statement
-
-        mock_cg.RawStatement.side_effect = capture_include
-
-        await config.add_includes([str(include_file)])
+    await config.add_includes([str(include_file)])
 
     # Verify copy_file_if_changed was called to copy the file
     # Note: add_includes adds files to a src/ subdirectory
@@ -609,7 +617,9 @@ async def test_add_includes_with_single_file(
 
 @pytest.mark.asyncio
 async def test_add_includes_with_directory(
-    tmp_path: Path, mock_copy_file_if_changed: Mock
+    tmp_path: Path,
+    mock_copy_file_if_changed: Mock,
+    mock_cg_with_include_capture: tuple[Mock, list[str]],
 ) -> None:
     """Test add_includes copies all files from a directory."""
     CORE.config_path = str(tmp_path / "config.yaml")
@@ -631,19 +641,9 @@ async def test_add_includes_with_directory(
     subdir.mkdir()
     (subdir / "nested.h").write_text("#define NESTED")
 
-    # Mock the code generation to capture includes
-    includes_added: list[str] = []
+    mock_cg, includes_added = mock_cg_with_include_capture
 
-    with patch("esphome.core.config.cg") as mock_cg:
-        mock_raw_statement = MagicMock()
-
-        def capture_include(text: str) -> MagicMock:
-            includes_added.append(text)
-            return mock_raw_statement
-
-        mock_cg.RawStatement.side_effect = capture_include
-
-        await config.add_includes([str(include_dir)])
+    await config.add_includes([str(include_dir)])
 
     # Verify copy_file_if_changed was called for all files
     assert mock_copy_file_if_changed.call_count == 5  # 4 code files + 1 README
