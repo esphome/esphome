@@ -1,9 +1,16 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor, text_sensor, time
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID, CONF_TIME_ID, CONF_TEMPERATURE, CONF_ADDRESS, CONF_I2C_ID,
-    DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS, ICON_THERMOMETER, CONF_TIME
+    CONF_ADDRESS,
+    CONF_I2C_ID,
+    CONF_ID,
+    CONF_TEMPERATURE,
+    CONF_TIME,
+    CONF_TIME_ID,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_THERMOMETER,
+    UNIT_CELSIUS,
 )
 
 CODEOWNERS = ["@your_github_username"]
@@ -11,7 +18,9 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor", "time"]
 
 ds3231_ns = cg.esphome_ns.namespace("ds3231")
-DS3231Component = ds3231_ns.class_("DS3231Component", cg.PollingComponent, i2c.I2CDevice)
+DS3231Component = ds3231_ns.class_(
+    "DS3231Component", cg.PollingComponent, i2c.I2CDevice
+)
 
 DEFAULT_ADDRESS = 0x68
 
@@ -37,19 +46,20 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(DEFAULT_ADDRESS))
 )
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    
+
     # Set the I2C address
     if CONF_ADDRESS in config:
         cg.add(var.set_address(config[CONF_ADDRESS]))
-    
+
     # Set the I2C bus if specified
     if CONF_I2C_ID in config:
         bus = await cg.get_variable(config[CONF_I2C_ID])
         cg.add(var.set_i2c_bus(bus))
-    
+
     await i2c.register_i2c_device(var, config)
 
     # Time ID is required
