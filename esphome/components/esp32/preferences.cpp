@@ -45,7 +45,7 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     save.key = key;
     save.set_data(data, len);
     s_pending_save.emplace_back(std::move(save));
-    ESP_LOGVV(TAG, "s_pending_save: key: %s, len: %d", key.c_str(), len);
+    ESP_LOGVV(TAG, "s_pending_save: key: %s, len: %zu", key.c_str(), len);
     return true;
   }
   bool load(uint8_t *data, size_t len) override {
@@ -68,7 +68,7 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
       return false;
     }
     if (actual_len != len) {
-      ESP_LOGVV(TAG, "NVS length does not match (%u!=%u)", actual_len, len);
+      ESP_LOGVV(TAG, "NVS length does not match (%zu!=%zu)", actual_len, len);
       return false;
     }
     err = nvs_get_blob(nvs_handle, key.c_str(), data, &len);
@@ -76,7 +76,7 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key.c_str(), esp_err_to_name(err));
       return false;
     } else {
-      ESP_LOGVV(TAG, "nvs_get_blob: key: %s, len: %d", key.c_str(), len);
+      ESP_LOGVV(TAG, "nvs_get_blob: key: %s, len: %zu", key.c_str(), len);
     }
     return true;
   }
@@ -119,7 +119,7 @@ class ESP32Preferences : public ESPPreferences {
     if (s_pending_save.empty())
       return true;
 
-    ESP_LOGV(TAG, "Saving %d items...", s_pending_save.size());
+    ESP_LOGV(TAG, "Saving %zu items...", s_pending_save.size());
     // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     esp_err_t last_err = ESP_OK;
@@ -131,9 +131,9 @@ class ESP32Preferences : public ESPPreferences {
       ESP_LOGVV(TAG, "Checking if NVS data %s has changed", save.key.c_str());
       if (is_changed(nvs_handle, save)) {
         esp_err_t err = nvs_set_blob(nvs_handle, save.key.c_str(), save.data.get(), save.len);
-        ESP_LOGV(TAG, "sync: key: %s, len: %d", save.key.c_str(), save.len);
+        ESP_LOGV(TAG, "sync: key: %s, len: %zu", save.key.c_str(), save.len);
         if (err != 0) {
-          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.len, esp_err_to_name(err));
+          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%zu) failed: %s", save.key.c_str(), save.len, esp_err_to_name(err));
           failed++;
           last_err = err;
           last_key = save.key;
@@ -141,7 +141,7 @@ class ESP32Preferences : public ESPPreferences {
         }
         written++;
       } else {
-        ESP_LOGV(TAG, "NVS data not changed skipping %s  len=%u", save.key.c_str(), save.len);
+        ESP_LOGV(TAG, "NVS data not changed skipping %s  len=%zu", save.key.c_str(), save.len);
         cached++;
       }
       s_pending_save.erase(s_pending_save.begin() + i);
