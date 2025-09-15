@@ -603,8 +603,9 @@ def test_mkdir_p_with_existing_file_raises_error(tmp_path: Path) -> None:
         helpers.mkdir_p(dir_path)
 
 
-def test_read_file(tmp_path: Path) -> None:
-    """Test read_file reads file content correctly."""
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+def test_read_file_unix(tmp_path: Path) -> None:
+    """Test read_file reads file content correctly on Unix."""
     # Test reading regular file
     test_file = tmp_path / "test.txt"
     expected_content = "Test content\nLine 2\n"
@@ -612,6 +613,27 @@ def test_read_file(tmp_path: Path) -> None:
 
     content = helpers.read_file(test_file)
     assert content == expected_content
+
+    # Test reading file with UTF-8 characters
+    utf8_file = tmp_path / "utf8.txt"
+    utf8_content = "Hello 世界 🌍"
+    utf8_file.write_text(utf8_content, encoding="utf-8")
+
+    content = helpers.read_file(utf8_file)
+    assert content == utf8_content
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_read_file_windows(tmp_path: Path) -> None:
+    """Test read_file reads file content correctly on Windows."""
+    # Test reading regular file
+    test_file = tmp_path / "test.txt"
+    expected_content = "Test content\nLine 2\n"
+    test_file.write_text(expected_content)
+
+    content = helpers.read_file(test_file)
+    # On Windows, text mode reading converts \n to \r\n
+    assert content == expected_content.replace("\n", "\r\n")
 
     # Test reading file with UTF-8 characters
     utf8_file = tmp_path / "utf8.txt"
