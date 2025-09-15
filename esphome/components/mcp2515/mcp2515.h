@@ -59,6 +59,7 @@ class MCP2515 : public canbus::Canbus,
   MCP2515(){};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
   void set_mcp_mode(const CanctrlReqopMode mode) { this->mcp_mode_ = mode; }
+  canbus::CanStatus get_status() override;
   static const struct TxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
@@ -76,6 +77,7 @@ class MCP2515 : public canbus::Canbus,
   CanClock mcp_clock_{MCP_8MHZ};
   CanctrlReqopMode mcp_mode_ = CANCTRL_REQOP_NORMAL;
   bool setup_internal() override;
+  canbus::CanEventFlags get_events() override;
   canbus::Error set_mode_(CanctrlReqopMode mode);
 
   uint8_t read_register_(REGISTER reg);

@@ -64,6 +64,30 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 };
 
 void Canbus::loop() {
+  enum CanEventFlags events = this->get_events();
+
+  if (events & CanEventFlags::CAN_EVENT_ABOVE_WARNING) {
+    ESP_LOGD(TAG, "entered status warning");
+  }
+  if (events & CanEventFlags::CAN_EVENT_BELOW_WARNING) {
+    ESP_LOGD(TAG, "exited status warning");
+  }
+  if (events & CanEventFlags::CAN_EVENT_PASSIVE) {
+    ESP_LOGW(TAG, "entered status passive");
+  }
+  if (events & CanEventFlags::CAN_EVENT_ACTIVE) {
+    ESP_LOGW(TAG, "exited status passive");
+  }
+  if (events & CanEventFlags::CAN_EVENT_BUS_OFF) {
+    ESP_LOGE(TAG, "entered status bus off");
+  }
+  if (events & CanEventFlags::CAN_EVENT_BUS_RECOVERED) {
+    ESP_LOGE(TAG, "exited status bus off");
+  }
+  if (events & CanEventFlags::CAN_EVENT_RX_QUEUE_FULL) {
+    ESP_LOGW(TAG, "receive buffer overrun");
+  }
+
   struct CanFrame can_message;
   // read all messages until queue is empty
   int message_counter = 0;

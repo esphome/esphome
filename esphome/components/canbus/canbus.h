@@ -62,6 +62,27 @@ struct CanFrame {
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
 
+enum CanEventFlags {
+  CAN_EVENT_ABOVE_WARNING = 1 << 0,
+  CAN_EVENT_BELOW_WARNING = 1 << 1,
+  CAN_EVENT_PASSIVE = 1 << 2,
+  CAN_EVENT_ACTIVE = 1 << 3,
+  CAN_EVENT_BUS_OFF = 1 << 4,
+  CAN_EVENT_BUS_RECOVERED = 1 << 5,
+  CAN_EVENT_RX_QUEUE_FULL = 1 << 6,
+};
+
+struct CanStatus {
+  bool bus_off;
+  uint8_t rx_error_counter;
+  uint8_t tx_error_counter;
+  esphome::optional<uint32_t> tx_failed_count;
+  esphome::optional<uint32_t> rx_missed_count;
+  esphome::optional<uint32_t> rx_overrun_count;
+  esphome::optional<uint32_t> arb_lost_count;
+  esphome::optional<uint32_t> bus_error_count;
+};
+
 class Canbus : public Component {
  public:
   Canbus(){};
@@ -79,6 +100,7 @@ class Canbus : public Component {
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
+  virtual CanStatus get_status() = 0;
 
   void add_trigger(CanbusTrigger *trigger);
   /**
@@ -105,9 +127,10 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
-  virtual bool setup_internal();
-  virtual Error send_message(struct CanFrame *frame);
-  virtual Error read_message(struct CanFrame *frame);
+  virtual bool setup_internal() = 0;
+  virtual Error send_message(struct CanFrame *frame) = 0;
+  virtual Error read_message(struct CanFrame *frame) = 0;
+  virtual CanEventFlags get_events() = 0;
 };
 
 template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {

@@ -27,6 +27,54 @@ bool MCP2515::setup_internal() {
   return true;
 }
 
+canbus::CanEventFlags MCP2515::get_events() {
+  uint32_t events = 0;
+  static uint8_t last_error_flags = 0;
+  uint8_t error_flags = this->get_error_flags_();
+
+  uint8_t changed_flags = last_error_flags ^ error_flags;
+  if (changed_flags & EFLG_EWARN) {
+    events |= (error_flags & EFLG_EWARN) ? canbus::CAN_EVENT_ABOVE_WARNING : canbus::CAN_EVENT_BELOW_WARNING;
+  }
+  if (changed_flags & (EFLG_RXEP | EFLG_TXEP)) {
+    bool was_passive = last_error_flags & (EFLG_RXEP | EFLG_TXEP);
+    bool is_passive = error_flags & (EFLG_RXEP | EFLG_TXEP);
+
+    // only throw event if the status has changed (both on RX and TX passive flags)
+    if (was_passive != is_passive) {
+      events |= is_passive ? canbus::CAN_EVENT_PASSIVE : canbus::CAN_EVENT_ACTIVE;
+    }
+  }
+  if (changed_flags & EFLG_TXBO) {
+    events |= (error_flags & EFLG_TXBO) ? canbus::CAN_EVENT_BUS_OFF : canbus::CAN_EVENT_BUS_RECOVERED;
+  }
+
+  // The receive flowchart in the datasheet says that if rollover is set (BUKT), RX1OVR flag will be set
+  // once both both buffers are full. However, the RX0OVR flag is actually set instead.
+  // We can just check for both though because it doesn't break anything.
+  if (error_flags & (EFLG_RX0OVR | EFLG_RX1OVR)) {
+    events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
+    clear_rx_n_ovr_flags_();
+  }
+  return static_cast<canbus::CanEventFlags>(events);
+}
+
+canbus::CanStatus MCP2515::get_status() {
+  canbus::CanStatus status = {};
+
+  uint8_t error_flags = this->get_error_flags_();
+  status.bus_off = error_flags & EFLG_TXBO;
+
+  // Transmit Error Counter is followed by Receive Error Counter so we're reading both at once
+  uint8_t err_counters[2];
+  read_registers_(MCP_TEC, err_counters, 2);
+
+  status.rx_error_counter = err_counters[1];
+  status.tx_error_counter = err_counters[0];
+
+  return status;
+}
+
 canbus::Error MCP2515::reset_() {
   this->enable();
   this->transfer_byte(INSTRUCTION_RESET);
