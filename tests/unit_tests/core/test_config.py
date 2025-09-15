@@ -385,7 +385,8 @@ def test_preload_core_config_basic(setup_core: Path) -> None:
     assert KEY_CORE in CORE.data
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
     # Verify default build path is "build/<device_name>"
-    assert config[CONF_ESPHOME][CONF_BUILD_PATH].endswith("build/test_device")
+    build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
+    assert build_path.endswith(os.path.join("build", "test_device"))
 
 
 def test_preload_core_config_with_build_path(setup_core: Path) -> None:
@@ -421,7 +422,11 @@ def test_preload_core_config_env_build_path(setup_core: Path) -> None:
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
     assert "test_device" in config[CONF_ESPHOME][CONF_BUILD_PATH]
     # Verify it uses the env var path with device name appended
-    assert config[CONF_ESPHOME][CONF_BUILD_PATH].endswith("/env/build/test_device")
+    build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
+    expected_path = os.path.join("/env/build", "test_device")
+    assert build_path == expected_path or build_path == expected_path.replace(
+        "/", os.sep
+    )
     assert platform == "rp2040"
 
 
