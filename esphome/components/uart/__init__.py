@@ -119,6 +119,13 @@ def validate_rx_pin(value):
     return value
 
 
+def validate_de_pin(value):
+    value = pins.internal_gpio_input_pin_schema(value)
+    if not CORE.using_esp_idf:
+        raise cv.Invalid("DE pin is only supported with ESP-IDF.")
+    return value
+
+
 def validate_invert_esp32(config):
     if (
         CORE.is_esp32
@@ -174,6 +181,7 @@ UART_PARITY_OPTIONS = {
 CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
+CONF_DE_PIN = "de_pin"
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -241,6 +249,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
+            cv.Optional(CONF_DE_PIN): validate_de_pin,
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
@@ -298,6 +307,9 @@ async def to_code(config):
     if CONF_RX_PIN in config:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
+    if CONF_DE_PIN in config:
+        de_pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
+        cg.add(var.set_de_pin(de_pin))
     if CONF_PORT in config:
         cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))

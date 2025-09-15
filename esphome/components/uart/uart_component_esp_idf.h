@@ -23,6 +23,10 @@ class IDFUARTComponent : public UARTComponent, public Component {
   int available() override;
   void flush() override;
 
+  // Sets the DE (driver enable) pin for the UART bus.
+  // @param de_pin Pointer to the internal GPIO pin used for transmission.
+  void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
+
   uint8_t get_hw_serial_number() { return this->uart_num_; }
   QueueHandle_t *get_uart_event_queue() { return &this->uart_event_queue_; }
 
@@ -50,6 +54,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
 
   bool has_peek_{false};
   uint8_t peek_byte_;
+  InternalGPIOPin *de_pin_;
 };
 
 }  // namespace uart

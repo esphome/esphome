@@ -100,6 +100,7 @@ void IDFUARTComponent::setup() {
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t rts = this->de_pin_ != nullptr ? this->de_pin_->get_pin() : UART_PIN_NO_CHANGE;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
@@ -114,7 +115,7 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  err = uart_set_pin(this->uart_num_, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+  err = uart_set_pin(this->uart_num_, tx, rx, rts, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
     this->mark_failed();
@@ -131,6 +132,15 @@ void IDFUARTComponent::setup() {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
+  }
+
+  if (this->de_pin_ != nullptr) {
+    err = uart_set_mode(this->uart_num_, UART_MODE_RS485_HALF_DUPLEX);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    }
   }
 
   xSemaphoreGive(this->lock_);
