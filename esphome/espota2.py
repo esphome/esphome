@@ -311,10 +311,14 @@ def perform_ota(
 def run_ota_impl_(
     remote_host: str | list[str], remote_port: int, password: str, filename: str
 ) -> tuple[int, str | None]:
+    from esphome.core import CORE
+
     # Handle both single host and list of hosts
     try:
         # Resolve all hosts at once for parallel DNS resolution
-        res = resolve_ip_address(remote_host, remote_port)
+        res = resolve_ip_address(
+            remote_host, remote_port, address_cache=CORE.address_cache
+        )
     except EsphomeError as err:
         _LOGGER.error(
             "Error resolving IP address of %s. Is it connected to WiFi?",
