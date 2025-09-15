@@ -621,7 +621,6 @@ async def test_archive_handler_with_build_folder(
     tmp_path: Path,
 ) -> None:
     """Test ArchiveRequestHandler.post with storage_json and build folder."""
-    # Set up temp directories
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     archive_dir = tmp_path / "archive"
@@ -629,29 +628,24 @@ async def test_archive_handler_with_build_folder(
     build_dir = tmp_path / "build"
     build_dir.mkdir()
 
-    # Create a test configuration file
     configuration = "test_device.yaml"
     test_config = config_dir / configuration
     test_config.write_text("esphome:\n  name: test_device\n")
 
-    # Create build folder with content (in proper location)
     build_folder = build_dir / "test_device"
     build_folder.mkdir()
     (build_folder / "firmware.bin").write_text("binary content")
     (build_folder / ".pioenvs").mkdir()
 
-    # Mock settings to use our temp directory
     mock_dashboard_settings.config_dir = str(config_dir)
     mock_dashboard_settings.rel_path.return_value = str(test_config)
     mock_archive_storage_path.return_value = str(archive_dir)
 
-    # Mock storage_json with device name and build_path
     mock_storage = MagicMock()
     mock_storage.name = "test_device"
     mock_storage.build_path = str(build_folder)
     mock_storage_json.load.return_value = mock_storage
 
-    # Archive the configuration
     response = await dashboard.fetch(
         "/archive",
         method="POST",
@@ -660,13 +654,10 @@ async def test_archive_handler_with_build_folder(
     )
     assert response.code == 200
 
-    # Verify config file was moved to archive
     assert not test_config.exists()
     assert (archive_dir / configuration).exists()
 
-    # Verify build folder was deleted (not archived)
     assert not build_folder.exists()
-    # Build folder should NOT be in archive
     assert not (archive_dir / "test_device").exists()
 
 
