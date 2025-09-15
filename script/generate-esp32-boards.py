@@ -58,10 +58,10 @@ TEMPLATE = """    "%s": {
 def main(check: bool):
     boards = get_boards()
     # open boards.py, delete existing BOARDS variable and write the new boards dict
-    lines = boards_file_path.read_text(encoding="UTF-8").splitlines()
+    existing_content = boards_file_path.read_text(encoding="UTF-8")
 
     parts: list[str] = []
-    for line in lines:
+    for line in existing_content.splitlines():
         if line == "BOARDS = {":
             parts.append(line)
             parts.extend(
@@ -78,7 +78,7 @@ def main(check: bool):
     content = "\n".join(parts)
 
     if check:
-        if boards_file_path.read_text() != content:
+        if existing_content != content:
             print("boards.py file is not up to date.")
             print("Please run `script/generate-esp32-boards.py`")
             sys.exit(1)
