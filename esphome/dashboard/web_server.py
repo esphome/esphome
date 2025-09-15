@@ -1038,12 +1038,11 @@ class ArchiveRequestHandler(BaseHandler):
         shutil.move(config_file, os.path.join(archive_path, configuration))
 
         storage_json = StorageJSON.load(storage_path)
-        if storage_json is not None:
-            # Move build folder to archive (if exists)
-            name = storage_json.name
-            build_folder = os.path.join(settings.config_dir, name)
+        if storage_json is not None and storage_json.build_path:
+            # Delete build folder (if exists)
+            build_folder = storage_json.build_path
             if os.path.exists(build_folder):
-                shutil.move(build_folder, os.path.join(archive_path, name))
+                shutil.rmtree(build_folder, ignore_errors=True)
 
 
 class UnArchiveRequestHandler(BaseHandler):
