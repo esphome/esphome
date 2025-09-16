@@ -1,9 +1,11 @@
+import re
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble, output
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID, __version__
 
 AUTO_LOAD = ["esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
@@ -13,12 +15,33 @@ CONF_AUTHORIZED_DURATION = "authorized_duration"
 CONF_AUTHORIZER = "authorizer"
 CONF_BLE_SERVER_ID = "ble_server_id"
 CONF_IDENTIFY_DURATION = "identify_duration"
+CONF_NEXT_URL = "next_url"
 CONF_ON_PROVISIONED = "on_provisioned"
 CONF_ON_PROVISIONING = "on_provisioning"
 CONF_ON_START = "on_start"
 CONF_ON_STOP = "on_stop"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
+
+VALID_SUBSTITUTIONS = ["esphome_version", "ip_address", "device_name"]
+
+
+def validate_next_url(value):
+    value = cv.url(value)
+    test = r"{{(?!" + r"\b|".join(VALID_SUBSTITUTIONS) + r"\b)(\w+)}}"
+    result = re.search(test, value)
+    if result:
+        raise cv.Invalid(
+            f"Invalid substitution(s) ({', '.join(result.groups())}) in next_url. Valid substitutions are: {', '.join(VALID_SUBSTITUTIONS)}"
+        )
+    return value
+
+
+def _process_next_url(url: str):
+    if "{{esphome_version}}" in url:
+        url = url.replace("{{esphome_version}}", __version__)
+    return url
+
 
 improv_ns = cg.esphome_ns.namespace("improv")
 Error = improv_ns.enum("Error")
@@ -59,6 +82,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_WIFI_TIMEOUT, default="1min"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_NEXT_URL): validate_next_url,
         cv.Optional(CONF_ON_PROVISIONED): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -108,6 +132,9 @@ async def to_code(config):
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))
 
     cg.add(var.set_wifi_timeout(config[CONF_WIFI_TIMEOUT]))
+
+    if CONF_NEXT_URL in config:
+        cg.add(var.set_next_url(_process_next_url(config[CONF_NEXT_URL])))
 
     if CONF_AUTHORIZER in config and config[CONF_AUTHORIZER] is not None:
         activator = await cg.get_variable(config[CONF_AUTHORIZER])
