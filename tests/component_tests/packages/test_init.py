@@ -36,10 +36,12 @@ def test_packages_skip_update_true(
     # Call with skip_update=True
     do_packages_pass(config, skip_update=True)
 
-    # Verify clone_or_update was called with refresh=None
+    # Verify clone_or_update was called with NEVER_REFRESH
     mock_clone_or_update.assert_called_once()
     call_args = mock_clone_or_update.call_args
-    assert call_args.kwargs["refresh"] is None
+    from esphome import git
+
+    assert call_args.kwargs["refresh"] == git.NEVER_REFRESH
 
 
 def test_packages_skip_update_false(
