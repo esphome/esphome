@@ -1,13 +1,19 @@
 #include "logger_level_select.h"
 
+#include "esphome/core/log.h"
+
 namespace esphome::logger {
 
+static const char *const TAG = "logger.select";
+
 void LoggerLevelSelect::publish_state(int level) {
-  auto value = this->at(level);
-  if (!value) {
-    return;
+  for (uint8_t i = 0; i < this->levels_length_; i++) {
+    if (this->levels_[i] == level) {
+      const auto &option = this->at(i).value();
+      select::Select::publish_state(option);
+      return;
+    }
   }
-  Select::publish_state(value.value());
 }
 
 void LoggerLevelSelect::setup() {
@@ -17,17 +23,8 @@ void LoggerLevelSelect::setup() {
 
 void LoggerLevelSelect::control(const std::string &value) {
   // Find selected value in available log levels
-  const auto *const begin_it = std::begin(LOG_LEVELS);
-  const auto *const end_it = std::end(LOG_LEVELS);
-  const auto *const it =
-      std::find_if(begin_it, end_it, [value](const char *x) { return strcmp(x, value.c_str()) == 0; });
-
-  if (it == end_it) {
-    return;
-  }
-
-  auto level = std::distance(begin_it, it);
-  this->parent_->set_log_level(level);
+  const auto index = this->index_of(value).value();
+  this->parent_->set_log_level(this->levels_[index]);
 }
 
 }  // namespace esphome::logger
