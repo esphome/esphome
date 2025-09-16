@@ -1287,7 +1287,12 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config(dict(args.substitution) if args.substitution else {})
+        # For logs command, skip updating external components
+        skip_external = args.command == "logs"
+        config = read_config(
+            dict(args.substitution) if args.substitution else {},
+            skip_external_update=skip_external,
+        )
         if config is None:
             return 2
         CORE.config = config
