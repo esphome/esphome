@@ -173,10 +173,8 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 }
 #endif
 
-#ifndef USE_ZEPHYR
-#if defined(USE_LOGGER_USB_CDC) || defined(USE_ESP32)
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
 void Logger::loop() { this->process_messages_(); }
-#endif
 #endif
 
 void Logger::process_messages_() {
