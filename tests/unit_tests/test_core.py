@@ -687,6 +687,14 @@ class TestEsphomeCore:
             expected = os.path.expanduser("~/.platformio/.cache")
             assert target.platformio_cache_dir == expected
 
+    def test_platformio_cache_dir_whitespace_env_var(self):
+        """Test platformio_cache_dir with whitespace-only env var falls back to default."""
+        target = core.EsphomeCore()
+
+        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": "   "}):
+            expected = os.path.expanduser("~/.platformio/.cache")
+            assert target.platformio_cache_dir == expected
+
     def test_platformio_cache_dir_docker_addon_path(self):
         """Test platformio_cache_dir in Docker/HA addon environment."""
         target = core.EsphomeCore()
