@@ -70,50 +70,23 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
 }
 
 // JsonBuilder implementation
-class JsonBuilder::Impl {
- public:
-  Impl() {
+JsonBuilder::JsonBuilder()
+    : doc_(
 #ifdef USE_PSRAM
-    allocator_ = std::make_unique<SpiRamAllocator>();
-    doc_ = std::make_unique<JsonDocument>(allocator_.get());
+          (allocator_ = std::make_unique<SpiRamAllocator>(), allocator_.get())
 #else
-    doc_ = std::make_unique<JsonDocument>();
+          nullptr
 #endif
-  }
-
-  JsonObject root() {
-    if (!root_created_) {
-      root_ = doc_->to<JsonObject>();
-      root_created_ = true;
-    }
-    return root_;
-  }
-
-  bool overflowed() const { return doc_->overflowed(); }
-
-  void serialize_to(std::string &output) { serializeJson(*doc_, output); }
-
- private:
-#ifdef USE_PSRAM
-  std::unique_ptr<SpiRamAllocator> allocator_;
-#endif
-  std::unique_ptr<JsonDocument> doc_;
-  JsonObject root_;
-  bool root_created_{false};
-};
-
-JsonBuilder::JsonBuilder() : impl_(std::make_unique<Impl>()) {}
-JsonBuilder::~JsonBuilder() = default;
-
-JsonObject JsonBuilder::root() { return impl_->root(); }
+      ) {
+}
 
 std::string JsonBuilder::serialize() {
-  if (impl_->overflowed()) {
+  if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");
     return "{}";
   }
   std::string output;
-  impl_->serialize_to(output);
+  serializeJson(doc_, output);
   return output;
 }
 
