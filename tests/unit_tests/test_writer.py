@@ -475,9 +475,9 @@ def test_clean_build_platformio_not_available(
     dependencies_lock.write_text("lock file")
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
-    mock_core.relative_build_path.return_value = str(dependencies_lock)
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_build_path.return_value = dependencies_lock
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -513,9 +513,9 @@ def test_clean_build_empty_cache_dir(
     pioenvs_dir.mkdir()
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(tmp_path / ".piolibdeps")
-    mock_core.relative_build_path.return_value = str(tmp_path / "dependencies.lock")
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
