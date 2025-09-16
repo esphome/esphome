@@ -29,6 +29,7 @@ bool parse_json(const std::string &data, const json_parse_t &f);
 class JsonBuilder {
  public:
   JsonBuilder();
+  ~JsonBuilder();
 
   JsonObject root() {
     if (!root_created_) {
@@ -41,12 +42,13 @@ class JsonBuilder {
   std::string serialize();
 
  private:
-#ifdef USE_PSRAM
-  std::unique_ptr<ArduinoJson::Allocator> allocator_;
-#endif
   JsonDocument doc_;
   JsonObject root_;
   bool root_created_{false};
+  // Allocator must be last member to ensure it's destroyed after doc_
+#ifdef USE_PSRAM
+  void *allocator_{nullptr};  // Will store SpiRamAllocator*, managed in cpp file
+#endif
 };
 
 }  // namespace json
