@@ -173,14 +173,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 #if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.css
+   * https://oi.esphome.io/v1/webserver-v1.min.css
    *
    * @param css_url The url to the web server stylesheet.
    */
   void set_css_url(const char *css_url);
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.js
+   * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */

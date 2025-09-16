@@ -12,6 +12,11 @@
 
 namespace esphome {
 
+// Forward declaration for friend access
+namespace api {
+class APIConnection;
+}  // namespace api
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -80,11 +85,49 @@ class EntityBase {
   // Set has_state - for components that need to manually set this
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
+  /**
+   * @brief Get a unique hash for storing preferences/settings for this entity.
+   *
+   * This method returns a hash that uniquely identifies the entity for the purpose of
+   * storing preferences (such as calibration, state, etc.). Unlike get_object_id_hash(),
+   * this hash also incorporates the device_id (if devices are enabled), ensuring uniqueness
+   * across multiple devices that may have entities with the same object_id.
+   *
+   * Use this method when storing or retrieving preferences/settings that should be unique
+   * per device-entity pair. Use get_object_id_hash() when you need a hash that identifies
+   * the entity regardless of the device it belongs to.
+   *
+   * For backward compatibility, if device_id is 0 (the main device), the hash is unchanged
+   * from previous versions, so existing single-device configurations will continue to work.
+   *
+   * @return uint32_t The unique hash for preferences, including device_id if available.
+   */
+  uint32_t get_preference_hash() {
+#ifdef USE_DEVICES
+    // Combine object_id_hash with device_id to ensure uniqueness across devices
+    // Note: device_id is 0 for the main device, so XORing with 0 preserves the original hash
+    // This ensures backward compatibility for existing single-device configurations
+    return this->get_object_id_hash() ^ this->get_device_id();
+#else
+    // Without devices, just use object_id_hash as before
+    return this->get_object_id_hash();
+#endif
+  }
+
  protected:
+  friend class api::APIConnection;
+
+  // Get object_id as StringRef when it's static (for API usage)
+  // Returns empty StringRef if object_id is dynamic (needs allocation)
+  StringRef get_object_id_ref_for_api_() const;
+
   /// The hash_base() function has been deprecated. It is kept in this
   /// class for now, to prevent external components from not compiling.
   virtual uint32_t hash_base() { return 0L; }
   void calc_object_id_();
+
+  /// Check if the object_id is dynamic (changes with MAC suffix)
+  bool is_object_id_dynamic_() const;
 
   StringRef name_;
   const char *object_id_c_str_{nullptr};

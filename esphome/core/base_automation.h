@@ -5,6 +5,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/scheduler.h"
+#include "esphome/core/application.h"
 
 #include <vector>
 
@@ -158,7 +160,16 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   void play_complex(Ts... x) override {
     auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-    this->set_timeout("delay", this->delay_.value(x...), f);
+
+    // If num_running_ > 1, we have multiple instances running in parallel
+    // In single/restart/queued modes, only one instance runs at a time
+    // Parallel mode uses skip_cancel=true to allow multiple delays to coexist
+    // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
+    // Users should set max_runs on parallel scripts to limit concurrent executions.
+    // Issue #10264: This is a workaround for parallel script delays interfering with each other.
+    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
+                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 

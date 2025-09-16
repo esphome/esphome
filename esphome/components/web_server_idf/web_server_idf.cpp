@@ -253,7 +253,7 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
                            reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
 
-  return strncmp(digest.get(), auth_str + auth_prefix_len, auth.value().size() - auth_prefix_len) == 0;
+  return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
