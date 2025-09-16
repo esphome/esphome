@@ -695,15 +695,6 @@ class EsphomeCore:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
-    def platformio_cache_dir(self) -> str:
-        """Get the PlatformIO cache directory path."""
-        # Check if running in Docker/HA addon with custom cache dir
-        if (cache_dir := os.environ.get("PLATFORMIO_CACHE_DIR")) and cache_dir.strip():
-            return cache_dir
-        # Default PlatformIO cache location
-        return os.path.expanduser("~/.platformio/.cache")
-
-    @property
     def firmware_bin(self):
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
