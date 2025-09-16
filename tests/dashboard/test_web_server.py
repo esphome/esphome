@@ -589,7 +589,7 @@ async def test_archive_request_handler_post(
     mock_ext_storage_path: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test ArchiveRequestHandler.post method."""
+    """Test ArchiveRequestHandler.post method without storage_json."""
 
     # Set up temp directories
     config_dir = Path(get_fixture_path("conf"))
@@ -614,6 +614,97 @@ async def test_archive_request_handler_post(
     assert (
         archive_dir / "test_archive.yaml"
     ).read_text() == "esphome:\n  name: test_archive\n"
+
+
+@pytest.mark.asyncio
+async def test_archive_handler_with_build_folder(
+    dashboard: DashboardTestHelper,
+    mock_archive_storage_path: MagicMock,
+    mock_ext_storage_path: MagicMock,
+    mock_dashboard_settings: MagicMock,
+    mock_storage_json: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test ArchiveRequestHandler.post with storage_json and build folder."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    archive_dir = tmp_path / "archive"
+    archive_dir.mkdir()
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+
+    configuration = "test_device.yaml"
+    test_config = config_dir / configuration
+    test_config.write_text("esphome:\n  name: test_device\n")
+
+    build_folder = build_dir / "test_device"
+    build_folder.mkdir()
+    (build_folder / "firmware.bin").write_text("binary content")
+    (build_folder / ".pioenvs").mkdir()
+
+    mock_dashboard_settings.config_dir = str(config_dir)
+    mock_dashboard_settings.rel_path.return_value = str(test_config)
+    mock_archive_storage_path.return_value = str(archive_dir)
+
+    mock_storage = MagicMock()
+    mock_storage.name = "test_device"
+    mock_storage.build_path = str(build_folder)
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body=f"configuration={configuration}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
+
+    assert not test_config.exists()
+    assert (archive_dir / configuration).exists()
+
+    assert not build_folder.exists()
+    assert not (archive_dir / "test_device").exists()
+
+
+@pytest.mark.asyncio
+async def test_archive_handler_no_build_folder(
+    dashboard: DashboardTestHelper,
+    mock_archive_storage_path: MagicMock,
+    mock_ext_storage_path: MagicMock,
+    mock_dashboard_settings: MagicMock,
+    mock_storage_json: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test ArchiveRequestHandler.post with storage_json but no build folder."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    archive_dir = tmp_path / "archive"
+    archive_dir.mkdir()
+
+    configuration = "test_device.yaml"
+    test_config = config_dir / configuration
+    test_config.write_text("esphome:\n  name: test_device\n")
+
+    mock_dashboard_settings.config_dir = str(config_dir)
+    mock_dashboard_settings.rel_path.return_value = str(test_config)
+    mock_archive_storage_path.return_value = str(archive_dir)
+
+    mock_storage = MagicMock()
+    mock_storage.name = "test_device"
+    mock_storage.build_path = None
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/archive",
+        method="POST",
+        body=f"configuration={configuration}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.code == 200
+
+    assert not test_config.exists()
+    assert (archive_dir / configuration).exists()
+    assert not (archive_dir / "test_device").exists()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Unix sockets are not supported on Windows")

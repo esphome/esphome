@@ -360,6 +360,7 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_PASSWORD
 class ConnectRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 3;
@@ -391,6 +392,7 @@ class ConnectResponse final : public ProtoMessage {
 
  protected:
 };
+#endif
 class DisconnectRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
