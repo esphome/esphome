@@ -89,7 +89,9 @@ def test_external_components_skip_update_false(
     # Verify clone_or_update was called with actual refresh value
     mock_clone_or_update.assert_called_once()
     call_args = mock_clone_or_update.call_args
-    assert call_args.kwargs["refresh"] == "1d"
+    from esphome.core import TimePeriodSeconds
+
+    assert call_args.kwargs["refresh"] == TimePeriodSeconds(days=1)
 
 
 def test_external_components_default_no_skip(
@@ -127,4 +129,6 @@ def test_external_components_default_no_skip(
     # Verify clone_or_update was called with actual refresh value
     mock_clone_or_update.assert_called_once()
     call_args = mock_clone_or_update.call_args
-    assert call_args.kwargs["refresh"] == "1d"
+    from esphome.core import TimePeriodSeconds
+
+    assert call_args.kwargs["refresh"] == TimePeriodSeconds(days=1)
