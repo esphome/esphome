@@ -698,7 +698,7 @@ class EsphomeCore:
     def platformio_cache_dir(self) -> str:
         """Get the PlatformIO cache directory path."""
         # Check if running in Docker/HA addon with custom cache dir
-        if cache_dir := os.environ.get("PLATFORMIO_CACHE_DIR"):
+        if (cache_dir := os.environ.get("PLATFORMIO_CACHE_DIR")) and cache_dir.strip():
             return cache_dir
         # Default PlatformIO cache location
         return os.path.expanduser("~/.platformio/.cache")
