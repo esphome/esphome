@@ -107,8 +107,8 @@ CONFIG_SCHEMA = cv.Any(
 
 
 def _process_base_package(config: dict, skip_update: bool = False) -> dict:
-    # When skip_update is True, set refresh to None to prevent updates
-    actual_refresh = None if skip_update else config[CONF_REFRESH]
+    # When skip_update is True, use NEVER_REFRESH to prevent updates
+    actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),

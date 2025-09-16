@@ -17,7 +17,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE, TimePeriodSeconds
+from esphome.core import CORE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,9 +40,8 @@ async def to_code(config):
 
 
 def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str:
-    # When skip_update is True, set a very large refresh value to prevent updates
-    # Using 100 years in seconds to effectively disable refresh
-    actual_refresh = TimePeriodSeconds(days=36500) if skip_update else refresh
+    # When skip_update is True, use NEVER_REFRESH to prevent updates
+    actual_refresh = git.NEVER_REFRESH if skip_update else refresh
     repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
