@@ -349,15 +349,25 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # Create PlatformIO cache directory
+    platformio_cache_dir = tmp_path / ".platformio" / ".cache"
+    platformio_cache_dir.mkdir(parents=True)
+    (platformio_cache_dir / "downloads").mkdir()
+    (platformio_cache_dir / "http").mkdir()
+    (platformio_cache_dir / "tmp").mkdir()
+    (platformio_cache_dir / "downloads" / "package.tar.gz").write_text("package")
+
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
     mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
     mock_core.relative_build_path.return_value = str(dependencies_lock)
+    mock_core.platformio_cache_dir = str(platformio_cache_dir)
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert platformio_cache_dir.exists()
 
     # Call the function
     with caplog.at_level("INFO"):
@@ -367,12 +377,14 @@ def test_clean_build(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not platformio_cache_dir.exists()
 
     # Verify logging
     assert "Deleting" in caplog.text
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert "PlatformIO cache" in caplog.text
 
 
 @patch("esphome.writer.CORE")
