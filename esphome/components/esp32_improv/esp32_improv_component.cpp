@@ -2,6 +2,7 @@
 
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
@@ -149,7 +150,16 @@ void ESP32ImprovComponent::loop() {
         this->cancel_timeout("wifi-connect-timeout");
         this->set_state_(improv::STATE_PROVISIONED);
 
-        std::vector<std::string> urls = {ESPHOME_MY_LINK};
+        std::vector<std::string> urls;
+
+        // Add next_url if configured (should be first per Improv BLE spec)
+        std::string next_url = this->get_formatted_next_url_();
+        if (!next_url.empty()) {
+          urls.push_back(next_url);
+        }
+
+        // Add default URLs for backward compatibility
+        urls.push_back(ESPHOME_MY_LINK);
 #ifdef USE_WEBSERVER
         for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
           if (ip.is_ip4()) {
@@ -343,6 +353,35 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
+}
+
+std::string ESP32ImprovComponent::get_formatted_next_url_() {
+  if (this->next_url_.empty()) {
+    return "";
+  }
+
+  std::string formatted_url = this->next_url_;
+
+  // Replace {{device_name}}
+  size_t pos = formatted_url.find("{{device_name}}");
+  if (pos != std::string::npos) {
+    formatted_url.replace(pos, 15, App.get_name());
+  }
+
+  // Replace {{ip_address}}
+  pos = formatted_url.find("{{ip_address}}");
+  if (pos != std::string::npos) {
+    for (auto &ip : network::get_ip_addresses()) {
+      if (ip.is_ip4()) {
+        formatted_url.replace(pos, 14, ip.str());
+        break;
+      }
+    }
+  }
+
+  // Note: {{esphome_version}} is replaced at code generation time in Python
+
+  return formatted_url;
 }
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

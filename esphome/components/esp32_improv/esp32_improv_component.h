@@ -62,10 +62,14 @@ class ESP32ImprovComponent : public Component {
   void set_wifi_timeout(uint32_t wifi_timeout) { this->wifi_timeout_ = wifi_timeout; }
   uint32_t get_wifi_timeout() const { return this->wifi_timeout_; }
 
+  void set_next_url(const std::string &next_url) { this->next_url_ = next_url; }
+
   improv::State get_improv_state() const { return this->state_; }
   improv::Error get_improv_error_state() const { return this->error_state_; }
 
  protected:
+  std::string get_formatted_next_url_();
+
   bool should_start_{false};
   bool setup_complete_{false};
 
@@ -75,6 +79,8 @@ class ESP32ImprovComponent : public Component {
   uint32_t authorized_duration_;
 
   uint32_t wifi_timeout_{};
+
+  std::string next_url_;
 
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
