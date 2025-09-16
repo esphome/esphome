@@ -13,6 +13,24 @@
 namespace esphome {
 namespace json {
 
+#ifdef USE_PSRAM
+// Allocator for JSON that uses PSRAM on supported devices
+struct SpiRamAllocator : ArduinoJson::Allocator {
+  void *allocate(size_t size) override { return allocator_.allocate(size); }
+
+  void deallocate(void *ptr) override {
+    free(ptr);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+  }
+
+  void *reallocate(void *ptr, size_t new_size) override {
+    return allocator_.reallocate(static_cast<uint8_t *>(ptr), new_size);
+  }
+
+ protected:
+  RAMAllocator<uint8_t> allocator_{RAMAllocator<uint8_t>::NONE};
+};
+#endif
+
 /// Callback function typedef for parsing JsonObjects.
 using json_parse_t = std::function<bool(JsonObject)>;
 
@@ -29,7 +47,6 @@ bool parse_json(const std::string &data, const json_parse_t &f);
 class JsonBuilder {
  public:
   JsonBuilder();
-  ~JsonBuilder();
 
   JsonObject root() {
     if (!root_created_) {
@@ -43,9 +60,7 @@ class JsonBuilder {
 
  private:
 #ifdef USE_PSRAM
-  // Storage for SpiRamAllocator - typically around 24-32 bytes on ESP32
-  // Static assert in .cpp file ensures this is large enough
-  std::aligned_storage<32, alignof(void *)>::type allocator_storage_;
+  SpiRamAllocator allocator_;  // Just a regular member on the stack!
 #endif
   JsonDocument doc_;
   JsonObject root_;
