@@ -8,31 +8,6 @@ namespace json {
 
 static const char *const TAG = "json";
 
-#ifdef USE_PSRAM
-// Build an allocator for the JSON Library using the RAMAllocator class
-// This is only compiled when PSRAM is enabled
-struct SpiRamAllocator : ArduinoJson::Allocator {
-  void *allocate(size_t size) override { return this->allocator_.allocate(size); }
-
-  void deallocate(void *pointer) override {
-    // ArduinoJson's Allocator interface doesn't provide the size parameter in deallocate.
-    // RAMAllocator::deallocate() requires the size, which we don't have access to here.
-    // RAMAllocator::deallocate implementation just calls free() regardless of whether
-    // the memory was allocated with heap_caps_malloc or malloc.
-    // This is safe because ESP-IDF's heap implementation internally tracks the memory region
-    // and routes free() to the appropriate heap.
-    free(pointer);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
-  }
-
-  void *reallocate(void *ptr, size_t new_size) override {
-    return this->allocator_.reallocate(static_cast<uint8_t *>(ptr), new_size);
-  }
-
- protected:
-  RAMAllocator<uint8_t> allocator_{RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE)};
-};
-#endif
-
 std::string build_json(const json_build_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   JsonBuilder builder;
@@ -67,27 +42,6 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
   ESP_LOGE(TAG, "Parse error: %s", err.c_str());
   return false;
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
-}
-
-// JsonBuilder implementation
-JsonBuilder::JsonBuilder()
-    : doc_(
-#ifdef USE_PSRAM
-          [this]() {
-            auto *alloc = new SpiRamAllocator();  // NOLINT(cppcoreguidelines-owning-memory)
-            allocator_ = alloc;
-            return alloc;
-          }()
-#else
-          nullptr
-#endif
-      ) {
-}
-
-JsonBuilder::~JsonBuilder() {
-#ifdef USE_PSRAM
-  delete static_cast<SpiRamAllocator *>(allocator_);  // NOLINT(cppcoreguidelines-owning-memory)
-#endif
 }
 
 std::string JsonBuilder::serialize() {
