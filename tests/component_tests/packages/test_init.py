@@ -6,16 +6,22 @@ from unittest.mock import MagicMock
 
 from esphome.components.packages import do_packages_pass
 from esphome.const import CONF_FILES, CONF_PACKAGES, CONF_REFRESH, CONF_URL
+from esphome.util import OrderedDict
 
 
 def test_packages_skip_update_true(
-    mock_clone_or_update: MagicMock, mock_load_yaml: MagicMock
+    tmp_path: Path, mock_clone_or_update: MagicMock, mock_load_yaml: MagicMock
 ) -> None:
     """Test that packages don't update when skip_update=True."""
-    # Setup mocks
-    with MagicMock() as mock_is_file:
-        mock_is_file.return_value = True
-        Path.is_file = mock_is_file
+    # Set up mock to return our tmp_path
+    mock_clone_or_update.return_value = (tmp_path, None)
+
+    # Create the test yaml file
+    test_file = tmp_path / "test.yaml"
+    test_file.write_text("sensor: []")
+
+    # Set mock_load_yaml to return some valid config
+    mock_load_yaml.return_value = OrderedDict({"sensor": []})
 
     config: dict[str, Any] = {
         CONF_PACKAGES: {
@@ -37,13 +43,18 @@ def test_packages_skip_update_true(
 
 
 def test_packages_skip_update_false(
-    mock_clone_or_update: MagicMock, mock_load_yaml: MagicMock
+    tmp_path: Path, mock_clone_or_update: MagicMock, mock_load_yaml: MagicMock
 ) -> None:
     """Test that packages update when skip_update=False."""
-    # Setup mocks
-    with MagicMock() as mock_is_file:
-        mock_is_file.return_value = True
-        Path.is_file = mock_is_file
+    # Set up mock to return our tmp_path
+    mock_clone_or_update.return_value = (tmp_path, None)
+
+    # Create the test yaml file
+    test_file = tmp_path / "test.yaml"
+    test_file.write_text("sensor: []")
+
+    # Set mock_load_yaml to return some valid config
+    mock_load_yaml.return_value = OrderedDict({"sensor": []})
 
     config: dict[str, Any] = {
         CONF_PACKAGES: {
@@ -65,13 +76,18 @@ def test_packages_skip_update_false(
 
 
 def test_packages_default_no_skip(
-    mock_clone_or_update: MagicMock, mock_load_yaml: MagicMock
+    tmp_path: Path, mock_clone_or_update: MagicMock, mock_load_yaml: MagicMock
 ) -> None:
     """Test that packages update by default when skip_update not specified."""
-    # Setup mocks
-    with MagicMock() as mock_is_file:
-        mock_is_file.return_value = True
-        Path.is_file = mock_is_file
+    # Set up mock to return our tmp_path
+    mock_clone_or_update.return_value = (tmp_path, None)
+
+    # Create the test yaml file
+    test_file = tmp_path / "test.yaml"
+    test_file.write_text("sensor: []")
+
+    # Set mock_load_yaml to return some valid config
+    mock_load_yaml.return_value = OrderedDict({"sensor": []})
 
     config: dict[str, Any] = {
         CONF_PACKAGES: {
