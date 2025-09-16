@@ -852,3 +852,118 @@ async def test_add_includes_overwrites_existing_files(
     mock_copy_file_if_changed.assert_called_once_with(
         str(include_file), str(Path(CORE.build_path) / "src" / "header.h")
     )
+
+
+# Tests for skip_external_update functionality
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("esphome.components.packages.do_packages_pass")
+@patch("esphome.components.external_components.do_external_components_pass")
+def test_validate_config_skip_update_true(
+    mock_ext_pass: MagicMock, mock_pkg_pass: MagicMock, mock_load_yaml: MagicMock
+) -> None:
+    """Test that validate_config propagates skip_update=True."""
+    from esphome.config import validate_config
+    from esphome.const import CONF_EXTERNAL_COMPONENTS, CONF_PACKAGES
+
+    config_dict: dict[str, Any] = {
+        CONF_ESPHOME: {CONF_NAME: "test"},
+        CONF_PACKAGES: {"test": {}},
+        CONF_EXTERNAL_COMPONENTS: [{}],
+    }
+
+    # Mock do_packages_pass to return config unchanged
+    mock_pkg_pass.side_effect = lambda c, **kwargs: c
+
+    # Call validate_config with skip_external_update=True
+    validate_config(config_dict, {}, skip_external_update=True)
+
+    # Verify both were called with skip_update=True
+    mock_pkg_pass.assert_called_once()
+    assert mock_pkg_pass.call_args.kwargs.get("skip_update") is True
+
+    mock_ext_pass.assert_called_once()
+    assert mock_ext_pass.call_args.kwargs.get("skip_update") is True
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("esphome.components.packages.do_packages_pass")
+@patch("esphome.components.external_components.do_external_components_pass")
+def test_validate_config_skip_update_false(
+    mock_ext_pass: MagicMock, mock_pkg_pass: MagicMock, mock_load_yaml: MagicMock
+) -> None:
+    """Test that validate_config propagates skip_update=False."""
+    from esphome.config import validate_config
+    from esphome.const import CONF_EXTERNAL_COMPONENTS, CONF_PACKAGES
+
+    config_dict: dict[str, Any] = {
+        CONF_ESPHOME: {CONF_NAME: "test"},
+        CONF_PACKAGES: {"test": {}},
+        CONF_EXTERNAL_COMPONENTS: [{}],
+    }
+
+    # Mock do_packages_pass to return config unchanged
+    mock_pkg_pass.side_effect = lambda c, **kwargs: c
+
+    # Call validate_config with skip_external_update=False
+    validate_config(config_dict, {}, skip_external_update=False)
+
+    # Verify both were called with skip_update=False
+    mock_pkg_pass.assert_called_once()
+    assert mock_pkg_pass.call_args.kwargs.get("skip_update") is False
+
+    mock_ext_pass.assert_called_once()
+    assert mock_ext_pass.call_args.kwargs.get("skip_update") is False
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("esphome.components.packages.do_packages_pass")
+@patch("esphome.components.external_components.do_external_components_pass")
+def test_validate_config_default_false(
+    mock_ext_pass: MagicMock, mock_pkg_pass: MagicMock, mock_load_yaml: MagicMock
+) -> None:
+    """Test that validate_config defaults to skip_update=False."""
+    from esphome.config import validate_config
+    from esphome.const import CONF_EXTERNAL_COMPONENTS, CONF_PACKAGES
+
+    config_dict: dict[str, Any] = {
+        CONF_ESPHOME: {CONF_NAME: "test"},
+        CONF_PACKAGES: {"test": {}},
+        CONF_EXTERNAL_COMPONENTS: [{}],
+    }
+
+    # Mock do_packages_pass to return config unchanged
+    mock_pkg_pass.side_effect = lambda c, **kwargs: c
+
+    # Call validate_config without skip_external_update parameter
+    validate_config(config_dict, {})
+
+    # Verify both were called with skip_update=False (default)
+    mock_pkg_pass.assert_called_once()
+    assert mock_pkg_pass.call_args.kwargs.get("skip_update") is False
+
+    mock_ext_pass.assert_called_once()
+    assert mock_ext_pass.call_args.kwargs.get("skip_update") is False
+
+
+@patch("esphome.config.load_config")
+def test_read_config_skip_update_parameter(mock_load_config: MagicMock) -> None:
+    """Test that read_config passes skip_external_update correctly."""
+    from esphome.config import read_config
+
+    # Setup
+    CORE.config_path = "test.yaml"
+    mock_load_config.return_value = MagicMock(errors=[])
+
+    # Test with skip_external_update=True
+    read_config({}, skip_external_update=True)
+    mock_load_config.assert_called_with({}, True)
+
+    # Test with skip_external_update=False
+    read_config({}, skip_external_update=False)
+    mock_load_config.assert_called_with({}, False)
+
+    # Test default (should be False)
+    read_config({})
+    mock_load_config.assert_called_with({}, False)
