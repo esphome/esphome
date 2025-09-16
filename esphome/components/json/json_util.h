@@ -29,15 +29,24 @@ bool parse_json(const std::string &data, const json_parse_t &f);
 class JsonBuilder {
  public:
   JsonBuilder();
-  ~JsonBuilder();
 
-  JsonObject root();
+  JsonObject root() {
+    if (!root_created_) {
+      root_ = doc_.to<JsonObject>();
+      root_created_ = true;
+    }
+    return root_;
+  }
+
   std::string serialize();
 
  private:
-  // Use opaque pointer to hide implementation details
-  class Impl;
-  std::unique_ptr<Impl> impl_;
+#ifdef USE_PSRAM
+  std::unique_ptr<ArduinoJson::Allocator> allocator_;
+#endif
+  JsonDocument doc_;
+  JsonObject root_;
+  bool root_created_{false};
 };
 
 }  // namespace json
