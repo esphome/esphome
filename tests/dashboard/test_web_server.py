@@ -643,12 +643,12 @@ async def test_archive_handler_with_build_folder(
     (build_folder / ".pioenvs").mkdir()
 
     mock_dashboard_settings.config_dir = str(config_dir)
-    mock_dashboard_settings.rel_path.return_value = str(test_config)
-    mock_archive_storage_path.return_value = str(archive_dir)
+    mock_dashboard_settings.rel_path.return_value = test_config
+    mock_archive_storage_path.return_value = archive_dir
 
     mock_storage = MagicMock()
     mock_storage.name = "test_device"
-    mock_storage.build_path = str(build_folder)
+    mock_storage.build_path = build_folder
     mock_storage_json.load.return_value = mock_storage
 
     response = await dashboard.fetch(
@@ -686,8 +686,8 @@ async def test_archive_handler_no_build_folder(
     test_config.write_text("esphome:\n  name: test_device\n")
 
     mock_dashboard_settings.config_dir = str(config_dir)
-    mock_dashboard_settings.rel_path.return_value = str(test_config)
-    mock_archive_storage_path.return_value = str(archive_dir)
+    mock_dashboard_settings.rel_path.return_value = test_config
+    mock_archive_storage_path.return_value = archive_dir
 
     mock_storage = MagicMock()
     mock_storage.name = "test_device"
