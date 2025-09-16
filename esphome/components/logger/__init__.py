@@ -152,8 +152,6 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 def uart_selection(value):
     if CORE.is_esp32:
         variant = get_esp32_variant()
-        if variant == VARIANT_ESP32C3 and value == USB_CDC:
-            raise cv.Invalid(f"{value} is not supported for variant {variant}.")
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
