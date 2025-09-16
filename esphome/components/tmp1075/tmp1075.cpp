@@ -32,7 +32,7 @@ void TMP1075Sensor::update() {
   uint16_t regvalue;
   if (!read_byte_16(REG_TEMP, &regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to read temperature register", this->name_.c_str());
-    this->status_set_warning("can't read");
+    this->status_set_warning(LOG_STR("can't read"));
     return;
   }
   this->status_clear_warning();

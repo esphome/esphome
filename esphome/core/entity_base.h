@@ -126,6 +126,9 @@ class EntityBase {
   virtual uint32_t hash_base() { return 0L; }
   void calc_object_id_();
 
+  /// Check if the object_id is dynamic (changes with MAC suffix)
+  bool is_object_id_dynamic_() const;
+
   StringRef name_;
   const char *object_id_c_str_{nullptr};
 #ifdef USE_ENTITY_ICON
