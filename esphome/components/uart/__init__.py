@@ -114,11 +114,6 @@ def validate_rx_pin(value):
     return value
 
 
-def validate_invert_esp32(config):
-    # ESP32 now uses IDF implementation for both Arduino and ESP-IDF
-    return config
-
-
 def validate_host_config(config):
     if CORE.is_host:
         if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -238,7 +233,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
-    validate_invert_esp32,
     validate_host_config,
 )
 
