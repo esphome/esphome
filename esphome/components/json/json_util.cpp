@@ -73,11 +73,21 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
 JsonBuilder::JsonBuilder()
     : doc_(
 #ifdef USE_PSRAM
-          (allocator_ = std::make_unique<SpiRamAllocator>(), allocator_.get())
+          [this]() {
+            auto *alloc = new SpiRamAllocator();  // NOLINT(cppcoreguidelines-owning-memory)
+            allocator_ = alloc;
+            return alloc;
+          }()
 #else
           nullptr
 #endif
       ) {
+}
+
+JsonBuilder::~JsonBuilder() {
+#ifdef USE_PSRAM
+  delete static_cast<SpiRamAllocator *>(allocator_);  // NOLINT(cppcoreguidelines-owning-memory)
+#endif
 }
 
 std::string JsonBuilder::serialize() {
