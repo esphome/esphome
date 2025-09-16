@@ -25,9 +25,6 @@ std::string build_json(const json_build_t &f);
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
 
-// Forward declaration to avoid exposing implementation details
-struct SpiRamAllocator;
-
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
@@ -46,7 +43,9 @@ class JsonBuilder {
 
  private:
 #ifdef USE_PSRAM
-  std::unique_ptr<SpiRamAllocator> allocator_;  // One heap allocation, but keeps code clean
+  // Storage for SpiRamAllocator - typically around 24-32 bytes on ESP32
+  // Static assert in .cpp file ensures this is large enough
+  std::aligned_storage<32, alignof(void *)>::type allocator_storage_;
 #endif
   JsonDocument doc_;
   JsonObject root_;

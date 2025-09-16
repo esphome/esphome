@@ -71,17 +71,25 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
 }
 
 // JsonBuilder implementation
-JsonBuilder::JsonBuilder()
-    : doc_(
+JsonBuilder::JsonBuilder() {
 #ifdef USE_PSRAM
-          (allocator_ = std::make_unique<SpiRamAllocator>(), allocator_.get())
+  // Verify our storage is large enough (and log the actual size for reference)
+  static_assert(sizeof(SpiRamAllocator) <= sizeof(allocator_storage_), "allocator_storage_ too small");
+  // Note: sizeof(SpiRamAllocator) is typically around 24-32 bytes on ESP32
+  // Use placement new to construct SpiRamAllocator in the pre-allocated storage
+  auto *allocator = new (allocator_storage_) SpiRamAllocator();
+  doc_ = JsonDocument(allocator);
 #else
-          nullptr
+  doc_ = JsonDocument();
 #endif
-      ) {
 }
 
-JsonBuilder::~JsonBuilder() = default;
+JsonBuilder::~JsonBuilder() {
+#ifdef USE_PSRAM
+  // Explicitly call destructor for placement-new allocated object
+  reinterpret_cast<SpiRamAllocator *>(allocator_storage_)->~SpiRamAllocator();
+#endif
+}
 
 std::string JsonBuilder::serialize() {
   if (doc_.overflowed()) {
