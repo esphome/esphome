@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLEAR,
     CONF_FLIP_X,
     CONF_FLIP_Y,
     CONF_FORMAT,
@@ -16,7 +17,6 @@ AUTO_LOAD = ["camera"]
 
 CONF_ALGORITHM = "algorithm"
 CONF_CAMERA_ID = "camera_id"
-CONF_CLEAR = "clear"
 CONF_DEFAULT_SCALER_ID = "default_scaler_id"
 CONF_FORMAT_ID = "format_id"
 CONF_IMAGE_ID = "image_id"

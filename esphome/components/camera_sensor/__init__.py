@@ -4,6 +4,7 @@ from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLEAR,
     CONF_FORMAT,
     CONF_FREQUENCY,
     CONF_HEIGHT,
@@ -52,7 +53,6 @@ CONF_JPEG_QUALITY = "jpeg_quality"
 
 CONF_BUFFERS = "buffers"
 CONF_BYTE_SWAP = "byte_swap"
-CONF_CLEAR = "clear"
 
 PINS_SCHEMA = cv.Schema(
     {
