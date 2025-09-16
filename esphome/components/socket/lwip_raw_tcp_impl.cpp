@@ -13,6 +13,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/lock_free_queue.h"
 
 namespace esphome {
 namespace socket {
@@ -25,6 +26,19 @@ static const char *const TAG = "socket.lwip";
 #else
 #define LWIP_LOG(msg, ...)
 #endif
+
+template<class T, uint8_t SIZE> class PbufQueue : public LockFreeQueue<T, SIZE, false> {
+ public:
+  bool push(T *element) = delete;
+
+  T *push_or_get_last(T *element) {
+    bool was_empty;
+    uint8_t old_tail_idx;
+    bool result = this->push_internal_(element, was_empty, old_tail_idx);
+
+    return result ? nullptr : this->buffer_[(old_tail_idx == 0 ? SIZE : old_tail_idx) - 1];
+  }
+};
 
 class LWIPRawImpl : public Socket {
  public:
@@ -311,41 +325,38 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return -1;
     }
-    if (rx_closed_ && rx_buf_ == nullptr) {
-      return 0;
-    }
     if (len == 0) {
       return 0;
     }
-    if (rx_buf_ == nullptr) {
-      errno = EWOULDBLOCK;
-      return -1;
+    if (partial_rx_buf_ == nullptr) {
+      if (rx_closed_) {
+        return 0;
+      }
+
+      partial_rx_buf_ = rx_bufs_.pop();
     }
 
     size_t read = 0;
     uint8_t *buf8 = reinterpret_cast<uint8_t *>(buf);
-    while (len && rx_buf_ != nullptr) {
-      size_t pb_len = rx_buf_->len;
+    while (len && partial_rx_buf_ != nullptr) {
+      size_t pb_len = partial_rx_buf_->len;
       size_t pb_left = pb_len - rx_buf_offset_;
       if (pb_left == 0)
         break;
       size_t copysize = std::min(len, pb_left);
-      memcpy(buf8, reinterpret_cast<uint8_t *>(rx_buf_->payload) + rx_buf_offset_, copysize);
+      memcpy(buf8, reinterpret_cast<uint8_t *>(partial_rx_buf_->payload) + rx_buf_offset_, copysize);
 
       if (pb_left == copysize) {
         // full pb copied, free it
-        if (rx_buf_->next == nullptr) {
-          // last buffer in chain
-          pbuf_free(rx_buf_);
-          rx_buf_ = nullptr;
-          rx_buf_offset_ = 0;
+        auto *old_buf = partial_rx_buf_;
+        if (partial_rx_buf_->next == nullptr) {
+          partial_rx_buf_ = rx_bufs_.pop();
         } else {
-          auto *old_buf = rx_buf_;
-          rx_buf_ = rx_buf_->next;
-          pbuf_ref(rx_buf_);
-          pbuf_free(old_buf);
-          rx_buf_offset_ = 0;
+          pbuf_ref(partial_rx_buf_->next);
+          partial_rx_buf_ = partial_rx_buf_->next;
         }
+        rx_buf_offset_ = 0;
+        pbuf_free(old_buf);
       } else {
         rx_buf_offset_ += copysize;
       }
@@ -520,12 +531,11 @@ class LWIPRawImpl : public Socket {
       rx_closed_ = true;
       return ERR_OK;
     }
-    if (rx_buf_ == nullptr) {
-      // no need to copy because lwIP gave control of it to us
-      rx_buf_ = pb;
-      rx_buf_offset_ = 0;
-    } else {
-      pbuf_cat(rx_buf_, pb);
+    // no need to copy because lwIP gave control of it to us
+    pbuf *last_pb = rx_bufs_.push_or_get_last(pb);
+    if (last_pb != nullptr) {
+      // queue was full, so we append to the last pbuf in the queue, which is safe
+      pbuf_cat(last_pb, pb);
     }
     return ERR_OK;
   }
@@ -589,7 +599,8 @@ class LWIPRawImpl : public Socket {
   struct tcp_pcb *pcb_;
   std::queue<std::unique_ptr<LWIPRawImpl>> accepted_sockets_;
   bool rx_closed_ = false;
-  pbuf *rx_buf_ = nullptr;
+  PbufQueue<pbuf, 4> rx_bufs_;
+  pbuf *partial_rx_buf_ = nullptr;
   size_t rx_buf_offset_ = 0;
   // don't use lwip nodelay flag, it sometimes causes reconnect
   // instead use it for determining whether to call lwip_output
