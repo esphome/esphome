@@ -362,21 +362,28 @@ std::string ESP32ImprovComponent::get_formatted_next_url_() {
 
   std::string formatted_url = this->next_url_;
 
-  // Replace {{device_name}}
-  size_t pos = formatted_url.find("{{device_name}}");
-  if (pos != std::string::npos) {
-    formatted_url.replace(pos, 15, App.get_name());
+  // Replace all occurrences of {{device_name}}
+  const std::string device_name_placeholder = "{{device_name}}";
+  const std::string &device_name = App.get_name();
+  size_t pos = 0;
+  while ((pos = formatted_url.find(device_name_placeholder, pos)) != std::string::npos) {
+    formatted_url.replace(pos, device_name_placeholder.length(), device_name);
+    pos += device_name.length();
   }
 
-  // Replace {{ip_address}}
-  pos = formatted_url.find("{{ip_address}}");
-  if (pos != std::string::npos) {
-    for (auto &ip : network::get_ip_addresses()) {
-      if (ip.is_ip4()) {
-        formatted_url.replace(pos, 14, ip.str());
-        break;
-      }
+  // Replace all occurrences of {{ip_address}}
+  const std::string ip_address_placeholder = "{{ip_address}}";
+  std::string ip_address_str;
+  for (auto &ip : network::get_ip_addresses()) {
+    if (ip.is_ip4()) {
+      ip_address_str = ip.str();
+      break;
     }
+  }
+  pos = 0;
+  while ((pos = formatted_url.find(ip_address_placeholder, pos)) != std::string::npos) {
+    formatted_url.replace(pos, ip_address_placeholder.length(), ip_address_str);
+    pos += ip_address_str.length();
   }
 
   // Note: {{esphome_version}} is replaced at code generation time in Python
