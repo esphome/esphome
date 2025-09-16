@@ -44,17 +44,6 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-// JsonBuilder implementation
-JsonBuilder::JsonBuilder()
-    : doc_(
-#ifdef USE_PSRAM
-          &allocator_
-#else
-          nullptr
-#endif
-      ) {
-}
-
 std::string JsonBuilder::serialize() {
   if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");

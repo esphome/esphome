@@ -46,8 +46,6 @@ bool parse_json(const std::string &data, const json_parse_t &f);
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
-  JsonBuilder();
-
   JsonObject root() {
     if (!root_created_) {
       root_ = doc_.to<JsonObject>();
@@ -60,9 +58,11 @@ class JsonBuilder {
 
  private:
 #ifdef USE_PSRAM
-  SpiRamAllocator allocator_;  // Just a regular member on the stack!
+  SpiRamAllocator allocator_;      // Just a regular member on the stack!
+  JsonDocument doc_{&allocator_};  // Initialize with allocator
+#else
+  JsonDocument doc_;  // Default initialization
 #endif
-  JsonDocument doc_;
   JsonObject root_;
   bool root_created_{false};
 };
