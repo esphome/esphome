@@ -14,11 +14,18 @@ namespace esphome {
 namespace json {
 
 #ifdef USE_PSRAM
-// Allocator for JSON that uses PSRAM on supported devices
+// Build an allocator for the JSON Library using the RAMAllocator class
+// This is only compiled when PSRAM is enabled
 struct SpiRamAllocator : ArduinoJson::Allocator {
   void *allocate(size_t size) override { return allocator_.allocate(size); }
 
   void deallocate(void *ptr) override {
+    // ArduinoJson's Allocator interface doesn't provide the size parameter in deallocate.
+    // RAMAllocator::deallocate() requires the size, which we don't have access to here.
+    // RAMAllocator::deallocate implementation just calls free() regardless of whether
+    // the memory was allocated with heap_caps_malloc or malloc.
+    // This is safe because ESP-IDF's heap implementation internally tracks the memory region
+    // and routes free() to the appropriate heap.
     free(ptr);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
   }
 
