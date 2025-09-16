@@ -1028,6 +1028,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [johnshaferXMOS (@johnshaferXMOS)](https://github.com/johnshaferXMOS)
 - [Dave Johnston (@johnsto)](https://github.com/johnsto)
 - [joiboi (@joiboi)](https://github.com/joiboi)
+- [jokujossai (@jokujossai)](https://github.com/jokujossai)
 - [JonasB2497 (@JonasB2497)](https://github.com/JonasB2497)
 - [JonasEr (@JonasEr)](https://github.com/JonasEr)
 - [Jonas Frey (@jonasf21)](https://github.com/jonasf21)
@@ -2228,4 +2229,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated September 16, 2025.*
+*This page was last updated September 17, 2025.*
