@@ -64,7 +64,7 @@ void ScanResultsWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "Scan Results", th
 
 void ScanResultsWiFiInfo::state_callback_(const std::vector<wifi::WiFiScanResult> &results) {
   std::string scan_results;
-  for (auto scan : results) {
+  for (const auto &scan : results) {
     if (scan.get_is_hidden())
       continue;
 
@@ -96,7 +96,7 @@ void SSIDWiFiInfo::state_callback_(std::string &ssid) { this->publish_state(ssid
 
 void BSSIDWiFiInfo::setup() {
   wifi::global_wifi_component->add_on_wifi_connect_state_callback(
-      [this](std::string ssid, wifi::bssid_t bssid) { this->state_callback_(bssid); });
+      [this](const std::string &ssid, wifi::bssid_t bssid) { this->state_callback_(bssid); });
 }
 
 void BSSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "BSSID", this); }
