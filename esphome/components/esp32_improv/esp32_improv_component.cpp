@@ -159,7 +159,7 @@ void ESP32ImprovComponent::loop() {
         }
 
         // Add default URLs for backward compatibility
-        urls.push_back(ESPHOME_MY_LINK);
+        urls.emplace_back(ESPHOME_MY_LINK);
 #ifdef USE_WEBSERVER
         for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
           if (ip.is_ip4()) {
