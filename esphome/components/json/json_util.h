@@ -25,6 +25,9 @@ std::string build_json(const json_build_t &f);
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
 
+// Forward declaration to avoid exposing implementation details
+struct SpiRamAllocator;
+
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
@@ -42,13 +45,12 @@ class JsonBuilder {
   std::string serialize();
 
  private:
+#ifdef USE_PSRAM
+  std::unique_ptr<SpiRamAllocator> allocator_;  // One heap allocation, but keeps code clean
+#endif
   JsonDocument doc_;
   JsonObject root_;
   bool root_created_{false};
-  // Allocator must be last member to ensure it's destroyed after doc_
-#ifdef USE_PSRAM
-  void *allocator_{nullptr};  // Will store SpiRamAllocator*, managed in cpp file
-#endif
 };
 
 }  // namespace json

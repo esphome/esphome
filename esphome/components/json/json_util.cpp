@@ -31,6 +31,7 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
  protected:
   RAMAllocator<uint8_t> allocator_{RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE)};
 };
+
 #endif
 
 std::string build_json(const json_build_t &f) {
@@ -73,22 +74,14 @@ bool parse_json(const std::string &data, const json_parse_t &f) {
 JsonBuilder::JsonBuilder()
     : doc_(
 #ifdef USE_PSRAM
-          [this]() {
-            auto *alloc = new SpiRamAllocator();  // NOLINT(cppcoreguidelines-owning-memory)
-            allocator_ = alloc;
-            return alloc;
-          }()
+          (allocator_ = std::make_unique<SpiRamAllocator>(), allocator_.get())
 #else
           nullptr
 #endif
       ) {
 }
 
-JsonBuilder::~JsonBuilder() {
-#ifdef USE_PSRAM
-  delete static_cast<SpiRamAllocator *>(allocator_);  // NOLINT(cppcoreguidelines-owning-memory)
-#endif
-}
+JsonBuilder::~JsonBuilder() = default;
 
 std::string JsonBuilder::serialize() {
   if (doc_.overflowed()) {
