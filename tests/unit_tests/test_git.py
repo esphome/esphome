@@ -1,147 +1,180 @@
 """Tests for git.py module."""
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from pathlib import Path
+from unittest.mock import Mock
 
 from esphome import git
 from esphome.core import TimePeriodSeconds
 
 
-@patch("esphome.git.run_git_command")
-@patch("pathlib.Path.is_dir")
 def test_clone_or_update_with_none_refresh_no_update(
-    mock_is_dir: MagicMock, mock_run_git: MagicMock
+    tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
     """Test that refresh=None skips updates for existing repos."""
-    # Setup - repo already exists
-    mock_is_dir.return_value = True
+    # Create a fake git repo directory
+    repo_dir = tmp_path / ".esphome" / "external_components" / "test" / "test_repo"
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
 
-    # Mock file timestamps
-    with patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        with patch("pathlib.Path.stat") as mock_stat:
-            mock_stat_result = Mock()
-            mock_stat_result.st_mtime = datetime.now().timestamp()
-            mock_stat.return_value = mock_stat_result
+    # Create FETCH_HEAD file with current timestamp
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
 
-            # Call with refresh=None
-            repo_dir, revert = git.clone_or_update(
-                url="https://github.com/test/repo",
-                ref=None,
-                refresh=None,
-                domain="test",
-            )
+    # Mock _compute_destination_path to return our test directory
+    with Mock() as mock_compute:
+        mock_compute.return_value = repo_dir
+        git._compute_destination_path = mock_compute
 
-            # Should NOT call git fetch or any update commands
-            mock_run_git.assert_not_called()
-            assert revert is None
+        # Call with refresh=None
+        result_dir, revert = git.clone_or_update(
+            url="https://github.com/test/repo",
+            ref=None,
+            refresh=None,
+            domain="test",
+        )
+
+        # Should NOT call git commands since refresh=None and repo exists
+        mock_run_git_command.assert_not_called()
+        assert revert is None
 
 
-@patch("esphome.git.run_git_command")
-@patch("pathlib.Path.is_dir")
 def test_clone_or_update_with_refresh_updates_old_repo(
-    mock_is_dir: MagicMock, mock_run_git: MagicMock
+    tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
     """Test that refresh triggers update for old repos."""
-    # Setup - repo already exists
-    mock_is_dir.return_value = True
-    mock_run_git.return_value = "abc123"  # mock SHA
+    # Create a fake git repo directory
+    repo_dir = tmp_path / ".esphome" / "external_components" / "test" / "test_repo"
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
 
-    # Mock file timestamps - 2 days old
-    with patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        with patch("pathlib.Path.stat") as mock_stat:
-            mock_stat_result = Mock()
-            old_time = datetime.now() - timedelta(days=2)
-            mock_stat_result.st_mtime = old_time.timestamp()
-            mock_stat.return_value = mock_stat_result
+    # Create FETCH_HEAD file with old timestamp (2 days ago)
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+    old_time = datetime.now() - timedelta(days=2)
+    fetch_head.touch()  # Create the file
+    # Set modification time to 2 days ago
+    import os
 
-            # Call with refresh=1d (1 day)
-            refresh = TimePeriodSeconds(days=1)
-            repo_dir, revert = git.clone_or_update(
-                url="https://github.com/test/repo",
-                ref=None,
-                refresh=refresh,
-                domain="test",
-            )
+    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
 
-            # Should call git fetch and update commands
-            assert mock_run_git.called
-            # Check for fetch command
-            fetch_calls = [
-                call for call in mock_run_git.call_args_list if "fetch" in str(call)
-            ]
-            assert len(fetch_calls) > 0
+    # Mock _compute_destination_path to return our test directory
+    with Mock() as mock_compute:
+        mock_compute.return_value = repo_dir
+        git._compute_destination_path = mock_compute
+
+        # Mock git command responses
+        mock_run_git_command.return_value = "abc123"  # SHA for rev-parse
+
+        # Call with refresh=1d (1 day)
+        refresh = TimePeriodSeconds(days=1)
+        result_dir, revert = git.clone_or_update(
+            url="https://github.com/test/repo",
+            ref=None,
+            refresh=refresh,
+            domain="test",
+        )
+
+        # Should call git fetch and update commands since repo is older than refresh
+        assert mock_run_git_command.called
+        # Check for fetch command
+        fetch_calls = [
+            call
+            for call in mock_run_git_command.call_args_list
+            if len(call[0]) > 0 and "fetch" in call[0][0]
+        ]
+        assert len(fetch_calls) > 0
 
 
-@patch("esphome.git.run_git_command")
-@patch("pathlib.Path.is_dir")
 def test_clone_or_update_with_refresh_skips_fresh_repo(
-    mock_is_dir: MagicMock, mock_run_git: MagicMock
+    tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
     """Test that refresh doesn't update fresh repos."""
-    # Setup - repo already exists
-    mock_is_dir.return_value = True
+    # Create a fake git repo directory
+    repo_dir = tmp_path / ".esphome" / "external_components" / "test" / "test_repo"
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
 
-    # Mock file timestamps - 1 hour old
-    with patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        with patch("pathlib.Path.stat") as mock_stat:
-            mock_stat_result = Mock()
-            recent_time = datetime.now() - timedelta(hours=1)
-            mock_stat_result.st_mtime = recent_time.timestamp()
-            mock_stat.return_value = mock_stat_result
+    # Create FETCH_HEAD file with recent timestamp (1 hour ago)
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+    recent_time = datetime.now() - timedelta(hours=1)
+    fetch_head.touch()  # Create the file
+    # Set modification time to 1 hour ago
+    import os
 
-            # Call with refresh=1d (1 day)
-            refresh = TimePeriodSeconds(days=1)
-            repo_dir, revert = git.clone_or_update(
-                url="https://github.com/test/repo",
-                ref=None,
-                refresh=refresh,
-                domain="test",
-            )
+    os.utime(fetch_head, (recent_time.timestamp(), recent_time.timestamp()))
 
-            # Should NOT call git fetch since repo is fresh
-            mock_run_git.assert_not_called()
-            assert revert is None
+    # Mock _compute_destination_path to return our test directory
+    with Mock() as mock_compute:
+        mock_compute.return_value = repo_dir
+        git._compute_destination_path = mock_compute
+
+        # Call with refresh=1d (1 day)
+        refresh = TimePeriodSeconds(days=1)
+        result_dir, revert = git.clone_or_update(
+            url="https://github.com/test/repo",
+            ref=None,
+            refresh=refresh,
+            domain="test",
+        )
+
+        # Should NOT call git fetch since repo is fresh
+        mock_run_git_command.assert_not_called()
+        assert revert is None
 
 
-@patch("esphome.git.run_git_command")
-@patch("pathlib.Path.is_dir")
 def test_clone_or_update_clones_missing_repo(
-    mock_is_dir: MagicMock, mock_run_git: MagicMock
+    tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
     """Test that missing repos are cloned regardless of refresh setting."""
-    # Setup - repo doesn't exist
-    mock_is_dir.return_value = False
+    # Create base directory but not the repo itself
+    base_dir = tmp_path / ".esphome" / "external_components" / "test"
+    base_dir.mkdir(parents=True)
+    repo_dir = base_dir / "test_repo"
 
-    # Test with refresh=None
-    repo_dir, revert = git.clone_or_update(
-        url="https://github.com/test/repo",
-        ref=None,
-        refresh=None,
-        domain="test",
-    )
+    # Mock _compute_destination_path to return our test directory
+    with Mock() as mock_compute:
+        mock_compute.return_value = repo_dir
+        git._compute_destination_path = mock_compute
 
-    # Should call git clone
-    assert mock_run_git.called
-    clone_calls = [call for call in mock_run_git.call_args_list if "clone" in str(call)]
-    assert len(clone_calls) > 0
+        # Test with refresh=None
+        result_dir, revert = git.clone_or_update(
+            url="https://github.com/test/repo",
+            ref=None,
+            refresh=None,
+            domain="test",
+        )
 
-    # Reset mock
-    mock_run_git.reset_mock()
+        # Should call git clone
+        assert mock_run_git_command.called
+        clone_calls = [
+            call
+            for call in mock_run_git_command.call_args_list
+            if len(call[0]) > 0 and "clone" in call[0][0]
+        ]
+        assert len(clone_calls) > 0
 
-    # Test with refresh=1d
-    mock_is_dir.return_value = False
-    refresh = TimePeriodSeconds(days=1)
-    repo_dir, revert = git.clone_or_update(
-        url="https://github.com/test/repo2",
-        ref=None,
-        refresh=refresh,
-        domain="test",
-    )
+        # Reset mock
+        mock_run_git_command.reset_mock()
 
-    # Should still call git clone
-    assert mock_run_git.called
-    clone_calls = [call for call in mock_run_git.call_args_list if "clone" in str(call)]
-    assert len(clone_calls) > 0
+        # Test with refresh=1d - should still clone since repo doesn't exist
+        refresh = TimePeriodSeconds(days=1)
+        result_dir2, revert2 = git.clone_or_update(
+            url="https://github.com/test/repo2",
+            ref=None,
+            refresh=refresh,
+            domain="test",
+        )
+
+        # Should still call git clone
+        assert mock_run_git_command.called
+        clone_calls = [
+            call
+            for call in mock_run_git_command.call_args_list
+            if len(call[0]) > 0 and "clone" in call[0][0]
+        ]
+        assert len(clone_calls) > 0

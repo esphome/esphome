@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from esphome.components.external_components import do_external_components_pass
 from esphome.const import (
@@ -15,7 +15,7 @@ from esphome.const import (
 
 
 def test_external_components_skip_update_true(
-    tmp_path: Path, mock_clone_or_update: MagicMock
+    tmp_path: Path, mock_clone_or_update: MagicMock, mock_install_meta_finder: MagicMock
 ) -> None:
     """Test that external components don't update when skip_update=True."""
     # Create a components directory structure
@@ -30,31 +30,30 @@ def test_external_components_skip_update_true(
     # Set up mock to return our tmp_path
     mock_clone_or_update.return_value = (tmp_path, None)
 
-    with patch("esphome.loader.install_meta_finder"):
-        config: dict[str, Any] = {
-            CONF_EXTERNAL_COMPONENTS: [
-                {
-                    CONF_SOURCE: {
-                        "type": TYPE_GIT,
-                        CONF_URL: "https://github.com/test/components",
-                    },
-                    CONF_REFRESH: "1d",
-                    "components": "all",
-                }
-            ]
-        }
+    config: dict[str, Any] = {
+        CONF_EXTERNAL_COMPONENTS: [
+            {
+                CONF_SOURCE: {
+                    "type": TYPE_GIT,
+                    CONF_URL: "https://github.com/test/components",
+                },
+                CONF_REFRESH: "1d",
+                "components": "all",
+            }
+        ]
+    }
 
-        # Call with skip_update=True
-        do_external_components_pass(config, skip_update=True)
+    # Call with skip_update=True
+    do_external_components_pass(config, skip_update=True)
 
-        # Verify clone_or_update was called with refresh=None
-        mock_clone_or_update.assert_called_once()
-        call_args = mock_clone_or_update.call_args
-        assert call_args.kwargs["refresh"] is None
+    # Verify clone_or_update was called with refresh=None
+    mock_clone_or_update.assert_called_once()
+    call_args = mock_clone_or_update.call_args
+    assert call_args.kwargs["refresh"] is None
 
 
 def test_external_components_skip_update_false(
-    tmp_path: Path, mock_clone_or_update: MagicMock
+    tmp_path: Path, mock_clone_or_update: MagicMock, mock_install_meta_finder: MagicMock
 ) -> None:
     """Test that external components update when skip_update=False."""
     # Create a components directory structure
@@ -69,31 +68,30 @@ def test_external_components_skip_update_false(
     # Set up mock to return our tmp_path
     mock_clone_or_update.return_value = (tmp_path, None)
 
-    with patch("esphome.loader.install_meta_finder"):
-        config: dict[str, Any] = {
-            CONF_EXTERNAL_COMPONENTS: [
-                {
-                    CONF_SOURCE: {
-                        "type": TYPE_GIT,
-                        CONF_URL: "https://github.com/test/components",
-                    },
-                    CONF_REFRESH: "1d",
-                    "components": "all",
-                }
-            ]
-        }
+    config: dict[str, Any] = {
+        CONF_EXTERNAL_COMPONENTS: [
+            {
+                CONF_SOURCE: {
+                    "type": TYPE_GIT,
+                    CONF_URL: "https://github.com/test/components",
+                },
+                CONF_REFRESH: "1d",
+                "components": "all",
+            }
+        ]
+    }
 
-        # Call with skip_update=False
-        do_external_components_pass(config, skip_update=False)
+    # Call with skip_update=False
+    do_external_components_pass(config, skip_update=False)
 
-        # Verify clone_or_update was called with actual refresh value
-        mock_clone_or_update.assert_called_once()
-        call_args = mock_clone_or_update.call_args
-        assert call_args.kwargs["refresh"] == "1d"
+    # Verify clone_or_update was called with actual refresh value
+    mock_clone_or_update.assert_called_once()
+    call_args = mock_clone_or_update.call_args
+    assert call_args.kwargs["refresh"] == "1d"
 
 
 def test_external_components_default_no_skip(
-    tmp_path: Path, mock_clone_or_update: MagicMock
+    tmp_path: Path, mock_clone_or_update: MagicMock, mock_install_meta_finder: MagicMock
 ) -> None:
     """Test that external components update by default when skip_update not specified."""
     # Create a components directory structure
@@ -108,24 +106,23 @@ def test_external_components_default_no_skip(
     # Set up mock to return our tmp_path
     mock_clone_or_update.return_value = (tmp_path, None)
 
-    with patch("esphome.loader.install_meta_finder"):
-        config: dict[str, Any] = {
-            CONF_EXTERNAL_COMPONENTS: [
-                {
-                    CONF_SOURCE: {
-                        "type": TYPE_GIT,
-                        CONF_URL: "https://github.com/test/components",
-                    },
-                    CONF_REFRESH: "1d",
-                    "components": "all",
-                }
-            ]
-        }
+    config: dict[str, Any] = {
+        CONF_EXTERNAL_COMPONENTS: [
+            {
+                CONF_SOURCE: {
+                    "type": TYPE_GIT,
+                    CONF_URL: "https://github.com/test/components",
+                },
+                CONF_REFRESH: "1d",
+                "components": "all",
+            }
+        ]
+    }
 
-        # Call without skip_update parameter
-        do_external_components_pass(config)
+    # Call without skip_update parameter
+    do_external_components_pass(config)
 
-        # Verify clone_or_update was called with actual refresh value
-        mock_clone_or_update.assert_called_once()
-        call_args = mock_clone_or_update.call_args
-        assert call_args.kwargs["refresh"] == "1d"
+    # Verify clone_or_update was called with actual refresh value
+    mock_clone_or_update.assert_called_once()
+    call_args = mock_clone_or_update.call_args
+    assert call_args.kwargs["refresh"] == "1d"

@@ -156,3 +156,10 @@ def mock_load_yaml() -> Generator[Any]:
         # Default return value
         mock_func.return_value = OrderedDict({"sensor": []})
         yield mock_func
+
+
+@pytest.fixture
+def mock_install_meta_finder() -> Generator[Any]:
+    """Mock loader.install_meta_finder for testing."""
+    with mock.patch("esphome.loader.install_meta_finder") as mock_func:
+        yield mock_func
