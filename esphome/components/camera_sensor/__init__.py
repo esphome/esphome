@@ -1,6 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_FORMAT, CONF_HEIGHT, CONF_ID, CONF_TYPE, CONF_WIDTH
+from esphome.const import (
+    CONF_CLEAR,
+    CONF_FORMAT,
+    CONF_HEIGHT,
+    CONF_ID,
+    CONF_TYPE,
+    CONF_WIDTH,
+)
 
 CODEOWNERS = ["@DT-art1"]
 
@@ -17,7 +24,6 @@ Sensor = camera_ns.class_("Sensor")
 SoftwareSensor = camera_sensor_ns.class_("SoftwareSensor", Sensor)
 
 CONF_BUFFERS = "buffers"
-CONF_CLEAR = "clear"
 
 CONF_FORMAT_SELECTS = {
     "GRAYSCALE": PixelFormat.PIXEL_FORMAT_GRAYSCALE,
