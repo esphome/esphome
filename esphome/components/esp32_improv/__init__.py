@@ -28,7 +28,7 @@ VALID_SUBSTITUTIONS = ["esphome_version", "ip_address", "device_name"]
 
 def validate_next_url(value):
     value = cv.url(value)
-    test = r"{{(?!" + r"\b|".join(VALID_SUBSTITUTIONS) + r"\b)(\w+)}}"
+    test = r"{{(?!(?:" + "|".join(VALID_SUBSTITUTIONS) + r")\b)(\w+)}}"
     result = re.search(test, value)
     if result:
         raise cv.Invalid(
