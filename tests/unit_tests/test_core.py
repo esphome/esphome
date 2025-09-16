@@ -660,3 +660,37 @@ class TestEsphomeCore:
             os.environ.pop("ESPHOME_IS_HA_ADDON", None)
             os.environ.pop("ESPHOME_DATA_DIR", None)
             assert target.data_dir == expected_default
+
+    def test_platformio_cache_dir_with_env_var(self):
+        """Test platformio_cache_dir when PLATFORMIO_CACHE_DIR env var is set."""
+        target = core.EsphomeCore()
+        test_cache_dir = "/custom/cache/dir"
+
+        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": test_cache_dir}):
+            assert target.platformio_cache_dir == test_cache_dir
+
+    def test_platformio_cache_dir_without_env_var(self):
+        """Test platformio_cache_dir defaults to ~/.platformio/.cache."""
+        target = core.EsphomeCore()
+
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure env var is not set
+            os.environ.pop("PLATFORMIO_CACHE_DIR", None)
+            expected = os.path.expanduser("~/.platformio/.cache")
+            assert target.platformio_cache_dir == expected
+
+    def test_platformio_cache_dir_empty_env_var(self):
+        """Test platformio_cache_dir with empty env var falls back to default."""
+        target = core.EsphomeCore()
+
+        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": ""}):
+            expected = os.path.expanduser("~/.platformio/.cache")
+            assert target.platformio_cache_dir == expected
+
+    def test_platformio_cache_dir_docker_addon_path(self):
+        """Test platformio_cache_dir in Docker/HA addon environment."""
+        target = core.EsphomeCore()
+        addon_cache = "/data/cache/platformio"
+
+        with patch.dict(os.environ, {"PLATFORMIO_CACHE_DIR": addon_cache}):
+            assert target.platformio_cache_dir == addon_cache
