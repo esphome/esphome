@@ -1403,6 +1403,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Moriah Morgan (@moriahmorgan)](https://github.com/moriahmorgan)
 - [Moritz Glöckl (@moritzgloeckl)](https://github.com/moritzgloeckl)
 - [moritzj29 (@moritzj29)](https://github.com/moritzj29)
+- [Gustav Mårdestam (@morotsgurka)](https://github.com/morotsgurka)
 - [morph027 (@morph027)](https://github.com/morph027)
 - [Chris Laplante (@mostthingsweb)](https://github.com/mostthingsweb)
 - [Mowbys (@Mowbys)](https://github.com/Mowbys)
@@ -2227,4 +2228,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated September 15, 2025.*
+*This page was last updated September 16, 2025.*
