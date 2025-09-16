@@ -65,10 +65,10 @@ class JsonBuilder {
 
  private:
 #ifdef USE_PSRAM
-  SpiRamAllocator allocator_;      // Just a regular member on the stack!
-  JsonDocument doc_{&allocator_};  // Initialize with allocator
+  SpiRamAllocator allocator_;
+  JsonDocument doc_{&allocator_};
 #else
-  JsonDocument doc_;  // Default initialization
+  JsonDocument doc_;
 #endif
   JsonObject root_;
   bool root_created_{false};
