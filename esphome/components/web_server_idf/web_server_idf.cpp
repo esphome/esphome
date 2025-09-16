@@ -317,8 +317,8 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto *rsp =  // NOLINT(cppcoreguidelines-owning-memory)
-      new AsyncEventSourceResponse(request, this, this->web_server_);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
+  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
