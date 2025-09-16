@@ -360,6 +360,7 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_PASSWORD
 class ConnectRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 3;
@@ -391,6 +392,7 @@ class ConnectResponse final : public ProtoMessage {
 
  protected:
 };
+#endif
 class DisconnectRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
@@ -1174,19 +1176,19 @@ class GetTimeRequest final : public ProtoMessage {
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 5;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "get_time_response"; }
 #endif
   uint32_t epoch_seconds{0};
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(ProtoSize &size) const override;
+  std::string timezone{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 #ifdef USE_API_SERVICES
 class ListEntitiesServicesArgument final : public ProtoMessage {

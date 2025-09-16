@@ -431,6 +431,7 @@ class Application {
   void register_component_(Component *comp);
 
   void calculate_looping_components_();
+  void add_looping_components_by_state_(bool match_loop_done);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()

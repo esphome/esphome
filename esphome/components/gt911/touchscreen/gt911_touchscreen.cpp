@@ -20,7 +20,7 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL); \
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); \
     return; \
   }
 
