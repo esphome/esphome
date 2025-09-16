@@ -18,6 +18,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.types import ConfigType
+from esphome.util import OrderedDict
 
 # Add package root to python path
 here = Path(__file__).parent
@@ -150,7 +151,6 @@ def mock_clone_or_update() -> Generator[Any]:
 @pytest.fixture
 def mock_load_yaml() -> Generator[Any]:
     """Mock yaml_util.load_yaml for testing."""
-    from esphome.util import OrderedDict
 
     with mock.patch("esphome.yaml_util.load_yaml") as mock_func:
         # Default return value
