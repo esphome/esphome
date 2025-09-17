@@ -104,17 +104,17 @@ hardware interfaces for logging. Many newer boards based on ESP32 variants (such
 are using the ESP's on-board USB hardware peripheral while boards based on older processors (such as
 the original ESP32 or ESP8266) continue to use USB-to-serial bridge ICs for communication.
 
-|          | Arduino   | ESP-IDF           |
-| -------- | --------- | ----------------- |
-| ESP8266  | `UART0`   | N/A               |
-| ESP32    | `UART0`   | `UART0`           |
-| ESP32-C3 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-C5 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-C6 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-P4 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-S2 | `USB_CDC` | `USB_CDC`         |
-| ESP32-S3 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| RP2040 | `USB_CDC` | N/A |
+|          | Interface |
+| -------- | --------- |
+| ESP8266  | `UART0`   |
+| ESP32    | `UART0`   |
+| ESP32-C3 | `USB_SERIAL_JTAG` |
+| ESP32-C5 | `USB_SERIAL_JTAG` |
+| ESP32-C6 | `USB_SERIAL_JTAG` |
+| ESP32-P4 | `USB_SERIAL_JTAG` |
+| ESP32-S2 | `USB_CDC`         |
+| ESP32-S3 | `USB_SERIAL_JTAG` |
+| RP2040 | `USB_CDC` |
 
 {{< anchor "logger-log_levels" >}}
 
