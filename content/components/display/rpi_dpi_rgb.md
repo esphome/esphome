@@ -14,6 +14,11 @@ params:
 This display driver supports displays with 16 bit parallel interfaces, often referred to as "RPI_DPI_RGB" type.
 These have a parallel interface but no SPI interface and require no configuration of the driver chip.
 
+{{< warning >}}
+This component has been made redundant since this class of displays is now supported by the {{< docref "mipi_rgb" >}}
+This component will be removed in a future release.
+{{< /warning >}}
+
 This driver has been tested with the following displays:
 
 - Waveshare ESP32-S3-Touch-LCD-4.3

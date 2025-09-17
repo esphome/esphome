@@ -47,8 +47,8 @@ beyond the basic SPI connections, and a reasonable amount of RAM, it is not well
 {{< warning >}}
 This component has been made redundant since this class of displays is now supported by the [MIPI SPI Display Driver](#mipi_spi).
 This component may be removed in a future release.
-
 {{< /warning >}}
+
 {{< note >}}
 PSRAM is not automatically enabled on the ESP32 (this changed with the 2025.2 release.) If PSRAM is available, you
 should enable it with the {{< docref "/components/psram" "PSRAM configuration" >}}.

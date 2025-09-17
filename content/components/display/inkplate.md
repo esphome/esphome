@@ -24,7 +24,7 @@ mcp23017:
     address: 0x20
 
 display:
-- platform: inkplate6
+- platform: inkplate
   id: inkplate_display
   greyscale: false
   partial_updating: false
@@ -78,6 +78,7 @@ It just ignores the function call in that case.
 
 - **greyscale** (*Optional*, boolean): Makes the screen display 3 bit colors. Defaults to `false`
 - **partial_updating** (*Optional*, boolean): Makes the screen update partially, which is faster, but leaves burnin. Defaults to `false`
+- **custom_waveform** (*Optional*, int): Sets a custom predefined waveform for the display. Accepts values from 1 to 4. Useful if the greyscale of the image seems washed. **Inkplate10 ONLY**. Defaults to `0`
 - **full_update_every** (*Optional*, int): When partial updating is enabled, forces a full screen update after chosen number of updates. Defaults to `10`
 - **transform** (*Optional*): Transform the display presentation.
 
@@ -240,7 +241,7 @@ font:
     size: 48
 
 display:
-- platform: inkplate6
+- platform: inkplate
   id: inkplate_display
   greyscale: false
   partial_updating: false
@@ -351,7 +352,7 @@ pca6416a:
     address: 0x20
 
 display:
-- platform: inkplate6
+- platform: inkplate
   id: inkplate_display
   greyscale: true
   partial_updating: false
@@ -395,7 +396,7 @@ pca6416a:
     address: 0x20
 
 display:
-- platform: inkplate5
+- platform: inkplate
   id: inkplate_display
   greyscale: true
   partial_updating: false
@@ -485,7 +486,7 @@ sensor:
       - multiply: 2 # Compensate for voltage divider (1:2 ratio)
 
 display:
-  - platform: inkplate6
+  - platform: inkplate
     id: inkplate_display
     greyscale: true
     partial_updating: false
@@ -521,4 +522,4 @@ display:
 
 - {{< docref "index/" >}}
 - {{< docref "/components/touchscreen/ektf2232" >}}
-- [Arduino Inkplate 6 library](https://github.com/e-radionicacom/Inkplate-6-Arduino-library) by [E-radionica.com](https://e-radionica.com/)
+- [Inkplate Arduino library](https://github.com/SolderedElectronics/Inkplate-Arduino-library) by [Soldered Electronics](https://soldered.com/)

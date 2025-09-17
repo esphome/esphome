@@ -58,27 +58,28 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 ### Boards with integrated displays
 
 | Model                                | Manufacturer | Product Description                                               |
-| ------------------------------------ | ------------ | ----------------------------------------------------------------- |
+|--------------------------------------| ------------ | ----------------------------------------------------------------- |
 | ADAFRUIT-S2-TFT-FEATHER              | Adafruit     | <https://www.adafruit.com/product/6312>                           |
 | ADAFRUIT-FUNHOUSE                    | Adafruit     | <https://www.adafruit.com/product/4985>                           |
-| M5CORE | M5Stack | <https://docs.m5stack.com/en/core/BASIC%20v2.6> |
-| S3BOX | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box> |
-| S3BOXLITE | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box-lite> |
-| WAVESHARE-4-TFT | Waveshare | <https://www.waveshare.com/4inch-tft-touch-shield.htm> |
-| PICO-RESTOUCH-LCD-3.5 | Waveshare | <https://www.waveshare.com/pico-restouch-lcd-3.5.htm> |
+| M5CORE                               | M5Stack | <https://docs.m5stack.com/en/core/BASIC%20v2.6> |
+| S3BOX                                | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box> |
+| S3BOXLITE                            | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box-lite> |
+| WAVESHARE-4-TFT                      | Waveshare | <https://www.waveshare.com/4inch-tft-touch-shield.htm> |
+| PICO-RESTOUCH-LCD-3.5                | Waveshare | <https://www.waveshare.com/pico-restouch-lcd-3.5.htm> |
 | WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.75 | Waveshare | <https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm> |
-| WT32-SC01-PLUS | Wireless-Tag | <https://www.wireless-tag.com/portfolio/wt32-sc01-plus/> |
-| ESP32-2432S028 | Sunton | <https://www.espressif.com/en/products/devkits/esp32-2432s028> |
-| JC3248W535 | Guition | <https://www.aliexpress.com/item/1005007566332450.html> |
-| JC3636W518 | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
-| LANBON-L8 | Lanbon | <https://www.lanbon.cn/product/lanbon-l8> |
-| T4-S3-AMOLED | Lilygo | <https://www.lilygo.cc/products/t4-s3> |
-| T-EMBED | Lilygo | <https://www.lilygo.cc/products/t-embed> |
-| T-DISPLAY | Lilygo | <https://www.lilygo.cc/products/t-display> |
-| T-DISPLAY-S3 | Lilygo | <https://www.lilygo.cc/products/t-display-s3> |
-| T-DISPLAY-S3-PRO | Lilygo | <https://www.lilygo.cc/products/t-display-s3-pro> |
-| T-DISPLAY-S3-AMOLED | Lilygo | <https://www.lilygo.cc/products/t-display-s3-amoled> |
-| T-DISPLAY-S3-AMOLED-PLUS | Lilygo | <https://www.lilygo.cc/products/t-display-s3-amoled-plus> |
+| WT32-SC01-PLUS                       | Wireless-Tag | <https://www.wireless-tag.com/portfolio/wt32-sc01-plus/> |
+| ESP32-2432S028                       | Sunton | <https://www.espressif.com/en/products/devkits/esp32-2432s028> |
+| JC3248W535                           | Guition | <https://www.aliexpress.com/item/1005007566332450.html> |
+| JC3636W518                           | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
+| JC3636W518V2                         | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
+| LANBON-L8                            | Lanbon | <https://www.lanbon.cn/product/lanbon-l8> |
+| T4-S3-AMOLED                         | Lilygo | <https://www.lilygo.cc/products/t4-s3> |
+| T-EMBED                              | Lilygo | <https://www.lilygo.cc/products/t-embed> |
+| T-DISPLAY                            | Lilygo | <https://www.lilygo.cc/products/t-display> |
+| T-DISPLAY-S3                         | Lilygo | <https://www.lilygo.cc/products/t-display-s3> |
+| T-DISPLAY-S3-PRO                     | Lilygo | <https://www.lilygo.cc/products/t-display-s3-pro> |
+| T-DISPLAY-S3-AMOLED                  | Lilygo | <https://www.lilygo.cc/products/t-display-s3-amoled> |
+| T-DISPLAY-S3-AMOLED-PLUS             | Lilygo | <https://www.lilygo.cc/products/t-display-s3-amoled-plus> |
 
 ## SPI Bus
 

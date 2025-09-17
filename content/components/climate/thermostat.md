@@ -216,12 +216,6 @@ climate actions. Instead, they are climate *modes*. These [actions](#config-acti
 in that they could be used, for example, to toggle a group of LEDs on and/or off to provide a visual
 indication of the current climate mode.
 
-- **auto_mode** (*Optional*, [Action](#config-action)): The action to call when
-  the climate device is placed into "auto" mode (it may both cool and heat as required).
-
-- **off_mode** (*Optional*, [Action](#config-action)): The action to call when
-  the climate device is placed into "off" mode (it is completely disabled).
-
 - **heat_mode** (*Optional*, [Action](#config-action)): The action to call when
   the climate device is placed into heat mode (it may heat as required, but not cool).
 
@@ -232,8 +226,20 @@ indication of the current climate mode.
   the climate device is placed into dry mode (for dehumidification).
 
 - **fan_only_mode** (*Optional*, [Action](#config-action)): The action to call when
-  the climate device is placed into fan only mode (it may not heat or cool, but will activate
-  its fan as needed based on the upper target temperature value).
+  the climate device is placed into fan-only mode (it may not heat or cool, but will activate
+  its fan either immediately or, when `fan_only_cooling` is `true`, as needed based on the upper
+  target temperature value).
+
+- **heat_cool_mode** (*Optional*, [Action](#config-action)): The action to call when
+  the climate device is placed into "heat/cool" mode (it may both cool and heat as required).
+
+- **auto_mode** (*Optional*, [Action](#config-action)): The action to call when
+  the climate device is placed into "auto" mode (it may both cool and heat as required). This mode is
+  different from `heat_cool_mode` (above) in that it takes control of the set points away from the user;
+  it's generally intended for exclusive use by automations.
+
+- **off_mode** (*Optional*, [Action](#config-action)): The action to call when
+  the climate device is placed into "off" mode (it is completely disabled).
 
 **The above actions are not to be used to activate cooling or heating devices!**
 See the previous section for those.

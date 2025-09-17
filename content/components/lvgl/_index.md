@@ -37,6 +37,8 @@ display:
     update_interval: never
 ```
 
+{{< img src="lvgl-hello.png" width="400" >}}
+
 To make LVGL your own you will need to add widgets to the display. For example, to show a label with the text "Hello World!" in the center of the screen:
 
 ```yaml

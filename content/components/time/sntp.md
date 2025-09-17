@@ -27,8 +27,8 @@ If your are using [Manual IPs](#wifi-manual_ip) make sure to configure a DNS Ser
 
 {{< /note >}}
 {{< warning >}}
-Due to limitations of the SNTP implementation, this component will trigger `on_time_sync` only once when it detects that the
-system clock has been set, even if the update was not done by the SNTP implementation!
+Due to limitations of the SNTP implementation, on platforms other than ESP8266 and ESP32 this component will trigger `on_time_sync`
+only once when it detects that the system clock has been set, even if the update was not done by the SNTP implementation!
 This must be taken into consideration when SNTP is used together with other real time components, where another time source could
 update the time before SNTP synchronizes.
 
