@@ -22,7 +22,6 @@ void WTS01Sensor::dump_config() { LOG_SENSOR("", "WTS01 Temperature Sensor", thi
 void WTS01Sensor::handle_char_(uint8_t c) {
   // State machine for processing the header. Reset if something doesn't match.
   if (this->buffer_pos_ == 0 && c != HEADER_1) {
-    this->buffer_pos_ = 0;
     return;
   }
 
@@ -67,17 +66,16 @@ void WTS01Sensor::process_packet_() {
   }
 
   // Extract temperature value
-  uint8_t temp = this->buffer_[6];
+  int8_t temp = this->buffer_[6];
   int32_t sign = 1;
 
   // Handle negative temperatures
-  if (temp > 127) {
-    temp -= 128;
+  if (temp < 0) {
     sign = -1;
   }
 
   // Calculate temperature (temp + decimal/100)
-  float temperature = sign * (static_cast<float>(temp) + (static_cast<float>(this->buffer_[7]) / 100.0f));
+  float temperature = static_cast<float>(temp) + (sign * static_cast<float>(this->buffer_[7]) / 100.0f);
 
   ESP_LOGV(TAG, "Received new temperature: %.2f°C", temperature);
 
