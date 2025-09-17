@@ -56,7 +56,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 
-DEPENDENCIES = ["uart"] if CORE.is_stm32 else []
+DEPENDENCIES = []
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
