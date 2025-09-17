@@ -212,7 +212,7 @@ def has_mqtt_logging() -> bool:
     if CONF_TOPIC not in log_topic:
         return False
 
-    return log_topic[CONF_LEVEL] != "NONE"
+    return log_topic.get(CONF_LEVEL, None) != "NONE"
 
 
 def has_mqtt() -> bool:

@@ -1226,6 +1226,18 @@ def test_has_mqtt_logging_no_log_topic() -> None:
     setup_core(config={})
     assert has_mqtt_logging() is False
 
+    # Setup MQTT config with CONF_LOG_TOPIC but no CONF_LEVEL (regression test for #10771)
+    # This simulates the default configuration created by validate_config in the MQTT component
+    setup_core(
+        config={
+            CONF_MQTT: {
+                CONF_BROKER: "mqtt.local",
+                CONF_LOG_TOPIC: {CONF_TOPIC: "esphome/debug"},
+            }
+        }
+    )
+    assert has_mqtt_logging() is True
+
 
 def test_has_mqtt() -> None:
     """Test has_mqtt function."""
