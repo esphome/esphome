@@ -29,15 +29,14 @@ bool MCP2515::setup_internal() {
 
 canbus::CanEventFlags MCP2515::get_events() {
   uint32_t events = 0;
-  static uint8_t last_error_flags = 0;
   uint8_t error_flags = this->get_error_flags_();
 
-  uint8_t changed_flags = last_error_flags ^ error_flags;
+  uint8_t changed_flags = this->last_error_flags_ ^ error_flags;
   if (changed_flags & EFLG_EWARN) {
     events |= (error_flags & EFLG_EWARN) ? canbus::CAN_EVENT_ABOVE_WARNING : canbus::CAN_EVENT_BELOW_WARNING;
   }
   if (changed_flags & (EFLG_RXEP | EFLG_TXEP)) {
-    bool was_passive = last_error_flags & (EFLG_RXEP | EFLG_TXEP);
+    bool was_passive = this->last_error_flags_ & (EFLG_RXEP | EFLG_TXEP);
     bool is_passive = error_flags & (EFLG_RXEP | EFLG_TXEP);
 
     // only throw event if the status has changed (both on RX and TX passive flags)
@@ -56,6 +55,8 @@ canbus::CanEventFlags MCP2515::get_events() {
     events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
     clear_rx_n_ovr_flags_();
   }
+
+  this->last_error_flags_ = error_flags;
   return static_cast<canbus::CanEventFlags>(events);
 }
 

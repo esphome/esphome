@@ -76,6 +76,9 @@ class MCP2515 : public canbus::Canbus,
  protected:
   CanClock mcp_clock_{MCP_8MHZ};
   CanctrlReqopMode mcp_mode_ = CANCTRL_REQOP_NORMAL;
+
+  uint8_t last_error_flags_{0};
+
   bool setup_internal() override;
   canbus::CanEventFlags get_events() override;
   canbus::Error set_mode_(CanctrlReqopMode mode);
