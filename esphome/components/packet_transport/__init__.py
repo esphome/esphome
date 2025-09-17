@@ -137,6 +137,8 @@ def get_sensors(transport_id):
 def validate_packet_transport_sensor(config):
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = {CONF_SENSORS: []}
     CORE.data[DOMAIN][CONF_SENSORS].append(config)
     return config
 
