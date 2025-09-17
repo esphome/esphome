@@ -28,8 +28,19 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(uart.final_validate_device_schema(name="WTS01", baud_rate=9600))
 )
+
+
+def final_validate(config):
+    schema = uart.final_validate_device_schema(
+        "wts01",
+        baud_rate=9600,
+        require_rx=True,
+    )
+    schema(config)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):

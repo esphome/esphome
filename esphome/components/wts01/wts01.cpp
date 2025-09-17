@@ -17,10 +17,7 @@ void WTS01Sensor::loop() {
   }
 }
 
-void WTS01Sensor::dump_config() {
-  LOG_SENSOR("", "WTS01 Temperature Sensor", this);
-  this->check_uart_settings(9600);
-}
+void WTS01Sensor::dump_config() { LOG_SENSOR("", "WTS01 Temperature Sensor", this); }
 
 void WTS01Sensor::handle_char_(uint8_t c) {
   // State machine for processing the header. Reset if something doesn't match.
