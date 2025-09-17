@@ -7,7 +7,7 @@ service APIConnection {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc connect (ConnectRequest) returns (ConnectResponse) {
+  rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
@@ -27,9 +27,6 @@ service APIConnection {
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
   rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
-  rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
-    option (needs_authentication) = false;
-  }
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
   rpc noise_encryption_set_key (NoiseEncryptionSetKeyRequest) returns (NoiseEncryptionSetKeyResponse) {}
 
@@ -132,10 +129,11 @@ message HelloResponse {
 
 // Message sent at the beginning of each connection to authenticate the client
 // Can only be sent by the client and only at the beginning of the connection
-message ConnectRequest {
+message AuthenticationRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_PASSWORD";
 
   // The password to log in with
   string password = 1;
@@ -143,10 +141,11 @@ message ConnectRequest {
 
 // Confirmation of successful connection. After this the connection is available for all traffic.
 // Can only be sent by the server and only at the beginning of the connection
-message ConnectResponse {
+message AuthenticationResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_PASSWORD";
 
   bool invalid_password = 1;
 }
@@ -809,15 +808,16 @@ message HomeAssistantStateResponse {
 // ==================== IMPORT TIME ====================
 message GetTimeRequest {
   option (id) = 36;
-  option (source) = SOURCE_BOTH;
+  option (source) = SOURCE_SERVER;
 }
 
 message GetTimeResponse {
   option (id) = 37;
-  option (source) = SOURCE_BOTH;
+  option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
+  string timezone = 2;
 }
 
 // ==================== USER-DEFINES SERVICES ====================

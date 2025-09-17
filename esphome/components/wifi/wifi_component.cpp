@@ -148,7 +148,7 @@ void WiFiComponent::loop() {
 
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
-        this->status_set_warning("waiting to reconnect");
+        this->status_set_warning(LOG_STR("waiting to reconnect"));
         if (millis() - this->action_started_ > 5000) {
           if (this->fast_connect_ || this->retry_hidden_) {
             if (!this->selected_ap_.get_bssid().has_value())
@@ -161,13 +161,13 @@ void WiFiComponent::loop() {
         break;
       }
       case WIFI_COMPONENT_STATE_STA_SCANNING: {
-        this->status_set_warning("scanning for networks");
+        this->status_set_warning(LOG_STR("scanning for networks"));
         this->check_scanning_finished();
         break;
       }
       case WIFI_COMPONENT_STATE_STA_CONNECTING:
       case WIFI_COMPONENT_STATE_STA_CONNECTING_2: {
-        this->status_set_warning("associating to network");
+        this->status_set_warning(LOG_STR("associating to network"));
         this->check_connecting_finished();
         break;
       }
@@ -593,7 +593,7 @@ void WiFiComponent::check_scanning_finished() {
   for (auto &res : this->scan_result_) {
     char bssid_s[18];
     auto bssid = res.get_bssid();
-    sprintf(bssid_s, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+    format_mac_addr_upper(bssid.data(), bssid_s);
 
     if (res.get_matches()) {
       ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),

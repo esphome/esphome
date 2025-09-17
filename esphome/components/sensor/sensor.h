@@ -33,7 +33,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL = 3,
 };
 
-const char *state_class_to_string(StateClass state_class);
+const LogString *state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *
