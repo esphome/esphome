@@ -353,6 +353,7 @@ SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
 # pioarduino versions that don't require a release number
 # List based on https://github.com/pioarduino/esp-idf/releases
 SUPPORTED_PIOARDUINO_ESP_IDF_5X = [
+    cv.Version(5, 5, 1),
     cv.Version(5, 5, 0),
     cv.Version(5, 4, 2),
     cv.Version(5, 4, 1),
