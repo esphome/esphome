@@ -1,0 +1,22 @@
+# Test that specifically would have caught the mdns priority issue on ESP8266
+# This includes wifi, mdns, web_server, and api components similar to the
+# athom-rgbct-light configuration that exposed the bug
+
+esphome:
+  name: mdns-priority-test
+
+esp8266:
+  board: esp01_1m
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# mdns must be loaded after wifi due to ESP8266WiFi library dependency
+mdns:
+
+# Include web_server and api to match the failing configuration
+web_server:
+  port: 80
+
+api:
