@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.9.0-dev"
+__version__ = "2025.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -119,6 +119,7 @@ CONF_AND = "and"
 CONF_ANGLE = "angle"
 CONF_ANY = "any"
 CONF_AP = "ap"
+CONF_API = "api"
 CONF_APPARENT_POWER = "apparent_power"
 CONF_ARDUINO_VERSION = "arduino_version"
 CONF_AREA = "area"
@@ -190,6 +191,7 @@ CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
 CONF_CHECK = "check"
 CONF_CHIPSET = "chipset"
 CONF_CLEAN_SESSION = "clean_session"
+CONF_CLEAR = "clear"
 CONF_CLEAR_IMPEDANCE = "clear_impedance"
 CONF_CLIENT_CERTIFICATE = "client_certificate"
 CONF_CLIENT_CERTIFICATE_KEY = "client_certificate_key"
@@ -429,6 +431,7 @@ CONF_HEAD = "head"
 CONF_HEADING = "heading"
 CONF_HEARTBEAT = "heartbeat"
 CONF_HEAT_ACTION = "heat_action"
+CONF_HEAT_COOL_MODE = "heat_cool_mode"
 CONF_HEAT_DEADBAND = "heat_deadband"
 CONF_HEAT_MODE = "heat_mode"
 CONF_HEAT_OVERRUN = "heat_overrun"

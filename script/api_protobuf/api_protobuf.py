@@ -848,10 +848,17 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def public_content(self) -> list[str]:
+        len_type = (
+            "uint8_t"
+            if self.array_size <= 255
+            else "uint16_t"
+            if self.array_size <= 65535
+            else "size_t"
+        )
         # Add both the array and length fields
         return [
             f"uint8_t {self.field_name}[{self.array_size}]{{}};",
-            f"uint8_t {self.field_name}_len{{0}};",
+            f"{len_type} {self.field_name}_len{{0}};",
         ]
 
     @property

@@ -3,12 +3,12 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_LIBRETINY
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266)
 
 namespace esphome {
 namespace remote_receiver {
 
-static const char *const TAG = "remote_receiver.libretiny";
+static const char *const TAG = "remote_receiver";
 
 void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
   const uint32_t now = micros();
@@ -27,7 +27,7 @@ void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverCompone
   if (time_since_change <= arg->filter_us)
     return;
 
-  arg->buffer[arg->buffer_write_at = next] = now;
+  arg->buffer[arg->buffer_write_at = next] = now;  // NOLINT(clang-diagnostic-deprecated-volatile)
 }
 
 void RemoteReceiverComponent::setup() {

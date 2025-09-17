@@ -28,12 +28,12 @@ bool Select::has_option(const std::string &option) const { return this->index_of
 bool Select::has_index(size_t index) const { return index < this->size(); }
 
 size_t Select::size() const {
-  auto options = traits.get_options();
+  const auto &options = traits.get_options();
   return options.size();
 }
 
 optional<size_t> Select::index_of(const std::string &option) const {
-  auto options = traits.get_options();
+  const auto &options = traits.get_options();
   auto it = std::find(options.begin(), options.end(), option);
   if (it == options.end()) {
     return {};
@@ -51,7 +51,7 @@ optional<size_t> Select::active_index() const {
 
 optional<std::string> Select::at(size_t index) const {
   if (this->has_index(index)) {
-    auto options = traits.get_options();
+    const auto &options = traits.get_options();
     return options.at(index);
   } else {
     return {};
