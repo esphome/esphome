@@ -30,6 +30,10 @@ static const char *const TAG = "mdns";
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
+#ifdef USE_RESONATE
+static const uint32_t RESONATE_PORT = 8927;
+#endif
+
 // Define all constant strings using the macro
 MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 

@@ -43,20 +43,6 @@ enum EventGroupBits : uint32_t {
 #endif
 
 void ResonateMediaPlayer::setup() {
-#if defined(USE_RESONATE_AUDIO)
-  this->decoded_chunk_queue_ = ResonateChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
-  if (this->decoded_chunk_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Couldn't create decoded chunk data queue.");
-    this->mark_failed();
-  }
-
-  this->playback_progress_queue_ = xQueueCreateWithCaps(50, sizeof(PlaybackProgress), MALLOC_CAP_SPIRAM);
-  if (this->playback_progress_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Couldn't create playback progress queue.");
-    this->mark_failed();
-  }
-#endif
-
   this->resonate_controls_queue_ = xQueueCreate(3, sizeof(ResonateControls));
   if (this->resonate_controls_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create resonate controls queue.");
@@ -93,7 +79,7 @@ void ResonateMediaPlayer::setup() {
   });
 
 #if defined(USE_RESONATE_AUDIO)
-  this->decoded_chunk_queue_ = audio::AudioChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
+  this->decoded_chunk_queue_ = ResonateChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
   if (this->decoded_chunk_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create chunk queue.");
     this->mark_failed();
