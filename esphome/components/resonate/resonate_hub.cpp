@@ -399,6 +399,9 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           header_chunk->release();
         }
       }
+#else
+      // Indicate session started
+      this->controls_callbacks_.call(ResonateControls::START);
 #endif
       break;
     }

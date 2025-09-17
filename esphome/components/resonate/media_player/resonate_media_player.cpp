@@ -1,6 +1,6 @@
 #include "resonate_media_player.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER) && defined(USE_RESONATE_AUDIO)
+#if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER)
 
 #include "esphome/components/audio/audio_transfer_buffer.h"
 
@@ -17,6 +17,7 @@ namespace resonate {
 
 static const char *const TAG = "resonate.media_player";
 
+#if defined(USE_RESONATE_AUDIO)
 static const uint32_t DECODED_CHUNK_QUEUE_SIZE = 10;
 
 static const size_t SYNC_TASK_STACK_SIZE = 5 * 1024;
@@ -39,6 +40,7 @@ enum EventGroupBits : uint32_t {
   TASK_STOPPING = (1 << 12),
   TASK_STOPPED = (1 << 13),
 };
+#endif
 
 void ResonateMediaPlayer::setup() {
   this->decoded_chunk_queue_ = ResonateChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
@@ -59,9 +61,51 @@ void ResonateMediaPlayer::setup() {
     this->mark_failed();
   }
 
+  this->parent_->add_controls_callback([this](const ResonateControls &control_type) {
+    switch (control_type) {
+      case ResonateControls::START:  // Intentional fallthrough
+      case ResonateControls::STOP: {
+        // Add to queue to carefully process in loop() at the appropriate time
+        xQueueSend(this->resonate_controls_queue_, &control_type, 0);
+        break;
+      }
+#if defined(USE_RESONATE_AUDIO)
+      case ResonateControls::VOLUME_UPDATE: {
+        // Process immediately
+        this->volume_ = this->parent_->get_volume();
+        break;
+      }
+      case ResonateControls::MUTE_UPDATE: {
+        // Process immediately
+        if (this->parent_->get_muted()) {
+          this->make_call().set_command(media_player::MEDIA_PLAYER_COMMAND_MUTE).perform();
+        } else {
+          this->make_call().set_command(media_player::MEDIA_PLAYER_COMMAND_UNMUTE).perform();
+        }
+        break;
+      }
+#endif
+      default:
+        break;
+    }
+  });
+
+#if defined(USE_RESONATE_AUDIO)
+  this->decoded_chunk_queue_ = audio::AudioChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
+  if (this->decoded_chunk_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Couldn't create chunk queue.");
+    this->mark_failed();
+  }
+
   this->event_group_ = xEventGroupCreate();
   if (this->event_group_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create event group.");
+    this->mark_failed();
+  }
+
+  this->playback_progress_queue_ = xQueueCreateWithCaps(50, sizeof(PlaybackProgress), MALLOC_CAP_SPIRAM);
+  if (this->playback_progress_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Couldn't create playback progress queue.");
     this->mark_failed();
   }
 
@@ -115,10 +159,14 @@ void ResonateMediaPlayer::setup() {
 }
 
 void ResonateMediaPlayer::loop() {
+  // Determine state of the media player
+  media_player::MediaPlayerState old_state = this->state;
+
   ResonateControls incoming_control;
   if (xQueuePeek(this->resonate_controls_queue_, &incoming_control, 0)) {
     switch (incoming_control) {
       case ResonateControls::START: {
+#if defined(USE_RESONATE_AUDIO)
         if (this->sync_task_handle_ == nullptr) {
           // The task is not running in any state
           if (xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0)) {
@@ -130,12 +178,18 @@ void ResonateMediaPlayer::loop() {
           // control message
           xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
         }
-        // If neither of these conditions hold, then we must be starting, as we set task_procesing_ to false once we
-        // start stopping. Leave this command in the queue. If we're starting, eventually the task_processing_ variable
-        // will be true and we'll discard the command then.
+// If neither of these conditions hold, then we must be starting, as we set task_procesing_ to false once we
+// start stopping. Leave this command in the queue. If we're starting, eventually the task_processing_ variable
+// will be true and we'll discard the command then.
+#else
+        // Received start control so group is playing, directly set state
+        xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
+        this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+#endif
         break;
       }
       case ResonateControls::STOP: {
+#if defined(USE_RESONATE_AUDIO)
         if (this->sync_task_handle_ == nullptr) {
           // The task is not running in any state - discard the control message
           xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
@@ -149,6 +203,11 @@ void ResonateMediaPlayer::loop() {
             xEventGroupSetBits(this->event_group_, EventGroupBits::CONTROL_STOP);
           }
         }
+#else
+        // Received stop control so group is idle, directly set state
+        xQueueReceive(this->resonate_controls_queue_, &incoming_control, 0);
+        this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+#endif
         break;
       }
       default:
@@ -156,9 +215,7 @@ void ResonateMediaPlayer::loop() {
     }
   }
 
-  // Determine state of the media player
-  media_player::MediaPlayerState old_state = this->state;
-
+#if defined(USE_RESONATE_AUDIO)
   // Handle the task's state
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
   if (event_group_bits & EventGroupBits::TASK_STARTING) {
@@ -212,12 +269,14 @@ void ResonateMediaPlayer::loop() {
   }
 
   if (this->volume_.has_value()) {
+    // TODO: If USE_RESONATE_AUDIO isn't defined, the volume command should be sent to the server
     this->volume = static_cast<float>(this->volume_.value()) / 100.0f;
     this->speaker_->set_volume(this->volume);
 
     this->publish_state();
     this->volume_.reset();
   }
+#endif
 
 #ifdef USE_RESONATE_SENSOR
   static int64_t last_sensor_update = esp_timer_get_time();
@@ -235,13 +294,13 @@ void ResonateMediaPlayer::loop() {
     this->parent_->update_resonate_sensor(
         {.type = ResonateSensorTypes::AUDIBLE_SYNCS, .value = static_cast<float>(this->audible_syncs_)});
   }
+#endif
 
   if ((this->state != old_state) || (this->force_publish_state_)) {
     this->force_publish_state_ = false;
     this->publish_state();
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
   }
-#endif
 }
 
 media_player::MediaPlayerTraits ResonateMediaPlayer::get_traits() {
@@ -258,10 +317,12 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
 
+#if defined(USE_RESONATE_AUDIO)
   if (call.get_volume().has_value()) {
     this->volume_ = std::roundf(call.get_volume().value() * 100.0f);
     this->parent_->update_volume(this->volume_.value());
   }
+#endif
 
   if (call.get_command().has_value()) {
     switch (call.get_command().value()) {
@@ -275,6 +336,8 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
         this->parent_->send_stream_command(call);  // Forward commands to the resonate server
         break;
+#if defined(USE_RESONATE_AUDIO)
+      // TODO: Send volume commands to server if we aren't a player
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->is_muted_ = true;
         this->speaker_->set_mute_state(this->is_muted_);
@@ -287,12 +350,14 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         this->force_publish_state_ = true;
         this->parent_->update_muted(this->is_muted_);
         break;
+#endif
       default:
         break;
     }
   }
 }
 
+#if defined(USE_RESONATE_AUDIO)
 void ResonateMediaPlayer::sync_task(void *params) {
   /* This is the magic for playing synced audio. We push audio through the stack keeping careful track of the amount and
    * timing. We process the speaker callbacks to determine when audio will actually play.
@@ -674,6 +739,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
     vTaskDelay(pdMS_TO_TICKS(25));
   }
 }
+#endif
 
 }  // namespace resonate
 }  // namespace esphome
