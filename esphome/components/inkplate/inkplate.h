@@ -5,8 +5,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <array>
+
 namespace esphome {
-namespace inkplate6 {
+namespace inkplate {
 
 enum InkplateModel : uint8_t {
   INKPLATE_6 = 0,
@@ -17,79 +19,35 @@ enum InkplateModel : uint8_t {
   INKPLATE_5_V2 = 5,
 };
 
-class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
+static constexpr uint8_t GLUT_SIZE = 9;
+static constexpr uint8_t GLUT_COUNT = 8;
+
+static constexpr uint8_t LUT2[16] = {0xAA, 0xA9, 0xA6, 0xA5, 0x9A, 0x99, 0x96, 0x95,
+                                     0x6A, 0x69, 0x66, 0x65, 0x5A, 0x59, 0x56, 0x55};
+static constexpr uint8_t LUTW[16] = {0xFF, 0xFE, 0xFB, 0xFA, 0xEF, 0xEE, 0xEB, 0xEA,
+                                     0xBF, 0xBE, 0xBB, 0xBA, 0xAF, 0xAE, 0xAB, 0xAA};
+static constexpr uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0xD5,
+                                     0x7F, 0x7D, 0x77, 0x75, 0x5F, 0x5D, 0x57, 0x55};
+
+static constexpr uint8_t PIXEL_MASK_LUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
+static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
+
+class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
-  const uint8_t LUT2[16] = {0xAA, 0xA9, 0xA6, 0xA5, 0x9A, 0x99, 0x96, 0x95,
-                            0x6A, 0x69, 0x66, 0x65, 0x5A, 0x59, 0x56, 0x55};
-  const uint8_t LUTW[16] = {0xFF, 0xFE, 0xFB, 0xFA, 0xEF, 0xEE, 0xEB, 0xEA,
-                            0xBF, 0xBE, 0xBB, 0xBA, 0xAF, 0xAE, 0xAB, 0xAA};
-  const uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0xD5,
-                            0x7F, 0x7D, 0x77, 0x75, 0x5F, 0x5D, 0x57, 0x55};
-
-  const uint8_t pixelMaskLUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
-  const uint8_t pixelMaskGLUT[2] = {0x0F, 0xF0};
-
-  const uint8_t waveform3BitAll[6][8][9] = {// INKPLATE_6
-                                            {{0, 1, 1, 0, 0, 1, 1, 0, 0},
-                                             {0, 1, 2, 1, 1, 2, 1, 0, 0},
-                                             {1, 1, 1, 2, 2, 1, 0, 0, 0},
-                                             {0, 0, 0, 1, 1, 1, 2, 0, 0},
-                                             {2, 1, 1, 1, 2, 1, 2, 0, 0},
-                                             {2, 2, 1, 1, 2, 1, 2, 0, 0},
-                                             {1, 1, 1, 2, 1, 2, 2, 0, 0},
-                                             {0, 0, 0, 0, 0, 0, 2, 0, 0}},
-                                            // INKPLATE_10
-                                            {{0, 0, 0, 0, 0, 0, 0, 1, 0},
-                                             {0, 0, 0, 2, 2, 2, 1, 1, 0},
-                                             {0, 0, 2, 1, 1, 2, 2, 1, 0},
-                                             {0, 1, 2, 2, 1, 2, 2, 1, 0},
-                                             {0, 0, 2, 1, 2, 2, 2, 1, 0},
-                                             {0, 2, 2, 2, 2, 2, 2, 1, 0},
-                                             {0, 0, 0, 0, 0, 2, 1, 2, 0},
-                                             {0, 0, 0, 2, 2, 2, 2, 2, 0}},
-                                            // INKPLATE_6_PLUS
-                                            {{0, 0, 0, 0, 0, 2, 1, 1, 0},
-                                             {0, 0, 2, 1, 1, 1, 2, 1, 0},
-                                             {0, 2, 2, 2, 1, 1, 2, 1, 0},
-                                             {0, 0, 2, 2, 2, 1, 2, 1, 0},
-                                             {0, 0, 0, 0, 2, 2, 2, 1, 0},
-                                             {0, 0, 2, 1, 2, 1, 1, 2, 0},
-                                             {0, 0, 2, 2, 2, 1, 1, 2, 0},
-                                             {0, 0, 0, 0, 2, 2, 2, 2, 0}},
-                                            // INKPLATE_6_V2
-                                            {{1, 0, 1, 0, 1, 1, 1, 0, 0},
-                                             {0, 0, 0, 1, 1, 1, 1, 0, 0},
-                                             {1, 1, 1, 1, 0, 2, 1, 0, 0},
-                                             {1, 1, 1, 2, 2, 1, 1, 0, 0},
-                                             {1, 1, 1, 1, 2, 2, 1, 0, 0},
-                                             {0, 1, 1, 1, 2, 2, 1, 0, 0},
-                                             {0, 0, 0, 0, 1, 1, 2, 0, 0},
-                                             {0, 0, 0, 0, 0, 1, 2, 0, 0}},
-                                            // INKPLATE_5
-                                            {{0, 0, 1, 1, 0, 1, 1, 1, 0},
-                                             {0, 1, 1, 1, 1, 2, 0, 1, 0},
-                                             {1, 2, 2, 0, 2, 1, 1, 1, 0},
-                                             {1, 1, 1, 2, 0, 1, 1, 2, 0},
-                                             {0, 1, 1, 1, 2, 0, 1, 2, 0},
-                                             {0, 0, 0, 1, 1, 2, 1, 2, 0},
-                                             {1, 1, 1, 2, 0, 2, 1, 2, 0},
-                                             {0, 0, 0, 0, 0, 0, 0, 0, 0}},
-                                            // INKPLATE_5_V2
-                                            {{0, 0, 1, 1, 2, 1, 1, 1, 0},
-                                             {1, 1, 2, 2, 1, 2, 1, 1, 0},
-                                             {0, 1, 2, 2, 1, 1, 2, 1, 0},
-                                             {0, 0, 1, 1, 1, 1, 1, 2, 0},
-                                             {1, 2, 1, 2, 1, 1, 1, 2, 0},
-                                             {0, 1, 1, 1, 2, 0, 1, 2, 0},
-                                             {1, 1, 1, 2, 2, 2, 1, 2, 0},
-                                             {0, 0, 0, 0, 0, 0, 0, 0, 0}}};
-
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
     this->block_partial_ = true;
     if (this->is_ready())
       this->initialize_();
   }
+
+  void set_waveform(const std::array<uint8_t, GLUT_COUNT * GLUT_SIZE> &waveform, bool is_custom) {
+    static_assert(sizeof(this->waveform_) == sizeof(uint8_t) * GLUT_COUNT * GLUT_SIZE,
+                  "waveform_ buffer size must match input waveform array size");
+    memmove(this->waveform_, waveform.data(), sizeof(this->waveform_));
+    this->custom_waveform_ = is_custom;
+  }
+
   void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
   void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
 
@@ -225,6 +183,8 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
   bool mirror_y_{false};
   bool mirror_x_{false};
   bool partial_updating_;
+  bool custom_waveform_{false};
+  uint8_t waveform_[GLUT_COUNT][GLUT_SIZE];
 
   InkplateModel model_;
 
@@ -250,5 +210,5 @@ class Inkplate6 : public display::DisplayBuffer, public i2c::I2CDevice {
   GPIOPin *wakeup_pin_;
 };
 
-}  // namespace inkplate6
+}  // namespace inkplate
 }  // namespace esphome

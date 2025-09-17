@@ -2,10 +2,11 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_OTA
-#include "esphome/core/helpers.h"
-#include "esphome/core/preferences.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome {
 
@@ -31,9 +32,9 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void handle_data_();
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
-  void log_socket_error_(const char *msg);
-  void log_read_error_(const char *what);
-  void log_start_(const char *phase);
+  void log_socket_error_(const LogString *msg);
+  void log_read_error_(const LogString *what);
+  void log_start_(const LogString *phase);
   void cleanup_connection_();
   void yield_and_feed_watchdog_();
 
