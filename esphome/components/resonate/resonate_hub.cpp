@@ -158,9 +158,9 @@ void ResonateHub::start() {
 }
 
 #ifdef USE_MEDIA_PLAYER
-void ResonateHub::send_stream_command(const media_player::MediaPlayerCall &call) {
+void ResonateHub::send_stream_command(const media_player::MediaPlayerCommand &command) {
   if (this->resonate_websocket_->is_connected()) {
-    this->resonate_websocket_->send_stream_command_message(call);
+    this->resonate_websocket_->send_stream_command_message(command);
   }
 }
 #endif

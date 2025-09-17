@@ -27,7 +27,7 @@ class ResonateWebsocket {
   void send_player_state_message(const PlayerStateMessage *msg);
 
 #ifdef USE_MEDIA_PLAYER
-  void send_stream_command_message(const media_player::MediaPlayerCall &call);
+  void send_stream_command_message(const media_player::MediaPlayerCommand &command);
 #endif
 
   void send_time_message();

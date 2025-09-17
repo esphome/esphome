@@ -73,8 +73,8 @@ void ResonateWebsocket::send_player_state_message(const PlayerStateMessage *msg)
 }
 
 #ifdef USE_MEDIA_PLAYER
-void ResonateWebsocket::send_stream_command_message(const media_player::MediaPlayerCall &call) {
-  this->send_text_message_(format_stream_command_message(call));
+void ResonateWebsocket::send_stream_command_message(const media_player::MediaPlayerCommand &command) {
+  this->send_text_message_(format_stream_command_message(command));
 }
 #endif
 

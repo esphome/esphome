@@ -120,7 +120,7 @@ std::string format_player_hello_message(const ClientHelloMessage *msg);
 std::string format_player_state_message(const PlayerStateMessage *msg);
 
 #ifdef USE_MEDIA_PLAYER
-std::string format_stream_command_message(const media_player::MediaPlayerCall &call);
+std::string format_stream_command_message(const media_player::MediaPlayerCommand &command);
 #endif
 
 PlayerStateMessage build_player_state_message(std::string state, uint8_t volume, bool muted);

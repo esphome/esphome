@@ -246,42 +246,41 @@ std::string format_player_state_message(const PlayerStateMessage *msg) {
 }
 
 #ifdef USE_MEDIA_PLAYER
-std::string format_stream_command_message(const media_player::MediaPlayerCall &call) {
+std::string format_stream_command_message(const media_player::MediaPlayerCommand &command) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return json::build_json([call](JsonObject root) {
+  return json::build_json([command](JsonObject root) {
     root["type"] = "stream/command";
-    if (call.get_command().has_value()) {
-      switch (call.get_command().value()) {
-        case media_player::MEDIA_PLAYER_COMMAND_PLAY:
-          root["payload"]["command"] = "play";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
-          root["payload"]["command"] = "pause";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_STOP:
-          root["payload"]["command"] = "stop";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_MUTE:
-          root["payload"]["command"] = "mute";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
-          root["payload"]["command"] = "unmute";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
-          root["payload"]["command"] = "repeat_off";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
-          root["payload"]["command"] = "repeat_one";
-          break;
-        case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
-          root["payload"]["command"] = "clear_playlist";
-          break;
-        default:  // TODO: properly handle this? don't send anything
-          break;
-      }
-    } else if (call.get_volume().has_value()) {
-      // TODO: This is a float operation!
-      root["payload"]["volume"] = call.get_volume().value();
+    switch (command) {
+      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+        root["payload"]["command"] = "play";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
+        root["payload"]["command"] = "pause";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_STOP:
+        root["payload"]["command"] = "stop";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_MUTE:
+        root["payload"]["command"] = "mute";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
+        root["payload"]["command"] = "unmute";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+        root["payload"]["command"] = "repeat_off";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+        root["payload"]["command"] = "repeat_one";
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+        root["payload"]["command"] = "clear_playlist";
+        break;
+      default:  // TODO: properly handle this? don't send anything
+        break;
+        // TODO: Switching to the media player command directly means we can't send volume this way
+        // } else if (call.get_volume().has_value()) {
+        //   // TODO: This is a float operation!
+        //   root["payload"]["volume"] = call.get_volume().value();
     }
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)

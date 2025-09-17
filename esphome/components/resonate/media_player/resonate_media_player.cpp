@@ -43,6 +43,7 @@ enum EventGroupBits : uint32_t {
 #endif
 
 void ResonateMediaPlayer::setup() {
+#if defined(USE_RESONATE_AUDIO)
   this->decoded_chunk_queue_ = ResonateChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
   if (this->decoded_chunk_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create decoded chunk data queue.");
@@ -54,6 +55,7 @@ void ResonateMediaPlayer::setup() {
     ESP_LOGE(TAG, "Couldn't create playback progress queue.");
     this->mark_failed();
   }
+#endif
 
   this->resonate_controls_queue_ = xQueueCreate(3, sizeof(ResonateControls));
   if (this->resonate_controls_queue_ == nullptr) {
@@ -128,7 +130,7 @@ void ResonateMediaPlayer::setup() {
         // add_chunk adds its own reference to the chunk
         return this->decoded_chunk_queue_->add_chunk(audio_chunk, ticks_to_wait);
       });
-
+#endif
   this->parent_->add_controls_callback([this](const ResonateControls &control_type) {
     switch (control_type) {
       case ResonateControls::START:  // Intentional fallthrough
@@ -137,6 +139,7 @@ void ResonateMediaPlayer::setup() {
         xQueueSend(this->resonate_controls_queue_, &control_type, 0);
         break;
       }
+#if defined(USE_RESONATE_AUDIO)
       case ResonateControls::VOLUME_UPDATE: {
         // Process immediately
         this->volume_ = this->parent_->get_volume();
@@ -151,6 +154,9 @@ void ResonateMediaPlayer::setup() {
         }
         break;
       }
+#endif
+      default:
+        break;
     }
   });
 
@@ -327,6 +333,14 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (call.get_command().has_value()) {
     switch (call.get_command().value()) {
       case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+        if (this->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
+          // call.set_command(media_player::MEDIA_PLAYER_COMMAND_PAUSE);
+          this->parent_->send_stream_command(media_player::MEDIA_PLAYER_COMMAND_PAUSE);
+        } else {
+          // call.set_command(media_player::MEDIA_PLAYER_COMMAND_PLAY);
+          this->parent_->send_stream_command(media_player::MEDIA_PLAYER_COMMAND_PLAY);
+        }
+
         break;
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:        // intentional fallthrough
       case media_player::MEDIA_PLAYER_COMMAND_PAUSE:       // intentional fallthrough
@@ -334,7 +348,7 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:  // intentional fallthrough
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:  // intentional fallthrough
       case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
-        this->parent_->send_stream_command(call);  // Forward commands to the resonate server
+        this->parent_->send_stream_command(call.get_command().value());  // Forward commands to the resonate server
         break;
 #if defined(USE_RESONATE_AUDIO)
       // TODO: Send volume commands to server if we aren't a player
