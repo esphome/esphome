@@ -6,7 +6,7 @@
 namespace esphome {
 namespace zwave_proxy {
 
-static const char *TAG = "zwave_proxy";
+static const char *const TAG = "zwave_proxy";
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
