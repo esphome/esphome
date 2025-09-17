@@ -1,6 +1,7 @@
 import os
 import random
 import string
+from typing import Literal, NotRequired, TypedDict, Unpack
 import unicodedata
 
 import voluptuous as vol
@@ -103,11 +104,25 @@ HARDWARE_BASE_CONFIGS = {
 }
 
 
-def sanitize_double_quotes(value):
+def sanitize_double_quotes(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def wizard_file(**kwargs):
+class WizardFileKwargs(TypedDict):
+    """Keyword arguments for wizard_file function."""
+
+    name: str
+    platform: Literal["ESP8266", "ESP32", "RP2040", "BK72XX", "LN882X", "RTL87XX"]
+    board: str
+    ssid: NotRequired[str]
+    psk: NotRequired[str]
+    password: NotRequired[str]
+    ota_password: NotRequired[str]
+    api_encryption_key: NotRequired[str]
+    friendly_name: NotRequired[str]
+
+
+def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
     letters = string.ascii_letters + string.digits
     ap_name_base = kwargs["name"].replace("_", " ").title()
     ap_name = f"{ap_name_base} Fallback Hotspot"
@@ -180,7 +195,25 @@ captive_portal:
     return config
 
 
-def wizard_write(path, **kwargs):
+class WizardWriteKwargs(TypedDict):
+    """Keyword arguments for wizard_write function."""
+
+    name: str
+    type: Literal["basic", "empty", "upload"]
+    # Required for "basic" type
+    board: NotRequired[str]
+    platform: NotRequired[str]
+    ssid: NotRequired[str]
+    psk: NotRequired[str]
+    password: NotRequired[str]
+    ota_password: NotRequired[str]
+    api_encryption_key: NotRequired[str]
+    friendly_name: NotRequired[str]
+    # Required for "upload" type
+    file_text: NotRequired[str]
+
+
+def wizard_write(path: str, **kwargs: Unpack[WizardWriteKwargs]) -> bool:
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
@@ -237,14 +270,14 @@ def wizard_write(path, **kwargs):
 
 if get_bool_env(ENV_QUICKWIZARD):
 
-    def sleep(time):
+    def sleep(time: float) -> None:
         pass
 
 else:
     from time import sleep
 
 
-def safe_print_step(step, big):
+def safe_print_step(step: int, big: str) -> None:
     safe_print()
     safe_print()
     safe_print(f"============= STEP {step} =============")
@@ -253,14 +286,14 @@ def safe_print_step(step, big):
     sleep(0.25)
 
 
-def default_input(text, default):
+def default_input(text: str, default: str) -> str:
     safe_print()
     safe_print(f"Press ENTER for default ({default})")
     return safe_input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(value):
+def strip_accents(value: str) -> str:
     return "".join(
         c
         for c in unicodedata.normalize("NFD", str(value))
@@ -268,7 +301,7 @@ def strip_accents(value):
     )
 
 
-def wizard(path):
+def wizard(path: str) -> int:
     from esphome.components.bk72xx import boards as bk72xx_boards
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
@@ -509,6 +542,7 @@ def wizard(path):
         ssid=ssid,
         psk=psk,
         password=password,
+        type="basic",
     ):
         return 1
 
