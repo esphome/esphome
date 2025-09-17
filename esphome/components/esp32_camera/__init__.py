@@ -222,7 +222,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PIXEL_FORMAT, default="JPEG"): cv.enum(
                 PIXEL_FORMATS, upper=True
             ),
-            cv.Optional(CONF_JPEG_QUALITY, default=10): cv.Any(
+            cv.Optional(CONF_JPEG_QUALITY, default=0): cv.Any(
                 cv.one_of(0), cv.int_range(min=6, max=63)
             ),
             cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
@@ -347,6 +347,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
+
+    if config[CONF_PIXEL_FORMAT] == "JPEG" and not config[CONF_JPEG_QUALITY]:
+        config[CONF_JPEG_QUALITY] = 10  # set default quality for JPEG format
 
     for key, setter in SETTERS.items():
         if key in config:
