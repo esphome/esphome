@@ -229,10 +229,12 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
 
 #ifndef USE_ETHERNET_SPI
+#ifdef USE_ETHERNET_KSZ8081
   if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
     // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
     this->ksz8081_set_clock_reference_(mac);
   }
+#endif  // USE_ETHERNET_KSZ8081
 
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
@@ -721,6 +723,7 @@ bool EthernetComponent::powerdown() {
 
 #ifndef USE_ETHERNET_SPI
 
+#ifdef USE_ETHERNET_KSZ8081
 constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
 
 void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
@@ -749,6 +752,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
   }
 }
+#endif  // USE_ETHERNET_KSZ8081
 
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;

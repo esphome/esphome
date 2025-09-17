@@ -104,8 +104,10 @@ class EthernetComponent : public Component {
   void start_connect_();
   void finish_connect_();
   void dump_connect_params_();
+#ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+#endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 

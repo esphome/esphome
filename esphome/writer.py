@@ -315,6 +315,19 @@ def clean_build():
         _LOGGER.info("Deleting %s", dependencies_lock)
         os.remove(dependencies_lock)
 
+    # Clean PlatformIO cache to resolve CMake compiler detection issues
+    # This helps when toolchain paths change or get corrupted
+    try:
+        from platformio.project.helpers import get_project_cache_dir
+    except ImportError:
+        # PlatformIO is not available, skip cache cleaning
+        pass
+    else:
+        cache_dir = get_project_cache_dir()
+        if cache_dir and cache_dir.strip() and os.path.isdir(cache_dir):
+            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
+            shutil.rmtree(cache_dir)
+
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 # This is an example and may include too much for your use-case.
