@@ -1,4 +1,5 @@
 #include "canbus.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -68,24 +69,7 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 void Canbus::loop() {
   enum CanEventFlags events = this->get_events();
 
-  if (events & CanEventFlags::CAN_EVENT_BUS_OFF) {
-    this->status_set_error("error state bus off");
-  }
-  if (events & CanEventFlags::CAN_EVENT_PASSIVE) {
-    this->status_set_warning("error state passive");
-  }
-  if (events & CanEventFlags::CAN_EVENT_BUS_RECOVERED) {
-    ESP_LOGW(TAG, "recovered from bus off");
-    this->status_clear_error();
-  }
-  if (events & CanEventFlags::CAN_EVENT_ACTIVE) {
-    ESP_LOGW(TAG, "error state active");
-    this->status_clear_warning();
-  }
-
-  if (events & CanEventFlags::CAN_EVENT_RX_QUEUE_FULL) {
-    ESP_LOGW(TAG, "receive buffer overrun");
-  }
+  this->log_events_(events);
 
   struct CanFrame can_message;
   // read all messages until queue is empty
@@ -121,6 +105,67 @@ void Canbus::loop() {
       }
     }
   }
+}
+
+void Canbus::log_events_(CanEventFlags events) {
+  uint32_t now = millis();
+
+  // special handling for bus-off because that can switch on or off constantly due to automatic bus-off-recovery.
+  if (events & CanEventFlags::CAN_EVENT_BUS_OFF) {
+    this->last_bus_off_time_ = now;
+    if (!this->bus_off_) {
+      ESP_LOGW(TAG, "entered bus off");
+      this->bus_off_ = true;
+    }
+  } else if (this->bus_off_) {
+    if ((now - this->last_bus_off_time_) >= EVENT_LOG_BUS_OFF_HOLDOFF_MS) {
+      // hasn't thrown bus-off event for holdoff time -> check if we're still bus-off
+      auto status = this->get_status();
+      if (status.bus_off) {
+        // still bus-off
+        this->last_bus_off_time_ = now;
+      } else {
+        ESP_LOGW(TAG, "recovered from bus off");
+        this->bus_off_ = false;
+
+        // clear events_to_log as they are meaningless after bus-recovery
+        this->events_to_log_ = 0;
+      }
+    }
+  } else {
+    this->events_to_log_ |= events;
+
+    if ((now - this->last_event_log_time_) >= EVENT_LOG_THROTTLE_MS) {
+      bool logged_event = false;
+
+      if (this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE) {
+        ESP_LOGW(TAG, "entered error-passive");
+        logged_event = true;
+      }
+      if (this->events_to_log_ & CanEventFlags::CAN_EVENT_ACTIVE) {
+        ESP_LOGW(TAG, "entered error-active");
+        logged_event = true;
+      }
+      if (this->events_to_log_ & CanEventFlags::CAN_EVENT_RX_QUEUE_FULL) {
+        ESP_LOGW(TAG, "receive buffer overrun");
+        logged_event = true;
+      }
+
+      this->events_to_log_ = 0;
+      if (logged_event) {
+        this->last_event_log_time_ = now;
+      }
+    }
+  }
+
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  if ((now - this->last_state_log_time_) >= STATE_LOG_INTERVAL_MS) {
+    auto status = this->get_status();
+    ESP_LOGD(TAG, "Status: bus_off %d, tx_err %d, rx_err %d", status.bus_off, status.tx_error_counter,
+             status.rx_error_counter);
+    this->last_state_log_time_ = now;
+  }
+#endif
 }
 
 }  // namespace canbus

@@ -127,6 +127,18 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
+  static constexpr uint32_t EVENT_LOG_THROTTLE_MS = 1000;
+  uint32_t events_to_log_{0};
+
+  static constexpr uint32_t EVENT_LOG_BUS_OFF_HOLDOFF_MS = 1000;
+  bool bus_off_{0};
+  uint32_t last_bus_off_time_{0};
+  uint32_t last_event_log_time_{0};
+
+  static constexpr uint32_t STATE_LOG_INTERVAL_MS = 1000;
+  uint32_t last_state_log_time_{0};
+
+  void log_events_(CanEventFlags events);
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;
