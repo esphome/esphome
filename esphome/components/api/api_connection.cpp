@@ -1387,14 +1387,14 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
 #ifdef USE_API_PASSWORD
-bool APIConnection::send_connect_response(const ConnectRequest &msg) {
-  ConnectResponse resp;
+bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
+  AuthenticationResponse resp;
   // bool invalid_password = 1;
   resp.invalid_password = !this->parent_->check_password(msg.password);
   if (!resp.invalid_password) {
     this->complete_authentication_();
   }
-  return this->send_message(resp, ConnectResponse::MESSAGE_TYPE);
+  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
 }
 #endif  // USE_API_PASSWORD
 

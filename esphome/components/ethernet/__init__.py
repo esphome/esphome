@@ -77,6 +77,13 @@ ETHERNET_TYPES = {
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
 }
 
+# PHY types that need compile-time defines for conditional compilation
+_PHY_TYPE_TO_DEFINE = {
+    "KSZ8081": "USE_ETHERNET_KSZ8081",
+    "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    # Add other PHY types here only if they need conditional compilation
+}
+
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
@@ -315,11 +322,8 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option(
-                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
-            )
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
@@ -345,13 +349,16 @@ async def to_code(config):
     if CONF_MANUAL_IP in config:
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
+    # Add compile-time define for PHY types with specific code
+    if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
+        cg.add_define(phy_define)
+
     cg.add_define("USE_ETHERNET")
 
     # Disable WiFi when using Ethernet to save memory
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-        # Also disable WiFi/BT coexistence since WiFi is disabled
-        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+    # Also disable WiFi/BT coexistence since WiFi is disabled
+    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
