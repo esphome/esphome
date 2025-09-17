@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
 
+CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api", "uart"]
 
 zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")
