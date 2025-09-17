@@ -15,7 +15,7 @@
 #endif
 
 #ifdef USE_RESONATE_IMAGE
-#include "esphome/components/runtime_image/runtime_image.h"
+#include <utility>  // std::pair
 #endif
 
 #ifdef USE_MEDIA_PLAYER
@@ -133,7 +133,12 @@ class ResonateHub : public Component {
   void set_kalman_forget_factor(double forget_factor) { this->kalman_forget_factor_ = forget_factor; }
 
 #ifdef USE_RESONATE_IMAGE
-  void add_image(runtime_image::RuntimeImage *image) { this->images_.push_back(image); }
+  void add_image_callback(std::function<void(const uint8_t *, size_t, ResonateImageFormat)> &&callback) {
+    this->image_callbacks_.add(std::move(callback));
+  }
+  void add_image_preferred_format(std::pair<std::string, std::string> preference) {
+    this->preferred_image_formats_.push_back(preference);
+  }
 #endif
 
  protected:
@@ -196,7 +201,8 @@ class ResonateHub : public Component {
   CallbackManager<void(const ResonateControls &)> controls_callbacks_{};
 
 #ifdef USE_RESONATE_IMAGE
-  std::vector<runtime_image::RuntimeImage *> images_;
+  CallbackManager<void(const uint8_t *, size_t, ResonateImageFormat)> image_callbacks_{};
+  std::vector<std::pair<std::string, std::string>> preferred_image_formats_;
 #endif
 
 #ifdef USE_RESONATE_METADATA

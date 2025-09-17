@@ -135,6 +135,14 @@ void ResonateHub::loop() {
 
 void ResonateHub::start() {
   // TODO: Don't hardcode supported settings, it should be configured in yaml
+  std::vector<std::string> picture_formats;
+  std::string picture_display_size = "null";
+#ifdef USE_RESONATE_IMAGE
+  for (auto it = this->preferred_image_formats_.begin(); it != this->preferred_image_formats_.end(); ++it) {
+    picture_formats.push_back(it->first);
+    picture_display_size = it->second;  // TODO: Update spec to pass vector of display sizes
+  }
+#endif
   ClientHelloMessage msg = {.client_id = get_mac_address_pretty(),
                             .name = App.get_friendly_name(),
                             .support_codecs = {"flac", "opus", "pcm"},
@@ -143,8 +151,8 @@ void ResonateHub::start() {
                             .support_bit_depth = {16},
                             .buffer_capacity = 1000000,
                             .support_streams = {"media"},
-                            .support_pictures_formats = {},
-                            .media_display_size = "null"};
+                            .support_pictures_formats = picture_formats,
+                            .media_display_size = picture_display_size};
   this->resonate_websocket_->send_hello_message(&msg);
   this->last_sent_time_message_ = esp_timer_get_time();
 }
@@ -315,28 +323,11 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
     case RESONATE_IMAGE_BINARY: {
 #ifdef USE_RESONATE_IMAGE
       ResonateImageFormat image_format;
-      std::memcpy((void *) &image_format, (void *) payload + 1, 1);
+      std::memcpy((void *) &image_format, (void *) (payload + 1), 1);
 
-      runtime_image::ImageFormat runtime_image_format;
-      switch (image_format) {
-        case RESONATE_IMAGE_BMP:
-          runtime_image_format = runtime_image::BMP;
-          break;
-        case RESONATE_IMAGE_JPG:
-          runtime_image_format = runtime_image::JPEG;
-          break;
-        case RESONATE_IMAGE_PNG:
-          runtime_image_format = runtime_image::PNG;
-          break;
-      }
-
-      for (auto image = this->images_.begin(); image != this->images_.end(); ++image) {
-        image->begin_decode(runtime_image_format, len - 2);
-        image->feed_data(payload + 1, len - 2);
-        if (!image->end_decode()) {
-          ESP_LOGE(TAG, "Failed to decoded image");
-        }
-      }
+      this->image_callbacks_.call(payload + 2, len - 2, image_format);
+#else
+      ESP_LOGD(TAG, "Ignoring an album art message with %d bytes", len - 2);
 #endif
       return false;  // deallocate payload
       break;
