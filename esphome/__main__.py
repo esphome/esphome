@@ -511,7 +511,10 @@ def upload_program(
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.target_platform in (PLATFORM_RP2040, PLATFORM_STM32) or CORE.is_libretiny:
+        elif (
+            CORE.target_platform in (PLATFORM_RP2040, PLATFORM_STM32)
+            or CORE.is_libretiny
+        ):
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
