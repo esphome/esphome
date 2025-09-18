@@ -33,6 +33,7 @@ class IWR6843AOPComponent : public Component {
   void set_binary_sensor(const std::string &key, esphome::binary_sensor::BinarySensor *sensor);
 
   void cfg_iwr6843aop();
+  void process_config_step();
   void read_iwr6843aop_data();
   void parse_target_list_tlv(const std::vector<uint8_t> &tlv_payload);
 
@@ -40,6 +41,16 @@ class IWR6843AOPComponent : public Component {
   uart::UARTComponent *uart1_dev_;
   uart::UARTComponent *uart2_dev_;
   uint32_t last_update_{0};
+  bool configured_{false};
+  uint32_t init_start_time_{0};
+  uint32_t init_delay_{10000}; // 10 second delay
+  
+  // Configuration state
+  bool config_in_progress_{false};
+  uint32_t config_step_{0};
+  uint32_t config_start_time_{0};
+  uint32_t config_timeout_{1000};
+  std::string config_response_;
 
   esphome::number::Number *width_{nullptr};
   esphome::number::Number *length_{nullptr};

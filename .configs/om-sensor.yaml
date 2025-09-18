@@ -69,39 +69,42 @@ number:
     step: 0.1
     initial_value: 1.0
 
-#iwr6843aop:
-#  id: my_iwr6843aop
-#  uart1_id: iwr_uart1
-#  uart2_id: iwr_uart2
-#  enabled: false
+iwr6843aop:
+  id: my_iwr6843aop
+  uart1_id: iwr_uart1
+  uart2_id: iwr_uart2
+  enabled: true
 
-#  float_input:
-#    width: width
-#    length: length
+  float_input:
+    width: width
+    length: length
 
-#  binary_sensor:
-#    room_presence: room_presence
-#    bed_presence: bed_presence
+  binary_sensor:
+    room_presence: room_presence
+    bed_presence: bed_presence
 
-#uart:
-#  - id: iwr_uart1
-#    tx_pin: GPIO4
-#    rx_pin: GPIO5 
-#    baud_rate: 115200
+uart:
+  - id: iwr_uart1
+    tx_pin: GPIO4
+    rx_pin: GPIO5 
+    baud_rate: 115200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1
 
-#  - id: iwr_uart2
-#    rx_pin: GPIO6
-#    baud_rate: 921600
-#    rx_buffer_size: 2048
+  - id: iwr_uart2
+    rx_pin: GPIO6
+    baud_rate: 921600
+    rx_buffer_size: 1024
 
-#binary_sensor:
-#  - platform: template
-#    id: room_presence
-#    name: "Room presence"
+binary_sensor:
+  - platform: template
+    id: room_presence
+    name: "Room presence"
 
-#  - platform: template
-#    id: bed_presence
-#    name: "Bed presence"
+  - platform: template
+    id: bed_presence
+    name: "Bed presence"
 
 i2c:
   sda: GPIO20
