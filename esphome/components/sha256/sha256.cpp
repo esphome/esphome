@@ -4,7 +4,7 @@
 
 #ifdef USE_ESP32
 #include "mbedtls/sha256.h"
-#elif defined(USE_ESP8266) || defined(USE_RP2040)
+#elif defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 #include <SHA256.h>
 #endif
 
@@ -45,7 +45,7 @@ void SHA256::calculate() {
   mbedtls_sha256_finish(&this->ctx_->ctx, this->ctx_->hash);
 }
 
-#elif defined(USE_ESP8266) || defined(USE_RP2040)
+#elif defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 
 struct SHA256::SHA256Context {
   ::SHA256 sha;

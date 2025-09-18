@@ -30,7 +30,7 @@ DEPENDENCIES = ["network"]
 def AUTO_LOAD():
     """Conditionally auto-load sha256 only on platforms that support it."""
     base_components = ["md5", "socket"]
-    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040:
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny:
         return base_components + ["sha256"]
     return base_components
 
@@ -136,8 +136,7 @@ async def to_code(config):
     cg.add(var.set_port(config[CONF_PORT]))
 
     # Only include SHA256 support on platforms that have it
-    # This prevents including unnecessary SHA256 code on platforms like LibreTiny
-    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040:
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny:
         cg.add_define("USE_OTA_SHA256")
 
     if CONF_PASSWORD in config:
