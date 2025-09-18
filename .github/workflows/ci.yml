@@ -250,15 +250,21 @@ jobs:
       - name: Initialize integration test platformio cache
         run: |
           . venv/bin/activate
-          # Create cache directory structure
-          mkdir -p ~/.esphome-integration-tests/platformio
+          # Create cache directory structure including temp dir
+          mkdir -p ~/.esphome-integration-tests/platformio/.cache/tmp
           # Set the same environment variables that the tests use
           export PLATFORMIO_CORE_DIR="$HOME/.esphome-integration-tests/platformio"
           export PLATFORMIO_CACHE_DIR="$HOME/.esphome-integration-tests/platformio/.cache"
           export PLATFORMIO_LIBDEPS_DIR="$HOME/.esphome-integration-tests/platformio/libdeps"
           # Pre-compile using the cache_init fixture to populate the cache
-          # This prevents race conditions when tests run in parallel
-          esphome compile tests/integration/fixtures/cache_init.yaml || echo "Cache initialization completed (exit code: $?)"
+          # This ensures all libraries are installed before parallel tests start
+          echo "Pre-installing libraries for integration tests..."
+          if esphome compile tests/integration/fixtures/cache_init.yaml; then
+            echo "Successfully pre-installed libraries"
+          else
+            echo "Warning: Pre-compilation failed with exit code $?"
+            echo "Tests may experience race conditions during library installation"
+          fi
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests

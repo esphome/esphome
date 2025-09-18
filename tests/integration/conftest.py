@@ -69,6 +69,11 @@ def shared_platformio_cache() -> Generator[Path]:
     test_cache_dir = Path.home() / ".esphome-integration-tests"
     cache_dir = test_cache_dir / "platformio"
 
+    # Create the temp directory that PlatformIO uses to avoid race conditions
+    # This ensures it exists and won't be deleted by parallel processes
+    platformio_tmp_dir = cache_dir / ".cache" / "tmp"
+    platformio_tmp_dir.mkdir(parents=True, exist_ok=True)
+
     # Use a lock file in the home directory to ensure only one process initializes the cache
     # This is needed when running with pytest-xdist
     # The lock file must be in a directory that already exists to avoid race conditions
