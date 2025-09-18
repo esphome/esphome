@@ -14,6 +14,7 @@ from esphome.helpers import resolve_ip_address
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
+RESPONSE_REQUEST_SHA256_AUTH = 0x02
 
 RESPONSE_HEADER_OK = 0x40
 RESPONSE_AUTH_OK = 0x41
@@ -44,6 +45,7 @@ OTA_VERSION_2_0 = 2
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
 FEATURE_SUPPORTS_COMPRESSION = 0x01
+FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 
 
 UPLOAD_BLOCK_SIZE = 8192
@@ -209,10 +211,14 @@ def perform_ota(
             f"Device uses unsupported OTA version {version}, this ESPHome supports {supported_versions}"
         )
 
-    # Features
-    send_check(sock, FEATURE_SUPPORTS_COMPRESSION, "features")
+    # Features - send both compression and SHA256 auth support
+    features_to_send = FEATURE_SUPPORTS_COMPRESSION | FEATURE_SUPPORTS_SHA256_AUTH
+    send_check(sock, features_to_send, "features")
     features = receive_exactly(
-        sock, 1, "features", [RESPONSE_HEADER_OK, RESPONSE_SUPPORTS_COMPRESSION]
+        sock,
+        1,
+        "features",
+        None,  # Accept any response
     )[0]
 
     if features == RESPONSE_SUPPORTS_COMPRESSION:
@@ -221,30 +227,45 @@ def perform_ota(
     else:
         upload_contents = file_contents
 
-    (auth,) = receive_exactly(
-        sock, 1, "auth", [RESPONSE_REQUEST_AUTH, RESPONSE_AUTH_OK]
-    )
-    if auth == RESPONSE_REQUEST_AUTH:
+    def perform_auth(sock, password, hash_func, nonce_size, hash_name):
+        """Perform challenge-response authentication using specified hash algorithm."""
         if not password:
             raise OTAError("ESP requests password, but no password given!")
+
         nonce = receive_exactly(
-            sock, 32, "authentication nonce", [], decode=False
+            sock, nonce_size, f"{hash_name} authentication nonce", [], decode=False
         ).decode()
-        _LOGGER.debug("Auth: Nonce is %s", nonce)
-        cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
-        _LOGGER.debug("Auth: CNonce is %s", cnonce)
+        _LOGGER.debug("Auth: %s Nonce is %s", hash_name, nonce)
+
+        # Generate cnonce
+        cnonce = hash_func(str(random.random()).encode()).hexdigest()
+        _LOGGER.debug("Auth: %s CNonce is %s", hash_name, cnonce)
 
         send_check(sock, cnonce, "auth cnonce")
 
-        result_md5 = hashlib.md5()
-        result_md5.update(password.encode("utf-8"))
-        result_md5.update(nonce.encode())
-        result_md5.update(cnonce.encode())
-        result = result_md5.hexdigest()
-        _LOGGER.debug("Auth: Result is %s", result)
+        # Calculate challenge response
+        hasher = hash_func()
+        hasher.update(password.encode("utf-8"))
+        hasher.update(nonce.encode())
+        hasher.update(cnonce.encode())
+        result = hasher.hexdigest()
+        _LOGGER.debug("Auth: %s Result is %s", hash_name, result)
 
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
+
+    (auth,) = receive_exactly(
+        sock,
+        1,
+        "auth",
+        [RESPONSE_REQUEST_AUTH, RESPONSE_REQUEST_SHA256_AUTH, RESPONSE_AUTH_OK],
+    )
+    if auth == RESPONSE_REQUEST_SHA256_AUTH:
+        # SHA256 authentication
+        perform_auth(sock, password, hashlib.sha256, 64, "SHA256")
+    elif auth == RESPONSE_REQUEST_AUTH:
+        # MD5 authentication (backward compatibility)
+        perform_auth(sock, password, hashlib.md5, 32, "MD5")
 
     # Set higher timeout during upload
     sock.settimeout(30.0)

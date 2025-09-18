@@ -1,6 +1,9 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
 #include "esphome/components/md5/md5.h"
+#ifdef USE_SHA256
+#include "esphome/components/sha256/sha256.h"
+#endif
 #include "esphome/components/network/util.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_arduino_esp32.h"
@@ -95,6 +98,111 @@ void ESPHomeOTAComponent::loop() {
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
+#ifdef USE_SHA256
+static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
+#endif
+
+// Template traits for hash algorithms
+template<typename HashClass> struct HashTraits;
+
+template<> struct HashTraits<md5::MD5Digest> {
+  static constexpr int nonce_size = 8;
+  static constexpr int hex_size = 32;
+  static constexpr const char *name = "MD5";
+  static constexpr ota::OTAResponseTypes auth_request = ota::OTA_RESPONSE_REQUEST_AUTH;
+};
+
+#ifdef USE_SHA256
+template<> struct HashTraits<sha256::SHA256> {
+  static constexpr int nonce_size = 16;
+  static constexpr int hex_size = 64;
+  static constexpr const char *name = "SHA256";
+  static constexpr ota::OTAResponseTypes auth_request = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+};
+#endif
+
+// Template helper for hash-based authentication
+template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, const std::string &password) {
+  using Traits = HashTraits<HashClass>;
+
+  // Minimize stack usage by reusing buffers
+  // We only need 2 buffers at most at the same time
+  constexpr size_t hex_buffer_size = Traits::hex_size + 1;
+
+  // These two buffers are reused throughout the function
+  char hex_buffer1[hex_buffer_size];  // Used for: nonce -> expected result
+  char hex_buffer2[hex_buffer_size];  // Used for: cnonce -> response
+
+  // Small stack buffer for auth request and nonce seed
+  uint8_t buf[1];
+  char nonce_seed[17];  // Max: "%08x%08x" = 16 chars + null
+
+  // Send auth request type
+  buf[0] = Traits::auth_request;
+  ota->writeall_(buf, 1);
+
+  HashClass hasher;
+  hasher.init();
+
+  // Generate nonce seed
+  if (Traits::nonce_size == 8) {
+    sprintf(nonce_seed, "%08" PRIx32, random_uint32());
+  } else {
+    sprintf(nonce_seed, "%08" PRIx32 "%08" PRIx32, random_uint32(), random_uint32());
+  }
+  hasher.add(nonce_seed, Traits::nonce_size);
+  hasher.calculate();
+
+  // Use hex_buffer1 for nonce
+  hasher.get_hex(hex_buffer1);
+  hex_buffer1[Traits::hex_size] = '\0';
+  ESP_LOGV("esphome.ota", "Auth: %s Nonce is %s", Traits::name, hex_buffer1);
+
+  // Send nonce
+  if (!ota->writeall_(reinterpret_cast<uint8_t *>(hex_buffer1), Traits::hex_size)) {
+    ESP_LOGW("esphome.ota", "Auth: Writing %s nonce failed", Traits::name);
+    return false;
+  }
+
+  // Prepare challenge
+  hasher.init();
+  hasher.add(password.c_str(), password.length());
+  hasher.add(hex_buffer1, Traits::hex_size);  // Add nonce
+
+  // Receive cnonce into hex_buffer2
+  if (!ota->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::hex_size)) {
+    ESP_LOGW("esphome.ota", "Auth: Reading %s cnonce failed", Traits::name);
+    return false;
+  }
+  hex_buffer2[Traits::hex_size] = '\0';
+  ESP_LOGV("esphome.ota", "Auth: %s CNonce is %s", Traits::name, hex_buffer2);
+
+  // Add cnonce to hash
+  hasher.add(hex_buffer2, Traits::hex_size);
+
+  // Calculate result - reuse hex_buffer1 for expected
+  hasher.calculate();
+  hasher.get_hex(hex_buffer1);
+  hex_buffer1[Traits::hex_size] = '\0';
+  ESP_LOGV("esphome.ota", "Auth: %s Result is %s", Traits::name, hex_buffer1);
+
+  // Receive response - reuse hex_buffer2
+  if (!ota->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::hex_size)) {
+    ESP_LOGW("esphome.ota", "Auth: Reading %s response failed", Traits::name);
+    return false;
+  }
+  hex_buffer2[Traits::hex_size] = '\0';
+  ESP_LOGV("esphome.ota", "Auth: %s Response is %s", Traits::name, hex_buffer2);
+
+  // Compare
+  bool matches = memcmp(hex_buffer1, hex_buffer2, Traits::hex_size) == 0;
+
+  if (!matches) {
+    ESP_LOGW("esphome.ota", "Auth failed! %s passwords do not match", Traits::name);
+  }
+
+  return matches;
+}
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the initial OTA handshake.
@@ -225,57 +333,23 @@ void ESPHomeOTAComponent::handle_data_() {
 
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
-    buf[0] = ota::OTA_RESPONSE_REQUEST_AUTH;
-    this->writeall_(buf, 1);
-    md5::MD5Digest md5{};
-    md5.init();
-    sprintf(sbuf, "%08" PRIx32, random_uint32());
-    md5.add(sbuf, 8);
-    md5.calculate();
-    md5.get_hex(sbuf);
-    ESP_LOGV(TAG, "Auth: Nonce is %s", sbuf);
+    bool auth_success = false;
 
-    // Send nonce, 32 bytes hex MD5
-    if (!this->writeall_(reinterpret_cast<uint8_t *>(sbuf), 32)) {
-      ESP_LOGW(TAG, "Auth: Writing nonce failed");
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+#ifdef USE_SHA256
+    // Check if client supports SHA256 auth
+    bool use_sha256 = (ota_features & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+
+    if (use_sha256) {
+      // Use SHA256 for authentication
+      auth_success = perform_hash_auth<sha256::SHA256>(this, this->password_);
+    } else
+#endif  // USE_SHA256
+    {
+      // Fall back to MD5 for backward compatibility (or when SHA256 is not available)
+      auth_success = perform_hash_auth<md5::MD5Digest>(this, this->password_);
     }
 
-    // prepare challenge
-    md5.init();
-    md5.add(this->password_.c_str(), this->password_.length());
-    // add nonce
-    md5.add(sbuf, 32);
-
-    // Receive cnonce, 32 bytes hex MD5
-    if (!this->readall_(buf, 32)) {
-      ESP_LOGW(TAG, "Auth: Reading cnonce failed");
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    sbuf[32] = '\0';
-    ESP_LOGV(TAG, "Auth: CNonce is %s", sbuf);
-    // add cnonce
-    md5.add(sbuf, 32);
-
-    // calculate result
-    md5.calculate();
-    md5.get_hex(sbuf);
-    ESP_LOGV(TAG, "Auth: Result is %s", sbuf);
-
-    // Receive result, 32 bytes hex MD5
-    if (!this->readall_(buf + 64, 32)) {
-      ESP_LOGW(TAG, "Auth: Reading response failed");
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    sbuf[64 + 32] = '\0';
-    ESP_LOGV(TAG, "Auth: Response is %s", sbuf + 64);
-
-    bool matches = true;
-    for (uint8_t i = 0; i < 32; i++)
-      matches = matches && buf[i] == buf[64 + i];
-
-    if (!matches) {
-      ESP_LOGW(TAG, "Auth failed! Passwords do not match");
+    if (!auth_success) {
       error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }

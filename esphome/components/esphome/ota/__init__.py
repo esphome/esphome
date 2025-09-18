@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "socket"]
+AUTO_LOAD = ["md5", "sha256", "socket"]
 DEPENDENCIES = ["network"]
 
 esphome = cg.esphome_ns.namespace("esphome")
