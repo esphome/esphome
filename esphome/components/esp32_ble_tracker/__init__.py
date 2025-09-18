@@ -342,19 +342,18 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        if config.get(CONF_SOFTWARE_COEXISTENCE):
-            add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
-        # https://github.com/espressif/esp-idf/issues/4101
-        # https://github.com/espressif/esp-idf/issues/2503
-        # Match arduino CONFIG_BTU_TASK_STACK_SIZE
-        # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
-        add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
-        add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
-        add_idf_sdkconfig_option(
-            "CONFIG_BTDM_CTRL_BLE_MAX_CONN", config[CONF_MAX_CONNECTIONS]
-        )
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    if config.get(CONF_SOFTWARE_COEXISTENCE):
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
+    # https://github.com/espressif/esp-idf/issues/4101
+    # https://github.com/espressif/esp-idf/issues/2503
+    # Match arduino CONFIG_BTU_TASK_STACK_SIZE
+    # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
+    add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
+    add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
+    add_idf_sdkconfig_option(
+        "CONFIG_BTDM_CTRL_BLE_MAX_CONN", config[CONF_MAX_CONNECTIONS]
+    )
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")
