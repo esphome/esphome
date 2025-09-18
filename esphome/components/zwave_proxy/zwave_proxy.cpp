@@ -61,6 +61,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         return;
       }
       this->api_connection_ = nullptr;
+      break;
     default:
       ESP_LOGW(TAG, "Unknown request type: %d", type);
       break;
