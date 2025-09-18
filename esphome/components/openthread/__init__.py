@@ -79,9 +79,8 @@ def set_sdkconfig_options(config):
                 "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
             )
 
-    if force_dataset := config.get(CONF_FORCE_DATASET):
-        if force_dataset:
-            cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+    if config.get(CONF_FORCE_DATASET):
+        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)

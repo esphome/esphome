@@ -25,8 +25,8 @@ async def test_host_mode_entity_fields(
         # Create a map of entity names to entity info
         entity_map = {}
         for entity in entities[0]:
-            if hasattr(entity, "name"):
-                entity_map[entity.name] = entity
+            # All entities should have a name attribute
+            entity_map[entity.name] = entity
 
         # Test entities that should be visible via API (non-internal)
         visible_test_cases = [
@@ -86,7 +86,7 @@ async def test_host_mode_entity_fields(
         # Wait for at least one state
         try:
             await asyncio.wait_for(state_received.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("No states received within 5 seconds")
 
         # Verify we received states (which means has_state flag is working)

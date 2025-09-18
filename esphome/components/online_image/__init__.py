@@ -2,7 +2,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_REQUEST_HEADERS
+from esphome.components.const import CONF_BYTE_ORDER, CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import (
     CONF_INVERT_ALPHA,
@@ -11,6 +11,7 @@ from esphome.components.image import (
     Image_,
     get_image_type_enum,
     get_transparency_enum,
+    validate_settings,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -161,6 +162,7 @@ CONFIG_SCHEMA = cv.Schema(
             rp2040_arduino=cv.Version(0, 0, 0),
             host=cv.Version(0, 0, 0),
         ),
+        validate_settings,
     )
 )
 
@@ -213,6 +215,7 @@ async def to_code(config):
         get_image_type_enum(config[CONF_TYPE]),
         transparent,
         config[CONF_BUFFER_SIZE],
+        config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN",
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])

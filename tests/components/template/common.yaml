@@ -1,44 +1,3 @@
-sensor:
-  - platform: template
-    name: "Template Sensor"
-    id: template_sens
-    lambda: |-
-      if (id(some_binary_sensor).state) {
-        return 42.0;
-      } else {
-        return 0.0;
-      }
-    update_interval: 60s
-    filters:
-      - offset: 10
-      - multiply: 1
-      - offset: !lambda return 10;
-      - multiply: !lambda return 2;
-      - filter_out:
-          - 10
-          - 20
-          - !lambda return 10;
-      - filter_out: 10
-      - filter_out: !lambda return NAN;
-      - timeout:
-          timeout: 10s
-          value: !lambda return 10;
-      - timeout:
-          timeout: 1h
-          value: 20.0
-      - timeout:
-          timeout: 1d
-      - to_ntc_resistance:
-          calibration:
-            - 10.0kOhm -> 25°C
-            - 27.219kOhm -> 0°C
-            - 14.674kOhm -> 15°C
-      - to_ntc_temperature:
-          calibration:
-            - 10.0kOhm -> 25°C
-            - 27.219kOhm -> 0°C
-            - 14.674kOhm -> 15°C
-
 esphome:
   on_boot:
     - sensor.template.publish:
@@ -82,6 +41,133 @@ binary_sensor:
       sensor.in_range:
         id: template_sens
         below: 30.0
+    filters:
+      - invert:
+      - delayed_on: 100ms
+      - delayed_off: 100ms
+      - delayed_on_off: !lambda "if (id(test_switch).state) return 1000; else return 0;"
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "if (id(test_switch).state) return 1000; else return 0;"
+      - autorepeat:
+          - delay: 1s
+            time_off: 100ms
+            time_on: 900ms
+          - delay: 5s
+            time_off: 100ms
+            time_on: 400ms
+      - lambda: |-
+          if (id(other_binary_sensor).state) {
+            return x;
+          } else {
+            return {};
+          }
+      - settle: 500ms
+      - timeout: 5s
+
+sensor:
+  - platform: template
+    name: "Template Sensor"
+    id: template_sens
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return 42.0;
+      } else {
+        return 0.0;
+      }
+    update_interval: 60s
+    filters:
+      - calibrate_linear:
+          - 0.0 -> 0.0
+          - 40.0 -> 45.0
+          - 100.0 -> 102.5
+      - calibrate_polynomial:
+          degree: 2
+          datapoints:
+            # Map 0.0 (from sensor) to 0.0 (true value)
+            - 0.0 -> 0.0
+            - 10.0 -> 12.1
+            - 13.0 -> 14.0
+      - clamp:
+          max_value: 10.0
+          min_value: -10.0
+      - debounce: 0.1s
+      - delta: 5.0
+      - exponential_moving_average:
+          alpha: 0.1
+          send_every: 15
+      - filter_out:
+          - 10
+          - 20
+          - !lambda return 10;
+      - filter_out: 10
+      - filter_out: !lambda return NAN;
+      - heartbeat: 5s
+      - lambda: return x * (9.0/5.0) + 32.0;
+      - max:
+          window_size: 10
+          send_every: 2
+          send_first_at: 1
+      - median:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+      - min:
+          window_size: 10
+          send_every: 2
+          send_first_at: 1
+      - multiply: 1
+      - multiply: !lambda return 2;
+      - offset: 10
+      - offset: !lambda return 10;
+      - or:
+          - quantile:
+              window_size: 7
+              send_every: 4
+              send_first_at: 3
+              quantile: .9
+          - round: 1
+      - round_to_multiple_of: 0.25
+      - skip_initial: 3
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 15
+      - throttle: 1s
+      - throttle_average: 2s
+      - throttle_with_priority: 5s
+      - throttle_with_priority:
+          timeout: 3s
+          value: 42.0
+      - throttle_with_priority:
+          timeout: 3s
+          value: !lambda return 1.0f / 2.0f;
+      - throttle_with_priority:
+          timeout: 3s
+          value:
+            - 42.0
+            - !lambda return 2.0f / 2.0f;
+            - nan
+      - timeout:
+          timeout: 10s
+          value: !lambda return 10;
+      - timeout:
+          timeout: 1h
+          value: 20.0
+      - timeout:
+          timeout: 1min
+          value: last
+      - timeout:
+          timeout: 1d
+      - to_ntc_resistance:
+          calibration:
+            - 10.0kOhm -> 25°C
+            - 27.219kOhm -> 0°C
+            - 14.674kOhm -> 15°C
+      - to_ntc_temperature:
+          calibration:
+            - 10.0kOhm -> 25°C
+            - 27.219kOhm -> 0°C
+            - 14.674kOhm -> 15°C
 
 output:
   - platform: template
@@ -92,6 +178,7 @@ output:
 
 switch:
   - platform: template
+    id: test_switch
     name: "Template Switch"
     lambda: |-
       if (id(some_binary_sensor).state) {

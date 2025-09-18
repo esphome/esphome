@@ -47,8 +47,6 @@ struct TT21100TouchReport {
 float TT21100Touchscreen::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
 void TT21100Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Register interrupt pin
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);

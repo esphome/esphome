@@ -38,7 +38,12 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
 )
-from esphome.core import CORE, TimePeriodMilliseconds, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    TimePeriodMilliseconds,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 
 CONFLICTS_WITH = ["wifi"]
@@ -70,6 +75,13 @@ ETHERNET_TYPES = {
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
+}
+
+# PHY types that need compile-time defines for conditional compilation
+_PHY_TYPE_TO_DEFINE = {
+    "KSZ8081": "USE_ETHERNET_KSZ8081",
+    "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    # Add other PHY types here only if they need conditional compilation
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
@@ -105,19 +117,15 @@ ManualIP = ethernet_ns.struct("ManualIP")
 
 def _is_framework_spi_polling_mode_supported():
     # SPI Ethernet without IRQ feature is added in
-    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
+    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4)
+    # Note: Arduino now uses ESP-IDF as a component, so we only check IDF version
     framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.using_esp_idf:
-        if framework_version >= cv.Version(5, 3, 0):
-            return True
-        if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
-            return True
-        if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):
-            return True
-        return False
-    if CORE.using_arduino:
-        return framework_version >= cv.Version(3, 0, 0)
-    # fail safe: Unknown framework
+    if framework_version >= cv.Version(5, 3, 0):
+        return True
+    if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
+        return True
+    if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
+        return True
     return False
 
 
@@ -289,7 +297,7 @@ def phy_register(address: int, value: int, page: int):
     )
 
 
-@coroutine_with_priority(60.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -310,11 +318,8 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option(
-                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
-            )
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
@@ -340,7 +345,16 @@ async def to_code(config):
     if CONF_MANUAL_IP in config:
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
+    # Add compile-time define for PHY types with specific code
+    if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
+        cg.add_define(phy_define)
+
     cg.add_define("USE_ETHERNET")
+
+    # Disable WiFi when using Ethernet to save memory
+    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+    # Also disable WiFi/BT coexistence since WiFi is disabled
+    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)

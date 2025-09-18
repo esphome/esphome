@@ -43,7 +43,6 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   switch (this->component_gain_) {
     case TSL2591_CGAIN_LOW:
       this->gain_ = TSL2591_GAIN_LOW;
@@ -232,7 +231,7 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
   this->integration_time_ = integration_time;
   this->gain_ = gain;
   if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL,
-                        this->integration_time_ | this->gain_)) {  // NOLINT
+                        static_cast<uint8_t>(this->integration_time_) | static_cast<uint8_t>(this->gain_))) {
     ESP_LOGE(TAG, "I2C write failed");
   }
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.

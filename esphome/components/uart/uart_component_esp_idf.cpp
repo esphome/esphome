@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
 #include <cinttypes>
@@ -86,8 +86,6 @@ void IDFUARTComponent::setup() {
     return;
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
-  ESP_LOGCONFIG(TAG, "Running setup for UART %u", this->uart_num_);
-
   this->lock_ = xSemaphoreCreateMutex();
 
   xSemaphoreTake(this->lock_, portMAX_DELAY);

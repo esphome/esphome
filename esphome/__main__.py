@@ -2,20 +2,24 @@
 import argparse
 from datetime import datetime
 import functools
+import getpass
 import importlib
 import logging
 import os
 import re
 import sys
 import time
+from typing import Protocol
 
 import argcomplete
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
+from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    CONF_API,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -34,14 +38,17 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
+    ENV_NOGITIGNORE,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
+from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.types import ConfigType
 from esphome.util import (
     get_serial_ports,
     list_yaml_files,
@@ -51,6 +58,23 @@ from esphome.util import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class ArgsProtocol(Protocol):
+    device: list[str] | None
+    reset: bool
+    username: str | None
+    password: str | None
+    client_id: str | None
+    topic: str | None
+    file: str | None
+    no_logs: bool
+    only_generate: bool
+    show_secrets: bool
+    dashboard: bool
+    configuration: str
+    name: str
+    upload_speed: str | None
 
 
 def choose_prompt(options, purpose: str = None):
@@ -85,53 +109,176 @@ def choose_prompt(options, purpose: str = None):
     return options[opt - 1][1]
 
 
+class Purpose(StrEnum):
+    UPLOADING = "uploading"
+    LOGGING = "logging"
+
+
 def choose_upload_log_host(
-    default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
-):
-    options = []
-    for port in get_serial_ports():
-        options.append((f"{port.path} ({port.description})", port.path))
-    if default == "SERIAL":
-        return choose_prompt(options, purpose=purpose)
-    if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
-        options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if default == "OTA":
-            return CORE.address
-    if (
-        show_mqtt
-        and (mqtt_config := CORE.config.get(CONF_MQTT))
-        and mqtt_logging_enabled(mqtt_config)
-    ):
-        options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
-        if default == "OTA":
-            return "MQTT"
-    if default is not None:
-        return default
+    default: list[str] | str | None,
+    check_default: str | None,
+    purpose: Purpose,
+) -> list[str]:
+    # Convert to list for uniform handling
+    defaults = [default] if isinstance(default, str) else default or []
+
+    # If devices specified, resolve them
+    if defaults:
+        resolved: list[str] = []
+        for device in defaults:
+            if device == "SERIAL":
+                serial_ports = get_serial_ports()
+                if not serial_ports:
+                    _LOGGER.warning("No serial ports found, skipping SERIAL device")
+                    continue
+                options = [
+                    (f"{port.path} ({port.description})", port.path)
+                    for port in serial_ports
+                ]
+                resolved.append(choose_prompt(options, purpose=purpose))
+            elif device == "OTA":
+                # ensure IP adresses are used first
+                if is_ip_address(CORE.address) and (
+                    (purpose == Purpose.LOGGING and has_api())
+                    or (purpose == Purpose.UPLOADING and has_ota())
+                ):
+                    resolved.append(CORE.address)
+
+                if purpose == Purpose.LOGGING:
+                    if has_api() and has_mqtt_ip_lookup():
+                        resolved.append("MQTTIP")
+
+                    if has_mqtt_logging():
+                        resolved.append("MQTT")
+
+                    if has_api() and has_non_ip_address():
+                        resolved.append(CORE.address)
+
+                elif purpose == Purpose.UPLOADING:
+                    if has_ota() and has_mqtt_ip_lookup():
+                        resolved.append("MQTTIP")
+
+                    if has_ota() and has_non_ip_address():
+                        resolved.append(CORE.address)
+
+            else:
+                resolved.append(device)
+        if not resolved:
+            _LOGGER.error("All specified devices: %s could not be resolved.", defaults)
+        return resolved
+
+    # No devices specified, show interactive chooser
+    options = [
+        (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
+    ]
+
+    if purpose == Purpose.LOGGING:
+        if has_mqtt_logging():
+            mqtt_config = CORE.config[CONF_MQTT]
+            options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
+
+        if has_api():
+            if has_resolvable_address():
+                options.append((f"Over The Air ({CORE.address})", CORE.address))
+            if has_mqtt_ip_lookup():
+                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
+    elif purpose == Purpose.UPLOADING and has_ota():
+        if has_resolvable_address():
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+        if has_mqtt_ip_lookup():
+            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
     if check_default is not None and check_default in [opt[1] for opt in options]:
-        return check_default
-    return choose_prompt(options, purpose=purpose)
+        return [check_default]
+    return [choose_prompt(options, purpose=purpose)]
 
 
-def mqtt_logging_enabled(mqtt_config):
+def has_mqtt_logging() -> bool:
+    """Check if MQTT logging is available."""
+    if CONF_MQTT not in CORE.config:
+        return False
+
+    mqtt_config = CORE.config[CONF_MQTT]
+
+    # enabled by default
+    if CONF_LOG_TOPIC not in mqtt_config:
+        return True
+
     log_topic = mqtt_config[CONF_LOG_TOPIC]
     if log_topic is None:
         return False
+
     if CONF_TOPIC not in log_topic:
         return False
-    if log_topic.get(CONF_LEVEL, None) == "NONE":
+
+    return log_topic.get(CONF_LEVEL, None) != "NONE"
+
+
+def has_mqtt() -> bool:
+    """Check if MQTT is available."""
+    return CONF_MQTT in CORE.config
+
+
+def has_api() -> bool:
+    """Check if API is available."""
+    return CONF_API in CORE.config
+
+
+def has_ota() -> bool:
+    """Check if OTA is available."""
+    return CONF_OTA in CORE.config
+
+
+def has_mqtt_ip_lookup() -> bool:
+    """Check if MQTT is available and IP lookup is supported."""
+    if CONF_MQTT not in CORE.config:
         return False
-    return True
+    # Default Enabled
+    if CONF_DISCOVER_IP not in CORE.config[CONF_MQTT]:
+        return True
+    return CORE.config[CONF_MQTT][CONF_DISCOVER_IP]
 
 
-def get_port_type(port):
+def has_mdns() -> bool:
+    """Check if MDNS is available."""
+    return CONF_MDNS not in CORE.config or not CORE.config[CONF_MDNS][CONF_DISABLED]
+
+
+def has_non_ip_address() -> bool:
+    """Check if CORE.address is set and is not an IP address."""
+    return CORE.address is not None and not is_ip_address(CORE.address)
+
+
+def has_ip_address() -> bool:
+    """Check if CORE.address is a valid IP address."""
+    return CORE.address is not None and is_ip_address(CORE.address)
+
+
+def has_resolvable_address() -> bool:
+    """Check if CORE.address is resolvable (via mDNS or is an IP address)."""
+    return has_mdns() or has_ip_address()
+
+
+def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+    from esphome import mqtt
+
+    return mqtt.get_esphome_device_ip(config, username, password, client_id)
+
+
+_PORT_TO_PORT_TYPE = {
+    "MQTT": "MQTT",
+    "MQTTIP": "MQTTIP",
+}
+
+
+def get_port_type(port: str) -> str:
     if port.startswith("/") or port.startswith("COM"):
         return "SERIAL"
-    if port == "MQTT":
-        return "MQTT"
-    return "NETWORK"
+    return _PORT_TO_PORT_TYPE.get(port, "NETWORK")
 
 
-def run_miniterm(config, port, args):
+def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
@@ -173,7 +320,9 @@ def run_miniterm(config, port, args):
                         .replace(b"\n", b"")
                         .decode("utf8", "backslashreplace")
                     )
-                    time_str = datetime.now().time().strftime("[%H:%M:%S]")
+                    time_ = datetime.now()
+                    nanoseconds = time_.microsecond // 1000
+                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
                     safe_print(parser.parse_line(line, time_str))
 
                     backtrace_state = platformio_api.process_stacktrace(
@@ -208,12 +357,15 @@ def wrap_to_code(name, comp):
     return wrapped
 
 
-def write_cpp(config):
+def write_cpp(config: ConfigType) -> int:
+    if not get_bool_env(ENV_NOGITIGNORE):
+        writer.write_gitignore()
+
     generate_cpp_contents(config)
     return write_cpp_file()
 
 
-def generate_cpp_contents(config):
+def generate_cpp_contents(config: ConfigType) -> None:
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_component_configs(CORE.config):
@@ -224,15 +376,18 @@ def generate_cpp_contents(config):
     CORE.flush_tasks()
 
 
-def write_cpp_file():
-    writer.write_platformio_project()
-
+def write_cpp_file() -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
+
+    from esphome.build_gen import platformio
+
+    platformio.write_project()
+
     return 0
 
 
-def compile_program(args, config):
+def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome import platformio_api
 
     _LOGGER.info("Compiling app...")
@@ -243,7 +398,9 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port, file, speed):
+def upload_using_esptool(
+    config: ConfigType, port: str, file: str, speed: int
+) -> str | int:
     from esphome import platformio_api
 
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
@@ -271,20 +428,20 @@ def upload_using_esptool(config, port, file, speed):
 
     def run_esptool(baud_rate):
         cmd = [
-            "esptool.py",
+            "esptool",
             "--before",
-            "default_reset",
+            "default-reset",
             "--after",
-            "hard_reset",
+            "hard-reset",
             "--baud",
             str(baud_rate),
             "--port",
             port,
             "--chip",
             mcu,
-            "write_flash",
+            "write-flash",
             "-z",
-            "--flash_size",
+            "--flash-size",
             "detect",
         ]
         for img in flash_images:
@@ -308,7 +465,7 @@ def upload_using_esptool(config, port, file, speed):
     return run_esptool(115200)
 
 
-def upload_using_platformio(config, port):
+def upload_using_platformio(config: ConfigType, port: str):
     from esphome import platformio_api
 
     upload_args = ["-t", "upload", "-t", "nobuild"]
@@ -317,7 +474,7 @@ def upload_using_platformio(config, port):
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
-def check_permissions(port):
+def check_permissions(port: str):
     if os.name == "posix" and get_port_type(port) == "SERIAL":
         # Check if we can open selected serial port
         if not os.access(port, os.F_OK):
@@ -330,32 +487,34 @@ def check_permissions(port):
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
-                f"by running the following command: sudo usermod -a -G dialout {os.getlogin()}. "
+                f"by running the following command: sudo usermod -a -G dialout {getpass.getuser()}. "
                 "You will need to log out & back in or reboot to activate the new group access."
             )
 
 
-def upload_program(config, args, host):
+def upload_program(
+    config: ConfigType, args: ArgsProtocol, devices: list[str]
+) -> tuple[int, str | None]:
+    host = devices[0]
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         if getattr(module, "upload_program")(config, args, host):
-            return 0
+            return 0, host
     except AttributeError:
         pass
 
     if get_port_type(host) == "SERIAL":
         check_permissions(host)
+
+        exit_code = 1
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
-            return upload_using_esptool(config, host, file, args.upload_speed)
+            exit_code = upload_using_esptool(config, host, file, args.upload_speed)
+        elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
+            exit_code = upload_using_platformio(config, host)
+        # else: Unknown target platform, exit_code remains 1
 
-        if CORE.target_platform in (PLATFORM_RP2040):
-            return upload_using_platformio(config, args.device)
-
-        if CORE.is_libretiny:
-            return upload_using_platformio(config, host)
-
-        return 1  # Unknown target platform
+        return exit_code, host if exit_code == 0 else None
 
     ota_conf = {}
     for ota_item in config.get(CONF_OTA, []):
@@ -372,45 +531,53 @@ def upload_program(config, args, host):
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD, "")
+    binary = args.file if getattr(args, "file", None) is not None else CORE.firmware_bin
 
-    if (
-        CONF_MQTT in config  # pylint: disable=too-many-boolean-expressions
-        and (not args.device or args.device in ("MQTT", "OTA"))
-        and (
-            ((config[CONF_MDNS][CONF_DISABLED]) and not is_ip_address(CORE.address))
-            or get_port_type(host) == "MQTT"
-        )
-    ):
-        from esphome import mqtt
+    # MQTT address resolution
+    if get_port_type(host) in ("MQTT", "MQTTIP"):
+        devices = mqtt_get_ip(config, args.username, args.password, args.client_id)
 
-        host = mqtt.get_esphome_device_ip(
-            config, args.username, args.password, args.client_id
-        )
-
-    if getattr(args, "file", None) is not None:
-        return espota2.run_ota(host, remote_port, password, args.file)
-
-    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
+    return espota2.run_ota(devices, remote_port, password, binary)
 
 
-def show_logs(config, args, port):
+def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        if getattr(module, "show_logs")(config, args, devices):
+            return 0
+    except AttributeError:
+        pass
+
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
+
+    port = devices[0]
+
     if get_port_type(port) == "SERIAL":
         check_permissions(port)
         return run_miniterm(config, port, args)
-    if get_port_type(port) == "NETWORK" and "api" in config:
-        if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
-            from esphome import mqtt
 
-            port = mqtt.get_esphome_device_ip(
+    port_type = get_port_type(port)
+
+    # Check if we should use API for logging
+    if has_api():
+        addresses_to_use: list[str] | None = None
+
+        if port_type == "NETWORK" and (has_mdns() or is_ip_address(port)):
+            addresses_to_use = devices
+        elif port_type in ("NETWORK", "MQTT", "MQTTIP") and has_mqtt_ip_lookup():
+            # Only use MQTT IP lookup if the first condition didn't match
+            # (for MQTT/MQTTIP types, or for NETWORK when mdns/ip check fails)
+            addresses_to_use = mqtt_get_ip(
                 config, args.username, args.password, args.client_id
-            )[0]
+            )
 
-        from esphome.components.api.client import run_logs
+        if addresses_to_use is not None:
+            from esphome.components.api.client import run_logs
 
-        return run_logs(config, port)
-    if get_port_type(port) == "MQTT" and "mqtt" in config:
+            return run_logs(config, addresses_to_use)
+
+    if port_type in ("NETWORK", "MQTT") and has_mqtt_logging():
         from esphome import mqtt
 
         return mqtt.show_logs(
@@ -420,7 +587,7 @@ def show_logs(config, args, port):
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
 
-def clean_mqtt(config, args):
+def clean_mqtt(config: ConfigType, args: ArgsProtocol) -> int | None:
     from esphome import mqtt
 
     return mqtt.clear_topic(
@@ -428,13 +595,13 @@ def clean_mqtt(config, args):
     )
 
 
-def command_wizard(args):
+def command_wizard(args: ArgsProtocol) -> int | None:
     from esphome import wizard
 
     return wizard.wizard(args.configuration)
 
 
-def command_config(args, config):
+def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
@@ -449,7 +616,7 @@ def command_config(args, config):
     return 0
 
 
-def command_vscode(args):
+def command_vscode(args: ArgsProtocol) -> int | None:
     from esphome import vscode
 
     logging.disable(logging.INFO)
@@ -457,7 +624,7 @@ def command_vscode(args):
     vscode.read_config(args)
 
 
-def command_compile(args, config):
+def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -471,23 +638,23 @@ def command_compile(args, config):
     return 0
 
 
-def command_upload(args, config):
-    port = choose_upload_log_host(
+def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
+    # Get devices, resolving special identifiers like OTA
+    devices = choose_upload_log_host(
         default=args.device,
         check_default=None,
-        show_ota=True,
-        show_mqtt=False,
-        show_api=False,
-        purpose="uploading",
+        purpose=Purpose.UPLOADING,
     )
-    exit_code = upload_program(config, args, port)
-    if exit_code != 0:
-        return exit_code
-    _LOGGER.info("Successfully uploaded program.")
-    return 0
+
+    exit_code, _ = upload_program(config, args, devices)
+    if exit_code == 0:
+        _LOGGER.info("Successfully uploaded program.")
+    else:
+        _LOGGER.warning("Failed to upload to %s", devices)
+    return exit_code
 
 
-def command_discover(args, config):
+def command_discover(args: ArgsProtocol, config: ConfigType) -> int | None:
     if "mqtt" in config:
         from esphome import mqtt
 
@@ -496,19 +663,17 @@ def command_discover(args, config):
     raise EsphomeError("No discover method configured (mqtt)")
 
 
-def command_logs(args, config):
-    port = choose_upload_log_host(
+def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
+    # Get devices, resolving special identifiers like OTA
+    devices = choose_upload_log_host(
         default=args.device,
         check_default=None,
-        show_ota=False,
-        show_mqtt=True,
-        show_api=True,
-        purpose="logging",
+        purpose=Purpose.LOGGING,
     )
-    return show_logs(config, args, port)
+    return show_logs(config, args, devices)
 
 
-def command_run(args, config):
+def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -525,47 +690,48 @@ def command_run(args, config):
         program_path = idedata.raw["prog_path"]
         return run_external_process(program_path)
 
-    port = choose_upload_log_host(
+    # Get devices, resolving special identifiers like OTA
+    devices = choose_upload_log_host(
         default=args.device,
         check_default=None,
-        show_ota=True,
-        show_mqtt=False,
-        show_api=True,
-        purpose="uploading",
+        purpose=Purpose.UPLOADING,
     )
-    exit_code = upload_program(config, args, port)
-    if exit_code != 0:
+
+    exit_code, successful_device = upload_program(config, args, devices)
+    if exit_code == 0:
+        _LOGGER.info("Successfully uploaded program.")
+    else:
+        _LOGGER.warning("Failed to upload to %s", devices)
         return exit_code
-    _LOGGER.info("Successfully uploaded program.")
+
     if args.no_logs:
         return 0
-    port = choose_upload_log_host(
-        default=args.device,
-        check_default=port,
-        show_ota=False,
-        show_mqtt=True,
-        show_api=True,
-        purpose="logging",
+
+    # For logs, prefer the device we successfully uploaded to
+    devices = choose_upload_log_host(
+        default=successful_device,
+        check_default=successful_device,
+        purpose=Purpose.LOGGING,
     )
-    return show_logs(config, args, port)
+    return show_logs(config, args, devices)
 
 
-def command_clean_mqtt(args, config):
+def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
-def command_mqtt_fingerprint(args, config):
+def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import mqtt
 
     return mqtt.get_fingerprint(config)
 
 
-def command_version(args):
+def command_version(args: ArgsProtocol) -> int | None:
     safe_print(f"Version: {const.__version__}")
     return 0
 
 
-def command_clean(args, config):
+def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     try:
         writer.clean_build()
     except OSError as err:
@@ -575,13 +741,13 @@ def command_clean(args, config):
     return 0
 
 
-def command_dashboard(args):
+def command_dashboard(args: ArgsProtocol) -> int | None:
     from esphome.dashboard import dashboard
 
     return dashboard.start_dashboard(args)
 
 
-def command_update_all(args):
+def command_update_all(args: ArgsProtocol) -> int | None:
     import click
 
     success = {}
@@ -628,7 +794,7 @@ def command_update_all(args):
     return failed
 
 
-def command_idedata(args, config):
+def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
     from esphome import platformio_api
@@ -644,7 +810,7 @@ def command_idedata(args, config):
     return 0
 
 
-def command_rename(args, config):
+def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     for c in args.name:
         if c not in ALLOWED_NAME_CHARS:
             print(
@@ -761,6 +927,12 @@ POST_CONFIG_ACTIONS = {
     "discover": command_discover,
 }
 
+SIMPLE_CONFIG_ACTIONS = [
+    "clean",
+    "clean-mqtt",
+    "config",
+]
+
 
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
@@ -848,7 +1020,8 @@ def parse_args(argv):
     )
     parser_upload.add_argument(
         "--device",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+        action="append",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
     )
     parser_upload.add_argument(
         "--upload_speed",
@@ -870,7 +1043,8 @@ def parse_args(argv):
     )
     parser_logs.add_argument(
         "--device",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+        action="append",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
     )
     parser_logs.add_argument(
         "--reset",
@@ -899,7 +1073,8 @@ def parse_args(argv):
     )
     parser_run.add_argument(
         "--device",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+        action="append",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
     )
     parser_run.add_argument(
         "--upload_speed",
@@ -1026,6 +1201,13 @@ def parse_args(argv):
     arguments = argv[1:]
 
     argcomplete.autocomplete(parser)
+
+    if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
+        args, unknown_args = parser.parse_known_args(arguments)
+        if unknown_args:
+            _LOGGER.warning("Ignored unrecognized arguments: %s", unknown_args)
+        return args
+
     return parser.parse_args(arguments)
 
 

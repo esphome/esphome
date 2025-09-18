@@ -52,7 +52,8 @@ void DebugComponent::on_shutdown() {
   char buffer[REBOOT_MAX_LEN]{};
   auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
   if (component != nullptr) {
-    strncpy(buffer, component->get_component_source(), REBOOT_MAX_LEN - 1);
+    strncpy(buffer, LOG_STR_ARG(component->get_component_log_str()), REBOOT_MAX_LEN - 1);
+    buffer[REBOOT_MAX_LEN - 1] = '\0';
   }
   ESP_LOGD(TAG, "Storing reboot source: %s", buffer);
   pref.save(&buffer);
@@ -68,6 +69,7 @@ std::string DebugComponent::get_reset_reason_() {
       auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
       char buffer[REBOOT_MAX_LEN]{};
       if (pref.load(&buffer)) {
+        buffer[REBOOT_MAX_LEN - 1] = '\0';
         reset_reason = "Reboot request from " + std::string(buffer);
       }
     }

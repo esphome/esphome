@@ -16,22 +16,25 @@
 #endif
 
 #ifdef USE_ARDUINO
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266)
 #include <HardwareSerial.h>
-#endif  // USE_ESP8266 || USE_ESP32
+#endif  // USE_ESP8266
 #ifdef USE_RP2040
 #include <HardwareSerial.h>
 #include <SerialUSB.h>
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <driver/uart.h>
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
 
-namespace esphome {
+#ifdef USE_ZEPHYR
+#include <zephyr/kernel.h>
+struct device;
+#endif
 
-namespace logger {
+namespace esphome::logger {
 
 // Color and letter constants for log levels
 static const char *const LOG_LEVEL_COLORS[] = {
@@ -56,7 +59,7 @@ static const char *const LOG_LEVEL_LETTERS[] = {
     "VV",  // VERY_VERBOSE
 };
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -82,7 +85,7 @@ enum UARTSelection : uint8_t {
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
 };
-#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
+#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY || USE_ZEPHYR
 
 /**
  * @brief Logger component for all ESPHome logging.
@@ -107,22 +110,20 @@ class Logger : public Component {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_LOGGER_USB_CDC) || defined(USE_ESP32)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
 #endif
-#ifdef USE_ESP_IDF
-  uart_port_t get_uart_num() const { return uart_num_; }
-#endif
 #ifdef USE_ESP32
+  uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
@@ -143,7 +144,7 @@ class Logger : public Component {
   inline uint8_t level_for(const char *tag);
 
   /// Register a callback that will be called for every log message sent
-  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *)> &&callback);
+  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback);
 
   // add a listener for log level changes
   void add_listener(std::function<void(uint8_t)> &&callback) { this->level_callback_.add(std::move(callback)); }
@@ -157,6 +158,7 @@ class Logger : public Component {
 #endif
 
  protected:
+  void process_messages_();
   void write_msg_(const char *msg);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
@@ -164,7 +166,7 @@ class Logger : public Component {
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
                                                         va_list args, char *buffer, uint16_t *buffer_at,
                                                         uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
 #else
     this->write_header_to_buffer_(level, tag, line, nullptr, buffer, buffer_at, buffer_size);
@@ -192,7 +194,7 @@ class Logger : public Component {
     if (this->baud_rate_ > 0) {
       this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
     }
-    this->log_callback_.call(level, tag, this->tx_buffer_);
+    this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
   }
 
   // Write the body of the log message to the buffer
@@ -222,16 +224,19 @@ class Logger : public Component {
   }
 
 #ifndef USE_HOST
-  const char *get_uart_selection_();
+  const LogString *get_uart_selection_();
 #endif
 
   // Group 4-byte aligned members first
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *hw_serial_{nullptr};
 #endif
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ZEPHYR)
+  const device *uart_dev_{nullptr};
+#endif
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void *main_task_ = nullptr;  // Only used for thread name identification
 #endif
 #ifdef USE_ESP32
@@ -239,14 +244,12 @@ class Logger : public Component {
   // - Main task uses a dedicated member variable for efficiency
   // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
   pthread_key_t log_recursion_key_;  // 4 bytes
-#endif
-#ifdef USE_ESP_IDF
-  uart_port_t uart_num_;  // 4 bytes (enum defaults to int size)
+  uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
 #endif
 
   // Large objects (internally aligned)
   std::map<std::string, uint8_t> log_levels_{};
-  CallbackManager<void(uint8_t, const char *, const char *)> log_callback_{};
+  CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
@@ -256,7 +259,7 @@ class Logger : public Component {
   uint16_t tx_buffer_at_{0};
   uint16_t tx_buffer_size_{0};
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
 #endif
 #ifdef USE_LIBRETINY
@@ -268,9 +271,13 @@ class Logger : public Component {
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   const char *HOT get_thread_name_() {
+#ifdef USE_ZEPHYR
+    k_tid_t current_task = k_current_get();
+#else
     TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+#endif
     if (current_task == main_task_) {
       return nullptr;  // Main task
     } else {
@@ -278,6 +285,8 @@ class Logger : public Component {
       return pcTaskGetName(current_task);
 #elif defined(USE_LIBRETINY)
       return pcTaskGetTaskName(current_task);
+#elif defined(USE_ZEPHYR)
+      return k_thread_name_get(current_task);
 #endif
     }
   }
@@ -319,7 +328,7 @@ class Logger : public Component {
     const char *color = esphome::logger::LOG_LEVEL_COLORS[level];
     const char *letter = esphome::logger::LOG_LEVEL_LETTERS[level];
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
     if (thread_name != nullptr) {
       // Non-main task with thread name
       this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
@@ -355,7 +364,7 @@ class Logger : public Component {
   }
 
   inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    static const uint16_t RESET_COLOR_LEN = strlen(ESPHOME_LOG_RESET_COLOR);
+    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
 
@@ -367,15 +376,7 @@ class Logger : public Component {
     // will be processed on the next main loop iteration since:
     // - disable_loop() takes effect immediately
     // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
-#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
-    // Only disable if not using USB CDC (which needs loop for connection detection)
-    if (this->uart_ != UART_SELECTION_USB_CDC) {
-      this->disable_loop();
-    }
-#else
-    // No USB CDC support, always safe to disable
     this->disable_loop();
-#endif
   }
 #endif
 };
@@ -385,7 +386,7 @@ class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>
  public:
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) {
     this->level_ = level;
-    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message) {
+    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message, size_t message_len) {
       if (level <= this->level_) {
         this->trigger(level, tag, message);
       }
@@ -396,6 +397,4 @@ class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>
   uint8_t level_;
 };
 
-}  // namespace logger
-
-}  // namespace esphome
+}  // namespace esphome::logger

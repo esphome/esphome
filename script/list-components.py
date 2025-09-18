@@ -20,6 +20,12 @@ def filter_component_files(str):
     return str.startswith("esphome/components/") | str.startswith("tests/components/")
 
 
+def get_all_component_files() -> list[str]:
+    """Get all component files from git."""
+    files = git_ls_files()
+    return list(filter(filter_component_files, files))
+
+
 def extract_component_names_array_from_files_array(files):
     components = []
     for file in files:
@@ -165,17 +171,20 @@ def main():
     if args.branch and not args.changed:
         parser.error("--branch requires --changed")
 
-    files = git_ls_files()
-    files = filter(filter_component_files, files)
-
     if args.changed:
-        if args.branch:
-            changed = changed_files(args.branch)
-        else:
-            changed = changed_files()
+        # When --changed is passed, only get the changed files
+        changed = changed_files(args.branch)
+
         # If any base test file(s) changed, there's no need to filter out components
-        if not any("tests/test_build_components" in file for file in changed):
-            files = [f for f in files if f in changed]
+        if any("tests/test_build_components" in file for file in changed):
+            # Need to get all component files
+            files = get_all_component_files()
+        else:
+            # Only look at changed component files
+            files = [f for f in changed if filter_component_files(f)]
+    else:
+        # Get all component files
+        files = get_all_component_files()
 
     for c in get_components(files, args.changed):
         print(c)

@@ -11,6 +11,7 @@
 #include "esp_eth_mac.h"
 #include "esp_netif.h"
 #include "esp_mac.h"
+#include "esp_idf_version.h"
 
 namespace esphome {
 namespace ethernet {
@@ -101,9 +102,12 @@ class EthernetComponent : public Component {
 #endif /* LWIP_IPV6 */
 
   void start_connect_();
+  void finish_connect_();
   void dump_connect_params_();
+#ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+#endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
@@ -143,6 +147,7 @@ class EthernetComponent : public Component {
   bool got_ipv4_address_{false};
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
+  bool ipv6_setup_done_{false};
 #endif /* LWIP_IPV6 */
 
   // Pointers at the end (naturally aligned)
@@ -153,7 +158,10 @@ class EthernetComponent : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
+
+#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
+#endif
 
 }  // namespace ethernet
 }  // namespace esphome

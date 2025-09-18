@@ -15,6 +15,7 @@ from freetype import (
     FT_LOAD_RENDER,
     FT_LOAD_TARGET_MONO,
     Face,
+    FT_Exception,
     ft_pixel_mode_mono,
 )
 import requests
@@ -94,7 +95,14 @@ class FontCache(MutableMapping):
         return self.store[self._keytransform(item)]
 
     def __setitem__(self, key, value):
-        self.store[self._keytransform(key)] = Face(str(value))
+        transformed = self._keytransform(key)
+        try:
+            self.store[transformed] = Face(str(value))
+        except FT_Exception as exc:
+            file = transformed.split(":", 1)
+            raise cv.Invalid(
+                f"{file[0].capitalize()} {file[1]} is not a valid font file"
+            ) from exc
 
 
 FONT_CACHE = FontCache()

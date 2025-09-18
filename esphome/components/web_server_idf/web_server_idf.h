@@ -115,9 +115,11 @@ class AsyncWebServerRequest {
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
+#ifdef USE_WEBSERVER_AUTH
   bool authenticate(const char *username, const char *password) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   void requestAuthentication(const char *realm = nullptr) const;
+#endif
 
   void redirect(const std::string &url);
 
@@ -328,10 +330,7 @@ class DefaultHeaders {
   void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  static DefaultHeaders &Instance() {
-    static DefaultHeaders instance;
-    return instance;
-  }
+  static DefaultHeaders &Instance();
 
  protected:
   std::vector<std::pair<std::string, std::string>> headers_;

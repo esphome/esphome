@@ -192,7 +192,9 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"));
-#ifdef USE_WEBSERVER_OTA
+#if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
+  // Show OTA form only if web_server OTA is not explicitly disabled
+  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
   stream->print(F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
 #endif

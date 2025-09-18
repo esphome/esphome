@@ -2,11 +2,11 @@
 // See script/api_protobuf/api_protobuf.py
 #pragma once
 
-#include "api_pb2.h"
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace api {
+#include "api_pb2.h"
+
+namespace esphome::api {
 
 class APIServerConnectionBase : public ProtoService {
  public:
@@ -17,16 +17,18 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #endif
 
-  template<typename T> bool send_message(const T &msg) {
+  bool send_message(const ProtoMessage &msg, uint8_t message_type) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     this->log_send_message_(msg.message_name(), msg.dump());
 #endif
-    return this->send_message_(msg, T::MESSAGE_TYPE);
+    return this->send_message_(msg, message_type);
   }
 
   virtual void on_hello_request(const HelloRequest &value){};
 
-  virtual void on_connect_request(const ConnectRequest &value){};
+#ifdef USE_API_PASSWORD
+  virtual void on_authentication_request(const AuthenticationRequest &value){};
+#endif
 
   virtual void on_disconnect_request(const DisconnectRequest &value){};
   virtual void on_disconnect_response(const DisconnectResponse &value){};
@@ -60,17 +62,25 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &value){};
 #endif
 
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value){};
-  virtual void on_get_time_request(const GetTimeRequest &value){};
+#endif
+
   virtual void on_get_time_response(const GetTimeResponse &value){};
 
+#ifdef USE_API_SERVICES
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
+#endif
 
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void on_camera_image_request(const CameraImageRequest &value){};
 #endif
 
@@ -198,31 +208,44 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_UPDATE
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
 #endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void on_z_wave_proxy_frame(const ZWaveProxyFrame &value){};
+#endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
+#endif
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 class APIServerConnection : public APIServerConnectionBase {
  public:
-  virtual HelloResponse hello(const HelloRequest &msg) = 0;
-  virtual ConnectResponse connect(const ConnectRequest &msg) = 0;
-  virtual DisconnectResponse disconnect(const DisconnectRequest &msg) = 0;
-  virtual PingResponse ping(const PingRequest &msg) = 0;
-  virtual DeviceInfoResponse device_info(const DeviceInfoRequest &msg) = 0;
+  virtual bool send_hello_response(const HelloRequest &msg) = 0;
+#ifdef USE_API_PASSWORD
+  virtual bool send_authenticate_response(const AuthenticationRequest &msg) = 0;
+#endif
+  virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
+  virtual bool send_ping_response(const PingRequest &msg) = 0;
+  virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
   virtual void list_entities(const ListEntitiesRequest &msg) = 0;
   virtual void subscribe_states(const SubscribeStatesRequest &msg) = 0;
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
-  virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
+#endif
+#ifdef USE_API_SERVICES
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
+#endif
 #ifdef USE_API_NOISE
-  virtual NoiseEncryptionSetKeyResponse noise_encryption_set_key(const NoiseEncryptionSetKeyRequest &msg) = 0;
+  virtual bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) = 0;
 #endif
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   virtual void camera_image(const CameraImageRequest &msg) = 0;
 #endif
 #ifdef USE_CLIMATE
@@ -298,7 +321,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
+  virtual bool send_subscribe_bluetooth_connections_free_response(
       const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -311,8 +334,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) = 0;
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  virtual VoiceAssistantConfigurationResponse voice_assistant_get_configuration(
-      const VoiceAssistantConfigurationRequest &msg) = 0;
+  virtual bool send_voice_assistant_get_configuration_response(const VoiceAssistantConfigurationRequest &msg) = 0;
 #endif
 #ifdef USE_VOICE_ASSISTANT
   virtual void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) = 0;
@@ -320,26 +342,39 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) = 0;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_frame(const ZWaveProxyFrame &msg) = 0;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_request(const ZWaveProxyRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
-  void on_connect_request(const ConnectRequest &msg) override;
+#ifdef USE_API_PASSWORD
+  void on_authentication_request(const AuthenticationRequest &msg) override;
+#endif
   void on_disconnect_request(const DisconnectRequest &msg) override;
   void on_ping_request(const PingRequest &msg) override;
   void on_device_info_request(const DeviceInfoRequest &msg) override;
   void on_list_entities_request(const ListEntitiesRequest &msg) override;
   void on_subscribe_states_request(const SubscribeStatesRequest &msg) override;
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
-  void on_get_time_request(const GetTimeRequest &msg) override;
+#endif
+#ifdef USE_API_SERVICES
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
+#endif
 #ifdef USE_API_NOISE
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif
 #ifdef USE_BUTTON
   void on_button_command_request(const ButtonCommandRequest &msg) override;
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
   void on_camera_image_request(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
@@ -436,7 +471,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) override;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
+#endif
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

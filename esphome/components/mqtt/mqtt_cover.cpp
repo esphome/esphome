@@ -67,6 +67,7 @@ void MQTTCoverComponent::dump_config() {
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   if (!this->cover_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->cover_->get_device_class();
 

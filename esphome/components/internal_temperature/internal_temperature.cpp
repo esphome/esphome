@@ -84,8 +84,6 @@ void InternalTemperatureSensor::setup() {
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || \
     defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32C2) || \
     defined(USE_ESP32_VARIANT_ESP32P4)
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   temperature_sensor_config_t tsens_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
 
   esp_err_t result = temperature_sensor_install(&tsens_config, &tsensNew);

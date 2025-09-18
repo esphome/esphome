@@ -17,3 +17,5 @@ test_list:
   - ${undefined_var}
   - $undefined_var
   - ${ undefined_var }
+  - key1: 1
+    key2: 2

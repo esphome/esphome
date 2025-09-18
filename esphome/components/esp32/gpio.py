@@ -187,8 +187,7 @@ def validate_supports(value):
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
 
-    value = _esp32_validations[variant].usage_validation(value)
-    return value
+    return _esp32_validations[variant].usage_validation(value)
 
 
 # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-reference/peripherals/gpio.html#_CPPv416gpio_drive_cap_t

@@ -1,3 +1,6 @@
+import os
+from unittest.mock import patch
+
 from hypothesis import given
 import pytest
 from strategies import mac_addr_strings
@@ -473,6 +476,61 @@ class TestLibrary:
 
         assert actual == expected
 
+    @pytest.mark.parametrize(
+        "target, other, result, exception",
+        (
+            (core.Library("libfoo", None), core.Library("libfoo", None), True, None),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libfoo", "1.2.3"),
+                True,  # target is unchanged
+                None,
+            ),
+            (
+                core.Library("libfoo", None),
+                core.Library("libfoo", "1.2.3"),
+                False,  # Use version from other
+                None,
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libfoo", "1.2.4"),
+                False,
+                ValueError,  # Version mismatch
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library("libbar", "1.2.3"),
+                False,
+                ValueError,  # Name mismatch
+            ),
+            (
+                core.Library(
+                    "libfoo", "1.2.4", "https://github.com/esphome/ESPAsyncWebServer"
+                ),
+                core.Library("libfoo", "1.2.3"),
+                True,  # target is unchanged due to having a repository
+                None,
+            ),
+            (
+                core.Library("libfoo", "1.2.3"),
+                core.Library(
+                    "libfoo", "1.2.4", "https://github.com/esphome/ESPAsyncWebServer"
+                ),
+                False,  # use other due to having a repository
+                None,
+            ),
+        ),
+    )
+    def test_reconcile(self, target, other, result, exception):
+        if exception is not None:
+            with pytest.raises(exception):
+                target.reconcile_with(other)
+        else:
+            expected = target if result else other
+            actual = target.reconcile_with(other)
+            assert actual == expected
+
 
 class TestEsphomeCore:
     @pytest.fixture
@@ -522,3 +580,83 @@ class TestEsphomeCore:
 
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
+
+    @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+    def test_data_dir_default_unix(self, target):
+        """Test data_dir returns .esphome in config directory by default on Unix."""
+        target.config_path = "/home/user/config.yaml"
+        assert target.data_dir == "/home/user/.esphome"
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+    def test_data_dir_default_windows(self, target):
+        """Test data_dir returns .esphome in config directory by default on Windows."""
+        target.config_path = "D:\\home\\user\\config.yaml"
+        assert target.data_dir == "D:\\home\\user\\.esphome"
+
+    def test_data_dir_ha_addon(self, target):
+        """Test data_dir returns /data when running as Home Assistant addon."""
+        target.config_path = "/config/test.yaml"
+
+        with patch.dict(os.environ, {"ESPHOME_IS_HA_ADDON": "true"}):
+            assert target.data_dir == "/data"
+
+    def test_data_dir_env_override(self, target):
+        """Test data_dir uses ESPHOME_DATA_DIR environment variable when set."""
+        target.config_path = "/home/user/config.yaml"
+
+        with patch.dict(os.environ, {"ESPHOME_DATA_DIR": "/custom/data/path"}):
+            assert target.data_dir == "/custom/data/path"
+
+    @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+    def test_data_dir_priority_unix(self, target):
+        """Test data_dir priority on Unix: HA addon > env var > default."""
+        target.config_path = "/config/test.yaml"
+        expected_default = "/config/.esphome"
+
+        # Test HA addon takes priority over env var
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "true", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/data"
+
+        # Test env var is used when not HA addon
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "false", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/custom/path"
+
+        # Test default when neither is set
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure these env vars are not set
+            os.environ.pop("ESPHOME_IS_HA_ADDON", None)
+            os.environ.pop("ESPHOME_DATA_DIR", None)
+            assert target.data_dir == expected_default
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+    def test_data_dir_priority_windows(self, target):
+        """Test data_dir priority on Windows: HA addon > env var > default."""
+        target.config_path = "D:\\config\\test.yaml"
+        expected_default = "D:\\config\\.esphome"
+
+        # Test HA addon takes priority over env var
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "true", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/data"
+
+        # Test env var is used when not HA addon
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "false", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == "/custom/path"
+
+        # Test default when neither is set
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure these env vars are not set
+            os.environ.pop("ESPHOME_IS_HA_ADDON", None)
+            os.environ.pop("ESPHOME_DATA_DIR", None)
+            assert target.data_dir == expected_default

@@ -60,6 +60,7 @@ struct SavedWifiSettings {
 struct SavedWifiFastConnectSettings {
   uint8_t bssid[6];
   uint8_t channel;
+  int8_t ap_index;
 } PACKED;  // NOLINT
 
 enum WiFiComponentState : uint8_t {
@@ -256,6 +257,7 @@ class WiFiComponent : public Component {
   void setup() override;
   void start();
   void dump_config() override;
+  void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
   float get_loop_priority() const override;
@@ -353,7 +355,7 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  void load_fast_connect_settings_();
+  bool load_fast_connect_settings_();
   void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
@@ -400,12 +402,14 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
+  uint8_t ap_index_{0};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
 
   // Group all boolean values together
   bool fast_connect_{false};
+  bool trying_loaded_ap_{false};
   bool retry_hidden_{false};
   bool has_ap_{false};
   bool handled_connected_state_{false};

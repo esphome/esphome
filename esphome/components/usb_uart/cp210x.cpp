@@ -43,7 +43,7 @@ static constexpr uint8_t SET_BAUDRATE = 0x1E;     // Set the baud rate.
 static constexpr uint8_t SET_CHARS = 0x19;        // Set special characters.
 static constexpr uint8_t VENDOR_SPECIFIC = 0xFF;  // Vendor specific command.
 
-std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors_(usb_device_handle_t dev_hdl) {
+std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
   const usb_device_desc_t *device_desc;
   int conf_offset = 0, ep_offset;

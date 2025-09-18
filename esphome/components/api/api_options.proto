@@ -23,3 +23,38 @@ extend google.protobuf.MessageOptions {
     optional bool no_delay = 1040 [default=false];
     optional string base_class = 1041;
 }
+
+extend google.protobuf.FieldOptions {
+    optional string field_ifdef = 1042;
+    optional uint32 fixed_array_size = 50007;
+    optional bool no_zero_copy = 50008 [default=false];
+    optional bool fixed_array_skip_zero = 50009 [default=false];
+    optional string fixed_array_size_define = 50010;
+    optional string fixed_array_with_length_define = 50011;
+
+    // container_pointer: Zero-copy optimization for repeated fields.
+    //
+    // When container_pointer is set on a repeated field, the generated message will
+    // store a pointer to an existing container instead of copying the data into the
+    // message's own repeated field. This eliminates heap allocations and improves performance.
+    //
+    // Requirements for safe usage:
+    // 1. The source container must remain valid until the message is encoded
+    // 2. Messages must be encoded immediately (which ESPHome does by default)
+    // 3. The container type must match the field type exactly
+    //
+    // Supported container types:
+    // - "std::vector<T>" for most repeated fields
+    // - "std::set<T>" for unique/sorted data
+    // - Full type specification required for enums (e.g., "std::set<climate::ClimateMode>")
+    //
+    // Example usage in .proto file:
+    //   repeated string supported_modes = 12 [(container_pointer) = "std::set"];
+    //   repeated ColorMode color_modes = 13 [(container_pointer) = "std::set<light::ColorMode>"];
+    //
+    // The corresponding C++ code must provide const reference access to a container
+    // that matches the specified type and remains valid during message encoding.
+    // This is typically done through methods returning const T& or special accessor
+    // methods like get_options() or supported_modes_for_api_().
+    optional string container_pointer = 50001;
+}

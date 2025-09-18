@@ -8,7 +8,6 @@ namespace esphome {
 namespace usb_host {
 
 void USBHost::setup() {
-  ESP_LOGCONFIG(TAG, "Setup starts");
   usb_host_config_t config{};
 
   if (usb_host_install(&config) != ESP_OK) {

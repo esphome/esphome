@@ -252,7 +252,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #if defined(USE_MQTT_IDF_ENQUEUE)
   static void esphome_mqtt_task(void *params);
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_event_pool_;
-  LockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
+  NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
   bool enqueue_(MqttQueueTypeT type, const char *topic, int qos = 0, bool retain = false, const char *payload = NULL,
                 size_t len = 0);

@@ -31,6 +31,7 @@ BASE = """
 pyproject.toml @esphome/core
 esphome/*.py @esphome/core
 esphome/core/* @esphome/core
+.github/** @esphome/core
 
 # Integrations
 """.strip()
@@ -81,7 +82,7 @@ for path in components_dir.iterdir():
 
 
 for path, owners in sorted(codeowners.items()):
-    owners = sorted(set(owners))
+    owners = sorted(set(owners), key=str.casefold)
     if not owners:
         continue
     for owner in owners:

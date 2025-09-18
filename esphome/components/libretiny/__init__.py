@@ -20,6 +20,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    ThreadModel,
     __version__,
 )
 from esphome.core import CORE
@@ -260,6 +261,7 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
+    cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
@@ -268,6 +270,7 @@ async def component_to_code(config):
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
     # dummy version code

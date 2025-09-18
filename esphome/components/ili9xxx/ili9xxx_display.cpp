@@ -31,8 +31,6 @@ void ILI9XXXDisplay::set_madctl() {
 }
 
 void ILI9XXXDisplay::setup() {
-  ESP_LOGD(TAG, "Setting up ILI9xxx");
-
   this->setup_pins_();
   this->init_lcd_(this->init_sequence_);
   this->init_lcd_(this->extra_init_sequence_.data());

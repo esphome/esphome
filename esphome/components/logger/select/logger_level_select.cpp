@@ -1,7 +1,6 @@
 #include "logger_level_select.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 void LoggerLevelSelect::publish_state(int level) {
   auto value = this->at(level);
@@ -23,5 +22,4 @@ void LoggerLevelSelect::control(const std::string &value) {
   this->parent_->set_log_level(level.value());
 }
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger

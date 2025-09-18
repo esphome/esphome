@@ -92,7 +92,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(_):
     if not use_legacy():
-        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver.")
+        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

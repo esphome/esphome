@@ -253,6 +253,19 @@ class StringLiteral(Literal):
         return cpp_string_escape(self.string)
 
 
+class LogStringLiteral(Literal):
+    """A string literal that uses LOG_STR() macro for flash storage on ESP8266."""
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"LOG_STR({cpp_string_escape(self.string)})"
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 
@@ -771,8 +784,7 @@ class MockObj(Expression):
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
             next_op = "->"
-        if attr.startswith("_"):
-            attr = attr[1:]
+        attr = attr.removeprefix("_")
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
@@ -1037,10 +1049,7 @@ class MockObjClass(MockObj):
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
-        for parent in self._parents:
-            if str(parent) == str(other):
-                return True
-        return False
+        return any(str(parent) == str(other) for parent in self._parents)
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):

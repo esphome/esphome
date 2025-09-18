@@ -3132,7 +3132,7 @@ void HOT GDEY0583T81::display() {
   } else {
     // Partial out (PTOUT), makes the display exit partial mode
     this->command(0x92);
-    ESP_LOGD(TAG, "Partial update done, next full update after %d cycles",
+    ESP_LOGD(TAG, "Partial update done, next full update after %" PRIu32 " cycles",
              this->full_update_every_ - this->at_update_ - 1);
   }
 
