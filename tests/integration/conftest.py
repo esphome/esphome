@@ -16,7 +16,6 @@ import subprocess
 import sys
 import tempfile
 from typing import TextIO
-from unittest.mock import patch
 
 from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
 import pytest
@@ -59,6 +58,8 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     env["PLATFORMIO_CORE_DIR"] = str(cache_dir)
     env["PLATFORMIO_CACHE_DIR"] = str(cache_dir / ".cache")
     env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps")
+    # Prevent cache cleaning during integration tests
+    env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
     return env
 
 
@@ -111,16 +112,6 @@ def shared_platformio_cache() -> Generator[Path]:
         # Lock is held until here, ensuring cache is fully populated before any test proceeds
 
     yield cache_dir
-
-
-@pytest.fixture(scope="session", autouse=True)
-def patch_clean_build():
-    """Patch clean_build to be a no-op during integration tests.
-
-    The cache is shared between parallel tests, so cleaning it causes race conditions.
-    """
-    with patch("esphome.writer.clean_build"):
-        yield
 
 
 @pytest.fixture(scope="module", autouse=True)
