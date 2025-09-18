@@ -117,19 +117,15 @@ ManualIP = ethernet_ns.struct("ManualIP")
 
 def _is_framework_spi_polling_mode_supported():
     # SPI Ethernet without IRQ feature is added in
-    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
+    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4)
+    # Note: Arduino now uses ESP-IDF as a component, so we only check IDF version
     framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.using_esp_idf:
-        if framework_version >= cv.Version(5, 3, 0):
-            return True
-        if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
-            return True
-        if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
-            return True
-        return False
-    if CORE.using_arduino:
-        return framework_version >= cv.Version(3, 0, 0)
-    # fail safe: Unknown framework
+    if framework_version >= cv.Version(5, 3, 0):
+        return True
+    if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
+        return True
+    if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
+        return True
     return False
 
 
@@ -322,11 +318,8 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option(
-                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
-            )
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
@@ -359,10 +352,9 @@ async def to_code(config):
     cg.add_define("USE_ETHERNET")
 
     # Disable WiFi when using Ethernet to save memory
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-        # Also disable WiFi/BT coexistence since WiFi is disabled
-        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+    # Also disable WiFi/BT coexistence since WiFi is disabled
+    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
