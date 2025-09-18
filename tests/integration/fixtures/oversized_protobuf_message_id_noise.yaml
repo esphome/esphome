@@ -8,4 +8,4 @@ api:
     key: N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU=
 
 logger:
-  level: DEBUG
+  level: VERY_VERBOSE

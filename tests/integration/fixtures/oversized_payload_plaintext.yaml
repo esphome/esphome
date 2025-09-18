@@ -6,4 +6,4 @@ host:
 api:
 
 logger:
-  level: DEBUG
+  level: VERY_VERBOSE
