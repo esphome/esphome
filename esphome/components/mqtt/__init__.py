@@ -53,9 +53,9 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
     PLATFORM_BK72XX,
-    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_RTL87XX,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
