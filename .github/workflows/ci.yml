@@ -235,33 +235,30 @@ jobs:
           python --version
           pip install -r requirements.txt -r requirements_test.txt
           pip install -e .
-      - name: Cache platformio
+      - name: Cache integration test platformio
         if: github.ref == 'refs/heads/dev'
         uses: actions/cache@v4.2.4
         with:
-          path: ~/.platformio
-          key: platformio-integration-${{ hashFiles('platformio.ini') }}
-      - name: Cache platformio
+          path: ~/.esphome-integration-tests
+          key: platformio-integration-tests-${{ hashFiles('platformio.ini') }}
+      - name: Cache integration test platformio
         if: github.ref != 'refs/heads/dev'
         uses: actions/cache/restore@v4.2.4
         with:
-          path: ~/.platformio
-          key: platformio-integration-${{ hashFiles('platformio.ini') }}
-      - name: Pre-install PlatformIO libraries
+          path: ~/.esphome-integration-tests
+          key: platformio-integration-tests-${{ hashFiles('platformio.ini') }}
+      - name: Initialize integration test platformio cache
         run: |
           . venv/bin/activate
-          # Pre-compile a basic configuration with noise to populate the cache
+          # Create cache directory structure
+          mkdir -p ~/.esphome-integration-tests/platformio
+          # Set the same environment variables that the tests use
+          export PLATFORMIO_CORE_DIR="$HOME/.esphome-integration-tests/platformio"
+          export PLATFORMIO_CACHE_DIR="$HOME/.esphome-integration-tests/platformio/.cache"
+          export PLATFORMIO_LIBDEPS_DIR="$HOME/.esphome-integration-tests/platformio/libdeps"
+          # Pre-compile using the cache_init fixture to populate the cache
           # This prevents race conditions when tests run in parallel
-          cat > /tmp/cache_init.yaml <<EOF
-          esphome:
-            name: cache-init
-          host:
-          api:
-            encryption:
-              key: "IIevImVI42I0FGos5nLqFK91jrJehrgidI0ArwMLr8w="
-          logger:
-          EOF
-          esphome compile /tmp/cache_init.yaml || true
+          esphome compile tests/integration/fixtures/cache_init.yaml || echo "Cache initialization completed (exit code: $?)"
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests

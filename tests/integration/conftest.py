@@ -84,17 +84,11 @@ def shared_platformio_cache() -> Generator[Path]:
             test_cache_dir.mkdir(exist_ok=True)
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                # Create a basic host config
+                # Use the cache_init fixture for initialization
                 init_dir = Path(tmpdir)
+                fixture_path = Path(__file__).parent / "fixtures" / "cache_init.yaml"
                 config_path = init_dir / "cache_init.yaml"
-                config_path.write_text("""esphome:
-  name: cache-init
-host:
-api:
-  encryption:
-    key: "IIevImVI42I0FGos5nLqFK91jrJehrgidI0ArwMLr8w="
-logger:
-""")
+                config_path.write_text(fixture_path.read_text())
 
                 # Run compilation to populate the cache
                 # We must succeed here to avoid race conditions where multiple
