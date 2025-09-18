@@ -500,7 +500,8 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(uses)})"
+            f"constant to const.py (Uses: {', '.join(uses)}) in a separate PR. "
+            "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
 

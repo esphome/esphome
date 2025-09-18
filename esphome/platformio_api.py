@@ -70,6 +70,8 @@ FILTER_PLATFORMIO_LINES = [
     r" - tool-esptool.* \(.*\)",
     r" - toolchain-.* \(.*\)",
     r"Creating BIN file .*",
+    r"Warning! Could not find file \".*.crt\"",
+    r"Warning! Arduino framework as an ESP-IDF component doesn't handle the `variant` field! The default `esp32` variant will be used.",
 ]
 
 
@@ -211,7 +213,7 @@ def _decode_pc(config, addr):
         return
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).decode().strip()
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return

@@ -34,9 +34,23 @@ class LightEffect {
     this->init();
   }
 
+  /// Get the index of this effect in the parent light's effect list.
+  /// Returns 0 if not found or not initialized.
+  uint32_t get_index() const;
+
+  /// Check if this effect is currently active.
+  bool is_active() const;
+
+  /// Get a reference to the parent light state.
+  /// Returns nullptr if not initialized.
+  LightState *get_light_state() const { return this->state_; }
+
  protected:
   LightState *state_{nullptr};
   std::string name_;
+
+  /// Internal method to find this effect's index in the parent light's effect list.
+  uint32_t get_index_in_parent_() const;
 };
 
 }  // namespace light

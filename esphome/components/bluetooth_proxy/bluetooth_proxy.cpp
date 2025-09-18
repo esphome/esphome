@@ -11,12 +11,8 @@ namespace esphome::bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy";
 
-// Batch size for BLE advertisements to maximize WiFi efficiency
-// Each advertisement is up to 80 bytes when packaged (including protocol overhead)
-// Most advertisements are 20-30 bytes, allowing even more to fit per packet
-// 16 advertisements × 80 bytes (worst case) = 1280 bytes out of ~1320 bytes usable payload
-// This achieves ~97% WiFi MTU utilization while staying under the limit
-static constexpr size_t FLUSH_BATCH_SIZE = 16;
+// BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE is defined during code generation
+// It sets the batch size for BLE advertisements to maximize WiFi efficiency
 
 // Verify BLE advertisement data array size matches the BLE specification (31 bytes adv + 31 bytes scan response)
 static_assert(sizeof(((api::BluetoothLERawAdvertisement *) nullptr)->data) == 62,
@@ -25,15 +21,11 @@ static_assert(sizeof(((api::BluetoothLERawAdvertisement *) nullptr)->data) == 62
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 void BluetoothProxy::setup() {
-  // Reserve capacity but start with size 0
-  // Reserve 50% since we'll grow naturally and flush at FLUSH_BATCH_SIZE
-  this->response_.advertisements.reserve(FLUSH_BATCH_SIZE / 2);
-
-  // Don't pre-allocate pool - let it grow only if needed in busy environments
-  // Many devices in quiet areas will never need the overflow pool
-
   this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
   this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
+
+  // Capture the configured scan mode from YAML before any API changes
+  this->configured_scan_active_ = this->parent_->get_scan_active();
 
   this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
     if (this->api_connection_ != nullptr) {
@@ -47,6 +39,9 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
   resp.state = static_cast<api::enums::BluetoothScannerState>(state);
   resp.mode = this->parent_->get_scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                                                : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
+  resp.configured_mode = this->configured_scan_active_
+                             ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
+                             : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
   this->api_connection_->send_message(resp, api::BluetoothScannerStateResponse::MESSAGE_TYPE);
 }
 
@@ -88,33 +83,21 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
     auto &result = scan_results[i];
     uint8_t length = result.adv_data_len + result.scan_rsp_len;
 
-    // Check if we need to expand the vector
-    if (this->advertisement_count_ >= advertisements.size()) {
-      if (this->advertisement_pool_.empty()) {
-        // No room in pool, need to allocate
-        advertisements.emplace_back();
-      } else {
-        // Pull from pool
-        advertisements.push_back(std::move(this->advertisement_pool_.back()));
-        this->advertisement_pool_.pop_back();
-      }
-    }
-
     // Fill in the data directly at current position
-    auto &adv = advertisements[this->advertisement_count_];
+    auto &adv = advertisements[this->response_.advertisements_len];
     adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
     adv.rssi = result.rssi;
     adv.address_type = result.ble_addr_type;
     adv.data_len = length;
     std::memcpy(adv.data, result.ble_adv, length);
 
-    this->advertisement_count_++;
+    this->response_.advertisements_len++;
 
     ESP_LOGV(TAG, "Queuing raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
              result.bda[1], result.bda[2], result.bda[3], result.bda[4], result.bda[5], length, result.rssi);
 
-    // Flush if we have reached FLUSH_BATCH_SIZE
-    if (this->advertisement_count_ >= FLUSH_BATCH_SIZE) {
+    // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
+    if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
       this->flush_pending_advertisements();
     }
   }
@@ -123,27 +106,17 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
 }
 
 void BluetoothProxy::flush_pending_advertisements() {
-  if (this->advertisement_count_ == 0 || !api::global_api_server->is_connected() || this->api_connection_ == nullptr)
+  if (this->response_.advertisements_len == 0 || !api::global_api_server->is_connected() ||
+      this->api_connection_ == nullptr)
     return;
-
-  auto &advertisements = this->response_.advertisements;
-
-  // Return any items beyond advertisement_count_ to the pool
-  if (advertisements.size() > this->advertisement_count_) {
-    // Move unused items back to pool
-    this->advertisement_pool_.insert(this->advertisement_pool_.end(),
-                                     std::make_move_iterator(advertisements.begin() + this->advertisement_count_),
-                                     std::make_move_iterator(advertisements.end()));
-
-    // Resize to actual count
-    advertisements.resize(this->advertisement_count_);
-  }
 
   // Send the message
   this->api_connection_->send_message(this->response_, api::BluetoothLERawAdvertisementsResponse::MESSAGE_TYPE);
 
-  // Reset count - existing items will be overwritten in next batch
-  this->advertisement_count_ = 0;
+  ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
+
+  // Reset the length for the next batch
+  this->response_.advertisements_len = 0;
 }
 
 void BluetoothProxy::dump_config() {
@@ -216,6 +189,12 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, false);
         return;
       }
+      if (!msg.has_address_type) {
+        ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        this->send_device_connection(msg.address, false);
+        return;
+      }
       if (connection->state() == espbt::ClientState::CONNECTED ||
           connection->state() == espbt::ClientState::ESTABLISHED) {
         this->log_connection_request_ignored_(connection, connection->state());
@@ -242,13 +221,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      if (msg.has_address_type) {
-        uint64_to_bd_addr(msg.address, connection->remote_bda_);
-        connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
-        connection->set_state(espbt::ClientState::DISCOVERED);
-      } else {
-        connection->set_state(espbt::ClientState::SEARCHING);
-      }
+      uint64_to_bd_addr(msg.address, connection->remote_bda_);
+      connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
+      connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
       break;
     }

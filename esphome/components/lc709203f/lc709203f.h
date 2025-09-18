@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace lc709203f {
@@ -38,7 +38,6 @@ class Lc709203f : public sensor::Sensor, public PollingComponent, public i2c::I2
  private:
   uint8_t get_register_(uint8_t register_to_read, uint16_t *register_value);
   uint8_t set_register_(uint8_t register_to_set, uint16_t value_to_set);
-  uint8_t crc8_(uint8_t *byte_buffer, uint8_t length_of_crc);
 
  protected:
   sensor::Sensor *voltage_sensor_{nullptr};

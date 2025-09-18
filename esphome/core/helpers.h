@@ -145,8 +145,8 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
-/// Calculate a CRC-8 checksum of \p data with size \p len using the CRC-8-Dallas/Maxim polynomial.
-uint8_t crc8(const uint8_t *data, uint8_t len);
+/// Calculate a CRC-8 checksum of \p data with size \p len.
+uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -155,7 +155,8 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
                  bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
-uint32_t fnv1_hash(const std::string &str);
+uint32_t fnv1_hash(const char *str);
+inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -377,6 +378,35 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 /// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const std::string &str) {
   return parse_hex<T>(str.c_str(), str.length());
+}
+
+/// Convert a nibble (0-15) to lowercase hex char
+inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+
+/// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
+/// This always uses uppercase (A-F) for pretty/human-readable output
+inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+
+/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
+inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
+  for (size_t i = 0; i < 6; i++) {
+    uint8_t byte = mac[i];
+    output[i * 3] = format_hex_pretty_char(byte >> 4);
+    output[i * 3 + 1] = format_hex_pretty_char(byte & 0x0F);
+    if (i < 5)
+      output[i * 3 + 2] = ':';
+  }
+  output[17] = '\0';
+}
+
+/// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
+inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
+  for (size_t i = 0; i < 6; i++) {
+    uint8_t byte = mac[i];
+    output[i * 2] = format_hex_char(byte >> 4);
+    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
+  }
+  output[12] = '\0';
 }
 
 /// Format the six-byte array \p mac into a MAC address.

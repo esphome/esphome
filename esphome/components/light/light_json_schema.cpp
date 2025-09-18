@@ -36,8 +36,11 @@ static constexpr const char *get_color_mode_json_str(ColorMode mode) {
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  if (state.supports_effects())
+  if (state.supports_effects()) {
     root["effect"] = state.get_effect_name();
+    root["effect_index"] = state.get_current_effect_index();
+    root["effect_count"] = state.get_effect_count();
+  }
 
   auto values = state.remote_values;
   auto traits = state.get_output()->get_traits();
@@ -159,6 +162,11 @@ void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject 
   if (root["effect"].is<const char *>()) {
     const char *effect = root["effect"];
     call.set_effect(effect);
+  }
+
+  if (root["effect_index"].is<uint32_t>()) {
+    uint32_t effect_index = root["effect_index"];
+    call.set_effect(effect_index);
   }
 }
 
