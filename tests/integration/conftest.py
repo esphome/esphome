@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 from typing import TextIO
+from unittest.mock import patch
 
 from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
 import pytest
@@ -111,6 +112,16 @@ logger:
         # Lock is held until here, ensuring cache is fully populated before any test proceeds
 
     yield cache_dir
+
+
+@pytest.fixture(scope="session", autouse=True)
+def patch_clean_build():
+    """Patch clean_build to be a no-op during integration tests.
+
+    The cache is shared between parallel tests, so cleaning it causes race conditions.
+    """
+    with patch("esphome.writer.clean_build"):
+        yield
 
 
 @pytest.fixture(scope="module", autouse=True)
