@@ -16,18 +16,18 @@
 #endif
 
 #ifdef USE_ARDUINO
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266)
 #include <HardwareSerial.h>
-#endif  // USE_ESP8266 || USE_ESP32
+#endif  // USE_ESP8266
 #ifdef USE_RP2040
 #include <HardwareSerial.h>
 #include <SerialUSB.h>
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <driver/uart.h>
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
 
 #ifdef USE_ZEPHYR
 #include <zephyr/kernel.h>
@@ -110,19 +110,17 @@ class Logger : public Component {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_LOGGER_USB_CDC) || defined(USE_ESP32) || defined(USE_ZEPHYR)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
 #endif
-#ifdef USE_ESP_IDF
-  uart_port_t get_uart_num() const { return uart_num_; }
-#endif
 #ifdef USE_ESP32
+  uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
@@ -232,7 +230,7 @@ class Logger : public Component {
   // Group 4-byte aligned members first
   uint32_t baud_rate_;
   char *tx_buffer_{nullptr};
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *hw_serial_{nullptr};
 #endif
 #if defined(USE_ZEPHYR)
@@ -246,9 +244,7 @@ class Logger : public Component {
   // - Main task uses a dedicated member variable for efficiency
   // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
   pthread_key_t log_recursion_key_;  // 4 bytes
-#endif
-#ifdef USE_ESP_IDF
-  uart_port_t uart_num_;  // 4 bytes (enum defaults to int size)
+  uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
 #endif
 
   // Large objects (internally aligned)
@@ -380,15 +376,7 @@ class Logger : public Component {
     // will be processed on the next main loop iteration since:
     // - disable_loop() takes effect immediately
     // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
-#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
-    // Only disable if not using USB CDC (which needs loop for connection detection)
-    if (this->uart_ != UART_SELECTION_USB_CDC) {
-      this->disable_loop();
-    }
-#else
-    // No USB CDC support, always safe to disable
     this->disable_loop();
-#endif
   }
 #endif
 };
