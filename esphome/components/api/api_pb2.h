@@ -361,12 +361,12 @@ class HelloResponse final : public ProtoMessage {
  protected:
 };
 #ifdef USE_API_PASSWORD
-class ConnectRequest final : public ProtoDecodableMessage {
+class AuthenticationRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 3;
   static constexpr uint8_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "connect_request"; }
+  const char *message_name() const override { return "authentication_request"; }
 #endif
   std::string password{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -376,12 +376,12 @@ class ConnectRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ConnectResponse final : public ProtoMessage {
+class AuthenticationResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 4;
   static constexpr uint8_t ESTIMATED_SIZE = 2;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "connect_response"; }
+  const char *message_name() const override { return "authentication_response"; }
 #endif
   bool invalid_password{false};
   void encode(ProtoWriteBuffer buffer) const override;

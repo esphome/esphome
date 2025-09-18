@@ -70,6 +70,8 @@ FILTER_PLATFORMIO_LINES = [
     r" - tool-esptool.* \(.*\)",
     r" - toolchain-.* \(.*\)",
     r"Creating BIN file .*",
+    r"Warning! Could not find file \".*.crt\"",
+    r"Warning! Arduino framework as an ESP-IDF component doesn't handle the `variant` field! The default `esp32` variant will be used.",
 ]
 
 
