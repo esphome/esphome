@@ -98,21 +98,15 @@ void LEDCOutput::write_state(float state) {
     state = 1.0f - state;
 
   this->duty_ = state;
-  const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
+  const uint32_t max_duty = uint32_t(1) << this->bit_depth_;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
   ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
   auto speed_mode = get_speed_mode(this->channel_);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
-  if (duty == max_duty) {
-    ledc_stop(speed_mode, chan_num, 1);
-  } else if (duty == 0) {
-    ledc_stop(speed_mode, chan_num, 0);
-  } else {
-    ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
-    ledc_update_duty(speed_mode, chan_num);
-  }
+  ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
+  ledc_update_duty(speed_mode, chan_num);
 }
 
 void LEDCOutput::setup() {
