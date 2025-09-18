@@ -76,9 +76,9 @@ void IWR6843AOPComponent::cfg_iwr6843aop() {
   ESP_LOGI(TAG, "Starting IWR6843AOP configuration...");
   this->config_step_ = 0;
   this->config_start_time_ = millis();
-  this->config_timeout_ = 1000; // 1 second timeout per command
   this->config_response_.clear();
 }
+
 
 void IWR6843AOPComponent::process_config_step() {
   uart::UARTDevice uart1_dev(uart1_dev_);
@@ -92,24 +92,21 @@ void IWR6843AOPComponent::process_config_step() {
     return;
   }
   
-  // Check for timeout on current command
-  if ((now - config_start_time_) > config_timeout_) {
-    ESP_LOGW(TAG, "UART1 READ: <timeout after %dms> for command: %s", config_timeout_, IWR6843AOP_CFG[config_step_]);
-    // Move to next command
+  // Check if it's time to send the next command (2 second delay)
+  if ((now - config_start_time_) >= 2000) {
+    // Send the command
+    std::string line_to_send = std::string(IWR6843AOP_CFG[config_step_]) + "\n";
+    uart1_dev.write_str(line_to_send.c_str());
+    ESP_LOGI(TAG, "UART1 WRITE: %s", IWR6843AOP_CFG[config_step_]);
+    
+    // Move to next command and reset timer
     config_step_++;
     config_start_time_ = now;
     config_response_.clear();
     return;
   }
   
-  // If this is the first time processing this step, send the command
-  if (config_response_.empty() && (now - config_start_time_) < 100) {
-    std::string line_to_send = std::string(IWR6843AOP_CFG[config_step_]) + "\n";
-    uart1_dev.write_str(line_to_send.c_str());
-    ESP_LOGI(TAG, "UART1 WRITE: %s", IWR6843AOP_CFG[config_step_]);
-  }
-  
-  // Read response
+  // Read and log any available responses during the 2-second wait
   while (uart1_dev.available()) {
     int c = uart1_dev.read();
     if (c >= 0) {
@@ -119,11 +116,7 @@ void IWR6843AOPComponent::process_config_step() {
         if (!config_response_.empty()) {
           ESP_LOGI(TAG, "UART1 READ: %s", config_response_.c_str());
         }
-        // Move to next command
-        config_step_++;
-        config_start_time_ = now;
         config_response_.clear();
-        return;
       }
     }
   }
@@ -132,12 +125,45 @@ void IWR6843AOPComponent::process_config_step() {
 void IWR6843AOPComponent::read_iwr6843aop_data() {
   // Check if UART2 is available and working
   if (uart2_dev_ == nullptr) {
+    // Set both sensors to OFF if UART2 is not available
+    if (bed_presence_ != nullptr) {
+      bed_presence_->publish_state(false);
+    }
+    if (room_presence_ != nullptr) {
+      room_presence_->publish_state(false);
+    }
     return;
   }
   
-  // Skip data reading entirely since UART2 has rx flow thresh error
-  // This prevents hanging and watchdog timeouts
-  ESP_LOGD(TAG, "UART2 data reading skipped due to UART2 configuration error");
+  uart::UARTDevice uart2_dev(uart2_dev_);
+  bool data_received = false;
+  bool valid_frame_received = false;
+  
+  // Try to read data from UART2
+  while (uart2_dev.available()) {
+    int c = uart2_dev.read();
+    if (c >= 0) {
+      data_received = true;
+      
+      // Check for valid IWR6843 frame header
+      // IWR6843 frames typically start with specific magic bytes
+      // For now, we'll use a simple heuristic: look for printable characters
+      // that might indicate valid radar data (not just noise)
+      if (c >= 32 && c <= 126) {  // Printable ASCII range
+        valid_frame_received = true;
+      }
+    }
+  }
+  
+  // Update bed_presence as activity indicator (any data received)
+  if (bed_presence_ != nullptr) {
+    bed_presence_->publish_state(data_received);
+  }
+  
+  // Update room_presence as valid frame indicator
+  if (room_presence_ != nullptr) {
+    room_presence_->publish_state(valid_frame_received);
+  }
 }
 
 void IWR6843AOPComponent::parse_target_list_tlv(const std::vector<uint8_t> &tlv_payload) {

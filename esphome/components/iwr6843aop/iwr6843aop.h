@@ -51,6 +51,7 @@ class IWR6843AOPComponent : public Component {
   uint32_t config_start_time_{0};
   uint32_t config_timeout_{1000};
   std::string config_response_;
+  
 
   esphome::number::Number *width_{nullptr};
   esphome::number::Number *length_{nullptr};

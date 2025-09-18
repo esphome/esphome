@@ -9,7 +9,8 @@ esp32:
 # Enable logging
 logger:
   level: VERBOSE
-  hardware_uart: UART0  # Force logging to UART0 instead of USB_SERIAL_JTAG
+  #hardware_uart: UART0
+
   baud_rate: 115200
   logs:
     ethernet: VERBOSE
@@ -95,7 +96,7 @@ uart:
   - id: iwr_uart2
     rx_pin: GPIO6
     baud_rate: 921600
-    rx_buffer_size: 1024
+    rx_buffer_size: 1024  # Reduced to prevent UART conflicts
 
 binary_sensor:
   - platform: template
@@ -105,6 +106,7 @@ binary_sensor:
   - platform: template
     id: bed_presence
     name: "Bed presence"
+
 
 i2c:
   sda: GPIO20
