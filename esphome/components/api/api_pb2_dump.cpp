@@ -670,8 +670,11 @@ void HelloResponse::dump_to(std::string &out) const {
   dump_field(out, "name", this->name_ref_);
 }
 #ifdef USE_API_PASSWORD
-void ConnectRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
-void ConnectResponse::dump_to(std::string &out) const { dump_field(out, "invalid_password", this->invalid_password); }
+void AuthenticationRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
+void AuthenticationResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "AuthenticationResponse");
+  dump_field(out, "invalid_password", this->invalid_password);
+}
 #endif
 void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
 void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
