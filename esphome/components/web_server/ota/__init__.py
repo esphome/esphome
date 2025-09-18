@@ -4,6 +4,7 @@ from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network", "web_server_base"]
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = (
 )
 
 
-@coroutine_with_priority(52.0)
+@coroutine_with_priority(CoroPriority.WEB_SERVER_OTA)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)

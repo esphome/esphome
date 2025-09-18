@@ -50,7 +50,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -130,7 +130,9 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   std::string get_bluetooth_mac_address_pretty() {
     const uint8_t *mac = esp_bt_dev_get_address();
-    return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    char buf[18];
+    format_mac_addr_upper(mac, buf);
+    return std::string(buf);
   }
 
  protected:
@@ -161,7 +163,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   // Group 4: 1-byte types grouped together
   bool active_;
   uint8_t connection_count_{0};
-  // 2 bytes used, 2 bytes padding
+  bool configured_scan_active_{false};  // Configured scan mode from YAML
+  // 3 bytes used, 1 byte padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

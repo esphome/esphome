@@ -308,8 +308,12 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(
+    remote_host: str | list[str], remote_port: int, password: str, filename: str
+) -> tuple[int, str | None]:
+    # Handle both single host and list of hosts
     try:
+        # Resolve all hosts at once for parallel DNS resolution
         res = resolve_ip_address(remote_host, remote_port)
     except EsphomeError as err:
         _LOGGER.error(
@@ -340,19 +344,22 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
                 perform_ota(sock, password, file_handle, filename)
             except OTAError as err:
                 _LOGGER.error(str(err))
-                return 1
+                return 1, None
             finally:
                 sock.close()
 
-        return 0
+        # Successfully uploaded to sa[0]
+        return 0, sa[0]
 
     _LOGGER.error("Connection failed.")
-    return 1
+    return 1, None
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(
+    remote_host: str | list[str], remote_port: int, password: str, filename: str
+) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
+        return 1, None

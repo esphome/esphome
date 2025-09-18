@@ -8,6 +8,7 @@
 #include <cinttypes>
 #include <vector>
 #include <string>
+#include <memory>
 
 namespace esphome {
 namespace esp32 {
@@ -156,20 +157,23 @@ class ESP32Preferences : public ESPPreferences {
     return failed == 0;
   }
   bool is_changed(const uint32_t nvs_handle, const NVSData &to_save) {
-    NVSData stored_data{};
     size_t actual_len;
     esp_err_t err = nvs_get_blob(nvs_handle, to_save.key.c_str(), nullptr, &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    stored_data.data.resize(actual_len);
-    err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.data.data(), &actual_len);
+    // Check size first before allocating memory
+    if (actual_len != to_save.data.size()) {
+      return true;
+    }
+    auto stored_data = std::make_unique<uint8_t[]>(actual_len);
+    err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.get(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    return to_save.data != stored_data.data;
+    return memcmp(to_save.data.data(), stored_data.get(), to_save.data.size()) != 0;
   }
 
   bool reset() override {

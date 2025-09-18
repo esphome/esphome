@@ -30,19 +30,19 @@ void ESPHomeOTAComponent::setup() {
 
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->server_ == nullptr) {
-    this->log_socket_error_("creation");
+    this->log_socket_error_(LOG_STR("creation"));
     this->mark_failed();
     return;
   }
   int enable = 1;
   int err = this->server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
-    this->log_socket_error_("reuseaddr");
+    this->log_socket_error_(LOG_STR("reuseaddr"));
     // we can still continue
   }
   err = this->server_->setblocking(false);
   if (err != 0) {
-    this->log_socket_error_("non-blocking");
+    this->log_socket_error_(LOG_STR("non-blocking"));
     this->mark_failed();
     return;
   }
@@ -51,21 +51,21 @@ void ESPHomeOTAComponent::setup() {
 
   socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
-    this->log_socket_error_("set sockaddr");
+    this->log_socket_error_(LOG_STR("set sockaddr"));
     this->mark_failed();
     return;
   }
 
   err = this->server_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
-    this->log_socket_error_("bind");
+    this->log_socket_error_(LOG_STR("bind"));
     this->mark_failed();
     return;
   }
 
   err = this->server_->listen(4);
   if (err != 0) {
-    this->log_socket_error_("listen");
+    this->log_socket_error_(LOG_STR("listen"));
     this->mark_failed();
     return;
   }
@@ -100,8 +100,8 @@ void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the initial OTA handshake.
   ///
   /// This method is non-blocking and will return immediately if no data is available.
-  /// It waits for the first magic byte (0x6C) before proceeding to handle_data_().
-  /// A 10-second timeout is enforced from initial connection.
+  /// It reads all 5 magic bytes (0x6C, 0x26, 0xF7, 0x5C, 0x45) non-blocking
+  /// before proceeding to handle_data_(). A 10-second timeout is enforced from initial connection.
 
   if (this->client_ == nullptr) {
     // We already checked server_->ready() in loop(), so we can accept directly
@@ -114,18 +114,19 @@ void ESPHomeOTAComponent::handle_handshake_() {
       return;
     int err = this->client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
     if (err != 0) {
-      this->log_socket_error_("nodelay");
+      this->log_socket_error_(LOG_STR("nodelay"));
       this->cleanup_connection_();
       return;
     }
     err = this->client_->setblocking(false);
     if (err != 0) {
-      this->log_socket_error_("non-blocking");
+      this->log_socket_error_(LOG_STR("non-blocking"));
       this->cleanup_connection_();
       return;
     }
-    this->log_start_("handshake");
+    this->log_start_(LOG_STR("handshake"));
     this->client_connect_time_ = App.get_loop_component_start_time();
+    this->magic_buf_pos_ = 0;  // Reset magic buffer position
   }
 
   // Check for handshake timeout
@@ -136,34 +137,47 @@ void ESPHomeOTAComponent::handle_handshake_() {
     return;
   }
 
-  // Try to read first byte of magic bytes
-  uint8_t first_byte;
-  ssize_t read = this->client_->read(&first_byte, 1);
+  // Try to read remaining magic bytes
+  if (this->magic_buf_pos_ < 5) {
+    // Read as many bytes as available
+    uint8_t bytes_to_read = 5 - this->magic_buf_pos_;
+    ssize_t read = this->client_->read(this->magic_buf_ + this->magic_buf_pos_, bytes_to_read);
 
-  if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-    return;  // No data yet, try again next loop
-  }
-
-  if (read <= 0) {
-    // Error or connection closed
-    if (read == -1) {
-      this->log_socket_error_("reading first byte");
-    } else {
-      ESP_LOGW(TAG, "Remote closed during handshake");
+    if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      return;  // No data yet, try again next loop
     }
-    this->cleanup_connection_();
-    return;
+
+    if (read <= 0) {
+      // Error or connection closed
+      if (read == -1) {
+        this->log_socket_error_(LOG_STR("reading magic bytes"));
+      } else {
+        ESP_LOGW(TAG, "Remote closed during handshake");
+      }
+      this->cleanup_connection_();
+      return;
+    }
+
+    this->magic_buf_pos_ += read;
   }
 
-  // Got first byte, check if it's the magic byte
-  if (first_byte != 0x6C) {
-    ESP_LOGW(TAG, "Invalid initial byte: 0x%02X", first_byte);
-    this->cleanup_connection_();
-    return;
-  }
+  // Check if we have all 5 magic bytes
+  if (this->magic_buf_pos_ == 5) {
+    // Validate magic bytes
+    static const uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
+    if (memcmp(this->magic_buf_, MAGIC_BYTES, 5) != 0) {
+      ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->magic_buf_[0],
+               this->magic_buf_[1], this->magic_buf_[2], this->magic_buf_[3], this->magic_buf_[4]);
+      // Send error response (non-blocking, best effort)
+      uint8_t error = static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_MAGIC);
+      this->client_->write(&error, 1);
+      this->cleanup_connection_();
+      return;
+    }
 
-  // First byte is valid, continue with data handling
-  this->handle_data_();
+    // All 5 magic bytes are valid, continue with data handling
+    this->handle_data_();
+  }
 }
 
 void ESPHomeOTAComponent::handle_data_() {
@@ -186,18 +200,6 @@ void ESPHomeOTAComponent::handle_data_() {
   size_t size_acknowledged = 0;
 #endif
 
-  // Read remaining 4 bytes of magic (we already read the first byte 0x6C in handle_handshake_)
-  if (!this->readall_(buf, 4)) {
-    this->log_read_error_("magic bytes");
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-  // Check remaining magic bytes: 0x26, 0xF7, 0x5C, 0x45
-  if (buf[0] != 0x26 || buf[1] != 0xF7 || buf[2] != 0x5C || buf[3] != 0x45) {
-    ESP_LOGW(TAG, "Magic bytes mismatch! 0x6C-0x%02X-0x%02X-0x%02X-0x%02X", buf[0], buf[1], buf[2], buf[3]);
-    error_code = ota::OTA_RESPONSE_ERROR_MAGIC;
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-
   // Send OK and version - 2 bytes
   buf[0] = ota::OTA_RESPONSE_OK;
   buf[1] = USE_OTA_VERSION;
@@ -207,7 +209,7 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read features - 1 byte
   if (!this->readall_(buf, 1)) {
-    this->log_read_error_("features");
+    this->log_read_error_(LOG_STR("features"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   ota_features = buf[0];  // NOLINT
@@ -286,7 +288,7 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->readall_(buf, 4)) {
-    this->log_read_error_("size");
+    this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   ota_size = 0;
@@ -300,7 +302,7 @@ void ESPHomeOTAComponent::handle_data_() {
   // starting the update, set the warning status and notify
   // listeners. This ensures that port scanners do not
   // accidentally trigger the update process.
-  this->log_start_("update");
+  this->log_start_(LOG_STR("update"));
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
@@ -318,7 +320,7 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read binary MD5, 32 bytes
   if (!this->readall_(buf, 32)) {
-    this->log_read_error_("MD5 checksum");
+    this->log_read_error_(LOG_STR("MD5 checksum"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   sbuf[32] = '\0';
@@ -391,7 +393,7 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read ACK
   if (!this->readall_(buf, 1) || buf[0] != ota::OTA_RESPONSE_OK) {
-    this->log_read_error_("ack");
+    this->log_read_error_(LOG_STR("ack"));
     // do not go to error, this is not fatal
   }
 
@@ -475,18 +477,21 @@ float ESPHomeOTAComponent::get_setup_priority() const { return setup_priority::A
 uint16_t ESPHomeOTAComponent::get_port() const { return this->port_; }
 void ESPHomeOTAComponent::set_port(uint16_t port) { this->port_ = port; }
 
-void ESPHomeOTAComponent::log_socket_error_(const char *msg) { ESP_LOGW(TAG, "Socket %s: errno %d", msg, errno); }
+void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
+  ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
+}
 
-void ESPHomeOTAComponent::log_read_error_(const char *what) { ESP_LOGW(TAG, "Read %s failed", what); }
+void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
 
-void ESPHomeOTAComponent::log_start_(const char *phase) {
-  ESP_LOGD(TAG, "Starting %s from %s", phase, this->client_->getpeername().c_str());
+void ESPHomeOTAComponent::log_start_(const LogString *phase) {
+  ESP_LOGD(TAG, "Starting %s from %s", LOG_STR_ARG(phase), this->client_->getpeername().c_str());
 }
 
 void ESPHomeOTAComponent::cleanup_connection_() {
   this->client_->close();
   this->client_ = nullptr;
   this->client_connect_time_ = 0;
+  this->magic_buf_pos_ = 0;
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {

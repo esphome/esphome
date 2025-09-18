@@ -77,8 +77,8 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
     """
     # Get device info
     device_name: str | None = None
-    if CONF_DEVICE_ID in config:
-        device_id_obj: ID = config[CONF_DEVICE_ID]
+    device_id_obj: ID | None
+    if device_id_obj := config.get(CONF_DEVICE_ID):
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
         # Get device name for object ID calculation
@@ -199,8 +199,8 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # Get device name if entity is on a sub-device
         device_name = None
         device_id = ""  # Empty string for main device
-        if CONF_DEVICE_ID in config:
-            device_id_obj = config[CONF_DEVICE_ID]
+        device_id_obj: ID | None
+        if device_id_obj := config.get(CONF_DEVICE_ID):
             device_name = device_id_obj.id
             # Use the device ID string directly for uniqueness
             device_id = device_id_obj.id
@@ -236,10 +236,21 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
             if existing_component != "unknown":
                 conflict_msg += f" from component '{existing_component}'"
 
+            # Show both original names and their ASCII-only versions if they differ
+            sanitized_msg = ""
+            if entity_name != existing_name:
+                sanitized_msg = (
+                    f"\n  Original names: '{entity_name}' and '{existing_name}'"
+                    f"\n  Both convert to ASCII ID: '{name_key}'"
+                    "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
+                    "\n          to distinguish them"
+                )
+
             raise cv.Invalid(
                 f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
                 f"{conflict_msg}. "
-                f"Each entity on a device must have a unique name within its platform."
+                "Each entity on a device must have a unique name within its platform."
+                f"{sanitized_msg}"
             )
 
         # Store metadata about this entity

@@ -139,9 +139,24 @@ def _get_changed_files_github_actions() -> list[str] | None:
     if event_name == "pull_request":
         pr_number = _get_pr_number_from_github_env()
         if pr_number:
-            # Use GitHub CLI to get changed files directly
+            # Try gh pr diff first (faster for small PRs)
             cmd = ["gh", "pr", "diff", pr_number, "--name-only"]
-            return _get_changed_files_from_command(cmd)
+            try:
+                return _get_changed_files_from_command(cmd)
+            except Exception as e:
+                # If it fails due to the 300 file limit, use the API method
+                if "maximum" in str(e) and "files" in str(e):
+                    cmd = [
+                        "gh",
+                        "api",
+                        f"repos/esphome/esphome/pulls/{pr_number}/files",
+                        "--paginate",
+                        "--jq",
+                        ".[].filename",
+                    ]
+                    return _get_changed_files_from_command(cmd)
+                # Re-raise for other errors
+                raise
 
     # For pushes (including squash-and-merge)
     elif event_name == "push":

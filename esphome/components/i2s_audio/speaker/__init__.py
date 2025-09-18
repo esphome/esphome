@@ -163,7 +163,7 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config):
     if not use_legacy():
         if config[CONF_DAC_TYPE] == "internal":
-            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver.")
+            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver")
         if config[CONF_I2S_COMM_FMT] == "stand_max":
             raise cv.Invalid(
                 "I2S standard max format only implemented with legacy i2s driver."

@@ -16,7 +16,6 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER_ID,
     CONF_ID,
     CONF_INVERT,
-    CONF_INVERTED,
     CONF_LAMBDA,
     CONF_NUMBER,
     CONF_PORT,
@@ -39,9 +38,6 @@ uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
 IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Component)
-ESP32ArduinoUARTComponent = uart_ns.class_(
-    "ESP32ArduinoUARTComponent", UARTComponent, cg.Component
-)
 ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
@@ -53,7 +49,6 @@ HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Compon
 
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
-    str(ESP32ArduinoUARTComponent),
     str(ESP8266UartComponent),
     str(RP2040UartComponent),
     str(LibreTinyUARTComponent),
@@ -119,20 +114,6 @@ def validate_rx_pin(value):
     return value
 
 
-def validate_invert_esp32(config):
-    if (
-        CORE.is_esp32
-        and CORE.using_arduino
-        and CONF_TX_PIN in config
-        and CONF_RX_PIN in config
-        and config[CONF_TX_PIN][CONF_INVERTED] != config[CONF_RX_PIN][CONF_INVERTED]
-    ):
-        raise cv.Invalid(
-            "Different invert values for TX and RX pin are not supported for ESP32 when using Arduino."
-        )
-    return config
-
-
 def validate_host_config(config):
     if CORE.is_host:
         if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -151,10 +132,7 @@ def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
     if CORE.is_esp32:
-        if CORE.using_arduino:
-            return cv.declare_id(ESP32ArduinoUARTComponent)(value)
-        if CORE.using_esp_idf:
-            return cv.declare_id(IDFUARTComponent)(value)
+        return cv.declare_id(IDFUARTComponent)(value)
     if CORE.is_rp2040:
         return cv.declare_id(RP2040UartComponent)(value)
     if CORE.is_libretiny:
@@ -255,7 +233,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
-    validate_invert_esp32,
     validate_host_config,
 )
 
@@ -444,8 +421,10 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "uart_component_esp32_arduino.cpp": {PlatformFramework.ESP32_ARDUINO},
-        "uart_component_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "uart_component_esp_idf.cpp": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
         "uart_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "uart_component_host.cpp": {PlatformFramework.HOST_NATIVE},
         "uart_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},

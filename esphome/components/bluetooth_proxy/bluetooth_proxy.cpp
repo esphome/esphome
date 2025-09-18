@@ -24,6 +24,9 @@ void BluetoothProxy::setup() {
   this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
   this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
 
+  // Capture the configured scan mode from YAML before any API changes
+  this->configured_scan_active_ = this->parent_->get_scan_active();
+
   this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
     if (this->api_connection_ != nullptr) {
       this->send_bluetooth_scanner_state_(state);
@@ -36,6 +39,9 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
   resp.state = static_cast<api::enums::BluetoothScannerState>(state);
   resp.mode = this->parent_->get_scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                                                : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
+  resp.configured_mode = this->configured_scan_active_
+                             ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
+                             : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
   this->api_connection_->send_message(resp, api::BluetoothScannerStateResponse::MESSAGE_TYPE);
 }
 
@@ -183,6 +189,12 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, false);
         return;
       }
+      if (!msg.has_address_type) {
+        ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        this->send_device_connection(msg.address, false);
+        return;
+      }
       if (connection->state() == espbt::ClientState::CONNECTED ||
           connection->state() == espbt::ClientState::ESTABLISHED) {
         this->log_connection_request_ignored_(connection, connection->state());
@@ -209,13 +221,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      if (msg.has_address_type) {
-        uint64_to_bd_addr(msg.address, connection->remote_bda_);
-        connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
-        connection->set_state(espbt::ClientState::DISCOVERED);
-      } else {
-        connection->set_state(espbt::ClientState::SEARCHING);
-      }
+      uint64_to_bd_addr(msg.address, connection->remote_bda_);
+      connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
+      connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
       break;
     }

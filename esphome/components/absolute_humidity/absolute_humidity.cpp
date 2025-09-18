@@ -61,11 +61,10 @@ void AbsoluteHumidityComponent::loop() {
       ESP_LOGW(TAG, "No valid state from temperature sensor!");
     }
     if (no_humidity) {
-      ESP_LOGW(TAG, "No valid state from temperature sensor!");
+      ESP_LOGW(TAG, "No valid state from humidity sensor!");
     }
-    ESP_LOGW(TAG, "Unable to calculate absolute humidity.");
     this->publish_state(NAN);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("Unable to calculate absolute humidity."));
     return;
   }
 
@@ -87,9 +86,8 @@ void AbsoluteHumidityComponent::loop() {
       es = es_wobus(temperature_c);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid saturation vapor pressure equation selection!");
       this->publish_state(NAN);
-      this->status_set_error();
+      this->status_set_error("Invalid saturation vapor pressure equation selection!");
       return;
   }
   ESP_LOGD(TAG, "Saturation vapor pressure %f kPa", es);
