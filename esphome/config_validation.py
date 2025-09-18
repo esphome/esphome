@@ -275,8 +275,8 @@ class Required(vol.Required):
     - *not* the `config.get(CONF_<KEY>)` syntax.
     """
 
-    def __init__(self, key, msg=None, default=UNDEFINED):
-        super().__init__(key, msg=msg, default=default)
+    def __init__(self, key, msg=None):
+        super().__init__(key, msg=msg)
 
 
 class FinalExternalInvalid(Invalid):

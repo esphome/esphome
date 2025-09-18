@@ -679,7 +679,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                         CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                    cv.Required(
+                    cv.Optional(
                         CONF_MAIN_LOOP_STACK_SIZE, default=MIN_MAIN_LOOP_TASK_STACK_SIZE
                     ): cv.int_range(
                         MIN_MAIN_LOOP_TASK_STACK_SIZE, MAX_MAIN_LOOP_TASK_STACK_SIZE
@@ -959,7 +959,9 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
 
         # Set main loop stack size
-        stack_size = advanced[CONF_MAIN_LOOP_STACK_SIZE]
+        stack_size = advanced.get(
+            CONF_MAIN_LOOP_STACK_SIZE, MIN_MAIN_LOOP_TASK_STACK_SIZE
+        )
         cg.add_build_flag(f"-DESPHOME_APP_MAIN_TASK_STACK_SIZE={stack_size}")
 
         cg.add_define(
