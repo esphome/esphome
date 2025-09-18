@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <driver/uart.h>
 #include "esphome/core/component.h"
@@ -55,4 +55,4 @@ class IDFUARTComponent : public UARTComponent, public Component {
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
