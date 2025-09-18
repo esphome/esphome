@@ -235,6 +235,33 @@ jobs:
           python --version
           pip install -r requirements.txt -r requirements_test.txt
           pip install -e .
+      - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache@v4.2.4
+        with:
+          path: ~/.platformio
+          key: platformio-integration-${{ hashFiles('platformio.ini') }}
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@v4.2.4
+        with:
+          path: ~/.platformio
+          key: platformio-integration-${{ hashFiles('platformio.ini') }}
+      - name: Pre-install PlatformIO libraries
+        run: |
+          . venv/bin/activate
+          # Pre-compile a basic configuration with noise to populate the cache
+          # This prevents race conditions when tests run in parallel
+          cat > /tmp/cache_init.yaml <<EOF
+          esphome:
+            name: cache-init
+          host:
+          api:
+            encryption:
+              key: "IIevImVI42I0FGos5nLqFK91jrJehrgidI0ArwMLr8w="
+          logger:
+          EOF
+          esphome compile /tmp/cache_init.yaml || true
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
