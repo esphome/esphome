@@ -5,8 +5,7 @@
 #include <string>
 #include <memory>
 
-namespace esphome {
-namespace sha256 {
+namespace esphome::sha256 {
 
 class SHA256 {
  public:
@@ -32,5 +31,4 @@ class SHA256 {
   std::unique_ptr<SHA256Context> ctx_;
 };
 
-}  // namespace sha256
-}  // namespace esphome
+}  // namespace esphome::sha256

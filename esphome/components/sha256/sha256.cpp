@@ -8,8 +8,7 @@
 #include <SHA256.h>
 #endif
 
-namespace esphome {
-namespace sha256 {
+namespace esphome::sha256 {
 
 #ifdef USE_ESP32
 struct SHA256::SHA256Context {
@@ -127,5 +126,4 @@ bool SHA256::equals_hex(const char *expected) {
   return this->equals_bytes(parsed);
 }
 
-}  // namespace sha256
-}  // namespace esphome
+}  // namespace esphome::sha256
