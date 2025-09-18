@@ -17,14 +17,22 @@ async def test_oversized_payload_plaintext(
 ) -> None:
     """Test that oversized payloads (>100KiB) from client cause disconnection without crashing."""
     process_exited = False
+    helper_log_found = False
 
-    def check_process_exit(line: str) -> None:
-        nonlocal process_exited
+    def check_logs(line: str) -> None:
+        nonlocal process_exited, helper_log_found
         # Check for signs that the process exited/crashed
         if "Segmentation fault" in line or "core dumped" in line:
             process_exited = True
+        # Check for HELPER_LOG message about message size exceeding maximum
+        if (
+            "[VV]" in line
+            and "Bad packet: message size" in line
+            and "exceeds maximum" in line
+        ):
+            helper_log_found = True
 
-    async with run_compiled(yaml_config, line_callback=check_process_exit):
+    async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
             # Verify basic connection works first
             device_info = await client.device_info()
@@ -46,6 +54,10 @@ async def test_oversized_payload_plaintext(
 
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
+        # Verify we saw the expected HELPER_LOG message
+        assert helper_log_found, (
+            "Expected to see HELPER_LOG about message size exceeding maximum"
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
@@ -65,16 +77,20 @@ async def test_oversized_protobuf_message_id_plaintext(
     This tests the message type limit - message IDs must fit in a uint16_t (0-65535).
     """
     process_exited = False
-    bad_packet_logged = False
+    helper_log_found = False
 
     def check_logs(line: str) -> None:
-        nonlocal process_exited, bad_packet_logged
+        nonlocal process_exited, helper_log_found
         # Check for signs that the process exited/crashed
         if "Segmentation fault" in line or "core dumped" in line:
             process_exited = True
-        # Check for the expected "Bad packet" message when rejecting oversized message ID
-        if "Bad packet: message type" in line and "exceeds maximum" in line:
-            bad_packet_logged = True
+        # Check for HELPER_LOG message about message type exceeding maximum
+        if (
+            "[VV]" in line
+            and "Bad packet: message type" in line
+            and "exceeds maximum" in line
+        ):
+            helper_log_found = True
 
     async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
@@ -98,6 +114,10 @@ async def test_oversized_protobuf_message_id_plaintext(
 
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
+        # Verify we saw the expected HELPER_LOG message
+        assert helper_log_found, (
+            "Expected to see HELPER_LOG about message type exceeding maximum"
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
@@ -115,14 +135,21 @@ async def test_oversized_payload_noise(
     """Test that oversized payloads (>100KiB) from client cause disconnection without crashing with noise encryption."""
     noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
     process_exited = False
+    cipherstate_failed = False
 
-    def check_process_exit(line: str) -> None:
-        nonlocal process_exited
+    def check_logs(line: str) -> None:
+        nonlocal process_exited, cipherstate_failed
         # Check for signs that the process exited/crashed
         if "Segmentation fault" in line or "core dumped" in line:
             process_exited = True
+        # Check for the expected warning about decryption failure
+        if (
+            "[W][api.connection" in line
+            and "Reading failed CIPHERSTATE_DECRYPT_FAILED" in line
+        ):
+            cipherstate_failed = True
 
-    async with run_compiled(yaml_config, line_callback=check_process_exit):
+    async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
             client,
             disconnect_event,
@@ -148,6 +175,10 @@ async def test_oversized_payload_noise(
 
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
+        # Verify we saw the expected warning message
+        assert cipherstate_failed, (
+            "Expected to see warning about CIPHERSTATE_DECRYPT_FAILED"
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
@@ -241,12 +272,19 @@ async def test_noise_corrupt_encrypted_frame(
     """
     noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
     process_exited = False
+    cipherstate_failed = False
 
     def check_logs(line: str) -> None:
-        nonlocal process_exited
+        nonlocal process_exited, cipherstate_failed
         # Check for signs that the process exited/crashed
         if "Segmentation fault" in line or "core dumped" in line:
             process_exited = True
+        # Check for the expected warning about decryption failure
+        if (
+            "[W][api.connection" in line
+            and "Reading failed CIPHERSTATE_DECRYPT_FAILED" in line
+        ):
+            cipherstate_failed = True
 
     async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
@@ -281,6 +319,10 @@ async def test_noise_corrupt_encrypted_frame(
         # After disconnection, verify process didn't crash
         assert not process_exited, (
             "ESPHome process should not crash on corrupt encrypted frames"
+        )
+        # Verify we saw the expected warning message
+        assert cipherstate_failed, (
+            "Expected to see warning about CIPHERSTATE_DECRYPT_FAILED"
         )
 
         # Verify we can still reconnect after handling the corrupt frame
