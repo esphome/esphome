@@ -226,3 +226,68 @@ async def test_oversized_protobuf_message_id_noise(
             device_info = await client2.device_info()
             assert device_info is not None
             assert device_info.name == "oversized-noise"
+
+
+@pytest.mark.asyncio
+async def test_noise_corrupt_encrypted_frame(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected_with_disconnect: APIClientConnectedWithDisconnectFactory,
+) -> None:
+    """Test that noise protocol properly handles corrupt encrypted frames.
+
+    Send a frame with valid size but corrupt encrypted content (garbage bytes).
+    This should fail decryption and cause disconnection.
+    """
+    noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
+    process_exited = False
+
+    def check_logs(line: str) -> None:
+        nonlocal process_exited
+        # Check for signs that the process exited/crashed
+        if "Segmentation fault" in line or "core dumped" in line:
+            process_exited = True
+
+    async with run_compiled(yaml_config, line_callback=check_logs):
+        async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
+            client,
+            disconnect_event,
+        ):
+            # Verify basic connection works first
+            device_info = await client.device_info()
+            assert device_info is not None
+            assert device_info.name == "oversized-noise"
+
+            # Get the socket to send raw corrupt data
+            socket = client._connection._socket
+
+            # Send a corrupt noise frame directly to the socket
+            # Format: [indicator=0x01][size_high][size_low][garbage_encrypted_data]
+            # Size of 32 bytes (reasonable size for a noise frame with MAC)
+            corrupt_frame = bytes(
+                [
+                    0x01,  # Noise indicator
+                    0x00,  # Size high byte
+                    0x20,  # Size low byte (32 bytes)
+                ]
+            ) + bytes(32)  # 32 bytes of zeros (invalid encrypted data)
+
+            # Send the corrupt frame
+            socket.sendall(corrupt_frame)
+
+            # Wait for ESPHome to disconnect due to decryption failure
+            await asyncio.wait_for(disconnect_event.wait(), timeout=5.0)
+
+        # After disconnection, verify process didn't crash
+        assert not process_exited, (
+            "ESPHome process should not crash on corrupt encrypted frames"
+        )
+
+        # Verify we can still reconnect after handling the corrupt frame
+        async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
+            client2,
+            _,
+        ):
+            device_info = await client2.device_info()
+            assert device_info is not None
+            assert device_info.name == "oversized-noise"
