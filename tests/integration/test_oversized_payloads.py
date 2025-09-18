@@ -97,7 +97,7 @@ async def test_oversized_protobuf_message_id_plaintext(
             # Verify basic connection works first
             device_info = await client.device_info()
             assert device_info is not None
-            assert device_info.name == "oversized-plaintext"
+            assert device_info.name == "oversized-protobuf-plaintext"
 
             # Access the internal connection to send raw message with large ID
             frame_helper = client._connection._frame_helper
@@ -123,7 +123,7 @@ async def test_oversized_protobuf_message_id_plaintext(
         async with api_client_connected_with_disconnect() as (client2, _):
             device_info = await client2.device_info()
             assert device_info is not None
-            assert device_info.name == "oversized-plaintext"
+            assert device_info.name == "oversized-protobuf-plaintext"
 
 
 @pytest.mark.asyncio

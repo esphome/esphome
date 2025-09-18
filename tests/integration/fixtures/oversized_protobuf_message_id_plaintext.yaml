@@ -1,5 +1,5 @@
 esphome:
-  name: oversized-plaintext
+  name: oversized-protobuf-plaintext
 
 host:
 
