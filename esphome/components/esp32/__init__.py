@@ -956,7 +956,7 @@ async def to_code(config):
 
     # Set main loop stack size
     stack_size = advanced.get(CONF_MAIN_LOOP_STACK_SIZE, MIN_MAIN_LOOP_TASK_STACK_SIZE)
-    cg.add_build_flag(f"-DESPHOME_APP_MAIN_TASK_STACK_SIZE={stack_size}")
+    cg.add_define("ESPHOME_APP_MAIN_TASK_STACK_SIZE", stack_size)
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",
