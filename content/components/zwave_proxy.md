@@ -47,7 +47,7 @@ Under near-ideal conditions:
 
 - With a direct serial connection to the Z-Wave modem SoC, latency may be as low as approximately 20 milliseconds (ms).
 - When introducing the Z-Wave proxy component, it's still possible to achieve low latency -- we've seen as low as 35
-  ms! however, in practice, it's more realistic to expect 50-60 ms, assuming decent RF conditions.
+  ms! However, in practice, it's more realistic to expect 50-60 ms, assuming decent RF conditions.
 
 In general, any duration less than 100 ms is quite acceptable in terms of latency; this value is generally a good
 target to keep in mind.
@@ -79,8 +79,8 @@ connectivity.
 If you choose to use Wi-Fi to bridge your Z-Wave modem to Z-Wave JS:
 
 - Confirm that there is a strong, stable Wi-Fi signal available in the location you'll place your Z-Wave proxy.
-- Do not attempt to place your Z-Wave proxy in or near the edge of the coverage area your Wi-Fi router/access point
-  provides.
+- Do not attempt to place your Z-Wave proxy at or near the edge of the coverage area your Wi-Fi router/access point
+  provides. If in doubt, move it closer to your Wi-Fi router/access point.
 - If you find that your Z-Wave devices are not operating reliably, you might try:
   - moving your Z-Wave proxy closer to your Wi-Fi router/access point.
   - changing the Wi-Fi channel your Wi-Fi router/access point is using.
