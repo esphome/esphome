@@ -1,7 +1,7 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
 #include "esphome/components/md5/md5.h"
-#ifdef USE_SHA256
+#ifdef USE_OTA_SHA256
 #include "esphome/components/sha256/sha256.h"
 #endif
 #include "esphome/components/network/util.h"
@@ -98,7 +98,7 @@ void ESPHomeOTAComponent::loop() {
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
-#ifdef USE_SHA256
+#ifdef USE_OTA_SHA256
 static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 #endif
 
@@ -112,7 +112,7 @@ template<> struct HashTraits<md5::MD5Digest> {
   static constexpr ota::OTAResponseTypes auth_request = ota::OTA_RESPONSE_REQUEST_AUTH;
 };
 
-#ifdef USE_SHA256
+#ifdef USE_OTA_SHA256
 template<> struct HashTraits<sha256::SHA256> {
   static constexpr int nonce_size = 16;
   static constexpr int hex_size = 64;
@@ -133,9 +133,9 @@ template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, co
   char hex_buffer1[hex_buffer_size];  // Used for: nonce -> expected result
   char hex_buffer2[hex_buffer_size];  // Used for: cnonce -> response
 
-  // Small stack buffer for auth request and nonce seed
+  // Small stack buffer for auth request and nonce seed bytes
   uint8_t buf[1];
-  char nonce_seed[17];  // Max: "%08x%08x" = 16 chars + null
+  uint8_t nonce_bytes[8];  // Max 8 bytes (2 x uint32_t for SHA256)
 
   // Send auth request type
   buf[0] = Traits::auth_request;
@@ -144,13 +144,29 @@ template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, co
   HashClass hasher;
   hasher.init();
 
-  // Generate nonce seed
+  // Generate nonce seed bytes
+  uint32_t r1 = random_uint32();
+  // Convert first uint32 to bytes (always needed for MD5)
+  nonce_bytes[0] = (r1 >> 24) & 0xFF;
+  nonce_bytes[1] = (r1 >> 16) & 0xFF;
+  nonce_bytes[2] = (r1 >> 8) & 0xFF;
+  nonce_bytes[3] = r1 & 0xFF;
+
   if (Traits::nonce_size == 8) {
-    sprintf(nonce_seed, "%08" PRIx32, random_uint32());
-  } else {
-    sprintf(nonce_seed, "%08" PRIx32 "%08" PRIx32, random_uint32(), random_uint32());
+    // MD5: 8 chars = "%08x" format = 4 bytes from one random uint32
+    hasher.add(nonce_bytes, 4);
   }
-  hasher.add(nonce_seed, Traits::nonce_size);
+#ifdef USE_OTA_SHA256
+  else {
+    // SHA256: 16 chars = "%08x%08x" format = 8 bytes from two random uint32s
+    uint32_t r2 = random_uint32();
+    nonce_bytes[4] = (r2 >> 24) & 0xFF;
+    nonce_bytes[5] = (r2 >> 16) & 0xFF;
+    nonce_bytes[6] = (r2 >> 8) & 0xFF;
+    nonce_bytes[7] = r2 & 0xFF;
+    hasher.add(nonce_bytes, 8);
+  }
+#endif
   hasher.calculate();
 
   // Use hex_buffer1 for nonce
@@ -335,7 +351,7 @@ void ESPHomeOTAComponent::handle_data_() {
   if (!this->password_.empty()) {
     bool auth_success = false;
 
-#ifdef USE_SHA256
+#ifdef USE_OTA_SHA256
     // Check if client supports SHA256 auth
     bool use_sha256 = (ota_features & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
 
@@ -343,7 +359,7 @@ void ESPHomeOTAComponent::handle_data_() {
       // Use SHA256 for authentication
       auth_success = perform_hash_auth<sha256::SHA256>(this, this->password_);
     } else
-#endif  // USE_SHA256
+#endif  // USE_OTA_SHA256
     {
       // Fall back to MD5 for backward compatibility (or when SHA256 is not available)
       auth_success = perform_hash_auth<md5::MD5Digest>(this, this->password_);

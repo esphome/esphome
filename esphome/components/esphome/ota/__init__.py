@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 
@@ -24,8 +24,16 @@ _LOGGER = logging.getLogger(__name__)
 
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "sha256", "socket"]
 DEPENDENCIES = ["network"]
+
+
+def AUTO_LOAD():
+    """Conditionally auto-load sha256 only on platforms that support it."""
+    base_components = ["md5", "socket"]
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040:
+        return base_components + ["sha256"]
+    return base_components
+
 
 esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
@@ -126,6 +134,12 @@ FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
+
+    # Only include SHA256 support on platforms that have it
+    # This prevents including unnecessary SHA256 code on platforms like LibreTiny
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040:
+        cg.add_define("USE_OTA_SHA256")
+
     if CONF_PASSWORD in config:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
