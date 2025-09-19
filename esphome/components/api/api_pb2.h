@@ -276,6 +276,12 @@ enum UpdateCommand : uint32_t {
   UPDATE_COMMAND_CHECK = 2,
 };
 #endif
+#ifdef USE_ZWAVE_PROXY
+enum ZWaveProxyRequestType : uint32_t {
+  ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
+  ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
+};
+#endif
 
 }  // namespace enums
 
@@ -492,7 +498,7 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint8_t ESTIMATED_SIZE = 247;
+  static constexpr uint8_t ESTIMATED_SIZE = 252;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -552,6 +558,9 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_AREAS
   AreaInfo area{};
+#endif
+#ifdef USE_ZWAVE_PROXY
+  uint32_t zwave_proxy_feature_flags{0};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2910,6 +2919,41 @@ class UpdateCommandRequest final : public CommandProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_ZWAVE_PROXY
+class ZWaveProxyFrame final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 128;
+  static constexpr uint8_t ESTIMATED_SIZE = 33;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "z_wave_proxy_frame"; }
+#endif
+  uint8_t data[257]{};
+  uint16_t data_len{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class ZWaveProxyRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 129;
+  static constexpr uint8_t ESTIMATED_SIZE = 2;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "z_wave_proxy_request"; }
+#endif
+  enums::ZWaveProxyRequestType type{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif

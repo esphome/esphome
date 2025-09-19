@@ -171,6 +171,11 @@ class APIConnection final : public APIServerConnection {
   void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+  void zwave_proxy_frame(const ZWaveProxyFrame &msg) override;
+  void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;

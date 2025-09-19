@@ -66,6 +66,9 @@ service APIConnection {
   rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
+
+  rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
+  rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 }
 
 
@@ -254,6 +257,9 @@ message DeviceInfoResponse {
 
   // Top-level area info to phase out suggested_area
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];
+
+  // Indicates if Z-Wave proxy support is available and features supported
+  uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -2275,4 +2281,27 @@ message UpdateCommandRequest {
   fixed32 key = 1;
   UpdateCommand command = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
+}
+
+// ==================== Z-WAVE ====================
+
+message ZWaveProxyFrame {
+  option (id) = 128;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+  option (no_delay) = true;
+
+  bytes data = 1 [(fixed_array_size) = 257];
+}
+
+enum ZWaveProxyRequestType {
+  ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
+  ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+}
+message ZWaveProxyRequest {
+  option (id) = 129;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+
+  ZWaveProxyRequestType type = 1;
 }

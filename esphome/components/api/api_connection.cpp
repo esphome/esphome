@@ -30,6 +30,9 @@
 #ifdef USE_VOICE_ASSISTANT
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
+#ifdef USE_ZWAVE_PROXY
+#include "esphome/components/zwave_proxy/zwave_proxy.h"
+#endif
 
 namespace esphome::api {
 
@@ -1203,7 +1206,16 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
     voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
   }
 }
+#endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
+  zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
+}
+
+void APIConnection::zwave_proxy_request(const ZWaveProxyRequest &msg) {
+  zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+}
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -1459,6 +1471,9 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_VOICE_ASSISTANT
   resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
+#endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
