@@ -4,6 +4,9 @@ import asyncio
 import logging
 import typing
 
+from zeroconf import AddressResolver, IPVersion
+
+from esphome.address_cache import normalize_hostname
 from esphome.zeroconf import (
     ESPHOME_SERVICE_TYPE,
     AsyncEsphomeZeroconf,
@@ -48,6 +51,30 @@ class MDNSStatus:
         """Resolve a host name to an address in a thread-safe manner."""
         if aiozc := self.aiozc:
             return await aiozc.async_resolve_host(host_name)
+        return None
+
+    def get_cached_addresses(self, host_name: str) -> list[str] | None:
+        """Get cached addresses for a host without triggering resolution.
+
+        Returns None if not in cache or no zeroconf available.
+        """
+        if not self.aiozc:
+            _LOGGER.debug("No zeroconf instance available for %s", host_name)
+            return None
+
+        # Normalize hostname and get the base name
+        normalized = normalize_hostname(host_name)
+        base_name = normalized.partition(".")[0]
+
+        # Try to load from zeroconf cache without triggering resolution
+        resolver_name = f"{base_name}.local."
+        info = AddressResolver(resolver_name)
+        # Let zeroconf use its own current time for cache checking
+        if info.load_from_cache(self.aiozc.zeroconf):
+            addresses = info.parsed_scoped_addresses(IPVersion.All)
+            _LOGGER.debug("Found %s in zeroconf cache: %s", resolver_name, addresses)
+            return addresses
+        _LOGGER.debug("Not found in zeroconf cache: %s", resolver_name)
         return None
 
     async def async_refresh_hosts(self) -> None:
