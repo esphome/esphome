@@ -10,7 +10,7 @@ static const char *const TAG = "zwave_proxy";
 
 static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 // GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
-static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;   // Response type field value
+static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
 static constexpr uint8_t ZWAVE_MIN_GET_NETWORK_IDS_LENGTH = 9;  // TYPE + CMD + HOME_ID(4) + NODE_ID + checksum
 
 static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
