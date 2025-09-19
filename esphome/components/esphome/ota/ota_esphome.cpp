@@ -355,12 +355,12 @@ void ESPHomeOTAComponent::handle_data_() {
 
     if (use_sha256) {
       // Use SHA256 for authentication
-      auth_success = perform_hash_auth<sha256::SHA256>(this, this->password_);
+      auth_success = this->perform_hash_auth_<sha256::SHA256>(this->password_);
     } else
 #endif  // USE_OTA_SHA256
     {
       // Fall back to MD5 for backward compatibility (or when SHA256 is not available)
-      auth_success = perform_hash_auth<md5::MD5Digest>(this, this->password_);
+      auth_success = this->perform_hash_auth_<md5::MD5Digest>(this->password_);
     }
 
     if (!auth_success) {
