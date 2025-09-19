@@ -3,7 +3,10 @@
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
+
+#include <array>
 
 namespace esphome {
 namespace zwave_proxy {
@@ -38,6 +41,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
  public:
   ZWaveProxy();
 
+  void setup() override;
   void loop() override;
   void dump_config() override;
 
@@ -45,21 +49,25 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
   uint32_t get_feature_flags() const { return ZWaveProxyFeature::FEATURE_ZWAVE_PROXY_ENABLED; }
+  uint32_t get_home_id() {
+    return encode_uint32(this->home_id_[0], this->home_id_[1], this->home_id_[2], this->home_id_[3]);
+  }
 
   void send_frame(const uint8_t *data, size_t length);
 
  protected:
+  void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
   bool response_handler_();
 
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
 
-  uint8_t buffer_[sizeof(api::ZWaveProxyFrame::data)];  // Fixed buffer for incoming data
-  uint8_t buffer_index_{0};                             // Index for populating the data buffer
-  uint8_t checksum_{0};                                 // Checksum of the frame being parsed
-  uint8_t end_frame_after_{0};                          // Payload reception ends after this index
-  uint8_t last_response_{0};                            // Last response type sent
+  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};                      // Fixed buffer for home ID
+  std::array<uint8_t, sizeof(api::ZWaveProxyFrame::data)> buffer_;  // Fixed buffer for incoming data
+  uint8_t buffer_index_{0};                                         // Index for populating the data buffer
+  uint8_t end_frame_after_{0};                                      // Payload reception ends after this index
+  uint8_t last_response_{0};                                        // Last response type sent
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
   bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
 

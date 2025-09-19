@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import logging
 import math
 import os
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING
 
@@ -383,7 +384,7 @@ class DocumentLocation:
 
     @classmethod
     def from_mark(cls, mark):
-        return cls(mark.name, mark.line, mark.column)
+        return cls(str(mark.name), mark.line, mark.column)
 
     def __str__(self):
         return f"{self.document} {self.line}:{self.column}"
@@ -538,9 +539,9 @@ class EsphomeCore:
         # The first key to this dict should always be the integration name
         self.data = {}
         # The relative path to the configuration YAML
-        self.config_path: str | None = None
+        self.config_path: Path | None = None
         # The relative path to where all build files are stored
-        self.build_path: str | None = None
+        self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
         # The pending tasks in the task queue (mostly for C++ generation)
@@ -664,43 +665,46 @@ class EsphomeCore:
         return None
 
     @property
-    def config_dir(self):
-        return os.path.abspath(os.path.dirname(self.config_path))
+    def config_dir(self) -> Path:
+        if self.config_path.is_dir():
+            return self.config_path.absolute()
+        return self.config_path.absolute().parent
 
     @property
-    def data_dir(self):
+    def data_dir(self) -> Path:
         if is_ha_addon():
-            return os.path.join("/data")
+            return Path("/data")
         if "ESPHOME_DATA_DIR" in os.environ:
-            return get_str_env("ESPHOME_DATA_DIR", None)
+            return Path(get_str_env("ESPHOME_DATA_DIR", None))
         return self.relative_config_path(".esphome")
 
     @property
-    def config_filename(self):
-        return os.path.basename(self.config_path)
+    def config_filename(self) -> str:
+        return self.config_path.name
 
-    def relative_config_path(self, *path):
-        path_ = os.path.expanduser(os.path.join(*path))
-        return os.path.join(self.config_dir, path_)
+    def relative_config_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.config_dir / path_
 
-    def relative_internal_path(self, *path: str) -> str:
-        return os.path.join(self.data_dir, *path)
+    def relative_internal_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.data_dir / path_
 
-    def relative_build_path(self, *path):
-        path_ = os.path.expanduser(os.path.join(*path))
-        return os.path.join(self.build_path, path_)
+    def relative_build_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.build_path / path_
 
-    def relative_src_path(self, *path):
+    def relative_src_path(self, *path: str | Path) -> Path:
         return self.relative_build_path("src", *path)
 
-    def relative_pioenvs_path(self, *path):
+    def relative_pioenvs_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".pioenvs", *path)
 
-    def relative_piolibdeps_path(self, *path):
+    def relative_piolibdeps_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
-    def firmware_bin(self):
+    def firmware_bin(self) -> Path:
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")

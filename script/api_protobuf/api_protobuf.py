@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-import os
 from pathlib import Path
 import re
 from subprocess import call
@@ -2704,8 +2703,8 @@ static const char *const TAG = "api.service";
         import clang_format
 
         def exec_clang_format(path: Path) -> None:
-            clang_format_path = os.path.join(
-                os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+            clang_format_path = (
+                Path(clang_format.__file__).parent / "data" / "bin" / "clang-format"
             )
             call([clang_format_path, "-i", path])
 

@@ -37,7 +37,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt, TimePeriod
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, mkdir_p, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
@@ -272,14 +272,14 @@ def add_idf_component(
         }
 
 
-def add_extra_script(stage: str, filename: str, path: str):
+def add_extra_script(stage: str, filename: str, path: Path):
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
     if add_extra_build_file(filename, path):
         cg.add_platformio_option("extra_scripts", [key])
 
 
-def add_extra_build_file(filename: str, path: str) -> bool:
+def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     if filename not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
         CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES][filename] = {
@@ -818,7 +818,7 @@ async def to_code(config):
     add_extra_script(
         "post",
         "post_build.py",
-        os.path.join(os.path.dirname(__file__), "post_build.py.script"),
+        Path(__file__).parent / "post_build.py.script",
     )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
@@ -1040,7 +1040,7 @@ def _write_sdkconfig():
 
 
 def _write_idf_component_yml():
-    yml_path = Path(CORE.relative_build_path("src/idf_component.yml"))
+    yml_path = CORE.relative_build_path("src/idf_component.yml")
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
         dependencies = {}
@@ -1058,8 +1058,8 @@ def _write_idf_component_yml():
         contents = ""
     if write_file_if_changed(yml_path, contents):
         dependencies_lock = CORE.relative_build_path("dependencies.lock")
-        if os.path.isfile(dependencies_lock):
-            os.remove(dependencies_lock)
+        if dependencies_lock.is_file():
+            dependencies_lock.unlink()
         clean_cmake_cache()
 
 
@@ -1093,14 +1093,13 @@ def copy_files():
     )
 
     for file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].values():
-        if file[KEY_PATH].startswith("http"):
+        name: str = file[KEY_NAME]
+        path: Path = file[KEY_PATH]
+        if str(path).startswith("http"):
             import requests
 
-            mkdir_p(CORE.relative_build_path(os.path.dirname(file[KEY_NAME])))
-            with open(CORE.relative_build_path(file[KEY_NAME]), "wb") as f:
-                f.write(requests.get(file[KEY_PATH], timeout=30).content)
+            CORE.relative_build_path(name).parent.mkdir(parents=True, exist_ok=True)
+            content = requests.get(path, timeout=30).content
+            CORE.relative_build_path(name).write_bytes(content)
         else:
-            copy_file_if_changed(
-                file[KEY_PATH],
-                CORE.relative_build_path(file[KEY_NAME]),
-            )
+            copy_file_if_changed(path, CORE.relative_build_path(name))
