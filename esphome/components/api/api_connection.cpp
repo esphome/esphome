@@ -1474,6 +1474,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_ZWAVE_PROXY
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;

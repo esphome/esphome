@@ -8,7 +8,19 @@ namespace zwave_proxy {
 
 static const char *const TAG = "zwave_proxy";
 
+static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
+
+static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
+  uint8_t checksum = 0xFF;
+  for (uint8_t i = 1; i < length - 1; i++) {
+    checksum ^= data[i];
+  }
+  return checksum;
+}
+
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
+
+void ZWaveProxy::setup() { this->send_simple_command(ZWAVE_COMMAND_GET_NETWORK_IDS); }
 
 void ZWaveProxy::loop() {
   if (this->response_handler_()) {
@@ -26,6 +38,12 @@ void ZWaveProxy::loop() {
       return;
     }
     if (this->parse_byte_(byte)) {
+      if (this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
+        // Capture Home ID
+        std::memcpy(this->home_id_.data(), this->buffer_.data() + 4, this->home_id_.size());
+        ESP_LOGI(TAG, "Home ID: %s",
+                 format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+      }
       ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
         // minimize copying to reduce CPU overhead
@@ -35,7 +53,7 @@ void ZWaveProxy::loop() {
           // If this is a data frame, use frame length indicator + 2 (for SoF + checksum), else assume 1 for ACK/NAK/CAN
           this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
         }
-        std::memcpy(this->outgoing_proto_msg_.data, this->buffer_, this->outgoing_proto_msg_.data_len);
+        std::memcpy(this->outgoing_proto_msg_.data, this->buffer_.data(), this->outgoing_proto_msg_.data_len);
         this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
       }
     }
@@ -77,6 +95,12 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
   this->write_array(data, length);
 }
 
+void ZWaveProxy::send_simple_command(const uint8_t command_id) {
+  uint8_t cmd[] = {0x01, 0x03, 0x00, command_id, 0x00};
+  cmd[4] = calculate_frame_checksum(cmd, sizeof(cmd));
+  this->send_frame(cmd, sizeof(cmd));
+}
+
 bool ZWaveProxy::parse_byte_(uint8_t byte) {
   bool frame_completed = false;
   // Basic parsing logic for received frames
@@ -94,43 +118,40 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
       this->end_frame_after_ = this->buffer_index_ + byte;
       ESP_LOGVV(TAG, "Calculated EOF: %u", this->end_frame_after_);
       this->buffer_[this->buffer_index_++] = byte;
-      this->checksum_ ^= byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_TYPE;
       break;
     case ZWAVE_PARSING_STATE_WAIT_TYPE:
       this->buffer_[this->buffer_index_++] = byte;
       ESP_LOGVV(TAG, "Received TYPE: 0x%02X", byte);
-      this->checksum_ ^= byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_COMMAND_ID;
       break;
     case ZWAVE_PARSING_STATE_WAIT_COMMAND_ID:
       this->buffer_[this->buffer_index_++] = byte;
       ESP_LOGVV(TAG, "Received COMMAND ID: 0x%02X", byte);
-      this->checksum_ ^= byte;
       this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_PAYLOAD;
       break;
     case ZWAVE_PARSING_STATE_WAIT_PAYLOAD:
       this->buffer_[this->buffer_index_++] = byte;
-      this->checksum_ ^= byte;
       ESP_LOGVV(TAG, "Received PAYLOAD: 0x%02X", byte);
       if (this->buffer_index_ >= this->end_frame_after_) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_CHECKSUM;
       }
       break;
-    case ZWAVE_PARSING_STATE_WAIT_CHECKSUM:
+    case ZWAVE_PARSING_STATE_WAIT_CHECKSUM: {
       this->buffer_[this->buffer_index_++] = byte;
-      ESP_LOGVV(TAG, "Received CHECKSUM: 0x%02X", byte);
-      ESP_LOGV(TAG, "Calculated CHECKSUM: 0x%02X", this->checksum_);
-      if (this->checksum_ != byte) {
-        ESP_LOGW(TAG, "Bad checksum: expected 0x%02X, got 0x%02X", this->checksum_, byte);
+      auto checksum = calculate_frame_checksum(this->buffer_.data(), this->buffer_index_);
+      ESP_LOGVV(TAG, "CHECKSUM Received: 0x%02X - Calculated: 0x%02X", byte, checksum);
+      if (checksum != byte) {
+        ESP_LOGW(TAG, "Bad checksum: expected 0x%02X, got 0x%02X", checksum, byte);
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(this->buffer_, this->buffer_index_).c_str());
+        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(this->buffer_.data(), this->buffer_index_).c_str());
         frame_completed = true;
       }
       this->response_handler_();
       break;
+    }
     case ZWAVE_PARSING_STATE_READ_BL_MENU:
       this->buffer_[this->buffer_index_++] = byte;
       if (!byte) {
@@ -151,7 +172,6 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
 
 void ZWaveProxy::parse_start_(uint8_t byte) {
   this->buffer_index_ = 0;
-  this->checksum_ = 0xFF;
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
   switch (byte) {
     case ZWAVE_FRAME_TYPE_START:
