@@ -107,7 +107,7 @@ bool HTU21DComponent::is_heater_enabled() {
     this->status_set_warning();
     return false;
   }
-  return (bool) (((raw_heater) >> (HTU21D_REG_HTRE_BIT)) & 0x01);
+  return (bool) ((raw_heater >> HTU21D_REG_HTRE_BIT) & 0x01);
 }
 
 void HTU21DComponent::set_heater(bool status) {
@@ -117,9 +117,9 @@ void HTU21DComponent::set_heater(bool status) {
     return;
   }
   if (status) {
-    raw_heater |= (1 << (HTU21D_REG_HTRE_BIT));
+    raw_heater |= (1 << HTU21D_REG_HTRE_BIT);
   } else {
-    raw_heater &= ~(1 << (HTU21D_REG_HTRE_BIT));
+    raw_heater &= ~(1 << HTU21D_REG_HTRE_BIT);
   }
   if (this->write_register(HTU21D_WRITERHT_REG_CMD, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
