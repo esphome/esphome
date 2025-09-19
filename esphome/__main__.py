@@ -453,7 +453,7 @@ def upload_using_esptool(
             "detect",
         ]
         for img in flash_images:
-            cmd += [img.offset, img.path]
+            cmd += [img.offset, str(img.path)]
 
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
