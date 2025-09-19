@@ -38,7 +38,8 @@ void ZWaveProxy::loop() {
       return;
     }
     if (this->parse_byte_(byte)) {
-      if (this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
+      if (this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS && this->buffer_[2] == 1 && this->buffer_[1] >= 9 &&
+          this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
         // Capture Home ID
         std::memcpy(this->home_id_.data(), this->buffer_.data() + 4, this->home_id_.size());
         ESP_LOGI(TAG, "Home ID: %s",
