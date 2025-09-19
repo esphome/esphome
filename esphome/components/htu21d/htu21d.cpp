@@ -57,7 +57,6 @@ void HTU21DComponent::update() {
 
     if (this->temperature_ != nullptr)
       this->temperature_->publish_state(temperature);
-    this->status_clear_warning();
 
     if (this->write(&HTU21D_REGISTER_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -79,6 +78,8 @@ void HTU21DComponent::update() {
       if (this->humidity_ != nullptr)
         this->humidity_->publish_state(humidity);
 
+      this->status_clear_warning();
+
       // HTU21D does have a heater module but does not have heater level
       // Setting heater level to 1 in case the heater is ON
       uint8_t heater_level = 0;
@@ -96,7 +97,6 @@ void HTU21DComponent::update() {
 
       if (this->heater_ != nullptr)
         this->heater_->publish_state(heater_level);
-      this->status_clear_warning();
     });
   });
 }
