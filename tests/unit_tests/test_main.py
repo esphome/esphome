@@ -29,6 +29,7 @@ from esphome.__main__ import (
     upload_program,
     upload_using_esptool,
 )
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -828,9 +829,7 @@ def test_upload_using_esptool_path_conversion(
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
 
     # Set up ESP32-specific data required by get_esp32_variant()
-    KEY_ESP32 = "esp32"
-    KEY_VARIANT = "variant"
-    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
 
     # Create mock IDEData with Path objects
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
