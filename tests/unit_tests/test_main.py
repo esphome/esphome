@@ -885,7 +885,7 @@ def test_upload_program_ota_success(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    expected_firmware = str(
+    expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
@@ -919,7 +919,9 @@ def test_upload_program_ota_with_file_arg(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", "custom.bin")
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, "", Path("custom.bin")
+    )
 
 
 def test_upload_program_ota_no_config(
@@ -972,7 +974,7 @@ def test_upload_program_ota_with_mqtt_resolution(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
-    expected_firmware = str(
+    expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
@@ -1382,7 +1384,7 @@ def test_command_wizard(tmp_path: Path) -> None:
         result = command_wizard(args)
 
         assert result == 0
-        mock_wizard.assert_called_once_with(str(config_file))
+        mock_wizard.assert_called_once_with(config_file)
 
 
 def test_command_rename_invalid_characters(
@@ -1407,7 +1409,7 @@ def test_command_rename_complex_yaml(
     config_file = tmp_path / "test.yaml"
     config_file.write_text("# Complex YAML without esphome section\nsome_key: value\n")
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     args = MockArgs(name="newname")
     result = command_rename(args, {})
@@ -1436,7 +1438,7 @@ wifi:
   password: "test1234"
 """)
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     # Set up CORE.config to avoid ValueError when accessing CORE.address
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
@@ -1486,7 +1488,7 @@ esp32:
   board: nodemcu-32s
 """)
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     # Set up CORE.config to avoid ValueError when accessing CORE.address
     CORE.config = {
@@ -1523,7 +1525,7 @@ esp32:
   board: nodemcu-32s
 """)
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     args = MockArgs(name="newname", dashboard=False)
 
