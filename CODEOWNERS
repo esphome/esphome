@@ -89,9 +89,8 @@ esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @bdraco @DT-art1
-esphome/components/camera_cropper/* @DT-art1 @nliaudat
 esphome/components/camera_encoder/* @DT-art1
-esphome/components/camera_scaler/* @DT-art1
+esphome/components/camera_processor/* @DT-art1 @nliaudat
 esphome/components/camera_sensor/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
