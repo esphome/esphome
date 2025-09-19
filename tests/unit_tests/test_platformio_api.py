@@ -15,45 +15,45 @@ from esphome.core import CORE, EsphomeError
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
     """Test IDEData.firmware_elf_path returns correct path."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf"}
     idedata = platformio_api.IDEData(raw_data)
 
-    assert idedata.firmware_elf_path == "/path/to/firmware.elf"
+    assert idedata.firmware_elf_path == Path("/path/to/firmware.elf")
 
 
 def test_idedata_firmware_bin_path(setup_core: Path) -> None:
     """Test IDEData.firmware_bin_path returns Path with .bin extension."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     prog_path = str(Path("/path/to/firmware.elf"))
     raw_data = {"prog_path": prog_path}
     idedata = platformio_api.IDEData(raw_data)
 
     result = idedata.firmware_bin_path
-    assert isinstance(result, str)
-    expected = str(Path("/path/to/firmware.bin"))
+    assert isinstance(result, Path)
+    expected = Path("/path/to/firmware.bin")
     assert result == expected
-    assert result.endswith(".bin")
+    assert str(result).endswith(".bin")
 
 
 def test_idedata_firmware_bin_path_preserves_directory(setup_core: Path) -> None:
     """Test firmware_bin_path preserves the directory structure."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     prog_path = str(Path("/complex/path/to/build/firmware.elf"))
     raw_data = {"prog_path": prog_path}
     idedata = platformio_api.IDEData(raw_data)
 
     result = idedata.firmware_bin_path
-    expected = str(Path("/complex/path/to/build/firmware.bin"))
+    expected = Path("/complex/path/to/build/firmware.bin")
     assert result == expected
 
 
 def test_idedata_extra_flash_images(setup_core: Path) -> None:
     """Test IDEData.extra_flash_images returns list of FlashImage objects."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     raw_data = {
         "prog_path": "/path/to/firmware.elf",
@@ -69,15 +69,15 @@ def test_idedata_extra_flash_images(setup_core: Path) -> None:
     images = idedata.extra_flash_images
     assert len(images) == 2
     assert all(isinstance(img, platformio_api.FlashImage) for img in images)
-    assert images[0].path == "/path/to/bootloader.bin"
+    assert images[0].path == Path("/path/to/bootloader.bin")
     assert images[0].offset == "0x1000"
-    assert images[1].path == "/path/to/partition.bin"
+    assert images[1].path == Path("/path/to/partition.bin")
     assert images[1].offset == "0x8000"
 
 
 def test_idedata_extra_flash_images_empty(setup_core: Path) -> None:
     """Test extra_flash_images returns empty list when no extra images."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf", "extra": {"flash_images": []}}
     idedata = platformio_api.IDEData(raw_data)
@@ -88,7 +88,7 @@ def test_idedata_extra_flash_images_empty(setup_core: Path) -> None:
 
 def test_idedata_cc_path(setup_core: Path) -> None:
     """Test IDEData.cc_path returns compiler path."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     raw_data = {
         "prog_path": "/path/to/firmware.elf",
@@ -104,9 +104,9 @@ def test_idedata_cc_path(setup_core: Path) -> None:
 
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
-    image = platformio_api.FlashImage(path="/path/to/image.bin", offset="0x10000")
+    image = platformio_api.FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
 
-    assert image.path == "/path/to/image.bin"
+    assert image.path == Path("/path/to/image.bin")
     assert image.offset == "0x10000"
 
 
@@ -114,7 +114,7 @@ def test_load_idedata_returns_dict(
     setup_core: Path, mock_run_platformio_cli_run
 ) -> None:
     """Test _load_idedata returns parsed idedata dict when successful."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
 
     # Create required files
@@ -366,7 +366,7 @@ def test_get_idedata_caches_result(
 
     assert result1 is result2
     assert isinstance(result1, platformio_api.IDEData)
-    assert result1.firmware_elf_path == "/test/firmware.elf"
+    assert result1.firmware_elf_path == Path("/test/firmware.elf")
 
 
 def test_idedata_addr2line_path_windows(setup_core: Path) -> None:
@@ -434,9 +434,9 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
     os.utime(platformio_ini, (build_mtime + 1, build_mtime + 1))
 
     # Track if directory was removed
-    removed_paths: list[str] = []
+    removed_paths: list[Path] = []
 
-    def track_rmtree(path: str) -> None:
+    def track_rmtree(path: Path) -> None:
         removed_paths.append(path)
         shutil.rmtree(path)
 
@@ -466,7 +466,7 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
 
         # Verify directory was removed and recreated
         assert len(removed_paths) == 1
-        assert removed_paths[0] == str(build_dir)
+        assert removed_paths[0] == build_dir
         assert build_dir.exists()  # makedirs recreated it
 
 
