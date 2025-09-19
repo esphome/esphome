@@ -383,6 +383,12 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "MEDIA_PLAYER_STATE_PLAYING";
     case enums::MEDIA_PLAYER_STATE_PAUSED:
       return "MEDIA_PLAYER_STATE_PAUSED";
+    case enums::MEDIA_PLAYER_STATE_ANNOUNCING:
+      return "MEDIA_PLAYER_STATE_ANNOUNCING";
+    case enums::MEDIA_PLAYER_STATE_OFF:
+      return "MEDIA_PLAYER_STATE_OFF";
+    case enums::MEDIA_PLAYER_STATE_ON:
+      return "MEDIA_PLAYER_STATE_ON";
     default:
       return "UNKNOWN";
   }
@@ -399,6 +405,24 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "MEDIA_PLAYER_COMMAND_MUTE";
     case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
       return "MEDIA_PLAYER_COMMAND_UNMUTE";
+    case enums::MEDIA_PLAYER_COMMAND_TOGGLE:
+      return "MEDIA_PLAYER_COMMAND_TOGGLE";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_UP";
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return "MEDIA_PLAYER_COMMAND_VOLUME_DOWN";
+    case enums::MEDIA_PLAYER_COMMAND_ENQUEUE:
+      return "MEDIA_PLAYER_COMMAND_ENQUEUE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_ONE";
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return "MEDIA_PLAYER_COMMAND_REPEAT_OFF";
+    case enums::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return "MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST";
+    case enums::MEDIA_PLAYER_COMMAND_TURN_ON:
+      return "MEDIA_PLAYER_COMMAND_TURN_ON";
+    case enums::MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return "MEDIA_PLAYER_COMMAND_TURN_OFF";
     default:
       return "UNKNOWN";
   }
@@ -631,6 +655,18 @@ template<> const char *proto_enum_to_string<enums::UpdateCommand>(enums::UpdateC
   }
 }
 #endif
+#ifdef USE_ZWAVE_PROXY
+template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums::ZWaveProxyRequestType value) {
+  switch (value) {
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return "ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE";
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return "ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -645,8 +681,13 @@ void HelloResponse::dump_to(std::string &out) const {
   dump_field(out, "server_info", this->server_info_ref_);
   dump_field(out, "name", this->name_ref_);
 }
-void ConnectRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
-void ConnectResponse::dump_to(std::string &out) const { dump_field(out, "invalid_password", this->invalid_password); }
+#ifdef USE_API_PASSWORD
+void AuthenticationRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
+void AuthenticationResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "AuthenticationResponse");
+  dump_field(out, "invalid_password", this->invalid_password);
+}
+#endif
 void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
 void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
 void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
@@ -724,6 +765,9 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("  area: ");
   this->area.dump_to(out);
   out.append("\n");
+#endif
+#ifdef USE_ZWAVE_PROXY
+  dump_field(out, "zwave_proxy_feature_flags", this->zwave_proxy_feature_flags);
 #endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
@@ -814,7 +858,7 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   dump_field(out, "icon", this->icon_ref_);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  for (const auto &it : this->supported_preset_modes) {
+  for (const auto &it : *this->supported_preset_modes) {
     dump_field(out, "supported_preset_modes", it, 4);
   }
 #ifdef USE_DEVICES
@@ -857,7 +901,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   dump_field(out, "object_id", this->object_id_ref_);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name_ref_);
-  for (const auto &it : this->supported_color_modes) {
+  for (const auto &it : *this->supported_color_modes) {
     dump_field(out, "supported_color_modes", static_cast<enums::ColorMode>(it), 4);
   }
   dump_field(out, "min_mireds", this->min_mireds);
@@ -1086,7 +1130,11 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
 }
 #endif
 void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
-void GetTimeResponse::dump_to(std::string &out) const { dump_field(out, "epoch_seconds", this->epoch_seconds); }
+void GetTimeResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "GetTimeResponse");
+  dump_field(out, "epoch_seconds", this->epoch_seconds);
+  dump_field(out, "timezone", this->timezone);
+}
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
@@ -1111,7 +1159,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   dump_field(out, "string_", this->string_);
   dump_field(out, "int_", this->int_);
   for (const auto it : this->bool_array) {
-    dump_field(out, "bool_array", it, 4);
+    dump_field(out, "bool_array", static_cast<bool>(it), 4);
   }
   for (const auto &it : this->int_array) {
     dump_field(out, "int_array", it, 4);
@@ -1173,26 +1221,26 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   dump_field(out, "name", this->name_ref_);
   dump_field(out, "supports_current_temperature", this->supports_current_temperature);
   dump_field(out, "supports_two_point_target_temperature", this->supports_two_point_target_temperature);
-  for (const auto &it : this->supported_modes) {
+  for (const auto &it : *this->supported_modes) {
     dump_field(out, "supported_modes", static_cast<enums::ClimateMode>(it), 4);
   }
   dump_field(out, "visual_min_temperature", this->visual_min_temperature);
   dump_field(out, "visual_max_temperature", this->visual_max_temperature);
   dump_field(out, "visual_target_temperature_step", this->visual_target_temperature_step);
   dump_field(out, "supports_action", this->supports_action);
-  for (const auto &it : this->supported_fan_modes) {
+  for (const auto &it : *this->supported_fan_modes) {
     dump_field(out, "supported_fan_modes", static_cast<enums::ClimateFanMode>(it), 4);
   }
-  for (const auto &it : this->supported_swing_modes) {
+  for (const auto &it : *this->supported_swing_modes) {
     dump_field(out, "supported_swing_modes", static_cast<enums::ClimateSwingMode>(it), 4);
   }
-  for (const auto &it : this->supported_custom_fan_modes) {
+  for (const auto &it : *this->supported_custom_fan_modes) {
     dump_field(out, "supported_custom_fan_modes", it, 4);
   }
-  for (const auto &it : this->supported_presets) {
+  for (const auto &it : *this->supported_presets) {
     dump_field(out, "supported_presets", static_cast<enums::ClimatePreset>(it), 4);
   }
-  for (const auto &it : this->supported_custom_presets) {
+  for (const auto &it : *this->supported_custom_presets) {
     dump_field(out, "supported_custom_presets", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -1305,7 +1353,7 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
 #ifdef USE_ENTITY_ICON
   dump_field(out, "icon", this->icon_ref_);
 #endif
-  for (const auto &it : this->options) {
+  for (const auto &it : *this->options) {
     dump_field(out, "options", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -1466,6 +1514,7 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "feature_flags", this->feature_flags);
 }
 void MediaPlayerStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "MediaPlayerStateResponse");
@@ -1509,9 +1558,9 @@ void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
 }
 void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothLERawAdvertisementsResponse");
-  for (const auto &it : this->advertisements) {
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
     out.append("  advertisements: ");
-    it.dump_to(out);
+    this->advertisements[i].dump_to(out);
     out.append("\n");
   }
 }
@@ -1536,6 +1585,7 @@ void BluetoothGATTDescriptor::dump_to(std::string &out) const {
     dump_field(out, "uuid", it, 4);
   }
   dump_field(out, "handle", this->handle);
+  dump_field(out, "short_uuid", this->short_uuid);
 }
 void BluetoothGATTCharacteristic::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTCharacteristic");
@@ -1549,6 +1599,7 @@ void BluetoothGATTCharacteristic::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+  dump_field(out, "short_uuid", this->short_uuid);
 }
 void BluetoothGATTService::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTService");
@@ -1561,6 +1612,7 @@ void BluetoothGATTService::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+  dump_field(out, "short_uuid", this->short_uuid);
 }
 void BluetoothGATTGetServicesResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTGetServicesResponse");
@@ -1676,6 +1728,7 @@ void BluetoothScannerStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerStateResponse");
   dump_field(out, "state", static_cast<enums::BluetoothScannerState>(this->state));
   dump_field(out, "mode", static_cast<enums::BluetoothScannerMode>(this->mode));
+  dump_field(out, "configured_mode", static_cast<enums::BluetoothScannerMode>(this->configured_mode));
 }
 void BluetoothScannerSetModeRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerSetModeRequest");
@@ -1769,7 +1822,7 @@ void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
-  for (const auto &it : this->active_wake_words) {
+  for (const auto &it : *this->active_wake_words) {
     dump_field(out, "active_wake_words", it, 4);
   }
   dump_field(out, "max_active_wake_words", this->max_active_wake_words);
@@ -2067,6 +2120,18 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void ZWaveProxyFrame::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ZWaveProxyFrame");
+  out.append("  data: ");
+  out.append(format_hex_pretty(this->data, this->data_len));
+  out.append("\n");
+}
+void ZWaveProxyRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ZWaveProxyRequest");
+  dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
 }
 #endif
 

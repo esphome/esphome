@@ -1,6 +1,7 @@
 #include "ble_advertising.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_ADVERTISING
 
 #include <cstdio>
 #include <cstring>
@@ -161,4 +162,5 @@ void BLEAdvertising::register_raw_advertisement_callback(std::function<void(bool
 
 }  // namespace esphome::esp32_ble
 
-#endif
+#endif  // USE_ESP32_BLE_ADVERTISING
+#endif  // USE_ESP32

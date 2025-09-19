@@ -15,7 +15,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
-import os
+from pathlib import Path
 import re
 from string import ascii_letters, digits
 import uuid as uuid_
@@ -87,7 +87,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import add_class_to_obj, list_starts_with
+from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -291,6 +291,8 @@ class Version:
     extra: str = ""
 
     def __str__(self):
+        if self.extra:
+            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
         return f"{self.major}.{self.minor}.{self.patch}"
 
     @classmethod
@@ -391,9 +393,12 @@ def icon(value):
     )
 
 
-def sub_device_id(value: str | None) -> core.ID:
+def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if not value:
+        return None
 
     return use_id(Device)(value)
 
@@ -664,14 +669,6 @@ def only_with_framework(
     if suggestions is None:
         suggestions = {}
 
-    version = Version.parse(ESPHOME_VERSION)
-    if version.is_beta:
-        docs_format = "https://beta.esphome.io/components/{path}"
-    elif version.is_dev:
-        docs_format = "https://next.esphome.io/components/{path}"
-    else:
-        docs_format = "https://esphome.io/components/{path}"
-
     def validator_(obj):
         if CORE.target_framework not in frameworks:
             err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
@@ -679,7 +676,7 @@ def only_with_framework(
                 (component, docs_path) = suggestion
                 err_str += f"\nPlease use '{component}'"
                 if docs_path:
-                    err_str += f": {docs_format.format(path=docs_path)}"
+                    err_str += f": {docs_url(path=f'components/{docs_path}')}"
             raise Invalid(err_str)
         return obj
 
@@ -1115,8 +1112,8 @@ voltage = float_with_unit("voltage", "(v|V|volt|Volts)?")
 distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
-_temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
-_temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
+_temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
+_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
@@ -1612,34 +1609,32 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
-def directory(value):
+def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isdir(path):
+    if not path.is_dir():
         raise Invalid(
-            f"Path '{path}' is not a directory (full path: {os.path.abspath(path)})."
+            f"Path '{path}' is not a directory (full path: {path.resolve()})."
         )
-    return value
+    return path
 
 
-def file_(value):
+def file_(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isfile(path):
-        raise Invalid(
-            f"Path '{path}' is not a file (full path: {os.path.abspath(path)})."
-        )
-    return value
+    if not path.is_file():
+        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
+    return path
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
@@ -1866,7 +1861,7 @@ def validate_registry_entry(name, registry):
 
 def none(value):
     if value in ("none", "None"):
-        return None
+        return
     raise Invalid("Must be none")
 
 

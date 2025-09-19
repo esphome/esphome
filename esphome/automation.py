@@ -391,8 +391,7 @@ async def build_action(full_config, template_arg, args):
     )
     action_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
-    ret = await builder(config, action_id, template_arg, args)
-    return ret
+    return await builder(config, action_id, template_arg, args)
 
 
 async def build_action_list(config, templ, arg_type):
@@ -409,8 +408,7 @@ async def build_condition(full_config, template_arg, args):
     )
     action_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
-    ret = await builder(config, action_id, template_arg, args)
-    return ret
+    return await builder(config, action_id, template_arg, args)
 
 
 async def build_condition_list(config, templ, args):

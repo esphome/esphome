@@ -329,6 +329,28 @@ class ConfigValidationStep(abc.ABC):
     def run(self, result: Config) -> None: ...  # noqa: E704
 
 
+class LoadTargetPlatformValidationStep(ConfigValidationStep):
+    """Load target platform step."""
+
+    def __init__(self, domain: str, conf: ConfigType):
+        self.domain = domain
+        self.conf = conf
+
+    def run(self, result: Config) -> None:
+        if self.conf is None:
+            result[self.domain] = self.conf = {}
+        result.add_output_path([self.domain], self.domain)
+        component = get_component(self.domain)
+
+        result[self.domain] = self.conf
+        path = [self.domain]
+        CORE.loaded_integrations.add(self.domain)
+
+        result.add_validation_step(
+            SchemaValidationStep(self.domain, path, self.conf, component)
+        )
+
+
 class LoadValidationStep(ConfigValidationStep):
     """Load step, this step is called once for each domain config fragment.
 
@@ -582,16 +604,18 @@ class MetadataValidationStep(ConfigValidationStep):
                 )
                 return
             for i, part_conf in enumerate(self.conf):
+                path = self.path + [i]
                 result.add_validation_step(
-                    SchemaValidationStep(
-                        self.domain, self.path + [i], part_conf, self.comp
-                    )
+                    SchemaValidationStep(self.domain, path, part_conf, self.comp)
                 )
+                result.add_validation_step(FinalValidateValidationStep(path, self.comp))
+
             return
 
         result.add_validation_step(
             SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
         )
+        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class SchemaValidationStep(ConfigValidationStep):
@@ -603,13 +627,15 @@ class SchemaValidationStep(ConfigValidationStep):
     def __init__(
         self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
     ):
+        self.domain = domain
         self.path = path
         self.conf = conf
         self.comp = comp
 
     def run(self, result: Config) -> None:
         token = path_context.set(self.path)
-        with result.catch_error(self.path):
+        # The domain already contains the full component path (e.g., "sensor.template", "sensor.uptime")
+        with CORE.component_context(self.domain), result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
                 input_conf = OrderedDict(self.conf)
@@ -628,7 +654,6 @@ class SchemaValidationStep(ConfigValidationStep):
                 result.set_by_path(self.path, validated)
 
         path_context.reset(token)
-        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class IDPassValidationStep(ConfigValidationStep):
@@ -909,13 +934,16 @@ def validate_config(
 
     # First run platform validation steps
     result.add_validation_step(
-        LoadValidationStep(target_platform, config[target_platform])
+        LoadTargetPlatformValidationStep(target_platform, config[target_platform])
     )
     result.run_validation_steps()
 
     if result.errors:
         # do not try to validate further as we don't know what the target is
         return result
+
+    # Reset the pin registry so that any target platforms with pin validations do not get the duplicate pin warning.
+    pins.PIN_SCHEMA_REGISTRY.reset()
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
