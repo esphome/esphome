@@ -120,7 +120,7 @@ template<> struct HashTraits<sha256::SHA256> {
 };
 #endif
 
-template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, const std::string &password) {
+template<typename HashClass> bool ESPHomeOTAComponent::perform_hash_auth_(const std::string &password) {
   using Traits = HashTraits<HashClass>;
 
   // Minimize stack usage by reusing buffers
@@ -137,7 +137,7 @@ template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, co
 
   // Send auth request type
   buf[0] = Traits::AUTH_REQUEST;
-  ota->writeall_(buf, 1);
+  this->writeall_(buf, 1);
 
   HashClass hasher;
   hasher.init();
@@ -173,7 +173,7 @@ template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, co
   ESP_LOGV("esphome.ota", "Auth: %s Nonce is %s", Traits::NAME, hex_buffer1);
 
   // Send nonce
-  if (!ota->writeall_(reinterpret_cast<uint8_t *>(hex_buffer1), Traits::HEX_SIZE)) {
+  if (!this->writeall_(reinterpret_cast<uint8_t *>(hex_buffer1), Traits::HEX_SIZE)) {
     ESP_LOGW("esphome.ota", "Auth: Writing %s nonce failed", Traits::NAME);
     return false;
   }
@@ -184,7 +184,7 @@ template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, co
   hasher.add(hex_buffer1, Traits::HEX_SIZE);  // Add nonce
 
   // Receive cnonce into hex_buffer2
-  if (!ota->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::HEX_SIZE)) {
+  if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::HEX_SIZE)) {
     ESP_LOGW("esphome.ota", "Auth: Reading %s cnonce failed", Traits::NAME);
     return false;
   }
@@ -201,7 +201,7 @@ template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, co
   ESP_LOGV("esphome.ota", "Auth: %s Result is %s", Traits::NAME, hex_buffer1);
 
   // Receive response - reuse hex_buffer2
-  if (!ota->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::HEX_SIZE)) {
+  if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::HEX_SIZE)) {
     ESP_LOGW("esphome.ota", "Auth: Reading %s response failed", Traits::NAME);
     return false;
   }
