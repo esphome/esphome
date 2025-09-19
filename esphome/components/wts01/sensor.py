@@ -1,5 +1,3 @@
-"""Temperature sensor implementation for WTS01."""
-
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv

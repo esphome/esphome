@@ -5,6 +5,11 @@
 namespace esphome {
 namespace wts01 {
 
+constexpr uint8_t HEADER_1 = 0x55;
+constexpr uint8_t HEADER_2 = 0x01;
+constexpr uint8_t HEADER_3 = 0x01;
+constexpr uint8_t HEADER_4 = 0x04;
+
 static const char *const TAG = "wts01";
 
 void WTS01Sensor::loop() {
@@ -17,7 +22,7 @@ void WTS01Sensor::loop() {
   }
 }
 
-void WTS01Sensor::dump_config() { LOG_SENSOR("", "WTS01 Temperature Sensor", this); }
+void WTS01Sensor::dump_config() { LOG_SENSOR("", "WTS01 Sensor", this); }
 
 void WTS01Sensor::handle_char_(uint8_t c) {
   // State machine for processing the header. Reset if something doesn't match.
