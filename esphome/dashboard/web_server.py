@@ -49,10 +49,10 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
+from ..helpers import write_file
 from .const import DASHBOARD_COMMAND
 from .core import DASHBOARD, ESPHomeDashboard
 from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
-from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
