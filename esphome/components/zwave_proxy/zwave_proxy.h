@@ -54,9 +54,9 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   }
 
   void send_frame(const uint8_t *data, size_t length);
-  void send_simple_command(uint8_t command_id);
 
  protected:
+  void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
   bool response_handler_();

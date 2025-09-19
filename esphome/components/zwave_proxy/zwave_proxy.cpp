@@ -10,7 +10,7 @@ static const char *const TAG = "zwave_proxy";
 
 static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 // GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
-static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;   // Response type field value
+static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
 static constexpr uint8_t ZWAVE_MIN_GET_NETWORK_IDS_LENGTH = 9;  // TYPE + CMD + HOME_ID(4) + NODE_ID + checksum
 
 static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
@@ -26,7 +26,7 @@ static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
-void ZWaveProxy::setup() { this->send_simple_command(ZWAVE_COMMAND_GET_NETWORK_IDS); }
+void ZWaveProxy::setup() { this->send_simple_command_(ZWAVE_COMMAND_GET_NETWORK_IDS); }
 
 void ZWaveProxy::loop() {
   if (this->response_handler_()) {
@@ -110,7 +110,7 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
   this->write_array(data, length);
 }
 
-void ZWaveProxy::send_simple_command(const uint8_t command_id) {
+void ZWaveProxy::send_simple_command_(const uint8_t command_id) {
   // Send a simple Z-Wave command with no parameters
   // Frame format: [SOF][LENGTH][TYPE][CMD][CHECKSUM]
   // Where LENGTH=0x03 (3 bytes: TYPE + CMD + CHECKSUM)
