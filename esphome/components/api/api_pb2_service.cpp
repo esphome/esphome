@@ -589,6 +589,28 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_ZWAVE_PROXY
+    case ZWaveProxyFrame::MESSAGE_TYPE: {
+      ZWaveProxyFrame msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_z_wave_proxy_frame: %s", msg.dump().c_str());
+#endif
+      this->on_z_wave_proxy_frame(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZWAVE_PROXY
+    case ZWaveProxyRequest::MESSAGE_TYPE: {
+      ZWaveProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_z_wave_proxy_request: %s", msg.dump().c_str());
+#endif
+      this->on_z_wave_proxy_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }
@@ -896,6 +918,20 @@ void APIServerConnection::on_voice_assistant_set_configuration(const VoiceAssist
 void APIServerConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
   if (this->check_authenticated_()) {
     this->alarm_control_panel_command(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_frame(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_request(msg);
   }
 }
 #endif

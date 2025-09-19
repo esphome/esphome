@@ -114,6 +114,14 @@ class Purpose(StrEnum):
     LOGGING = "logging"
 
 
+def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
+    """Resolve an address using cache if available, otherwise return the address itself."""
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(address)):
+        _LOGGER.debug("Using cached addresses for %s: %s", purpose.value, cached)
+        return cached
+    return [address]
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -142,7 +150,7 @@ def choose_upload_log_host(
                     (purpose == Purpose.LOGGING and has_api())
                     or (purpose == Purpose.UPLOADING and has_ota())
                 ):
-                    resolved.append(CORE.address)
+                    resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 if purpose == Purpose.LOGGING:
                     if has_api() and has_mqtt_ip_lookup():
@@ -152,15 +160,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address():
-                        resolved.append(CORE.address)
+                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address():
-                        resolved.append(CORE.address)
-
+                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -965,6 +972,18 @@ def parse_args(argv):
         help="Add a substitution",
         metavar=("key", "value"),
     )
+    options_parser.add_argument(
+        "--mdns-address-cache",
+        help="mDNS address cache mapping in format 'hostname=ip1,ip2'",
+        action="append",
+        default=[],
+    )
+    options_parser.add_argument(
+        "--dns-address-cache",
+        help="DNS address cache mapping in format 'hostname=ip1,ip2'",
+        action="append",
+        default=[],
+    )
 
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
@@ -1212,9 +1231,15 @@ def parse_args(argv):
 
 
 def run_esphome(argv):
+    from esphome.address_cache import AddressCache
+
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
+    # Create address cache from command-line arguments
+    CORE.address_cache = AddressCache.from_cli_args(
+        args.mdns_address_cache, args.dns_address_cache
+    )
     # Override log level if verbose is set
     if args.verbose:
         args.log_level = "DEBUG"

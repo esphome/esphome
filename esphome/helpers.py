@@ -9,9 +9,13 @@ from pathlib import Path
 import platform
 import re
 import tempfile
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
+
+if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
 
 # Type aliases for socket address information
 AddrInfo = tuple[
@@ -173,7 +177,24 @@ def addr_preference_(res: AddrInfo) -> int:
     return 1
 
 
-def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
+def _add_ip_addresses_to_addrinfo(
+    addresses: list[str], port: int, res: list[AddrInfo]
+) -> None:
+    """Helper to add IP addresses to addrinfo results with error handling."""
+    import socket
+
+    for addr in addresses:
+        try:
+            res += socket.getaddrinfo(
+                addr, port, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
+            )
+        except OSError:
+            _LOGGER.debug("Failed to parse IP address '%s'", addr)
+
+
+def resolve_ip_address(
+    host: str | list[str], port: int, address_cache: AddressCache | None = None
+) -> list[AddrInfo]:
     import socket
 
     # There are five cases here. The host argument could be one of:
@@ -194,47 +215,69 @@ def resolve_ip_address(host: str | list[str], port: int) -> list[AddrInfo]:
         hosts = [host]
 
     res: list[AddrInfo] = []
+
+    # Fast path: if all hosts are already IP addresses
     if all(is_ip_address(h) for h in hosts):
-        # Fast path: all are IP addresses, use socket.getaddrinfo with AI_NUMERICHOST
-        for addr in hosts:
-            try:
-                res += socket.getaddrinfo(
-                    addr, port, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
-                )
-            except OSError:
-                _LOGGER.debug("Failed to parse IP address '%s'", addr)
+        _add_ip_addresses_to_addrinfo(hosts, port, res)
         # Sort by preference
         res.sort(key=addr_preference_)
         return res
 
-    from esphome.resolver import AsyncResolver
+    # Process hosts
+    cached_addresses: list[str] = []
+    uncached_hosts: list[str] = []
+    has_cache = address_cache is not None
 
-    resolver = AsyncResolver(hosts, port)
-    addr_infos = resolver.resolve()
-    # Convert aioesphomeapi AddrInfo to our format
-    for addr_info in addr_infos:
-        sockaddr = addr_info.sockaddr
-        if addr_info.family == socket.AF_INET6:
-            # IPv6
-            sockaddr_tuple = (
-                sockaddr.address,
-                sockaddr.port,
-                sockaddr.flowinfo,
-                sockaddr.scope_id,
-            )
+    for h in hosts:
+        if is_ip_address(h):
+            if has_cache:
+                # If we have a cache, treat IPs as cached
+                cached_addresses.append(h)
+            else:
+                # If no cache, pass IPs through to resolver with hostnames
+                uncached_hosts.append(h)
+        elif address_cache and (cached := address_cache.get_addresses(h)):
+            # Found in cache
+            cached_addresses.extend(cached)
         else:
-            # IPv4
-            sockaddr_tuple = (sockaddr.address, sockaddr.port)
+            # Not cached, need to resolve
+            if address_cache and address_cache.has_cache():
+                _LOGGER.info("Host %s not in cache, will need to resolve", h)
+            uncached_hosts.append(h)
 
-        res.append(
-            (
-                addr_info.family,
-                addr_info.type,
-                addr_info.proto,
-                "",  # canonname
-                sockaddr_tuple,
+    # Process cached addresses (includes direct IPs and cached lookups)
+    _add_ip_addresses_to_addrinfo(cached_addresses, port, res)
+
+    # If we have uncached hosts (only non-IP hostnames), resolve them
+    if uncached_hosts:
+        from esphome.resolver import AsyncResolver
+
+        resolver = AsyncResolver(uncached_hosts, port)
+        addr_infos = resolver.resolve()
+        # Convert aioesphomeapi AddrInfo to our format
+        for addr_info in addr_infos:
+            sockaddr = addr_info.sockaddr
+            if addr_info.family == socket.AF_INET6:
+                # IPv6
+                sockaddr_tuple = (
+                    sockaddr.address,
+                    sockaddr.port,
+                    sockaddr.flowinfo,
+                    sockaddr.scope_id,
+                )
+            else:
+                # IPv4
+                sockaddr_tuple = (sockaddr.address, sockaddr.port)
+
+            res.append(
+                (
+                    addr_info.family,
+                    addr_info.type,
+                    addr_info.proto,
+                    "",  # canonname
+                    sockaddr_tuple,
+                )
             )
-        )
 
     # Sort by preference
     res.sort(key=addr_preference_)
@@ -256,14 +299,7 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
     # First "resolve" all the IP addresses to getaddrinfo() tuples of the form
     # (family, type, proto, canonname, sockaddr)
     res: list[AddrInfo] = []
-    for addr in address_list:
-        # This should always work as these are supposed to be IP addresses
-        try:
-            res += socket.getaddrinfo(
-                addr, 0, proto=socket.IPPROTO_TCP, flags=socket.AI_NUMERICHOST
-            )
-        except OSError:
-            _LOGGER.info("Failed to parse IP address '%s'", addr)
+    _add_ip_addresses_to_addrinfo(address_list, 0, res)
 
     # Now use that information to sort them.
     res.sort(key=addr_preference_)
