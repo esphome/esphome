@@ -9,6 +9,7 @@ import random
 import socket
 import sys
 import time
+from typing import Any
 
 from esphome.core import EsphomeError
 from esphome.helpers import resolve_ip_address
@@ -228,7 +229,13 @@ def perform_ota(
     else:
         upload_contents = file_contents
 
-    def perform_auth(sock, password, hash_func, nonce_size, hash_name):
+    def perform_auth(
+        sock: socket.socket,
+        password: str,
+        hash_func: Any,
+        nonce_size: int,
+        hash_name: str,
+    ) -> None:
         """Perform challenge-response authentication using specified hash algorithm."""
         if not password:
             raise OTAError("ESP requests password, but no password given!")

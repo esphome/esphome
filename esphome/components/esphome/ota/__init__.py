@@ -32,7 +32,7 @@ def supports_sha256() -> bool:
     return bool(CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny)
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     """Conditionally auto-load sha256 only on platforms that support it."""
     base_components = ["md5", "socket"]
     if supports_sha256():

@@ -102,7 +102,6 @@ static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 #endif
 
-// Template traits for hash algorithms
 template<typename HashClass> struct HashTraits;
 
 template<> struct HashTraits<md5::MD5Digest> {
@@ -121,7 +120,6 @@ template<> struct HashTraits<sha256::SHA256> {
 };
 #endif
 
-// Template helper for hash-based authentication
 template<typename HashClass> bool perform_hash_auth(ESPHomeOTAComponent *ota, const std::string &password) {
   using Traits = HashTraits<HashClass>;
 
