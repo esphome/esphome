@@ -49,6 +49,7 @@ class CSICameraSensor : public camera::Sensor, public i2c::I2CDevice {
   static bool trans_finished(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
   void start_stream_();
   void stop_stream_();
+  color_raw_element_order_t bayer_to_raw_(esp_cam_sensor_bayer_pattern_t pattern);
 
   QueueHandle_t produced_{};
   QueueHandle_t consumed_{};

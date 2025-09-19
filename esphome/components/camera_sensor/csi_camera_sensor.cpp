@@ -176,7 +176,7 @@ bool CSICameraSensor::configure() {
     isp_config.has_line_end_packet = this->format_->mipi_info.line_sync_en;
     isp_config.h_res = this->format_->width;
     isp_config.v_res = this->format_->height;
-    isp_config.bayer_order = COLOR_RAW_ELEMENT_ORDER_BGGR;
+    isp_config.bayer_order = bayer_to_raw_(this->format_->isp_info->isp_v1_info.bayer_type);
     isp_config.intr_priority = 1;
     // isp_config.flags.bypass_isp = 0;
 
@@ -243,6 +243,21 @@ void CSICameraSensor::stop_stream_() {
   int disable = 0;
   if (esp_cam_sensor_ioctl(this->sensor_, ESP_CAM_SENSOR_IOC_S_STREAM, &disable) != ESP_OK)
     ESP_LOGE(TAG, "ESP_CAM_SENSOR_IOC_S_STREAM stop failed.");
+}
+
+color_raw_element_order_t CSICameraSensor::bayer_to_raw_(esp_cam_sensor_bayer_pattern_t pattern) {
+  switch (pattern) {
+    case ESP_CAM_SENSOR_BAYER_RGGB:
+      return COLOR_RAW_ELEMENT_ORDER_RGGB;
+    case ESP_CAM_SENSOR_BAYER_GRBG:
+      return COLOR_RAW_ELEMENT_ORDER_GRBG;
+    case ESP_CAM_SENSOR_BAYER_GBRG:
+      return COLOR_RAW_ELEMENT_ORDER_GBRG;
+    case ESP_CAM_SENSOR_BAYER_BGGR:
+      return COLOR_RAW_ELEMENT_ORDER_BGGR;
+  }
+
+  return COLOR_RAW_ELEMENT_ORDER_BGGR;
 }
 
 }  // namespace esphome::camera_sensor
