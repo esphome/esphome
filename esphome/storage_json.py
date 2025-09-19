@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import binascii
-import codecs
 from datetime import datetime
 import json
 import logging
 import os
+from pathlib import Path
 
 from esphome import const
 from esphome.const import CONF_DISABLED, CONF_MDNS
@@ -16,28 +16,33 @@ from esphome.types import CoreType
 _LOGGER = logging.getLogger(__name__)
 
 
-def storage_path() -> str:
-    return os.path.join(CORE.data_dir, "storage", f"{CORE.config_filename}.json")
+def storage_path() -> Path:
+    return CORE.data_dir / "storage" / f"{CORE.config_filename}.json"
 
 
-def ext_storage_path(config_filename: str) -> str:
-    return os.path.join(CORE.data_dir, "storage", f"{config_filename}.json")
+def ext_storage_path(config_filename: str) -> Path:
+    return CORE.data_dir / "storage" / f"{config_filename}.json"
 
 
-def esphome_storage_path() -> str:
-    return os.path.join(CORE.data_dir, "esphome.json")
+def esphome_storage_path() -> Path:
+    return CORE.data_dir / "esphome.json"
 
 
-def ignored_devices_storage_path() -> str:
-    return os.path.join(CORE.data_dir, "ignored-devices.json")
+def ignored_devices_storage_path() -> Path:
+    return CORE.data_dir / "ignored-devices.json"
 
 
-def trash_storage_path() -> str:
+def trash_storage_path() -> Path:
     return CORE.relative_config_path("trash")
 
 
-def archive_storage_path() -> str:
+def archive_storage_path() -> Path:
     return CORE.relative_config_path("archive")
+
+
+def _to_path_if_not_none(value: str | None) -> Path | None:
+    """Convert a string to Path if it's not None."""
+    return Path(value) if value is not None else None
 
 
 class StorageJSON:
@@ -52,8 +57,8 @@ class StorageJSON:
         address: str,
         web_port: int | None,
         target_platform: str,
-        build_path: str | None,
-        firmware_bin_path: str | None,
+        build_path: Path | None,
+        firmware_bin_path: Path | None,
         loaded_integrations: set[str],
         loaded_platforms: set[str],
         no_mdns: bool,
@@ -107,8 +112,8 @@ class StorageJSON:
             "address": self.address,
             "web_port": self.web_port,
             "esp_platform": self.target_platform,
-            "build_path": self.build_path,
-            "firmware_bin_path": self.firmware_bin_path,
+            "build_path": str(self.build_path),
+            "firmware_bin_path": str(self.firmware_bin_path),
             "loaded_integrations": sorted(self.loaded_integrations),
             "loaded_platforms": sorted(self.loaded_platforms),
             "no_mdns": self.no_mdns,
@@ -176,8 +181,8 @@ class StorageJSON:
         )
 
     @staticmethod
-    def _load_impl(path: str) -> StorageJSON | None:
-        with codecs.open(path, "r", encoding="utf-8") as f_handle:
+    def _load_impl(path: Path) -> StorageJSON | None:
+        with path.open("r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         name = storage.get("name")
@@ -190,8 +195,8 @@ class StorageJSON:
         address = storage.get("address")
         web_port = storage.get("web_port")
         esp_platform = storage.get("esp_platform")
-        build_path = storage.get("build_path")
-        firmware_bin_path = storage.get("firmware_bin_path")
+        build_path = _to_path_if_not_none(storage.get("build_path"))
+        firmware_bin_path = _to_path_if_not_none(storage.get("firmware_bin_path"))
         loaded_integrations = set(storage.get("loaded_integrations", []))
         loaded_platforms = set(storage.get("loaded_platforms", []))
         no_mdns = storage.get("no_mdns", False)
@@ -217,7 +222,7 @@ class StorageJSON:
         )
 
     @staticmethod
-    def load(path: str) -> StorageJSON | None:
+    def load(path: Path) -> StorageJSON | None:
         try:
             return StorageJSON._load_impl(path)
         except Exception:  # pylint: disable=broad-except
@@ -268,7 +273,7 @@ class EsphomeStorageJSON:
 
     @staticmethod
     def _load_impl(path: str) -> EsphomeStorageJSON | None:
-        with codecs.open(path, "r", encoding="utf-8") as f_handle:
+        with Path(path).open("r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         cookie_secret = storage.get("cookie_secret")

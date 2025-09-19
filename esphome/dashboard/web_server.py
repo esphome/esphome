@@ -49,10 +49,10 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
+from ..helpers import write_file
 from .const import DASHBOARD_COMMAND
 from .core import DASHBOARD, ESPHomeDashboard
 from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
-from .util.file import write_file
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -581,7 +581,7 @@ class WizardRequestHandler(BaseHandler):
         destination = settings.rel_path(filename)
 
         # Check if destination file already exists
-        if os.path.exists(destination):
+        if destination.exists():
             self.set_status(409)  # Conflict status code
             self.set_header("content-type", "application/json")
             self.write(
@@ -798,10 +798,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
             "download",
             f"{storage_json.name}-{file_name}",
         )
-        path = os.path.dirname(storage_json.firmware_bin_path)
-        path = os.path.join(path, file_name)
+        path = storage_json.firmware_bin_path.with_name(file_name)
 
-        if not Path(path).is_file():
+        if not path.is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = await async_run_system_command(args)
 
@@ -1016,7 +1015,7 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
@@ -1039,10 +1038,6 @@ class EditRequestHandler(BaseHandler):
             self.set_status(404)
             return None
 
-    def _write_file(self, filename: str, content: bytes) -> None:
-        """Write a file with the given content."""
-        write_file(filename, content)
-
     @authenticated
     @bind_config
     async def post(self, configuration: str | None = None) -> None:
@@ -1052,12 +1047,12 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._write_file, filename, self.request.body)
+        await loop.run_in_executor(None, write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
         DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
@@ -1072,7 +1067,7 @@ class ArchiveRequestHandler(BaseHandler):
 
         archive_path = archive_storage_path()
         mkdir_p(archive_path)
-        shutil.move(config_file, os.path.join(archive_path, configuration))
+        shutil.move(config_file, archive_path / configuration)
 
         storage_json = StorageJSON.load(storage_path)
         if storage_json is not None and storage_json.build_path:
@@ -1086,7 +1081,7 @@ class UnArchiveRequestHandler(BaseHandler):
     def post(self, configuration: str | None = None) -> None:
         config_file = settings.rel_path(configuration)
         archive_path = archive_storage_path()
-        shutil.move(os.path.join(archive_path, configuration), config_file)
+        shutil.move(archive_path / configuration, config_file)
 
 
 class LoginHandler(BaseHandler):
@@ -1173,7 +1168,7 @@ class SecretKeysRequestHandler(BaseHandler):
 
         for secret_filename in const.SECRETS_FILES:
             relative_filename = settings.rel_path(secret_filename)
-            if os.path.isfile(relative_filename):
+            if relative_filename.is_file():
                 filename = relative_filename
                 break
 
@@ -1206,16 +1201,17 @@ class JsonConfigRequestHandler(BaseHandler):
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         filename = settings.rel_path(configuration)
-        if not os.path.isfile(filename):
+        if not filename.is_file():
             self.send_error(404)
             return
 
-        args = ["esphome", "config", filename, "--show-secrets"]
+        args = ["esphome", "config", str(filename), "--show-secrets"]
 
-        rc, stdout, _ = await async_run_system_command(args)
+        rc, stdout, stderr = await async_run_system_command(args)
 
         if rc != 0:
-            self.send_error(422)
+            self.set_status(422)
+            self.write(stderr)
             return
 
         data = yaml.load(stdout, Loader=SafeLoaderIgnoreUnknown)
@@ -1224,7 +1220,7 @@ class JsonConfigRequestHandler(BaseHandler):
         self.finish()
 
 
-def get_base_frontend_path() -> str:
+def get_base_frontend_path() -> Path:
     if ENV_DEV not in os.environ:
         import esphome_dashboard
 
@@ -1235,11 +1231,12 @@ def get_base_frontend_path() -> str:
         static_path += "/"
 
     # This path can be relative, so resolve against the root or else templates don't work
-    return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
+    path = Path(os.getcwd()) / static_path / "esphome_dashboard"
+    return path.resolve()
 
 
-def get_static_path(*args: Iterable[str]) -> str:
-    return os.path.join(get_base_frontend_path(), "static", *args)
+def get_static_path(*args: Iterable[str]) -> Path:
+    return get_base_frontend_path() / "static" / Path(*args)
 
 
 @functools.cache
@@ -1256,8 +1253,7 @@ def get_static_file_url(name: str) -> str:
         return base.replace("index.js", esphome_dashboard.entrypoint())
 
     path = get_static_path(name)
-    with open(path, "rb") as f_handle:
-        hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
+    hash_ = hashlib.md5(path.read_bytes()).hexdigest()[:8]
     return f"{base}?hash={hash_}"
 
 
@@ -1357,7 +1353,7 @@ def start_web_server(
     """Start the web server listener."""
 
     trash_path = trash_storage_path()
-    if os.path.exists(trash_path):
+    if trash_path.is_dir() and trash_path.exists():
         _LOGGER.info("Renaming 'trash' folder to 'archive'")
         archive_path = archive_storage_path()
         shutil.move(trash_path, archive_path)

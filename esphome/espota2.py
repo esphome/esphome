@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import io
 import logging
+from pathlib import Path
 import random
 import socket
 import sys
@@ -191,7 +192,7 @@ def send_check(sock, data, msg):
 
 
 def perform_ota(
-    sock: socket.socket, password: str, file_handle: io.IOBase, filename: str
+    sock: socket.socket, password: str, file_handle: io.IOBase, filename: Path
 ) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
@@ -309,7 +310,7 @@ def perform_ota(
 
 
 def run_ota_impl_(
-    remote_host: str | list[str], remote_port: int, password: str, filename: str
+    remote_host: str | list[str], remote_port: int, password: str, filename: Path
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -360,7 +361,7 @@ def run_ota_impl_(
 
 
 def run_ota(
-    remote_host: str | list[str], remote_port: int, password: str, filename: str
+    remote_host: str | list[str], remote_port: int, password: str, filename: Path
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)

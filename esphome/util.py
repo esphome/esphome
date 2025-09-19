@@ -1,7 +1,6 @@
 import collections
 import io
 import logging
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -86,7 +85,10 @@ def safe_input(prompt=""):
     return input()
 
 
-def shlex_quote(s):
+def shlex_quote(s: str | Path) -> str:
+    # Convert Path objects to strings
+    if isinstance(s, Path):
+        s = str(s)
     if not s:
         return "''"
     if re.search(r"[^\w@%+=:,./-]", s) is None:
@@ -272,25 +274,28 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(configs: list[str]) -> list[str]:
-    files: list[str] = []
+def list_yaml_files(configs: list[str | Path]) -> list[Path]:
+    files: list[Path] = []
     for config in configs:
-        if os.path.isfile(config):
+        config = Path(config)
+        if not config.exists():
+            raise FileNotFoundError(f"Config path '{config}' does not exist!")
+        if config.is_file():
             files.append(config)
         else:
-            files.extend(os.path.join(config, p) for p in os.listdir(config))
+            files.extend(config.glob("*"))
     files = filter_yaml_files(files)
     return sorted(files)
 
 
-def filter_yaml_files(files: list[str]) -> list[str]:
+def filter_yaml_files(files: list[Path]) -> list[Path]:
     return [
         f
         for f in files
         if (
-            os.path.splitext(f)[1] in (".yaml", ".yml")
-            and os.path.basename(f) not in ("secrets.yaml", "secrets.yml")
-            and not os.path.basename(f).startswith(".")
+            f.suffix in (".yaml", ".yml")
+            and f.name not in ("secrets.yaml", "secrets.yml")
+            and not f.name.startswith(".")
         )
     ]
 
