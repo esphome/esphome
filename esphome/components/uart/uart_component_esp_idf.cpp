@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
 #include <cinttypes>

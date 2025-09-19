@@ -349,6 +349,14 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # Create PlatformIO cache directory
+    platformio_cache_dir = tmp_path / ".platformio" / ".cache"
+    platformio_cache_dir.mkdir(parents=True)
+    (platformio_cache_dir / "downloads").mkdir()
+    (platformio_cache_dir / "http").mkdir()
+    (platformio_cache_dir / "tmp").mkdir()
+    (platformio_cache_dir / "downloads" / "package.tar.gz").write_text("package")
+
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
     mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
@@ -358,21 +366,30 @@ def test_clean_build(
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert platformio_cache_dir.exists()
 
-    # Call the function
-    with caplog.at_level("INFO"):
-        clean_build()
+    # Mock PlatformIO's get_project_cache_dir
+    with patch(
+        "platformio.project.helpers.get_project_cache_dir"
+    ) as mock_get_cache_dir:
+        mock_get_cache_dir.return_value = str(platformio_cache_dir)
+
+        # Call the function
+        with caplog.at_level("INFO"):
+            clean_build()
 
     # Verify all were removed
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not platformio_cache_dir.exists()
 
     # Verify logging
     assert "Deleting" in caplog.text
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert "PlatformIO cache" in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -444,6 +461,86 @@ def test_clean_build_nothing_exists(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_platformio_not_available(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_build when PlatformIO is not available."""
+    # Create directory structure and files
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+
+    piolibdeps_dir = tmp_path / ".piolibdeps"
+    piolibdeps_dir.mkdir()
+
+    dependencies_lock = tmp_path / "dependencies.lock"
+    dependencies_lock.write_text("lock file")
+
+    # Setup mocks
+    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
+    mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
+    mock_core.relative_build_path.return_value = str(dependencies_lock)
+
+    # Verify all exist before
+    assert pioenvs_dir.exists()
+    assert piolibdeps_dir.exists()
+    assert dependencies_lock.exists()
+
+    # Mock import error for platformio
+    with (
+        patch.dict("sys.modules", {"platformio.project.helpers": None}),
+        caplog.at_level("INFO"),
+    ):
+        # Call the function
+        clean_build()
+
+    # Verify standard paths were removed but no cache cleaning attempted
+    assert not pioenvs_dir.exists()
+    assert not piolibdeps_dir.exists()
+    assert not dependencies_lock.exists()
+
+    # Verify no cache logging
+    assert "PlatformIO cache" not in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_empty_cache_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_build when get_project_cache_dir returns empty/whitespace."""
+    # Create directory structure and files
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+
+    # Setup mocks
+    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
+    mock_core.relative_piolibdeps_path.return_value = str(tmp_path / ".piolibdeps")
+    mock_core.relative_build_path.return_value = str(tmp_path / "dependencies.lock")
+
+    # Verify pioenvs exists before
+    assert pioenvs_dir.exists()
+
+    # Mock PlatformIO's get_project_cache_dir to return whitespace
+    with patch(
+        "platformio.project.helpers.get_project_cache_dir"
+    ) as mock_get_cache_dir:
+        mock_get_cache_dir.return_value = "   "  # Whitespace only
+
+        # Call the function
+        with caplog.at_level("INFO"):
+            clean_build()
+
+    # Verify pioenvs was removed
+    assert not pioenvs_dir.exists()
+
+    # Verify no cache cleaning was attempted due to empty string
+    assert "PlatformIO cache" not in caplog.text
 
 
 @patch("esphome.writer.CORE")
