@@ -1,17 +1,17 @@
 #pragma once
 
-#include "esphome/components/camera/processor.h"
 #include "esphome/core/color.h"
+#include "processor_base.h"
 
-namespace esphome::camera_scaler {
+namespace esphome::camera_processor {
 
 /** Enumeration of different scaling algorithms.
  */
-enum DefaultAlgorithm : uint8_t { NEAREST_NEIGHBOR = 0, BILINEAR };
+enum ScalerAlgorithm : uint8_t { NEAREST_NEIGHBOR = 0, BILINEAR };
 
-class DefaultScaler : public camera::Processor {
+class Scaler : public ProcessorBase {
  public:
-  DefaultScaler(DefaultAlgorithm algorithm, camera::CameraImageSpec *spec, camera::Buffer *output);
+  Scaler(ScalerAlgorithm algorithm, camera::CameraImageSpec *spec, camera::Buffer *output);
   void set_flip_x(bool flip) { this->flip_x_ = flip; }
   void set_flip_y(bool flip) { this->flip_y_ = flip; }
   void set_clear(bool clear) { this->clear_ = clear; }
@@ -19,14 +19,12 @@ class DefaultScaler : public camera::Processor {
   void set_margin_right(uint16_t margin) { this->margin_right_ = margin; }
   void set_margin_top(uint16_t margin) { this->margin_top_ = margin; }
   void set_margin_bottom(uint16_t margin) { this->margin_bottom_ = margin; }
+  // ---- ProcessorBase ----
+  void process_pixels_base(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   // ------ Processor ------
-  size_t process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
   camera::Buffer *get_output_image() override { return this->output_image_; }
   // ------------------------
-  void add_process_callback(std::function<void(camera::CameraImageSpec *spec, camera::Buffer *)> &&callback) {
-    this->process_callback_.add(std::move(callback));
-  }
 
  protected:
   // Grayscale methods
@@ -49,13 +47,12 @@ class DefaultScaler : public camera::Processor {
   uint16_t margin_top_{};
   uint16_t margin_bottom_{};
 
-  DefaultAlgorithm algorithm_{};
+  ScalerAlgorithm algorithm_{};
   bool flip_x_{};
   bool flip_y_{};
   bool clear_{};
   camera::CameraImageSpec *output_spec_{};
   camera::Buffer *output_image_{};
-  CallbackManager<void(camera::CameraImageSpec *spec, camera::Buffer *)> process_callback_{};
 };
 
-}  // namespace esphome::camera_scaler
+}  // namespace esphome::camera_processor

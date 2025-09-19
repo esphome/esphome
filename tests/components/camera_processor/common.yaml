@@ -1,0 +1,44 @@
+camera_encoder:
+  id: jpeg_encoder
+
+camera_sensor:
+  id: camera_sensor_id
+  width: 256
+  height: 256
+  format: GRAYSCALE
+
+camera:
+  - platform: template
+    id: test_camera
+    name: Test Camera
+    camera_encoder_id: jpeg_encoder
+    camera_sensor_id: camera_sensor_id
+
+camera_processor:
+  - camera_id: test_camera
+    type: scaler
+    width: 128
+    height: 128
+    flip_x: True
+    flip_y: True
+    format: GRAYSCALE
+    algorithm: BILINEAR
+    clear: True
+    margins: {left: 8, right: 8, top: 8, bottom: 8}
+    on_process:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "After scaler: on_process p:%p s:%zu", buffer->get_data(), buffer->get_size());
+  - camera_id: test_camera
+    type: cropper
+    crop_x: 32
+    crop_y: 32
+    width: 64
+    height: 64
+    flip_x: True
+    flip_y: True
+    format: GRAYSCALE
+    on_process:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "After cropper: on_process p:%p s:%zu", buffer->get_data(), buffer->get_size());

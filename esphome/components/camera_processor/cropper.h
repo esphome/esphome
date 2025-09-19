@@ -1,19 +1,19 @@
 #pragma once
 
-#include "esphome/components/camera/processor.h"
+#include "processor_base.h"
 
-namespace esphome::camera_cropper {
+namespace esphome::camera_processor {
 
-class CameraCropper : public camera::Processor {
+class Cropper : public ProcessorBase {
  public:
-  CameraCropper(camera::CameraImageSpec *spec, camera::Buffer *output, int crop_x, int crop_y, int crop_width,
-                int crop_height);
-
+  Cropper(camera::CameraImageSpec *spec, camera::Buffer *output, int crop_x, int crop_y, int crop_width,
+          int crop_height);
+  // ---- ProcessorBase ----
+  void process_pixels_base(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   // ------ Processor ------
-  size_t process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) override;
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
   camera::Buffer *get_output_image() override { return this->output_image_; }
-
+  // ------------------------
   void set_flip_x(bool flip) { this->flip_x_ = flip; }
   void set_flip_y(bool flip) { this->flip_y_ = flip; }
 
@@ -28,4 +28,4 @@ class CameraCropper : public camera::Processor {
   camera::Buffer *output_image_{};
 };
 
-}  // namespace esphome::camera_cropper
+}  // namespace esphome::camera_processor

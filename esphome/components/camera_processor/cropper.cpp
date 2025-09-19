@@ -1,12 +1,12 @@
-#include "camera_cropper.h"
+#include "cropper.h"
 #include "esphome/core/log.h"
 
-namespace esphome::camera_cropper {
+namespace esphome::camera_processor {
 
 static const char *const TAG = "camera.cropper";
 
-CameraCropper::CameraCropper(camera::CameraImageSpec *spec, camera::Buffer *output, int crop_x, int crop_y,
-                             int crop_width, int crop_height) {
+Cropper::Cropper(camera::CameraImageSpec *spec, camera::Buffer *output, int crop_x, int crop_y, int crop_width,
+                 int crop_height) {
   this->output_spec_ = spec;
   this->output_image_ = output;
   this->crop_x_ = crop_x;
@@ -15,11 +15,11 @@ CameraCropper::CameraCropper(camera::CameraImageSpec *spec, camera::Buffer *outp
   this->crop_height_ = crop_height;
 }
 
-size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) {
+void Cropper::process_pixels_base(camera::CameraImageSpec *input_spec, camera::Buffer *input) {
   // Validate crop region
   if (crop_x_ + crop_width_ > input_spec->width || crop_y_ + crop_height_ > input_spec->height) {
     ESP_LOGE(TAG, "Crop region exceeds source image dimensions!");
-    return 0;
+    return;
   }
 
   // Set output spec based on input format (but keep the allocated dimensions)
@@ -53,8 +53,6 @@ size_t CameraCropper::process_pixels(camera::CameraImageSpec *input_spec, camera
       }
     }
   }
-
-  return this->output_spec_->bytes_per_image();
 }
 
-}  // namespace esphome::camera_cropper
+}  // namespace esphome::camera_processor

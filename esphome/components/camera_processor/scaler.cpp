@@ -1,14 +1,14 @@
-#include "default_scaler.h"
+#include "scaler.h"
 
-namespace esphome::camera_scaler {
+namespace esphome::camera_processor {
 
-DefaultScaler::DefaultScaler(DefaultAlgorithm algorithm, camera::CameraImageSpec *spec, camera::Buffer *output) {
+Scaler::Scaler(ScalerAlgorithm algorithm, camera::CameraImageSpec *spec, camera::Buffer *output) {
   this->algorithm_ = algorithm;
   this->output_spec_ = spec;
   this->output_image_ = output;
 }
 
-size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) {
+void Scaler::process_pixels_base(camera::CameraImageSpec *input_spec, camera::Buffer *input) {
   if (clear_)
     memset(this->output_image_->get_data(), 0, this->output_spec_->bytes_per_image());
 
@@ -87,22 +87,19 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
     }
     src_y += src_dy_step;
   }
-
-  this->process_callback_(input_spec, input);
-  return 0;
 }
 
 // Grayscale methods
-uint8_t DefaultScaler::get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
-                                                    float y) {
+uint8_t Scaler::get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
+                                             float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint32_t idx = y0 * input_spec->width + x0;
   return input->get_data()[idx];
 }
 
-uint8_t DefaultScaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input,
-                                                     float x, float y) {
+uint8_t Scaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
+                                              float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint16_t x1 = x + 1;
@@ -136,14 +133,14 @@ uint8_t DefaultScaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *in
   return static_cast<uint8_t>(lroundf(py0 * (1.0f - dy) + py1 * dy));
 }
 
-void DefaultScaler::set_pixel_grayscale_(uint8_t pixel, uint16_t x, uint16_t y) {
+void Scaler::set_pixel_grayscale_(uint8_t pixel, uint16_t x, uint16_t y) {
   uint32_t idx = (y * this->output_spec_->width + x);
   this->output_image_->get_data()[idx] = pixel;
 }
 
 // RGB565 methods
-uint16_t DefaultScaler::get_pixel_rgb565_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
-                                                  float y) {
+uint16_t Scaler::get_pixel_rgb565_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
+                                           float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint16_t *buffer = reinterpret_cast<uint16_t *>(input->get_data());
@@ -151,8 +148,8 @@ uint16_t DefaultScaler::get_pixel_rgb565_nearest_(camera::CameraImageSpec *input
   return buffer[idx];
 }
 
-uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
-                                                   float y) {
+uint16_t Scaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
+                                            float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint16_t x1 = x + 1;
@@ -207,7 +204,7 @@ uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *inpu
   return (r5 << 11) | (g6 << 5) | b5;
 }
 
-void DefaultScaler::set_pixel_rgb565_(uint16_t pixel, uint16_t x, uint16_t y) {
+void Scaler::set_pixel_rgb565_(uint16_t pixel, uint16_t x, uint16_t y) {
   uint16_t *buffer = reinterpret_cast<uint16_t *>(this->output_image_->get_data());
   uint32_t idx = (y * this->output_spec_->width + x);
   //  buffer[idx] = __builtin_bswap16(pixel);
@@ -215,8 +212,7 @@ void DefaultScaler::set_pixel_rgb565_(uint16_t pixel, uint16_t x, uint16_t y) {
 }
 
 // BGR888 methods
-Color DefaultScaler::get_pixel_bgr888_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
-                                               float y) {
+Color Scaler::get_pixel_bgr888_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint8_t *buffer = input->get_data();
@@ -225,8 +221,7 @@ Color DefaultScaler::get_pixel_bgr888_nearest_(camera::CameraImageSpec *input_sp
   return Color(buffer[idx + 2], buffer[idx + 1], buffer[idx]);  // Convert BGR to RGB
 }
 
-Color DefaultScaler::get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
-                                                float y) {
+Color Scaler::get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint16_t x1 = x + 1;
@@ -272,7 +267,7 @@ Color DefaultScaler::get_pixel_bgr888_bilinear_(camera::CameraImageSpec *input_s
   return Color(static_cast<uint8_t>(lroundf(r)), static_cast<uint8_t>(lroundf(g)), static_cast<uint8_t>(lroundf(b)));
 }
 
-void DefaultScaler::set_pixel_bgr888_(const Color &pixel, uint16_t x, uint16_t y) {
+void Scaler::set_pixel_bgr888_(const Color &pixel, uint16_t x, uint16_t y) {
   uint8_t *buffer = this->output_image_->get_data();
   uint32_t idx = (y * this->output_spec_->width + x) * 3;
 
@@ -282,4 +277,4 @@ void DefaultScaler::set_pixel_bgr888_(const Color &pixel, uint16_t x, uint16_t y
   buffer[idx + 2] = pixel.r;  // Red
 }
 
-}  // namespace esphome::camera_scaler
+}  // namespace esphome::camera_processor

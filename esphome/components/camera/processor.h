@@ -22,7 +22,7 @@ namespace camera {
  */
 class Processor {
  public:
-  virtual size_t process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) = 0;
+  virtual void process_pixels(camera::CameraImageSpec *input_spec, camera::Buffer *input) = 0;
   virtual camera::CameraImageSpec *get_output_image_spec() = 0;
   virtual camera::Buffer *get_output_image() = 0;
   virtual ~Processor() = default;
