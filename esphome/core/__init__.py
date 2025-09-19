@@ -40,6 +40,8 @@ from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
+
     from ..cpp_generator import MockObj, MockObjClass, Statement
     from ..types import ConfigType, EntityMetadata
 
@@ -584,6 +586,8 @@ class EsphomeCore:
         self.id_classes = {}
         # The current component being processed during validation
         self.current_component: str | None = None
+        # Address cache for DNS and mDNS lookups from command line arguments
+        self.address_cache: AddressCache | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -611,6 +615,7 @@ class EsphomeCore:
         self.platform_counts = defaultdict(int)
         self.unique_ids = {}
         self.current_component = None
+        self.address_cache = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
