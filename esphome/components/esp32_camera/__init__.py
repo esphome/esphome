@@ -20,7 +20,6 @@ from esphome.const import (
     CONF_SDA,
     CONF_VSYNC_PIN,
 )
-from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
 
@@ -305,5 +304,4 @@ async def to_code(config):
     cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
-    if CORE.using_esp_idf:
-        add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
+    add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
