@@ -5,8 +5,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
-from esphome.core import CORE
+from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TIMEOUT, CONF_TYPE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DT-art1"]
@@ -70,6 +69,7 @@ P4_ENCODER_SCHEMA = cv.Schema(
         cv.Optional(CONF_BUFFER_SIZE, default=10240): cv.int_range(
             1024, MAX_JPEG_BUFFER_SIZE_2MB
         ),
+        cv.Optional(CONF_TIMEOUT, default=100): cv.int_range(10, 4000),
         cv.GenerateID(CONF_ENCODER_BUFFER_ID): cv.declare_id(ESP32P4EncoderBuffer),
     },
 )
@@ -127,9 +127,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     buffer = cg.new_Pvariable(config[CONF_ENCODER_BUFFER_ID])
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
+
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:
-        if CORE.using_esp_idf:
-            add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
+        add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
         cg.add_build_flag("-DUSE_ESP32_CAMERA_JPEG_ENCODER")
         var = cg.new_Pvariable(
             config[CONF_ID],
@@ -143,6 +143,7 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ID],
             config[CONF_QUALITY],
             config[CONF_SUBSAMPLING],
+            config[CONF_TIMEOUT],
             buffer,
         )
     if config[CONF_TYPE] == BITBANK2_ENCODER:

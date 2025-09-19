@@ -1,3 +1,5 @@
+from esphome import automation
+from esphome.automation import Trigger
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -7,9 +9,12 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_WIDTH,
 )
+from esphome.core import Lambda
+from esphome.cpp_generator import ExpressionStatement, MockObj
 
 CODEOWNERS = ["@DT-art1"]
 
@@ -26,6 +31,8 @@ CONF_TOP = "top"
 CONF_RIGHT = "right"
 CONF_BOTTOM = "bottom"
 
+CONF_ON_PROCESS = "on_process"
+
 DEFAULT_SCALER = "default"
 
 camera_ns = cg.esphome_ns.namespace("camera")
@@ -33,13 +40,17 @@ camera_scaler_ns = cg.esphome_ns.namespace("camera_scaler")
 
 Processor = camera_ns.class_("Processor")
 Camera = camera_ns.class_("CameraImpl")
+Buffer = camera_ns.class_("Buffer")
+BufferPtr = Buffer.operator("ptr")
 BufferImpl = camera_ns.class_("BufferImpl")
 DefaultScaler = camera_scaler_ns.class_("DefaultScaler", Processor)
 
 CameraImageSpec = camera_ns.struct("CameraImageSpec")
+CameraImageSpecPtr = CameraImageSpec.operator("ptr")
 
 PixelFormat = camera_ns.enum("PixelFormat")
 DefaultAlgorithm = camera_scaler_ns.enum("DefaultAlgorithm")
+
 
 CONF_FORMAT_SELECTS = {
     "GRAYSCALE": PixelFormat.PIXEL_FORMAT_GRAYSCALE,
@@ -79,6 +90,13 @@ DEFAULT_SCALER_SCHEMA = BASE_SCHEMA.extend(
             cv.Optional(CONF_CLEAR, default=False): cv.boolean,
             cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(BufferImpl),
             cv.GenerateID(CONF_FORMAT_ID): cv.declare_id(CameraImageSpec),
+            cv.Optional(CONF_ON_PROCESS): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(CameraImageSpecPtr, BufferPtr)
+                    ),
+                }
+            ),
         }
     )
 )
@@ -103,23 +121,40 @@ async def to_code(config):
             ),
         )
         image = cg.new_Pvariable(config[CONF_IMAGE_ID], spec)
-        scaler = cg.new_Pvariable(config[CONF_ID], config[CONF_ALGORITHM], spec, image)
+        var = cg.new_Pvariable(config[CONF_ID], config[CONF_ALGORITHM], spec, image)
         if config[CONF_FLIP_X]:
-            cg.add(scaler.set_flip_x(config[CONF_FLIP_X]))
+            cg.add(var.set_flip_x(config[CONF_FLIP_X]))
         if config[CONF_FLIP_Y]:
-            cg.add(scaler.set_flip_y(config[CONF_FLIP_Y]))
+            cg.add(var.set_flip_y(config[CONF_FLIP_Y]))
         if config[CONF_CLEAR]:
-            cg.add(scaler.set_clear(config[CONF_CLEAR]))
+            cg.add(var.set_clear(config[CONF_CLEAR]))
         if CONF_MARGINS in config:
             for margin in config[CONF_MARGINS]:
                 if CONF_LEFT in margin:
-                    cg.add(scaler.set_margin_left(margin[CONF_LEFT]))
+                    cg.add(var.set_margin_left(margin[CONF_LEFT]))
                 if CONF_RIGHT in margin:
-                    cg.add(scaler.set_margin_right(margin[CONF_RIGHT]))
+                    cg.add(var.set_margin_right(margin[CONF_RIGHT]))
                 if CONF_TOP in margin:
-                    cg.add(scaler.set_margin_top(margin[CONF_TOP]))
+                    cg.add(var.set_margin_top(margin[CONF_TOP]))
                 if CONF_BOTTOM in margin:
-                    cg.add(scaler.set_margin_bottom(margin[CONF_BOTTOM]))
+                    cg.add(var.set_margin_bottom(margin[CONF_BOTTOM]))
 
         camera = await cg.get_variable(config[CONF_CAMERA_ID])
-        cg.add(camera.append_processor(scaler))
+        cg.add(camera.append_processor(var))
+
+        for conf in config.get(CONF_ON_PROCESS, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+            trigger = await automation.build_automation(
+                trigger, [(CameraImageSpecPtr, "spec"), (BufferPtr, "buffer")], conf
+            )
+            trigger = Lambda(
+                str(
+                    ExpressionStatement(
+                        trigger.trigger(MockObj("spec"), MockObj("buffer"))
+                    )
+                )
+            )
+            trigger = await cg.process_lambda(
+                trigger, [(CameraImageSpecPtr, "spec"), (BufferPtr, "buffer")]
+            )
+            cg.add(var.add_process_callback(trigger))

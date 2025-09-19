@@ -12,7 +12,9 @@ namespace camera_encoder {
 /// Encoder that uses the hardware-accelerated JPEG engine on ESP32-P4.
 class ESP32P4JPEGEncoder : public camera::Encoder {
  public:
-  ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling, camera::EncoderBuffer *output);
+  ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling, uint16_t timeout,
+                     camera::EncoderBuffer *output);
+  void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   // -------- Encoder --------
   camera::EncoderError encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) override;
   camera::EncoderBuffer *get_output_buffer() override { return output_; }
@@ -24,6 +26,8 @@ class ESP32P4JPEGEncoder : public camera::Encoder {
   jpeg_encoder_handle_t encoder_engine_{};
 
   uint8_t quality_{};
+  uint16_t timeout_{};
+  bool encoded_first_frame_{};
   camera::EncoderSubsampling subsampling_{};
   camera::EncoderBuffer *output_{};
 };

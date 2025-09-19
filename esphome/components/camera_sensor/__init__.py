@@ -23,7 +23,7 @@ AUTO_LOAD = ["camera", "i2c"]
 
 SOFTWARE_SENSOR = "software"
 ESP32_CAMERA_SENSOR = "esp32_camera"
-CSI_CAMERA_SENSOR = "csi_camera"
+MIPI_CSI = "mipi-csi"
 
 camera_ns = cg.esphome_ns.namespace("camera")
 camera_sensor_ns = cg.esphome_ns.namespace("camera_sensor")
@@ -155,7 +155,7 @@ CONF_RESTRICTED_PIXEL_FORMAT_SELECTS = {
     "RGB565": PixelFormat.PIXEL_FORMAT_RGB565,
 }
 
-CSI_CAMERA_SCHEMA = cv.Schema(
+MIPI_CSI_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CSICameraSensor),
         cv.Required(CONF_HEIGHT): cv.int_range(0),
@@ -175,7 +175,7 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         SOFTWARE_SENSOR: SOFTWARE_SCHEMA,
         ESP32_CAMERA_SENSOR: ESP32_CAMERA_SCHEMA,
-        CSI_CAMERA_SENSOR: CSI_CAMERA_SCHEMA.extend(i2c.i2c_device_schema(None)),
+        MIPI_CSI: MIPI_CSI_SCHEMA.extend(i2c.i2c_device_schema(None)),
     },
     default_type=SOFTWARE_SENSOR,
 )
@@ -232,7 +232,7 @@ async def to_code(config):
         if CONF_JPEG_QUALITY in config:
             cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
 
-    if config[CONF_TYPE] == CSI_CAMERA_SENSOR:
+    if config[CONF_TYPE] == MIPI_CSI:
         if CORE.using_esp_idf:
             add_idf_component(name="espressif/esp_cam_sensor", ref="1.3.0")
         cg.add_build_flag("-DUSE_CSI_CAMERA_SENSOR")

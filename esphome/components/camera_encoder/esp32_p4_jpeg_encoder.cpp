@@ -10,15 +10,16 @@ namespace camera_encoder {
 
 static const char *const TAG = "camera_encoder";
 
-ESP32P4JPEGEncoder::ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling,
+ESP32P4JPEGEncoder::ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling, uint16_t timeout,
                                        camera::EncoderBuffer *output) {
   this->quality_ = quality;
   this->subsampling_ = subsampling;
+  this->timeout_ = timeout;
   this->output_ = output;
 
   jpeg_encode_engine_cfg_t encode_eng_cfg = {
       .intr_priority = 0,
-      .timeout_ms = 100,
+      .timeout_ms = this->timeout_,
   };
 
   ESP_ERROR_CHECK(jpeg_new_encoder_engine(&encode_eng_cfg, &this->encoder_engine_));
@@ -40,19 +41,33 @@ camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *
   esp_err_t error = jpeg_encoder_process(this->encoder_engine_, &enc_config, pixels->get_data(), pixels->get_size(),
                                          buffer, buffer_length, &bytes_written);
   this->output_->set_buffer_size(bytes_written);
-  if (error != ESP_OK)
-    return camera::ENCODER_ERROR_CONFIGURATION;
+  if (error == ESP_ERR_TIMEOUT) {
+    ESP_LOGE(TAG, "JPEG encoder timed out. Try increasing the timeout setting.", error);
+    return camera::ENCODER_ERROR_SKIP_FRAME;
+  }
 
+  if (error == ESP_ERR_INVALID_STATE && this->encoded_first_frame_) {
+    ESP_LOGE(TAG, "JPEG encoder ran out of memory. Consider increasing the buffer size.", error);
+    return camera::ENCODER_ERROR_SKIP_FRAME;
+  }
+
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "ERROR: %d", error);
+    return camera::ENCODER_ERROR_CONFIGURATION;
+  }
+
+  this->encoded_first_frame_ = true;
   return camera::ENCODER_ERROR_SUCCESS;
 }
 
 void ESP32P4JPEGEncoder::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ESP32-P4 JPEG Encoder:\n"
-                "  Size: %d\n"
-                "  Quality: %d\n"
+                "  Size: %zu\n"
+                "  Quality: %u\n"
+                "  Timeout: %u\n"
                 "  %s\n",
-                this->output_->get_max_size(), this->quality_, to_string(this->subsampling_));
+                this->output_->get_max_size(), this->quality_, this->timeout_, to_string(this->subsampling_));
 }
 
 jpeg_enc_input_format_t ESP32P4JPEGEncoder::to_internal_(camera::PixelFormat format) {

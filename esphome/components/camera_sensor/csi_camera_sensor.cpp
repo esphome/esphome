@@ -2,6 +2,7 @@
 
 #include "csi_camera_sensor.h"
 
+#include "esp_cache.h"
 #include "esp_cam_sensor.h"
 #include "esp_cam_sensor_detect.h"
 
@@ -21,7 +22,7 @@ bool IRAM_ATTR CSICameraSensor::trans_finished(esp_cam_ctlr_handle_t handle, esp
 
 bool IRAM_ATTR CSICameraSensor::init_transaction(esp_cam_ctlr_trans_t *trans) {
   if (xQueueReceiveFromISR(this->consumed_, &trans->buffer, NULL) != pdPASS)
-    return true;
+    return false;
 
   trans->buflen = this->frame_buffer_size_;
   return true;
@@ -31,7 +32,7 @@ bool IRAM_ATTR CSICameraSensor::finished_transaction(esp_cam_ctlr_trans_t *trans
   if (xQueueSendFromISR(this->produced_, &trans->buffer, NULL) != pdPASS)
     xQueueSendFromISR(this->consumed_, &trans->buffer, NULL);
 
-  return false;
+  return true;
 }
 
 CSICameraSensor::CSICameraSensor(uint16_t width, uint16_t height, camera::PixelFormat pixel_format)
@@ -176,7 +177,7 @@ bool CSICameraSensor::configure() {
     isp_config.h_res = this->format_->width;
     isp_config.v_res = this->format_->height;
     isp_config.bayer_order = COLOR_RAW_ELEMENT_ORDER_BGGR;
-    isp_config.intr_priority = 0;
+    isp_config.intr_priority = 1;
     // isp_config.flags.bypass_isp = 0;
 
     if (esp_isp_new_processor(&isp_config, &this->isp_proc_handle_) != ESP_OK) {
@@ -204,6 +205,9 @@ camera::Buffer *CSICameraSensor::acquire_frame_buffer() {
     return nullptr;
 
   assert(xQueueReceive(this->produced_, &buffer->data_buffer_, 0) == pdPASS);
+  if (esp_cache_msync(buffer->data_buffer_, this->frame_buffer_size_, ESP_CACHE_MSYNC_FLAG_DIR_M2C) != ESP_OK)
+    ESP_LOGW(TAG, "ESP_CACHE_MSYNC_FLAG_DIR_M2C failed.");
+
   buffer->data_length_ = this->frame_buffer_size_;
   return buffer;
 }
@@ -216,10 +220,10 @@ void CSICameraSensor::return_frame_buffer(camera::Buffer *buffer) {
 
 void CSICameraSensor::log_config() {
   ESP_LOGCONFIG(TAG,
-                "CSI Camera Sensor: %s\n"
+                "Camera Sensor: %s\n"
                 "  %s\n"
                 "  Buffers: %u\n"
-                "  MIPI CSI:\n"
+                "  MIPI-CSI:\n"
                 "    Clock: %d MHz\n"
                 "    Lanes: %d\n"
                 "    Line Sync: %s\n"

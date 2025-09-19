@@ -24,6 +24,10 @@ class DefaultScaler : public camera::Processor {
   camera::CameraImageSpec *get_output_image_spec() override { return this->output_spec_; }
   camera::Buffer *get_output_image() override { return this->output_image_; }
   // ------------------------
+  void add_process_callback(std::function<void(camera::CameraImageSpec *spec, camera::Buffer *)> &&callback) {
+    this->process_callback_.add(std::move(callback));
+  }
+
  protected:
   // Grayscale methods
   uint8_t get_pixel_grayscale_nearest_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x, float y);
@@ -51,6 +55,7 @@ class DefaultScaler : public camera::Processor {
   bool clear_{};
   camera::CameraImageSpec *output_spec_{};
   camera::Buffer *output_image_{};
+  CallbackManager<void(camera::CameraImageSpec *spec, camera::Buffer *)> process_callback_{};
 };
 
 }  // namespace esphome::camera_scaler

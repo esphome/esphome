@@ -88,6 +88,7 @@ size_t DefaultScaler::process_pixels(camera::CameraImageSpec *input_spec, camera
     src_y += src_dy_step;
   }
 
+  this->process_callback_(input_spec, input);
   return 0;
 }
 
@@ -96,7 +97,8 @@ uint8_t DefaultScaler::get_pixel_grayscale_nearest_(camera::CameraImageSpec *inp
                                                     float y) {
   uint16_t x0 = x;
   uint16_t y0 = y;
-  return input->get_data()[y0 * input_spec->width + x0];
+  uint32_t idx = y0 * input_spec->width + x0;
+  return input->get_data()[idx];
 }
 
 uint8_t DefaultScaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input,
@@ -135,7 +137,7 @@ uint8_t DefaultScaler::get_pixel_grayscale_bilinear_(camera::CameraImageSpec *in
 }
 
 void DefaultScaler::set_pixel_grayscale_(uint8_t pixel, uint16_t x, uint16_t y) {
-  uint16_t idx = (y * this->output_spec_->width + x);
+  uint32_t idx = (y * this->output_spec_->width + x);
   this->output_image_->get_data()[idx] = pixel;
 }
 
@@ -145,7 +147,8 @@ uint16_t DefaultScaler::get_pixel_rgb565_nearest_(camera::CameraImageSpec *input
   uint16_t x0 = x;
   uint16_t y0 = y;
   uint16_t *buffer = reinterpret_cast<uint16_t *>(input->get_data());
-  return buffer[y0 * input_spec->width + x0];
+  uint32_t idx = y0 * input_spec->width + x0;
+  return buffer[idx];
 }
 
 uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *input_spec, camera::Buffer *input, float x,
@@ -165,10 +168,10 @@ uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *inpu
     y1 = y;
 
   uint16_t *buffer = reinterpret_cast<uint16_t *>(input->get_data());
-  uint16_t idx00 = y0 * input_spec->width + x0;
-  uint16_t idx01 = y0 * input_spec->width + x1;
-  uint16_t idx10 = y1 * input_spec->width + x0;
-  uint16_t idx11 = y1 * input_spec->width + x1;
+  uint32_t idx00 = y0 * input_spec->width + x0;
+  uint32_t idx01 = y0 * input_spec->width + x1;
+  uint32_t idx10 = y1 * input_spec->width + x0;
+  uint32_t idx11 = y1 * input_spec->width + x1;
 
   // Extract RGB components from RGB565
   auto extract_rgb = [](uint16_t pixel) -> std::tuple<float, float, float> {
@@ -206,7 +209,8 @@ uint16_t DefaultScaler::get_pixel_rgb565_bilinear_(camera::CameraImageSpec *inpu
 
 void DefaultScaler::set_pixel_rgb565_(uint16_t pixel, uint16_t x, uint16_t y) {
   uint16_t *buffer = reinterpret_cast<uint16_t *>(this->output_image_->get_data());
-  uint16_t idx = (y * this->output_spec_->width + x);
+  uint32_t idx = (y * this->output_spec_->width + x);
+  //  buffer[idx] = __builtin_bswap16(pixel);
   buffer[idx] = pixel;
 }
 

@@ -194,6 +194,7 @@ bool CameraImpl::camera_loop() {
         if (skip_frame_counter_ == 0)
           ESP_LOGW(TAG, "ENCODER_ERROR_SKIP_FRAME.");
 
+        this->sensor_->return_frame_buffer(this->frame_buffer_);
         ++skip_frame_counter_;
         state_ = CAMERA_STATE_CLEAR_REQUEST;
       } break;
