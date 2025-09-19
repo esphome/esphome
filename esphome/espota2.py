@@ -269,12 +269,6 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
-    # Authentication method lookup table
-    auth_methods = {
-        RESPONSE_REQUEST_SHA256_AUTH: (hashlib.sha256, 64, "SHA256"),
-        RESPONSE_REQUEST_AUTH: (hashlib.md5, 32, "MD5"),
-    }
-
     (auth,) = receive_exactly(
         sock,
         1,
@@ -282,8 +276,8 @@ def perform_ota(
         [RESPONSE_REQUEST_AUTH, RESPONSE_REQUEST_SHA256_AUTH, RESPONSE_AUTH_OK],
     )
 
-    if auth in auth_methods:
-        hash_func, nonce_size, hash_name = auth_methods[auth]
+    if auth in _AUTH_METHODS:
+        hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
     elif auth != RESPONSE_AUTH_OK:
         raise OTAError(f"Unknown authentication method requested: 0x{auth:02X}")
