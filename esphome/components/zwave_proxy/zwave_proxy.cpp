@@ -49,7 +49,7 @@ void ZWaveProxy::loop() {
       // We verify:
       // - buffer_[0]: Start of frame marker (0x01)
       // - buffer_[1]: Length field must be >= 9 to contain all required data
-      // - buffer_[2]: Response type (0x01 for response)
+      // - buffer_[2]: Command type (0x01 for response)
       // - buffer_[3]: Command ID (0x20 for GET_NETWORK_IDS)
       if (this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS && this->buffer_[2] == ZWAVE_RESPONSE_TYPE_RESPONSE &&
           this->buffer_[1] >= ZWAVE_MIN_GET_NETWORK_IDS_LENGTH && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
