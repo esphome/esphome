@@ -2,19 +2,9 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 
-#ifdef USE_ESP32
-#include "mbedtls/sha256.h"
-#elif defined(USE_ARDUINO)
-#include <SHA256.h>
-#endif
-
 namespace esphome::sha256 {
 
 #ifdef USE_ESP32
-struct SHA256::SHA256Context {
-  mbedtls_sha256_context ctx;
-  uint8_t hash[32];
-};
 
 SHA256::~SHA256() {
   if (this->ctx_) {
@@ -45,12 +35,6 @@ void SHA256::calculate() {
 }
 
 #elif defined(USE_ARDUINO)
-
-struct SHA256::SHA256Context {
-  ::SHA256 sha;
-  uint8_t hash[32];
-  bool calculated{false};
-};
 
 SHA256::~SHA256() = default;
 

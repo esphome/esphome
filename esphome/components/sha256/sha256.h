@@ -5,6 +5,12 @@
 #include <string>
 #include <memory>
 
+#ifdef USE_ESP32
+#include "mbedtls/sha256.h"
+#elif defined(USE_ARDUINO)
+#include <SHA256.h>
+#endif
+
 namespace esphome::sha256 {
 
 class SHA256 {
@@ -27,7 +33,20 @@ class SHA256 {
   bool equals_hex(const char *expected);
 
  protected:
-  struct SHA256Context;
+#ifdef USE_ESP32
+  struct SHA256Context {
+    mbedtls_sha256_context ctx;
+    uint8_t hash[32];
+  };
+#elif defined(USE_ARDUINO)
+  struct SHA256Context {
+    ::SHA256 sha;
+    uint8_t hash[32];
+    bool calculated{false};
+  };
+#else
+#error "SHA256 not supported on this platform"
+#endif
   std::unique_ptr<SHA256Context> ctx_;
 };
 
