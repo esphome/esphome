@@ -257,10 +257,7 @@ def test_clean_cmake_cache(
     cmake_cache_file.write_text("# CMake cache file")
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.side_effect = [
-        str(pioenvs_dir),  # First call for directory check
-        str(cmake_cache_file),  # Second call for file path
-    ]
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
 
     # Verify file exists before
@@ -288,7 +285,7 @@ def test_clean_cmake_cache_no_pioenvs_dir(
     pioenvs_dir = tmp_path / ".pioenvs"
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
 
     # Verify directory doesn't exist
     assert not pioenvs_dir.exists()
@@ -314,10 +311,7 @@ def test_clean_cmake_cache_no_cmake_file(
     cmake_cache_file = device_dir / "CMakeCache.txt"
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.side_effect = [
-        str(pioenvs_dir),  # First call for directory check
-        str(cmake_cache_file),  # Second call for file path
-    ]
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
 
     # Verify file doesn't exist
@@ -358,9 +352,9 @@ def test_clean_build(
     (platformio_cache_dir / "downloads" / "package.tar.gz").write_text("package")
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
-    mock_core.relative_build_path.return_value = str(dependencies_lock)
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_build_path.return_value = dependencies_lock
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -408,9 +402,9 @@ def test_clean_build_partial_exists(
     dependencies_lock = tmp_path / "dependencies.lock"
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
-    mock_core.relative_build_path.return_value = str(dependencies_lock)
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_build_path.return_value = dependencies_lock
 
     # Verify only pioenvs exists
     assert pioenvs_dir.exists()
@@ -445,9 +439,9 @@ def test_clean_build_nothing_exists(
     dependencies_lock = tmp_path / "dependencies.lock"
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
-    mock_core.relative_build_path.return_value = str(dependencies_lock)
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_build_path.return_value = dependencies_lock
 
     # Verify nothing exists
     assert not pioenvs_dir.exists()
@@ -481,9 +475,9 @@ def test_clean_build_platformio_not_available(
     dependencies_lock.write_text("lock file")
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(piolibdeps_dir)
-    mock_core.relative_build_path.return_value = str(dependencies_lock)
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_build_path.return_value = dependencies_lock
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -519,9 +513,9 @@ def test_clean_build_empty_cache_dir(
     pioenvs_dir.mkdir()
 
     # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = str(pioenvs_dir)
-    mock_core.relative_piolibdeps_path.return_value = str(tmp_path / ".piolibdeps")
-    mock_core.relative_build_path.return_value = str(tmp_path / "dependencies.lock")
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
@@ -552,7 +546,7 @@ def test_write_gitignore_creates_new_file(
     gitignore_path = tmp_path / ".gitignore"
 
     # Setup mocks
-    mock_core.relative_config_path.return_value = str(gitignore_path)
+    mock_core.relative_config_path.return_value = gitignore_path
 
     # Verify file doesn't exist
     assert not gitignore_path.exists()
@@ -576,7 +570,7 @@ def test_write_gitignore_skips_existing_file(
     gitignore_path.write_text(existing_content)
 
     # Setup mocks
-    mock_core.relative_config_path.return_value = str(gitignore_path)
+    mock_core.relative_config_path.return_value = gitignore_path
 
     # Verify file exists with custom content
     assert gitignore_path.exists()
@@ -615,7 +609,7 @@ void loop() {{}}"""
     main_cpp.write_text(existing_content)
 
     # Setup mocks
-    mock_core.relative_src_path.return_value = str(main_cpp)
+    mock_core.relative_src_path.return_value = main_cpp
     mock_core.cpp_global_section = "// Global section"
 
     # Call the function
@@ -652,7 +646,7 @@ def test_write_cpp_creates_new_file(
     main_cpp = tmp_path / "main.cpp"
 
     # Setup mocks
-    mock_core.relative_src_path.return_value = str(main_cpp)
+    mock_core.relative_src_path.return_value = main_cpp
     mock_core.cpp_global_section = "// Global section"
 
     # Verify file doesn't exist
@@ -668,7 +662,7 @@ def test_write_cpp_creates_new_file(
     # Get the content that would be written
     mock_write_file.assert_called_once()
     written_path, written_content = mock_write_file.call_args[0]
-    assert written_path == str(main_cpp)
+    assert written_path == main_cpp
 
     # Check that all necessary parts are in the new file
     assert '#include "esphome.h"' in written_content
@@ -698,7 +692,7 @@ def test_write_cpp_with_missing_end_marker(
     main_cpp.write_text(existing_content)
 
     # Setup mocks
-    mock_core.relative_src_path.return_value = str(main_cpp)
+    mock_core.relative_src_path.return_value = main_cpp
 
     # Call should raise an error
     with pytest.raises(EsphomeError, match="Could not find auto generated code end"):
@@ -724,7 +718,7 @@ def test_write_cpp_with_duplicate_markers(
     main_cpp.write_text(existing_content)
 
     # Setup mocks
-    mock_core.relative_src_path.return_value = str(main_cpp)
+    mock_core.relative_src_path.return_value = main_cpp
 
     # Call should raise an error
     with pytest.raises(EsphomeError, match="Found multiple auto generate code begins"):
