@@ -24,6 +24,10 @@ usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
+CH34X_MAX_CHANNELS = 3
+#if defined(USE_ESP32_VARIANT_ESP32P4)
+    CH34X_MAX_CHANNELS = 8
+#endif
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -56,7 +60,7 @@ class Type:
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", CH34X_MAX_CHANNELS),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
