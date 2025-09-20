@@ -249,7 +249,7 @@ static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
     if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP %u from %u to 64", ep->bEndpointAddress, ep->wMaxPacketSize);
+      ESP_LOGW(TAG, "Corrected MPS of EP %02h from %u to 64", ep->bEndpointAddress, ep->wMaxPacketSize);
       ep_mutable->wMaxPacketSize = 64;
     }
   }
