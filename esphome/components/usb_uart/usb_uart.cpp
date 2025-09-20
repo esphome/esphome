@@ -270,8 +270,10 @@ void USBUartTypeCdcAcm::on_connected() {
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
+#if !defined(USE_ESP32_VARIANT_ESP32P4)
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
+#endif
     channel->initialised_ = true;
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
