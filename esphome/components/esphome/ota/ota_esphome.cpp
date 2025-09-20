@@ -540,11 +540,11 @@ template<typename HashClass> bool ESPHomeOTAComponent::perform_hash_auth_(const 
   // Use hex_buffer1 for nonce
   hasher.get_hex(hex_buffer1);
   hex_buffer1[Traits::HEX_SIZE] = '\0';
-  ESP_LOGV("esphome.ota", "Auth: %s Nonce is %s", Traits::NAME, hex_buffer1);
+  ESP_LOGV(TAG, "Auth: %s Nonce is %s", Traits::NAME, hex_buffer1);
 
   // Send nonce
   if (!this->writeall_(reinterpret_cast<uint8_t *>(hex_buffer1), Traits::HEX_SIZE)) {
-    ESP_LOGW("esphome.ota", "Auth: Writing %s nonce failed", Traits::NAME);
+    ESP_LOGW(TAG, "Auth: Writing %s nonce failed", Traits::NAME);
     return false;
   }
 
@@ -555,11 +555,11 @@ template<typename HashClass> bool ESPHomeOTAComponent::perform_hash_auth_(const 
 
   // Receive cnonce into hex_buffer2
   if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::HEX_SIZE)) {
-    ESP_LOGW("esphome.ota", "Auth: Reading %s cnonce failed", Traits::NAME);
+    ESP_LOGW(TAG, "Auth: Reading %s cnonce failed", Traits::NAME);
     return false;
   }
   hex_buffer2[Traits::HEX_SIZE] = '\0';
-  ESP_LOGV("esphome.ota", "Auth: %s CNonce is %s", Traits::NAME, hex_buffer2);
+  ESP_LOGV(TAG, "Auth: %s CNonce is %s", Traits::NAME, hex_buffer2);
 
   // Add cnonce to hash
   hasher.add(hex_buffer2, Traits::HEX_SIZE);
@@ -568,21 +568,21 @@ template<typename HashClass> bool ESPHomeOTAComponent::perform_hash_auth_(const 
   hasher.calculate();
   hasher.get_hex(hex_buffer1);
   hex_buffer1[Traits::HEX_SIZE] = '\0';
-  ESP_LOGV("esphome.ota", "Auth: %s Result is %s", Traits::NAME, hex_buffer1);
+  ESP_LOGV(TAG, "Auth: %s Result is %s", Traits::NAME, hex_buffer1);
 
   // Receive response - reuse hex_buffer2
   if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), Traits::HEX_SIZE)) {
-    ESP_LOGW("esphome.ota", "Auth: Reading %s response failed", Traits::NAME);
+    ESP_LOGW(TAG, "Auth: Reading %s response failed", Traits::NAME);
     return false;
   }
   hex_buffer2[Traits::HEX_SIZE] = '\0';
-  ESP_LOGV("esphome.ota", "Auth: %s Response is %s", Traits::NAME, hex_buffer2);
+  ESP_LOGV(TAG, "Auth: %s Response is %s", Traits::NAME, hex_buffer2);
 
   // Compare
   bool matches = memcmp(hex_buffer1, hex_buffer2, Traits::HEX_SIZE) == 0;
 
   if (!matches) {
-    ESP_LOGW("esphome.ota", "Auth failed! %s passwords do not match", Traits::NAME);
+    ESP_LOGW(TAG, "Auth failed! %s passwords do not match", Traits::NAME);
   }
 
   return matches;
