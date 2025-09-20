@@ -34,7 +34,7 @@ void SHA256::calculate() {
   mbedtls_sha256_finish(&this->ctx_->ctx, this->ctx_->hash);
 }
 
-#elif defined(USE_ESP8266)
+#elif defined(USE_ESP8266) || defined(USE_RP2040)
 
 SHA256::~SHA256() = default;
 
