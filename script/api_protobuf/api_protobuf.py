@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-import os
 from pathlib import Path
 import re
 from subprocess import call
@@ -1750,13 +1749,16 @@ def build_message_type(
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
-        # Validate that estimated_size fits in uint8_t
-        if estimated_size > 255:
-            raise ValueError(
-                f"Estimated size {estimated_size} for {desc.name} exceeds uint8_t maximum (255)"
-            )
+        # Use a type appropriate for estimated_size
+        estimated_size_type = (
+            "uint8_t"
+            if estimated_size <= 255
+            else "uint16_t"
+            if estimated_size <= 65535
+            else "size_t"
+        )
         public_content.append(
-            f"static constexpr uint8_t ESTIMATED_SIZE = {estimated_size};"
+            f"static constexpr {estimated_size_type} ESTIMATED_SIZE = {estimated_size};"
         )
 
         # Add message_name method inline in header
@@ -2701,8 +2703,8 @@ static const char *const TAG = "api.service";
         import clang_format
 
         def exec_clang_format(path: Path) -> None:
-            clang_format_path = os.path.join(
-                os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+            clang_format_path = (
+                Path(clang_format.__file__).parent / "data" / "bin" / "clang-format"
             )
             call([clang_format_path, "-i", path])
 
