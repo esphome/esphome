@@ -132,6 +132,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(23, this->zwave_proxy_feature_flags);
 #endif
+#ifdef USE_ZWAVE_PROXY
+  buffer.encode_uint32(24, this->zwave_home_id);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
@@ -186,6 +189,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_proxy_feature_flags);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  size.add_uint32(2, this->zwave_home_id);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
