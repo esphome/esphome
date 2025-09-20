@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -259,8 +259,8 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),

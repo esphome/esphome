@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import io
 import logging
+from pathlib import Path
 import random
 import socket
 import sys
@@ -191,7 +192,7 @@ def send_check(sock, data, msg):
 
 
 def perform_ota(
-    sock: socket.socket, password: str, file_handle: io.IOBase, filename: str
+    sock: socket.socket, password: str, file_handle: io.IOBase, filename: Path
 ) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
@@ -308,9 +309,17 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
+def run_ota_impl_(
+    remote_host: str | list[str], remote_port: int, password: str, filename: Path
+) -> tuple[int, str | None]:
+    from esphome.core import CORE
+
+    # Handle both single host and list of hosts
     try:
-        res = resolve_ip_address(remote_host, remote_port)
+        # Resolve all hosts at once for parallel DNS resolution
+        res = resolve_ip_address(
+            remote_host, remote_port, address_cache=CORE.address_cache
+        )
     except EsphomeError as err:
         _LOGGER.error(
             "Error resolving IP address of %s. Is it connected to WiFi?",
@@ -340,19 +349,22 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
                 perform_ota(sock, password, file_handle, filename)
             except OTAError as err:
                 _LOGGER.error(str(err))
-                return 1
+                return 1, None
             finally:
                 sock.close()
 
-        return 0
+        # Successfully uploaded to sa[0]
+        return 0, sa[0]
 
     _LOGGER.error("Connection failed.")
-    return 1
+    return 1, None
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(
+    remote_host: str | list[str], remote_port: int, password: str, filename: Path
+) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
+        return 1, None
