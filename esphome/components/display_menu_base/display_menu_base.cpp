@@ -55,6 +55,7 @@ void DisplayMenuComponent::left() {
       case MENU_ITEM_SWITCH:
       case MENU_ITEM_NUMBER:
       case MENU_ITEM_CUSTOM:
+      case MENU_ITEM_COMMAND:
         switch (this->mode_) {
           case MENU_MODE_ROTARY:
             if (this->editing_) {
@@ -67,11 +68,15 @@ void DisplayMenuComponent::left() {
           case MENU_MODE_JOYSTICK:
             if (this->editing_ || this->get_selected_item_()->get_immediate_edit())
               changed = this->get_selected_item_()->select_prev();
+            if (this->displayed_item_->get_parent() == nullptr)
+              this->hide();
             break;
           default:
             break;
         }
         break;
+      case MENU_ITEM_MENU:
+      case MENU_ITEM_LABEL:
       case MENU_ITEM_BACK:
         changed = this->leave_menu_();
         break;
@@ -297,6 +302,9 @@ bool DisplayMenuComponent::leave_menu_() {
     this->cursor_index_ = this->selection_stack_.front().second;
     this->selection_stack_.pop_front();
     this->displayed_item_->on_enter();
+    changed = true;
+  } else {
+    this->hide();
     changed = true;
   }
 
