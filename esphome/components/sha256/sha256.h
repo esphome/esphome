@@ -7,6 +7,8 @@
 
 #ifdef USE_ESP32
 #include "mbedtls/sha256.h"
+#elif defined(USE_ESP8266)
+#include <bearssl/bearssl_hash.h>
 #elif defined(USE_ARDUINO)
 #include <SHA256.h>
 #endif
@@ -37,6 +39,12 @@ class SHA256 {
   struct SHA256Context {
     mbedtls_sha256_context ctx;
     uint8_t hash[32];
+  };
+#elif defined(USE_ESP8266)
+  struct SHA256Context {
+    br_sha256_context ctx;
+    uint8_t hash[32];
+    bool calculated{false};
   };
 #elif defined(USE_ARDUINO)
   struct SHA256Context {

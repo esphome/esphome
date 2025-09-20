@@ -34,6 +34,35 @@ void SHA256::calculate() {
   mbedtls_sha256_finish(&this->ctx_->ctx, this->ctx_->hash);
 }
 
+#elif defined(USE_ESP8266)
+
+SHA256::~SHA256() = default;
+
+void SHA256::init() {
+  if (!this->ctx_) {
+    this->ctx_ = std::make_unique<SHA256Context>();
+  }
+  br_sha256_init(&this->ctx_->ctx);
+  this->ctx_->calculated = false;
+}
+
+void SHA256::add(const uint8_t *data, size_t len) {
+  if (!this->ctx_) {
+    this->init();
+  }
+  br_sha256_update(&this->ctx_->ctx, data, len);
+}
+
+void SHA256::calculate() {
+  if (!this->ctx_) {
+    this->init();
+  }
+  if (!this->ctx_->calculated) {
+    br_sha256_out(&this->ctx_->ctx, this->ctx_->hash);
+    this->ctx_->calculated = true;
+  }
+}
+
 #elif defined(USE_ARDUINO)
 
 SHA256::~SHA256() = default;
