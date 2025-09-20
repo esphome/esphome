@@ -26,7 +26,7 @@ USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
 CH34X_MAX_CHANNELS = 3
 #if defined(USE_ESP32_VARIANT_ESP32P4)
-    CH34X_MAX_CHANNELS = 8
+CH34X_MAX_CHANNELS = 8
 #endif
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
