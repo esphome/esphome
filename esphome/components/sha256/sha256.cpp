@@ -98,7 +98,9 @@ void SHA256::get_hex(char *output) {
     return;
   }
   for (size_t i = 0; i < 32; i++) {
-    sprintf(output + i * 2, "%02x", this->ctx_->hash[i]);
+    uint8_t byte = this->ctx_->hash[i];
+    output[i * 2] = format_hex_char(byte >> 4);
+    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
   }
 }
 
