@@ -31,6 +31,7 @@ void NS2009Component::setup() {
     this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
+
   this->setup_done_ = true;
 }
 
@@ -52,9 +53,10 @@ void NS2009Component::update_touches() {
 
       ESP_LOGV(TAG, "X %4d   Y %4d   Z %3d", x, y, z);
       this->add_raw_touch_position_(0, x, y, z);
-      this->skip_update_ = false;
     }
   }
+
+  this->skip_update_ = false;
 }
 
 void NS2009Component::dump_config() {
