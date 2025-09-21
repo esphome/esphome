@@ -1066,7 +1066,6 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
     // Decode temperature
     if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
-      float old_temp = this->target_temperature;
       this->target_temperature = decode_ras_2819t_temperature(temp_code);
     }
 
