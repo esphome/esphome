@@ -26,10 +26,18 @@ static const char *const TAG = "socket.lwip";
 #define LWIP_LOG(msg, ...)
 #endif
 
+#ifdef USE_RP2040
+#define LOCK_INTERRUPTS InterruptLock lock
+#else
+#define LOCK_INTERRUPTS
+// FIXME need to figure out if this is a problem on ESP8266
+#endif
+
 class LWIPRawImpl : public Socket {
  public:
   LWIPRawImpl(sa_family_t family, struct tcp_pcb *pcb) : pcb_(pcb), family_(family) {}
   ~LWIPRawImpl() override {
+    LOCK_INTERRUPTS;
     if (pcb_ != nullptr) {
       LWIP_LOG("tcp_abort(%p)", pcb_);
       tcp_abort(pcb_);
@@ -38,6 +46,7 @@ class LWIPRawImpl : public Socket {
   }
 
   void init() {
+    LOCK_INTERRUPTS;
     LWIP_LOG("init(%p)", pcb_);
     tcp_arg(pcb_, this);
     tcp_accept(pcb_, LWIPRawImpl::s_accept_fn);
@@ -46,6 +55,7 @@ class LWIPRawImpl : public Socket {
   }
 
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = EBADF;
       return nullptr;
@@ -63,6 +73,7 @@ class LWIPRawImpl : public Socket {
     return std::unique_ptr<Socket>(std::move(sock));
   }
   int bind(const struct sockaddr *name, socklen_t addrlen) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = EBADF;
       return -1;
@@ -127,6 +138,7 @@ class LWIPRawImpl : public Socket {
     return 0;
   }
   int close() override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -144,6 +156,7 @@ class LWIPRawImpl : public Socket {
     return 0;
   }
   int shutdown(int how) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -170,6 +183,7 @@ class LWIPRawImpl : public Socket {
   }
 
   int getpeername(struct sockaddr *name, socklen_t *addrlen) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -181,6 +195,7 @@ class LWIPRawImpl : public Socket {
     return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
   std::string getpeername() override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
@@ -197,6 +212,7 @@ class LWIPRawImpl : public Socket {
     return std::string(buffer);
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -208,6 +224,7 @@ class LWIPRawImpl : public Socket {
     return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
   std::string getsockname() override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
@@ -286,6 +303,7 @@ class LWIPRawImpl : public Socket {
     return -1;
   }
   int listen(int backlog) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = EBADF;
       return -1;
@@ -307,6 +325,7 @@ class LWIPRawImpl : public Socket {
     return 0;
   }
   ssize_t read(void *buf, size_t len) override {
+    LOCK_INTERRUPTS;
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -430,6 +449,7 @@ class LWIPRawImpl : public Socket {
     return 0;
   }
   ssize_t write(const void *buf, size_t len) override {
+    LOCK_INTERRUPTS;
     ssize_t written = internal_write(buf, len);
     if (written == -1)
       return -1;
@@ -444,6 +464,7 @@ class LWIPRawImpl : public Socket {
     return written;
   }
   ssize_t writev(const struct iovec *iov, int iovcnt) override {
+    LOCK_INTERRUPTS;
     ssize_t written = 0;
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
