@@ -532,7 +532,7 @@ void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogSt
 bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, size_t nonce_size,
                                              uint8_t auth_request, const LogString *name, char *buf) {
   // Get sizes from the hasher
-  const size_t hex_size = hasher->get_hex_size();
+  const size_t hex_size = hasher->get_size() * 2;  // Hex is twice the byte size
 
   // Use the provided buffer for all hex operations
 

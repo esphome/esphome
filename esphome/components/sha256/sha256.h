@@ -33,8 +33,8 @@ class SHA256 : public esphome::HashBase {
 
   void calculate() override;
 
-  /// Get the size of the hex output (64 for SHA256)
-  size_t get_hex_size() const override { return 64; }
+  /// Get the size of the hash in bytes (32 for SHA256)
+  size_t get_size() const override { return 32; }
 
  protected:
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)

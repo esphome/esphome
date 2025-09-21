@@ -23,15 +23,11 @@ class HashBase {
   virtual void calculate() = 0;
 
   /// Retrieve the hash as bytes
-  void get_bytes(uint8_t *output) {
-    const size_t hash_bytes = this->get_hex_size() / 2;
-    memcpy(output, this->digest_, hash_bytes);
-  }
+  void get_bytes(uint8_t *output) { memcpy(output, this->digest_, this->get_size()); }
 
   /// Retrieve the hash as hex characters
   void get_hex(char *output) {
-    const size_t hash_bytes = this->get_hex_size() / 2;
-    for (size_t i = 0; i < hash_bytes; i++) {
+    for (size_t i = 0; i < this->get_size(); i++) {
       uint8_t byte = this->digest_[i];
       output[i * 2] = format_hex_char(byte >> 4);
       output[i * 2 + 1] = format_hex_char(byte & 0x0F);
@@ -39,23 +35,19 @@ class HashBase {
   }
 
   /// Compare the hash against a provided byte-encoded hash
-  bool equals_bytes(const uint8_t *expected) {
-    const size_t hash_bytes = this->get_hex_size() / 2;
-    return memcmp(this->digest_, expected, hash_bytes) == 0;
-  }
+  bool equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, this->get_size()) == 0; }
 
   /// Compare the hash against a provided hex-encoded hash
   bool equals_hex(const char *expected) {
-    const size_t hash_bytes = this->get_hex_size() / 2;
     uint8_t parsed[32];  // Max size for SHA256
-    if (!parse_hex(expected, parsed, hash_bytes)) {
+    if (!parse_hex(expected, parsed, this->get_size())) {
       return false;
     }
     return this->equals_bytes(parsed);
   }
 
-  /// Get the size of the hex output (32 for MD5, 64 for SHA256)
-  virtual size_t get_hex_size() const = 0;
+  /// Get the size of the hash in bytes (16 for MD5, 32 for SHA256)
+  virtual size_t get_size() const = 0;
 
  protected:
   uint8_t digest_[32];  // Common digest storage, sized for largest hash (SHA256)
