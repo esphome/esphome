@@ -1,4 +1,8 @@
 #include "sha256.h"
+
+// Only compile SHA256 implementation on platforms that support it
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+
 #include "esphome/core/helpers.h"
 #include <cstring>
 
@@ -142,3 +146,5 @@ bool SHA256::equals_hex(const char *expected) {
 }
 
 }  // namespace esphome::sha256
+
+#endif  // Platform check

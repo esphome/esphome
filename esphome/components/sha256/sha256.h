@@ -1,6 +1,10 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+
+// Only define SHA256 on platforms that support it
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+
 #include <cstdint>
 #include <string>
 #include <memory>
@@ -59,3 +63,5 @@ class SHA256 {
 };
 
 }  // namespace esphome::sha256
+
+#endif  // Platform check
