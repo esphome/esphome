@@ -67,6 +67,13 @@ class CoroPriority(enum.IntEnum):
     # Examples: esp32, esp8266, rp2040
     PLATFORM = 1000
 
+    # Core system components
+    # Examples: esphome core, most entity base components (cover, update, datetime,
+    # valve, alarm_control_panel, lock, event, binary_sensor, button, climate, fan,
+    # light, media_player, number, select, sensor, switch, text_sensor, text),
+    # microphone, speaker, audio_dac, touchscreen, stepper
+    CORE = 300
+
     # Network infrastructure setup
     # Examples: network (201)
     NETWORK = 201
@@ -74,13 +81,6 @@ class CoroPriority(enum.IntEnum):
     # Network transport layer
     # Examples: async_tcp (200)
     NETWORK_TRANSPORT = 200
-
-    # Core system components
-    # Examples: esphome core, most entity base components (cover, update, datetime,
-    # valve, alarm_control_panel, lock, event, binary_sensor, button, climate, fan,
-    # light, media_player, number, select, sensor, switch, text_sensor, text),
-    # microphone, speaker, audio_dac, touchscreen, stepper
-    CORE = 100
 
     # Diagnostic and debugging systems
     # Examples: logger (90)

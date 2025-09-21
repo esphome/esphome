@@ -8,9 +8,9 @@ from esphome.coroutine import CoroPriority, FakeEventLoop, coroutine_with_priori
 def test_coro_priority_enum_values() -> None:
     """Test that CoroPriority enum values match expected priorities."""
     assert CoroPriority.PLATFORM == 1000
+    assert CoroPriority.CORE == 300
     assert CoroPriority.NETWORK == 201
     assert CoroPriority.NETWORK_TRANSPORT == 200
-    assert CoroPriority.CORE == 100
     assert CoroPriority.DIAGNOSTICS == 90
     assert CoroPriority.STATUS == 80
     assert CoroPriority.WEB_SERVER_BASE == 65
@@ -48,13 +48,13 @@ def test_coroutine_with_priority_accepts_enum() -> None:
         pass
 
     assert hasattr(test_func, "priority")
-    assert test_func.priority == 100.0
+    assert test_func.priority == 300.0
 
 
 def test_float_and_enum_are_interchangeable() -> None:
     """Test that float and CoroPriority enum values produce the same priority."""
 
-    @coroutine_with_priority(100.0)
+    @coroutine_with_priority(300.0)
     def func_with_float() -> None:
         pass
 
@@ -63,16 +63,16 @@ def test_float_and_enum_are_interchangeable() -> None:
         pass
 
     assert func_with_float.priority == func_with_enum.priority
-    assert func_with_float.priority == 100.0
+    assert func_with_float.priority == 300.0
 
 
 @pytest.mark.parametrize(
     ("enum_value", "float_value"),
     [
         (CoroPriority.PLATFORM, 1000.0),
+        (CoroPriority.CORE, 300.0),
         (CoroPriority.NETWORK, 201.0),
         (CoroPriority.NETWORK_TRANSPORT, 200.0),
-        (CoroPriority.CORE, 100.0),
         (CoroPriority.DIAGNOSTICS, 90.0),
         (CoroPriority.STATUS, 80.0),
         (CoroPriority.WEB_SERVER_BASE, 65.0),
@@ -169,10 +169,10 @@ def test_mixed_float_and_enum_priorities() -> None:
 
 def test_enum_priority_comparison() -> None:
     """Test that enum priorities can be compared directly."""
-    assert CoroPriority.PLATFORM > CoroPriority.NETWORK
+    assert CoroPriority.PLATFORM > CoroPriority.CORE
+    assert CoroPriority.CORE > CoroPriority.NETWORK
     assert CoroPriority.NETWORK > CoroPriority.NETWORK_TRANSPORT
-    assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.CORE
-    assert CoroPriority.CORE > CoroPriority.DIAGNOSTICS
+    assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.DIAGNOSTICS
     assert CoroPriority.DIAGNOSTICS > CoroPriority.STATUS
     assert CoroPriority.STATUS > CoroPriority.WEB_SERVER_BASE
     assert CoroPriority.WEB_SERVER_BASE > CoroPriority.CAPTIVE_PORTAL
