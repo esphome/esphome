@@ -1,0 +1,67 @@
+psram:
+  mode: octal
+
+spi:
+  - clk_pin:
+      number: 47
+      allow_other_uses: true
+    mosi_pin:
+      number: 41
+      allow_other_uses: true
+
+display:
+  - platform: mipi_rgb
+    model: ZX2D10GE01R-V4848
+    update_interval: 1s
+    color_order: BGR
+    draw_rounding: 2
+    pixel_mode: 18bit
+    invert_colors: false
+    use_axis_flips: true
+    pclk_frequency: 15000000.0
+    pclk_inverted: true
+    byte_order: big_endian
+    hsync_pulse_width: 10
+    hsync_back_porch: 10
+    hsync_front_porch: 10
+    vsync_pulse_width: 2
+    vsync_back_porch: 12
+    vsync_front_porch: 14
+    data_pins:
+      red:
+        - number: 10
+        - number: 16
+        - number: 9
+        - number: 15
+        - number: 46
+          ignore_strapping_warning: true
+      green:
+        - number: 8
+        - number: 13
+        - number: 18
+        - number: 12
+        - number: 11
+        - number: 17
+      blue:
+        - number: 47
+          allow_other_uses: true
+        - number: 41
+          allow_other_uses: true
+        - number: 0
+          ignore_strapping_warning: true
+        - number: 42
+        - number: 14
+    de_pin:
+      number: 39
+    pclk_pin:
+      number: 45
+      ignore_strapping_warning: true
+    hsync_pin:
+      number: 40
+    vsync_pin:
+      number: 48
+    data_rate: 1000000.0
+    spi_mode: MODE0
+    cs_pin:
+      number: 21
+    show_test_card: true

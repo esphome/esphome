@@ -45,7 +45,7 @@ void SelectCall::perform() {
   auto *parent = this->parent_;
   const auto *name = parent->get_name().c_str();
   const auto &traits = parent->traits;
-  auto options = traits.get_options();
+  const auto &options = traits.get_options();
 
   if (this->operation_ == SELECT_OP_NONE) {
     ESP_LOGW(TAG, "'%s' - SelectCall performed without selecting an operation", name);
