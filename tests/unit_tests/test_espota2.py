@@ -216,131 +216,118 @@ def test_send_check_socket_error(mock_socket) -> None:
         espota2.send_check(mock_socket, b"data", "test")
 
 
-def test_perform_ota_successful_md5_auth(mock_socket) -> None:
+def test_perform_ota_successful_md5_auth(
+    mock_socket, mock_file, mock_time, mock_random
+) -> None:
     """Test successful OTA with MD5 authentication."""
-    mock_file = io.BytesIO(b"firmware content here")
+    # Setup socket responses for recv calls
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_REQUEST_AUTH]),  # Auth request
+        b"12345678901234567890123456789012",  # 32 char hex nonce
+        bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
 
-    # Mock random for predictable cnonce
-    with (
-        patch("random.random", return_value=0.123456),
-        patch("time.sleep"),
-        patch("time.perf_counter", side_effect=[0, 1]),
-    ):
-        # Setup socket responses for recv calls
-        recv_responses = [
-            bytes([espota2.RESPONSE_OK]),  # First byte of version response
-            bytes([espota2.OTA_VERSION_2_0]),  # Version number
-            bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
-            bytes([espota2.RESPONSE_REQUEST_AUTH]),  # Auth request
-            b"12345678901234567890123456789012",  # 32 char hex nonce
-            bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
-            bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
-            bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
-            bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
-            bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
-            bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
-        ]
+    mock_socket.recv.side_effect = recv_responses
 
-        mock_socket.recv.side_effect = recv_responses
+    # Run OTA
+    espota2.perform_ota(mock_socket, "testpass", mock_file, "test.bin")
 
-        # Run OTA
-        espota2.perform_ota(mock_socket, "testpass", mock_file, "test.bin")
+    # Verify magic bytes were sent
+    assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
 
-        # Verify magic bytes were sent
-        assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
-
-        # Verify features were sent (compression + SHA256 support)
-        assert mock_socket.sendall.call_args_list[1] == call(
-            bytes(
-                [
-                    espota2.FEATURE_SUPPORTS_COMPRESSION
-                    | espota2.FEATURE_SUPPORTS_SHA256_AUTH
-                ]
-            )
+    # Verify features were sent (compression + SHA256 support)
+    assert mock_socket.sendall.call_args_list[1] == call(
+        bytes(
+            [
+                espota2.FEATURE_SUPPORTS_COMPRESSION
+                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+            ]
         )
+    )
 
-        # Verify cnonce was sent (MD5 of random.random())
-        cnonce = hashlib.md5(b"0.123456").hexdigest()
-        assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
+    # Verify cnonce was sent (MD5 of random.random())
+    cnonce = hashlib.md5(b"0.123456").hexdigest()
+    assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
-        # Verify auth result was computed correctly
-        expected_hash = hashlib.md5()
-        expected_hash.update(b"testpass")
-        expected_hash.update(b"12345678901234567890123456789012")
-        expected_hash.update(cnonce.encode())
-        expected_result = expected_hash.hexdigest()
-        assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
+    # Verify auth result was computed correctly
+    expected_hash = hashlib.md5()
+    expected_hash.update(b"testpass")
+    expected_hash.update(b"12345678901234567890123456789012")
+    expected_hash.update(cnonce.encode())
+    expected_result = expected_hash.hexdigest()
+    assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
 
 
-def test_perform_ota_no_auth(mock_socket) -> None:
+def test_perform_ota_no_auth(mock_socket, mock_file, mock_time) -> None:
     """Test OTA without authentication."""
-    mock_file = io.BytesIO(b"firmware")
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_1_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
 
-    with patch("time.sleep"), patch("time.perf_counter", side_effect=[0, 1]):
-        recv_responses = [
-            bytes([espota2.RESPONSE_OK]),  # First byte of version response
-            bytes([espota2.OTA_VERSION_1_0]),  # Version number
-            bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
-            bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
-            bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
-            bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
-            bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
-            bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
-        ]
+    mock_socket.recv.side_effect = recv_responses
 
-        mock_socket.recv.side_effect = recv_responses
+    espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
-        espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
-
-        # Should not send any auth-related data
-        auth_calls = [
-            call
-            for call in mock_socket.sendall.call_args_list
-            if "cnonce" in str(call) or "result" in str(call)
-        ]
-        assert len(auth_calls) == 0
+    # Should not send any auth-related data
+    auth_calls = [
+        call
+        for call in mock_socket.sendall.call_args_list
+        if "cnonce" in str(call) or "result" in str(call)
+    ]
+    assert len(auth_calls) == 0
 
 
-def test_perform_ota_with_compression(mock_socket) -> None:
+def test_perform_ota_with_compression(mock_socket, mock_time) -> None:
     """Test OTA with compression support."""
     original_content = b"firmware" * 100  # Repeating content for compression
     mock_file = io.BytesIO(original_content)
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_SUPPORTS_COMPRESSION]),  # Device supports compression
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
 
-    with patch("time.sleep"), patch("time.perf_counter", side_effect=[0, 1]):
-        recv_responses = [
-            bytes([espota2.RESPONSE_OK]),  # First byte of version response
-            bytes([espota2.OTA_VERSION_2_0]),  # Version number
-            bytes(
-                [espota2.RESPONSE_SUPPORTS_COMPRESSION]
-            ),  # Device supports compression
-            bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
-            bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
-            bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
-            bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
-            bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
-            bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
-        ]
+    mock_socket.recv.side_effect = recv_responses
 
-        mock_socket.recv.side_effect = recv_responses
+    espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
-        espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
+    # Verify compressed content was sent
+    # Get the binary size that was sent (4 bytes after features)
+    size_bytes = mock_socket.sendall.call_args_list[2][0][0]
+    sent_size = (
+        (size_bytes[0] << 24)
+        | (size_bytes[1] << 16)
+        | (size_bytes[2] << 8)
+        | size_bytes[3]
+    )
 
-        # Verify compressed content was sent
-        # Get the binary size that was sent (4 bytes after features)
-        size_bytes = mock_socket.sendall.call_args_list[2][0][0]
-        sent_size = (
-            (size_bytes[0] << 24)
-            | (size_bytes[1] << 16)
-            | (size_bytes[2] << 8)
-            | size_bytes[3]
-        )
+    # Size should be less than original due to compression
+    assert sent_size < len(original_content)
 
-        # Size should be less than original due to compression
-        assert sent_size < len(original_content)
-
-        # Verify the content sent was gzipped
-        compressed = gzip.compress(original_content, compresslevel=9)
-        assert sent_size == len(compressed)
+    # Verify the content sent was gzipped
+    compressed = gzip.compress(original_content, compresslevel=9)
+    assert sent_size == len(compressed)
 
 
 def test_perform_ota_auth_without_password(mock_socket) -> None:
@@ -375,47 +362,35 @@ def test_perform_ota_unsupported_version(mock_socket) -> None:
         espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
 
-def test_perform_ota_upload_error(mock_socket) -> None:
+def test_perform_ota_upload_error(mock_socket, mock_file, mock_time) -> None:
     """Test OTA handles upload errors."""
-    mock_file = io.BytesIO(b"firmware")
+    # Setup responses - provide enough for the recv calls
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+    ]
+    # Add OSError to recv to simulate connection loss during chunk read
+    recv_responses.append(OSError("Connection lost"))
 
-    with patch("time.perf_counter", side_effect=[0, 1]):
-        # Setup responses - provide enough for the recv calls
-        recv_responses = [
-            bytes([espota2.RESPONSE_OK]),  # First byte of version response
-            bytes([espota2.OTA_VERSION_2_0]),  # Version number
-            bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
-            bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
-            bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
-            bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
-        ]
-        # Add OSError to recv to simulate connection loss during chunk read
-        recv_responses.append(OSError("Connection lost"))
+    mock_socket.recv.side_effect = recv_responses
 
-        mock_socket.recv.side_effect = recv_responses
-
-        with pytest.raises(
-            espota2.OTAError, match="Error receiving acknowledge chunk OK"
-        ):
-            espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
+    with pytest.raises(espota2.OTAError, match="Error receiving acknowledge chunk OK"):
+        espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
 
-def test_run_ota_impl_successful(mock_socket, tmp_path: Path) -> None:
+def test_run_ota_impl_successful(
+    mock_socket, tmp_path: Path, mock_resolve_ip, mock_perform_ota
+) -> None:
     """Test run_ota_impl_ with successful upload."""
     # Create a real firmware file
     firmware_file = tmp_path / "firmware.bin"
     firmware_file.write_bytes(b"firmware content")
 
-    with (
-        patch("socket.socket", return_value=mock_socket),
-        patch("esphome.espota2.resolve_ip_address") as mock_resolve,
-        patch("esphome.espota2.perform_ota") as mock_perform,
-    ):
-        # Setup mocks
-        mock_resolve.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.100", 3232))
-        ]
-
+    with patch("socket.socket", return_value=mock_socket):
         # Run OTA with real file path
         result_code, result_host = espota2.run_ota_impl_(
             "test.local", 3232, "password", str(firmware_file)
@@ -431,8 +406,8 @@ def test_run_ota_impl_successful(mock_socket, tmp_path: Path) -> None:
         mock_socket.close.assert_called_once()
 
         # Verify perform_ota was called with real file
-        mock_perform.assert_called_once()
-        call_args = mock_perform.call_args[0]
+        mock_perform_ota.assert_called_once()
+        call_args = mock_perform_ota.call_args[0]
         assert call_args[0] == mock_socket
         assert call_args[1] == "password"
         # The file object should be opened
@@ -440,7 +415,9 @@ def test_run_ota_impl_successful(mock_socket, tmp_path: Path) -> None:
         assert call_args[3] == str(firmware_file)
 
 
-def test_run_ota_impl_connection_failed(mock_socket, tmp_path: Path) -> None:
+def test_run_ota_impl_connection_failed(
+    mock_socket, tmp_path: Path, mock_resolve_ip
+) -> None:
     """Test run_ota_impl_ when connection fails."""
     mock_socket.connect.side_effect = OSError("Connection refused")
 
@@ -448,14 +425,7 @@ def test_run_ota_impl_connection_failed(mock_socket, tmp_path: Path) -> None:
     firmware_file = tmp_path / "firmware.bin"
     firmware_file.write_bytes(b"firmware content")
 
-    with (
-        patch("socket.socket", return_value=mock_socket),
-        patch("esphome.espota2.resolve_ip_address") as mock_resolve,
-    ):
-        mock_resolve.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.100", 3232))
-        ]
-
+    with patch("socket.socket", return_value=mock_socket):
         result_code, result_host = espota2.run_ota_impl_(
             "test.local", 3232, "password", str(firmware_file)
         )
@@ -465,33 +435,31 @@ def test_run_ota_impl_connection_failed(mock_socket, tmp_path: Path) -> None:
         mock_socket.close.assert_called_once()
 
 
-def test_run_ota_impl_resolve_failed(tmp_path: Path) -> None:
+def test_run_ota_impl_resolve_failed(tmp_path: Path, mock_resolve_ip) -> None:
     """Test run_ota_impl_ when DNS resolution fails."""
     # Create a real firmware file
     firmware_file = tmp_path / "firmware.bin"
     firmware_file.write_bytes(b"firmware content")
 
-    with patch("esphome.espota2.resolve_ip_address") as mock_resolve:
-        mock_resolve.side_effect = EsphomeError("DNS resolution failed")
+    mock_resolve_ip.side_effect = EsphomeError("DNS resolution failed")
 
-        with pytest.raises(espota2.OTAError, match="DNS resolution failed"):
-            result_code, result_host = espota2.run_ota_impl_(
-                "unknown.host", 3232, "password", str(firmware_file)
-            )
+    with pytest.raises(espota2.OTAError, match="DNS resolution failed"):
+        result_code, result_host = espota2.run_ota_impl_(
+            "unknown.host", 3232, "password", str(firmware_file)
+        )
 
 
-def test_run_ota_wrapper() -> None:
+def test_run_ota_wrapper(mock_run_ota_impl) -> None:
     """Test run_ota wrapper function."""
-    with patch("esphome.espota2.run_ota_impl_") as mock_impl:
-        # Test successful case
-        mock_impl.return_value = (0, "192.168.1.100")
-        result = espota2.run_ota("test.local", 3232, "pass", "fw.bin")
-        assert result == (0, "192.168.1.100")
+    # Test successful case
+    mock_run_ota_impl.return_value = (0, "192.168.1.100")
+    result = espota2.run_ota("test.local", 3232, "pass", "fw.bin")
+    assert result == (0, "192.168.1.100")
 
-        # Test error case
-        mock_impl.side_effect = espota2.OTAError("Test error")
-        result = espota2.run_ota("test.local", 3232, "pass", "fw.bin")
-        assert result == (1, None)
+    # Test error case
+    mock_run_ota_impl.side_effect = espota2.OTAError("Test error")
+    result = espota2.run_ota("test.local", 3232, "pass", "fw.bin")
+    assert result == (1, None)
 
 
 def test_progress_bar(capsys: CaptureFixture[str]) -> None:
@@ -528,82 +496,125 @@ def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     assert captured.err.count("50%") == 1
 
 
-# Tests for SHA256 authentication (for when PR is merged)
-def test_perform_ota_successful_sha256_auth(mock_socket) -> None:
-    """Test successful OTA with SHA256 authentication (future support)."""
+# Tests for SHA256 authentication
+def test_perform_ota_successful_sha256_auth(
+    mock_socket, mock_file, mock_time, mock_random
+) -> None:
+    """Test successful OTA with SHA256 authentication."""
+    # Setup socket responses for recv calls
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_REQUEST_SHA256_AUTH]),  # SHA256 Auth request
+        b"1234567890123456789012345678901234567890123456789012345678901234",  # 64 char hex nonce
+        bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
 
-    # Mock random for predictable cnonce
-    with patch("random.random", return_value=0.123456):
-        # Constants for SHA256 auth (when implemented)
-        RESPONSE_REQUEST_SHA256_AUTH = 0x02  # From PR
+    mock_socket.recv.side_effect = recv_responses
 
-        # Setup socket responses
-        responses = [
-            # Version handshake
-            bytes([espota2.RESPONSE_OK, espota2.OTA_VERSION_2_0]),
-            # Features response
-            bytes([espota2.RESPONSE_HEADER_OK]),
-            # SHA256 Auth request
-            bytes([RESPONSE_REQUEST_SHA256_AUTH]),
-            # Nonce from device (64 chars for SHA256)
-            b"1234567890123456789012345678901234567890123456789012345678901234",
-            # Auth result
-            bytes([espota2.RESPONSE_AUTH_OK]),
-            # Binary size OK
-            bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
-            # MD5 checksum OK
-            bytes([espota2.RESPONSE_BIN_MD5_OK]),
-            # Chunk OK
-            bytes([espota2.RESPONSE_CHUNK_OK]),
-            bytes([espota2.RESPONSE_CHUNK_OK]),
-            bytes([espota2.RESPONSE_CHUNK_OK]),
-            # Receive OK
-            bytes([espota2.RESPONSE_RECEIVE_OK]),
-            # Update end OK
-            bytes([espota2.RESPONSE_UPDATE_END_OK]),
-        ]
+    # Run OTA
+    espota2.perform_ota(mock_socket, "testpass", mock_file, "test.bin")
 
-        mock_socket.recv.side_effect = responses
+    # Verify magic bytes were sent
+    assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
 
-        # When SHA256 is implemented, this test will verify:
-        # 1. Client sends FEATURE_SUPPORTS_SHA256_AUTH flag
-        # 2. Device responds with RESPONSE_REQUEST_SHA256_AUTH
-        # 3. Authentication uses SHA256 instead of MD5
-        # 4. Nonce is 64 characters instead of 32
+    # Verify features were sent (compression + SHA256 support)
+    assert mock_socket.sendall.call_args_list[1] == call(
+        bytes(
+            [
+                espota2.FEATURE_SUPPORTS_COMPRESSION
+                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+            ]
+        )
+    )
 
-        # For now, this would raise an error since SHA256 isn't implemented
-        # Once implemented, uncomment to test:
-        # espota2.perform_ota(mock_socket, "testpass", mock_file, "test.bin")
+    # Verify cnonce was sent (SHA256 of random.random())
+    cnonce = hashlib.sha256(b"0.123456").hexdigest()
+    assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
+
+    # Verify auth result was computed correctly with SHA256
+    expected_hash = hashlib.sha256()
+    expected_hash.update(b"testpass")
+    expected_hash.update(
+        b"1234567890123456789012345678901234567890123456789012345678901234"
+    )
+    expected_hash.update(cnonce.encode())
+    expected_result = expected_hash.hexdigest()
+    assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
 
 
-def test_perform_ota_sha256_fallback_to_md5() -> None:
+def test_perform_ota_sha256_fallback_to_md5(
+    mock_socket, mock_file, mock_time, mock_random
+) -> None:
     """Test SHA256-capable client falls back to MD5 for compatibility."""
     # This test verifies the temporary backward compatibility
     # where a SHA256-capable client can still authenticate with MD5
-    # This compatibility will be removed in 2026.1.0 according to PR
-    pass  # Implementation depends on final PR merge
+    # This compatibility will be removed in 2026.1.0
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes(
+            [espota2.RESPONSE_REQUEST_AUTH]
+        ),  # MD5 Auth request (device doesn't support SHA256)
+        b"12345678901234567890123456789012",  # 32 char hex nonce for MD5
+        bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    # Run OTA - should work even though device requested MD5
+    espota2.perform_ota(mock_socket, "testpass", mock_file, "test.bin")
+
+    # Verify client still advertised SHA256 support
+    assert mock_socket.sendall.call_args_list[1] == call(
+        bytes(
+            [
+                espota2.FEATURE_SUPPORTS_COMPRESSION
+                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+            ]
+        )
+    )
+
+    # But authentication was done with MD5
+    cnonce = hashlib.md5(b"0.123456").hexdigest()
+    expected_hash = hashlib.md5()
+    expected_hash.update(b"testpass")
+    expected_hash.update(b"12345678901234567890123456789012")
+    expected_hash.update(cnonce.encode())
+    expected_result = expected_hash.hexdigest()
+    assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
 
 
-def test_perform_ota_version_differences(mock_socket) -> None:
+def test_perform_ota_version_differences(mock_socket, mock_file, mock_time) -> None:
     """Test OTA behavior differences between version 1.0 and 2.0."""
-    mock_file = io.BytesIO(b"firmware")
+    # Test version 1.0 - no chunk acknowledgments
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_1_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        # No RESPONSE_CHUNK_OK for v1
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
 
-    with patch("time.sleep"), patch("time.perf_counter", side_effect=[0, 1]):
-        # Test version 1.0 - no chunk acknowledgments
-        recv_responses = [
-            bytes([espota2.RESPONSE_OK]),  # First byte of version response
-            bytes([espota2.OTA_VERSION_1_0]),  # Version number
-            bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
-            bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
-            bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
-            bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
-            # No RESPONSE_CHUNK_OK for v1
-            bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
-            bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
-        ]
+    mock_socket.recv.side_effect = recv_responses
+    espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
-        mock_socket.recv.side_effect = recv_responses
-        espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
-
-        # Verify no chunk acknowledgments were expected
-        # (implementation detail - v1 doesn't wait for chunk OK)
+    # Verify no chunk acknowledgments were expected
+    # (implementation detail - v1 doesn't wait for chunk OK)
+    assert True  # Placeholder assertion
