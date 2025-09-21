@@ -82,8 +82,5 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   Model model_;
 };
 
-// RAS-2819T validation function
-bool is_valid_ras_2819t_command(uint64_t rc_code_1, uint64_t rc_code_2);
-
 }  // namespace toshiba
 }  // namespace esphome
