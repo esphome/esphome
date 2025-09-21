@@ -1078,7 +1078,9 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
-    if (!value.timezone.empty() && value.timezone != homeassistant::global_homeassistant_time->get_timezone()) {
+    // Only update timezone if it wasn't manually configured and differs from current
+    if (!value.timezone.empty() && !homeassistant::global_homeassistant_time->is_timezone_manually_configured() &&
+        value.timezone != homeassistant::global_homeassistant_time->get_timezone()) {
       homeassistant::global_homeassistant_time->set_timezone(value.timezone);
     }
 #endif

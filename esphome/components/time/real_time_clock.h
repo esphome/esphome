@@ -24,11 +24,22 @@ class RealTimeClock : public PollingComponent {
   /// Set the time zone.
   void set_timezone(const std::string &tz) {
     this->timezone_ = tz;
+    this->timezone_manually_configured_ = false;
+    this->apply_timezone_();
+  }
+
+  /// Set the timezone and mark it as manually configured
+  void set_timezone_manual(const std::string &tz) {
+    this->timezone_ = tz;
+    this->timezone_manually_configured_ = true;
     this->apply_timezone_();
   }
 
   /// Get the time zone currently in use.
   std::string get_timezone() { return this->timezone_; }
+
+  /// Check if the timezone was manually configured
+  bool is_timezone_manually_configured() const { return this->timezone_manually_configured_; }
 #endif
 
   /// Get the time in the currently defined timezone.
@@ -50,6 +61,7 @@ class RealTimeClock : public PollingComponent {
 
 #ifdef USE_TIME_TIMEZONE
   std::string timezone_{};
+  bool timezone_manually_configured_{false};  /// Track if timezone was manually configured
   void apply_timezone_();
 #endif
 
