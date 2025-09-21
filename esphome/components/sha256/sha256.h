@@ -33,27 +33,19 @@ class SHA256 : public esphome::HashBase {
 
   void calculate() override;
 
-  void get_bytes(uint8_t *output);
-  void get_hex(char *output) override;
   std::string get_hex_string();
 
   /// Get the size of the hex output (64 for SHA256)
   size_t get_hex_size() const override { return 64; }
 
-  bool equals_bytes(const uint8_t *expected);
-  bool equals_hex(const char *expected);
-
  protected:
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   mbedtls_sha256_context ctx_{};
-  uint8_t hash_[32];
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
   br_sha256_context ctx_{};
-  uint8_t hash_[32];
   bool calculated_{false};
 #elif defined(USE_HOST)
   EVP_MD_CTX *ctx_{nullptr};
-  uint8_t hash_[32];
   bool calculated_{false};
 #else
 #error "SHA256 not supported on this platform"
