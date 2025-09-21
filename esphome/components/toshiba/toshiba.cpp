@@ -1102,13 +1102,7 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
     ESP_LOGV(TAG, "Fan code: 0x%04X", fan_code);
 
     this->fan_mode = decode_ras_2819t_fan_mode(fan_code);
-    ESP_LOGV(TAG, "Fan: %s",
-             this->fan_mode.value() == climate::CLIMATE_FAN_AUTO     ? "AUTO"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_QUIET  ? "QUIET"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_LOW    ? "LOW"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_MEDIUM ? "MEDIUM"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_HIGH   ? "HIGH"
-                                                                     : "UNKNOWN");
+    ESP_LOGV(TAG, "Fan: %s", LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())));
 
     // Decode temperature
     if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
@@ -1118,20 +1112,8 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
     }
 
     ESP_LOGV(TAG, "RAS-2819T decode complete - Mode: %s, Fan: %s, Temp: %.1f°C",
-             this->mode == climate::CLIMATE_MODE_OFF         ? "OFF"
-             : this->mode == climate::CLIMATE_MODE_COOL      ? "COOL"
-             : this->mode == climate::CLIMATE_MODE_HEAT      ? "HEAT"
-             : this->mode == climate::CLIMATE_MODE_HEAT_COOL ? "AUTO"
-             : this->mode == climate::CLIMATE_MODE_DRY       ? "DRY"
-             : this->mode == climate::CLIMATE_MODE_FAN_ONLY  ? "FAN"
-                                                             : "UNKNOWN",
-             this->fan_mode.value() == climate::CLIMATE_FAN_AUTO     ? "AUTO"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_QUIET  ? "QUIET"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_LOW    ? "LOW"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_MEDIUM ? "MEDIUM"
-             : this->fan_mode.value() == climate::CLIMATE_FAN_HIGH   ? "HIGH"
-                                                                     : "UNKNOWN",
-             this->target_temperature);
+             LOG_STR_ARG(climate_mode_to_string(this->mode)),
+             LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())), this->target_temperature);
 
     // Log raw values before publishing to debug HA errors
     ESP_LOGV(TAG, "Publishing Mode: %d, Fan: %d, Swing: %d, Temp: %.1f", static_cast<int>(this->mode),
@@ -1160,11 +1142,14 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     // Validate and process RAS-2819T commands
     if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
+      ESP_LOGV(TAG, "Valid RAS-2819T command detected, processing...");
       return this->process_ras_2819t_command_(toshiba_data);
     }
 
     // If not RAS-2819T, could be another ToshibaAc protocol variant
     ESP_LOGV(TAG, "Not a valid RAS-2819T command, continuing to generic processing");
+  } else {
+    ESP_LOGV(TAG, "ToshibaAcProtocol decode failed, trying generic processing");
   }
 
   // Fall back to generic processing for older protocols
