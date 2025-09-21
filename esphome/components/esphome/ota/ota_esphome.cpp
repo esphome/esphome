@@ -102,6 +102,12 @@ static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 #endif
 
+// Temporary flag to allow MD5 downgrade for ~3 versions (until 2026.1.0)
+// This allows users to downgrade via OTA if they encounter issues after updating.
+// Without this, users would need to do a serial flash to downgrade.
+// TODO: Remove this flag and all associated code in 2026.1.0
+#define ALLOW_OTA_DOWNGRADE_MD5
+
 template<typename HashClass> struct HashTraits;
 
 template<> struct HashTraits<md5::MD5Digest> {
@@ -252,7 +258,7 @@ void ESPHomeOTAComponent::handle_data_() {
     bool auth_success = false;
 
 #ifdef USE_OTA_SHA256
-    // SECURITY HARDENING: Enforce SHA256 authentication on platforms that support it.
+    // SECURITY HARDENING: Prefer SHA256 authentication on platforms that support it.
     //
     // This is a hardening measure to prevent future downgrade attacks where an attacker
     // could force the use of MD5 authentication by manipulating the feature flags.
@@ -272,14 +278,25 @@ void ESPHomeOTAComponent::handle_data_() {
 
     bool client_supports_sha256 = (ota_features & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
 
+#ifdef ALLOW_OTA_DOWNGRADE_MD5
+    // Temporary compatibility mode: Allow MD5 for ~3 versions to enable OTA downgrades
+    // This prevents users from being locked out if they need to downgrade after updating
+    // TODO: Remove this entire ifdef block in 2026.1.0
+    if (client_supports_sha256) {
+      auth_success = this->perform_hash_auth_<sha256::SHA256>(this->password_);
+    } else {
+      ESP_LOGW(TAG, "Using MD5 auth for compatibility (deprecated)");
+      auth_success = this->perform_hash_auth_<md5::MD5Digest>(this->password_);
+    }
+#else
+    // Strict mode: SHA256 required on capable platforms (future default)
     if (!client_supports_sha256) {
       ESP_LOGW(TAG, "Client requires SHA256");
       error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
-
-    // Use SHA256 for authentication (mandatory on platforms that support it)
     auth_success = this->perform_hash_auth_<sha256::SHA256>(this->password_);
+#endif  // ALLOW_OTA_DOWNGRADE_MD5
 #else
     // Platform only supports MD5 - use it as the only available option
     // This is not a security downgrade as the platform cannot support SHA256
