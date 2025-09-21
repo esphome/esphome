@@ -443,11 +443,11 @@ void ToshibaClimate::setup() {
 
 void ToshibaClimate::transmit_state() {
   if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    transmit_rac_pt1411hwru_();
+    this->transmit_rac_pt1411hwru_();
   } else if (this->model_ == MODEL_RAS_2819T) {
-    transmit_ras_2819t_();
+    this->transmit_ras_2819t_();
   } else {
-    transmit_generic_();
+    this->transmit_generic_();
   }
 }
 
@@ -542,7 +542,7 @@ void ToshibaClimate::transmit_generic_() {
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
 
-  encode_(data, message, message_length, 1);
+  this->encode_(data, message, message_length, 1);
 
   transmit.perform();
 }
@@ -665,10 +665,10 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
            message[11]);
 
   // load first block of IR code and repeat it once
-  encode_(data, &message[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+  this->encode_(data, &message[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
   // load second block of IR code, if present
   if (message[6] != 0) {
-    encode_(data, &message[6], RAC_PT1411HWRU_MESSAGE_LENGTH, 0);
+    this->encode_(data, &message[6], RAC_PT1411HWRU_MESSAGE_LENGTH, 0);
   }
 
   transmit.perform();
@@ -678,19 +678,19 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   data->space(TOSHIBA_PACKET_SPACE);
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
-      encode_(data, &RAC_PT1411HWRU_SWING_VERTICAL[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+      this->encode_(data, &RAC_PT1411HWRU_SWING_VERTICAL[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
       break;
 
     case climate::CLIMATE_SWING_OFF:
     default:
-      encode_(data, &RAC_PT1411HWRU_SWING_OFF[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+      this->encode_(data, &RAC_PT1411HWRU_SWING_OFF[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
   }
 
   data->space(TOSHIBA_PACKET_SPACE);
   transmit.perform();
 
   if (this->sensor_) {
-    transmit_rac_pt1411hwru_temp_(true, false);
+    this->transmit_rac_pt1411hwru_temp_(true, false);
   }
 }
 
@@ -745,7 +745,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
     ESP_LOGV(TAG, "*** Generated code: 0x%.2X%.2X%.2X%.2X%.2X%.2X", message[0], message[1], message[2], message[3],
              message[4], message[5]);
     // load IR code and repeat it once
-    encode_(data, message, RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+    this->encode_(data, message, RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
 
     transmit.perform();
   }
@@ -785,7 +785,7 @@ void ToshibaClimate::transmit_ras_2819t_() {
              swing_message[2], swing_message[3], swing_message[4], swing_message[5]);
 
     // Use single packet transmission WITH repeat (like regular commands)
-    encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1);
+    this->encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1);
     swing_transmit.perform();
 
     // Update all state tracking
@@ -956,11 +956,11 @@ void ToshibaClimate::transmit_ras_2819t_() {
   auto *data = transmit.get_data();
 
   // Use existing Toshiba encode function for proper timing
-  encode_(data, message1, RAS_2819T_MESSAGE_LENGTH, 1);
+  this->encode_(data, message1, RAS_2819T_MESSAGE_LENGTH, 1);
 
   if (this->mode != climate::CLIMATE_MODE_OFF) {
     // Send second packet with gap
-    encode_(data, message2, RAS_2819T_MESSAGE_LENGTH, 0);
+    this->encode_(data, message2, RAS_2819T_MESSAGE_LENGTH, 0);
   }
 
   transmit.perform();
@@ -997,11 +997,11 @@ bool ToshibaClimate::compare_rac_pt1411hwru_packets_(const uint8_t *message1, co
 bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
   uint8_t checksum = 0;
 
-  switch (is_valid_rac_pt1411hwru_header_(message)) {
+  switch (this->is_valid_rac_pt1411hwru_header_(message)) {
     case RAC_PT1411HWRU_MESSAGE_HEADER0:
     case RAC_PT1411HWRU_CS_HEADER:
     case RAC_PT1411HWRU_SWING_HEADER:
-      if (is_valid_rac_pt1411hwru_header_(message) && (message[2] == static_cast<uint8_t>(~message[3])) &&
+      if (this->is_valid_rac_pt1411hwru_header_(message) && (message[2] == static_cast<uint8_t>(~message[3])) &&
           (message[4] == static_cast<uint8_t>(~message[5]))) {
         return true;
       }
@@ -1164,7 +1164,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     // Validate and process RAS-2819T commands
     if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
-      return process_ras_2819t_command_(toshiba_data);
+      return this->process_ras_2819t_command_(toshiba_data);
     }
 
     // If not RAS-2819T, could be another ToshibaAc protocol variant
@@ -1180,11 +1180,11 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
   // Read incoming bits into buffer
-  if (!decode_(&data, message, message_length)) {
+  if (!this->decode_(&data, message, message_length)) {
     return false;
   }
   // Determine incoming message protocol version and/or length
-  if (is_valid_rac_pt1411hwru_header_(message)) {
+  if (this->is_valid_rac_pt1411hwru_header_(message)) {
     // We already received four bytes
     message_length = RAC_PT1411HWRU_MESSAGE_LENGTH - 4;
   } else if ((message[0] ^ message[1] ^ message[2]) != message[3]) {
@@ -1195,11 +1195,11 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     message_length = message[2] + 2;
   }
   // Decode the remaining bytes
-  if (!decode_(&data, &message[4], message_length)) {
+  if (!this->decode_(&data, &message[4], message_length)) {
     return false;
   }
   // If this is a RAC-PT1411HWRU message, we expect the first packet a second time and also possibly a third packet
-  if (is_valid_rac_pt1411hwru_header_(message)) {
+  if (this->is_valid_rac_pt1411hwru_header_(message)) {
     // There is always a space between packets
     if (!data.expect_item(TOSHIBA_BIT_MARK, TOSHIBA_GAP_SPACE)) {
       return false;
@@ -1208,7 +1208,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     if (!data.expect_item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE)) {
       return false;
     }
-    if (!decode_(&data, &message[6], RAC_PT1411HWRU_MESSAGE_LENGTH)) {
+    if (!this->decode_(&data, &message[6], RAC_PT1411HWRU_MESSAGE_LENGTH)) {
       return false;
     }
     // If this is a RAC-PT1411HWRU message, there may also be a third packet.
@@ -1216,25 +1216,25 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     if (data.expect_item(TOSHIBA_BIT_MARK, TOSHIBA_GAP_SPACE)) {
       // Validate header 3
       data.expect_item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE);
-      if (decode_(&data, &message[12], RAC_PT1411HWRU_MESSAGE_LENGTH)) {
-        if (!is_valid_rac_pt1411hwru_message_(&message[12])) {
+      if (this->decode_(&data, &message[12], RAC_PT1411HWRU_MESSAGE_LENGTH)) {
+        if (!this->is_valid_rac_pt1411hwru_message_(&message[12])) {
           // If a third packet was received but the checksum is not valid, fail
           return false;
         }
       }
     }
-    if (!compare_rac_pt1411hwru_packets_(&message[0], &message[6])) {
+    if (!this->compare_rac_pt1411hwru_packets_(&message[0], &message[6])) {
       // If the first two packets don't match each other, fail
       return false;
     }
-    if (!is_valid_rac_pt1411hwru_message_(&message[0])) {
+    if (!this->is_valid_rac_pt1411hwru_message_(&message[0])) {
       // If the first packet isn't valid, fail
       return false;
     }
   }
 
   // Header has been verified, now determine protocol version and set the climate component properties
-  switch (is_valid_rac_pt1411hwru_header_(message)) {
+  switch (this->is_valid_rac_pt1411hwru_header_(message)) {
     // Power, temperature, mode, fan speed
     case RAC_PT1411HWRU_MESSAGE_HEADER0:
       // Get the mode
@@ -1289,7 +1289,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
           break;
       }
       // Get the target temperature
-      if (is_valid_rac_pt1411hwru_message_(&message[12])) {
+      if (this->is_valid_rac_pt1411hwru_message_(&message[12])) {
         temperature_code =
             (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
         if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
