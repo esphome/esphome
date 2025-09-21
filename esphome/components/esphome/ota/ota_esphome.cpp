@@ -266,11 +266,13 @@ void ESPHomeOTAComponent::handle_data_() {
     // TODO: Remove this entire ifdef block in 2026.1.0
     if (client_supports_sha256) {
       sha256::SHA256 sha_hasher;
-      auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, 16, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH);
+      auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, 16, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
+                                              LOG_STR("SHA256"));
     } else {
       ESP_LOGW(TAG, "Using MD5 auth for compatibility (deprecated)");
       md5::MD5Digest md5_hasher;
-      auth_success = this->perform_hash_auth_(&md5_hasher, this->password_, 8, ota::OTA_RESPONSE_REQUEST_AUTH);
+      auth_success =
+          this->perform_hash_auth_(&md5_hasher, this->password_, 8, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"));
     }
 #else
     // Strict mode: SHA256 required on capable platforms (future default)
@@ -512,12 +514,15 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
   delay(1);
 }
 
+void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogString *hash_name) {
+  ESP_LOGW(TAG, "Auth: %s %s failed", LOG_STR_ARG(action), LOG_STR_ARG(hash_name));
+}
+
 // Non-template function definition to reduce binary size
 bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, size_t nonce_size,
-                                             uint8_t auth_request) {
+                                             uint8_t auth_request, const LogString *name) {
   // Get sizes from the hasher
   const size_t hex_size = hasher->get_hex_size();
-  const char *name = hasher->get_name();
 
   // Use fixed-size buffers for the maximum possible hash size (SHA256 = 64 chars)
   // This avoids dynamic allocation overhead
@@ -560,11 +565,11 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   // Use hex_buffer1 for nonce
   hasher->get_hex(hex_buffer1);
   hex_buffer1[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Nonce is %s", name, hex_buffer1);
+  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), hex_buffer1);
 
   // Send nonce
   if (!this->writeall_(reinterpret_cast<uint8_t *>(hex_buffer1), hex_size)) {
-    ESP_LOGW(TAG, "Auth: Writing %s nonce failed", name);
+    this->log_auth_warning_(LOG_STR("Writing nonce"), name);
     return false;
   }
 
@@ -575,11 +580,11 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
 
   // Receive cnonce into hex_buffer2
   if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), hex_size)) {
-    ESP_LOGW(TAG, "Auth: Reading %s cnonce failed", name);
+    this->log_auth_warning_(LOG_STR("Reading cnonce"), name);
     return false;
   }
   hex_buffer2[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s CNonce is %s", name, hex_buffer2);
+  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), hex_buffer2);
 
   // Add cnonce to hash
   hasher->add(hex_buffer2, hex_size);
@@ -588,21 +593,21 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   hasher->calculate();
   hasher->get_hex(hex_buffer1);
   hex_buffer1[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Result is %s", name, hex_buffer1);
+  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), hex_buffer1);
 
   // Receive response - reuse hex_buffer2
   if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), hex_size)) {
-    ESP_LOGW(TAG, "Auth: Reading %s response failed", name);
+    this->log_auth_warning_(LOG_STR("Reading response"), name);
     return false;
   }
   hex_buffer2[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Response is %s", name, hex_buffer2);
+  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), hex_buffer2);
 
   // Compare
   bool matches = memcmp(hex_buffer1, hex_buffer2, hex_size) == 0;
 
   if (!matches) {
-    ESP_LOGW(TAG, "Auth failed! %s passwords do not match", name);
+    ESP_LOGW(TAG, "Auth failed! %s passwords do not match", LOG_STR_ARG(name));
   }
 
   return matches;

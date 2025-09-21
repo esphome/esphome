@@ -40,9 +40,6 @@ class SHA256 : public esphome::HashBase {
   /// Get the size of the hex output (64 for SHA256)
   size_t get_hex_size() const override { return 64; }
 
-  /// Get the algorithm name for logging
-  const char *get_name() const override { return "SHA256"; }
-
   bool equals_bytes(const uint8_t *expected);
   bool equals_hex(const char *expected);
 
