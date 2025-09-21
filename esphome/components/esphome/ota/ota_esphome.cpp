@@ -530,13 +530,11 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   char hex_buffer1[MAX_HEX_SIZE];             // Used for: nonce -> expected result
   char hex_buffer2[MAX_HEX_SIZE];             // Used for: cnonce -> response
 
-  // Small stack buffer for auth request and nonce seed bytes
-  uint8_t buf[1];
+  // Small stack buffer for nonce seed bytes
   uint8_t nonce_bytes[8];  // Max 8 bytes (2 x uint32_t for SHA256)
 
   // Send auth request type
-  buf[0] = auth_request;
-  this->writeall_(buf, 1);
+  this->writeall_(&auth_request, 1);
 
   hasher->init();
 
