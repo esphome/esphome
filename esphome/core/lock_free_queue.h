@@ -1,7 +1,12 @@
 #pragma once
 
+#if defined(USE_ESP32)
+
 #include <atomic>
 #include <cstddef>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 /*
  * Lock-free queue for single-producer single-consumer scenarios.
@@ -17,16 +22,12 @@
  *
  * @tparam T The type of elements stored in the queue (must be a pointer type)
  * @tparam SIZE The maximum number of elements (1-255, limited by uint8_t indices)
- * @tparam TRACK_DROPPED flag to disable tracking of queue overflows (because this may introduce locking on some
- * platforms)
  */
 
 namespace esphome {
 
 // Base lock-free queue without task notification
-template<class T, uint8_t SIZE, bool TRACK_DROPPED = true> class LockFreeQueue {
-  static_assert(SIZE > 0);
-
+template<class T, uint8_t SIZE> class LockFreeQueue {
  public:
   LockFreeQueue() : dropped_count_(0), head_(0), tail_(0) {}
 
@@ -48,16 +49,14 @@ template<class T, uint8_t SIZE, bool TRACK_DROPPED = true> class LockFreeQueue {
     // Read head before incrementing tail
     uint8_t head_before = head_.load(std::memory_order_acquire);
 
-    was_empty = (current_tail == head_before);
-    old_tail = current_tail;
-
     if (next_tail == head_before) {
       // Buffer full
-      if constexpr (TRACK_DROPPED) {
-        dropped_count_.fetch_add(1, std::memory_order_relaxed);
-      }
+      dropped_count_.fetch_add(1, std::memory_order_relaxed);
       return false;
     }
+
+    was_empty = (current_tail == head_before);
+    old_tail = current_tail;
 
     buffer_[current_tail] = element;
     tail_.store(next_tail, std::memory_order_release);
@@ -84,11 +83,9 @@ template<class T, uint8_t SIZE, bool TRACK_DROPPED = true> class LockFreeQueue {
     return (tail - head + SIZE) % SIZE;
   }
 
-  uint16_t get_and_reset_dropped_count() requires TRACK_DROPPED {
-    return dropped_count_.exchange(0, std::memory_order_relaxed);
-  }
+  uint16_t get_and_reset_dropped_count() { return dropped_count_.exchange(0, std::memory_order_relaxed); }
 
-  void increment_dropped_count() requires TRACK_DROPPED { dropped_count_.fetch_add(1, std::memory_order_relaxed); }
+  void increment_dropped_count() { dropped_count_.fetch_add(1, std::memory_order_relaxed); }
 
   bool empty() const { return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire); }
 
@@ -108,11 +105,6 @@ template<class T, uint8_t SIZE, bool TRACK_DROPPED = true> class LockFreeQueue {
   // Atomic: written by producer (push), read by consumer (pop) to check if empty
   std::atomic<uint8_t> tail_;
 };
-
-#if defined(USE_ESP32)
-
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 // Extended queue with task notification support
 template<class T, uint8_t SIZE> class NotifyingLockFreeQueue : public LockFreeQueue<T, SIZE> {
@@ -149,6 +141,6 @@ template<class T, uint8_t SIZE> class NotifyingLockFreeQueue : public LockFreeQu
   TaskHandle_t task_to_notify_;
 };
 
-#endif  // defined(USE_ESP32)
-
 }  // namespace esphome
+
+#endif  // defined(USE_ESP32)
