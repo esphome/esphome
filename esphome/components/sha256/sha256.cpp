@@ -78,12 +78,6 @@ void SHA256::calculate() {
 #error "SHA256 not supported on this platform"
 #endif
 
-std::string SHA256::get_hex_string() {
-  char buf[65];
-  this->get_hex(buf);
-  return std::string(buf);
-}
-
 }  // namespace esphome::sha256
 
 #endif  // Platform check
