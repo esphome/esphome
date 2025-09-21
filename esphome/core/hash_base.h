@@ -25,9 +25,6 @@ class HashBase {
 
   /// Get the size of the hex output (32 for MD5, 64 for SHA256)
   virtual size_t get_hex_size() const = 0;
-
-  /// Get the algorithm name for logging
-  virtual const char *get_name() const = 0;
 };
 
 }  // namespace esphome
