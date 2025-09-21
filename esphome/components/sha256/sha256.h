@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include "esphome/core/hash_base.h"
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include "mbedtls/sha256.h"
@@ -21,21 +22,27 @@
 
 namespace esphome::sha256 {
 
-class SHA256 {
+class SHA256 : public esphome::HashBase {
  public:
   SHA256() = default;
-  ~SHA256();
+  ~SHA256() override;
 
-  void init();
-  void add(const uint8_t *data, size_t len);
-  void add(const char *data, size_t len) { this->add((const uint8_t *) data, len); }
+  void init() override;
+  void add(const uint8_t *data, size_t len) override;
+  void add(const char *data, size_t len) override { this->add((const uint8_t *) data, len); }
   void add(const std::string &data) { this->add(data.c_str(), data.length()); }
 
-  void calculate();
+  void calculate() override;
 
   void get_bytes(uint8_t *output);
-  void get_hex(char *output);
+  void get_hex(char *output) override;
   std::string get_hex_string();
+
+  /// Get the size of the hex output (64 for SHA256)
+  size_t get_hex_size() const override { return 64; }
+
+  /// Get the algorithm name for logging
+  const char *get_name() const override { return "SHA256"; }
 
   bool equals_bytes(const uint8_t *expected);
   bool equals_hex(const char *expected);
