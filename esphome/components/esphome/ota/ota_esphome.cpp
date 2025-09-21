@@ -524,11 +524,8 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   // Get sizes from the hasher
   const size_t hex_size = hasher->get_hex_size();
 
-  // Use fixed-size buffers for the maximum possible hash size (SHA256 = 64 chars)
-  // This avoids dynamic allocation overhead
-  static constexpr size_t MAX_HEX_SIZE = 65;  // SHA256 hex + null terminator
-  char hex_buffer1[MAX_HEX_SIZE];             // Used for: nonce -> expected result
-  char hex_buffer2[MAX_HEX_SIZE];             // Used for: cnonce -> response
+  // Single hex buffer - reused for nonce, cnonce, expected, response
+  char hex_buffer[65];  // SHA256 hex + null terminator
 
   // Small stack buffer for nonce seed bytes
   uint8_t nonce_bytes[8];  // Max 8 bytes (2 x uint32_t for SHA256)
@@ -560,49 +557,47 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   }
   hasher->calculate();
 
-  // Use hex_buffer1 for nonce
-  hasher->get_hex(hex_buffer1);
-  hex_buffer1[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), hex_buffer1);
+  // Generate and send nonce
+  hasher->get_hex(hex_buffer);
+  hex_buffer[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), hex_buffer);
 
-  // Send nonce
-  if (!this->writeall_(reinterpret_cast<uint8_t *>(hex_buffer1), hex_size)) {
+  if (!this->writeall_(reinterpret_cast<uint8_t *>(hex_buffer), hex_size)) {
     this->log_auth_warning_(LOG_STR("Writing nonce"), name);
     return false;
   }
 
-  // Prepare challenge
+  // Start challenge: password + nonce
   hasher->init();
   hasher->add(password.c_str(), password.length());
-  hasher->add(hex_buffer1, hex_size);  // Add nonce
+  hasher->add(hex_buffer, hex_size);
 
-  // Receive cnonce into hex_buffer2
-  if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), hex_size)) {
+  // Read cnonce and add to hash
+  if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer), hex_size)) {
     this->log_auth_warning_(LOG_STR("Reading cnonce"), name);
     return false;
   }
-  hex_buffer2[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), hex_buffer2);
+  hex_buffer[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), hex_buffer);
 
-  // Add cnonce to hash
-  hasher->add(hex_buffer2, hex_size);
-
-  // Calculate result - reuse hex_buffer1 for expected
+  hasher->add(hex_buffer, hex_size);
   hasher->calculate();
-  hasher->get_hex(hex_buffer1);
-  hex_buffer1[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), hex_buffer1);
 
-  // Receive response - reuse hex_buffer2
-  if (!this->readall_(reinterpret_cast<uint8_t *>(hex_buffer2), hex_size)) {
+  // Get expected result
+  hasher->get_hex(hex_buffer);
+  hex_buffer[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), hex_buffer);
+
+  // Read response and compare in-place
+  char response[65];
+  if (!this->readall_(reinterpret_cast<uint8_t *>(response), hex_size)) {
     this->log_auth_warning_(LOG_STR("Reading response"), name);
     return false;
   }
-  hex_buffer2[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), hex_buffer2);
+  response[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), response);
 
-  // Compare
-  bool matches = memcmp(hex_buffer1, hex_buffer2, hex_size) == 0;
+  bool matches = memcmp(hex_buffer, response, hex_size) == 0;
 
   if (!matches) {
     ESP_LOGW(TAG, "Auth failed! %s passwords do not match", LOG_STR_ARG(name));
