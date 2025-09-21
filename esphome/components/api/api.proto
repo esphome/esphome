@@ -260,6 +260,7 @@ message DeviceInfoResponse {
 
   // Indicates if Z-Wave proxy support is available and features supported
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+  uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 }
 
 message ListEntitiesRequest {
