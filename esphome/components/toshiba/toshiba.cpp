@@ -143,20 +143,6 @@ const std::array<uint64_t, 2> RAS_2819T_VALID_SINGLE_COMMANDS = {
     RAS_2819T_SWING_TOGGLE,       // Swing toggle
 };
 
-// RAS-2819T known valid first packet patterns (for two-packet commands)
-const std::vector<uint64_t> RAS_2819T_VALID_FIRST_PACKETS = {
-    // Sample of known good packets from the remote control codes
-    0xC23DBF4010EF,  // 18°C Cool Auto
-    0xC23DBF40708F,  // 22°C Cool Auto
-    0xC23DFF00708F,  // 22°C Cool Quiet
-    0xC23D9F60708F,  // 22°C Cool Low
-    0xC23D5FA0708F,  // 22°C Cool Medium
-    0xC23D3FC0708F,  // 22°C Cool High
-    0xC23D1FE008F7,  // 16°C (Auto/Dry pattern)
-    0xC23D1FE0649B,  // 21°C Dry
-    0xC23DBF40E41B,  // Fan only
-};
-
 const uint16_t RAS_2819T_VALID_HEADER1 = 0xC23D;
 const uint8_t RAS_2819T_VALID_HEADER2 = 0xD5;
 
