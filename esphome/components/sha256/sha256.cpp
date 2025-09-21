@@ -78,18 +78,6 @@ void SHA256::calculate() {
 #error "SHA256 not supported on this platform"
 #endif
 
-void SHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 32); }
-
-void SHA256::get_hex(char *output) {
-  for (size_t i = 0; i < 32; i++) {
-    uint8_t byte = this->digest_[i];
-    output[i * 2] = format_hex_char(byte >> 4);
-    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
-  }
-}
-
-bool SHA256::equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, 32) == 0; }
-
 std::string SHA256::get_hex_string() {
   char buf[65];
   this->get_hex(buf);
