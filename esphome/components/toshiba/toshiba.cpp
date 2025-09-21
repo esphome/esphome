@@ -138,7 +138,7 @@ const uint64_t RAS_2819T_SWING_TOGGLE = 0xC23D6B94E01F;
 const uint64_t RAS_2819T_POWER_OFF_COMMAND = 0xC23D7B84E01F;
 
 // RAS-2819T known valid command patterns for validation
-const std::vector<uint64_t> RAS_2819T_VALID_SINGLE_COMMANDS = {
+const std::array<uint64_t, 2> RAS_2819T_VALID_SINGLE_COMMANDS = {
     RAS_2819T_POWER_OFF_COMMAND,  // Power off
     RAS_2819T_SWING_TOGGLE,       // Swing toggle
 };
