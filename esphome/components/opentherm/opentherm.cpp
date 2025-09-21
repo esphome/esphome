@@ -230,77 +230,111 @@ void OpenTherm::rmt_write_sync_() {
 }
 
 bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
-  constexpr size_t TOTAL_SYMBOLS = 34;  // start + 32 data + stop
   constexpr size_t DATA_BITS = 32;
-  constexpr uint16_t HALF_BIT_US = 500;        // 0.5 ms half bit duration
-  constexpr uint16_t HALF_TOLERANCE_US = 200;  // allow ±0.2 ms wiggle room (~40 %)
-  constexpr uint16_t HALF_MIN_US = HALF_BIT_US - HALF_TOLERANCE_US;
-  constexpr uint16_t HALF_MAX_US = HALF_BIT_US + HALF_TOLERANCE_US;
+  constexpr size_t TOTAL_BITS = DATA_BITS + 2;  // start + data + stop
+  constexpr uint16_t HALF_BIT_US = 500;
+  constexpr uint16_t HALF_TOLERANCE_US = 200;
+  constexpr size_t HALF_CAPACITY = RMT_SYMBOL_CAPACITY * 2;
 
   this->error_type_ = ProtocolErrorType::NO_ERROR;
 
-  const size_t count = this->rmt_buffer_symbol_count_;
-  if (count != TOTAL_SYMBOLS) {
-    ESP_LOGW(TAG, "Unexpected RMT symbol count: %u", static_cast<unsigned>(count));
+  if (this->rmt_buffer_symbol_count_ == 0 || this->rmt_buffer_symbol_count_ > RMT_SYMBOL_CAPACITY) {
     this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
-  auto decode_symbol = [&](const rmt_symbol_word_t &sym, bool &bit) -> bool {
-    const uint16_t d0 = sym.duration0;
-    const uint16_t d1 = sym.duration1;
-    if (d0 == 0 || d1 == 0) {
+  uint8_t half_levels[HALF_CAPACITY];
+  size_t half_count = 0;
+
+  auto append_half = [&](uint8_t level, uint16_t duration) -> bool {
+    if (duration == 0) {
+      return true;
+    }
+    uint32_t segments = (duration + (HALF_BIT_US / 2)) / HALF_BIT_US;
+    if (segments == 0 || segments > 2) {
       return false;
     }
-    if (sym.level0 == sym.level1) {
-      return false;  // Manchester requires a transition in the middle of the bit
-    }
-    if (d0 < HALF_MIN_US || d0 > HALF_MAX_US) {
+    uint32_t expected = segments * HALF_BIT_US;
+    uint32_t tolerance = segments * HALF_TOLERANCE_US;
+    if (duration < expected - tolerance || duration > expected + tolerance) {
       return false;
     }
-    if (d1 < HALF_MIN_US || d1 > HALF_MAX_US) {
+    if ((half_count + segments) > HALF_CAPACITY) {
       return false;
     }
-    bit = (sym.level0 == 0);  // '1' is low->high, '0' is high->low
+    for (uint32_t i = 0; i < segments; ++i) {
+      half_levels[half_count++] = level;
+    }
     return true;
   };
 
-  bool bit_value = false;
-  if (!decode_symbol(this->rmt_buffer_[0], bit_value)) {
-    ESP_LOGW(TAG, "Invalid start symbol timings: L0=%u D0=%u L1=%u D1=%u", this->rmt_buffer_[0].level0,
-             this->rmt_buffer_[0].duration0, this->rmt_buffer_[0].level1, this->rmt_buffer_[0].duration1);
+  for (size_t i = 0; i < this->rmt_buffer_symbol_count_; ++i) {
+    const auto &sym = this->rmt_buffer_[i];
+    if (!append_half(sym.level0, sym.duration0)) {
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+    if (!append_half(sym.level1, sym.duration1)) {
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+  }
+
+  if ((half_count & 1U) != 0) {
+    const auto &last_symbol = this->rmt_buffer_[this->rmt_buffer_symbol_count_ - 1];
+    if (last_symbol.duration1 != 0 || (half_count + 1U) > HALF_CAPACITY) {
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+    half_levels[half_count] = static_cast<uint8_t>(half_levels[half_count - 1] ^ 0x1);
+    ++half_count;
+  }
+
+  const size_t total_pairs = half_count / 2;
+  if (total_pairs < DATA_BITS + 1) {
     this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
-  if (!bit_value) {
-    ESP_LOGW(TAG, "Start bit was not '1'");
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
-    this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;  // reuse enum for framing
+
+  auto decode_pair = [&](size_t pair_index, bool inverted, bool &bit) -> bool {
+    const bool first = half_levels[pair_index * 2];
+    const bool second = half_levels[pair_index * 2 + 1];
+    if (first == second) {
+      return false;
+    }
+    bit = inverted ? first : !first;
+    return true;
+  };
+
+  bool inverted = false;
+  bool start_bit = false;
+  if (!decode_pair(0, false, start_bit) || !start_bit) {
+    if (!decode_pair(0, true, start_bit) || !start_bit) {
+      this->mode_ = OperationMode::ERROR_PROTOCOL;
+      this->error_type_ = ProtocolErrorType::NO_TRANSITION;
+      return false;
+    }
+    inverted = true;
+  }
+
+  if (total_pairs < TOTAL_BITS) {
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   uint32_t raw = 0;
-  for (size_t i = 1; i <= DATA_BITS; i++) {
-    if (!decode_symbol(this->rmt_buffer_[i], bit_value)) {
-      ESP_LOGW(TAG, "Invalid data symbol at index %u: L0=%u D0=%u L1=%u D1=%u", static_cast<unsigned>(i),
-               this->rmt_buffer_[i].level0, this->rmt_buffer_[i].duration0, this->rmt_buffer_[i].level1,
-               this->rmt_buffer_[i].duration1);
-      this->mode_ = OperationMode::ERROR_RMT;
+  for (size_t bit_index = 0; bit_index < DATA_BITS; ++bit_index) {
+    bool bit_value = false;
+    if (!decode_pair(1 + bit_index, inverted, bit_value)) {
+      this->mode_ = OperationMode::ERROR_PROTOCOL;
+      this->error_type_ = ProtocolErrorType::NO_TRANSITION;
       return false;
     }
-    raw = (raw << 1) | static_cast<uint32_t>(bit_value ? 1 : 0);
+    raw = (raw << 1) | static_cast<uint32_t>(bit_value ? 1U : 0U);
   }
 
-  const size_t stop_index = DATA_BITS + 1;  // symbol after the 32 data bits
-  if (!decode_symbol(this->rmt_buffer_[stop_index], bit_value)) {
-    ESP_LOGW(TAG, "Invalid stop symbol timings: L0=%u D0=%u L1=%u D1=%u", this->rmt_buffer_[stop_index].level0,
-             this->rmt_buffer_[stop_index].duration0, this->rmt_buffer_[stop_index].level1,
-             this->rmt_buffer_[stop_index].duration1);
-    this->mode_ = OperationMode::ERROR_RMT;
-    return false;
-  }
-  if (!bit_value) {
-    ESP_LOGW(TAG, "Stop bit was not '1'");
+  bool stop_bit = false;
+  if (!decode_pair(1 + DATA_BITS, inverted, stop_bit) || !stop_bit) {
     this->mode_ = OperationMode::ERROR_PROTOCOL;
     this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
     this->data_ = raw;
@@ -308,7 +342,6 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
   }
 
   if (!this->check_parity_(raw)) {
-    ESP_LOGW(TAG, "Parity check failed for frame 0x%08X", static_cast<unsigned>(raw));
     this->mode_ = OperationMode::ERROR_PROTOCOL;
     this->error_type_ = ProtocolErrorType::PARITY_ERROR;
     this->data_ = raw;
