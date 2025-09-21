@@ -653,9 +653,6 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
       message[11] += message[index];
     }
   }
-  ESP_LOGV(TAG, "*** Generated codes: 0x%.2X%.2X%.2X%.2X%.2X%.2X  0x%.2X%.2X%.2X%.2X%.2X%.2X", message[0], message[1],
-           message[2], message[3], message[4], message[5], message[6], message[7], message[8], message[9], message[10],
-           message[11]);
 
   // load first block of IR code and repeat it once
   this->encode_(data, &message[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
@@ -735,8 +732,6 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
     // Byte 5: Footer lower/bitwise complement of byte 4
     message[5] = ~message[4];
 
-    ESP_LOGV(TAG, "*** Generated code: 0x%.2X%.2X%.2X%.2X%.2X%.2X", message[0], message[1], message[2], message[3],
-             message[4], message[5]);
     // load IR code and repeat it once
     this->encode_(data, message, RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
 
@@ -757,10 +752,6 @@ void ToshibaClimate::transmit_ras_2819t_() {
   bool only_swing_changed = swing_changed && !mode_changed && !fan_changed && !temp_changed;
 
   if (only_swing_changed) {
-    ESP_LOGV(TAG, "[TX] Swing mode changed from %s to %s, sending ONLY toggle command",
-             this->last_swing_mode_ == climate::CLIMATE_SWING_VERTICAL ? "VERTICAL" : "OFF",
-             this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? "VERTICAL" : "OFF");
-
     // Send ONLY swing toggle command (like the physical remote does)
     auto swing_transmit = this->transmitter_->transmit();
     auto *swing_data = swing_transmit.get_data();
@@ -773,9 +764,6 @@ void ToshibaClimate::transmit_ras_2819t_() {
     swing_message[3] = (RAS_2819T_SWING_TOGGLE >> 16) & 0xFF;
     swing_message[4] = (RAS_2819T_SWING_TOGGLE >> 8) & 0xFF;
     swing_message[5] = RAS_2819T_SWING_TOGGLE & 0xFF;
-
-    ESP_LOGV(TAG, "[TX] Swing toggle ONLY: %02X %02X %02X %02X %02X %02X", swing_message[0], swing_message[1],
-             swing_message[2], swing_message[3], swing_message[4], swing_message[5]);
 
     // Use single packet transmission WITH repeat (like regular commands)
     this->encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1);
@@ -827,8 +815,6 @@ void ToshibaClimate::transmit_ras_2819t_() {
     }
 
     uint16_t fan_code = get_ras_2819t_fan_code(effective_fan_mode);
-    ESP_LOGV(TAG, "Transmitting with fan_mode=%d, effective_fan_mode=%d, fan_code=0x%04X",
-             static_cast<int>(this->fan_mode.value()), static_cast<int>(effective_fan_mode), fan_code);
 
     // Mode and temperature encoding
     switch (this->mode) {
@@ -887,8 +873,6 @@ void ToshibaClimate::transmit_ras_2819t_() {
 
     // Get fan speed encoding for rc_code_2
     Ras2819tSecondPacketCodes second_packet_codes = get_ras_2819t_second_packet_codes(effective_fan_mode);
-    ESP_LOGV(TAG, "Second packet codes: fan_byte=0x%02X, suffix=0x%02X,0x%02X,0x%02X", second_packet_codes.fan_byte,
-             second_packet_codes.suffix.byte3, second_packet_codes.suffix.byte4, second_packet_codes.suffix.byte5);
 
     // Determine header byte 2 and fan encoding based on mode
     switch (this->mode) {
@@ -937,12 +921,6 @@ void ToshibaClimate::transmit_ras_2819t_() {
   }
 
   // Log final messages being transmitted
-  ESP_LOGVV(TAG, "[TX] Final message1: %02X %02X %02X %02X %02X %02X", message1[0], message1[1], message1[2],
-            message1[3], message1[4], message1[5]);
-  if (this->mode != climate::CLIMATE_MODE_OFF) {
-    ESP_LOGVV(TAG, "[TX] Final message2: %02X %02X %02X %02X %02X %02X", message2[0], message2[1], message2[2],
-              message2[3], message2[4], message2[5]);
-  }
 
   // Transmit using proper Toshiba protocol timing
   auto transmit = this->transmitter_->transmit();
@@ -1019,7 +997,6 @@ bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
 bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData &toshiba_data) {
   // Check for power-off command (single packet)
   if (toshiba_data.rc_code_2 == 0 && toshiba_data.rc_code_1 == RAS_2819T_POWER_OFF_COMMAND) {
-    ESP_LOGD(TAG, "Received RAS-2819T power OFF");
     this->mode = climate::CLIMATE_MODE_OFF;
     ESP_LOGI(TAG, "Mode: OFF");
     this->publish_state();
@@ -1028,7 +1005,6 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
   // Check for swing toggle command (single packet)
   if (toshiba_data.rc_code_2 == 0 && toshiba_data.rc_code_1 == RAS_2819T_SWING_TOGGLE) {
-    ESP_LOGD(TAG, "Received RAS-2819T swing toggle");
     // Toggle swing mode
     if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
@@ -1043,9 +1019,6 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
   // Handle regular two-packet commands (mode/temperature/fan changes)
   if (toshiba_data.rc_code_2 != 0) {
-    ESP_LOGV(TAG, "Received RAS-2819T: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64, toshiba_data.rc_code_1,
-             toshiba_data.rc_code_2);
-
     // Convert to byte array for easier processing
     uint8_t message1[6], message2[6];
     for (uint8_t i = 0; i < 6; i++) {
@@ -1053,15 +1026,8 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
       message2[i] = (toshiba_data.rc_code_2 >> (40 - i * 8)) & 0xFF;
     }
 
-    ESP_LOGVV(TAG, "[RX] Message1: %02X %02X %02X %02X %02X %02X", message1[0], message1[1], message1[2], message1[3],
-              message1[4], message1[5]);
-    ESP_LOGVV(TAG, "[RX] Message2: %02X %02X %02X %02X %02X %02X", message2[0], message2[1], message2[2], message2[3],
-              message2[4], message2[5]);
-
     // Decode the protocol using message1 (rc_code_1)
     uint8_t temp_code = message1[4];
-
-    ESP_LOGV(TAG, "Temp code: 0x%02X", temp_code);
 
     // Decode mode - check bytes 2-3 pattern and temperature code
     if ((message1[2] == 0x7B) && (message1[3] == 0x84)) {
@@ -1096,26 +1062,13 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
     // Decode fan speed from rc_code_1
     uint16_t fan_code = (message1[2] << 8) | message1[3];
-    ESP_LOGV(TAG, "Fan code: 0x%04X", fan_code);
-
     this->fan_mode = decode_ras_2819t_fan_mode(fan_code);
-    ESP_LOGV(TAG, "Fan: %s", LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())));
 
     // Decode temperature
     if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
       float old_temp = this->target_temperature;
       this->target_temperature = decode_ras_2819t_temperature(temp_code);
-      ESP_LOGV(TAG, "Temperature: %.1f°C (was %.1f°C, code 0x%02X)", this->target_temperature, old_temp, temp_code);
     }
-
-    ESP_LOGV(TAG, "RAS-2819T decode complete - Mode: %s, Fan: %s, Temp: %.1f°C",
-             LOG_STR_ARG(climate_mode_to_string(this->mode)),
-             LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())), this->target_temperature);
-
-    // Log raw values before publishing to debug HA errors
-    ESP_LOGV(TAG, "Publishing Mode: %d, Fan: %d, Swing: %d, Temp: %.1f", static_cast<int>(this->mode),
-             this->fan_mode.has_value() ? static_cast<int>(this->fan_mode.value()) : -1,
-             static_cast<int>(this->swing_mode), this->target_temperature);
 
     this->publish_state();
     return true;
@@ -1126,27 +1079,16 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 }
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
-  ESP_LOGV(TAG, "on_receive called, model=%d", this->model_);
-
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
   remote_base::ToshibaAcProtocol toshiba_protocol;
   auto decode_result = toshiba_protocol.decode(data);
 
   if (decode_result.has_value()) {
     auto toshiba_data = decode_result.value();
-    ESP_LOGV(TAG, "ToshibaAcProtocol: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64, toshiba_data.rc_code_1,
-             toshiba_data.rc_code_2);
-
     // Validate and process RAS-2819T commands
     if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
-      ESP_LOGV(TAG, "Valid RAS-2819T command detected, processing...");
       return this->process_ras_2819t_command_(toshiba_data);
     }
-
-    // If not RAS-2819T, could be another ToshibaAc protocol variant
-    ESP_LOGV(TAG, "Not a valid RAS-2819T command, continuing to generic processing");
-  } else {
-    ESP_LOGV(TAG, "ToshibaAcProtocol decode failed, trying generic processing");
   }
 
   // Fall back to generic processing for older protocols
