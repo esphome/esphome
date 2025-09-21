@@ -959,10 +959,10 @@ void ToshibaClimate::transmit_ras_2819t_() {
 
   // Log final messages being transmitted
   ESP_LOGVV(TAG, "[TX] Final message1: %02X %02X %02X %02X %02X %02X", message1[0], message1[1], message1[2],
-           message1[3], message1[4], message1[5]);
+            message1[3], message1[4], message1[5]);
   if (this->mode != climate::CLIMATE_MODE_OFF) {
     ESP_LOGVV(TAG, "[TX] Final message2: %02X %02X %02X %02X %02X %02X", message2[0], message2[1], message2[2],
-             message2[3], message2[4], message2[5]);
+              message2[3], message2[4], message2[5]);
   }
 
   // Transmit using proper Toshiba protocol timing
@@ -1075,9 +1075,9 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
     }
 
     ESP_LOGVV(TAG, "[RX] Message1: %02X %02X %02X %02X %02X %02X", message1[0], message1[1], message1[2], message1[3],
-             message1[4], message1[5]);
+              message1[4], message1[5]);
     ESP_LOGVV(TAG, "[RX] Message2: %02X %02X %02X %02X %02X %02X", message2[0], message2[1], message2[2], message2[3],
-             message2[4], message2[5]);
+              message2[4], message2[5]);
 
     // Decode the protocol using message1 (rc_code_1)
     uint8_t temp_code = message1[4];
@@ -1173,8 +1173,8 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   if (decode_result.has_value()) {
     auto toshiba_data = decode_result.value();
-    ESP_LOGV(TAG, "ToshibaAcProtocol: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64,
-             toshiba_data.rc_code_1, toshiba_data.rc_code_2);
+    ESP_LOGV(TAG, "ToshibaAcProtocol: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64, toshiba_data.rc_code_1,
+             toshiba_data.rc_code_2);
 
     // Validate and process RAS-2819T commands
     if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
