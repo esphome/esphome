@@ -29,6 +29,7 @@ class SHA256 : public esphome::HashBase {
 
   void init() override;
   void add(const uint8_t *data, size_t len) override;
+  using HashBase::add;  // Bring base class overload into scope
   void add(const std::string &data) { this->add((const uint8_t *) data.c_str(), data.length()); }
 
   void calculate() override;

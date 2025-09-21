@@ -38,6 +38,7 @@ class MD5Digest : public HashBase {
 
   /// Add bytes of data for the digest.
   void add(const uint8_t *data, size_t len) override;
+  using HashBase::add;  // Bring base class overload into scope
 
   /// Compute the digest, based on the provided data.
   void calculate() override;
