@@ -416,6 +416,29 @@ def test_perform_ota_sha256_auth_without_password(mock_socket: Mock) -> None:
         espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
 
+def test_perform_ota_unexpected_auth_response(mock_socket: Mock) -> None:
+    """Test OTA fails when device sends an unexpected auth response."""
+    mock_file = io.BytesIO(b"firmware")
+
+    # Use 0x03 which is not in the expected auth responses
+    # This will be caught by check_error and raise "Unexpected response from ESP"
+    UNKNOWN_AUTH_METHOD = 0x03
+
+    responses = [
+        bytes([espota2.RESPONSE_OK, espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_HEADER_OK]),
+        bytes([UNKNOWN_AUTH_METHOD]),  # Unknown auth method
+    ]
+
+    mock_socket.recv.side_effect = responses
+
+    # This will actually raise "Unexpected response from ESP" from check_error
+    with pytest.raises(
+        espota2.OTAError, match=r"Error auth: Unexpected response from ESP: 0x03"
+    ):
+        espota2.perform_ota(mock_socket, "password", mock_file, "test.bin")
+
+
 def test_perform_ota_unsupported_version(mock_socket: Mock) -> None:
     """Test OTA fails with unsupported version."""
     mock_file = io.BytesIO(b"firmware")

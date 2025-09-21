@@ -91,18 +91,26 @@ class OTAError(EsphomeError):
     pass
 
 
-def recv_decode(sock, amount, decode=True):
+def recv_decode(
+    sock: socket.socket, amount: int, decode: bool = True
+) -> bytes | list[int]:
     data = sock.recv(amount)
     if not decode:
         return data
     return list(data)
 
 
-def receive_exactly(sock, amount, msg, expect, decode=True):
-    data = [] if decode else b""
+def receive_exactly(
+    sock: socket.socket,
+    amount: int,
+    msg: str,
+    expect: int | list[int] | None,
+    decode: bool = True,
+) -> list[int] | bytes:
+    data: list[int] | bytes = [] if decode else b""
 
     try:
-        data += recv_decode(sock, 1, decode=decode)
+        data += recv_decode(sock, 1, decode=decode)  # type: ignore[operator]
     except OSError as err:
         raise OTAError(f"Error receiving acknowledge {msg}: {err}") from err
 
@@ -114,13 +122,13 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
 
     while len(data) < amount:
         try:
-            data += recv_decode(sock, amount - len(data), decode=decode)
+            data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
         except OSError as err:
             raise OTAError(f"Error receiving {msg}: {err}") from err
     return data
 
 
-def check_error(data, expect):
+def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None:
     if not expect:
         return
     dat = data[0]
@@ -187,7 +195,9 @@ def check_error(data, expect):
         raise OTAError(f"Unexpected response from ESP: 0x{data[0]:02X}")
 
 
-def send_check(sock, data, msg):
+def send_check(
+    sock: socket.socket, data: list[int] | tuple[int, ...] | int | str | bytes, msg: str
+) -> None:
     try:
         if isinstance(data, (list, tuple)):
             data = bytes(data)
@@ -239,7 +249,7 @@ def perform_ota(
     def perform_auth(
         sock: socket.socket,
         password: str,
-        hash_func: Any,
+        hash_func: Callable[[], Any],
         nonce_size: int,
         hash_name: str,
     ) -> None:
