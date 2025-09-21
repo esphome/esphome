@@ -42,8 +42,8 @@ class MD5Digest : public HashBase {
   /// Compute the digest, based on the provided data.
   void calculate() override;
 
-  /// Get the size of the hex output (32 for MD5)
-  size_t get_hex_size() const override { return 32; }
+  /// Get the size of the hash in bytes (16 for MD5)
+  size_t get_size() const override { return 16; }
 
  protected:
   MD5_CTX_TYPE ctx_{};
