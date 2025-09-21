@@ -3,12 +3,11 @@ from re import Match
 from typing import Any
 
 from esphome import core
+from esphome.components.jinja import Jinja, JinjaError, JinjaStr, has_jinja
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
-from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.const import CONF_JINJA, CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
-
-from .jinja import Jinja, JinjaError, JinjaStr, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
@@ -205,7 +204,11 @@ def _substitute_item(
 def do_substitution_pass(
     config: dict, command_line_substitutions: dict, ignore_missing: bool = False
 ) -> None:
-    if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
+    if (
+        CONF_SUBSTITUTIONS not in config
+        and not command_line_substitutions
+        and CONF_JINJA not in config
+    ):
         return
 
     # Merge substitutions in config, overriding with substitutions coming from command line:
@@ -213,6 +216,7 @@ def do_substitution_pass(
     substitutions = merge_dicts_ordered(
         config.get(CONF_SUBSTITUTIONS, {}), command_line_substitutions or {}
     )
+
     with cv.prepend_path("substitutions"):
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
@@ -235,5 +239,11 @@ def do_substitution_pass(
     config.move_to_end(CONF_SUBSTITUTIONS, False)
 
     # Create a Jinja environment that will consider substitutions in scope:
-    jinja = Jinja(substitutions)
+    jinja = Jinja(config, substitutions)
+    jinja_config = None
+    if CONF_JINJA in config:
+        jinja_config = config[CONF_JINJA]
+        config[CONF_JINJA] = {}
     _substitute_item(substitutions, config, [], jinja, ignore_missing)
+    if jinja_config is not None:
+        config[CONF_JINJA] = jinja_config

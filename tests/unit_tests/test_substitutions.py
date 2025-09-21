@@ -119,9 +119,9 @@ def test_substitutions_fixtures(fixture_path):
             elif DEV_MODE:
                 expected = {}
             else:
-                assert (
-                    expected_path.is_file()
-                ), f"Expected file missing: {expected_path}"
+                assert expected_path.is_file(), (
+                    f"Expected file missing: {expected_path}"
+                )
 
             # Sort dicts only (not lists) for comparison
             got_sorted = sort_dicts(config)
@@ -187,9 +187,9 @@ def test_substitutions_with_command_line_maintains_ordered_dict() -> None:
     assert config[CONF_SUBSTITUTIONS]["var3"] == "new_value"
 
     # Verify config[CONF_SUBSTITUTIONS] is also an OrderedDict
-    assert isinstance(
-        config[CONF_SUBSTITUTIONS], OrderedDict
-    ), "Substitutions should be an OrderedDict"
+    assert isinstance(config[CONF_SUBSTITUTIONS], OrderedDict), (
+        "Substitutions should be an OrderedDict"
+    )
 
 
 def test_substitutions_without_command_line_maintains_ordered_dict() -> None:
@@ -229,17 +229,17 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
     merged_config = merge_config(base_config, package_config)
 
     # Verify merged config is still an OrderedDict
-    assert isinstance(
-        merged_config, OrderedDict
-    ), "Merged config should be an OrderedDict"
+    assert isinstance(merged_config, OrderedDict), (
+        "Merged config should be an OrderedDict"
+    )
 
     # Now try to run substitution pass on the merged config
     substitutions.do_substitution_pass(merged_config, None)
 
     # Should not raise AttributeError
-    assert isinstance(
-        merged_config, OrderedDict
-    ), "Config should still be OrderedDict after substitution pass"
+    assert isinstance(merged_config, OrderedDict), (
+        "Config should still be OrderedDict after substitution pass"
+    )
     keys = list(merged_config.keys())
     assert keys[0] == CONF_SUBSTITUTIONS, "Substitutions should be first key"
 
@@ -270,9 +270,9 @@ def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
     result = config_module.validate_config(test_config, command_line_subs)
 
     # Verify that result[CONF_SUBSTITUTIONS] is an OrderedDict
-    assert isinstance(
-        result.get(CONF_SUBSTITUTIONS), OrderedDict
-    ), "Result substitutions should be an OrderedDict"
+    assert isinstance(result.get(CONF_SUBSTITUTIONS), OrderedDict), (
+        "Result substitutions should be an OrderedDict"
+    )
 
     # Verify substitutions were properly merged
     assert result[CONF_SUBSTITUTIONS]["var1"] == "value1"
@@ -303,9 +303,9 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     result = config_module.validate_config(test_config, None)
 
     # Verify that result[CONF_SUBSTITUTIONS] is an OrderedDict
-    assert isinstance(
-        result.get(CONF_SUBSTITUTIONS), OrderedDict
-    ), "Result substitutions should be an OrderedDict"
+    assert isinstance(result.get(CONF_SUBSTITUTIONS), OrderedDict), (
+        "Result substitutions should be an OrderedDict"
+    )
 
     # Verify substitutions are unchanged
     assert result[CONF_SUBSTITUTIONS]["var1"] == "value1"
@@ -322,31 +322,31 @@ def test_merge_config_preserves_ordered_dict() -> None:
     od = OrderedDict([("a", 1), ("b", 2)])
     d = {"b": 20, "c": 3}
     result = merge_config(od, d)
-    assert isinstance(
-        result, OrderedDict
-    ), "OrderedDict + dict should return OrderedDict"
+    assert isinstance(result, OrderedDict), (
+        "OrderedDict + dict should return OrderedDict"
+    )
 
     # Test dict + OrderedDict = OrderedDict
     d = {"a": 1, "b": 2}
     od = OrderedDict([("b", 20), ("c", 3)])
     result = merge_config(d, od)
-    assert isinstance(
-        result, OrderedDict
-    ), "dict + OrderedDict should return OrderedDict"
+    assert isinstance(result, OrderedDict), (
+        "dict + OrderedDict should return OrderedDict"
+    )
 
     # Test OrderedDict + OrderedDict = OrderedDict
     od1 = OrderedDict([("a", 1), ("b", 2)])
     od2 = OrderedDict([("b", 20), ("c", 3)])
     result = merge_config(od1, od2)
-    assert isinstance(
-        result, OrderedDict
-    ), "OrderedDict + OrderedDict should return OrderedDict"
+    assert isinstance(result, OrderedDict), (
+        "OrderedDict + OrderedDict should return OrderedDict"
+    )
 
     # Test that dict + dict still returns regular dict (no unnecessary conversion)
     d1 = {"a": 1, "b": 2}
     d2 = {"b": 20, "c": 3}
     result = merge_config(d1, d2)
     assert isinstance(result, dict), "dict + dict should return dict"
-    assert not isinstance(
-        result, OrderedDict
-    ), "dict + dict should not return OrderedDict"
+    assert not isinstance(result, OrderedDict), (
+        "dict + dict should not return OrderedDict"
+    )

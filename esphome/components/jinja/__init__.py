@@ -1,6 +1,8 @@
 from ast import literal_eval
+from collections import ChainMap
 from collections.abc import Iterator
 from itertools import chain, islice
+import json
 import logging
 import math
 import re
@@ -9,7 +11,10 @@ from typing import Any
 
 import jinja2 as jinja
 from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
+import voluptuous as vol
 
+import esphome.config_validation as cv
+from esphome.const import CONF_JINJA, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPLiteralValue
 
 TemplateError = jinja.TemplateError
@@ -18,6 +23,7 @@ TemplateRuntimeError = jinja.TemplateRuntimeError
 UndefinedError = jinja.UndefinedError
 Undefined = jinja.Undefined
 
+CODEOWNERS = ["@jpeletier"]
 _LOGGER = logging.getLogger(__name__)
 
 DETECT_JINJA = r"(\$\{)"
@@ -50,6 +56,75 @@ SAFE_GLOBALS = {
     "chr": chr,
     "len": len,
 }
+
+
+def is_jinja_enabled(config):
+    return CONF_JINJA in config
+
+
+def validate_identifier(value):
+    value = cv.string(value)
+    if not value:
+        raise cv.Invalid("Identifier name must not be empty")
+    if value[0].isdigit():
+        raise cv.Invalid("First character in an identifier cannot be a digit.")
+    for char in value:
+        if char not in VALID_SUBSTITUTIONS_CHARACTERS:
+            raise cv.Invalid(
+                f"Jinja identifier names must only consist of upper/lowercase characters, the underscore and numbers. The character '{char}' cannot be used"
+            )
+    return value
+
+
+def _merge_return_into_body(obj):
+    """
+    Combines the value of "return" into the macro body
+    """
+    params = obj["parameters"]
+    body = obj.get("body", "")
+    ret = obj.get("return")
+
+    if ret is not None:
+        # wrap the return value
+        ret_stmt = f"${{{ret}}}"
+        body = f"{body}\n{ret_stmt}" if body else ret_stmt
+
+    return {"parameters": params, "body": body, "upvalues": obj.get("upvalues", {})}
+
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional("macros"): cv.Schema(
+            {
+                validate_identifier: cv.All(
+                    {
+                        cv.Optional("parameters"): cv.ensure_schema(
+                            cv.Schema({validate_identifier: object})
+                        ),
+                        cv.Optional("upvalues"): dict,
+                        cv.Optional("body"): cv.string,
+                        cv.Optional("return"): cv.string,
+                    },
+                    _merge_return_into_body,
+                )
+            },
+            extra=vol.PREVENT_EXTRA,
+        ),
+        cv.Optional("vars"): cv.ensure_schema({validate_identifier: object}),
+    }
+)
+
+
+class PythonLiteralEncoder(json.JSONEncoder):
+    """
+    JSON encoder that translates `null` to None
+    """
+
+    def iterencode(self, o, _one_shot=False):
+        # stream through the default encoder
+        for chunk in super().iterencode(o, _one_shot=_one_shot):
+            # swap out any standalone "null"
+            yield chunk.replace("null", "None")
 
 
 class JinjaStr(str):
@@ -168,7 +243,7 @@ class Jinja(jinja.Environment):
     code_generator_class = NativeCodeGenerator
     concat = staticmethod(_concat_nodes_override)
 
-    def __init__(self, context_vars: dict):
+    def __init__(self, config: dict, context_vars: dict):
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -195,6 +270,66 @@ class Jinja(jinja.Environment):
             **self.context_vars,
             **SAFE_GLOBALS,
         }
+        if CONF_JINJA in config:
+            with cv.prepend_path(CONF_JINJA):
+                config[CONF_JINJA] = CONFIG_SCHEMA(config[CONF_JINJA])
+
+            jinja_config = config[CONF_JINJA]
+            if "vars" in jinja_config:
+                self.load_vars(jinja_config["vars"])
+            if "macros" in jinja_config:
+                self.load_macros(jinja_config["macros"])
+
+        self.globals = {**self.globals, **self.context_vars}
+
+    def parse_template(self, content, upvalues, imports=None):
+        local_env = self
+        if len(upvalues) > 0:
+            local_env = self.overlay()
+            local_env.globals = ChainMap(upvalues, self.globals)
+        template = local_env.from_string(content)
+        if imports is None:
+            # import all symbols
+            for symbol_name in dir(template.module):
+                if symbol_name.startswith("_"):
+                    continue
+                self.globals[symbol_name] = getattr(template.module, symbol_name)
+        else:
+            for symbol_name in imports:
+                symbol = getattr(template.module, symbol_name)
+                if symbol is not None:
+                    self.globals[symbol_name] = symbol
+
+    def load_vars(self, vars):
+        """
+        Adds variables only visible to Jinja. Note that substitutions
+        have precedence and will override these
+        """
+        for var_name, value in vars.items():
+            if var_name not in self.context_vars:
+                self.context_vars[var_name] = value
+
+    def load_macros(self, macros):
+        """
+        Creates Jinja macros out of a simplified yaml syntax
+        """
+        for name, macro in macros.items():
+            parameters = ", ".join(
+                [
+                    f"{k}={json.dumps(v, cls=PythonLiteralEncoder)}"
+                    for k, v in macro["parameters"].items()
+                ]
+            )
+            macro["upvalues"] = upvalues = {
+                **self.context_vars,
+                **macro.get("upvalues", {}),
+            }
+            body = macro["body"]
+            self.parse_template(
+                f"<% macro {name}({parameters}) %>\n{body}<% endmacro %>",
+                upvalues,
+                [name],
+            )
 
     def expand(self, content_str: str | JinjaStr) -> Any:
         """
