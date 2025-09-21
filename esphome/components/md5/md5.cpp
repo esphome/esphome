@@ -49,21 +49,7 @@ void MD5Digest::get_hex(char *output) {
   }
 }
 
-bool MD5Digest::equals_bytes(const uint8_t *expected) {
-  for (size_t i = 0; i < 16; i++) {
-    if (expected[i] != this->digest_[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool MD5Digest::equals_hex(const char *expected) {
-  uint8_t parsed[16];
-  if (!parse_hex(expected, parsed, 16))
-    return false;
-  return equals_bytes(parsed);
-}
+bool MD5Digest::equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, 16) == 0; }
 
 }  // namespace md5
 }  // namespace esphome

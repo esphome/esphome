@@ -53,11 +53,8 @@ class MD5Digest : public HashBase {
   /// Get the size of the hex output (32 for MD5)
   size_t get_hex_size() const override { return 32; }
 
-  /// Compare the digest against a provided byte-encoded digest (16 bytes).
-  bool equals_bytes(const uint8_t *expected);
-
-  /// Compare the digest against a provided hex-encoded digest (32 bytes).
-  bool equals_hex(const char *expected);
+  /// Compare the digest against a provided byte-encoded digest (16 bytes)
+  bool equals_bytes(const uint8_t *expected) override;
 
  protected:
   MD5_CTX_TYPE ctx_{};
