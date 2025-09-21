@@ -286,11 +286,8 @@ def perform_ota(
         [RESPONSE_REQUEST_AUTH, RESPONSE_REQUEST_SHA256_AUTH, RESPONSE_AUTH_OK],
     )
 
-    if auth in _AUTH_METHODS:
-        hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
-        perform_auth(sock, password, hash_func, nonce_size, hash_name)
-    elif auth != RESPONSE_AUTH_OK:
-        raise OTAError(f"Unknown authentication method requested: 0x{auth:02X}")
+    hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
+    perform_auth(sock, password, hash_func, nonce_size, hash_name)
 
     # Set higher timeout during upload
     sock.settimeout(30.0)
