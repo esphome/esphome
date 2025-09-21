@@ -19,7 +19,7 @@ void SHA256::init() {
 
 void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this->ctx_, data, len); }
 
-void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->hash_); }
+void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->digest_); }
 
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 
@@ -34,7 +34,7 @@ void SHA256::add(const uint8_t *data, size_t len) { br_sha256_update(&this->ctx_
 
 void SHA256::calculate() {
   if (!this->calculated_) {
-    br_sha256_out(&this->ctx_, this->hash_);
+    br_sha256_out(&this->ctx_, this->digest_);
     this->calculated_ = true;
   }
 }
@@ -69,7 +69,7 @@ void SHA256::calculate() {
   }
   if (!this->calculated_) {
     unsigned int len = 32;
-    EVP_DigestFinal_ex(this->ctx_, this->hash_, &len);
+    EVP_DigestFinal_ex(this->ctx_, this->digest_, &len);
     this->calculated_ = true;
   }
 }
@@ -78,15 +78,7 @@ void SHA256::calculate() {
 #error "SHA256 not supported on this platform"
 #endif
 
-void SHA256::get_bytes(uint8_t *output) { memcpy(output, this->hash_, 32); }
-
-void SHA256::get_hex(char *output) {
-  for (size_t i = 0; i < 32; i++) {
-    uint8_t byte = this->hash_[i];
-    output[i * 2] = format_hex_char(byte >> 4);
-    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
-  }
-}
+void SHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 32); }
 
 std::string SHA256::get_hex_string() {
   char buf[65];
@@ -94,7 +86,7 @@ std::string SHA256::get_hex_string() {
   return std::string(buf);
 }
 
-bool SHA256::equals_bytes(const uint8_t *expected) { return memcmp(this->hash_, expected, 32) == 0; }
+bool SHA256::equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, 32) == 0; }
 
 bool SHA256::equals_hex(const char *expected) {
   uint8_t parsed[32];

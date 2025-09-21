@@ -46,10 +46,6 @@ class MD5Digest : public HashBase {
   /// The output must be able to hold 16 bytes or more.
   void get_bytes(uint8_t *output);
 
-  /// Retrieve the MD5 digest as hex characters.
-  /// The output must be able to hold 32 bytes or more.
-  void get_hex(char *output) override;
-
   /// Get the size of the hex output (32 for MD5)
   size_t get_hex_size() const override { return 32; }
 
@@ -61,7 +57,6 @@ class MD5Digest : public HashBase {
 
  protected:
   MD5_CTX_TYPE ctx_{};
-  uint8_t digest_[16];
 };
 
 }  // namespace md5

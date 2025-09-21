@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -21,10 +22,20 @@ class HashBase {
   virtual void calculate() = 0;
 
   /// Retrieve the hash as hex characters
-  virtual void get_hex(char *output) = 0;
+  virtual void get_hex(char *output) {
+    const size_t hash_bytes = this->get_hex_size() / 2;
+    for (size_t i = 0; i < hash_bytes; i++) {
+      uint8_t byte = this->digest_[i];
+      output[i * 2] = format_hex_char(byte >> 4);
+      output[i * 2 + 1] = format_hex_char(byte & 0x0F);
+    }
+  }
 
   /// Get the size of the hex output (32 for MD5, 64 for SHA256)
   virtual size_t get_hex_size() const = 0;
+
+ protected:
+  uint8_t digest_[32];  // Common digest storage (MD5 uses 16 bytes, SHA256 uses 32)
 };
 
 }  // namespace esphome
