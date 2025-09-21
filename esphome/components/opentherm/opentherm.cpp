@@ -231,115 +231,122 @@ void OpenTherm::rmt_write_sync_() {
 
 bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
   constexpr size_t DATA_BITS = 32;
-  constexpr size_t TOTAL_BITS = DATA_BITS + 2;  // start + data + stop
+  constexpr size_t TOTAL_BITS = DATA_BITS + 2;  // start + 32 data + stop
   constexpr uint16_t HALF_BIT_US = 500;
   constexpr uint16_t HALF_TOLERANCE_US = 200;
-  constexpr size_t HALF_CAPACITY = RMT_SYMBOL_CAPACITY * 2;
 
   this->error_type_ = ProtocolErrorType::NO_ERROR;
 
-  if (this->rmt_buffer_symbol_count_ == 0 || this->rmt_buffer_symbol_count_ > RMT_SYMBOL_CAPACITY) {
-    this->mode_ = OperationMode::ERROR_RMT;
-    return false;
-  }
-
-  // Collect individual 0.5 ms "half bits" so the Manchester stream can be interpreted uniformly,
-  // regardless of whether the RMT reported a single or double-duration level.
-  uint8_t half_levels[HALF_CAPACITY];
-  size_t half_count = 0;
-
-  auto append_half = [&](uint8_t level, uint16_t duration) -> bool {
-    if (duration == 0) {
-      return true;
-    }
-    uint32_t segments = (duration + (HALF_BIT_US / 2)) / HALF_BIT_US;
-    if (segments == 0 || segments > 2) {
-      return false;
-    }
-    uint32_t expected = segments * HALF_BIT_US;
-    uint32_t tolerance = segments * HALF_TOLERANCE_US;
-    if (duration < expected - tolerance || duration > expected + tolerance) {
-      return false;
-    }
-    if ((half_count + segments) > HALF_CAPACITY) {
-      return false;
-    }
-    for (uint32_t i = 0; i < segments; ++i) {
-      half_levels[half_count++] = level;
-    }
-    return true;
-  };
-
-  for (size_t i = 0; i < this->rmt_buffer_symbol_count_; ++i) {
-    const auto &sym = this->rmt_buffer_[i];
-    if (!append_half(sym.level0, sym.duration0)) {
-      this->mode_ = OperationMode::ERROR_RMT;
-      return false;
-    }
-    if (!append_half(sym.level1, sym.duration1)) {
-      this->mode_ = OperationMode::ERROR_RMT;
-      return false;
-    }
-  }
-
-  if ((half_count & 1U) != 0) {
-    const auto &last_symbol = this->rmt_buffer_[this->rmt_buffer_symbol_count_ - 1];
-    if (last_symbol.duration1 != 0 || (half_count + 1U) > HALF_CAPACITY) {
-      this->mode_ = OperationMode::ERROR_RMT;
-      return false;
-    }
-    // A few boilers leave the line high at the end of the stop bit. Reconstruct the missing
-    // trailing half so decoding still sees a complete Manchester pair.
-    half_levels[half_count] = static_cast<uint8_t>(half_levels[half_count - 1] ^ 0x1);
-    ++half_count;
-  }
-
-  const size_t total_pairs = half_count / 2;
-  if (total_pairs < DATA_BITS + 1) {
-    this->mode_ = OperationMode::ERROR_RMT;
-    return false;
-  }
-
-  auto decode_pair = [&](size_t pair_index, bool &bit) -> bool {
-    const bool first = half_levels[pair_index * 2];
-    const bool second = half_levels[pair_index * 2 + 1];
-    if (first == second) {
-      return false;
-    }
-    // Canonical wiring: 0 -> low/high, 1 -> high/low.
-    bit = first && !second;
-    return true;
-  };
-
-  bool start_bit = false;
-  if (!decode_pair(0, start_bit) || !start_bit) {
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
-    this->error_type_ = ProtocolErrorType::NO_TRANSITION;
-    return false;
-  }
-
-  if (total_pairs < TOTAL_BITS) {
+  const size_t symbol_count = this->rmt_buffer_symbol_count_;
+  if (symbol_count == 0 || symbol_count > RMT_SYMBOL_CAPACITY) {
     this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   uint32_t raw = 0;
-  for (size_t bit_index = 0; bit_index < DATA_BITS; ++bit_index) {
-    bool bit_value = false;
-    if (!decode_pair(1 + bit_index, bit_value)) {
+  size_t pair_index = 0;
+  bool have_pending_half = false;
+  uint8_t pending_level = 0;
+  bool allow_synthetic_last_half = false;
+
+  auto emit_bit = [&](bool bit) -> bool {
+    if (pair_index == 0) {
+      if (!bit) {
+        this->mode_ = OperationMode::ERROR_PROTOCOL;
+        this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;  // framing issue
+        return false;
+      }
+    } else if (pair_index <= DATA_BITS) {
+      raw = (raw << 1) | static_cast<uint32_t>(bit ? 1U : 0U);
+    } else if (pair_index == DATA_BITS + 1) {
+      if (!bit) {
+        this->mode_ = OperationMode::ERROR_PROTOCOL;
+        this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
+        this->data_ = raw;
+        return false;
+      }
+    } else {
       this->mode_ = OperationMode::ERROR_PROTOCOL;
       this->error_type_ = ProtocolErrorType::NO_TRANSITION;
       return false;
     }
-    // Data arrives MSB first.
-    raw = (raw << 1) | static_cast<uint32_t>(bit_value ? 1U : 0U);
+    pair_index++;
+    return true;
+  };
+
+  // Feed one 0.5 ms half bit at a time. Manchester encoding guarantees the level toggles
+  // inside every bit; merged durations (≈1000 us) are split into two halves by calling this
+  // helper twice with the same level.
+  auto consume_half = [&](uint8_t level) -> bool {
+    if (!have_pending_half) {
+      pending_level = level;
+      have_pending_half = true;
+      return true;
+    }
+    if (pending_level == level) {
+      this->mode_ = OperationMode::ERROR_PROTOCOL;
+      this->error_type_ = ProtocolErrorType::NO_TRANSITION;
+      return false;
+    }
+    const bool bit = (pending_level == 1) && (level == 0);  // high->low represents logical '1'
+    have_pending_half = false;
+    return emit_bit(bit);
+  };
+
+  // Interpret an RMT duration by breaking it into one or two half bits, allowing generous
+  // timing tolerance per the specification.
+  auto process_duration = [&](uint8_t level, uint16_t duration, bool is_last_half) -> bool {
+    if (duration == 0) {
+      if (is_last_half) {
+        allow_synthetic_last_half = true;
+      }
+      return true;
+    }
+    uint32_t segments = (duration + (HALF_BIT_US / 2)) / HALF_BIT_US;
+    if (segments == 0 || segments > 2) {
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+    const uint32_t expected = segments * HALF_BIT_US;
+    const uint32_t tolerance = segments * HALF_TOLERANCE_US;
+    if (duration < expected - tolerance || duration > expected + tolerance) {
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+    for (uint32_t seg = 0; seg < segments; ++seg) {
+      if (!consume_half(level)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  for (size_t i = 0; i < symbol_count; ++i) {
+    const auto &sym = this->rmt_buffer_[i];
+    if (!process_duration(sym.level0, sym.duration0, false)) {
+      return false;
+    }
+    const bool is_last_symbol = (i + 1) == symbol_count;
+    if (!process_duration(sym.level1, sym.duration1, is_last_symbol)) {
+      return false;
+    }
   }
 
-  bool stop_bit = false;
-  if (!decode_pair(1 + DATA_BITS, stop_bit) || !stop_bit) {
+  if (have_pending_half) {
+    if (!allow_synthetic_last_half) {
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+    // Some boilers stop driving the bus after the first half of the stop bit. Inject the
+    // missing opposite level so the final Manchester pair completes cleanly.
+    if (!consume_half(static_cast<uint8_t>(pending_level ^ 0x1))) {
+      return false;
+    }
+  }
+
+  if (pair_index != TOTAL_BITS) {
     this->mode_ = OperationMode::ERROR_PROTOCOL;
-    this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
-    this->data_ = raw;
+    this->error_type_ = ProtocolErrorType::NO_TRANSITION;
     return false;
   }
 
