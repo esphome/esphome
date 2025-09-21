@@ -20,8 +20,7 @@ using std::string;
 using std::to_string;
 
 static const char *const TAG = "opentherm";
-// RMT source clock is used by the RX range filter hardware. The maximum
-// configurable minimum pulse width is limited to 255 source clock cycles.
+
 #ifdef USE_ESP32_VARIANT_ESP32H2
 static const uint32_t RMT_CLK_FREQ = 32000000;
 #else
@@ -33,12 +32,7 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t 
       out_pin_(out_pin),
       mode_(OperationMode::IDLE),
       error_type_(ProtocolErrorType::NO_ERROR),
-      capture_(0),
-      clock_(0),
-      data_(0),
-      bit_pos_(0),
-      timeout_counter_(-1),
-      device_timeout_(device_timeout) {
+      data_(0) {
   this->isr_in_pin_ = in_pin->to_isr();
   this->isr_out_pin_ = out_pin->to_isr();
 }
@@ -50,14 +44,13 @@ bool OpenTherm::initialize() {
   this->out_pin_->setup();
   this->out_pin_->digital_write(true);
 
-  return this->init_rmt_();
+  return this->rmt_init_();
 }
 
 void OpenTherm::listen() {
   this->mode_ = OperationMode::LISTEN;
   this->data_ = 0;
-  this->bit_pos_ = 0;
-  this->start_read_rmt_();
+  this->rmt_read_async_();
 }
 
 void OpenTherm::send(OpenthermData &data) {
@@ -69,10 +62,8 @@ void OpenTherm::send(OpenthermData &data) {
     this->data_ = this->data_ | 0x80000000;
   }
 
-  this->clock_ = 1;     // clock starts at HIGH
-  this->bit_pos_ = 33;  // count down (33 == start bit, 32-1 data, 0 == stop bit)
   this->mode_ = OperationMode::WRITE;
-  this->start_write_rmt_();
+  this->rmt_write_sync_();
 }
 
 bool OpenTherm::get_message(OpenthermData &data) {
@@ -92,9 +83,6 @@ bool OpenTherm::get_protocol_error(OpenThermError &error) {
   }
 
   error.error_type = this->error_type_;
-  error.bit_pos = this->bit_pos_;
-  error.capture = this->capture_;
-  error.clock = this->clock_;
   error.data = this->data_;
 
   return true;
@@ -102,11 +90,7 @@ bool OpenTherm::get_protocol_error(OpenThermError &error) {
 
 void OpenTherm::stop() { this->mode_ = OperationMode::IDLE; }
 
-// Timer ISR removed in RMT implementation
-
-// (legacy) verify_stop_bit_ no longer used with RMT decoding
-
-bool OpenTherm::init_rmt_() {
+bool OpenTherm::rmt_init_() {
   // Configure RX channel
   rmt_rx_channel_config_t rx_chan_cfg;
   memset(&rx_chan_cfg, 0, sizeof(rx_chan_cfg));
@@ -161,7 +145,7 @@ bool OpenTherm::init_rmt_() {
   // RX done callback
   rmt_rx_event_callbacks_t cbs;
   memset(&cbs, 0, sizeof(cbs));
-  cbs.on_recv_done = &OpenTherm::rmt_rx_callback;
+  cbs.on_recv_done = &OpenTherm::rmt_read_callback;
   if (rmt_rx_register_event_callbacks(this->rx_channel_, &cbs, this) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to register RMT RX callbacks");
     return false;
@@ -180,40 +164,20 @@ bool OpenTherm::init_rmt_() {
 }
 
 // RX decoding removed for a fresh implementation start. Only capture raw symbols.
-bool IRAM_ATTR OpenTherm::rmt_rx_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
-  auto *self = static_cast<OpenTherm *>(arg);
-  const rmt_symbol_word_t *syms = evt ? evt->received_symbols : nullptr;
-  size_t count = evt ? evt->num_symbols : 0;
-  if (syms != nullptr && count > 0) {
-    size_t to_copy = count;
-    if (to_copy > RX_SYMBOL_CAPACITY)
-      to_copy = RX_SYMBOL_CAPACITY;
-    for (size_t i = 0; i < to_copy; i++) {
-      self->raw_syms_[i] = syms[i];
-    }
-    self->raw_syms_count_ = to_copy;
-    self->raw_capture_ready_ = true;
-  }
-  self->rx_receiving_ = false;
-  return false;
-}
 
-void OpenTherm::start_read_rmt_() {
+void OpenTherm::rmt_read_async_() {
   // Start single receive into internal buffer
-  memset(this->rx_buffer_, 0, sizeof(this->rx_buffer_));
-  this->clear_raw_capture();
-  if (!this->rx_receiving_) {
-    esp_err_t err = rmt_receive(this->rx_channel_, this->rx_buffer_, sizeof(this->rx_buffer_), &this->rx_config_);
-    if (err == ESP_OK) {
-      this->rx_receiving_ = true;
-    } else {
-      ESP_LOGW(TAG, "Failed to start RMT receive: %s", esp_err_to_name(err));
-      this->mode_ = OperationMode::ERROR_TIMEOUT;
-    }
+  this->rmt_buffer_symbol_count_ = 0;
+  memset(this->rmt_buffer_, 0, sizeof(this->rmt_buffer_));
+
+  esp_err_t err = rmt_receive(this->rx_channel_, this->rmt_buffer_, sizeof(this->rmt_buffer_), &this->rx_config_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to start RMT receive: %s", esp_err_to_name(err));
+    this->mode_ = OperationMode::ERROR_RMT;
   }
 }
 
-void OpenTherm::start_write_rmt_() {
+void OpenTherm::rmt_write_sync_() {
   // Build Manchester stream as raw RMT symbols, 1 bit = two halves of 500us
   rmt_symbol_word_t syms[34];
   auto set_sym = [](rmt_symbol_word_t &s, bool level0, uint16_t dur0, bool level1, uint16_t dur1) {
@@ -252,17 +216,45 @@ void OpenTherm::start_write_rmt_() {
   esp_err_t err = rmt_transmit(this->tx_channel_, this->tx_encoder_, syms, sizeof(syms), &cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to transmit RMT symbols: %s", esp_err_to_name(err));
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
+    this->mode_ = OperationMode::ERROR_RMT;
     return;
   }
   // Wait until transmission completes to move to SENT state (simple and robust)
   err = rmt_tx_wait_all_done(this->tx_channel_, -1);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed waiting for TX done: %s", esp_err_to_name(err));
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
+    this->mode_ = OperationMode::ERROR_RMT;
     return;
   }
   this->mode_ = OperationMode::SENT;
+}
+
+bool IRAM_ATTR OpenTherm::rmt_read_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
+  auto *self = static_cast<OpenTherm *>(arg);
+  if (evt == nullptr || evt->received_symbols == nullptr) {
+    ESP_LOGW(TAG, "RMT pointer is null");
+    self->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+  if (evt->num_symbols == 0) {
+    ESP_LOGW(TAG, "RMT reported 0 symbols");
+    self->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+  if (evt->num_symbols > RMT_SYMBOL_CAPACITY) {
+    ESP_LOGE(TAG, "Received %u symbols from RMT, but capacity is limited at %u. This is a bug, please report it.",
+             evt->num_symbols, RMT_SYMBOL_CAPACITY);
+    self->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+
+  self->rmt_buffer_symbol_count_ = evt->num_symbols;
+
+  // TODO: Add RMT decoding here
+
+  self->mode_ = OperationMode::RECEIVED;
+
+  return false;
 }
 
 // https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
@@ -289,7 +281,7 @@ const char *OpenTherm::operation_mode_to_str(OperationMode mode) {
     TO_STRING_MEMBER(SENT)
     TO_STRING_MEMBER(ERROR_PROTOCOL)
     TO_STRING_MEMBER(ERROR_TIMEOUT)
-    TO_STRING_MEMBER(ERROR_TIMER)
+    TO_STRING_MEMBER(ERROR_RMT)
     default:
       return "<INVALID>";
   }
@@ -439,21 +431,19 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.f88()).c_str());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "OpenTherm error: %s (bit_pos=%u)", OpenTherm::protocol_error_to_str(error.error_type),
-           (unsigned) error.bit_pos);
+  ESP_LOGD(TAG, "OpenTherm error: %s", OpenTherm::protocol_error_to_str(error.error_type));
 }
 
-void OpenTherm::dump_rx_raw() const {
-  if (!this->raw_capture_ready_) {
-    ESP_LOGI(TAG, "RX raw: no capture available");
+void OpenTherm::debug_rmt() const {
+  if (this->rmt_buffer_symbol_count_ == 0) {
+    ESP_LOGI(TAG, "RMT debug: no data available");
     return;
   }
   ESP_LOGI(TAG, "RX raw begin =====================================");
-  ESP_LOGI(TAG, "symbols=%u", (unsigned) this->raw_syms_count_);
-  for (size_t i = 0; i < this->raw_syms_count_; i++) {
-    const auto &s = this->raw_syms_[i];
-    ESP_LOGI(TAG, "SYM[%03u]: L0=%u D0=%u us | L1=%u D1=%u us", (unsigned) i, (unsigned) s.level0,
-             (unsigned) s.duration0, (unsigned) s.level1, (unsigned) s.duration1);
+  ESP_LOGI(TAG, "symbols=%u", this->rmt_buffer_symbol_count_);
+  for (size_t i = 0; i < this->rmt_buffer_symbol_count_; i++) {
+    const auto &s = this->rmt_buffer_[i];
+    ESP_LOGI(TAG, "SYM[%03u]: L0=%u D0=%u us | L1=%u D1=%u us", i, s.level0, s.duration0, s.level1, s.duration1);
   }
   ESP_LOGI(TAG, "RX raw end =======================================");
 }
