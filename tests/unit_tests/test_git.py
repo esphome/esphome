@@ -15,7 +15,7 @@ def test_clone_or_update_with_never_refresh(
 ) -> None:
     """Test that NEVER_REFRESH skips updates for existing repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
 
     # Compute the expected repo directory path
     url = "https://github.com/test/repo"
@@ -56,7 +56,7 @@ def test_clone_or_update_with_refresh_updates_old_repo(
 ) -> None:
     """Test that refresh triggers update for old repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
 
     # Compute the expected repo directory path
     url = "https://github.com/test/repo"
@@ -110,7 +110,7 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
 ) -> None:
     """Test that refresh doesn't update fresh repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
 
     # Compute the expected repo directory path
     url = "https://github.com/test/repo"
@@ -156,7 +156,7 @@ def test_clone_or_update_clones_missing_repo(
 ) -> None:
     """Test that missing repos are cloned regardless of refresh setting."""
     # Set up CORE.config_path so data_dir uses tmp_path
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
 
     # Compute the expected repo directory path
     url = "https://github.com/test/repo"
@@ -198,7 +198,7 @@ def test_clone_or_update_with_none_refresh_always_updates(
 ) -> None:
     """Test that refresh=None always updates existing repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
 
     # Compute the expected repo directory path
     url = "https://github.com/test/repo"

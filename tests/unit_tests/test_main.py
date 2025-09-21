@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from pytest import CaptureFixture
 
+from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
@@ -28,7 +29,9 @@ from esphome.__main__ import (
     mqtt_get_ip,
     show_logs,
     upload_program,
+    upload_using_esptool,
 )
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -216,6 +219,14 @@ def mock_has_mqtt_logging() -> Generator[Mock]:
 def mock_run_external_process() -> Generator[Mock]:
     """Mock run_external_process for testing."""
     with patch("esphome.__main__.run_external_process") as mock:
+        mock.return_value = 0  # Default to success
+        yield mock
+
+
+@pytest.fixture
+def mock_run_external_command() -> Generator[Mock]:
+    """Mock run_external_command for testing."""
+    with patch("esphome.__main__.run_external_command") as mock:
         mock.return_value = 0  # Default to success
         yield mock
 
@@ -816,6 +827,122 @@ def test_upload_program_serial_esp8266_with_file(
     mock_upload_using_esptool.assert_called_once_with(
         config, "/dev/ttyUSB0", "firmware.bin", 460800
     )
+
+
+def test_upload_using_esptool_path_conversion(
+    tmp_path: Path,
+    mock_run_external_command: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test upload_using_esptool properly converts Path objects to strings for esptool.
+
+    This test ensures that img.path (Path object) is converted to string before
+    passing to esptool, preventing AttributeError.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+
+    # Set up ESP32-specific data required by get_esp32_variant()
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create mock IDEData with Path objects
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = [
+        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        platformio_api.FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
+    ]
+
+    mock_get_idedata.return_value = mock_idedata
+
+    # Create the actual firmware files so they exist
+    (tmp_path / "firmware.bin").touch()
+    (tmp_path / "bootloader.bin").touch()
+    (tmp_path / "partitions.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    # Call upload_using_esptool without custom file argument
+    result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+
+    # Verify that run_external_command was called
+    assert mock_run_external_command.call_count == 1
+
+    # Get the actual call arguments
+    call_args = mock_run_external_command.call_args[0]
+
+    # The first argument should be esptool.main function,
+    # followed by the command arguments
+    assert len(call_args) > 1
+
+    # Find the indices of the flash image arguments
+    # They should come after "write-flash" and "-z"
+    cmd_list = list(call_args[1:])  # Skip the esptool.main function
+
+    # Verify all paths are strings, not Path objects
+    # The firmware and flash images should be at specific positions
+    write_flash_idx = cmd_list.index("write-flash")
+
+    # After write-flash we have: -z, --flash-size, detect, then offset/path pairs
+    # Check firmware at offset 0x10000 (ESP32)
+    firmware_offset_idx = write_flash_idx + 4
+    assert cmd_list[firmware_offset_idx] == "0x10000"
+    firmware_path = cmd_list[firmware_offset_idx + 1]
+    assert isinstance(firmware_path, str)
+    assert firmware_path.endswith("firmware.bin")
+
+    # Check bootloader
+    bootloader_offset_idx = firmware_offset_idx + 2
+    assert cmd_list[bootloader_offset_idx] == "0x1000"
+    bootloader_path = cmd_list[bootloader_offset_idx + 1]
+    assert isinstance(bootloader_path, str)
+    assert bootloader_path.endswith("bootloader.bin")
+
+    # Check partitions
+    partitions_offset_idx = bootloader_offset_idx + 2
+    assert cmd_list[partitions_offset_idx] == "0x8000"
+    partitions_path = cmd_list[partitions_offset_idx + 1]
+    assert isinstance(partitions_path, str)
+    assert partitions_path.endswith("partitions.bin")
+
+
+def test_upload_using_esptool_with_file_path(
+    tmp_path: Path,
+    mock_run_external_command: Mock,
+) -> None:
+    """Test upload_using_esptool with a custom file that's a Path object."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+
+    # Create a test firmware file
+    firmware_file = tmp_path / "custom_firmware.bin"
+    firmware_file.touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    # Call with a Path object as the file argument (though usually it's a string)
+    result = upload_using_esptool(config, "/dev/ttyUSB0", str(firmware_file), None)
+
+    assert result == 0
+
+    # Verify that run_external_command was called
+    mock_run_external_command.assert_called_once()
+
+    # Get the actual call arguments
+    call_args = mock_run_external_command.call_args[0]
+    cmd_list = list(call_args[1:])  # Skip the esptool.main function
+
+    # Find the firmware path in the command
+    write_flash_idx = cmd_list.index("write-flash")
+
+    # For custom file, it should be at offset 0x0
+    firmware_offset_idx = write_flash_idx + 4
+    assert cmd_list[firmware_offset_idx] == "0x0"
+    firmware_path = cmd_list[firmware_offset_idx + 1]
+
+    # Verify it's a string, not a Path object
+    assert isinstance(firmware_path, str)
+    assert firmware_path.endswith("custom_firmware.bin")
 
 
 @pytest.mark.parametrize(
