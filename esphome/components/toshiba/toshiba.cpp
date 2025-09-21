@@ -164,6 +164,23 @@ const uint8_t RAS_2819T_AUTO_DRY_FAN_BYTE = 0x65;
 const uint8_t RAS_2819T_AUTO_DRY_SUFFIX = 0x3A;
 const uint8_t RAS_2819T_HEAT_SUFFIX = 0x3B;
 
+// RAS-2819T temperature codes for 18-30°C
+static const uint8_t RAS_2819T_TEMP_CODES[] = {
+    0x10,  // 18°C
+    0x30,  // 19°C
+    0x20,  // 20°C
+    0x60,  // 21°C
+    0x70,  // 22°C
+    0x50,  // 23°C
+    0x40,  // 24°C
+    0xC0,  // 25°C
+    0xD0,  // 26°C
+    0x90,  // 27°C
+    0x80,  // 28°C
+    0xA0,  // 29°C
+    0xB0   // 30°C
+};
+
 // Helper functions for RAS-2819T protocol
 //
 // ===== RAS-2819T PROTOCOL DOCUMENTATION =====
@@ -257,23 +274,6 @@ static Ras2819tSecondPacketCodes get_ras_2819t_second_packet_codes(climate::Clim
  * Get temperature code for RAS-2819T protocol
  */
 static uint8_t get_ras_2819t_temp_code(float temperature) {
-  // Temperature codes for RAS-2819T protocol (18-30°C)
-  static const uint8_t RAS_2819T_TEMP_CODES[] = {
-      0x10,  // 18°C
-      0x30,  // 19°C
-      0x20,  // 20°C
-      0x60,  // 21°C
-      0x70,  // 22°C
-      0x50,  // 23°C
-      0x40,  // 24°C
-      0xC0,  // 25°C
-      0xD0,  // 26°C
-      0x90,  // 27°C
-      0x80,  // 28°C
-      0xA0,  // 29°C
-      0xB0   // 30°C
-  };
-
   int temp_index = static_cast<int>(temperature) - 18;
   if (temp_index < 0 || temp_index >= static_cast<int>(sizeof(RAS_2819T_TEMP_CODES))) {
     ESP_LOGW(TAG, "Temperature %.1f°C out of range [18-30°C], defaulting to 24°C", temperature);
@@ -287,16 +287,12 @@ static uint8_t get_ras_2819t_temp_code(float temperature) {
  * Decode temperature from RAS-2819T temp code
  */
 static float decode_ras_2819t_temperature(uint8_t temp_code) {
-  // Map temp codes back to temperatures using array lookup for better performance
-  static const uint8_t RAS_2819T_TEMP_CODES_DECODE[] = {0x10, 0x30, 0x20, 0x60, 0x70, 0x50, 0x40,
-                                                        0xC0, 0xD0, 0x90, 0x80, 0xA0, 0xB0};
-
   uint8_t base_temp_code = temp_code & 0xF0;
 
-  // Linear search through the small array (faster than map for small datasets)
-  for (uint8_t i = 0; i < sizeof(RAS_2819T_TEMP_CODES_DECODE); i++) {
-    if (RAS_2819T_TEMP_CODES_DECODE[i] == base_temp_code) {
-      return static_cast<float>(i + 18);  // 18°C is the minimum
+  // Find the code in the temperature array
+  for (int temp_index = 0; temp_index < static_cast<int>(sizeof(RAS_2819T_TEMP_CODES)); temp_index++) {
+    if (RAS_2819T_TEMP_CODES[temp_index] == base_temp_code) {
+      return static_cast<float>(temp_index + 18);  // 18°C is the minimum
     }
   }
 
