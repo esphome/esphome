@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import io
+from pathlib import Path
 import socket
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, Mock, call, patch
@@ -399,7 +400,7 @@ def test_perform_ota_upload_error(mock_socket) -> None:
             espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
 
-def test_run_ota_impl_successful(mock_socket, tmp_path) -> None:
+def test_run_ota_impl_successful(mock_socket, tmp_path: Path) -> None:
     """Test run_ota_impl_ with successful upload."""
     # Create a real firmware file
     firmware_file = tmp_path / "firmware.bin"
@@ -439,7 +440,7 @@ def test_run_ota_impl_successful(mock_socket, tmp_path) -> None:
         assert call_args[3] == str(firmware_file)
 
 
-def test_run_ota_impl_connection_failed(mock_socket, tmp_path) -> None:
+def test_run_ota_impl_connection_failed(mock_socket, tmp_path: Path) -> None:
     """Test run_ota_impl_ when connection fails."""
     mock_socket.connect.side_effect = OSError("Connection refused")
 
@@ -464,7 +465,7 @@ def test_run_ota_impl_connection_failed(mock_socket, tmp_path) -> None:
         mock_socket.close.assert_called_once()
 
 
-def test_run_ota_impl_resolve_failed(tmp_path) -> None:
+def test_run_ota_impl_resolve_failed(tmp_path: Path) -> None:
     """Test run_ota_impl_ when DNS resolution fails."""
     # Create a real firmware file
     firmware_file = tmp_path / "firmware.bin"
