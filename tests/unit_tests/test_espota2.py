@@ -41,11 +41,8 @@ def mock_file() -> io.BytesIO:
 @pytest.fixture
 def mock_time():
     """Mock time-related functions for consistent testing."""
-    with (
-        patch("time.sleep"),
-        patch("time.perf_counter", side_effect=[0, 1]),
-    ) as mocks:
-        yield mocks
+    with patch("time.sleep"), patch("time.perf_counter", side_effect=[0, 1]):
+        yield
 
 
 @pytest.fixture
