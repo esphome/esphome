@@ -290,7 +290,7 @@ static float decode_ras_2819t_temperature(uint8_t temp_code) {
   uint8_t base_temp_code = temp_code & 0xF0;
 
   // Find the code in the temperature array
-  for (uint8_t temp_index = 0; temp_index < sizeof(RAS_2819T_TEMP_CODES); temp_index++) {
+  for (size_t temp_index = 0; temp_index < sizeof(RAS_2819T_TEMP_CODES); temp_index++) {
     if (RAS_2819T_TEMP_CODES[temp_index] == base_temp_code) {
       return static_cast<float>(temp_index + 18);  // 18°C is the minimum
     }
@@ -406,11 +406,8 @@ void ToshibaClimate::setup() {
   this->swing_modes_ = this->toshiba_swing_modes_();
 
   // Ensure swing mode is always initialized to a valid value
-  if (this->swing_modes_.empty()) {
-    // No swing support for this model
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  } else if (this->swing_modes_.find(this->swing_mode) == this->swing_modes_.end()) {
-    // Current swing mode not supported, reset to OFF
+  if (this->swing_modes_.empty() || this->swing_modes_.find(this->swing_mode) == this->swing_modes_.end()) {
+    // No swing support for this model or current swing mode not supported, reset to OFF
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
