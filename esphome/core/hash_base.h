@@ -29,11 +29,7 @@ class HashBase {
   }
 
   /// Retrieve the hash as hex characters
-<<<<<<< HEAD
-  virtual void get_hex(char *output) {
-=======
   void get_hex(char *output) {
->>>>>>> integration
     const size_t hash_bytes = this->get_hex_size() / 2;
     for (size_t i = 0; i < hash_bytes; i++) {
       uint8_t byte = this->digest_[i];
@@ -42,22 +38,11 @@ class HashBase {
     }
   }
 
-<<<<<<< HEAD
-  /// Retrieve the hash as bytes
-  void get_bytes(uint8_t *output) {
-    const size_t hash_bytes = this->get_hex_size() / 2;
-    memcpy(output, this->digest_, hash_bytes);
-  }
-
-=======
->>>>>>> integration
   /// Compare the hash against a provided byte-encoded hash
   bool equals_bytes(const uint8_t *expected) {
     const size_t hash_bytes = this->get_hex_size() / 2;
     return memcmp(this->digest_, expected, hash_bytes) == 0;
   }
-<<<<<<< HEAD
-=======
 
   /// Compare the hash against a provided hex-encoded hash
   bool equals_hex(const char *expected) {
@@ -68,17 +53,12 @@ class HashBase {
     }
     return this->equals_bytes(parsed);
   }
->>>>>>> integration
 
   /// Get the size of the hex output (32 for MD5, 64 for SHA256)
   virtual size_t get_hex_size() const = 0;
 
  protected:
-<<<<<<< HEAD
-  uint8_t digest_[32];  // Common digest storage (MD5 uses 16 bytes, SHA256 uses 32)
-=======
   uint8_t digest_[32];  // Common digest storage, sized for largest hash (SHA256)
->>>>>>> integration
 };
 
 }  // namespace esphome
