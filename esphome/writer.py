@@ -301,6 +301,11 @@ def clean_cmake_cache():
 def clean_build():
     import shutil
 
+    # Allow skipping cache cleaning for integration tests
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
+        _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
+        return
+
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
