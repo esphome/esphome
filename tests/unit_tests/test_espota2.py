@@ -6,16 +6,21 @@ import gzip
 import hashlib
 import io
 import socket
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
+from pytest import CaptureFixture
 
 from esphome import espota2
 from esphome.core import EsphomeError
 
+if TYPE_CHECKING:
+    from unittest.mock import Mock as MockType
+
 
 @pytest.fixture
-def mock_socket():
+def mock_socket() -> MockType:
     """Create a mock socket for testing."""
     socket = Mock()
     socket.close = Mock()
@@ -421,40 +426,38 @@ def test_run_ota_wrapper() -> None:
         assert result == (1, None)
 
 
-def test_progress_bar() -> None:
+def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     """Test ProgressBar functionality."""
-    with (
-        patch("sys.stderr.write") as mock_write,
-        patch("sys.stderr.flush"),
-    ):
-        progress = espota2.ProgressBar()
+    progress = espota2.ProgressBar()
 
-        # Test initial update
-        progress.update(0.0)
-        assert mock_write.called
-        assert "0%" in mock_write.call_args[0][0]
+    # Test initial update
+    progress.update(0.0)
+    captured = capsys.readouterr()
+    assert "0%" in captured.err
+    assert "[" in captured.err
 
-        # Test progress update
-        mock_write.reset_mock()
-        progress.update(0.5)
-        assert "50%" in mock_write.call_args[0][0]
+    # Test progress update
+    progress.update(0.5)
+    captured = capsys.readouterr()
+    assert "50%" in captured.err
 
-        # Test completion
-        mock_write.reset_mock()
-        progress.update(1.0)
-        assert "100%" in mock_write.call_args[0][0]
-        assert "Done" in mock_write.call_args[0][0]
+    # Test completion
+    progress.update(1.0)
+    captured = capsys.readouterr()
+    assert "100%" in captured.err
+    assert "Done" in captured.err
 
-        # Test done method
-        mock_write.reset_mock()
-        progress.done()
-        assert mock_write.call_args[0][0] == "\n"
+    # Test done method
+    progress.done()
+    captured = capsys.readouterr()
+    assert captured.err == "\n"
 
-        # Test same progress doesn't update
-        mock_write.reset_mock()
-        progress.update(0.5)
-        progress.update(0.5)
-        assert mock_write.call_count == 1  # Only called once
+    # Test same progress doesn't update
+    progress.update(0.5)
+    progress.update(0.5)
+    captured = capsys.readouterr()
+    # Should only see one update (second call shouldn't write)
+    assert captured.err.count("50%") == 1
 
 
 # Tests for SHA256 authentication (for when PR is merged)
