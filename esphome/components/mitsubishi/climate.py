@@ -43,7 +43,7 @@ VERTICAL_DIRECTIONS = {
 }
 
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(MitsubishiClimate).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(MitsubishiClimate).extend(
     {
         cv.Optional(CONF_SET_FAN_MODE, default="3levels"): cv.enum(SETFANMODE),
         cv.Optional(CONF_SUPPORTS_DRY, default=False): cv.boolean,

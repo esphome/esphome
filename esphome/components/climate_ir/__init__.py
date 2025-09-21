@@ -40,7 +40,7 @@ def climate_ir_schema(
     )
 
 
-def climare_ir_with_receiver_schema(
+def climate_ir_with_receiver_schema(
     class_: MockObjClass,
 ) -> cv.Schema:
     return climate_ir_schema(class_).extend(
@@ -59,7 +59,7 @@ def deprecated_schema_constant(config):
         type = str(id.type).split("::", maxsplit=1)[0]
     _LOGGER.warning(
         "Using `climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
-        "Please use `climate_ir.climare_ir_with_receiver_schema(...)` instead. "
+        "Please use `climate_ir.climate_ir_with_receiver_schema(...)` instead. "
         "If you are seeing this, report an issue to the external_component author and ask them to update it. "
         "https://developers.esphome.io/blog/2025/05/14/_schema-deprecations/. "
         "Component using this schema: %s",
@@ -68,7 +68,7 @@ def deprecated_schema_constant(config):
     return config
 
 
-CLIMATE_IR_WITH_RECEIVER_SCHEMA = climare_ir_with_receiver_schema(ClimateIR)
+CLIMATE_IR_WITH_RECEIVER_SCHEMA = climate_ir_with_receiver_schema(ClimateIR)
 CLIMATE_IR_WITH_RECEIVER_SCHEMA.add_extra(deprecated_schema_constant)
 
 

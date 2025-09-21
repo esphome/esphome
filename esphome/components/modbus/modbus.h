@@ -59,11 +59,20 @@ class ModbusDevice {
   virtual void on_modbus_data(const std::vector<uint8_t> &data) = 0;
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
+  virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
+  void send_error(uint8_t function_code, uint8_t exception_code) {
+    std::vector<uint8_t> error_response;
+    error_response.reserve(3);
+    error_response.push_back(this->address_);
+    error_response.push_back(function_code | 0x80);
+    error_response.push_back(exception_code);
+    this->send_raw(error_response);
+  }
   // If more than one device is connected block sending a new command before a response is received
   bool waiting_for_response() { return parent_->waiting_for_response != 0; }
 

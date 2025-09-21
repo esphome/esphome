@@ -6,13 +6,13 @@ i2c:
 sensor:
   - platform: ltr390
     uv:
-      name: LTR390 UV
+      name: LTR390 UV 1
     uv_index:
-      name: LTR390 UVI
+      name: LTR390 UVI 1
     light:
-      name: LTR390 Light
+      name: LTR390 Light 1
     ambient_light:
-      name: LTR390 ALS
+      name: LTR390 ALS 1
     gain: X3
     resolution: 18
     window_correction_factor: 1.0
@@ -20,13 +20,13 @@ sensor:
     update_interval: 60s
   - platform: ltr390
     uv:
-      name: LTR390 UV
+      name: LTR390 UV 2
     uv_index:
-      name: LTR390 UVI
+      name: LTR390 UVI 2
     light:
-      name: LTR390 Light
+      name: LTR390 Light 2
     ambient_light:
-      name: LTR390 ALS
+      name: LTR390 ALS 2
     gain:
       ambient_light: X9
       uv: X3

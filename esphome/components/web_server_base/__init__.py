@@ -2,8 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 
@@ -26,15 +27,18 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(65.0)
+@coroutine_with_priority(CoroPriority.WEB_SERVER_BASE)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
 
     if CORE.using_arduino:
         if CORE.is_esp32:
             cg.add_library("WiFi", None)
             cg.add_library("FS", None)
             cg.add_library("Update", None)
-        # https://github.com/esphome/ESPAsyncWebServer/blob/master/library.json
-        cg.add_library("esphome/ESPAsyncWebServer-esphome", "3.3.0")
+        if CORE.is_esp8266:
+            cg.add_library("ESP8266WiFi", None)
+        # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.7.10")

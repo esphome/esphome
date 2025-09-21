@@ -8,7 +8,7 @@ FujitsuGeneralClimate = fujitsu_general_ns.class_(
     "FujitsuGeneralClimate", climate_ir.ClimateIR
 )
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(FujitsuGeneralClimate)
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(FujitsuGeneralClimate)
 
 
 async def to_code(config):

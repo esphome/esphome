@@ -1,11 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor, uart
 import esphome.config_validation as cv
-from esphome.const import ICON_FINGERPRINT
+from esphome.const import CONF_RESET, ICON_FINGERPRINT
 
 CODEOWNERS = ["@hobbypunk90"]
 DEPENDENCIES = ["uart"]
-CONF_RESET = "reset"
 
 wl134_ns = cg.esphome_ns.namespace("wl_134")
 Wl134Component = wl134_ns.class_(

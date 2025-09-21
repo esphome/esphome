@@ -4,3 +4,8 @@ substitutions:
   miso_pin: GPIO15
 
 <<: !include common.yaml
+spi_device:
+  - id: spi_device_test
+    release_device: true
+    data_rate: 1MHz
+    spi_mode: 0

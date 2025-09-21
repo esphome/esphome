@@ -92,7 +92,7 @@ void ESP32ImprovComponent::loop() {
 
   if (!this->incoming_data_.empty())
     this->process_incoming_data_();
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
 
   switch (this->state_) {
     case improv::STATE_STOPPED:
@@ -168,6 +168,8 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_PROVISIONED: {
       this->incoming_data_.clear();
       this->set_status_indicator_state_(false);
+      // Provisioning complete, no further loop execution needed
+      this->disable_loop();
       break;
     }
   }
@@ -254,6 +256,7 @@ void ESP32ImprovComponent::start() {
 
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
+  this->enable_loop();
 }
 
 void ESP32ImprovComponent::stop() {
@@ -324,10 +327,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_.clear();
     }
   } else if (this->incoming_data_.size() - 2 > length) {
-    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer...");
+    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer");
     this->incoming_data_.clear();
   } else {
-    ESP_LOGV(TAG, "Waiting for split data packets...");
+    ESP_LOGV(TAG, "Waiting for split data packets");
   }
 }
 

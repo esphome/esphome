@@ -13,7 +13,7 @@ CONF_BIT_HIGH = "bit_high"
 CONF_BIT_ONE_LOW = "bit_one_low"
 CONF_BIT_ZERO_LOW = "bit_zero_low"
 
-CONFIG_SCHEMA = climate_ir.climare_ir_with_receiver_schema(LgIrClimate).extend(
+CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(LgIrClimate).extend(
     {
         cv.Optional(
             CONF_HEADER_HIGH, default="8000us"

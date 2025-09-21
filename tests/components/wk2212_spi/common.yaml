@@ -18,7 +18,13 @@ wk2212_spi:
         parity: none
       - id: id1
         channel: 1
-        baud_rate: 115200
+        baud_rate: 9600
+
+# Ensures a sensor doesn't break validation
+sensor:
+  - platform: a02yyuw
+    uart_id: id1
+    id: distance_sensor
 
 # individual binary_sensor inputs
 binary_sensor:
@@ -55,4 +61,3 @@ switch:
       mode:
         output: true
       inverted: true
-
