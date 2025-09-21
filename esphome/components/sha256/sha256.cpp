@@ -10,99 +10,67 @@ namespace esphome::sha256 {
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
-SHA256::~SHA256() {
-  if (this->ctx_) {
-    mbedtls_sha256_free(&this->ctx_->ctx);
-  }
-}
+SHA256::~SHA256() { mbedtls_sha256_free(&this->ctx_); }
 
 void SHA256::init() {
-  if (!this->ctx_) {
-    this->ctx_ = std::make_unique<SHA256Context>();
-  }
-  mbedtls_sha256_init(&this->ctx_->ctx);
-  mbedtls_sha256_starts(&this->ctx_->ctx, 0);  // 0 = SHA256, not SHA224
+  mbedtls_sha256_init(&this->ctx_);
+  mbedtls_sha256_starts(&this->ctx_, 0);  // 0 = SHA256, not SHA224
 }
 
-void SHA256::add(const uint8_t *data, size_t len) {
-  if (!this->ctx_) {
-    this->init();
-  }
-  mbedtls_sha256_update(&this->ctx_->ctx, data, len);
-}
+void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this->ctx_, data, len); }
 
-void SHA256::calculate() {
-  if (!this->ctx_) {
-    this->init();
-  }
-  mbedtls_sha256_finish(&this->ctx_->ctx, this->ctx_->hash);
-}
+void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->hash_); }
 
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 
 SHA256::~SHA256() = default;
 
 void SHA256::init() {
-  if (!this->ctx_) {
-    this->ctx_ = std::make_unique<SHA256Context>();
-  }
-  br_sha256_init(&this->ctx_->ctx);
-  this->ctx_->calculated = false;
+  br_sha256_init(&this->ctx_);
+  this->calculated_ = false;
 }
 
-void SHA256::add(const uint8_t *data, size_t len) {
-  if (!this->ctx_) {
-    this->init();
-  }
-  br_sha256_update(&this->ctx_->ctx, data, len);
-}
+void SHA256::add(const uint8_t *data, size_t len) { br_sha256_update(&this->ctx_, data, len); }
 
 void SHA256::calculate() {
-  if (!this->ctx_) {
-    this->init();
-  }
-  if (!this->ctx_->calculated) {
-    br_sha256_out(&this->ctx_->ctx, this->ctx_->hash);
-    this->ctx_->calculated = true;
+  if (!this->calculated_) {
+    br_sha256_out(&this->ctx_, this->hash_);
+    this->calculated_ = true;
   }
 }
 
 #elif defined(USE_HOST)
 
 SHA256::~SHA256() {
-  if (this->ctx_ && this->ctx_->ctx) {
-    EVP_MD_CTX_free(this->ctx_->ctx);
-    this->ctx_->ctx = nullptr;
+  if (this->ctx_) {
+    EVP_MD_CTX_free(this->ctx_);
   }
 }
 
 void SHA256::init() {
-  if (!this->ctx_) {
-    this->ctx_ = std::make_unique<SHA256Context>();
+  if (this->ctx_) {
+    EVP_MD_CTX_free(this->ctx_);
   }
-  if (this->ctx_->ctx) {
-    EVP_MD_CTX_free(this->ctx_->ctx);
-  }
-  this->ctx_->ctx = EVP_MD_CTX_new();
-  EVP_DigestInit_ex(this->ctx_->ctx, EVP_sha256(), nullptr);
-  this->ctx_->calculated = false;
+  this->ctx_ = EVP_MD_CTX_new();
+  EVP_DigestInit_ex(this->ctx_, EVP_sha256(), nullptr);
+  this->calculated_ = false;
 }
 
 void SHA256::add(const uint8_t *data, size_t len) {
   if (!this->ctx_) {
     this->init();
   }
-  EVP_DigestUpdate(this->ctx_->ctx, data, len);
+  EVP_DigestUpdate(this->ctx_, data, len);
 }
 
 void SHA256::calculate() {
   if (!this->ctx_) {
     this->init();
   }
-  if (!this->ctx_->calculated) {
+  if (!this->calculated_) {
     unsigned int len = 32;
-    EVP_DigestFinal_ex(this->ctx_->ctx, this->ctx_->hash, &len);
-    this->ctx_->calculated = true;
+    EVP_DigestFinal_ex(this->ctx_, this->hash_, &len);
+    this->calculated_ = true;
   }
 }
 
@@ -110,22 +78,11 @@ void SHA256::calculate() {
 #error "SHA256 not supported on this platform"
 #endif
 
-void SHA256::get_bytes(uint8_t *output) {
-  if (!this->ctx_) {
-    memset(output, 0, 32);
-    return;
-  }
-  memcpy(output, this->ctx_->hash, 32);
-}
+void SHA256::get_bytes(uint8_t *output) { memcpy(output, this->hash_, 32); }
 
 void SHA256::get_hex(char *output) {
-  if (!this->ctx_) {
-    memset(output, '0', 64);
-    output[64] = '\0';
-    return;
-  }
   for (size_t i = 0; i < 32; i++) {
-    uint8_t byte = this->ctx_->hash[i];
+    uint8_t byte = this->hash_[i];
     output[i * 2] = format_hex_char(byte >> 4);
     output[i * 2 + 1] = format_hex_char(byte & 0x0F);
   }
@@ -137,17 +94,9 @@ std::string SHA256::get_hex_string() {
   return std::string(buf);
 }
 
-bool SHA256::equals_bytes(const uint8_t *expected) {
-  if (!this->ctx_) {
-    return false;
-  }
-  return memcmp(this->ctx_->hash, expected, 32) == 0;
-}
+bool SHA256::equals_bytes(const uint8_t *expected) { return memcmp(this->hash_, expected, 32) == 0; }
 
 bool SHA256::equals_hex(const char *expected) {
-  if (!this->ctx_) {
-    return false;
-  }
   uint8_t parsed[32];
   if (!parse_hex(expected, parsed, 32)) {
     return false;

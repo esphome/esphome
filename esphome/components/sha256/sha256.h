@@ -29,8 +29,7 @@ class SHA256 : public esphome::HashBase {
 
   void init() override;
   void add(const uint8_t *data, size_t len) override;
-  void add(const char *data, size_t len) override { this->add((const uint8_t *) data, len); }
-  void add(const std::string &data) { this->add(data.c_str(), data.length()); }
+  void add(const std::string &data) { this->add((const uint8_t *) data.c_str(), data.length()); }
 
   void calculate() override;
 
@@ -49,26 +48,19 @@ class SHA256 : public esphome::HashBase {
 
  protected:
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  struct SHA256Context {
-    mbedtls_sha256_context ctx;
-    uint8_t hash[32];
-  };
+  mbedtls_sha256_context ctx_{};
+  uint8_t hash_[32];
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
-  struct SHA256Context {
-    br_sha256_context ctx;
-    uint8_t hash[32];
-    bool calculated{false};
-  };
+  br_sha256_context ctx_{};
+  uint8_t hash_[32];
+  bool calculated_{false};
 #elif defined(USE_HOST)
-  struct SHA256Context {
-    EVP_MD_CTX *ctx{nullptr};
-    uint8_t hash[32];
-    bool calculated{false};
-  };
+  EVP_MD_CTX *ctx_{nullptr};
+  uint8_t hash_[32];
+  bool calculated_{false};
 #else
 #error "SHA256 not supported on this platform"
 #endif
-  std::unique_ptr<SHA256Context> ctx_;
 };
 
 }  // namespace esphome::sha256
