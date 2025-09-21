@@ -266,7 +266,7 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning("No configuration found for channel");
+      this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];

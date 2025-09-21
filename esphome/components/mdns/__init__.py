@@ -12,6 +12,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -72,7 +73,7 @@ def mdns_service(
     )
 
 
-@coroutine_with_priority(55.0)
+@coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config):
     if config[CONF_DISABLED] is True:
         return

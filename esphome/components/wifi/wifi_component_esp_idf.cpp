@@ -654,12 +654,14 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Association comeback time too long";
     case WIFI_REASON_SA_QUERY_TIMEOUT:
       return "SA query timeout";
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 2)
     case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
       return "No AP found with compatible security";
     case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:
       return "No AP found in auth mode threshold";
     case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:
       return "No AP found in RSSI threshold";
+#endif
     case WIFI_REASON_UNSPECIFIED:
     default:
       return "Unspecified";

@@ -12,7 +12,7 @@ constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning("Failed to communicate"); \
+    this->status_set_warning(LOG_STR("Failed to communicate")); \
     return; \
   }
 

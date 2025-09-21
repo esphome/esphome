@@ -50,7 +50,7 @@ def create_components_graph():
     root = Path(__file__).parent.parent
     components_dir = root / "esphome" / "components"
     # Fake some directory so that get_component works
-    CORE.config_path = str(root)
+    CORE.config_path = root
     # Various configuration to capture different outcomes used by `AUTO_LOAD` function.
     TARGET_CONFIGURATIONS = [
         {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None},
