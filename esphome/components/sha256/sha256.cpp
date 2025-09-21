@@ -8,7 +8,7 @@
 
 namespace esphome::sha256 {
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 SHA256::~SHA256() {
   if (this->ctx_) {
@@ -102,35 +102,6 @@ void SHA256::calculate() {
   if (!this->ctx_->calculated) {
     unsigned int len = 32;
     EVP_DigestFinal_ex(this->ctx_->ctx, this->ctx_->hash, &len);
-    this->ctx_->calculated = true;
-  }
-}
-
-#elif defined(USE_ARDUINO)
-
-SHA256::~SHA256() = default;
-
-void SHA256::init() {
-  if (!this->ctx_) {
-    this->ctx_ = std::make_unique<SHA256Context>();
-  }
-  this->ctx_->sha.reset();
-  this->ctx_->calculated = false;
-}
-
-void SHA256::add(const uint8_t *data, size_t len) {
-  if (!this->ctx_) {
-    this->init();
-  }
-  this->ctx_->sha.update(data, len);
-}
-
-void SHA256::calculate() {
-  if (!this->ctx_) {
-    this->init();
-  }
-  if (!this->ctx_->calculated) {
-    this->ctx_->sha.finalize(this->ctx_->hash, 32);
     this->ctx_->calculated = true;
   }
 }

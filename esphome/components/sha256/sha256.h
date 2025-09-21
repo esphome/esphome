@@ -9,14 +9,14 @@
 #include <string>
 #include <memory>
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include "mbedtls/sha256.h"
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 #include <bearssl/bearssl_hash.h>
 #elif defined(USE_HOST)
 #include <openssl/evp.h>
-#elif defined(USE_ARDUINO)
-#include <SHA256.h>
+#else
+#error "SHA256 not supported on this platform"
 #endif
 
 namespace esphome::sha256 {
@@ -41,7 +41,7 @@ class SHA256 {
   bool equals_hex(const char *expected);
 
  protected:
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   struct SHA256Context {
     mbedtls_sha256_context ctx;
     uint8_t hash[32];
@@ -55,12 +55,6 @@ class SHA256 {
 #elif defined(USE_HOST)
   struct SHA256Context {
     EVP_MD_CTX *ctx{nullptr};
-    uint8_t hash[32];
-    bool calculated{false};
-  };
-#elif defined(USE_ARDUINO)
-  struct SHA256Context {
-    ::SHA256 sha;
     uint8_t hash[32];
     bool calculated{false};
   };
