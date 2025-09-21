@@ -9,7 +9,7 @@ import io
 from pathlib import Path
 import socket
 import struct
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 from pytest import CaptureFixture
@@ -84,15 +84,6 @@ def mock_run_ota_impl() -> Generator[Mock]:
     with patch("esphome.espota2.run_ota_impl_") as mock:
         mock.return_value = (0, "192.168.1.100")
         yield mock
-
-
-@pytest.fixture
-def mock_open_file() -> Generator[tuple[Mock, MagicMock]]:
-    """Mock file opening for testing."""
-    with patch("builtins.open", create=True) as mock_open:
-        mock_file = MagicMock()
-        mock_open.return_value.__enter__.return_value = mock_file
-        yield mock_open, mock_file
 
 
 @pytest.fixture
