@@ -100,6 +100,7 @@
 #define USE_UART_DEBUGGER
 #define USE_UPDATE
 #define USE_VALVE
+#define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
@@ -175,6 +176,7 @@
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 2, 1)
 #define USE_ETHERNET
+#define USE_ETHERNET_KSZ8081
 #endif
 
 #ifdef USE_ESP_IDF
@@ -238,6 +240,10 @@
 #ifdef USE_HOST
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOCKET_SELECT_SUPPORT
+#endif
+
+#ifdef USE_NRF52
+#define USE_NRF52_DFU
 #endif
 
 // Disabled feature flags
