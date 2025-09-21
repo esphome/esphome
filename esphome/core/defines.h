@@ -116,6 +116,7 @@
 #define USE_API_PLAINTEXT
 #define USE_API_SERVICES
 #define USE_MD5
+#define USE_SHA256
 #define USE_MQTT
 #define USE_NETWORK
 #define USE_ONLINE_IMAGE_BMP_SUPPORT

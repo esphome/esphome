@@ -30,6 +30,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
  protected:
   void handle_handshake_();
   void handle_data_();
+  template<typename HashClass> bool perform_hash_auth_(const std::string &password);
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
   void log_socket_error_(const LogString *msg);
