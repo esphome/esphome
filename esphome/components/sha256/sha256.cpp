@@ -69,13 +69,22 @@ void SHA256::calculate() {
 
 #elif defined(USE_HOST)
 
-SHA256::~SHA256() = default;
+SHA256::~SHA256() {
+  if (this->ctx_ && this->ctx_->ctx) {
+    EVP_MD_CTX_free(this->ctx_->ctx);
+    this->ctx_->ctx = nullptr;
+  }
+}
 
 void SHA256::init() {
   if (!this->ctx_) {
     this->ctx_ = std::make_unique<SHA256Context>();
   }
-  SHA256_Init(&this->ctx_->ctx);
+  if (this->ctx_->ctx) {
+    EVP_MD_CTX_free(this->ctx_->ctx);
+  }
+  this->ctx_->ctx = EVP_MD_CTX_new();
+  EVP_DigestInit_ex(this->ctx_->ctx, EVP_sha256(), nullptr);
   this->ctx_->calculated = false;
 }
 
@@ -83,7 +92,7 @@ void SHA256::add(const uint8_t *data, size_t len) {
   if (!this->ctx_) {
     this->init();
   }
-  SHA256_Update(&this->ctx_->ctx, data, len);
+  EVP_DigestUpdate(this->ctx_->ctx, data, len);
 }
 
 void SHA256::calculate() {
@@ -91,7 +100,8 @@ void SHA256::calculate() {
     this->init();
   }
   if (!this->ctx_->calculated) {
-    SHA256_Final(this->ctx_->hash, &this->ctx_->ctx);
+    unsigned int len = 32;
+    EVP_DigestFinal_ex(this->ctx_->ctx, this->ctx_->hash, &len);
     this->ctx_->calculated = true;
   }
 }

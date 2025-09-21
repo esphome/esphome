@@ -14,7 +14,7 @@
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 #include <bearssl/bearssl_hash.h>
 #elif defined(USE_HOST)
-#include <openssl/sha.h>
+#include <openssl/evp.h>
 #elif defined(USE_ARDUINO)
 #include <SHA256.h>
 #endif
@@ -54,7 +54,7 @@ class SHA256 {
   };
 #elif defined(USE_HOST)
   struct SHA256Context {
-    SHA256_CTX ctx;
+    EVP_MD_CTX *ctx{nullptr};
     uint8_t hash[32];
     bool calculated{false};
   };
