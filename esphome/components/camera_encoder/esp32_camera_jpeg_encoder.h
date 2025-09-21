@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32_CAMERA_JPEG_ENCODER
 
 #include <esp_camera.h>

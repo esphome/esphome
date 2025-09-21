@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32_CAMERA_JPEG_ENCODER
 
 #include "esp32_camera_jpeg_encoder.h"
