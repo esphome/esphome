@@ -17,6 +17,12 @@ from pytest import CaptureFixture
 from esphome import espota2
 from esphome.core import EsphomeError
 
+# Test constants
+MOCK_RANDOM_VALUE = 0.123456
+MOCK_RANDOM_BYTES = b"0.123456"
+MOCK_MD5_NONCE = b"12345678901234567890123456789012"  # 32 char nonce for MD5
+MOCK_SHA256_NONCE = b"1234567890123456789012345678901234567890123456789012345678901234"  # 64 char nonce for SHA256
+
 
 @pytest.fixture
 def mock_socket() -> Mock:
@@ -40,14 +46,18 @@ def mock_file() -> io.BytesIO:
 @pytest.fixture
 def mock_time() -> Generator[None]:
     """Mock time-related functions for consistent testing."""
-    with patch("time.sleep"), patch("time.perf_counter", side_effect=[0, 1]):
+    # Provide enough values for multiple calls (tests may call perform_ota multiple times)
+    with (
+        patch("time.sleep"),
+        patch("time.perf_counter", side_effect=[0, 1, 0, 1, 0, 1]),
+    ):
         yield
 
 
 @pytest.fixture
 def mock_random() -> Generator[Mock]:
     """Mock random for predictable test values."""
-    with patch("random.random", return_value=0.123456) as mock_rand:
+    with patch("random.random", return_value=MOCK_RANDOM_VALUE) as mock_rand:
         yield mock_rand
 
 
@@ -223,7 +233,7 @@ def test_perform_ota_successful_md5_auth(
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
         bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
         bytes([espota2.RESPONSE_REQUEST_AUTH]),  # Auth request
-        b"12345678901234567890123456789012",  # 32 char hex nonce
+        MOCK_MD5_NONCE,  # 32 char hex nonce
         bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
@@ -251,13 +261,13 @@ def test_perform_ota_successful_md5_auth(
     )
 
     # Verify cnonce was sent (MD5 of random.random())
-    cnonce = hashlib.md5(b"0.123456").hexdigest()
+    cnonce = hashlib.md5(MOCK_RANDOM_BYTES).hexdigest()
     assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
     # Verify auth result was computed correctly
     expected_hash = hashlib.md5()
     expected_hash.update(b"testpass")
-    expected_hash.update(b"12345678901234567890123456789012")
+    expected_hash.update(MOCK_MD5_NONCE)
     expected_hash.update(cnonce.encode())
     expected_result = expected_hash.hexdigest()
     assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
@@ -503,7 +513,7 @@ def test_perform_ota_successful_sha256_auth(
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
         bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
         bytes([espota2.RESPONSE_REQUEST_SHA256_AUTH]),  # SHA256 Auth request
-        b"1234567890123456789012345678901234567890123456789012345678901234",  # 64 char hex nonce
+        MOCK_SHA256_NONCE,  # 64 char hex nonce
         bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
@@ -531,15 +541,13 @@ def test_perform_ota_successful_sha256_auth(
     )
 
     # Verify cnonce was sent (SHA256 of random.random())
-    cnonce = hashlib.sha256(b"0.123456").hexdigest()
+    cnonce = hashlib.sha256(MOCK_RANDOM_BYTES).hexdigest()
     assert mock_socket.sendall.call_args_list[2] == call(cnonce.encode())
 
     # Verify auth result was computed correctly with SHA256
     expected_hash = hashlib.sha256()
     expected_hash.update(b"testpass")
-    expected_hash.update(
-        b"1234567890123456789012345678901234567890123456789012345678901234"
-    )
+    expected_hash.update(MOCK_SHA256_NONCE)
     expected_hash.update(cnonce.encode())
     expected_result = expected_hash.hexdigest()
     assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
@@ -560,7 +568,7 @@ def test_perform_ota_sha256_fallback_to_md5(
         bytes(
             [espota2.RESPONSE_REQUEST_AUTH]
         ),  # MD5 Auth request (device doesn't support SHA256)
-        b"12345678901234567890123456789012",  # 32 char hex nonce for MD5
+        MOCK_MD5_NONCE,  # 32 char hex nonce for MD5
         bytes([espota2.RESPONSE_AUTH_OK]),  # Auth result
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
@@ -585,10 +593,10 @@ def test_perform_ota_sha256_fallback_to_md5(
     )
 
     # But authentication was done with MD5
-    cnonce = hashlib.md5(b"0.123456").hexdigest()
+    cnonce = hashlib.md5(MOCK_RANDOM_BYTES).hexdigest()
     expected_hash = hashlib.md5()
     expected_hash.update(b"testpass")
-    expected_hash.update(b"12345678901234567890123456789012")
+    expected_hash.update(MOCK_MD5_NONCE)
     expected_hash.update(cnonce.encode())
     expected_result = expected_hash.hexdigest()
     assert mock_socket.sendall.call_args_list[3] == call(expected_result.encode())
@@ -615,6 +623,31 @@ def test_perform_ota_version_differences(
     mock_socket.recv.side_effect = recv_responses
     espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
-    # Verify no chunk acknowledgments were expected
-    # (implementation detail - v1 doesn't wait for chunk OK)
-    assert True  # Placeholder assertion
+    # For v1.0, verify that we only get the expected number of recv calls
+    # v1.0 doesn't have chunk acknowledgments, so fewer recv calls
+    assert mock_socket.recv.call_count == 8  # v1.0 has 8 recv calls
+
+    # Reset mock for v2.0 test
+    mock_socket.reset_mock()
+
+    # Reset file position for second test
+    mock_file.seek(0)
+
+    # Test version 2.0 - with chunk acknowledgments
+    recv_responses_v2 = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_CHUNK_OK]),  # v2.0 has chunk acknowledgment
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
+
+    mock_socket.recv.side_effect = recv_responses_v2
+    espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
+
+    # For v2.0, verify more recv calls due to chunk acknowledgments
+    assert mock_socket.recv.call_count == 9  # v2.0 has 9 recv calls (includes chunk OK)
