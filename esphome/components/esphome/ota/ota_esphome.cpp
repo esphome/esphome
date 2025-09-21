@@ -603,7 +603,7 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   bool matches = hasher->equals_hex(buf);
 
   if (!matches) {
-    ESP_LOGW(TAG, "Auth failed! %s passwords do not match", LOG_STR_ARG(name));
+    this->log_auth_warning_(LOG_STR("Password mismatch"), name);
   }
 
   return matches;
