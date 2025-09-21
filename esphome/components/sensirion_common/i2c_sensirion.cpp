@@ -76,7 +76,8 @@ bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len
     temp[raw_idx++] = data[i] >> 8;
 #endif
     // Use MSB first since Sensirion devices use CRC-8 with MSB first
-    temp[raw_idx++] = crc8(&temp[raw_idx - 2], 2, 0xFF, CRC_POLYNOMIAL, true);
+    uint8_t crc = crc8(&temp[raw_idx - 2], 2, 0xFF, CRC_POLYNOMIAL, true);
+    temp[raw_idx++] = crc;
   }
   this->last_error_ = this->write(temp, raw_idx);
   return this->last_error_ == i2c::ERROR_OK;

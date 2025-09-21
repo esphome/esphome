@@ -6,6 +6,7 @@ import collections
 import fnmatch
 import functools
 import os.path
+from pathlib import Path
 import re
 import sys
 import time
@@ -75,12 +76,12 @@ ignore_types = (
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
 LINT_POST_CHECKS = []
-EXECUTABLE_BIT = {}
+EXECUTABLE_BIT: dict[str, int] = {}
 
-errors = collections.defaultdict(list)
+errors: collections.defaultdict[Path, list] = collections.defaultdict(list)
 
 
-def add_errors(fname, errs):
+def add_errors(fname: Path, errs: list[tuple[int, int, str] | None]) -> None:
     if not isinstance(errs, list):
         errs = [errs]
     for err in errs:
@@ -246,8 +247,8 @@ def lint_ext_check(fname):
         ".github/copilot-instructions.md",
     ]
 )
-def lint_executable_bit(fname):
-    ex = EXECUTABLE_BIT[fname]
+def lint_executable_bit(fname: Path) -> str | None:
+    ex = EXECUTABLE_BIT[str(fname)]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -506,8 +507,8 @@ def lint_constants_usage():
     return errs
 
 
-def relative_cpp_search_text(fname, content):
-    parts = fname.split("/")
+def relative_cpp_search_text(fname: Path, content) -> str:
+    parts = fname.parts
     integration = parts[2]
     return f'#include "esphome/components/{integration}'
 
@@ -524,8 +525,8 @@ def lint_relative_cpp_import(fname, line, col, content):
     )
 
 
-def relative_py_search_text(fname, content):
-    parts = fname.split("/")
+def relative_py_search_text(fname: Path, content: str) -> str:
+    parts = fname.parts
     integration = parts[2]
     return f"esphome.components.{integration}"
 
@@ -591,10 +592,8 @@ def lint_relative_py_import(fname, line, col, content):
         "esphome/components/http_request/httplib.h",
     ],
 )
-def lint_namespace(fname, content):
-    expected_name = re.match(
-        r"^esphome/components/([^/]+)/.*", fname.replace(os.path.sep, "/")
-    ).group(1)
+def lint_namespace(fname: Path, content: str) -> str | None:
+    expected_name = fname.parts[2]
     # Check for both old style and C++17 nested namespace syntax
     search_old = f"namespace {expected_name}"
     search_new = f"namespace esphome::{expected_name}"
@@ -733,9 +732,9 @@ def main():
     files.sort()
 
     for fname in files:
-        _, ext = os.path.splitext(fname)
+        fname = Path(fname)
         run_checks(LINT_FILE_CHECKS, fname, fname)
-        if ext in ignore_types:
+        if fname.suffix in ignore_types:
             continue
         try:
             with codecs.open(fname, "r", encoding="utf-8") as f_handle:
