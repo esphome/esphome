@@ -350,6 +350,72 @@ def test_perform_ota_auth_without_password(mock_socket: Mock) -> None:
         espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
 
 
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_md5_auth_wrong_password(
+    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+) -> None:
+    """Test OTA fails when MD5 authentication is rejected due to wrong password."""
+    # Setup socket responses for recv calls
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_REQUEST_AUTH]),  # Auth request
+        MOCK_MD5_NONCE,  # 32 char hex nonce
+        bytes([espota2.RESPONSE_ERROR_AUTH_INVALID]),  # Auth rejected!
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(espota2.OTAError, match="Error auth.*Authentication invalid"):
+        espota2.perform_ota(mock_socket, "wrongpassword", mock_file, "test.bin")
+
+    # Verify the socket was closed after auth failure
+    mock_socket.close.assert_called()
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_sha256_auth_wrong_password(
+    mock_socket: Mock, mock_file: io.BytesIO, mock_random: Mock
+) -> None:
+    """Test OTA fails when SHA256 authentication is rejected due to wrong password."""
+    # Setup socket responses for recv calls
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_REQUEST_SHA256_AUTH]),  # SHA256 Auth request
+        MOCK_SHA256_NONCE,  # 64 char hex nonce
+        bytes([espota2.RESPONSE_ERROR_AUTH_INVALID]),  # Auth rejected!
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(espota2.OTAError, match="Error auth.*Authentication invalid"):
+        espota2.perform_ota(mock_socket, "wrongpassword", mock_file, "test.bin")
+
+    # Verify the socket was closed after auth failure
+    mock_socket.close.assert_called()
+
+
+def test_perform_ota_sha256_auth_without_password(mock_socket: Mock) -> None:
+    """Test OTA fails when SHA256 auth is required but no password provided."""
+    mock_file = io.BytesIO(b"firmware")
+
+    responses = [
+        bytes([espota2.RESPONSE_OK, espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_HEADER_OK]),
+        bytes([espota2.RESPONSE_REQUEST_SHA256_AUTH]),
+    ]
+
+    mock_socket.recv.side_effect = responses
+
+    with pytest.raises(
+        espota2.OTAError, match="ESP requests password, but no password given"
+    ):
+        espota2.perform_ota(mock_socket, "", mock_file, "test.bin")
+
+
 def test_perform_ota_unsupported_version(mock_socket: Mock) -> None:
     """Test OTA fails with unsupported version."""
     mock_file = io.BytesIO(b"firmware")
@@ -413,8 +479,8 @@ def test_run_ota_impl_successful(
     call_args = mock_perform_ota.call_args[0]
     assert call_args[0] == mock_socket
     assert call_args[1] == "password"
-    # The file object should be opened
-    assert hasattr(call_args[2], "read")
+    # Verify the file object is a proper file handle
+    assert isinstance(call_args[2], io.IOBase)
     assert call_args[3] == str(firmware_file)
 
 
