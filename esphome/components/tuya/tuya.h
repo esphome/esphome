@@ -159,8 +159,6 @@ class Tuya : public Component, public uart::UARTDevice {
   std::vector<TuyaCommand> command_queue_;
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
-  uint32_t wifi_select_ts_{0};
-  bool wifi_select_seen_{false};
   CallbackManager<void()> initialized_callback_{};
 };
 
