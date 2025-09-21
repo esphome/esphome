@@ -253,6 +253,19 @@ class StringLiteral(Literal):
         return cpp_string_escape(self.string)
 
 
+class LogStringLiteral(Literal):
+    """A string literal that uses LOG_STR() macro for flash storage on ESP8266."""
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"LOG_STR({cpp_string_escape(self.string)})"
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 

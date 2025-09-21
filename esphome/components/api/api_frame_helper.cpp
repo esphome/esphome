@@ -23,59 +23,59 @@ static const char *const TAG = "api.frame_helper";
 #define LOG_PACKET_SENDING(data, len) ((void) 0)
 #endif
 
-const char *api_error_to_str(APIError err) {
+const LogString *api_error_to_logstr(APIError err) {
   // not using switch to ensure compiler doesn't try to build a big table out of it
   if (err == APIError::OK) {
-    return "OK";
+    return LOG_STR("OK");
   } else if (err == APIError::WOULD_BLOCK) {
-    return "WOULD_BLOCK";
+    return LOG_STR("WOULD_BLOCK");
   } else if (err == APIError::BAD_INDICATOR) {
-    return "BAD_INDICATOR";
+    return LOG_STR("BAD_INDICATOR");
   } else if (err == APIError::BAD_DATA_PACKET) {
-    return "BAD_DATA_PACKET";
+    return LOG_STR("BAD_DATA_PACKET");
   } else if (err == APIError::TCP_NODELAY_FAILED) {
-    return "TCP_NODELAY_FAILED";
+    return LOG_STR("TCP_NODELAY_FAILED");
   } else if (err == APIError::TCP_NONBLOCKING_FAILED) {
-    return "TCP_NONBLOCKING_FAILED";
+    return LOG_STR("TCP_NONBLOCKING_FAILED");
   } else if (err == APIError::CLOSE_FAILED) {
-    return "CLOSE_FAILED";
+    return LOG_STR("CLOSE_FAILED");
   } else if (err == APIError::SHUTDOWN_FAILED) {
-    return "SHUTDOWN_FAILED";
+    return LOG_STR("SHUTDOWN_FAILED");
   } else if (err == APIError::BAD_STATE) {
-    return "BAD_STATE";
+    return LOG_STR("BAD_STATE");
   } else if (err == APIError::BAD_ARG) {
-    return "BAD_ARG";
+    return LOG_STR("BAD_ARG");
   } else if (err == APIError::SOCKET_READ_FAILED) {
-    return "SOCKET_READ_FAILED";
+    return LOG_STR("SOCKET_READ_FAILED");
   } else if (err == APIError::SOCKET_WRITE_FAILED) {
-    return "SOCKET_WRITE_FAILED";
+    return LOG_STR("SOCKET_WRITE_FAILED");
   } else if (err == APIError::OUT_OF_MEMORY) {
-    return "OUT_OF_MEMORY";
+    return LOG_STR("OUT_OF_MEMORY");
   } else if (err == APIError::CONNECTION_CLOSED) {
-    return "CONNECTION_CLOSED";
+    return LOG_STR("CONNECTION_CLOSED");
   }
 #ifdef USE_API_NOISE
   else if (err == APIError::BAD_HANDSHAKE_PACKET_LEN) {
-    return "BAD_HANDSHAKE_PACKET_LEN";
+    return LOG_STR("BAD_HANDSHAKE_PACKET_LEN");
   } else if (err == APIError::HANDSHAKESTATE_READ_FAILED) {
-    return "HANDSHAKESTATE_READ_FAILED";
+    return LOG_STR("HANDSHAKESTATE_READ_FAILED");
   } else if (err == APIError::HANDSHAKESTATE_WRITE_FAILED) {
-    return "HANDSHAKESTATE_WRITE_FAILED";
+    return LOG_STR("HANDSHAKESTATE_WRITE_FAILED");
   } else if (err == APIError::HANDSHAKESTATE_BAD_STATE) {
-    return "HANDSHAKESTATE_BAD_STATE";
+    return LOG_STR("HANDSHAKESTATE_BAD_STATE");
   } else if (err == APIError::CIPHERSTATE_DECRYPT_FAILED) {
-    return "CIPHERSTATE_DECRYPT_FAILED";
+    return LOG_STR("CIPHERSTATE_DECRYPT_FAILED");
   } else if (err == APIError::CIPHERSTATE_ENCRYPT_FAILED) {
-    return "CIPHERSTATE_ENCRYPT_FAILED";
+    return LOG_STR("CIPHERSTATE_ENCRYPT_FAILED");
   } else if (err == APIError::HANDSHAKESTATE_SETUP_FAILED) {
-    return "HANDSHAKESTATE_SETUP_FAILED";
+    return LOG_STR("HANDSHAKESTATE_SETUP_FAILED");
   } else if (err == APIError::HANDSHAKESTATE_SPLIT_FAILED) {
-    return "HANDSHAKESTATE_SPLIT_FAILED";
+    return LOG_STR("HANDSHAKESTATE_SPLIT_FAILED");
   } else if (err == APIError::BAD_HANDSHAKE_ERROR_BYTE) {
-    return "BAD_HANDSHAKE_ERROR_BYTE";
+    return LOG_STR("BAD_HANDSHAKE_ERROR_BYTE");
   }
 #endif
-  return "UNKNOWN";
+  return LOG_STR("UNKNOWN");
 }
 
 // Default implementation for loop - handles sending buffered data

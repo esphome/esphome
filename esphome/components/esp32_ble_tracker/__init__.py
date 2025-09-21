@@ -30,7 +30,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
@@ -342,19 +342,18 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        if config.get(CONF_SOFTWARE_COEXISTENCE):
-            add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
-        # https://github.com/espressif/esp-idf/issues/4101
-        # https://github.com/espressif/esp-idf/issues/2503
-        # Match arduino CONFIG_BTU_TASK_STACK_SIZE
-        # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
-        add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
-        add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
-        add_idf_sdkconfig_option(
-            "CONFIG_BTDM_CTRL_BLE_MAX_CONN", config[CONF_MAX_CONNECTIONS]
-        )
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    if config.get(CONF_SOFTWARE_COEXISTENCE):
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
+    # https://github.com/espressif/esp-idf/issues/4101
+    # https://github.com/espressif/esp-idf/issues/2503
+    # Match arduino CONFIG_BTU_TASK_STACK_SIZE
+    # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
+    add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
+    add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
+    add_idf_sdkconfig_option(
+        "CONFIG_BTDM_CTRL_BLE_MAX_CONN", config[CONF_MAX_CONNECTIONS]
+    )
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")
@@ -368,7 +367,7 @@ async def to_code(config):
 # This needs to be run as a job with very low priority so that all components have
 # chance to call register_ble_tracker and register_client before the list is checked
 # and added to the global defines list.
-@coroutine_with_priority(-1000)
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_ble_features():
     # Add feature-specific defines based on what's needed
     if BLEFeatures.ESP_BT_DEVICE in _required_features:

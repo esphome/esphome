@@ -271,7 +271,7 @@ async def compile_esphome(
 
         def _read_config_and_get_binary():
             CORE.reset()  # Reset CORE state between test runs
-            CORE.config_path = str(config_path)
+            CORE.config_path = config_path
             config = esphome.config.read_config(
                 {"command": "compile", "config": str(config_path)}
             )

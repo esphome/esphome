@@ -43,20 +43,20 @@ void SPS30Component::setup() {
       this->serial_number_[i * 2] = static_cast<char>(raw_serial_number[i] >> 8);
       this->serial_number_[i * 2 + 1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
     }
-    ESP_LOGD(TAG, "  Serial Number: '%s'", this->serial_number_);
+    ESP_LOGV(TAG, "  Serial number: %s", this->serial_number_);
 
     bool result;
     if (this->fan_interval_.has_value()) {
       // override default value
-      result = write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
+      result = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
     } else {
-      result = write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
+      result = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
     }
     if (result) {
       delay(20);
       uint16_t secs[2];
       if (this->read_data(secs, 2)) {
-        fan_interval_ = secs[0] << 16 | secs[1];
+        this->fan_interval_ = secs[0] << 16 | secs[1];
       }
     }
 
@@ -67,7 +67,7 @@ void SPS30Component::setup() {
 }
 
 void SPS30Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "sps30:");
+  ESP_LOGCONFIG(TAG, "SPS30:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     switch (this->error_code_) {
@@ -78,16 +78,16 @@ void SPS30Component::dump_config() {
         ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case SERIAL_NUMBER_REQUEST_FAILED:
-        ESP_LOGW(TAG, "Unable to request sensor serial number");
+        ESP_LOGW(TAG, "Unable to request serial number");
         break;
       case SERIAL_NUMBER_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read sensor serial number");
+        ESP_LOGW(TAG, "Unable to read serial number");
         break;
       case FIRMWARE_VERSION_REQUEST_FAILED:
-        ESP_LOGW(TAG, "Unable to request sensor firmware version");
+        ESP_LOGW(TAG, "Unable to request firmware version");
         break;
       case FIRMWARE_VERSION_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read sensor firmware version");
+        ESP_LOGW(TAG, "Unable to read firmware version");
         break;
       default:
         ESP_LOGW(TAG, "Unknown setup error");
@@ -96,9 +96,9 @@ void SPS30Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
-                "  Serial Number: '%s'\n"
+                "  Serial number: %s\n"
                 "  Firmware version v%0d.%0d",
-                this->serial_number_, (raw_firmware_version_ >> 8), uint16_t(raw_firmware_version_ & 0xFF));
+                this->serial_number_, this->raw_firmware_version_ >> 8, this->raw_firmware_version_ & 0xFF);
   LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM4 Weight Concentration", this->pm_4_0_sensor_);
@@ -113,15 +113,15 @@ void SPS30Component::dump_config() {
 void SPS30Component::update() {
   /// Check if warning flag active (sensor reconnected?)
   if (this->status_has_warning()) {
-    ESP_LOGD(TAG, "Trying to reconnect");
+    ESP_LOGD(TAG, "Reconnecting");
     if (this->write_command(SPS30_CMD_SOFT_RESET)) {
-      ESP_LOGD(TAG, "Soft-reset successful. Waiting for reconnection in 500 ms");
+      ESP_LOGD(TAG, "Soft-reset successful; waiting 500 ms");
       this->set_timeout(500, [this]() {
         this->start_continuous_measurement_();
         /// Sensor restarted and reading attempt made next cycle
         this->status_clear_warning();
         this->skipped_data_read_cycles_ = 0;
-        ESP_LOGD(TAG, "Reconnect successful. Resuming continuous measurement");
+        ESP_LOGD(TAG, "Reconnected; resuming continuous measurement");
       });
     } else {
       ESP_LOGD(TAG, "Soft-reset failed");
@@ -136,12 +136,12 @@ void SPS30Component::update() {
 
   uint16_t raw_read_status;
   if (!this->read_data(&raw_read_status, 1) || raw_read_status == 0x00) {
-    ESP_LOGD(TAG, "Not ready yet");
+    ESP_LOGD(TAG, "Not ready");
     this->skipped_data_read_cycles_++;
     /// The following logic is required to address the cases when a sensor is quickly replaced before it's marked
     /// as failed so that new sensor is eventually forced to be reinitialized for continuous measurement.
     if (this->skipped_data_read_cycles_ > MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR) {
-      ESP_LOGD(TAG, "Exceeded max allowed attempts; communication will be reinitialized");
+      ESP_LOGD(TAG, "Exceeded max attempts; will reinitialize");
       this->status_set_warning();
     }
     return;
@@ -211,11 +211,6 @@ void SPS30Component::update() {
 }
 
 bool SPS30Component::start_continuous_measurement_() {
-  uint8_t data[4];
-  data[0] = SPS30_CMD_START_CONTINUOUS_MEASUREMENTS & 0xFF;
-  data[1] = 0x03;
-  data[2] = 0x00;
-  data[3] = sht_crc_(0x03, 0x00);
   if (!this->write_command(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS, SPS30_CMD_START_CONTINUOUS_MEASUREMENTS_ARG)) {
     ESP_LOGE(TAG, "Error initiating measurements");
     return false;
@@ -224,9 +219,9 @@ bool SPS30Component::start_continuous_measurement_() {
 }
 
 bool SPS30Component::start_fan_cleaning() {
-  if (!write_command(SPS30_CMD_START_FAN_CLEANING)) {
+  if (!this->write_command(SPS30_CMD_START_FAN_CLEANING)) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "write error start fan (%d)", this->last_error_);
+    ESP_LOGE(TAG, "Start fan cleaning failed (%d)", this->last_error_);
     return false;
   } else {
     ESP_LOGD(TAG, "Fan auto clean started");
