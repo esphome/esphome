@@ -229,6 +229,96 @@ void OpenTherm::rmt_write_sync_() {
   this->mode_ = OperationMode::SENT;
 }
 
+bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
+  constexpr size_t TOTAL_SYMBOLS = 34;  // start + 32 data + stop
+  constexpr size_t DATA_BITS = 32;
+  constexpr uint16_t HALF_BIT_US = 500;        // 0.5 ms half bit duration
+  constexpr uint16_t HALF_TOLERANCE_US = 200;  // allow ±0.2 ms wiggle room (~40 %)
+  constexpr uint16_t HALF_MIN_US = HALF_BIT_US - HALF_TOLERANCE_US;
+  constexpr uint16_t HALF_MAX_US = HALF_BIT_US + HALF_TOLERANCE_US;
+
+  this->error_type_ = ProtocolErrorType::NO_ERROR;
+
+  const size_t count = this->rmt_buffer_symbol_count_;
+  if (count != TOTAL_SYMBOLS) {
+    ESP_LOGW(TAG, "Unexpected RMT symbol count: %u", static_cast<unsigned>(count));
+    this->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+
+  auto decode_symbol = [&](const rmt_symbol_word_t &sym, bool &bit) -> bool {
+    const uint16_t d0 = sym.duration0;
+    const uint16_t d1 = sym.duration1;
+    if (d0 == 0 || d1 == 0) {
+      return false;
+    }
+    if (sym.level0 == sym.level1) {
+      return false;  // Manchester requires a transition in the middle of the bit
+    }
+    if (d0 < HALF_MIN_US || d0 > HALF_MAX_US) {
+      return false;
+    }
+    if (d1 < HALF_MIN_US || d1 > HALF_MAX_US) {
+      return false;
+    }
+    bit = (sym.level0 == 0);  // '1' is low->high, '0' is high->low
+    return true;
+  };
+
+  bool bit_value = false;
+  if (!decode_symbol(this->rmt_buffer_[0], bit_value)) {
+    ESP_LOGW(TAG, "Invalid start symbol timings: L0=%u D0=%u L1=%u D1=%u", this->rmt_buffer_[0].level0,
+             this->rmt_buffer_[0].duration0, this->rmt_buffer_[0].level1, this->rmt_buffer_[0].duration1);
+    this->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+  if (!bit_value) {
+    ESP_LOGW(TAG, "Start bit was not '1'");
+    this->mode_ = OperationMode::ERROR_PROTOCOL;
+    this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;  // reuse enum for framing
+    return false;
+  }
+
+  uint32_t raw = 0;
+  for (size_t i = 1; i <= DATA_BITS; i++) {
+    if (!decode_symbol(this->rmt_buffer_[i], bit_value)) {
+      ESP_LOGW(TAG, "Invalid data symbol at index %u: L0=%u D0=%u L1=%u D1=%u", static_cast<unsigned>(i),
+               this->rmt_buffer_[i].level0, this->rmt_buffer_[i].duration0, this->rmt_buffer_[i].level1,
+               this->rmt_buffer_[i].duration1);
+      this->mode_ = OperationMode::ERROR_RMT;
+      return false;
+    }
+    raw = (raw << 1) | static_cast<uint32_t>(bit_value ? 1 : 0);
+  }
+
+  const size_t stop_index = DATA_BITS + 1;  // symbol after the 32 data bits
+  if (!decode_symbol(this->rmt_buffer_[stop_index], bit_value)) {
+    ESP_LOGW(TAG, "Invalid stop symbol timings: L0=%u D0=%u L1=%u D1=%u", this->rmt_buffer_[stop_index].level0,
+             this->rmt_buffer_[stop_index].duration0, this->rmt_buffer_[stop_index].level1,
+             this->rmt_buffer_[stop_index].duration1);
+    this->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+  if (!bit_value) {
+    ESP_LOGW(TAG, "Stop bit was not '1'");
+    this->mode_ = OperationMode::ERROR_PROTOCOL;
+    this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
+    this->data_ = raw;
+    return false;
+  }
+
+  if (!this->check_parity_(raw)) {
+    ESP_LOGW(TAG, "Parity check failed for frame 0x%08X", static_cast<unsigned>(raw));
+    this->mode_ = OperationMode::ERROR_PROTOCOL;
+    this->error_type_ = ProtocolErrorType::PARITY_ERROR;
+    this->data_ = raw;
+    return false;
+  }
+
+  this->data_ = raw;
+  return true;
+}
+
 bool IRAM_ATTR OpenTherm::rmt_read_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
   auto *self = static_cast<OpenTherm *>(arg);
   if (evt == nullptr || evt->received_symbols == nullptr) {
@@ -250,7 +340,9 @@ bool IRAM_ATTR OpenTherm::rmt_read_callback(rmt_channel_handle_t, const rmt_rx_d
 
   self->rmt_buffer_symbol_count_ = evt->num_symbols;
 
-  // TODO: Add RMT decoding here
+  if (!self->decode_rmt_symbols_()) {
+    return false;
+  }
 
   self->mode_ = OperationMode::RECEIVED;
 

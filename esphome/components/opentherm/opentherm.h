@@ -353,7 +353,9 @@ class OpenTherm {
   rmt_receive_config_t rx_config_{};
   rmt_encoder_handle_t tx_encoder_{nullptr};
   // RX buffer for one OpenTherm frame
-  static constexpr size_t RMT_SYMBOL_CAPACITY = 32;
+  // One OpenTherm frame contains 34 Manchester symbols (start + 32 data + stop) and we
+  // allow a little slack for diagnostic captures.
+  static constexpr size_t RMT_SYMBOL_CAPACITY = 40;
   rmt_symbol_word_t rmt_buffer_[RMT_SYMBOL_CAPACITY]{};
   size_t rmt_buffer_symbol_count_;
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
@@ -367,6 +369,8 @@ class OpenTherm {
   void rmt_read_async_();
   void rmt_write_sync_();
   static bool rmt_read_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *evt, void *arg);
+
+  bool IRAM_ATTR decode_rmt_symbols_();
 
   bool check_parity_(uint32_t val);
 };
