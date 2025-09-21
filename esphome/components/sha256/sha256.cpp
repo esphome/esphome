@@ -1,7 +1,7 @@
 #include "sha256.h"
 
 // Only compile SHA256 implementation on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
 
 #include "esphome/core/helpers.h"
 #include <cstring>
@@ -63,6 +63,35 @@ void SHA256::calculate() {
   }
   if (!this->ctx_->calculated) {
     br_sha256_out(&this->ctx_->ctx, this->ctx_->hash);
+    this->ctx_->calculated = true;
+  }
+}
+
+#elif defined(USE_HOST)
+
+SHA256::~SHA256() = default;
+
+void SHA256::init() {
+  if (!this->ctx_) {
+    this->ctx_ = std::make_unique<SHA256Context>();
+  }
+  SHA256_Init(&this->ctx_->ctx);
+  this->ctx_->calculated = false;
+}
+
+void SHA256::add(const uint8_t *data, size_t len) {
+  if (!this->ctx_) {
+    this->init();
+  }
+  SHA256_Update(&this->ctx_->ctx, data, len);
+}
+
+void SHA256::calculate() {
+  if (!this->ctx_) {
+    this->init();
+  }
+  if (!this->ctx_->calculated) {
+    SHA256_Final(this->ctx_->hash, &this->ctx_->ctx);
     this->ctx_->calculated = true;
   }
 }
