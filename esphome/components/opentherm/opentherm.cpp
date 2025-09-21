@@ -243,6 +243,8 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
     return false;
   }
 
+  // Collect individual 0.5 ms "half bits" so the Manchester stream can be interpreted uniformly,
+  // regardless of whether the RMT reported a single or double-duration level.
   uint8_t half_levels[HALF_CAPACITY];
   size_t half_count = 0;
 
@@ -286,6 +288,8 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
       this->mode_ = OperationMode::ERROR_RMT;
       return false;
     }
+    // A few boilers leave the line high at the end of the stop bit. Reconstruct the missing
+    // trailing half so decoding still sees a complete Manchester pair.
     half_levels[half_count] = static_cast<uint8_t>(half_levels[half_count - 1] ^ 0x1);
     ++half_count;
   }
@@ -302,6 +306,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
     if (first == second) {
       return false;
     }
+    // Normal wiring: 1 -> low/high, 0 -> high/low. If the first inference fails we flip polarity.
     bit = inverted ? first : !first;
     return true;
   };
@@ -314,6 +319,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
       this->error_type_ = ProtocolErrorType::NO_TRANSITION;
       return false;
     }
+    // The boiler is driving the opposite idle level, remember that for the rest of the frame.
     inverted = true;
   }
 
@@ -330,6 +336,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
       this->error_type_ = ProtocolErrorType::NO_TRANSITION;
       return false;
     }
+    // Data arrives MSB first.
     raw = (raw << 1) | static_cast<uint32_t>(bit_value ? 1U : 0U);
   }
 
