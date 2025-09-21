@@ -18,7 +18,6 @@
 namespace esphome {
 namespace socket {
 
-static const size_t Max_Accepted_Queued_Sockets = 16u;
 static const char *const TAG = "socket.lwip";
 
 // set to 1 to enable verbose lwip logging
@@ -65,13 +64,12 @@ class LWIPRawImpl : public Socket {
       errno = EBADF;
       return nullptr;
     }
-    tcp_pcb *newpcb = accepted_sockets_.pop();
-    if (newpcb == nullptr) {
+    if (accepted_sockets_.empty()) {
       errno = EWOULDBLOCK;
       return nullptr;
     }
-    auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
-    sock->init();
+    std::unique_ptr<LWIPRawImpl> sock = std::move(accepted_sockets_.front());
+    accepted_sockets_.pop();
     if (addr != nullptr) {
       sock->getpeername(addr, addrlen);
     }
@@ -507,7 +505,9 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    accepted_sockets_.push(newpcb);
+    auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
+    sock->init();
+    accepted_sockets_.push(std::move(sock));
     return ERR_OK;
   }
   void err_fn(err_t err) {
@@ -518,7 +518,6 @@ class LWIPRawImpl : public Socket {
     // ERR_RST: connection was reset by remote host
     // ERR_ABRT: aborted through tcp_abort or TCP timer
     pcb_ = nullptr;
-    // FIXME - this could be called anytime, and no operation is allowed on pcb_ after this
   }
   err_t recv_fn(struct pbuf *pb, err_t err) {
     LWIP_LOG("recv(pb=%p err=%d)", pb, err);
@@ -598,7 +597,7 @@ class LWIPRawImpl : public Socket {
   }
 
   struct tcp_pcb *pcb_;
-  LockFreeQueue<tcp_pcb, Max_Accepted_Queued_Sockets, false> accepted_sockets_;
+  std::queue<std::unique_ptr<LWIPRawImpl>> accepted_sockets_;
   bool rx_closed_ = false;
   PbufQueue<pbuf, 4> rx_bufs_;
   pbuf *partial_rx_buf_ = nullptr;
