@@ -1566,7 +1566,6 @@ def test_command_update_all_path_string_conversion(
     capfd: CaptureFixture[str],
 ) -> None:
     """Test that command_update_all properly converts Path objects to strings in output."""
-    # Create test YAML files
     yaml1 = tmp_path / "device1.yaml"
     yaml1.write_text("""
 esphome:
@@ -1585,22 +1584,11 @@ esp8266:
   board: nodemcuv2
 """)
 
-    # Set up CORE
     setup_core(tmp_path=tmp_path)
-
-    # Mock successful updates
     mock_run_external_process.return_value = 0
 
-    # Create args with the directory as configuration
-    args = MockArgs(configuration=[str(tmp_path)])
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
 
-    # Run command_update_all
-    result = command_update_all(args)
-
-    # Should succeed
-    assert result == 0
-
-    # Capture output
     captured = capfd.readouterr()
     clean_output = strip_ansi_codes(captured.out)
 
@@ -1621,7 +1609,6 @@ def test_command_update_all_with_failures(
     capfd: CaptureFixture[str],
 ) -> None:
     """Test command_update_all handles mixed success/failure cases properly."""
-    # Create test YAML files
     yaml1 = tmp_path / "success_device.yaml"
     yaml1.write_text("""
 esphome:
@@ -1640,22 +1627,14 @@ esp8266:
   board: nodemcuv2
 """)
 
-    # Set up CORE
     setup_core(tmp_path=tmp_path)
 
     # Mock mixed results - first succeeds, second fails
     mock_run_external_process.side_effect = [0, 1]
 
-    # Create args with the directory as configuration
-    args = MockArgs(configuration=[str(tmp_path)])
-
-    # Run command_update_all
-    result = command_update_all(args)
-
     # Should return 1 (failure) since one device failed
-    assert result == 1
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 1
 
-    # Capture output
     captured = capfd.readouterr()
     clean_output = strip_ansi_codes(captured.out)
 
@@ -1677,26 +1656,14 @@ def test_command_update_all_empty_directory(
     capfd: CaptureFixture[str],
 ) -> None:
     """Test command_update_all with an empty directory (no YAML files)."""
-    # Set up CORE with empty directory
     setup_core(tmp_path=tmp_path)
 
-    # Create args with the directory as configuration
-    args = MockArgs(configuration=[str(tmp_path)])
-
-    # Run command_update_all
-    result = command_update_all(args)
-
-    # Should succeed with no updates
-    assert result == 0
-
-    # Should not have called run_external_process
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
     mock_run_external_process.assert_not_called()
 
-    # Capture output
     captured = capfd.readouterr()
     clean_output = strip_ansi_codes(captured.out)
 
-    # Should still show summary
     assert "SUMMARY" in clean_output
 
 
@@ -1706,7 +1673,6 @@ def test_command_update_all_single_file(
     capfd: CaptureFixture[str],
 ) -> None:
     """Test command_update_all with a single YAML file specified."""
-    # Create test YAML file
     yaml_file = tmp_path / "single_device.yaml"
     yaml_file.write_text("""
 esphome:
@@ -1716,30 +1682,16 @@ esp32:
   board: nodemcu-32s
 """)
 
-    # Set up CORE
     setup_core(tmp_path=tmp_path)
-
-    # Mock successful update
     mock_run_external_process.return_value = 0
 
-    # Create args with single file as configuration
-    args = MockArgs(configuration=[str(yaml_file)])
+    assert command_update_all(MockArgs(configuration=[str(yaml_file)])) == 0
 
-    # Run command_update_all
-    result = command_update_all(args)
-
-    # Should succeed
-    assert result == 0
-
-    # Capture output
     captured = capfd.readouterr()
     clean_output = strip_ansi_codes(captured.out)
 
-    # Check output
     assert "single_device.yaml" in clean_output
     assert "SUCCESS" in clean_output
-
-    # Verify run_external_process was called once
     mock_run_external_process.assert_called_once()
 
 
@@ -1749,7 +1701,6 @@ def test_command_update_all_path_formatting_in_color_calls(
     capfd: CaptureFixture[str],
 ) -> None:
     """Test that Path objects are properly converted when passed to color() function."""
-    # Create a test YAML file with special characters in name
     yaml_file = tmp_path / "test-device_123.yaml"
     yaml_file.write_text("""
 esphome:
@@ -1759,29 +1710,15 @@ esp32:
   board: nodemcu-32s
 """)
 
-    # Set up CORE
     setup_core(tmp_path=tmp_path)
-
-    # Mock successful update
     mock_run_external_process.return_value = 0
 
-    # Create args
-    args = MockArgs(configuration=[str(tmp_path)])
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
 
-    # Run command_update_all
-    result = command_update_all(args)
-
-    # Should succeed
-    assert result == 0
-
-    # Capture output
     captured = capfd.readouterr()
     clean_output = strip_ansi_codes(captured.out)
 
-    # The file path should appear in the output without causing TypeError
     assert "test-device_123.yaml" in clean_output
-
-    # Check that output contains expected content
     assert "Updating" in clean_output
     assert "SUCCESS" in clean_output
     assert "SUMMARY" in clean_output
