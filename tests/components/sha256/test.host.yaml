@@ -1,6 +1,1 @@
-# Host platform doesn't support OTA, so we can't test SHA256 indirectly
-# The SHA256 component is tested via unit tests instead
-esphome:
-  on_boot:
-    - lambda: |-
-        ESP_LOGI("SHA256", "SHA256 component available on host for library use");
+<<: !include common.yaml
