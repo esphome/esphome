@@ -213,8 +213,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       if (this->init_state_ == TuyaInitState::INIT_WIFI) {
         this->init_state_ = TuyaInitState::INIT_DATAPOINT;
         this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+      }
       break;
-    }
     case TuyaCommandType::WIFI_SELECT:
     case TuyaCommandType::WIFI_RESET: {
       const bool is_select = (len >= 1);
