@@ -39,13 +39,6 @@ void MD5Digest::add(const uint8_t *data, size_t len) { br_md5_update(&this->ctx_
 void MD5Digest::calculate() { br_md5_out(&this->ctx_, this->digest_); }
 #endif  // USE_RP2040
 
-bool MD5Digest::equals_hex(const char *expected) {
-  uint8_t parsed[16];
-  if (!parse_hex(expected, parsed, 16))
-    return false;
-  return equals_bytes(parsed);
-}
-
 }  // namespace md5
 }  // namespace esphome
 #endif

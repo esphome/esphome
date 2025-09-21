@@ -84,14 +84,6 @@ std::string SHA256::get_hex_string() {
   return std::string(buf);
 }
 
-bool SHA256::equals_hex(const char *expected) {
-  uint8_t parsed[32];
-  if (!parse_hex(expected, parsed, 32)) {
-    return false;
-  }
-  return this->equals_bytes(parsed);
-}
-
 }  // namespace esphome::sha256
 
 #endif  // Platform check

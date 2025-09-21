@@ -38,8 +38,6 @@ class SHA256 : public esphome::HashBase {
   /// Get the size of the hex output (64 for SHA256)
   size_t get_hex_size() const override { return 64; }
 
-  bool equals_hex(const char *expected);
-
  protected:
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   mbedtls_sha256_context ctx_{};
