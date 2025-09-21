@@ -1,6 +1,8 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
+#ifdef USE_OTA_MD5
 #include "esphome/components/md5/md5.h"
+#endif
 #ifdef USE_OTA_SHA256
 #include "esphome/components/sha256/sha256.h"
 #endif
@@ -269,10 +271,12 @@ void ESPHomeOTAComponent::handle_data_() {
       auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, 16, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
                                               LOG_STR("SHA256"), sbuf);
     } else {
+#ifdef USE_OTA_MD5
       ESP_LOGW(TAG, "Using MD5 auth for compatibility (deprecated)");
       md5::MD5Digest md5_hasher;
       auth_success = this->perform_hash_auth_(&md5_hasher, this->password_, 8, ota::OTA_RESPONSE_REQUEST_AUTH,
                                               LOG_STR("MD5"), sbuf);
+#endif  // USE_OTA_MD5
     }
 #else
     // Strict mode: SHA256 required on capable platforms (future default)
@@ -288,9 +292,11 @@ void ESPHomeOTAComponent::handle_data_() {
 #else
     // Platform only supports MD5 - use it as the only available option
     // This is not a security downgrade as the platform cannot support SHA256
+#ifdef USE_OTA_MD5
     md5::MD5Digest md5_hasher;
     auth_success =
         this->perform_hash_auth_(&md5_hasher, this->password_, 8, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
+#endif  // USE_OTA_MD5
 #endif  // USE_OTA_SHA256
 
     if (!auth_success) {

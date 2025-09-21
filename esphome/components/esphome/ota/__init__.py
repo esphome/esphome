@@ -140,13 +140,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
 
-    # Only include SHA256 support on platforms that have it
-    if supports_sha256():
-        cg.add_define("USE_OTA_SHA256")
-
     if CONF_PASSWORD in config:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
+        # Only include hash algorithms when password is configured
+        cg.add_define("USE_OTA_MD5")
+        # Only include SHA256 support on platforms that have it
+        if supports_sha256():
+            cg.add_define("USE_OTA_SHA256")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
     await cg.register_component(var, config)
