@@ -386,18 +386,18 @@ void HOT WaveshareEPaper4P2InV2::draw_absolute_pixel_internal(int x, int y, Colo
 }
 
 void WaveshareEPaper4P2InV2::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this)
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.20inV2");
   if (this->display_mode_ == MODE_GRAYSCALE4) {
     ESP_LOGCONFIG(TAG, "  Display Mode: 4 Grayscale");
   } else if (this->display_mode_ == MODE_FAST) {
     ESP_LOGCONFIG(TAG, "  Display Mode: Fast");
   }
-  LOG_PIN("  CS Pin: ", this->cs_)
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 }  // namespace waveshare_epaper
