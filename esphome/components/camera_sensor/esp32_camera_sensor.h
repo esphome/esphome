@@ -32,6 +32,8 @@ class ESP32CameraSensor : public camera::Sensor {
   void set_frequency(uint32_t frequency) { this->camera_config_.xclk_freq_hz = frequency; }
   void set_framesize(framesize_t framesize) { this->camera_config_.frame_size = framesize; }
   void set_buffers(uint16_t buffers);
+  void set_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
+  void set_flip_y(bool flip_y) { this->flip_y_ = flip_y; }
   void set_pixel_format(camera::PixelFormat pixel_format);
   void set_jpeg_quality(unsigned int jpeg_quality);
   // -------- Sensor --------
@@ -45,6 +47,8 @@ class ESP32CameraSensor : public camera::Sensor {
   // -------------------------
 
  protected:
+  bool flip_x_{};
+  bool flip_y_{};
   camera_config_t camera_config_{};
   i2c::InternalI2CBus *i2c_bus_{};
   camera::Resolution resolution_{};

@@ -31,6 +31,8 @@ class CSICameraSensor : public camera::Sensor, public i2c::I2CDevice {
   CSICameraSensor(uint16_t width, uint16_t height, camera::PixelFormat pixel_format);
   void set_pins(int xclk, int pwdn, int reset);
   void set_buffers(uint16_t buffers) { this->buffers_ = buffers; }
+  void set_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
+  void set_flip_y(bool flip_y) { this->flip_y_ = flip_y; }
   void set_byte_swap(bool byte_swap) { this->byte_swap_ = byte_swap; }
   // -------- Sensor --------
   bool configure() override;
@@ -60,6 +62,8 @@ class CSICameraSensor : public camera::Sensor, public i2c::I2CDevice {
   int pwdn_pin_{};
   int xclk_pin_{};
   bool byte_swap_{};
+  bool flip_x_{};
+  bool flip_y_{};
   camera::CameraImageSpec image_spec_;
   esp_ldo_channel_handle_t ldo_mipi_phy_{};
   esp_cam_sensor_device_t *sensor_{};

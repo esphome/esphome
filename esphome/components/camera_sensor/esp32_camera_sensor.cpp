@@ -61,11 +61,19 @@ bool ESP32CameraSensor::configure() {
   this->camera_config_.fb_location = CAMERA_FB_IN_PSRAM;
   this->camera_config_.sccb_i2c_port = this->i2c_bus_->get_port();
   esp_err_t err = esp_camera_init(&this->camera_config_);
-  if (err == ESP_OK)
-    return true;
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_camera_init failed: %s", esp_err_to_name(err));
+    return false;
+  }
 
-  ESP_LOGE(TAG, "esp_camera_init failed: %s", esp_err_to_name(err));
-  return false;
+  sensor_t *sensor = esp_camera_sensor_get();
+  if (sensor->set_vflip(sensor, this->flip_y_))
+    ESP_LOGE(TAG, "Flip Y failed.");
+
+  if (sensor->set_hmirror(sensor, this->flip_x_))
+    ESP_LOGE(TAG, "Flip X failed.");
+
+  return true;
 }
 
 camera::Buffer *ESP32CameraSensor::acquire_frame_buffer() {
@@ -97,11 +105,12 @@ void ESP32CameraSensor::log_config() {
   ESP_LOGCONFIG(TAG,
                 "ESP32 Camera Sensor:\n"
                 "  Resolution: %ux%u\n"
+                "  Flip X: %s, Y: %s\n"
                 "  Buffers: %zu\n"
                 "  xclk_freq_hz %d\n"
                 "  %s\n",
-                this->resolution_.width, this->resolution_.height, this->camera_config_.fb_count,
-                this->camera_config_.xclk_freq_hz, to_string(get_image_format()));
+                this->resolution_.width, this->resolution_.height, YESNO(this->flip_x_), YESNO(this->flip_y_),
+                this->camera_config_.fb_count, this->camera_config_.xclk_freq_hz, to_string(get_image_format()));
   if (this->pixel_format_.has_value())
     ESP_LOGCONFIG(TAG, "  %s\n", to_string(this->pixel_format_.value()));
 }

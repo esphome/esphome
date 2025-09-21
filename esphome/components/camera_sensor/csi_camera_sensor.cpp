@@ -105,6 +105,14 @@ bool CSICameraSensor::configure() {
     return false;
   }
 
+  int flip_y = this->flip_y_ ? 1 : 0;
+  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_VFLIP, &flip_y, sizeof(flip_y)) != ESP_OK)
+    ESP_LOGE(TAG, "ESP_CAM_SENSOR_VFLIP failed.");
+
+  int flip_x = this->flip_x_ ? 1 : 0;
+  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_HMIRROR, &flip_x, sizeof(flip_x)) != ESP_OK)
+    ESP_LOGE(TAG, "ESP_CAM_SENSOR_HMIRROR failed.");
+
   // CSI setup
   esp_cam_ctlr_csi_config_t csi_config = {};
   csi_config.ctlr_id = 0;
@@ -222,15 +230,16 @@ void CSICameraSensor::log_config() {
   ESP_LOGCONFIG(TAG,
                 "Camera Sensor: %s\n"
                 "  %s\n"
+                "  Flip X: %s, Y: %s\n"
                 "  Buffers: %u\n"
                 "  MIPI-CSI:\n"
                 "    Clock: %d MHz\n"
                 "    Lanes: %d\n"
                 "    Line Sync: %s\n"
                 "  ISP: %s\n",
-                this->sensor_->name, this->format_->name, this->buffers_, this->format_->mipi_info.mipi_clk / 1000000,
-                this->format_->mipi_info.lane_num, YESNO(this->format_->mipi_info.line_sync_en),
-                YESNO(this->format_->isp_info));
+                this->sensor_->name, this->format_->name, YESNO(this->flip_x_), YESNO(this->flip_y_), this->buffers_,
+                this->format_->mipi_info.mipi_clk / 1000000, this->format_->mipi_info.lane_num,
+                YESNO(this->format_->mipi_info.line_sync_en), YESNO(this->format_->isp_info));
 }
 
 void CSICameraSensor::start_stream_() {
@@ -246,18 +255,24 @@ void CSICameraSensor::stop_stream_() {
 }
 
 color_raw_element_order_t CSICameraSensor::bayer_to_raw_(esp_cam_sensor_bayer_pattern_t pattern) {
-  switch (pattern) {
-    case ESP_CAM_SENSOR_BAYER_RGGB:
-      return COLOR_RAW_ELEMENT_ORDER_RGGB;
-    case ESP_CAM_SENSOR_BAYER_GRBG:
-      return COLOR_RAW_ELEMENT_ORDER_GRBG;
-    case ESP_CAM_SENSOR_BAYER_GBRG:
-      return COLOR_RAW_ELEMENT_ORDER_GBRG;
-    case ESP_CAM_SENSOR_BAYER_BGGR:
-      return COLOR_RAW_ELEMENT_ORDER_BGGR;
+  static const color_raw_element_order_t table[4][4] = {
+      {COLOR_RAW_ELEMENT_ORDER_RGGB, COLOR_RAW_ELEMENT_ORDER_GRBG, COLOR_RAW_ELEMENT_ORDER_GBRG,
+       COLOR_RAW_ELEMENT_ORDER_BGGR},
+      {COLOR_RAW_ELEMENT_ORDER_GRBG, COLOR_RAW_ELEMENT_ORDER_RGGB, COLOR_RAW_ELEMENT_ORDER_BGGR,
+       COLOR_RAW_ELEMENT_ORDER_GBRG},
+      {COLOR_RAW_ELEMENT_ORDER_GBRG, COLOR_RAW_ELEMENT_ORDER_BGGR, COLOR_RAW_ELEMENT_ORDER_RGGB,
+       COLOR_RAW_ELEMENT_ORDER_GRBG},
+      {COLOR_RAW_ELEMENT_ORDER_BGGR, COLOR_RAW_ELEMENT_ORDER_GBRG, COLOR_RAW_ELEMENT_ORDER_GRBG,
+       COLOR_RAW_ELEMENT_ORDER_RGGB},
+  };
+
+  if (pattern > 4) {
+    ESP_LOGE(TAG, "Bayer mapping is not up to date.");
+    return COLOR_RAW_ELEMENT_ORDER_BGGR;
   }
 
-  return COLOR_RAW_ELEMENT_ORDER_BGGR;
+  int variation = (this->flip_x_ ? 0 : 1) | (this->flip_y_ ? 2 : 0);
+  return table[pattern][variation];
 }
 
 }  // namespace esphome::camera_sensor

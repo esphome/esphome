@@ -5,6 +5,8 @@ from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR,
+    CONF_FLIP_X,
+    CONF_FLIP_Y,
     CONF_FORMAT,
     CONF_FREQUENCY,
     CONF_HEIGHT,
@@ -15,7 +17,6 @@ from esphome.const import (
     CONF_TYPE,
     CONF_WIDTH,
 )
-from esphome.core import CORE
 
 CODEOWNERS = ["@DT-art1"]
 
@@ -145,6 +146,8 @@ ESP32_CAMERA_SCHEMA = cv.All(
             cv.Optional(CONF_FORMAT): cv.enum(CONF_FORMAT_SELECTS, upper=True),
             cv.Optional(CONF_BUFFERS, default=1): cv.int_range(1, 2),
             cv.Optional(CONF_JPEG_QUALITY): cv.int_range(0, 100),
+            cv.Optional(CONF_FLIP_X, default=False): cv.boolean,
+            cv.Optional(CONF_FLIP_Y, default=False): cv.boolean,
         }
     ),
     cv.has_exactly_one_key(CONF_FORMAT, CONF_JPEG_QUALITY),
@@ -168,6 +171,8 @@ MIPI_CSI_SCHEMA = cv.Schema(
         cv.Optional(CONF_XCLK): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_BUFFERS, default=1): cv.int_range(1, 2),
         cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
+        cv.Optional(CONF_FLIP_X, default=True): cv.boolean,
+        cv.Optional(CONF_FLIP_Y, default=False): cv.boolean,
     }
 )
 
@@ -192,8 +197,7 @@ async def to_code(config):
         cg.add(var.set_buffers(config[CONF_BUFFERS]))
         cg.add(var.set_clear(config[CONF_CLEAR]))
     if config[CONF_TYPE] == ESP32_CAMERA_SENSOR:
-        if CORE.using_esp_idf:
-            add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
+        add_idf_component(name="espressif/esp32-camera", ref="2.1.2")
         cg.add_build_flag("-DUSE_ESP32_CAMERA_SENSOR")
         cg.add_build_flag("-DCONFIG_CAMERA_PSRAM_DMA=1")
         var = cg.new_Pvariable(
@@ -227,14 +231,15 @@ async def to_code(config):
         resolution = (config[CONF_WIDTH], config[CONF_HEIGHT])
         cg.add(var.set_framesize(FRAME_SIZES[resolution]))
         cg.add(var.set_buffers(config[CONF_BUFFERS]))
+        cg.add(var.set_flip_x(config[CONF_FLIP_X]))
+        cg.add(var.set_flip_y(config[CONF_FLIP_Y]))
         if CONF_FORMAT in config:
             cg.add(var.set_pixel_format(config[CONF_FORMAT]))
         if CONF_JPEG_QUALITY in config:
             cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
 
     if config[CONF_TYPE] == MIPI_CSI:
-        if CORE.using_esp_idf:
-            add_idf_component(name="espressif/esp_cam_sensor", ref="1.3.0")
+        add_idf_component(name="espressif/esp_cam_sensor", ref="1.3.0")
         cg.add_build_flag("-DUSE_CSI_CAMERA_SENSOR")
         var = cg.new_Pvariable(
             config[CONF_ID],
@@ -248,4 +253,6 @@ async def to_code(config):
         cg.add(var.set_pins(xclk_pin, pwdn_pin, reset_pin))
         cg.add(var.set_buffers(config[CONF_BUFFERS]))
         cg.add(var.set_byte_swap(config[CONF_BYTE_SWAP]))
+        cg.add(var.set_flip_x(config[CONF_FLIP_X]))
+        cg.add(var.set_flip_y(config[CONF_FLIP_Y]))
         await i2c.register_i2c_device(var, config)
