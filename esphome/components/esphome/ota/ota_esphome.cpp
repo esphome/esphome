@@ -252,18 +252,39 @@ void ESPHomeOTAComponent::handle_data_() {
     bool auth_success = false;
 
 #ifdef USE_OTA_SHA256
-    // Check if client supports SHA256 auth
-    bool use_sha256 = (ota_features & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+    // SECURITY HARDENING: Enforce SHA256 authentication on platforms that support it.
+    //
+    // This is a hardening measure to prevent future downgrade attacks where an attacker
+    // could force the use of MD5 authentication by manipulating the feature flags.
+    //
+    // While MD5 is currently still acceptable for our OTA authentication use case
+    // (where the password is a shared secret and we're only authenticating, not
+    // encrypting), at some point in the future MD5 will likely become so weak that
+    // it could be practically attacked.
+    //
+    // We enforce SHA256 now on capable platforms because:
+    // 1. We can't retroactively update device firmware in the field
+    // 2. Clients (like esphome CLI) can always be updated to support SHA256
+    // 3. This prevents any possibility of downgrade attacks in the future
+    //
+    // Devices that don't support SHA256 (due to platform limitations) will
+    // continue to use MD5 as their only option (see #else branch below).
 
-    if (use_sha256) {
-      // Use SHA256 for authentication
-      auth_success = this->perform_hash_auth_<sha256::SHA256>(this->password_);
-    } else
-#endif  // USE_OTA_SHA256
-    {
-      // Fall back to MD5 for backward compatibility (or when SHA256 is not available)
-      auth_success = this->perform_hash_auth_<md5::MD5Digest>(this->password_);
+    bool client_supports_sha256 = (ota_features & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+
+    if (!client_supports_sha256) {
+      ESP_LOGW(TAG, "Client requires SHA256");
+      error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
+
+    // Use SHA256 for authentication (mandatory on platforms that support it)
+    auth_success = this->perform_hash_auth_<sha256::SHA256>(this->password_);
+#else
+    // Platform only supports MD5 - use it as the only available option
+    // This is not a security downgrade as the platform cannot support SHA256
+    auth_success = this->perform_hash_auth_<md5::MD5Digest>(this->password_);
+#endif  // USE_OTA_SHA256
 
     if (!auth_success) {
       error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
