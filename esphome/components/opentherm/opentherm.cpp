@@ -300,27 +300,22 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
     return false;
   }
 
-  auto decode_pair = [&](size_t pair_index, bool inverted, bool &bit) -> bool {
+  auto decode_pair = [&](size_t pair_index, bool &bit) -> bool {
     const bool first = half_levels[pair_index * 2];
     const bool second = half_levels[pair_index * 2 + 1];
     if (first == second) {
       return false;
     }
-    // Normal wiring: 1 -> low/high, 0 -> high/low. If the first inference fails we flip polarity.
-    bit = inverted ? first : !first;
+    // Canonical wiring: 0 -> low/high, 1 -> high/low.
+    bit = first && !second;
     return true;
   };
 
-  bool inverted = false;
   bool start_bit = false;
-  if (!decode_pair(0, false, start_bit) || !start_bit) {
-    if (!decode_pair(0, true, start_bit) || !start_bit) {
-      this->mode_ = OperationMode::ERROR_PROTOCOL;
-      this->error_type_ = ProtocolErrorType::NO_TRANSITION;
-      return false;
-    }
-    // The boiler is driving the opposite idle level, remember that for the rest of the frame.
-    inverted = true;
+  if (!decode_pair(0, start_bit) || !start_bit) {
+    this->mode_ = OperationMode::ERROR_PROTOCOL;
+    this->error_type_ = ProtocolErrorType::NO_TRANSITION;
+    return false;
   }
 
   if (total_pairs < TOTAL_BITS) {
@@ -331,7 +326,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
   uint32_t raw = 0;
   for (size_t bit_index = 0; bit_index < DATA_BITS; ++bit_index) {
     bool bit_value = false;
-    if (!decode_pair(1 + bit_index, inverted, bit_value)) {
+    if (!decode_pair(1 + bit_index, bit_value)) {
       this->mode_ = OperationMode::ERROR_PROTOCOL;
       this->error_type_ = ProtocolErrorType::NO_TRANSITION;
       return false;
@@ -341,7 +336,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
   }
 
   bool stop_bit = false;
-  if (!decode_pair(1 + DATA_BITS, inverted, stop_bit) || !stop_bit) {
+  if (!decode_pair(1 + DATA_BITS, stop_bit) || !stop_bit) {
     this->mode_ = OperationMode::ERROR_PROTOCOL;
     this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
     this->data_ = raw;
