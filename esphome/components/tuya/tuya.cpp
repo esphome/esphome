@@ -209,65 +209,35 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       break;
     }
-    case TuyaCommandType::WIFI_STATE:
-      // If MCU sends WIFI_STATE with no payload, it's a *query* — reply with 1-byte status.
-      if (len == 0) {
-        // Default to "cloud connected"
-        uint8_t resp = 0x04;
-        // If we've recently received WIFI_SELECT, "ramp" the reply:
-        //   <300ms  -> 0x00 (pairing/EZ)
-        //   <900ms  -> 0x02 (configured, not connected)
-        //   <1500ms -> 0x03 (router connected)
-        //   >=1500ms-> 0x04 (cloud connected)
-        if (this->wifi_select_seen_) {
-          uint32_t dt = millis() - this->wifi_select_ts_;
-          if (dt < 300)       resp = 0x00;
-          else if (dt < 900)  resp = 0x02;
-          else if (dt < 1500) resp = 0x03;
-          else                resp = 0x04;
-        }
-
-        TuyaCommand st;
-        st.cmd = TuyaCommandType::WIFI_STATE;
-        st.payload = std::vector<uint8_t>(1, resp);
-        this->send_command_(st);
-        ESP_LOGI(TAG, "WIFI_STATE query -> replied 0x%02X", resp);
-        // fall through to init transition (no early return). Once we’ve replied 0x04, stop ramping responses until the next WIFI_SELECT
-        if (resp == 0x04 && this->wifi_select_seen_) {
-          this->wifi_select_seen_ = false;
-          ESP_LOGD(TAG, "WIFI_STATE ramp complete -> locked at 0x04");
-        }
-      }
-
+    case TuyaCommandType::WIFI_STATE: {
       if (this->init_state_ == TuyaInitState::INIT_WIFI) {
         this->init_state_ = TuyaInitState::INIT_DATAPOINT;
         this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
       }
       break;
-    case TuyaCommandType::WIFI_RESET: {
-      ESP_LOGI(TAG, "WIFI_RESET received -> ACK");
-      TuyaCommand ack;
-      ack.cmd = TuyaCommandType::WIFI_RESET;
-      ack.payload.clear();
-      this->send_command_(ack);
-      break;
     }
-    case TuyaCommandType::WIFI_SELECT: {
-      uint8_t mode = (len >= 1) ? buffer[0] : 0x00;
-      ESP_LOGI(TAG, "WIFI_SELECT received, mode=%s", mode == 0x01 ? "AP" : "EZ");
-      // Mark time so our WIFI_STATE replies can "ramp" for ~1.5s
-      this->wifi_select_ts_ = millis();
-      this->wifi_select_seen_ = true;
-      // ACK WIFI_SELECT (empty payload)
+    case TuyaCommandType::WIFI_SELECT:
+    case TuyaCommandType::WIFI_RESET: {
+      const bool is_select = (len >= 1);
+      // Send WIFI_SELECT ACK
       TuyaCommand ack;
-      ack.cmd = TuyaCommandType::WIFI_SELECT;
+      ack.cmd = is_select ? TuyaCommandType::WIFI_SELECT : TuyaCommandType::WIFI_RESET;
       ack.payload.clear();
       this->send_command_(ack);
-      // Immediately advertise "entering pairing" (0x00)
-      TuyaCommand st0;
-      st0.cmd = TuyaCommandType::WIFI_STATE;
-      st0.payload = std::vector<uint8_t>(1, 0x00);  // pairing (EZ)
-      this->send_command_(st0);
+      // Establish pairing mode for correct first WIFI_STATE byte, EZ (0x00) default
+      uint8_t first = 0x00;
+      const char *mode_str = "EZ";
+      if (is_select && buffer[0] == 0x01) { first = 0x01; mode_str = "AP"; }
+      // Send WIFI_STATE response, MCU exits pairing mode
+      TuyaCommand st;
+      st.cmd = TuyaCommandType::WIFI_STATE;
+      st.payload.resize(1);
+      st.payload[0] = first; this->send_command_(st);
+      st.payload[0] = 0x02;  this->send_command_(st);
+      st.payload[0] = 0x03;  this->send_command_(st);
+      st.payload[0] = 0x04;  this->send_command_(st);
+      ESP_LOGI(TAG, "%s received (%s), replied with WIFI_STATE confirming connection established",
+               is_select ? "WIFI_SELECT" : "WIFI_RESET", mode_str);
       break;
     }
     case TuyaCommandType::DATAPOINT_DELIVER:
