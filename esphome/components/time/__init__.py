@@ -269,16 +269,7 @@ def validate_tz(value: str) -> str:
 
 TIME_SCHEMA = cv.Schema(
     {
-        cv.SplitDefault(
-            CONF_TIMEZONE,
-            esp8266=detect_tz,
-            esp32=detect_tz,
-            rp2040=detect_tz,
-            bk72xx=detect_tz,
-            rtl87xx=detect_tz,
-            ln882x=detect_tz,
-            host=detect_tz,
-        ): cv.All(
+        cv.Optional(CONF_TIMEZONE): cv.All(
             cv.only_with_framework(["arduino", "esp-idf", "host"]),
             validate_tz,
         ),
@@ -306,9 +297,23 @@ TIME_SCHEMA = cv.Schema(
 
 
 async def setup_time_core_(time_var, config):
-    if timezone := config.get(CONF_TIMEZONE):
-        cg.add(time_var.set_timezone(timezone))
+    if CONF_TIMEZONE in config:
+        # Timezone was explicitly set in config - mark as manual
+        timezone = config[CONF_TIMEZONE]
+        cg.add(time_var.set_timezone_manual(timezone))
         cg.add_define("USE_TIME_TIMEZONE")
+    else:
+        # Auto-detect timezone if not explicitly set
+        try:
+            timezone = detect_tz()
+        except cv.Invalid:
+            # Could not auto-detect, silently continue without timezone
+            pass
+        else:
+            cg.add(
+                time_var.set_timezone(timezone)
+            )  # Use regular set_timezone for auto-detected
+            cg.add_define("USE_TIME_TIMEZONE")
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
