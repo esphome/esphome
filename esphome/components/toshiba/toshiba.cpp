@@ -308,7 +308,7 @@ float decode_ras_2819t_temperature(uint8_t temp_code) {
   uint8_t base_temp_code = temp_code & 0xF0;
 
   // Linear search through the small array (faster than map for small datasets)
-  for (size_t i = 0; i < sizeof(RAS_2819T_TEMP_CODES_DECODE); i++) {
+  for (uint8_t i = 0; i < sizeof(RAS_2819T_TEMP_CODES_DECODE); i++) {
     if (RAS_2819T_TEMP_CODES_DECODE[i] == base_temp_code) {
       return static_cast<float>(i + 18);  // 18°C is the minimum
     }
