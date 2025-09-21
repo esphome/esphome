@@ -321,7 +321,7 @@ float decode_ras_2819t_temperature(uint8_t temp_code) {
 /**
  * Decode fan speed from RAS-2819T IR codes
  */
-climate::ClimateFanMode decode_ras_2819t_fan_mode(uint16_t fan_code) {
+static climate::ClimateFanMode decode_ras_2819t_fan_mode(uint16_t fan_code) {
   switch (fan_code) {
     case RAS_2819T_FAN_QUIET:
       return climate::CLIMATE_FAN_QUIET;
