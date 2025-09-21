@@ -95,6 +95,7 @@ def mock_run_git_command() -> Generator[Mock, None, None]:
     with patch("esphome.git.run_git_command") as mock:
         yield mock
 
+
 @pytest.fixture
 def mock_get_idedata() -> Generator[Mock, None, None]:
     """Mock get_idedata for platformio_api."""
