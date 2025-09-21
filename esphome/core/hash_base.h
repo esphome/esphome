@@ -15,7 +15,7 @@ class HashBase {
 
   /// Add bytes of data for the hash
   virtual void add(const uint8_t *data, size_t len) = 0;
-  virtual void add(const char *data, size_t len) { this->add((const uint8_t *) data, len); }
+  void add(const char *data, size_t len) { this->add((const uint8_t *) data, len); }
 
   /// Compute the hash based on provided data
   virtual void calculate() = 0;

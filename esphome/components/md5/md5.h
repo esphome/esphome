@@ -38,7 +38,6 @@ class MD5Digest : public HashBase {
 
   /// Add bytes of data for the digest.
   void add(const uint8_t *data, size_t len) override;
-  void add(const char *data, size_t len) override { this->add((const uint8_t *) data, len); }
 
   /// Compute the digest, based on the provided data.
   void calculate() override;
