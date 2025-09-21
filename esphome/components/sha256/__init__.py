@@ -1,9 +1,13 @@
 import esphome.codegen as cg
-from esphome.core import CORE, IS_MACOS
+import esphome.config_validation as cv
+from esphome.core import CORE
+from esphome.helpers import IS_MACOS
 
 CODEOWNERS = ["@esphome/core"]
 
 sha256_ns = cg.esphome_ns.namespace("sha256")
+
+CONFIG_SCHEMA = cv.Schema({})
 
 
 async def to_code(config):
