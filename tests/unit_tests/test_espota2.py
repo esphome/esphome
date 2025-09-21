@@ -31,6 +31,29 @@ def mock_socket() -> MockType:
     return socket
 
 
+@pytest.fixture
+def mock_file() -> io.BytesIO:
+    """Create a mock firmware file for testing."""
+    return io.BytesIO(b"firmware content here")
+
+
+@pytest.fixture
+def mock_time():
+    """Mock time-related functions for consistent testing."""
+    with (
+        patch("time.sleep"),
+        patch("time.perf_counter", side_effect=[0, 1]),
+    ) as mocks:
+        yield mocks
+
+
+@pytest.fixture
+def mock_random():
+    """Mock random for predictable test values."""
+    with patch("random.random", return_value=0.123456) as mock_rand:
+        yield mock_rand
+
+
 def test_recv_decode_with_decode(mock_socket) -> None:
     """Test recv_decode with decode=True returns list."""
     mock_socket.recv.return_value = b"\x01\x02\x03"
