@@ -227,7 +227,7 @@ const uint8_t RAS_2819T_HEAT_SUFFIX = 0x3B;
 /**
  * Get fan speed encoding for RAS-2819T first packet (rc_code_1, bytes 2-3)
  */
-uint16_t get_ras_2819t_fan_code(climate::ClimateFanMode fan_mode) {
+static uint16_t get_ras_2819t_fan_code(climate::ClimateFanMode fan_mode) {
   switch (fan_mode) {
     case climate::CLIMATE_FAN_QUIET:
       return RAS_2819T_FAN_QUIET;
@@ -251,7 +251,7 @@ struct Ras2819tSecondPacketCodes {
   Ras2819tPacketSuffix suffix;
 };
 
-Ras2819tSecondPacketCodes get_ras_2819t_second_packet_codes(climate::ClimateFanMode fan_mode) {
+static Ras2819tSecondPacketCodes get_ras_2819t_second_packet_codes(climate::ClimateFanMode fan_mode) {
   switch (fan_mode) {
     case climate::CLIMATE_FAN_QUIET:
       return {RAS_2819T_FAN2_QUIET, RAS_2819T_SUFFIX_QUIET};
@@ -270,7 +270,7 @@ Ras2819tSecondPacketCodes get_ras_2819t_second_packet_codes(climate::ClimateFanM
 /**
  * Get temperature code for RAS-2819T protocol
  */
-uint8_t get_ras_2819t_temp_code(float temperature) {
+static uint8_t get_ras_2819t_temp_code(float temperature) {
   // Temperature codes for RAS-2819T protocol (18-30°C)
   static const uint8_t RAS_2819T_TEMP_CODES[] = {
       0x10,  // 18°C
@@ -300,7 +300,7 @@ uint8_t get_ras_2819t_temp_code(float temperature) {
 /**
  * Decode temperature from RAS-2819T temp code
  */
-float decode_ras_2819t_temperature(uint8_t temp_code) {
+static float decode_ras_2819t_temperature(uint8_t temp_code) {
   // Map temp codes back to temperatures using array lookup for better performance
   static const uint8_t RAS_2819T_TEMP_CODES_DECODE[] = {0x10, 0x30, 0x20, 0x60, 0x70, 0x50, 0x40,
                                                         0xC0, 0xD0, 0x90, 0x80, 0xA0, 0xB0};
@@ -340,7 +340,7 @@ static climate::ClimateFanMode decode_ras_2819t_fan_mode(uint16_t fan_code) {
 /**
  * Validate RAS-2819T IR command structure and content
  */
-bool is_valid_ras_2819t_command(uint64_t rc_code_1, uint64_t rc_code_2 = 0) {
+static bool is_valid_ras_2819t_command(uint64_t rc_code_1, uint64_t rc_code_2 = 0) {
   // Check header of first packet
   uint16_t header1 = (rc_code_1 >> 32) & 0xFFFF;
   if (header1 != RAS_2819T_VALID_HEADER1) {
