@@ -290,7 +290,7 @@ static float decode_ras_2819t_temperature(uint8_t temp_code) {
   uint8_t base_temp_code = temp_code & 0xF0;
 
   // Find the code in the temperature array
-  for (int temp_index = 0; temp_index < static_cast<int>(sizeof(RAS_2819T_TEMP_CODES)); temp_index++) {
+  for (uint8_t temp_index = 0; temp_index < sizeof(RAS_2819T_TEMP_CODES); temp_index++) {
     if (RAS_2819T_TEMP_CODES[temp_index] == base_temp_code) {
       return static_cast<float>(temp_index + 18);  // 18°C is the minimum
     }
@@ -1051,7 +1051,7 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
     // Convert to byte array for easier processing
     uint8_t message1[6], message2[6];
-    for (int i = 0; i < 6; i++) {
+    for (uint8_t i = 0; i < 6; i++) {
       message1[i] = (toshiba_data.rc_code_1 >> (40 - i * 8)) & 0xFF;
       message2[i] = (toshiba_data.rc_code_2 >> (40 - i * 8)) & 0xFF;
     }
