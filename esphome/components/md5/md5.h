@@ -42,15 +42,8 @@ class MD5Digest : public HashBase {
   /// Compute the digest, based on the provided data.
   void calculate() override;
 
-  /// Retrieve the MD5 digest as bytes.
-  /// The output must be able to hold 16 bytes or more.
-  void get_bytes(uint8_t *output);
-
   /// Get the size of the hex output (32 for MD5)
   size_t get_hex_size() const override { return 32; }
-
-  /// Compare the digest against a provided byte-encoded digest (16 bytes).
-  bool equals_bytes(const uint8_t *expected);
 
   /// Compare the digest against a provided hex-encoded digest (32 bytes).
   bool equals_hex(const char *expected);

@@ -33,13 +33,11 @@ class SHA256 : public esphome::HashBase {
 
   void calculate() override;
 
-  void get_bytes(uint8_t *output);
   std::string get_hex_string();
 
   /// Get the size of the hex output (64 for SHA256)
   size_t get_hex_size() const override { return 64; }
 
-  bool equals_bytes(const uint8_t *expected);
   bool equals_hex(const char *expected);
 
  protected:

@@ -39,17 +39,6 @@ void MD5Digest::add(const uint8_t *data, size_t len) { br_md5_update(&this->ctx_
 void MD5Digest::calculate() { br_md5_out(&this->ctx_, this->digest_); }
 #endif  // USE_RP2040
 
-void MD5Digest::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 16); }
-
-bool MD5Digest::equals_bytes(const uint8_t *expected) {
-  for (size_t i = 0; i < 16; i++) {
-    if (expected[i] != this->digest_[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
 bool MD5Digest::equals_hex(const char *expected) {
   uint8_t parsed[16];
   if (!parse_hex(expected, parsed, 16))
