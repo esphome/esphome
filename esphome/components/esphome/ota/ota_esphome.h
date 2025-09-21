@@ -31,14 +31,16 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
  protected:
   void handle_handshake_();
   void handle_data_();
+#ifdef USE_OTA_PASSWORD
   bool perform_hash_auth_(HashBase *hasher, const std::string &password, size_t nonce_size, uint8_t auth_request,
                           const LogString *name);
+  void log_auth_warning_(const LogString *action, const LogString *hash_name);
+#endif  // USE_OTA_PASSWORD
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
   void log_start_(const LogString *phase);
-  void log_auth_warning_(const LogString *action, const LogString *hash_name);
   void cleanup_connection_();
   void yield_and_feed_watchdog_();
 

@@ -514,6 +514,7 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
   delay(1);
 }
 
+#ifdef USE_OTA_PASSWORD
 void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogString *hash_name) {
   ESP_LOGW(TAG, "Auth: %s %s failed", LOG_STR_ARG(action), LOG_STR_ARG(hash_name));
 }
@@ -605,6 +606,7 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
 
   return matches;
 }
+#endif  // USE_OTA_PASSWORD
 
 }  // namespace esphome
 #endif
