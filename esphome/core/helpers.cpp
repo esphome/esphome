@@ -41,17 +41,28 @@ static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0
 
 // Mathematics
 
-uint8_t crc8(const uint8_t *data, uint8_t len) {
-  uint8_t crc = 0;
-
+uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc, uint8_t poly, bool msb_first) {
   while ((len--) != 0u) {
     uint8_t inbyte = *data++;
-    for (uint8_t i = 8; i != 0u; i--) {
-      bool mix = (crc ^ inbyte) & 0x01;
-      crc >>= 1;
-      if (mix)
-        crc ^= 0x8C;
-      inbyte >>= 1;
+    if (msb_first) {
+      // MSB first processing (for polynomials like 0x31, 0x07)
+      crc ^= inbyte;
+      for (uint8_t i = 8; i != 0u; i--) {
+        if (crc & 0x80) {
+          crc = (crc << 1) ^ poly;
+        } else {
+          crc <<= 1;
+        }
+      }
+    } else {
+      // LSB first processing (default for Dallas/Maxim 0x8C)
+      for (uint8_t i = 8; i != 0u; i--) {
+        bool mix = (crc ^ inbyte) & 0x01;
+        crc >>= 1;
+        if (mix)
+          crc ^= poly;
+        inbyte >>= 1;
+      }
     }
   }
   return crc;
@@ -131,11 +142,13 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   return refout ? (crc ^ 0xffff) : crc;
 }
 
-uint32_t fnv1_hash(const std::string &str) {
+uint32_t fnv1_hash(const char *str) {
   uint32_t hash = 2166136261UL;
-  for (char c : str) {
-    hash *= 16777619UL;
-    hash ^= c;
+  if (str) {
+    while (*str) {
+      hash *= 16777619UL;
+      hash ^= *str++;
+    }
   }
   return hash;
 }
@@ -242,22 +255,21 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
 }
 
 std::string format_mac_address_pretty(const uint8_t *mac) {
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[18];
+  format_mac_addr_upper(mac, buf);
+  return std::string(buf);
 }
 
-static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
   ret.resize(length * 2);
   for (size_t i = 0; i < length; i++) {
-    ret[2 * i] = format_hex_char((data[i] & 0xF0) >> 4);
+    ret[2 * i] = format_hex_char(data[i] >> 4);
     ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
   }
   return ret;
 }
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
-
-static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
@@ -267,7 +279,7 @@ static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, c
   uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
   ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i] = format_hex_pretty_char(data[i] >> 4);
     ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
     if (separator && i != length - 1)
       ret[multiple * i + 2] = separator;
@@ -578,7 +590,9 @@ bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; 
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[13];
+  format_mac_addr_lower_no_sep(mac, buf);
+  return std::string(buf);
 }
 
 std::string get_mac_address_pretty() {

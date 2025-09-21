@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -17,7 +17,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -176,7 +176,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 
@@ -259,8 +259,8 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),

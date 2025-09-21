@@ -147,7 +147,7 @@ def _read_audio_file_and_type(file_config):
     elif file_source == TYPE_WEB:
         path = _compute_local_file_path(conf_file)
     else:
-        raise cv.Invalid("Unsupported file source.")
+        raise cv.Invalid("Unsupported file source")
 
     with open(path, "rb") as f:
         data = f.read()
@@ -219,7 +219,7 @@ def _validate_supported_local_file(config):
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
-            raise cv.Invalid("Unsupported local media file.")
+            raise cv.Invalid("Unsupported local media file")
         if not config[CONF_CODEC_SUPPORT_ENABLED] and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):

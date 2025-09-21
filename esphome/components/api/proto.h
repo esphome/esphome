@@ -15,6 +15,23 @@
 
 namespace esphome::api {
 
+// Helper functions for ZigZag encoding/decoding
+inline constexpr uint32_t encode_zigzag32(int32_t value) {
+  return (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
+}
+
+inline constexpr uint64_t encode_zigzag64(int64_t value) {
+  return (static_cast<uint64_t>(value) << 1) ^ (static_cast<uint64_t>(value >> 63));
+}
+
+inline constexpr int32_t decode_zigzag32(uint32_t value) {
+  return (value & 1) ? static_cast<int32_t>(~(value >> 1)) : static_cast<int32_t>(value >> 1);
+}
+
+inline constexpr int64_t decode_zigzag64(uint64_t value) {
+  return (value & 1) ? static_cast<int64_t>(~(value >> 1)) : static_cast<int64_t>(value >> 1);
+}
+
 /*
  * StringRef Ownership Model for API Protocol Messages
  * ===================================================
@@ -87,33 +104,25 @@ class ProtoVarInt {
     return {};  // Incomplete or invalid varint
   }
 
-  uint16_t as_uint16() const { return this->value_; }
-  uint32_t as_uint32() const { return this->value_; }
-  uint64_t as_uint64() const { return this->value_; }
-  bool as_bool() const { return this->value_; }
-  int32_t as_int32() const {
+  constexpr uint16_t as_uint16() const { return this->value_; }
+  constexpr uint32_t as_uint32() const { return this->value_; }
+  constexpr uint64_t as_uint64() const { return this->value_; }
+  constexpr bool as_bool() const { return this->value_; }
+  constexpr int32_t as_int32() const {
     // Not ZigZag encoded
     return static_cast<int32_t>(this->as_int64());
   }
-  int64_t as_int64() const {
+  constexpr int64_t as_int64() const {
     // Not ZigZag encoded
     return static_cast<int64_t>(this->value_);
   }
-  int32_t as_sint32() const {
+  constexpr int32_t as_sint32() const {
     // with ZigZag encoding
-    if (this->value_ & 1) {
-      return static_cast<int32_t>(~(this->value_ >> 1));
-    } else {
-      return static_cast<int32_t>(this->value_ >> 1);
-    }
+    return decode_zigzag32(static_cast<uint32_t>(this->value_));
   }
-  int64_t as_sint64() const {
+  constexpr int64_t as_sint64() const {
     // with ZigZag encoding
-    if (this->value_ & 1) {
-      return static_cast<int64_t>(~(this->value_ >> 1));
-    } else {
-      return static_cast<int64_t>(this->value_ >> 1);
-    }
+    return decode_zigzag64(this->value_);
   }
   /**
    * Encode the varint value to a pre-allocated buffer without bounds checking.
@@ -309,22 +318,10 @@ class ProtoWriteBuffer {
     this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
   }
   void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
-    uint32_t uvalue;
-    if (value < 0) {
-      uvalue = ~(value << 1);
-    } else {
-      uvalue = value << 1;
-    }
-    this->encode_uint32(field_id, uvalue, force);
+    this->encode_uint32(field_id, encode_zigzag32(value), force);
   }
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
-    uint64_t uvalue;
-    if (value < 0) {
-      uvalue = ~(value << 1);
-    } else {
-      uvalue = value << 1;
-    }
-    this->encode_uint64(field_id, uvalue, force);
+    this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
   void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = false);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
@@ -395,7 +392,7 @@ class ProtoSize {
    * @param value The uint32_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(uint32_t value) {
+  static constexpr uint32_t varint(uint32_t value) {
     // Optimized varint size calculation using leading zeros
     // Each 7 bits requires one byte in the varint encoding
     if (value < 128)
@@ -419,7 +416,7 @@ class ProtoSize {
    * @param value The uint64_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(uint64_t value) {
+  static constexpr uint32_t varint(uint64_t value) {
     // Handle common case of values fitting in uint32_t (vast majority of use cases)
     if (value <= UINT32_MAX) {
       return varint(static_cast<uint32_t>(value));
@@ -450,7 +447,7 @@ class ProtoSize {
    * @param value The int32_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(int32_t value) {
+  static constexpr uint32_t varint(int32_t value) {
     // Negative values are sign-extended to 64 bits in protocol buffers,
     // which always results in a 10-byte varint for negative int32
     if (value < 0) {
@@ -466,7 +463,7 @@ class ProtoSize {
    * @param value The int64_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(int64_t value) {
+  static constexpr uint32_t varint(int64_t value) {
     // For int64_t, we convert to uint64_t and calculate the size
     // This works because the bit pattern determines the encoding size,
     // and we've handled negative int32 values as a special case above
@@ -480,7 +477,7 @@ class ProtoSize {
    * @param type The wire type value (from the WireType enum in the protobuf spec)
    * @return The number of bytes needed to encode the field ID and wire type
    */
-  static inline uint32_t field(uint32_t field_id, uint32_t type) {
+  static constexpr uint32_t field(uint32_t field_id, uint32_t type) {
     uint32_t tag = (field_id << 3) | (type & 0b111);
     return varint(tag);
   }
@@ -607,9 +604,8 @@ class ProtoSize {
    */
   inline void add_sint32_force(uint32_t field_id_size, int32_t value) {
     // Always calculate size when force is true
-    // ZigZag encoding for sint32: (n << 1) ^ (n >> 31)
-    uint32_t zigzag = (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
-    total_size_ += field_id_size + varint(zigzag);
+    // ZigZag encoding for sint32
+    total_size_ += field_id_size + varint(encode_zigzag32(value));
   }
 
   /**

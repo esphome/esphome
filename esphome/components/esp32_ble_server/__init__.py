@@ -529,6 +529,7 @@ async def to_code_characteristic(service_var, char_conf):
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+    cg.add_define("USE_ESP32_BLE_UUID")
 
     var = cg.new_Pvariable(config[CONF_ID])
 
@@ -572,8 +573,7 @@ async def to_code(config):
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
 
 @automation.register_action(

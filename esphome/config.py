@@ -627,13 +627,15 @@ class SchemaValidationStep(ConfigValidationStep):
     def __init__(
         self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
     ):
+        self.domain = domain
         self.path = path
         self.conf = conf
         self.comp = comp
 
     def run(self, result: Config) -> None:
         token = path_context.set(self.path)
-        with result.catch_error(self.path):
+        # The domain already contains the full component path (e.g., "sensor.template", "sensor.uptime")
+        with CORE.component_context(self.domain), result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
                 input_conf = OrderedDict(self.conf)
@@ -939,6 +941,9 @@ def validate_config(
     if result.errors:
         # do not try to validate further as we don't know what the target is
         return result
+
+    # Reset the pin registry so that any target platforms with pin validations do not get the duplicate pin warning.
+    pins.PIN_SCHEMA_REGISTRY.reset()
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
