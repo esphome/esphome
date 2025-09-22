@@ -49,7 +49,7 @@ def mock_trash_storage_path(tmp_path: Path) -> Generator[MagicMock]:
     """Fixture to mock trash_storage_path."""
     trash_dir = tmp_path / "trash"
     with patch(
-        "esphome.dashboard.web_server.trash_storage_path", return_value=str(trash_dir)
+        "esphome.dashboard.web_server.trash_storage_path", return_value=trash_dir
     ) as mock:
         yield mock
 
@@ -60,7 +60,7 @@ def mock_archive_storage_path(tmp_path: Path) -> Generator[MagicMock]:
     archive_dir = tmp_path / "archive"
     with patch(
         "esphome.dashboard.web_server.archive_storage_path",
-        return_value=str(archive_dir),
+        return_value=archive_dir,
     ) as mock:
         yield mock
 
@@ -257,7 +257,7 @@ async def test_download_binary_handler_with_file(
     # Mock storage JSON
     mock_storage = Mock()
     mock_storage.name = "test_device"
-    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
     response = await dashboard.fetch(
@@ -289,7 +289,7 @@ async def test_download_binary_handler_compressed(
     # Mock storage JSON
     mock_storage = Mock()
     mock_storage.name = "test_device"
-    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
     response = await dashboard.fetch(
@@ -321,7 +321,7 @@ async def test_download_binary_handler_custom_download_name(
     # Mock storage JSON
     mock_storage = Mock()
     mock_storage.name = "test_device"
-    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
     response = await dashboard.fetch(
@@ -355,7 +355,7 @@ async def test_download_binary_handler_idedata_fallback(
     # Mock storage JSON
     mock_storage = Mock()
     mock_storage.name = "test_device"
-    mock_storage.firmware_bin_path = str(firmware_file)
+    mock_storage.firmware_bin_path = firmware_file
     mock_storage_json.load.return_value = mock_storage
 
     # Mock idedata response
@@ -402,7 +402,7 @@ async def test_edit_request_handler_post_existing(
     test_file.write_text("esphome:\n  name: original\n")
 
     # Configure the mock settings
-    mock_dashboard_settings.rel_path.return_value = str(test_file)
+    mock_dashboard_settings.rel_path.return_value = test_file
     mock_dashboard_settings.absolute_config_dir = test_file.parent
 
     new_content = "esphome:\n  name: modified\n"
@@ -426,7 +426,7 @@ async def test_unarchive_request_handler(
 ) -> None:
     """Test the UnArchiveRequestHandler.post method."""
     # Set up an archived file
-    archive_dir = Path(mock_archive_storage_path.return_value)
+    archive_dir = mock_archive_storage_path.return_value
     archive_dir.mkdir(parents=True, exist_ok=True)
     archived_file = archive_dir / "archived.yaml"
     archived_file.write_text("test content")
@@ -435,7 +435,7 @@ async def test_unarchive_request_handler(
     config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     destination_file = config_dir / "archived.yaml"
-    mock_dashboard_settings.rel_path.return_value = str(destination_file)
+    mock_dashboard_settings.rel_path.return_value = destination_file
 
     response = await dashboard.fetch(
         "/unarchive?configuration=archived.yaml",
@@ -474,7 +474,7 @@ async def test_secret_keys_handler_with_file(
 
     # Configure mock to return our temp secrets file
     # Since the file actually exists, os.path.isfile will return True naturally
-    mock_dashboard_settings.rel_path.return_value = str(secrets_file)
+    mock_dashboard_settings.rel_path.return_value = secrets_file
 
     response = await dashboard.fetch("/secret_keys", method="GET")
     assert response.code == 200
@@ -538,8 +538,8 @@ def test_start_web_server_with_address_port(
 ) -> None:
     """Test the start_web_server function with address and port."""
     app = Mock()
-    trash_dir = Path(mock_trash_storage_path.return_value)
-    archive_dir = Path(mock_archive_storage_path.return_value)
+    trash_dir = mock_trash_storage_path.return_value
+    archive_dir = mock_archive_storage_path.return_value
 
     # Create trash dir to test migration
     trash_dir.mkdir()
@@ -643,12 +643,12 @@ async def test_archive_handler_with_build_folder(
     (build_folder / ".pioenvs").mkdir()
 
     mock_dashboard_settings.config_dir = str(config_dir)
-    mock_dashboard_settings.rel_path.return_value = str(test_config)
-    mock_archive_storage_path.return_value = str(archive_dir)
+    mock_dashboard_settings.rel_path.return_value = test_config
+    mock_archive_storage_path.return_value = archive_dir
 
     mock_storage = MagicMock()
     mock_storage.name = "test_device"
-    mock_storage.build_path = str(build_folder)
+    mock_storage.build_path = build_folder
     mock_storage_json.load.return_value = mock_storage
 
     response = await dashboard.fetch(
@@ -686,8 +686,8 @@ async def test_archive_handler_no_build_folder(
     test_config.write_text("esphome:\n  name: test_device\n")
 
     mock_dashboard_settings.config_dir = str(config_dir)
-    mock_dashboard_settings.rel_path.return_value = str(test_config)
-    mock_archive_storage_path.return_value = str(archive_dir)
+    mock_dashboard_settings.rel_path.return_value = test_config
+    mock_archive_storage_path.return_value = archive_dir
 
     mock_storage = MagicMock()
     mock_storage.name = "test_device"
@@ -730,3 +730,83 @@ def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
         mock_server_class.assert_called_once_with(app)
         mock_bind.assert_called_once_with(str(socket_path), mode=0o666)
         server.add_socket.assert_called_once()
+
+
+def test_build_cache_arguments_no_entry(mock_dashboard: Mock) -> None:
+    """Test with no entry returns empty list."""
+    result = web_server.build_cache_arguments(None, mock_dashboard, 0.0)
+    assert result == []
+
+
+def test_build_cache_arguments_no_address_no_name(mock_dashboard: Mock) -> None:
+    """Test with entry but no address or name."""
+    entry = Mock(spec=web_server.DashboardEntry)
+    entry.address = None
+    entry.name = None
+    result = web_server.build_cache_arguments(entry, mock_dashboard, 0.0)
+    assert result == []
+
+
+def test_build_cache_arguments_mdns_address_cached(mock_dashboard: Mock) -> None:
+    """Test with .local address that has cached mDNS results."""
+    entry = Mock(spec=web_server.DashboardEntry)
+    entry.address = "device.local"
+    entry.name = None
+    mock_dashboard.mdns_status = Mock()
+    mock_dashboard.mdns_status.get_cached_addresses.return_value = [
+        "192.168.1.10",
+        "fe80::1",
+    ]
+
+    result = web_server.build_cache_arguments(entry, mock_dashboard, 0.0)
+
+    assert result == [
+        "--mdns-address-cache",
+        "device.local=192.168.1.10,fe80::1",
+    ]
+    mock_dashboard.mdns_status.get_cached_addresses.assert_called_once_with(
+        "device.local"
+    )
+
+
+def test_build_cache_arguments_dns_address_cached(mock_dashboard: Mock) -> None:
+    """Test with non-.local address that has cached DNS results."""
+    entry = Mock(spec=web_server.DashboardEntry)
+    entry.address = "example.com"
+    entry.name = None
+    mock_dashboard.dns_cache = Mock()
+    mock_dashboard.dns_cache.get_cached_addresses.return_value = [
+        "93.184.216.34",
+        "2606:2800:220:1:248:1893:25c8:1946",
+    ]
+
+    now = 100.0
+    result = web_server.build_cache_arguments(entry, mock_dashboard, now)
+
+    # IPv6 addresses are sorted before IPv4
+    assert result == [
+        "--dns-address-cache",
+        "example.com=2606:2800:220:1:248:1893:25c8:1946,93.184.216.34",
+    ]
+    mock_dashboard.dns_cache.get_cached_addresses.assert_called_once_with(
+        "example.com", now
+    )
+
+
+def test_build_cache_arguments_name_without_address(mock_dashboard: Mock) -> None:
+    """Test with name but no address - should check mDNS with .local suffix."""
+    entry = Mock(spec=web_server.DashboardEntry)
+    entry.name = "my-device"
+    entry.address = None
+    mock_dashboard.mdns_status = Mock()
+    mock_dashboard.mdns_status.get_cached_addresses.return_value = ["192.168.1.20"]
+
+    result = web_server.build_cache_arguments(entry, mock_dashboard, 0.0)
+
+    assert result == [
+        "--mdns-address-cache",
+        "my-device.local=192.168.1.20",
+    ]
+    mock_dashboard.mdns_status.get_cached_addresses.assert_called_once_with(
+        "my-device.local"
+    )
