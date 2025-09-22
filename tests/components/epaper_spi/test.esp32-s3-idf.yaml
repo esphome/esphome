@@ -1,0 +1,15 @@
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO9
+
+display:
+  - platform: epaper_spi
+    model: 7.3in-spectra-e6
+    cs_pin: GPIO5
+    dc_pin: GPIO17
+    reset_pin: GPIO16
+    busy_pin: GPIO4
+    rotation: 0
+    update_interval: 60s
+    lambda: |-
+      it.circle(64, 64, 50, Color::BLACK);
