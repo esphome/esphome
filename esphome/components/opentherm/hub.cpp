@@ -368,6 +368,7 @@ void OpenthermHub::stop_opentherm_() {
 
 void OpenthermHub::handle_protocol_error_() {
   auto error = this->opentherm_->get_protocol_error();
+  ESP_LOGW(TAG, "OpenTherm protocol error: %s", OpenTherm::protocol_error_to_str(error.error_type));
   this->opentherm_->debug_error(error);
   this->opentherm_->debug_rmt();
   this->stop_opentherm_();
@@ -378,7 +379,10 @@ void OpenthermHub::handle_timeout_error_() {
   this->stop_opentherm_();
 }
 
-void OpenthermHub::handle_rmt_error_() { this->stop_opentherm_(); }
+void OpenthermHub::handle_rmt_error_() {
+  ESP_LOGW(TAG, "OpenTherm RMT error");
+  this->stop_opentherm_();
+}
 
 void OpenthermHub::dump_config() {
   std::vector<MessageId> initial_messages;

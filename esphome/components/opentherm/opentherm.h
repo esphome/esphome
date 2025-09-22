@@ -53,7 +53,8 @@ enum ProtocolErrorType {
   INVALID_START_STOP_BIT = 2,  // Start or stop bit wasn't present when expected
   PARITY_ERROR = 3,            // Parity check didn't pass
   NO_CHANGE_TOO_LONG = 4,      // No level change for too much timer ticks
-  INVALID_DURATION = 5         // Interval had an invalid duration
+  INVALID_DURATION = 5,        // Interval had an invalid duration
+  INSUFFICIENT_DATA = 6,       // Not enough data in the OpenTherm frame
 };
 
 // Deprecated timer error types (legacy). Kept for compatibility with hub code.

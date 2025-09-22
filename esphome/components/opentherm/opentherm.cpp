@@ -365,6 +365,10 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
       bit_idx++;
     }
   }
+
+  // If we reached here, something went wrong and our data is incomplete.
+  this->set_protocol_error(ProtocolErrorType::INSUFFICIENT_DATA, bit_idx);
+  return false;
 }
 
 void OpenTherm::set_protocol_error(ProtocolErrorType error_type, size_t bit_index) {
@@ -411,6 +415,7 @@ const char *OpenTherm::protocol_error_to_str(ProtocolErrorType error_type) {
     TO_STRING_MEMBER(PARITY_ERROR)
     TO_STRING_MEMBER(NO_CHANGE_TOO_LONG)
     TO_STRING_MEMBER(INVALID_DURATION)
+    TO_STRING_MEMBER(INSUFFICIENT_DATA)
     default:
       return "<INVALID>";
   }
@@ -558,16 +563,16 @@ void OpenTherm::debug_error(OpenThermProtocolError &error) const {
 
 void OpenTherm::debug_rmt() const {
   if (this->rmt_buffer_symbol_count_ == 0) {
-    ESP_LOGI(TAG, "RMT debug: no data available");
+    ESP_LOGD(TAG, "RMT debug: no data available");
     return;
   }
-  ESP_LOGI(TAG, "RX raw begin =====================================");
-  ESP_LOGI(TAG, "symbols=%u", this->rmt_buffer_symbol_count_);
+  ESP_LOGD(TAG, "RX raw begin =====================================");
+  ESP_LOGD(TAG, "symbols=%u", this->rmt_buffer_symbol_count_);
   for (size_t i = 0; i < this->rmt_buffer_symbol_count_; i++) {
     const auto &s = this->rmt_buffer_[i];
-    ESP_LOGI(TAG, "SYM[%03u]: L0=%u D0=%u us | L1=%u D1=%u us", i, s.level0, s.duration0, s.level1, s.duration1);
+    ESP_LOGD(TAG, "SYM[%03u]: L0=%u D0=%u us | L1=%u D1=%u us", i, s.level0, s.duration0, s.level1, s.duration1);
   }
-  ESP_LOGI(TAG, "RX raw end =======================================");
+  ESP_LOGD(TAG, "RX raw end =======================================");
 }
 
 // RX diagnostics removed for fresh implementation
