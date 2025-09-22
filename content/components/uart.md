@@ -65,10 +65,17 @@ uart:
 - **rx_pin** (*Optional*, [Pin](#config-pin)): The pin to receive data on from the ESP's perspective. Use the full pin
   schema and set `inverted: true` to invert logic levels. Not supported by host platform.
 
+- **flow_control_pin** (*Optional*, [Pin](#config-pin)): ESP32 only. The pin used to for hardware RS485 flow control.
+  Use of this setting enables half-duplex mode. Use the full pin schema and set `inverted: true` to invert logic levels.
+
 - **port** (*Optional*, string): Host platform only. Unix style name of the port to use.
 - **rx_buffer_size** (*Optional*, int): The size of the buffer used for receiving UART messages. Increase if you use an
   integration that needs to read big payloads from UART. Defaults to `256`.
 
+- **rx_full_threshold** (*Optional*, int): ESP32 only. After receiving this number of bytes, the data becomes available for processing.
+  The default is calculated at compilation time to be approximately ten milliseconds (about 8 bytes at 9600 baud, 114 bytes at 115200 baud).
+  
+- **rx_timeout** (*Optional*, int): ESP32 only. This value specifies a number of bytes used to determine the duration of the timeout. The duration of the timeout is based on the amount of time it would take to receive this number of bytes. In other words, for a given value and baud rate, doubling the baud rate will halve the duration of the timeout. After the timeout has elapsed, the data becomes available for processing. Defaults to ``2``.
 - **data_bits** (*Optional*, int): The number of data bits used on the UART bus. Options: 5 to 8. Defaults to 8.
 - **parity** (*Optional*): The parity used on the UART bus. Options: `NONE`, `EVEN`, `ODD`. Defaults to `NONE`.
 - **stop_bits** (*Optional*, int): The number of stop bits to send. Options: 1, 2. Defaults to 1.
@@ -88,8 +95,8 @@ be accurate at higher baud rates.
 logger and leave others available. If you have configured the logger to use a different hardware UART, the pins
 used for hardware sharing change accordingly.
 
-The ESP32 has three UARTs. ESP32 lite variant chips (ESP32-C3, ESP32-S2, ESP32-S3, etc) may have fewer UARTs
-(usually two). Any pair of GPIO pins can be used, as long as they support the proper output/input modes.
+The original ESP32 has three UARTs. ESP32 variants (ESP32-C3, ESP32-S2, etc.) may have a different number of UARTs
+(usually between two to six). Any pair of GPIO pins can be used, as long as they support the proper output/input modes.
 
 The ESP8266 has two UARTs; the second of which is TX-only. Only a limited set of pins can be used. `UART0` may
 use either `tx_pin: GPIO1` and `rx_pin: GPIO3`, or `tx_pin: GPIO15` and `rx_pin: GPIO13`. `UART1` must
@@ -213,6 +220,10 @@ Below are the methods to read current settings and modify them dynamically:
 ```cpp
     // RX buffer size
     id(my_uart).get_rx_buffer_size();
+    // RX FIFO full threshold
+    id(my_uart).get_rx_full_threshold();
+    // RX timeout
+    id(my_uart).get_rx_timeout();
     // Stop bits
     id(my_uart).get_stop_bits();
     // Data bits
@@ -261,11 +272,18 @@ Below are the methods to read current settings and modify them dynamically:
   Available methods for runtime changes:
 
 ```cpp
-    // Set TX/RX pins
+    // Set TX/RX/Flow control pins
     id(my_uart).set_tx_pin(InternalGPIOPin *tx_pin);
     id(my_uart).set_rx_pin(InternalGPIOPin *rx_pin);
+    id(my_uart).set_flow_control_pin(InternalGPIOPin *flow_control_pin);
     // RX buffer size
     id(my_uart).set_rx_buffer_size(size_t rx_buffer_size);
+    // RX FIFO full threshold (in bytes units)
+    id(my_uart).set_rx_full_threshold(size_t rx_full_threshold);
+    // RX FIFO full threshold (in time units)
+    id(my_uart).set_rx_full_threshold_ms(uint8_t time);
+    // RX timeout
+    id(my_uart).set_rx_timeout(size_t rx_timeout);
     // Stop bits
     id(my_uart).set_stop_bits(uint8_t stop_bits);
     // Data bits
