@@ -362,11 +362,17 @@ def test_clean_build(
     assert dependencies_lock.exists()
     assert platformio_cache_dir.exists()
 
-    # Mock PlatformIO's get_project_cache_dir
+    # Mock PlatformIO's ProjectConfig cache_dir
     with patch(
-        "platformio.project.helpers.get_project_cache_dir"
-    ) as mock_get_cache_dir:
-        mock_get_cache_dir.return_value = str(platformio_cache_dir)
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        mock_config = MagicMock()
+        mock_get_instance.return_value = mock_config
+        mock_config.get.side_effect = (
+            lambda section, option: str(platformio_cache_dir)
+            if (section, option) == ("platformio", "cache_dir")
+            else ""
+        )
 
         # Call the function
         with caplog.at_level("INFO"):
@@ -486,7 +492,7 @@ def test_clean_build_platformio_not_available(
 
     # Mock import error for platformio
     with (
-        patch.dict("sys.modules", {"platformio.project.helpers": None}),
+        patch.dict("sys.modules", {"platformio.project.config": None}),
         caplog.at_level("INFO"),
     ):
         # Call the function
@@ -520,11 +526,17 @@ def test_clean_build_empty_cache_dir(
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
 
-    # Mock PlatformIO's get_project_cache_dir to return whitespace
+    # Mock PlatformIO's ProjectConfig cache_dir to return whitespace
     with patch(
-        "platformio.project.helpers.get_project_cache_dir"
-    ) as mock_get_cache_dir:
-        mock_get_cache_dir.return_value = "   "  # Whitespace only
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        mock_config = MagicMock()
+        mock_get_instance.return_value = mock_config
+        mock_config.get.side_effect = (
+            lambda section, option: "   "  # Whitespace only
+            if (section, option) == ("platformio", "cache_dir")
+            else ""
+        )
 
         # Call the function
         with caplog.at_level("INFO"):
