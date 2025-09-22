@@ -376,7 +376,7 @@ class OpenTherm {
 
   void set_protocol_error(ProtocolErrorType error_type, size_t bit_index);
 
-  bool IRAM_ATTR decode_rmt_symbols_(size_t num_symbols);
+  bool decode_rmt_symbols_(size_t num_symbols);
 
   bool check_parity_(uint32_t val);
 };

@@ -37,7 +37,6 @@ bool OpenTherm::initialize() {
   this->in_pin_->setup();
   this->out_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->out_pin_->setup();
-  this->out_pin_->digital_write(true);
 
   return this->rmt_init_();
 }
@@ -146,6 +145,32 @@ bool OpenTherm::rmt_init_() {
   constexpr uint32_t max_filter_ns = 255 * 1000 / (RMT_CLK_FREQ / 1000000);
   this->rx_config_.signal_range_min_ns = std::min(static_cast<uint32_t>(100 * 1000), max_filter_ns);
   this->rx_config_.signal_range_max_ns = 2000 * 1000;
+
+  // Transmit one RMT frame so that output pin becomes high
+  rmt_symbol_word_t syms[1];
+  syms[0].level0 = 0;
+  syms[0].duration0 = 10;
+  syms[0].level1 = 1;
+  syms[0].duration1 = 10;
+
+  rmt_transmit_config_t cfg = {};
+  cfg.loop_count = 0;
+  cfg.flags.eot_level = 1;
+
+  esp_err_t err = rmt_transmit(this->tx_channel_, this->tx_encoder_, syms, sizeof(syms), &cfg);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to transmit RMT init sequence: %s", esp_err_to_name(err));
+    this->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
+
+  // Wait until transmission completes to move to SENT state (simple and robust)
+  err = rmt_tx_wait_all_done(this->tx_channel_, -1);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed waiting for RMT init sequence completion: %s", esp_err_to_name(err));
+    this->mode_ = OperationMode::ERROR_RMT;
+    return false;
+  }
 
   return true;
 }
@@ -284,7 +309,8 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
     } else if (is_long(duration)) {
       if (tick == 1) {
         result = produce_bit(level);
-        // Since we have a long interval, it contains both the second half for the current bit and the first
+        // Since we have a long interval, it contains both the second half for the current bit and the first half for
+        // the next bit.
         tick = 1;
       } else {
         // Long intervals should happen only when we already have first half of a bit.
@@ -302,7 +328,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
     auto symbol = this->rmt_buffer_[rmt_idx];
     for (uint8_t half = 0; half < 2; half++) {
       uint16_t level = half == 0 ? symbol.level0 : symbol.level1;
-      uint16_t duration = level == 0 ? symbol.duration0 : symbol.duration1;
+      uint16_t duration = half == 0 ? symbol.duration0 : symbol.duration1;
       uint8_t bit;
 
       if (duration == 0 && bit_idx == 33) {
@@ -523,7 +549,11 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.f88()).c_str());
 }
 void OpenTherm::debug_error(OpenThermProtocolError &error) const {
-  ESP_LOGD(TAG, "OpenTherm protocol error: %s", OpenTherm::protocol_error_to_str(error.error_type));
+  ESP_LOGD(TAG,
+           "OpenTherm protocol error: %s\n"
+           "Bit index: %u\n"
+           "Data: %s",
+           OpenTherm::protocol_error_to_str(error.error_type), error.bit_index, format_hex(error.data).c_str());
 }
 
 void OpenTherm::debug_rmt() const {
