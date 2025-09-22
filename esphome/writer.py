@@ -325,6 +325,7 @@ def clean_build():
     try:
         from platformio.project.config import ProjectConfig
     except ImportError:
+        # PlatformIO is not available, skip cache cleaning
         pass
     else:
         config = ProjectConfig.get_instance()
@@ -346,6 +347,7 @@ def clean_platform():
     try:
         from platformio.project.config import ProjectConfig
     except ImportError:
+        # PlatformIO is not available, skip cleaning
         pass
     else:
         config = ProjectConfig.get_instance()
