@@ -35,6 +35,10 @@ jobs:
         run: |
           python ./script/sync-device_class.py
 
+      - name: Run pre-commit hooks
+        run: |
+          python script/run-in-env.py pre-commit run --all-files
+
       - name: Commit changes
         uses: peter-evans/create-pull-request@v7.0.8
         with:
