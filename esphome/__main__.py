@@ -453,7 +453,7 @@ def upload_using_esptool(
             "detect",
         ]
         for img in flash_images:
-            cmd += [img.offset, img.path]
+            cmd += [img.offset, str(img.path)]
 
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
@@ -772,7 +772,7 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, f)}")
+        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
         if CORE.dashboard:
@@ -784,10 +784,10 @@ def command_update_all(args: ArgsProtocol) -> int | None:
                 "esphome", "run", f, "--no-logs", "--device", "OTA"
             )
         if rc == 0:
-            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
         else:
-            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {str(f)}")
             success[f] = False
 
         safe_print()
@@ -798,9 +798,9 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     failed = 0
     for f in files:
         if success[f]:
-            safe_print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
+            safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
-            safe_print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
+            safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 
@@ -1273,7 +1273,12 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config(dict(args.substitution) if args.substitution else {})
+        # For logs command, skip updating external components
+        skip_external = args.command == "logs"
+        config = read_config(
+            dict(args.substitution) if args.substitution else {},
+            skip_external_update=skip_external,
+        )
         if config is None:
             return 2
         CORE.config = config
