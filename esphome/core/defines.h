@@ -140,6 +140,7 @@
 // IDF-specific feature flags
 #ifdef USE_ESP_IDF
 #define USE_MQTT_IDF_ENQUEUE
+#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
 #endif
 
 // ESP32-specific feature flags
@@ -276,5 +277,3 @@
 #define ESPHOME_ENTITY_TIME_COUNT 1
 #define ESPHOME_ENTITY_UPDATE_COUNT 1
 #define ESPHOME_ENTITY_VALVE_COUNT 1
-// ESP32 ESP-IDF specific defines
-#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
