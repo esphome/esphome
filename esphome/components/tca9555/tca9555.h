@@ -54,6 +54,8 @@ class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
  protected:
   uint8_t pin_;
   bool inverted_;

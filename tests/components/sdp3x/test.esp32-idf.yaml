@@ -1,11 +1,5 @@
-i2c:
-  - id: i2c_sdp3x
-    scl: 16
-    sda: 17
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
 
-sensor:
-  - platform: sdp3x
-    id: filter_pressure
-    name: HVAC Filter Pressure drop
-    accuracy_decimals: 3
-    update_interval: 5s
+<<: !include common.yaml

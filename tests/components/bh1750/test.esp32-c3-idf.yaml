@@ -1,10 +1,5 @@
-i2c:
-  - id: i2c_bh1750
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: bh1750
-    name: Living Room Brightness
-    address: 0x23
-    update_interval: 30s
+<<: !include common.yaml

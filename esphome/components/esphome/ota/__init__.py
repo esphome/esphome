@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import coroutine_with_priority
+from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,8 +74,7 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
-    for port_conf in merged_ota_esphome_configs_by_port.values():
-        new_ota_conf.append(port_conf)
+    new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
     fv.full_config.set(full_conf)
@@ -100,6 +100,7 @@ CONFIG_SCHEMA = (
                 esp32=3232,
                 rp2040=2040,
                 bk72xx=8892,
+                ln882x=8820,
                 rtl87xx=8892,
             ): cv.port,
             cv.Optional(CONF_PASSWORD): cv.string,
@@ -121,7 +122,7 @@ CONFIG_SCHEMA = (
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
-@coroutine_with_priority(52.0)
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))

@@ -3,7 +3,7 @@
 #ifdef USE_ESP32
 
 #include <freertos/FreeRTOS.h>
-#include <freertos/stream_buffer.h>
+#include <freertos/ringbuf.h>
 
 #include <cinttypes>
 #include <memory>
@@ -50,7 +50,8 @@ class RingBuffer {
    * @param ticks_to_wait Maximum number of FreeRTOS ticks to wait (default: 0)
    * @return Number of bytes written
    */
-  size_t write_without_replacement(const void *data, size_t len, TickType_t ticks_to_wait = 0);
+  size_t write_without_replacement(const void *data, size_t len, TickType_t ticks_to_wait = 0,
+                                   bool write_partial = true);
 
   /**
    * @brief Returns the number of available bytes in the ring buffer.
@@ -82,9 +83,14 @@ class RingBuffer {
   static std::unique_ptr<RingBuffer> create(size_t len);
 
  protected:
-  StreamBufferHandle_t handle_;
-  StaticStreamBuffer_t structure_;
-  uint8_t *storage_;
+  /// @brief Discards data from the ring buffer.
+  /// @param discard_bytes amount of bytes to discard
+  /// @return True if all bytes were successfully discarded, false otherwise
+  bool discard_bytes_(size_t discard_bytes);
+
+  RingbufHandle_t handle_{nullptr};
+  StaticRingbuffer_t structure_;
+  uint8_t *storage_{nullptr};
   size_t size_{0};
 };
 

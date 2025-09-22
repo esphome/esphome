@@ -1,10 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_SWITCH,
-    ICON_WIFI,
-)
+from esphome.const import DEVICE_CLASS_SWITCH, ICON_WIFI
+
 from .. import CONF_AT581X_ID, AT581XComponent, at581x_ns
 
 DEPENDENCIES = ["at581x"]

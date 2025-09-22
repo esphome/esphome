@@ -1,0 +1,8 @@
+output:
+  - platform: x9c
+    id: test_x9c
+    cs_pin: ${cs_pin}
+    inc_pin: ${inc_pin}
+    ud_pin: ${ud_pin}
+    initial_value: 0.5
+    step_delay: 50us

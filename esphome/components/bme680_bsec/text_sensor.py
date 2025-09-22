@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_IAQ_ACCURACY
-from . import BME680BSECComponent, CONF_BME680_BSEC_ID
+
+from . import CONF_BME680_BSEC_ID, BME680BSECComponent
 
 DEPENDENCIES = ["bme680_bsec"]
 

@@ -1,18 +1,17 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client
-
 from esphome.const import (
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -35,7 +34,7 @@ AirthingsWaveBase = airthings_wave_base_ns.class_(
 
 
 BASE_SCHEMA = (
-    sensor.SENSOR_SCHEMA.extend(
+    cv.Schema(
         {
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,

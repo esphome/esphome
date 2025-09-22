@@ -13,3 +13,6 @@ uart:
     rx_buffer_size: 512
     parity: EVEN
     stop_bits: 2
+
+packet_transport:
+  - platform: uart

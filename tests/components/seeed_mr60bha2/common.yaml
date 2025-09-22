@@ -9,6 +9,11 @@ uart:
 seeed_mr60bha2:
   id: my_seeed_mr60bha2
 
+binary_sensor:
+  - platform: seeed_mr60bha2
+    has_target:
+      name: "Person Information"
+
 sensor:
   - platform: seeed_mr60bha2
     breath_rate:
@@ -17,3 +22,5 @@ sensor:
       name: "Real-time heart rate"
     distance:
       name: "Distance to detection object"
+    num_targets:
+      name: "Target Number"

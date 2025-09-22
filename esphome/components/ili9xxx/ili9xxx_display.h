@@ -89,7 +89,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   void dump_config() override;
   void setup() override;
-  void on_shutdown() override { this->command(ILI9XXX_SLPIN); }
+  void on_powerdown() override { this->command(ILI9XXX_SLPIN); }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -98,7 +98,8 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
  protected:
   inline bool check_buffer_() {
     if (this->buffer_ == nullptr) {
-      this->alloc_buffer_();
+      if (!this->is_failed())
+        this->alloc_buffer_();
       return !this->is_failed();
     }
     return true;
@@ -269,6 +270,11 @@ class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
 class ILI9XXXGC9A01A : public ILI9XXXDisplay {
  public:
   ILI9XXXGC9A01A() : ILI9XXXDisplay(INITCMD_GC9A01A, 240, 240) {}
+};
+
+class ILI9XXXGC9D01N : public ILI9XXXDisplay {
+ public:
+  ILI9XXXGC9D01N() : ILI9XXXDisplay(INITCMD_GC9D01N, 160, 160) {}
 };
 
 //-----------   ILI9XXX_24_TFT display --------------

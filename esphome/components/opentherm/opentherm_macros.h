@@ -28,6 +28,9 @@ namespace opentherm {
 #ifndef OPENTHERM_INPUT_SENSOR_LIST
 #define OPENTHERM_INPUT_SENSOR_LIST(F, sep)
 #endif
+#ifndef OPENTHERM_SETTING_LIST
+#define OPENTHERM_SETTING_LIST(F, sep)
+#endif
 
 // Use macros to create fields for every entity specified in the ESPHome configuration
 #define OPENTHERM_DECLARE_SENSOR(entity) sensor::Sensor *entity;
@@ -36,6 +39,7 @@ namespace opentherm {
 #define OPENTHERM_DECLARE_NUMBER(entity) OpenthermNumber *entity;
 #define OPENTHERM_DECLARE_OUTPUT(entity) OpenthermOutput *entity;
 #define OPENTHERM_DECLARE_INPUT_SENSOR(entity) sensor::Sensor *entity;
+#define OPENTHERM_DECLARE_SETTING(type, entity, def) type entity = def;
 
 // Setter macros
 #define OPENTHERM_SET_SENSOR(entity) \
@@ -55,6 +59,9 @@ namespace opentherm {
 
 #define OPENTHERM_SET_INPUT_SENSOR(entity) \
   void set_##entity(sensor::Sensor *sensor) { this->entity = sensor; }
+
+#define OPENTHERM_SET_SETTING(type, entity, def) \
+  void set_##entity(type value) { this->entity = value; }
 
 // ===== hub.cpp macros =====
 
@@ -85,6 +92,9 @@ namespace opentherm {
 #ifndef OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS
 #define OPENTHERM_INPUT_SENSOR_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
 #endif
+#ifndef OPENTHERM_SETTING_MESSAGE_HANDLERS
+#define OPENTHERM_SETTING_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)
+#endif
 
 // Write data request builders
 #define OPENTHERM_MESSAGE_WRITE_MESSAGE(msg) \
@@ -92,6 +102,7 @@ namespace opentherm {
     data.type = MessageType::WRITE_DATA; \
     data.id = request_id;
 #define OPENTHERM_MESSAGE_WRITE_ENTITY(key, msg_data) message_data::write_##msg_data(this->key->state, data);
+#define OPENTHERM_MESSAGE_WRITE_SETTING(key, msg_data) message_data::write_##msg_data(this->key, data);
 #define OPENTHERM_MESSAGE_WRITE_POSTSCRIPT \
   return data; \
   }
