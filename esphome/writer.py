@@ -351,22 +351,11 @@ def clean_platform():
         pass
     else:
         config = ProjectConfig.get_instance()
-        cache_dir = Path(config.get("platformio", "cache_dir"))
-        packages_dir = Path(config.get("platformio", "packages_dir"))
-        platforms_dir = Path(config.get("platformio", "platforms_dir"))
-        core_dir = Path(config.get("platformio", "core_dir"))
-        if cache_dir.is_dir():
-            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-            shutil.rmtree(cache_dir)
-        if packages_dir.is_dir():
-            _LOGGER.info("Deleting PlatformIO packages %s", packages_dir)
-            shutil.rmtree(packages_dir)
-        if platforms_dir.is_dir():
-            _LOGGER.info("Deleting PlatformIO platforms %s", platforms_dir)
-            shutil.rmtree(platforms_dir)
-        if core_dir.is_dir():
-            _LOGGER.info("Deleting PlatformIO core %s", core_dir)
-            shutil.rmtree(core_dir)
+        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
+            path = Path(config.get("platformio", pio_dir))
+            if path.is_dir():
+                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+                shutil.rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
