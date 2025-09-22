@@ -548,3 +548,4 @@ esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zio_ultrasonic/* @kahrendt
+esphome/components/zwave_proxy/* @kbx81
