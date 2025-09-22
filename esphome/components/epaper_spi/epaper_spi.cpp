@@ -35,7 +35,7 @@ static const LogString *epaper_state_to_string(EPaperState state) {
 
 void EPaperBase::setup() {
   if (!this->init_buffer_(this->get_buffer_length())) {
-    this->mark_failed("Failed to initialize buffer");
+    this->mark_failed("Failed to initialise buffer");
     return;
   }
   this->setup_pins_();
@@ -163,7 +163,7 @@ void EPaperBase::loop() {
       this->reset();
       break;
     case EPaperState::INITIALISE:
-      this->initialize_();
+      this->initialise_();
       break;
     case EPaperState::TRANSFER_DATA:
       if (!this->transfer_data()) {
@@ -201,7 +201,7 @@ void EPaperBase::end_data_() { this->disable(); }
 
 void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
-void EPaperBase::initialize_() {
+void EPaperBase::initialise_() {
   size_t index = 0;
   const auto &sequence = this->init_sequence_;
   const size_t sequence_size = this->init_sequence_length_;

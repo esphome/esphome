@@ -50,7 +50,7 @@ class EPaperBase : public display::DisplayBuffer,
   bool is_idle_();
   void setup_pins_();
   virtual void reset();
-  void initialize_();
+  void initialise_();
   bool init_buffer_(size_t buffer_length);
 
   virtual int get_width_controller() { return this->get_width_internal(); };
