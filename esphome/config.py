@@ -32,7 +32,7 @@ from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ def recursive_check_replaceme(value):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPForceValue):
+    if isinstance(value, ESPLiteralValue):
         pass
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
@@ -314,7 +314,7 @@ def recursive_check_replaceme(value):
             "Please make sure you have replaced all fields from the sample "
             "configuration.\n"
             "If you want to use the literal REPLACEME string, "
-            'please use "!force REPLACEME"'
+            'please use "!literal REPLACEME"'
         )
     return value
 
