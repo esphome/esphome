@@ -24,15 +24,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_hello_request(msg);
       break;
     }
-    case ConnectRequest::MESSAGE_TYPE: {
-      ConnectRequest msg;
+#ifdef USE_API_PASSWORD
+    case AuthenticationRequest::MESSAGE_TYPE: {
+      AuthenticationRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_connect_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_authentication_request: %s", msg.dump().c_str());
 #endif
-      this->on_connect_request(msg);
+      this->on_authentication_request(msg);
       break;
     }
+#endif
     case DisconnectRequest::MESSAGE_TYPE: {
       DisconnectRequest msg;
       // Empty message: no decode needed
@@ -160,15 +162,6 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-    case GetTimeRequest::MESSAGE_TYPE: {
-      GetTimeRequest msg;
-      // Empty message: no decode needed
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_get_time_request: %s", msg.dump().c_str());
-#endif
-      this->on_get_time_request(msg);
-      break;
-    }
     case GetTimeResponse::MESSAGE_TYPE: {
       GetTimeResponse msg;
       msg.decode(msg_data, msg_size);
@@ -596,6 +589,28 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_ZWAVE_PROXY
+    case ZWaveProxyFrame::MESSAGE_TYPE: {
+      ZWaveProxyFrame msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_z_wave_proxy_frame: %s", msg.dump().c_str());
+#endif
+      this->on_z_wave_proxy_frame(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZWAVE_PROXY
+    case ZWaveProxyRequest::MESSAGE_TYPE: {
+      ZWaveProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_z_wave_proxy_request: %s", msg.dump().c_str());
+#endif
+      this->on_z_wave_proxy_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }
@@ -606,11 +621,13 @@ void APIServerConnection::on_hello_request(const HelloRequest &msg) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_connect_request(const ConnectRequest &msg) {
-  if (!this->send_connect_response(msg)) {
+#ifdef USE_API_PASSWORD
+void APIServerConnection::on_authentication_request(const AuthenticationRequest &msg) {
+  if (!this->send_authenticate_response(msg)) {
     this->on_fatal_error();
   }
 }
+#endif
 void APIServerConnection::on_disconnect_request(const DisconnectRequest &msg) {
   if (!this->send_disconnect_response(msg)) {
     this->on_fatal_error();
@@ -656,11 +673,6 @@ void APIServerConnection::on_subscribe_home_assistant_states_request(const Subsc
   }
 }
 #endif
-void APIServerConnection::on_get_time_request(const GetTimeRequest &msg) {
-  if (this->check_connection_setup_() && !this->send_get_time_response(msg)) {
-    this->on_fatal_error();
-  }
-}
 #ifdef USE_API_SERVICES
 void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
   if (this->check_authenticated_()) {
@@ -906,6 +918,20 @@ void APIServerConnection::on_voice_assistant_set_configuration(const VoiceAssist
 void APIServerConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
   if (this->check_authenticated_()) {
     this->alarm_control_panel_command(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_frame(msg);
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
+  if (this->check_authenticated_()) {
+    this->zwave_proxy_request(msg);
   }
 }
 #endif
