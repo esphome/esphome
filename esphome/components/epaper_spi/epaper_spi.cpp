@@ -78,7 +78,7 @@ void EPaperBase::data(uint8_t value) {
   this->end_data_();
 }
 
-// write a command followed by one or more bytes of data.
+// write a command followed by zero or more bytes of data.
 // The command is the first byte, length is the length of data only in the second byte, followed by the data.
 // [COMMAND, LENGTH, DATA...]
 void EPaperBase::cmd_data(const uint8_t *data) {
