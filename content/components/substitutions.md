@@ -151,6 +151,21 @@ In addition to the Jinja expressions, ESPHome supports a number of built-in func
 
 {{< anchor "substitute-include-variables" >}}
 
+## Disabling Jinja and substitutions
+
+You can prevent ESPHome from substituting variables or processing Jinja by means of the `!literal` tag before any value:
+
+```yaml
+substitutions:
+  value: "Test Value"
+lvgl:
+  widgets:
+    - label:
+        text: !literal "This is a ${value}"
+```
+
+In the above example, the value of the `text` property will be, literally, `This is a ${value}`.
+
 ## Substitute !include variables
 
 ESPHome's `!include` accepts a list of variables that can be substituted within the included file.
