@@ -1,6 +1,6 @@
 esphome:
   name: om-sensor
-  friendly_name: OM PCB Test
+  friendly_name: OM PCB Test #OM PCB Test #OM POC board
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -10,13 +10,14 @@ esp32:
 logger:
   level: VERBOSE
   #hardware_uart: UART0
-
   baud_rate: 115200
   logs:
     ethernet: VERBOSE
     ethernet.w5500: VERBOSE
     spi: VERBOSE
     esp-idf: VERBOSE
+    #iwr6843aop: VERBOSE
+    #tsl2591: VERBOSE
 
 # Enable Home Assistant API
 api:
@@ -27,14 +28,15 @@ ota:
   - platform: esphome
     password: "faa23229fbe03188178746511093c0e5"
 
+
 # --- Remove or comment out WiFi and captive portal ---
-# wifi:
-#   ssid: !secret wifi_ssid
-#   password: !secret wifi_password
-#   ap:
-#     ssid: "IWR6843-Test Fallback Hotspot"
-#     password: "cYzIXtzxcrwH"
-# captive_portal: 
+#wifi:
+#  ssid: !secret wifi_ssid
+#  password: !secret wifi_password
+#  ap:
+#    ssid: "IWR6843-Test Fallback Hotspot"
+#    password: "cYzIXtzxcrwH"
+#captive_portal: 
 
 
 # --- Ethernet (W5500) configuration, DHCP by default ---
@@ -121,7 +123,7 @@ sensor:
     integration_time: 100ms
     gain: AUTO
     device_factor: 53
-    update_interval: 10s
+    update_interval: 100ms
     visible:
       name: "TSL2591 visible light"
     infrared:

@@ -15,45 +15,26 @@ static float le_bytes_to_float(const uint8_t *data) {
 }
 
 void IWR6843AOPComponent::setup() {
-  // Only proceed if UART devices are available
-  if (uart1_dev_ == nullptr || uart2_dev_ == nullptr) {
-    ESP_LOGW(TAG, "IWR6843AOP component disabled - UART devices not configured");
-    return;
-  }
-  
-  ESP_LOGD(TAG, "Setting up IWR6843AOPComponent - initialization deferred to loop");
+  ESP_LOGI(TAG, "Setting up IWR6843AOPComponent");
   this->last_update_ = millis();
-  this->init_start_time_ = millis();
-  this->init_delay_ = 10000; // 10 second delay after boot
+  
+  // Initialize binary sensors to false on startup
+  if (room_presence_)
+    room_presence_->publish_state(false);
+  if (bed_presence_)
+    bed_presence_->publish_state(false);
+  
+  this->cfg_iwr6843aop();
+  ESP_LOGI(TAG, "IWR6843AOPComponent setup complete");
 }
 
 void IWR6843AOPComponent::loop() {
-  // Only proceed if UART devices are available
-  if (uart1_dev_ == nullptr || uart2_dev_ == nullptr) {
-    return;
-  }
-  
+  static uint32_t last_uart2_read = 0;
   uint32_t now = millis();
-  
-  // Handle delayed initialization
-  if (!configured_ && !config_in_progress_ && (now - init_start_time_) >= init_delay_) {
-    ESP_LOGI(TAG, "Starting delayed IWR6843AOP initialization...");
-    this->cfg_iwr6843aop();
-    config_in_progress_ = true;
-  }
-  
-  // Handle step-by-step configuration
-  if (config_in_progress_) {
-    this->process_config_step();
-  }
-  
-  // Only read data if configured
-  if (configured_) {
-    static uint32_t last_uart2_read = 0;
-    if (now - last_uart2_read >= 50) {  // 20 Hz = every 50 ms
-      last_uart2_read = now;
-      this->read_iwr6843aop_data();
-    }
+  if (now - last_uart2_read >= 50) {  // 20 Hz = every 50 ms
+    last_uart2_read = now;
+    ESP_LOGD(TAG, "Loop: calling read_iwr6843aop_data()");
+    this->read_iwr6843aop_data();
   }
 }
 
@@ -72,59 +53,35 @@ void IWR6843AOPComponent::set_binary_sensor(const std::string &key, esphome::bin
 }
 
 void IWR6843AOPComponent::cfg_iwr6843aop() {
-  // This function now just starts the configuration process
-  ESP_LOGI(TAG, "Starting IWR6843AOP configuration...");
-  this->config_step_ = 0;
-  this->config_start_time_ = millis();
-  this->config_response_.clear();
-}
-
-
-void IWR6843AOPComponent::process_config_step() {
   uart::UARTDevice uart1_dev(uart1_dev_);
-  uint32_t now = millis();
-  
-  // Check if we've completed all configuration steps
-  if (config_step_ >= IWR6843AOP_CFG_LEN) {
-    ESP_LOGI(TAG, "IWR6843AOP configuration completed");
-    config_in_progress_ = false;
-    configured_ = true;
-    return;
-  }
-  
-  // Check if it's time to send the next command (2 second delay)
-  if ((now - config_start_time_) >= 2000) {
-    // Send the command
-    std::string line_to_send = std::string(IWR6843AOP_CFG[config_step_]) + "\n";
+
+  for (size_t i = 0; i < IWR6843AOP_CFG_LEN; ++i) {
+    std::string line_to_send = std::string(IWR6843AOP_CFG[i]) + "\n";
     uart1_dev.write_str(line_to_send.c_str());
-    ESP_LOGI(TAG, "UART1 WRITE: %s", IWR6843AOP_CFG[config_step_]);
-    
-    // Move to next command and reset timer
-    config_step_++;
-    config_start_time_ = now;
-    config_response_.clear();
-    return;
-  }
-  
-  // Read and log any available responses during the 2-second wait
-  while (uart1_dev.available()) {
-    int c = uart1_dev.read();
-    if (c >= 0) {
-      config_response_ += static_cast<char>(c);
-      // Check for end of response (newline or carriage return)
-      if (c == '\n' || c == '\r') {
-        if (!config_response_.empty()) {
-          ESP_LOGI(TAG, "UART1 READ: %s", config_response_.c_str());
-        }
-        config_response_.clear();
-      }
+    ESP_LOGI(TAG, "UART1 WRITE: %s", IWR6843AOP_CFG[i]);
+
+    vTaskDelay(50 / portTICK_PERIOD_MS);  // Give the device time to respond
+
+    std::string response;
+    while (uart1_dev.available()) {
+      int c = uart1_dev.read();
+      if (c >= 0)
+        response += static_cast<char>(c);
+    }
+    if (!response.empty()) {
+      ESP_LOGI(TAG, "UART1 READ: %s", response.c_str());
+    } else {
+      ESP_LOGI(TAG, "UART1 READ: <no response>");
     }
   }
 }
 
+
+
 void IWR6843AOPComponent::read_iwr6843aop_data() {
   // Check if UART2 is available and working
   if (uart2_dev_ == nullptr) {
+    ESP_LOGD(TAG, "UART2 device is nullptr - cannot read data");
     // Set both sensors to OFF if UART2 is not available
     if (bed_presence_ != nullptr) {
       bed_presence_->publish_state(false);
@@ -135,40 +92,248 @@ void IWR6843AOPComponent::read_iwr6843aop_data() {
     return;
   }
   
-  uart::UARTDevice uart2_dev(uart2_dev_);
-  bool data_received = false;
-  bool valid_frame_received = false;
+  // Static variable to track last time we received valid target data
+  static uint32_t last_target_data_time = 0;
+  const uint32_t TARGET_DATA_TIMEOUT_MS = 5000; // 5 seconds timeout
   
-  // Try to read data from UART2
-  while (uart2_dev.available()) {
-    int c = uart2_dev.read();
-    if (c >= 0) {
-      data_received = true;
-      
-      // Check for valid IWR6843 frame header
-      // IWR6843 frames typically start with specific magic bytes
-      // For now, we'll use a simple heuristic: look for printable characters
-      // that might indicate valid radar data (not just noise)
-      if (c >= 32 && c <= 126) {  // Printable ASCII range
-        valid_frame_received = true;
+  ESP_LOGD(TAG, "Reading IWR6843 data from UART2");
+  
+  uart::UARTDevice uart2_dev(uart2_dev_);
+  static std::vector<uint8_t> buffer;
+  // Read all available bytes into buffer
+  int available = uart2_dev.available();
+  
+  if (available > 0) {
+    ESP_LOGD(TAG, "UART2 has %d bytes available", available);
+  }
+
+  // Limit reading to prevent infinite loops with invalid data
+  int max_reads = 10; // Maximum number of read iterations
+  int read_count = 0;
+  
+  while (available && read_count < max_reads) {
+    ESP_LOGD(TAG, "UART2 available: %d", available);
+    for (int i = 0; i < available; ++i) {
+      int c = uart2_dev.read();
+      if (c >= 0) {
+        buffer.push_back(static_cast<uint8_t>(c));
       }
+    }
+    ESP_LOGD(TAG, "Buffer size after reading: %d", static_cast<int>(buffer.size()));
+    available = uart2_dev.available();
+    read_count++;
+    
+    // Small delay to prevent excessive CPU usage
+    if (available > 0) {
+      vTaskDelay(1 / portTICK_PERIOD_MS);
     }
   }
   
-  // Update bed_presence as activity indicator (any data received)
-  if (bed_presence_ != nullptr) {
-    bed_presence_->publish_state(data_received);
+  if (read_count >= max_reads) {
+    ESP_LOGD(TAG, "Reached max read limit, stopping UART2 read");
   }
   
-  // Update room_presence as valid frame indicator
-  if (room_presence_ != nullptr) {
-    room_presence_->publish_state(valid_frame_received);
+  if (buffer.size() > 0) {
+    ESP_LOGD(TAG, "Buffer has %d bytes total", static_cast<int>(buffer.size()));
+  }
+  
+  // Limit buffer size to prevent memory issues
+  const size_t MAX_BUFFER_SIZE = 4096; // 4KB max buffer
+  if (buffer.size() > MAX_BUFFER_SIZE) {
+    ESP_LOGD(TAG, "Buffer too large (%d bytes), clearing", static_cast<int>(buffer.size()));
+    buffer.clear();
+    return;
+  }
+
+  // Example: parse frames from buffer
+  // Replace these constants with your actual protocol values
+  const uint8_t MAGIC_WORD[8] = {0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07};
+
+ 
+  // Find magic word
+  if (buffer.size() >= 8 && std::equal(buffer.begin(), buffer.begin() + 8, std::begin(MAGIC_WORD))) {
+    ESP_LOGD(TAG, "=== IWR6843 FRAME DETECTED ===");
+    ESP_LOGD(TAG, "Magic word found at buffer start!");
+
+    if (buffer.size() < MAGIC_SIZE + HEADER_LEN){
+      ESP_LOGD(TAG, "Not enough data to parse header!");
+      buffer.clear();
+      return;
+    }else {
+      ESP_LOGD(TAG, "Parsing header");
+
+      // Get total packet length from header (bytes 12-15, little-endian)
+      uint32_t packet_len;
+      std::memcpy(&packet_len, &buffer[PACKET_LENGTH_OFFSET], PACKET_LENGTH_SIZE);
+
+      if (buffer.size() < packet_len){
+        ESP_LOGD(TAG, "Not enough data to parse packet! Expected %u bytes, but only %d available",
+                 packet_len, static_cast<int>(buffer.size() - MAGIC_SIZE));
+        buffer.clear();
+        return;  // Not enough data to parse the full packet
+      } else {
+        ESP_LOGD(TAG, "Packet length: %u", packet_len);
+        // Get number of TLVs (bytes 36-39, little-endian)
+        uint32_t num_tlvs;
+        std::memcpy(&num_tlvs, &buffer[NUM_TLVS_OFFSET], 4);
+
+        ESP_LOGD(TAG, "Number of TLVs: %u", num_tlvs);
+
+        size_t tlv_offset = HEADER_LEN;  // Start after magic word and header
+
+        // Parse TLVs
+        for (uint32_t i = 0; i < num_tlvs; ++i) {
+          if (tlv_offset > buffer.size()){
+            ESP_LOGD(TAG, "Not enough data to parse TLV header!");
+            buffer.clear();
+            return;  // Not enough data to parse the TLV header
+          }else{
+            ESP_LOGD(TAG, "Parsing TLV at offset %u", (unsigned int) tlv_offset);
+            uint32_t tlv_type, tlv_length;
+
+            std::memcpy(&tlv_type, &buffer[tlv_offset], 4);
+            std::memcpy(&tlv_length, &buffer[tlv_offset + 4], 4);
+
+            ESP_LOGD(TAG, "TLV type: %u, length: %u", tlv_type, tlv_length);
+
+            if (tlv_offset  + tlv_length > buffer.size()){
+              ESP_LOGD(TAG, "Not enough data to parse TLV payload! Expected %u bytes, but only %d available",
+                       tlv_length, static_cast<int>(buffer.size() - tlv_offset));
+            }else{
+              // TLV type 1010 is Target List
+              if (tlv_type == TLV_TYPE_TARGET_OBJECT_LIST) {
+                ESP_LOGD(TAG, "Processing TLV %u as target list, length: %u", tlv_type, tlv_length);
+                std::vector<uint8_t> tlv_payload(buffer.begin() + tlv_offset + TLV_HEADER_SIZE,
+                                                  buffer.begin() + tlv_offset + tlv_length + TLV_HEADER_SIZE);
+                this->parse_target_list_tlv(tlv_payload);
+                // Update the last time we received valid target data
+                last_target_data_time = millis();
+              } else {
+                ESP_LOGD(TAG, "Skipping TLV type %u, length: %u", tlv_type, tlv_length);
+              }
+            }
+            tlv_offset += tlv_length + TLV_HEADER_SIZE;
+          }
+        }
+      }
+    }
+    buffer.clear();
+  } else {
+   // ESP_LOGD(TAG, "Magic word NOT found at buffer start!");
+    buffer.clear();
+  }
+  
+  // Check if we haven't received target data for too long
+  uint32_t now = millis();
+  if (last_target_data_time > 0 && (now - last_target_data_time) > TARGET_DATA_TIMEOUT_MS) {
+    ESP_LOGD(TAG, "No target data received for %u ms, resetting sensors to false", now - last_target_data_time);
+    if (room_presence_)
+      room_presence_->publish_state(false);
+    if (bed_presence_)
+      bed_presence_->publish_state(false);
+    // Reset the timer to avoid spamming logs
+    last_target_data_time = now;
   }
 }
 
 void IWR6843AOPComponent::parse_target_list_tlv(const std::vector<uint8_t> &tlv_payload) {
-  // Simple placeholder - just log that we received data
-  ESP_LOGD(TAG, "parse_target_list_tlv called with %d bytes", (int)tlv_payload.size());
+  size_t num_targets = tlv_payload.size() / TARGET_STRUCT_SIZE;
+  ESP_LOGD(TAG, "tlv payload length: %d  Number of targets: %d", (int) tlv_payload.size(), (int) num_targets);
+  
+  bool room_present = false;
+  bool bed_present = false;
+  
+  ESP_LOGD(TAG, "=== TARGET LIST PARSED ===");
+  ESP_LOGD(TAG, "Number of targets detected: %d", (int)num_targets);
+  
+  // Room presence: true if ANY targets are detected (regardless of location)
+  room_present = (num_targets > 0);
+  
+  // Define presence boundary box (from IWR6843 config: presenceBoundaryBox -4 4 -4 4 0.5 2.5)
+  const float PRESENCE_X_MIN = -4.0f;
+  const float PRESENCE_X_MAX = 4.0f;
+  const float PRESENCE_Y_MIN = -4.0f;
+  const float PRESENCE_Y_MAX = 4.0f;
+  const float PRESENCE_Z_MIN = 0.5f;
+  const float PRESENCE_Z_MAX = 2.5f;
+
+  for (size_t i = 0; i < num_targets; ++i) {
+    size_t offset = i * TARGET_STRUCT_SIZE + TLV_HEADER_SIZE;
+    const uint8_t *ptr = tlv_payload.data() + offset;
+
+    uint32_t id;
+    std::memcpy(&id, ptr, 4);
+    ptr += 4;
+    float posX = le_bytes_to_float(ptr);
+    ptr += 4;
+    float posY = le_bytes_to_float(ptr);
+    ptr += 4;
+    float posZ = le_bytes_to_float(ptr);
+    ptr += 4;
+    float velX = le_bytes_to_float(ptr);
+    ptr += 4;
+    float velY = le_bytes_to_float(ptr);
+    ptr += 4;
+    float velZ = le_bytes_to_float(ptr);
+    ptr += 4;
+    float accX = le_bytes_to_float(ptr);
+    ptr += 4;
+    float accY = le_bytes_to_float(ptr);
+    ptr += 4;
+    float accZ = le_bytes_to_float(ptr);
+    ptr += 4;
+
+    // Covariance matrix (ec), gating gain (g), confidence
+    float ec[16];
+    for (int j = 0; j < 16; ++j) {
+      ec[j] = le_bytes_to_float(ptr);
+      ptr += 4;
+    }
+    float g = le_bytes_to_float(ptr);
+    ptr += 4;
+    float confidence = le_bytes_to_float(ptr);
+    ptr += 4;
+
+    ESP_LOGD(TAG, "TARGET DETECTED - ID: %u, Position: X=%.2f, Y=%.2f, Z=%.2f", id, posX, posY, posZ);
+    ESP_LOGD(TAG, "Target %u - Velocity: X=%.2f, Y=%.2f, Z=%.2f", id, velX, velY, velZ);
+    ESP_LOGD(TAG, "Target %u - Acceleration: X=%.2f, Y=%.2f, Z=%.2f", id, accX, accY, accZ);
+    ESP_LOGD(TAG, "Target %u - Confidence: %.2f, Gating Gain: %.2f", id, confidence, g);
+    
+    // Check if target is within presence boundary box (for logging purposes)
+    bool in_presence_box = (posX >= PRESENCE_X_MIN && posX <= PRESENCE_X_MAX &&
+                           posY >= PRESENCE_Y_MIN && posY <= PRESENCE_Y_MAX &&
+                           posZ >= PRESENCE_Z_MIN && posZ <= PRESENCE_Z_MAX);
+    
+    if (in_presence_box) {
+      ESP_LOGD(TAG, "Target %u - WITHIN PRESENCE BOUNDARY BOX", id);
+    } else {
+      ESP_LOGD(TAG, "Target %u - Outside presence boundary box (X:%.2f, Y:%.2f, Z:%.2f)", 
+               id, posX, posY, posZ);
+    }
+
+    // Bed presence logic: abs(x) < width and abs(z) < length
+    if (width_ && length_) {
+      float width_val = width_->state;
+      float length_val = length_->state;
+      ESP_LOGD(TAG, "Target %u - Checking bed presence: |X|=%.2f < %.2f? |Z|=%.2f < %.2f?", 
+               id, std::abs(posX), width_val, std::abs(posZ), length_val);
+      if (std::abs(posX) < width_val && std::abs(posZ) < length_val) {
+        bed_present = true;
+        ESP_LOGD(TAG, "Target %u - INSIDE BED AREA!", id);
+      } else {
+        ESP_LOGD(TAG, "Target %u - Outside bed area", id);
+      }
+    }
+  }
+
+  ESP_LOGD(TAG, "=== BINARY SENSOR UPDATES ===");
+  ESP_LOGD(TAG, "Room presence: %s", room_present ? "TARGETS DETECTED" : "NO TARGETS DETECTED");
+  ESP_LOGD(TAG, "Bed presence: %s", bed_present ? "DETECTED IN BED AREA" : "NO TARGETS IN BED AREA");
+  
+  if (room_presence_)
+    room_presence_->publish_state(room_present);
+  if (bed_presence_)
+    bed_presence_->publish_state(bed_present);
 }
 
 }  // namespace iwr6843aop
