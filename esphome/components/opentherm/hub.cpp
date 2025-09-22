@@ -286,7 +286,7 @@ void OpenthermHub::sync_loop_() {
     return;
   }
 
-  // Spin while response is being received, but allow early exit when raw capture is ready
+  // Spin while response is being received
   if (!this->spin_wait_(1150, [&] { return this->opentherm_->is_active(); })) {
     ESP_LOGE(TAG, "Hub timeout triggered during receive");
     this->stop_opentherm_();
@@ -367,11 +367,9 @@ void OpenthermHub::stop_opentherm_() {
 }
 
 void OpenthermHub::handle_protocol_error_() {
-  OpenThermError error;
-  this->opentherm_->get_protocol_error(error);
-  ESP_LOGW(TAG, "Protocol error occured while receiving response: %s",
-           this->opentherm_->protocol_error_to_str(error.error_type));
+  auto error = this->opentherm_->get_protocol_error();
   this->opentherm_->debug_error(error);
+  this->opentherm_->debug_rmt();
   this->stop_opentherm_();
 }
 
@@ -380,10 +378,7 @@ void OpenthermHub::handle_timeout_error_() {
   this->stop_opentherm_();
 }
 
-void OpenthermHub::handle_rmt_error_() {
-  ESP_LOGW(TAG, "RMT error occurred");
-  this->stop_opentherm_();
-}
+void OpenthermHub::handle_rmt_error_() { this->stop_opentherm_(); }
 
 void OpenthermHub::dump_config() {
   std::vector<MessageId> initial_messages;

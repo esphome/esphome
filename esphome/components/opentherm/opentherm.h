@@ -30,6 +30,8 @@ template<class T> constexpr T write_bit(T value, uint8_t bit, uint8_t bit_value)
   return bit_value ? set_bit(value, bit) : clear_bit(value, bit);
 }
 
+// Normal state flow for RMT: IDLE → WRITE → SENT → LISTEN → RECEIVED → IDLE
+// Normal state flow for timers: IDLE → WRITE → SENT → LISTEN → READ → RECEIVED → IDLE
 enum OperationMode {
   IDLE = 0,  // no operation
 
@@ -42,15 +44,16 @@ enum OperationMode {
 
   ERROR_PROTOCOL = 8,  // protocol error, can happen only during READ
   ERROR_TIMEOUT = 9,   // timeout while waiting for response from device, only during LISTEN
-  ERROR_RMT = 10       // error with RMT
+  ERROR_RMT = 10       // error with RMT machinery
 };
 
 enum ProtocolErrorType {
-  NO_ERROR = 0,            // No error
-  NO_TRANSITION = 1,       // No transition in the middle of the bit
-  INVALID_STOP_BIT = 2,    // Stop bit wasn't present when expected
-  PARITY_ERROR = 3,        // Parity check didn't pass
-  NO_CHANGE_TOO_LONG = 4,  // No level change for too much timer ticks
+  NO_ERROR = 0,                // No error
+  NO_TRANSITION = 1,           // No transition in the middle of the bit
+  INVALID_START_STOP_BIT = 2,  // Start or stop bit wasn't present when expected
+  PARITY_ERROR = 3,            // Parity check didn't pass
+  NO_CHANGE_TOO_LONG = 4,      // No level change for too much timer ticks
+  INVALID_DURATION = 5         // Interval had an invalid duration
 };
 
 // Deprecated timer error types (legacy). Kept for compatibility with hub code.
@@ -220,8 +223,9 @@ struct OpenthermData {
   void s16(int16_t value);
 };
 
-struct OpenThermError {
+struct OpenThermProtocolError {
   ProtocolErrorType error_type;
+  size_t bit_index;
   uint32_t data;
 };
 
@@ -282,7 +286,7 @@ class OpenTherm {
    * @param error reference to data structure to which fill the error details
    * @return true if protocol error occurred during last conversation, false otherwise.
    */
-  bool get_protocol_error(OpenThermError &error);
+  const OpenThermProtocolError &get_protocol_error() const;
 
   /**
    * Use this function to check whether send() function already finished sending data packed to line.
@@ -332,7 +336,7 @@ class OpenTherm {
   OperationMode get_mode() { return mode_; }
 
   void debug_data(OpenthermData &data);
-  void debug_error(OpenThermError &error) const;
+  void debug_error(OpenThermProtocolError &error) const;
   void debug_rmt() const;
 
   static const char *protocol_error_to_str(ProtocolErrorType error_type);
@@ -342,35 +346,37 @@ class OpenTherm {
   static const char *message_id_to_str(MessageId id);
 
  private:
-  InternalGPIOPin *in_pin_;
-  InternalGPIOPin *out_pin_;
-  ISRInternalGPIOPin isr_in_pin_;
-  ISRInternalGPIOPin isr_out_pin_;
+  InternalGPIOPin *in_pin_{};
+  InternalGPIOPin *out_pin_{};
+  ISRInternalGPIOPin isr_in_pin_{};
+  ISRInternalGPIOPin isr_out_pin_{};
 
   // RMT resources
-  rmt_channel_handle_t rx_channel_{nullptr};
-  rmt_channel_handle_t tx_channel_{nullptr};
+  rmt_channel_handle_t rx_channel_{};
+  rmt_channel_handle_t tx_channel_{};
   rmt_receive_config_t rx_config_{};
-  rmt_encoder_handle_t tx_encoder_{nullptr};
+  rmt_encoder_handle_t tx_encoder_{};
   // RX buffer for one OpenTherm frame
   // One OpenTherm frame contains 34 Manchester symbols (start + 32 data + stop) and we
   // allow a little slack for diagnostic captures.
   static constexpr size_t RMT_SYMBOL_CAPACITY = 40;
   rmt_symbol_word_t rmt_buffer_[RMT_SYMBOL_CAPACITY]{};
-  size_t rmt_buffer_symbol_count_;
+  size_t rmt_buffer_symbol_count_{};
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
 
-  OperationMode mode_;
-  ProtocolErrorType error_type_;
-  uint32_t data_;
+  OperationMode mode_{OperationMode::IDLE};
+  OpenThermProtocolError error_{};
+  uint32_t data_{};
 
   bool rmt_init_();
-  void rmt_read_async_();
-  void rmt_write_sync_();
+  void rmt_read_();
+  void rmt_write_();
   static bool rmt_read_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *evt, void *arg);
 
-  bool IRAM_ATTR decode_rmt_symbols_();
+  void set_protocol_error(ProtocolErrorType error_type, size_t bit_index);
+
+  bool IRAM_ATTR decode_rmt_symbols_(size_t num_symbols);
 
   bool check_parity_(uint32_t val);
 };

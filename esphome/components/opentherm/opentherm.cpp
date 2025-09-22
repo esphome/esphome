@@ -27,12 +27,7 @@ static const uint32_t RMT_CLK_FREQ = 32000000;
 static const uint32_t RMT_CLK_FREQ = 80000000;
 #endif
 
-OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
-    : in_pin_(in_pin),
-      out_pin_(out_pin),
-      mode_(OperationMode::IDLE),
-      error_type_(ProtocolErrorType::NO_ERROR),
-      data_(0) {
+OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t) : in_pin_(in_pin), out_pin_(out_pin) {
   this->isr_in_pin_ = in_pin->to_isr();
   this->isr_out_pin_ = out_pin->to_isr();
 }
@@ -50,7 +45,7 @@ bool OpenTherm::initialize() {
 void OpenTherm::listen() {
   this->mode_ = OperationMode::LISTEN;
   this->data_ = 0;
-  this->rmt_read_async_();
+  this->rmt_read_();
 }
 
 void OpenTherm::send(OpenthermData &data) {
@@ -63,7 +58,7 @@ void OpenTherm::send(OpenthermData &data) {
   }
 
   this->mode_ = OperationMode::WRITE;
-  this->rmt_write_sync_();
+  this->rmt_write_();
 }
 
 bool OpenTherm::get_message(OpenthermData &data) {
@@ -77,42 +72,32 @@ bool OpenTherm::get_message(OpenthermData &data) {
   return false;
 }
 
-bool OpenTherm::get_protocol_error(OpenThermError &error) {
-  if (this->mode_ != OperationMode::ERROR_PROTOCOL) {
-    return false;
-  }
-
-  error.error_type = this->error_type_;
-  error.data = this->data_;
-
-  return true;
-}
+const OpenThermProtocolError &OpenTherm::get_protocol_error() const { return this->error_; }
 
 void OpenTherm::stop() { this->mode_ = OperationMode::IDLE; }
 
 bool OpenTherm::rmt_init_() {
   // Configure RX channel
-  rmt_rx_channel_config_t rx_chan_cfg;
-  memset(&rx_chan_cfg, 0, sizeof(rx_chan_cfg));
+  rmt_rx_channel_config_t rx_chan_cfg = {};
   rx_chan_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
   rx_chan_cfg.resolution_hz = RMT_RESOLUTION_HZ;  // 1 tick = 1 us
   rx_chan_cfg.mem_block_symbols = 64;             // enough symbols
-  rx_chan_cfg.gpio_num = gpio_num_t(this->in_pin_->get_pin());
+  rx_chan_cfg.gpio_num = static_cast<gpio_num_t>(this->in_pin_->get_pin());
   rx_chan_cfg.intr_priority = 0;
   rx_chan_cfg.flags.invert_in = 0;
   rx_chan_cfg.flags.with_dma = 0;
   rx_chan_cfg.flags.io_loop_back = 0;
   if (rmt_new_rx_channel(&rx_chan_cfg, &this->rx_channel_) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to create RMT RX channel");
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   // Configure TX channel
-  rmt_tx_channel_config_t tx_chan_cfg;
-  memset(&tx_chan_cfg, 0, sizeof(tx_chan_cfg));
+  rmt_tx_channel_config_t tx_chan_cfg = {};
   tx_chan_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
   tx_chan_cfg.resolution_hz = RMT_RESOLUTION_HZ;
-  tx_chan_cfg.gpio_num = gpio_num_t(this->out_pin_->get_pin());
+  tx_chan_cfg.gpio_num = static_cast<gpio_num_t>(this->out_pin_->get_pin());
   tx_chan_cfg.mem_block_symbols = 64;
   tx_chan_cfg.trans_queue_depth = 1;
   tx_chan_cfg.flags.io_loop_back = 0;
@@ -122,52 +107,51 @@ bool OpenTherm::rmt_init_() {
   tx_chan_cfg.intr_priority = 0;
   if (rmt_new_tx_channel(&tx_chan_cfg, &this->tx_channel_) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to create RMT TX channel");
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   // Simple copy encoder for raw symbols
-  rmt_copy_encoder_config_t enc_cfg;
-  memset(&enc_cfg, 0, sizeof(enc_cfg));
+  constexpr rmt_copy_encoder_config_t enc_cfg = {};
   if (rmt_new_copy_encoder(&enc_cfg, &this->tx_encoder_) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to create RMT TX encoder");
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   if (rmt_enable(this->rx_channel_) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to enable RMT RX channel");
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
   if (rmt_enable(this->tx_channel_) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to enable RMT TX channel");
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   // RX done callback
-  rmt_rx_event_callbacks_t cbs;
-  memset(&cbs, 0, sizeof(cbs));
+  rmt_rx_event_callbacks_t cbs = {};
   cbs.on_recv_done = &OpenTherm::rmt_read_callback;
   if (rmt_rx_register_event_callbacks(this->rx_channel_, &cbs, this) != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to register RMT RX callbacks");
+    ESP_LOGE(TAG, "Failed to register RMT RX callback");
+    this->mode_ = OperationMode::ERROR_RMT;
     return false;
   }
 
   // Configure receive timing window
-  memset(&this->rx_config_, 0, sizeof(this->rx_config_));
   // Filter out short glitches; consider signal ended after >2000us without edge
   // Note: signal_range_min_ns must be < 255 cycles of the RMT source clock.
   // Clamp to the hardware-supported maximum to avoid runtime errors.
-  uint32_t max_filter_ns = 255 * 1000 / (RMT_CLK_FREQ / 1000000);
+  constexpr uint32_t max_filter_ns = 255 * 1000 / (RMT_CLK_FREQ / 1000000);
   this->rx_config_.signal_range_min_ns = std::min(static_cast<uint32_t>(100 * 1000), max_filter_ns);
   this->rx_config_.signal_range_max_ns = 2000 * 1000;
 
   return true;
 }
 
-// RX decoding removed for a fresh implementation start. Only capture raw symbols.
-
-void OpenTherm::rmt_read_async_() {
+void OpenTherm::rmt_read_() {
   // Start single receive into internal buffer
-  this->rmt_buffer_symbol_count_ = 0;
   memset(this->rmt_buffer_, 0, sizeof(this->rmt_buffer_));
 
   esp_err_t err = rmt_receive(this->rx_channel_, this->rmt_buffer_, sizeof(this->rmt_buffer_), &this->rx_config_);
@@ -177,7 +161,7 @@ void OpenTherm::rmt_read_async_() {
   }
 }
 
-void OpenTherm::rmt_write_sync_() {
+void OpenTherm::rmt_write_() {
   // Build Manchester stream as raw RMT symbols, 1 bit = two halves of 500us
   rmt_symbol_word_t syms[34];
   auto set_sym = [](rmt_symbol_word_t &s, bool level0, uint16_t dur0, bool level1, uint16_t dur1) {
@@ -208,8 +192,7 @@ void OpenTherm::rmt_write_sync_() {
   // Stop bit '1'
   syms[33] = encode_bit(1);
 
-  rmt_transmit_config_t cfg;
-  memset(&cfg, 0, sizeof(cfg));
+  rmt_transmit_config_t cfg = {};
   cfg.loop_count = 0;
   cfg.flags.eot_level = 1;  // idle high after transmit
 
@@ -219,6 +202,7 @@ void OpenTherm::rmt_write_sync_() {
     this->mode_ = OperationMode::ERROR_RMT;
     return;
   }
+
   // Wait until transmission completes to move to SENT state (simple and robust)
   err = rmt_tx_wait_all_done(this->tx_channel_, -1);
   if (err != ESP_OK) {
@@ -226,139 +210,8 @@ void OpenTherm::rmt_write_sync_() {
     this->mode_ = OperationMode::ERROR_RMT;
     return;
   }
+
   this->mode_ = OperationMode::SENT;
-}
-
-bool IRAM_ATTR OpenTherm::decode_rmt_symbols_() {
-  constexpr size_t DATA_BITS = 32;
-  constexpr size_t TOTAL_BITS = DATA_BITS + 2;  // start + 32 data + stop
-  constexpr uint16_t HALF_BIT_US = 500;
-  constexpr uint16_t HALF_TOLERANCE_US = 200;
-
-  this->error_type_ = ProtocolErrorType::NO_ERROR;
-
-  const size_t symbol_count = this->rmt_buffer_symbol_count_;
-  if (symbol_count == 0 || symbol_count > RMT_SYMBOL_CAPACITY) {
-    this->mode_ = OperationMode::ERROR_RMT;
-    return false;
-  }
-
-  uint32_t raw = 0;
-  size_t pair_index = 0;
-  bool have_pending_half = false;
-  uint8_t pending_level = 0;
-  bool allow_synthetic_last_half = false;
-
-  auto emit_bit = [&](bool bit) -> bool {
-    if (pair_index == 0) {
-      if (!bit) {
-        this->mode_ = OperationMode::ERROR_PROTOCOL;
-        this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;  // framing issue
-        return false;
-      }
-    } else if (pair_index <= DATA_BITS) {
-      raw = (raw << 1) | static_cast<uint32_t>(bit ? 1U : 0U);
-    } else if (pair_index == DATA_BITS + 1) {
-      if (!bit) {
-        this->mode_ = OperationMode::ERROR_PROTOCOL;
-        this->error_type_ = ProtocolErrorType::INVALID_STOP_BIT;
-        this->data_ = raw;
-        return false;
-      }
-    } else {
-      this->mode_ = OperationMode::ERROR_PROTOCOL;
-      this->error_type_ = ProtocolErrorType::NO_TRANSITION;
-      return false;
-    }
-    pair_index++;
-    return true;
-  };
-
-  // Feed one 0.5 ms half bit at a time. Manchester encoding guarantees the level toggles
-  // inside every bit; merged durations (≈1000 us) are split into two halves by calling this
-  // helper twice with the same level.
-  auto consume_half = [&](uint8_t level) -> bool {
-    if (!have_pending_half) {
-      pending_level = level;
-      have_pending_half = true;
-      return true;
-    }
-    if (pending_level == level) {
-      this->mode_ = OperationMode::ERROR_PROTOCOL;
-      this->error_type_ = ProtocolErrorType::NO_TRANSITION;
-      return false;
-    }
-    const bool bit = (pending_level == 1) && (level == 0);  // high->low represents logical '1'
-    have_pending_half = false;
-    return emit_bit(bit);
-  };
-
-  // Interpret an RMT duration by breaking it into one or two half bits, allowing generous
-  // timing tolerance per the specification.
-  auto process_duration = [&](uint8_t level, uint16_t duration, bool is_last_half) -> bool {
-    if (duration == 0) {
-      if (is_last_half) {
-        allow_synthetic_last_half = true;
-      }
-      return true;
-    }
-    uint32_t segments = (duration + (HALF_BIT_US / 2)) / HALF_BIT_US;
-    if (segments == 0 || segments > 2) {
-      this->mode_ = OperationMode::ERROR_RMT;
-      return false;
-    }
-    const uint32_t expected = segments * HALF_BIT_US;
-    const uint32_t tolerance = segments * HALF_TOLERANCE_US;
-    if (duration < expected - tolerance || duration > expected + tolerance) {
-      this->mode_ = OperationMode::ERROR_RMT;
-      return false;
-    }
-    for (uint32_t seg = 0; seg < segments; ++seg) {
-      if (!consume_half(level)) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  for (size_t i = 0; i < symbol_count; ++i) {
-    const auto &sym = this->rmt_buffer_[i];
-    if (!process_duration(sym.level0, sym.duration0, false)) {
-      return false;
-    }
-    const bool is_last_symbol = (i + 1) == symbol_count;
-    if (!process_duration(sym.level1, sym.duration1, is_last_symbol)) {
-      return false;
-    }
-  }
-
-  if (have_pending_half) {
-    if (!allow_synthetic_last_half) {
-      this->mode_ = OperationMode::ERROR_RMT;
-      return false;
-    }
-    // Some boilers stop driving the bus after the first half of the stop bit. Inject the
-    // missing opposite level so the final Manchester pair completes cleanly.
-    if (!consume_half(static_cast<uint8_t>(pending_level ^ 0x1))) {
-      return false;
-    }
-  }
-
-  if (pair_index != TOTAL_BITS) {
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
-    this->error_type_ = ProtocolErrorType::NO_TRANSITION;
-    return false;
-  }
-
-  if (!this->check_parity_(raw)) {
-    this->mode_ = OperationMode::ERROR_PROTOCOL;
-    this->error_type_ = ProtocolErrorType::PARITY_ERROR;
-    this->data_ = raw;
-    return false;
-  }
-
-  this->data_ = raw;
-  return true;
 }
 
 bool IRAM_ATTR OpenTherm::rmt_read_callback(rmt_channel_handle_t, const rmt_rx_done_event_data_t *evt, void *arg) {
@@ -382,13 +235,117 @@ bool IRAM_ATTR OpenTherm::rmt_read_callback(rmt_channel_handle_t, const rmt_rx_d
 
   self->rmt_buffer_symbol_count_ = evt->num_symbols;
 
-  if (!self->decode_rmt_symbols_()) {
+  if (!self->decode_rmt_symbols_(evt->num_symbols)) {
     return false;
   }
 
   self->mode_ = OperationMode::RECEIVED;
 
   return false;
+}
+
+bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
+  static constexpr uint16_t SHORT_DURATION = 500;
+  static constexpr uint16_t LONG_DURATION = 1000;
+  static constexpr uint16_t LEFT_TOLERANCE = 100;
+  static constexpr uint16_t RIGHT_TOLERANCE = 150;
+  static constexpr uint8_t ERROR_BIT_VALUE = 254;
+  static constexpr uint8_t NO_BIT_VALUE = 253;
+
+  uint8_t bit_idx = 0;
+  uint8_t prev_level = 0;
+  uint8_t tick = 0;
+
+  this->error_ = {};
+
+  auto is_short = [](uint16_t duration) -> bool {
+    return duration >= SHORT_DURATION - LEFT_TOLERANCE && duration <= SHORT_DURATION + RIGHT_TOLERANCE;
+  };
+
+  auto is_long = [](uint16_t duration) -> bool {
+    return duration >= LONG_DURATION - LEFT_TOLERANCE * 2 && duration <= LONG_DURATION + RIGHT_TOLERANCE * 2;
+  };
+
+  auto produce_bit = [&](uint16_t level) -> uint8_t {
+    if (prev_level == level) {
+      this->set_protocol_error(ProtocolErrorType::NO_TRANSITION, bit_idx);
+      return ERROR_BIT_VALUE;
+    }
+
+    return level == 1 ? 0 : 1;  // Rising edge → logical 0, falling edge → logical 1.
+  };
+
+  auto process_level = [&](uint16_t level, uint16_t duration) -> uint8_t {
+    uint8_t result = ERROR_BIT_VALUE;
+    if (is_short(duration)) {
+      result = tick == 1 ? produce_bit(level) : NO_BIT_VALUE;
+      tick = tick == 0 ? 1 : 0;
+      prev_level = level;
+    } else if (is_long(duration)) {
+      if (tick == 1) {
+        result = produce_bit(level);
+        // Since we have a long interval, it contains both the second half for the current bit and the first
+        tick = 1;
+      } else {
+        // Long intervals should happen only when we already have first half of a bit.
+        this->set_protocol_error(ProtocolErrorType::NO_CHANGE_TOO_LONG, bit_idx);
+      }
+    } else {
+      this->set_protocol_error(ProtocolErrorType::INVALID_DURATION, bit_idx);
+    }
+
+    prev_level = level;
+    return result;
+  };
+
+  for (size_t rmt_idx = 0; rmt_idx < num_symbols; rmt_idx++) {
+    auto symbol = this->rmt_buffer_[rmt_idx];
+    for (uint8_t half = 0; half < 2; half++) {
+      uint16_t level = half == 0 ? symbol.level0 : symbol.level1;
+      uint16_t duration = level == 0 ? symbol.duration0 : symbol.duration1;
+      uint8_t bit;
+
+      if (duration == 0 && bit_idx == 33) {
+        // Edge case for the stop bit. RMT reports last low level with 0 duration.
+        if (level == 0 && prev_level == 1) {
+          bit = 1;
+        } else {
+          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT, bit_idx);
+          return false;
+        }
+      } else {
+        bit = process_level(level, duration);
+      }
+
+      if (bit == ERROR_BIT_VALUE) {
+        return false;
+      }
+
+      if (bit == NO_BIT_VALUE)
+        continue;
+
+      if (bit_idx == 0 || bit_idx == 33) {  // Check start and stop bit
+        if (bit != 1) {
+          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT, bit_idx);
+          return false;
+        }
+      } else {
+        this->data_ = (this->data_ << 1) | bit;
+      }
+
+      if (bit_idx == 33)  // And we are done!
+        return true;
+
+      bit_idx++;
+    }
+  }
+}
+
+void OpenTherm::set_protocol_error(ProtocolErrorType error_type, size_t bit_index) {
+  this->mode_ = OperationMode::ERROR_PROTOCOL;
+  this->error_.error_type = error_type;
+  this->error_.bit_index = bit_index;
+  this->error_.data = data_;
 }
 
 // https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
@@ -424,9 +381,10 @@ const char *OpenTherm::protocol_error_to_str(ProtocolErrorType error_type) {
   switch (error_type) {
     TO_STRING_MEMBER(NO_ERROR)
     TO_STRING_MEMBER(NO_TRANSITION)
-    TO_STRING_MEMBER(INVALID_STOP_BIT)
+    TO_STRING_MEMBER(INVALID_START_STOP_BIT)
     TO_STRING_MEMBER(PARITY_ERROR)
     TO_STRING_MEMBER(NO_CHANGE_TOO_LONG)
+    TO_STRING_MEMBER(INVALID_DURATION)
     default:
       return "<INVALID>";
   }
@@ -564,8 +522,8 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.valueHB).c_str(), to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(),
            to_string(data.f88()).c_str());
 }
-void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "OpenTherm error: %s", OpenTherm::protocol_error_to_str(error.error_type));
+void OpenTherm::debug_error(OpenThermProtocolError &error) const {
+  ESP_LOGD(TAG, "OpenTherm protocol error: %s", OpenTherm::protocol_error_to_str(error.error_type));
 }
 
 void OpenTherm::debug_rmt() const {
