@@ -1,6 +1,6 @@
+import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_ID
 
 from ..mbus import CONF_MBUS_ID, MBus
