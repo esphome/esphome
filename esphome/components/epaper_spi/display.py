@@ -26,7 +26,7 @@ EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
 EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
 
 MODELS = {
-    "7.3in Spectra E6": EPaper7p3InSpectraE6,
+    "7.3in-spectra-e6": EPaper7p3InSpectraE6,
 }
 
 
@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(EPaperBase),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
+            cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True, space="-"),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_FULL_UPDATE_EVERY): cv.int_range(min=1, max=4294967295),
