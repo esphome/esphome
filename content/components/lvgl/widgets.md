@@ -43,8 +43,8 @@ Similarly to CSS, LVGL also supports `min_width`, `max_width`, `min_height` and 
   - `"ACTIVE"`  : Show scroll bars while a widget is being scrolled.
   - `"AUTO"`  : Show scroll bars when the content is large enough to be scrolled (default).
 
-- **align** (*Optional*, enum): Alignment of the of the widget relative to the parent. A child widget is clipped to its parent boundaries. One of the values *not* starting with `OUT_` (see picture below).
-- **align_to** (*Optional*, list): Alignment of the of the widget relative to another widget on the same level:
+- **align** (*Optional*, enum): Alignment of the widget relative to the parent. A child widget is clipped to its parent boundaries. One of the values *not* starting with `OUT_` (see picture below).
+- **align_to** (*Optional*, list): Alignment of the widget relative to another widget on the same level:
   - **id** (**Required**): The ID of a widget *to* which you want to align.
   - **align** (**Required**, string): Desired alignment (one of the values starting with `OUT_`  ).
   - **x** (*Optional*, int16 or percentage): Horizontal offset position. Default `0`.
