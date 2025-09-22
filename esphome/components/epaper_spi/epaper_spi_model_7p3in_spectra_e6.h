@@ -1,10 +1,10 @@
 #pragma once
 
-#include "epaper_spi_base_6_color.h"
+#include "epaper_spi_spectra_e6.h"
 
 namespace esphome::epaper_spi {
 
-class EPaper7p3InE : public EPaper6Color {
+class EPaper7p3InSpectraE6 : public EPaperSpectraE6 {
   static constexpr const uint16_t WIDTH = 800;
   static constexpr const uint16_t HEIGHT = 480;
   // clang-format off
@@ -28,7 +28,7 @@ class EPaper7p3InE : public EPaper6Color {
   // clang-format on
 
  public:
-  EPaper7p3InE() : EPaper6Color(INIT_SEQUENCE, sizeof(INIT_SEQUENCE)) {}
+  EPaper7p3InSpectraE6() : EPaperSpectraE6(INIT_SEQUENCE, sizeof(INIT_SEQUENCE)) {}
 
   void dump_config() override;
 

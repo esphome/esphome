@@ -21,11 +21,12 @@ epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
-EPaper6Color = epaper_spi_ns.class_("EPaper6Color", EPaperBase)
-EPaper7p3InE = epaper_spi_ns.class_("EPaper7p3InE", EPaper6Color)
+
+EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
+EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
 
 MODELS = {
-    "7.30in-e": ("b", EPaper7p3InE),
+    "7.3in Spectra E6": EPaper7p3InSpectraE6,
 }
 
 
@@ -71,7 +72,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config):
-    _, model = MODELS[config[CONF_MODEL]]
+    model = MODELS[config[CONF_MODEL]]
 
     rhs = model.new()
     var = cg.Pvariable(config[CONF_ID], rhs, model)

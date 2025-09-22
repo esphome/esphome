@@ -4,9 +4,9 @@
 
 namespace esphome::epaper_spi {
 
-class EPaper6Color : public EPaperBase {
+class EPaperSpectraE6 : public EPaperBase {
  public:
-  EPaper6Color(const uint8_t *init_sequence, const size_t init_sequence_length)
+  EPaperSpectraE6(const uint8_t *init_sequence, const size_t init_sequence_length)
       : EPaperBase(init_sequence, init_sequence_length) {}
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }

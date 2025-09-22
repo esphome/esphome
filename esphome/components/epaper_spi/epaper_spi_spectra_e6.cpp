@@ -1,4 +1,4 @@
-#include "epaper_spi_base_6_color.h"
+#include "epaper_spi_spectra_e6.h"
 
 #include "esphome/core/log.h"
 
@@ -34,7 +34,7 @@ static inline uint8_t color_to_hex(Color color) {
   }
 }
 
-void EPaper6Color::fill(Color color) {
+void EPaperSpectraE6::fill(Color color) {
   uint8_t pixel_color;
   if (color.is_on()) {
     pixel_color = color_to_hex(color);
@@ -57,12 +57,12 @@ void EPaper6Color::fill(Color color) {
   }
 }
 
-uint32_t EPaper6Color::get_buffer_length() {
+uint32_t EPaperSpectraE6::get_buffer_length() {
   // 6 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
   return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
 }
 
-void HOT EPaper6Color::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
@@ -85,7 +85,7 @@ void HOT EPaper6Color::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-bool HOT EPaper6Color::transfer_data() {
+bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
   if (this->current_data_index_ == 0) {
     ESP_LOGI(TAG, "Sending data to the display");
@@ -119,7 +119,7 @@ bool HOT EPaper6Color::transfer_data() {
   return true;
 }
 
-void EPaper6Color::reset() {
+void EPaperSpectraE6::reset() {
   if (this->reset_pin_ != nullptr) {
     this->disable_loop();
     this->reset_pin_->digital_write(true);
