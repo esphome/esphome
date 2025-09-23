@@ -305,7 +305,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
     return;
   }
 
-  auto err = connection->write_characteristic(msg.handle, msg.data, msg.response);
+  auto err = connection->write_characteristic(msg.handle, msg.data, msg.data_len, msg.response);
   if (err != ESP_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
@@ -331,7 +331,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
     return;
   }
 
-  auto err = connection->write_descriptor(msg.handle, msg.data, true);
+  auto err = connection->write_descriptor(msg.handle, msg.data, msg.data_len, true);
   if (err != ESP_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
