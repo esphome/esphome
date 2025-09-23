@@ -1571,7 +1571,7 @@ message BluetoothGATTWriteRequest {
   uint32 handle = 2;
   bool response = 3;
 
-  bytes data = 4;
+  bytes data = 4 [(pointer_to_buffer) = true];
 }
 
 message BluetoothGATTReadDescriptorRequest {
@@ -1591,7 +1591,7 @@ message BluetoothGATTWriteDescriptorRequest {
   uint64 address = 1;
   uint32 handle = 2;
 
-  bytes data = 3;
+  bytes data = 3 [(pointer_to_buffer) = true];
 }
 
 message BluetoothGATTNotifyRequest {
