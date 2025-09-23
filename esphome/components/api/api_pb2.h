@@ -2929,11 +2929,11 @@ class UpdateCommandRequest final : public CommandProtoMessage {
 class ZWaveProxyFrame final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 128;
-  static constexpr uint8_t ESTIMATED_SIZE = 33;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_frame"; }
 #endif
-  uint8_t data[257]{};
+  const uint8_t *data{nullptr};
   uint16_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;

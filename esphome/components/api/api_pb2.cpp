@@ -3029,12 +3029,9 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      const std::string &data_str = value.as_string();
-      this->data_len = data_str.size();
-      if (this->data_len > 257) {
-        this->data_len = 257;
-      }
-      memcpy(this->data, data_str.data(), this->data_len);
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
     }
     default:
