@@ -18,10 +18,12 @@ std::string build_json(const json_build_t &f) {
 }
 
 bool parse_json(const std::string &data, const json_parse_t &f) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   JsonDocument doc = parse_json(data);
   if (doc.overflowed() || doc.size() == 0)
     return false;
   return f(doc.as<JsonObject>());
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 JsonDocument parse_json(const std::string &data) {
