@@ -36,7 +36,6 @@ SafeExpType = (
     Expression
     | bool
     | str
-    | str
     | int
     | float
     | TimePeriod
