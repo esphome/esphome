@@ -32,8 +32,8 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void handle_handshake_();
   void handle_data_();
 #ifdef USE_OTA_PASSWORD
-  bool perform_hash_auth_(HashBase *hasher, const std::string &password, size_t nonce_size, uint8_t auth_request,
-                          const LogString *name, char *buf);
+  bool perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request, const LogString *name,
+                          char *buf);
   void log_auth_warning_(const LogString *action, const LogString *hash_name);
 #endif  // USE_OTA_PASSWORD
   bool readall_(uint8_t *buf, size_t len);

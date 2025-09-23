@@ -166,7 +166,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
         raise OTAError("Error: Authentication invalid. Is the password correct?")
     if dat == RESPONSE_ERROR_WRITING_FLASH:
         raise OTAError(
-            "Error: Wring OTA data to flash memory failed. See USB logs for more "
+            "Error: Writing OTA data to flash memory failed. See USB logs for more "
             "information."
         )
     if dat == RESPONSE_ERROR_UPDATE_END:
