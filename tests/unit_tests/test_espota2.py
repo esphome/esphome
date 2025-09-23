@@ -149,7 +149,7 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
         (espota2.RESPONSE_ERROR_AUTH_INVALID, "Error: Authentication invalid"),
         (
             espota2.RESPONSE_ERROR_WRITING_FLASH,
-            "Error: Wring OTA data to flash memory failed",
+            "Error: Writing OTA data to flash memory failed",
         ),
         (espota2.RESPONSE_ERROR_UPDATE_END, "Error: Finishing update failed"),
         (
