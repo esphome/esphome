@@ -670,7 +670,9 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
-  dump_field(out, "client_info", this->client_info);
+  out.append("  client_info: ");
+  out.append(format_hex_pretty(this->client_info, this->client_info_len));
+  out.append("\n");
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
 }
@@ -682,7 +684,12 @@ void HelloResponse::dump_to(std::string &out) const {
   dump_field(out, "name", this->name_ref_);
 }
 #ifdef USE_API_PASSWORD
-void AuthenticationRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
+void AuthenticationRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "AuthenticationRequest");
+  out.append("  password: ");
+  out.append(format_hex_pretty(this->password, this->password_len));
+  out.append("\n");
+}
 void AuthenticationResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AuthenticationResponse");
   dump_field(out, "invalid_password", this->invalid_password);
@@ -1136,7 +1143,9 @@ void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeReques
 void GetTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
-  dump_field(out, "timezone", this->timezone);
+  out.append("  timezone: ");
+  out.append(format_hex_pretty(this->timezone, this->timezone_len));
+  out.append("\n");
 }
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {

@@ -102,7 +102,7 @@ message HelloRequest {
   // For example "Home Assistant"
   // Not strictly necessary to send but nice for debugging
   // purposes.
-  string client_info = 1;
+  string client_info = 1 [(pointer_to_buffer) = true];
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
 }
@@ -139,7 +139,7 @@ message AuthenticationRequest {
   option (ifdef) = "USE_API_PASSWORD";
 
   // The password to log in with
-  string password = 1;
+  string password = 1 [(pointer_to_buffer) = true];
 }
 
 // Confirmation of successful connection. After this the connection is available for all traffic.
@@ -824,7 +824,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2;
+  string timezone = 2 [(pointer_to_buffer) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================

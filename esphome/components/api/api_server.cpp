@@ -217,12 +217,12 @@ void APIServer::dump_config() {
 }
 
 #ifdef USE_API_PASSWORD
-bool APIServer::check_password(const std::string &password) const {
+bool APIServer::check_password(const uint8_t *password_data, size_t password_len) const {
   // depend only on input password length
   const char *a = this->password_.c_str();
   uint32_t len_a = this->password_.length();
-  const char *b = password.c_str();
-  uint32_t len_b = password.length();
+  const char *b = reinterpret_cast<const char *>(password_data);
+  uint32_t len_b = password_len;
 
   // disable optimization with volatile
   volatile uint32_t length = len_b;
@@ -245,6 +245,7 @@ bool APIServer::check_password(const std::string &password) const {
 
   return result == 0;
 }
+
 #endif
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
