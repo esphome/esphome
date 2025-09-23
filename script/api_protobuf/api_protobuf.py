@@ -353,12 +353,25 @@ def create_field_type_info(
             return FixedArrayRepeatedType(field, size_define)
         return RepeatedTypeInfo(field)
 
-    # Check for fixed_array_size option on bytes fields
-    if (
-        field.type == 12
-        and (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None
-    ):
-        return FixedArrayBytesType(field, fixed_size)
+    # Check for mutually exclusive options on bytes fields
+    if field.type == 12:
+        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
+        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
+
+        if has_pointer_to_buffer and fixed_size is not None:
+            raise ValueError(
+                f"Field '{field.name}' has both pointer_to_buffer and fixed_array_size. "
+                "These options are mutually exclusive. Use pointer_to_buffer for zero-copy "
+                "or fixed_array_size for traditional array storage."
+            )
+
+        if has_pointer_to_buffer:
+            # Zero-copy pointer approach - no size needed, will use size_t for length
+            return PointerToBytesBufferType(field, None)
+
+        if fixed_size is not None:
+            # Traditional fixed array approach with copy
+            return FixedArrayBytesType(field, fixed_size)
 
     # Special handling for bytes fields
     if field.type == 12:
@@ -816,6 +829,91 @@ class BytesType(TypeInfo):
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
+
+
+class PointerToBytesBufferType(TypeInfo):
+    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
+    def __init__(
+        self, field: descriptor.FieldDescriptorProto, size: int | None = None
+    ) -> None:
+        super().__init__(field)
+        # Size is not used for pointer_to_buffer - we always use size_t for length
+        self.array_size = 0
+
+    @property
+    def cpp_type(self) -> str:
+        return "const uint8_t*"
+
+    @property
+    def default_value(self) -> str:
+        return "nullptr"
+
+    @property
+    def reference_type(self) -> str:
+        return "const uint8_t*"
+
+    @property
+    def const_reference_type(self) -> str:
+        return "const uint8_t*"
+
+    @property
+    def public_content(self) -> list[str]:
+        # Use uint16_t for length - max packet size is well below 65535
+        # Add pointer and length fields
+        return [
+            f"const uint8_t* {self.field_name}{{nullptr}};",
+            f"uint16_t {self.field_name}_len{{0}};",
+        ]
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+
+    @property
+    def decode_length_content(self) -> str | None:
+        # Decode directly stores the pointer to avoid allocation
+        return f"""case {self.number}: {{
+      // Use raw data directly to avoid allocation
+      this->{self.field_name} = value.data();
+      this->{self.field_name}_len = value.size();
+      break;
+    }}"""
+
+    @property
+    def decode_length(self) -> str | None:
+        # This is handled in decode_length_content
+        return None
+
+    @property
+    def wire_type(self) -> WireType:
+        """Get the wire type for this bytes field."""
+        return WireType.LENGTH_DELIMITED  # Uses wire type 2
+
+    def dump(self, name: str) -> str:
+        return (
+            f"format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len)"
+        )
+
+    @property
+    def dump_content(self) -> str:
+        # Custom dump that doesn't use dump_field template
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + f"out.append({self.dump(self.field_name)});\n"
+            + 'out.append("\\n");'
+        )
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        return f"size.add_length({self.number}, this->{self.field_name}_len);"
+
+    def get_estimated_size(self) -> int:
+        # field ID + length varint + typical data (assume small for pointer fields)
+        return self.calculate_field_id_size() + 2 + 16
 
 
 class FixedArrayBytesType(TypeInfo):
