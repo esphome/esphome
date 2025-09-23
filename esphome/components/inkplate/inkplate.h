@@ -1,9 +1,17 @@
 #pragma once
 
 #include "esphome/components/display/display_buffer.h"
-#include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+
+// Only include I2C for parallel GPIO models that need it
+#ifdef USE_INKPLATE_I2C
+#include "esphome/components/i2c/i2c.h"
+#endif
+
+#ifdef USE_ESP32
+#include <SPI.h>
+#endif
 
 #include <array>
 
@@ -17,7 +25,13 @@ enum InkplateModel : uint8_t {
   INKPLATE_6_V2 = 3,
   INKPLATE_5 = 4,
   INKPLATE_5_V2 = 5,
+  INKPLATE_6_COLOR = 6,
 };
+
+// Communication interface helpers for extensibility
+inline bool is_spi_model(InkplateModel model) { return model == INKPLATE_6_COLOR; }
+
+inline bool is_parallel_model(InkplateModel model) { return !is_spi_model(model); }
 
 static constexpr uint8_t GLUT_SIZE = 9;
 static constexpr uint8_t GLUT_COUNT = 8;
@@ -32,7 +46,12 @@ static constexpr uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0
 static constexpr uint8_t PIXEL_MASK_LUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
 
-class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
+class Inkplate : public display::DisplayBuffer
+#ifdef USE_INKPLATE_I2C
+    ,
+                 public i2c::I2CDevice
+#endif
+{
  public:
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
@@ -77,6 +96,14 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   void set_vcom_pin(GPIOPin *vcom) { this->vcom_pin_ = vcom; }
   void set_wakeup_pin(GPIOPin *wakeup) { this->wakeup_pin_ = wakeup; }
 
+  // SPI pins for SPI-based models
+  void set_epaper_rst_pin(GPIOPin *rst) { this->epaper_rst_pin_ = rst; }
+  void set_epaper_dc_pin(GPIOPin *dc) { this->epaper_dc_pin_ = dc; }
+  void set_epaper_cs_pin(GPIOPin *cs) { this->epaper_cs_pin_ = cs; }
+  void set_epaper_busy_pin(GPIOPin *busy) { this->epaper_busy_pin_ = busy; }
+  void set_epaper_clk_pin(GPIOPin *clk) { this->epaper_clk_pin_ = clk; }
+  void set_epaper_din_pin(GPIOPin *din) { this->epaper_din_pin_ = din; }
+
   float get_setup_priority() const override;
 
   void dump_config() override;
@@ -97,6 +124,9 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   void block_partial() { this->block_partial_ = true; }
 
   display::DisplayType get_display_type() override {
+    if (is_spi_model(this->model_)) {
+      return display::DisplayType::DISPLAY_TYPE_COLOR;
+    }
     return get_greyscale() ? display::DisplayType::DISPLAY_TYPE_GRAYSCALE : display::DisplayType::DISPLAY_TYPE_BINARY;
   }
 
@@ -104,7 +134,15 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void display1b_();
   void display3b_();
+  void display_color_();
   void initialize_();
+
+  // SPI communication functions for SPI-based models
+  void send_command_(uint8_t command);
+  void send_data_(uint8_t *data, int length);
+  void send_data_(uint8_t data);
+  bool set_panel_deep_sleep_(bool state);
+  uint8_t map_color_to_palette_(Color color);
   bool partial_update_();
   void clean_fast_(uint8_t c, uint8_t rep);
 
@@ -131,6 +169,11 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
       return 1280;
     } else if (this->model_ == INKPLATE_6_PLUS) {
       return 1024;
+    } else if (is_spi_model(this->model_)) {
+      // SPI-based models (currently only COLOR)
+      if (this->model_ == INKPLATE_6_COLOR) {
+        return 600;
+      }
     }
     return 0;
   }
@@ -146,6 +189,11 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
       return 825;
     } else if (this->model_ == INKPLATE_6_PLUS) {
       return 758;
+    } else if (is_spi_model(this->model_)) {
+      // SPI-based models (currently only COLOR)
+      if (this->model_ == INKPLATE_6_COLOR) {
+        return 448;
+      }
     }
     return 0;
   }
@@ -208,6 +256,20 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   GPIOPin *spv_pin_;
   GPIOPin *vcom_pin_;
   GPIOPin *wakeup_pin_;
+
+  // SPI pins for SPI-based models
+  GPIOPin *epaper_rst_pin_;
+  GPIOPin *epaper_dc_pin_;
+  GPIOPin *epaper_cs_pin_;
+  GPIOPin *epaper_busy_pin_;
+  GPIOPin *epaper_clk_pin_;
+  GPIOPin *epaper_din_pin_;
+
+#ifdef USE_ESP32
+  // SPI communication for SPI-based models
+  SPIClass *spi_class_{nullptr};
+  SPISettings spi_settings_;
+#endif
 };
 
 }  // namespace inkplate
