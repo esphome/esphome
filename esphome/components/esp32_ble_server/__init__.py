@@ -573,8 +573,7 @@ async def to_code(config):
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
 
 @automation.register_action(
