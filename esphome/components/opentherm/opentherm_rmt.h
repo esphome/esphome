@@ -46,12 +46,14 @@ class OpenTherm : public OpenThermBase {
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
   static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000u;
 
+  size_t bit_index_{};
+
   bool rmt_init_();
   void rmt_read_();
   void rmt_write_();
   static bool rmt_read_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *evt, void *arg);
 
-  void set_protocol_error(ProtocolErrorType error_type, size_t bit_index);
+  void set_protocol_error(ProtocolErrorType error_type);
 
   bool decode_rmt_symbols_(size_t num_symbols);
 };

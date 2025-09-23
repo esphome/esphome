@@ -176,12 +176,14 @@ void debug_data(OpenthermData &data) {
            to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(), to_string(data.f88()).c_str());
 }
 
-void debug_error(OpenThermProtocolError &error) {
-  ESP_LOGD(TAG,
-           "OpenTherm protocol error: %s\n"
-           "Bit index: %u\n"
-           "Data: %s",
-           protocol_error_to_str(error.error_type), error.bit_index, format_hex(error.data).c_str());
+// https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
+bool IRAM_ATTR check_parity(uint32_t val) {
+  val ^= val >> 16;
+  val ^= val >> 8;
+  val ^= val >> 4;
+  val ^= val >> 2;
+  val ^= val >> 1;
+  return (~val) & 1;
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
@@ -229,7 +231,7 @@ void OpenThermBase::send(OpenthermData &data) {
   this->data_ = (this->data_ << 12) | data.id;
   this->data_ = (this->data_ << 8) | data.valueHB;
   this->data_ = (this->data_ << 8) | data.valueLB;
-  if (!check_parity_(this->data_)) {
+  if (!check_parity(this->data_)) {
     this->data_ = this->data_ | 0x80000000;
   }
 
@@ -247,19 +249,7 @@ bool OpenThermBase::get_message(OpenthermData &data) {
   return false;
 }
 
-const OpenThermProtocolError &OpenThermBase::get_protocol_error() const { return this->error_; }
-
 void OpenThermBase::stop() { this->mode_ = OperationMode::IDLE; }
-
-// https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
-bool IRAM_ATTR OpenThermBase::check_parity_(uint32_t val) {
-  val ^= val >> 16;
-  val ^= val >> 8;
-  val ^= val >> 4;
-  val ^= val >> 2;
-  val ^= val >> 1;
-  return (~val) & 1;
-}
 
 }  // namespace opentherm
 }  // namespace esphome

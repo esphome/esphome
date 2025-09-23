@@ -363,9 +363,8 @@ void OpenthermHub::stop_opentherm_() {
 }
 
 void OpenthermHub::handle_protocol_error_() {
-  auto error = this->opentherm_->get_protocol_error();
-  ESP_LOGW(TAG, "OpenTherm protocol error: %s", protocol_error_to_str(error.error_type));
-  debug_error(error);
+  auto error_type = this->opentherm_->get_protocol_error_type();
+  ESP_LOGW(TAG, "OpenTherm protocol error: %s", protocol_error_to_str(error_type));
   this->opentherm_->debug_rmt();
   this->stop_opentherm_();
 }

@@ -210,12 +210,6 @@ struct OpenthermData {
   void s16(int16_t value);
 };
 
-struct OpenThermProtocolError {
-  ProtocolErrorType error_type;
-  size_t bit_index;
-  uint32_t data;
-};
-
 const char *protocol_error_to_str(ProtocolErrorType error_type);
 const char *timer_error_to_str(TimerErrorType error_type);
 const char *message_type_to_str(MessageType message_type);
@@ -224,7 +218,7 @@ const char *message_id_to_str(MessageId id);
 
 void debug_data(OpenthermData &data);
 
-void debug_error(OpenThermProtocolError &error);
+bool check_parity(uint32_t val);
 
 class OpenThermBase {
  public:
@@ -244,7 +238,7 @@ class OpenThermBase {
 
   bool get_message(OpenthermData &data);
 
-  const OpenThermProtocolError &get_protocol_error() const;
+  ProtocolErrorType get_protocol_error_type() const { return this->error_type_; }
 
   bool is_sent() { return mode_ == OperationMode::SENT; }
 
@@ -269,10 +263,8 @@ class OpenThermBase {
   InternalGPIOPin *out_pin_{};
 
   OperationMode mode_{OperationMode::IDLE};
-  OpenThermProtocolError error_{};
+  ProtocolErrorType error_type_;
   uint32_t data_{};
-
-  bool check_parity_(uint32_t val);
 };
 
 }  // namespace opentherm

@@ -241,11 +241,11 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
   static constexpr uint8_t ERROR_BIT_VALUE = 254;
   static constexpr uint8_t NO_BIT_VALUE = 253;
 
-  uint8_t bit_idx = 0;
+  this->bit_index_ = 0;
+  this->error_type_ = ProtocolErrorType::NO_ERROR;
+
   uint8_t prev_level = 0;
   uint8_t tick = 0;
-
-  this->error_ = {};
 
   auto is_short = [](uint16_t duration) -> bool {
     return duration >= SHORT_DURATION - LEFT_TOLERANCE && duration <= SHORT_DURATION + RIGHT_TOLERANCE;
@@ -257,7 +257,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
 
   auto produce_bit = [&](uint16_t level) -> uint8_t {
     if (prev_level == level) {
-      this->set_protocol_error(ProtocolErrorType::NO_TRANSITION, bit_idx);
+      this->set_protocol_error(ProtocolErrorType::NO_TRANSITION);
       return ERROR_BIT_VALUE;
     }
 
@@ -278,10 +278,10 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
         tick = 1;
       } else {
         // Long intervals should happen only when we already have first half of a bit.
-        this->set_protocol_error(ProtocolErrorType::NO_CHANGE_TOO_LONG, bit_idx);
+        this->set_protocol_error(ProtocolErrorType::NO_CHANGE_TOO_LONG);
       }
     } else {
-      this->set_protocol_error(ProtocolErrorType::INVALID_DURATION, bit_idx);
+      this->set_protocol_error(ProtocolErrorType::INVALID_DURATION);
     }
 
     prev_level = level;
@@ -295,12 +295,12 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
       uint16_t duration = half == 0 ? symbol.duration0 : symbol.duration1;
       uint8_t bit;
 
-      if (duration == 0 && bit_idx == 33) {
+      if (duration == 0 && this->bit_index_ == 33) {
         // Edge case for the stop bit. RMT reports last low level with 0 duration.
         if (level == 0 && prev_level == 1) {
           bit = 1;
         } else {
-          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT, bit_idx);
+          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT);
           return false;
         }
       } else {
@@ -314,35 +314,39 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
       if (bit == NO_BIT_VALUE)
         continue;
 
-      if (bit_idx == 0 || bit_idx == 33) {  // Check start and stop bit
+      if (this->bit_index_ == 0 || this->bit_index_ == 33) {  // Check start and stop bit
         if (bit != 1) {
-          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT, bit_idx);
+          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT);
           return false;
         }
       } else {
         this->data_ = (this->data_ << 1) | bit;
       }
 
-      if (bit_idx == 33)  // And we are done!
+      if (this->bit_index_ == 33)  // And we are done!
         return true;
 
-      bit_idx++;
+      this->bit_index_++;
     }
   }
 
   // If we reached here, something went wrong and our data is incomplete.
-  this->set_protocol_error(ProtocolErrorType::INSUFFICIENT_DATA, bit_idx);
+  this->set_protocol_error(ProtocolErrorType::INSUFFICIENT_DATA);
   return false;
 }
 
-void OpenTherm::set_protocol_error(ProtocolErrorType error_type, size_t bit_index) {
+void OpenTherm::set_protocol_error(ProtocolErrorType error_type) {
   this->mode_ = OperationMode::ERROR_PROTOCOL;
-  this->error_.error_type = error_type;
-  this->error_.bit_index = bit_index;
-  this->error_.data = data_;
+  this->error_type_ = error_type;
 }
 
 void OpenTherm::debug_rmt() const {
+  ESP_LOGD(TAG,
+           "OpenTherm protocol error: %s\n"
+           "Bit index: %u\n"
+           "Data: %s",
+           protocol_error_to_str(this->error_type_), this->bit_index_, format_hex(this->data_).c_str());
+
   if (this->rmt_buffer_symbol_count_ == 0) {
     ESP_LOGD(TAG, "RMT debug: no data available");
     return;
