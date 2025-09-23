@@ -4,6 +4,7 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/gpio.h"
 
 #define HEADER_LEN 40
 #define MAGIC_SIZE 8
@@ -22,16 +23,18 @@ namespace iwr6843aop {
 class IWR6843AOPComponent : public Component {
  public:
   // Add default constructor for when component is disabled
-  IWR6843AOPComponent() : uart1_dev_(nullptr), uart2_dev_(nullptr) {}
+  IWR6843AOPComponent() : uart1_dev_(nullptr), uart2_dev_(nullptr), reset_pin_(nullptr) {}
   
   // Existing constructor
-  IWR6843AOPComponent(uart::UARTComponent *uart1, uart::UARTComponent *uart2) : uart1_dev_(uart1), uart2_dev_(uart2) {}
+  IWR6843AOPComponent(uart::UARTComponent *uart1, uart::UARTComponent *uart2) : uart1_dev_(uart1), uart2_dev_(uart2), reset_pin_(nullptr) {}
   void setup() override;
   void loop() override;
 
   void set_float_input(const std::string &key, esphome::number::Number *number);
   void set_binary_sensor(const std::string &key, esphome::binary_sensor::BinarySensor *sensor);
+  void set_reset_pin(esphome::InternalGPIOPin *pin);
 
+  void reset_sensor();
   void cfg_iwr6843aop();
   void read_iwr6843aop_data();
   void parse_target_list_tlv(const std::vector<uint8_t> &tlv_payload);
@@ -39,6 +42,7 @@ class IWR6843AOPComponent : public Component {
  protected:
   uart::UARTComponent *uart1_dev_;
   uart::UARTComponent *uart2_dev_;
+  esphome::InternalGPIOPin *reset_pin_;
   uint32_t last_update_{0};
   
 

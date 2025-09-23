@@ -24,6 +24,16 @@ void IWR6843AOPComponent::setup() {
   if (bed_presence_)
     bed_presence_->publish_state(false);
   
+  // Initialize reset pin if configured
+  if (reset_pin_ != nullptr) {
+    reset_pin_->setup();
+    reset_pin_->digital_write(true);  // Start with pin HIGH (sensor enabled)
+    ESP_LOGI(TAG, "Reset pin initialized to HIGH");
+  }
+  
+  // Reset the sensor before sending configuration
+  this->reset_sensor();
+  
   this->cfg_iwr6843aop();
   ESP_LOGI(TAG, "IWR6843AOPComponent setup complete");
 }
@@ -50,6 +60,47 @@ void IWR6843AOPComponent::set_binary_sensor(const std::string &key, esphome::bin
     room_presence_ = sensor;
   else if (key == "bed_presence")
     bed_presence_ = sensor;
+}
+
+void IWR6843AOPComponent::set_reset_pin(esphome::InternalGPIOPin *pin) {
+  reset_pin_ = pin;
+}
+
+void IWR6843AOPComponent::reset_sensor() {
+  if (reset_pin_ == nullptr) {
+    ESP_LOGI(TAG, "No reset pin configured, skipping sensor reset");
+    return;
+  }
+  
+  ESP_LOGI(TAG, "Resetting IWR6843 sensor...");
+  
+  // Check initial state
+  bool initial_state = reset_pin_->digital_read();
+  ESP_LOGI(TAG, "Reset pin initial state: %s", initial_state ? "HIGH" : "LOW");
+  
+  // Set reset pin low to reset the sensor
+  reset_pin_->digital_write(false);
+  ESP_LOGI(TAG, "Reset pin set to LOW");
+  
+  // Verify the pin is actually low
+  bool low_state = reset_pin_->digital_read();
+  ESP_LOGI(TAG, "Reset pin verification after LOW: %s", low_state ? "HIGH" : "LOW");
+  
+  // Hold reset low for 10ms
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+  
+  // Set reset pin high to enable operation
+  reset_pin_->digital_write(true);
+  ESP_LOGI(TAG, "Reset pin set to HIGH - sensor enabled");
+  
+  // Verify the pin is actually high
+  bool high_state = reset_pin_->digital_read();
+  ESP_LOGI(TAG, "Reset pin verification after HIGH: %s", high_state ? "HIGH" : "LOW");
+  
+  // Wait 100ms for sensor to initialize after reset before configuration
+  vTaskDelay(100 / portTICK_PERIOD_MS);
+  
+  ESP_LOGI(TAG, "IWR6843 sensor reset complete");
 }
 
 void IWR6843AOPComponent::cfg_iwr6843aop() {

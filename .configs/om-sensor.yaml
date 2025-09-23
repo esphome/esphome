@@ -1,6 +1,7 @@
 esphome:
   name: om-sensor
-  friendly_name: OM PCB Test #OM PCB Test #OM POC board
+  friendly_name: OM Presence Sensor #OM PCB Test #OM POC board
+  name_add_mac_suffix: true
 
 
 
@@ -12,15 +13,14 @@ esp32:
 # Enable logging
 logger:
   level: VERBOSE
-  #hardware_uart: UART0
+  #hardware_uart: UART0 #enabling hardware_uart will print debug statements over serial but will disable IWR6843 data uart (uart2)
   baud_rate: 115200
   logs:
     ethernet: VERBOSE
     ethernet.w5500: VERBOSE
     spi: VERBOSE
     esp-idf: VERBOSE
-    #iwr6843aop: VERBOSE
-    #tsl2591: VERBOSE
+
 
 # Enable Home Assistant API
 api:
@@ -80,6 +80,7 @@ iwr6843aop:
   uart1_id: iwr_uart1
   uart2_id: iwr_uart2
   enabled: true
+  reset_pin: GPIO7
 
   float_input:
     width: width

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number, uart, binary_sensor
 from esphome.const import CONF_ID
+from esphome import pins
 
 CODEOWNERS = ["@your-github-username"]
 
@@ -16,6 +17,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID("uart1_id"): cv.use_id(uart.UARTComponent),
         cv.GenerateID("uart2_id"): cv.use_id(uart.UARTComponent),
         cv.Optional("enabled", default=False): cv.boolean,  # Add enabled flag
+        cv.Optional("reset_pin"): pins.gpio_output_pin_schema,
         cv.Optional("float_input", default={}): cv.Schema(
             {
                 cv.Optional("width"): cv.use_id(number.Number),
@@ -39,6 +41,11 @@ async def to_code(config):
         uart2 = await cg.get_variable(config["uart2_id"])
         var = cg.new_Pvariable(config[CONF_ID], uart1, uart2)
         await cg.register_component(var, config)
+        
+        # Configure reset pin if provided
+        if "reset_pin" in config:
+            reset_pin = await cg.gpio_pin_expression(config["reset_pin"])
+            cg.add(var.set_reset_pin(reset_pin))
         
         float_input = config.get("float_input", {})
         
