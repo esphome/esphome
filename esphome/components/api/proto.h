@@ -827,7 +827,7 @@ class ProtoService {
   }
 
   // Authentication helper methods
-  bool check_connection_setup_() {
+  inline bool check_connection_setup_() {
     if (!this->is_connection_setup()) {
       this->on_no_setup_connection();
       return false;
@@ -835,7 +835,7 @@ class ProtoService {
     return true;
   }
 
-  bool check_authenticated_() {
+  inline bool check_authenticated_() {
 #ifdef USE_API_PASSWORD
     if (!this->check_connection_setup_()) {
       return false;
