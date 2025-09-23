@@ -1,4 +1,5 @@
 #include "zwave_proxy.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -12,6 +13,7 @@ static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 // GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
 static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
 static constexpr uint8_t ZWAVE_MIN_GET_NETWORK_IDS_LENGTH = 9;  // TYPE + CMD + HOME_ID(4) + NODE_ID + checksum
+static constexpr uint32_t HOME_ID_TIMEOUT_MS = 100;             // Timeout for waiting for home ID during setup
 
 static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
   // Calculate Z-Wave frame checksum
@@ -26,7 +28,44 @@ static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
-void ZWaveProxy::setup() { this->send_simple_command_(ZWAVE_COMMAND_GET_NETWORK_IDS); }
+void ZWaveProxy::setup() {
+  this->setup_time_ = App.get_loop_component_start_time();
+  this->send_simple_command_(ZWAVE_COMMAND_GET_NETWORK_IDS);
+}
+
+float ZWaveProxy::get_setup_priority() const {
+  // Set up before API so home ID is ready when API starts
+  return setup_priority::BEFORE_CONNECTION;
+}
+
+bool ZWaveProxy::can_proceed() {
+  // If we already have the home ID, we can proceed
+  if (this->home_id_ready_) {
+    return true;
+  }
+
+  // Handle any pending responses
+  if (this->response_handler_()) {
+    ESP_LOGV(TAG, "Handled response during setup");
+  }
+
+  // Process UART data to check for home ID
+  this->process_uart_();
+
+  // Check if we got the home ID after processing
+  if (this->home_id_ready_) {
+    return true;
+  }
+
+  // Wait up to HOME_ID_TIMEOUT_MS for home ID response
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->setup_time_ > HOME_ID_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Timeout reading Home ID during setup");
+    return true;  // Proceed anyway after timeout
+  }
+
+  return false;  // Keep waiting
+}
 
 void ZWaveProxy::loop() {
   if (this->response_handler_()) {
@@ -37,6 +76,11 @@ void ZWaveProxy::loop() {
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
   }
 
+  this->process_uart_();
+  this->status_clear_warning();
+}
+
+void ZWaveProxy::process_uart_() {
   while (this->available()) {
     uint8_t byte;
     if (!this->read_byte(&byte)) {
@@ -56,6 +100,7 @@ void ZWaveProxy::loop() {
         // Extract the 4-byte Home ID starting at offset 4
         // The frame parser has already validated the checksum and ensured all bytes are present
         std::memcpy(this->home_id_.data(), this->buffer_.data() + 4, this->home_id_.size());
+        this->home_id_ready_ = true;
         ESP_LOGI(TAG, "Home ID: %s",
                  format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
       }
@@ -73,7 +118,6 @@ void ZWaveProxy::loop() {
       }
     }
   }
-  this->status_clear_warning();
 }
 
 void ZWaveProxy::dump_config() { ESP_LOGCONFIG(TAG, "Z-Wave Proxy"); }
