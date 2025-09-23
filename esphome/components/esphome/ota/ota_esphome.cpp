@@ -528,6 +528,14 @@ void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogSt
   ESP_LOGW(TAG, "Auth: %s %s failed", LOG_STR_ARG(action), LOG_STR_ARG(hash_name));
 }
 
+// Helper to convert uint32 to big-endian bytes
+static inline void uint32_to_bytes(uint32_t value, uint8_t *bytes) {
+  bytes[0] = (value >> 24) & 0xFF;
+  bytes[1] = (value >> 16) & 0xFF;
+  bytes[2] = (value >> 8) & 0xFF;
+  bytes[3] = value & 0xFF;
+}
+
 // Non-template function definition to reduce binary size
 bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request,
                                              const LogString *name, char *buf) {
@@ -547,11 +555,7 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
 
   // Generate nonce seed bytes
   uint32_t r1 = random_uint32();
-  // Convert first uint32 to bytes (always needed for MD5)
-  nonce_bytes[0] = (r1 >> 24) & 0xFF;
-  nonce_bytes[1] = (r1 >> 16) & 0xFF;
-  nonce_bytes[2] = (r1 >> 8) & 0xFF;
-  nonce_bytes[3] = r1 & 0xFF;
+  uint32_to_bytes(r1, nonce_bytes);
 
   if (nonce_len == 4) {
     // MD5: 4 bytes from one random uint32
@@ -559,10 +563,7 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   } else {
     // SHA256: 8 bytes from two random uint32s
     uint32_t r2 = random_uint32();
-    nonce_bytes[4] = (r2 >> 24) & 0xFF;
-    nonce_bytes[5] = (r2 >> 16) & 0xFF;
-    nonce_bytes[6] = (r2 >> 8) & 0xFF;
-    nonce_bytes[7] = r2 & 0xFF;
+    uint32_to_bytes(r2, nonce_bytes + 4);
     hasher->add(nonce_bytes, 8);
   }
   hasher->calculate();
