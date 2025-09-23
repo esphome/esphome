@@ -130,9 +130,8 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
 OpenthermHub::OpenthermHub() : Component(), in_pin_{}, out_pin_{} {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
-  ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s)", data.id,
-           this->opentherm_->message_id_to_str((MessageId) data.id));
-  this->opentherm_->debug_data(data);
+  ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s)", data.id, message_id_to_str((MessageId) data.id));
+  debug_data(data);
 
   switch (data.id) {
     OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
@@ -273,8 +272,7 @@ void OpenthermHub::sync_loop_() {
   if (this->handle_error_(this->opentherm_->get_mode())) {
     return;
   } else if (!this->opentherm_->is_sent()) {
-    ESP_LOGW(TAG, "Unexpected state after sending request: %s",
-             this->opentherm_->operation_mode_to_str(this->opentherm_->get_mode()));
+    ESP_LOGW(TAG, "Unexpected state after sending request: %s", operation_mode_to_str(this->opentherm_->get_mode()));
     this->stop_opentherm_();
     return;
   }
@@ -297,8 +295,7 @@ void OpenthermHub::sync_loop_() {
   if (this->handle_error_(this->opentherm_->get_mode())) {
     return;
   } else if (!this->opentherm_->has_message()) {
-    ESP_LOGW(TAG, "Unexpected state after receiving response: %s",
-             this->opentherm_->operation_mode_to_str(this->opentherm_->get_mode()));
+    ESP_LOGW(TAG, "Unexpected state after receiving response: %s", operation_mode_to_str(this->opentherm_->get_mode()));
     this->stop_opentherm_();
     return;
   }
@@ -337,9 +334,8 @@ void OpenthermHub::start_conversation_() {
 
   this->before_send_callback_.call(request);
 
-  ESP_LOGD(TAG, "Sending request with id %d (%s)", request.id,
-           this->opentherm_->message_id_to_str((MessageId) request.id));
-  this->opentherm_->debug_data(request);
+  ESP_LOGD(TAG, "Sending request with id %d (%s)", request.id, message_id_to_str((MessageId) request.id));
+  debug_data(request);
   // Send the request
   this->last_conversation_start_ = millis();
   this->opentherm_->send(request);
@@ -368,8 +364,8 @@ void OpenthermHub::stop_opentherm_() {
 
 void OpenthermHub::handle_protocol_error_() {
   auto error = this->opentherm_->get_protocol_error();
-  ESP_LOGW(TAG, "OpenTherm protocol error: %s", OpenTherm::protocol_error_to_str(error.error_type));
-  this->opentherm_->debug_error(error);
+  ESP_LOGW(TAG, "OpenTherm protocol error: %s", protocol_error_to_str(error.error_type));
+  debug_error(error);
   this->opentherm_->debug_rmt();
   this->stop_opentherm_();
 }
@@ -406,11 +402,11 @@ void OpenthermHub::dump_config() {
                 SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )));
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : initial_messages) {
-    ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));
+    ESP_LOGCONFIG(TAG, "  - %d (%s)", type, message_id_to_str(type));
   }
   ESP_LOGCONFIG(TAG, "  Repeating requests:");
   for (auto type : repeating_messages) {
-    ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));
+    ESP_LOGCONFIG(TAG, "  - %d (%s)", type, message_id_to_str(type));
   }
 }
 
