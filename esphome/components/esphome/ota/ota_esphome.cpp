@@ -555,15 +555,10 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
 
   // Generate nonce seed bytes
   uint32_to_bytes(random_uint32(), nonce_bytes);
-
-  if (nonce_len == 4) {
-    // MD5: 4 bytes from one random uint32
-    hasher->add(nonce_bytes, 4);
-  } else {
-    // SHA256: 8 bytes from two random uint32s
+  if (nonce_len > 4) {
     uint32_to_bytes(random_uint32(), nonce_bytes + 4);
-    hasher->add(nonce_bytes, 8);
   }
+  hasher->add(nonce_bytes, nonce_len);
   hasher->calculate();
 
   // Generate and send nonce
