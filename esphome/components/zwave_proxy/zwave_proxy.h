@@ -68,8 +68,8 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;
-  std::array<uint8_t, sizeof(api::ZWaveProxyFrame::data)> buffer_;  // Fixed buffer for incoming data
-  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};                      // Fixed buffer for home ID
+  std::array<uint8_t, MAX_ZWAVE_FRAME_SIZE> buffer_;  // Fixed buffer for incoming data
+  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};        // Fixed buffer for home ID
 
   // Pointers and 32-bit values (aligned together)
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
