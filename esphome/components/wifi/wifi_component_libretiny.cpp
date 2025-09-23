@@ -457,6 +457,8 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
+
+int8_t WiFiComponent::get_ap_client_count() { return WiFi.softAPgetStationNum(); }
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() { return WiFi.disconnect(); }

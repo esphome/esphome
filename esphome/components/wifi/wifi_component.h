@@ -224,6 +224,7 @@ class WiFiComponent : public Component {
    */
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
+  int8_t get_ap_client_count();
 #endif  // USE_WIFI_AP
 
   void enable();

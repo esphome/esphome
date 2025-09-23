@@ -828,6 +828,8 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
+
+int8_t WiFiComponent::get_ap_client_count() { return wifi_softap_get_station_num(); }
 #endif  // USE_WIFI_AP
 
 bssid_t WiFiComponent::wifi_bssid() {

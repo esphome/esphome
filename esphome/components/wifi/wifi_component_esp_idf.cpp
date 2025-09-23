@@ -979,6 +979,16 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_get_ip_info(s_ap_netif, &ip);
   return network::IPAddress(&ip.ip);
 }
+
+int8_t WiFiComponent::get_ap_client_count() {
+  wifi_sta_list_t sta_list;
+  esp_err_t err = esp_wifi_ap_get_sta_list(&sta_list);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "esp_wifi_ap_get_sta_list failed: %s", esp_err_to_name(err));
+    return -1;
+  }
+  return sta_list.num;
+}
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
