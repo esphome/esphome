@@ -268,14 +268,14 @@ void ESPHomeOTAComponent::handle_data_() {
     // TODO: Remove this entire ifdef block in 2026.1.0
     if (client_supports_sha256) {
       sha256::SHA256 sha_hasher;
-      auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, 16, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
+      auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
                                               LOG_STR("SHA256"), sbuf);
     } else {
 #ifdef USE_OTA_MD5
       ESP_LOGW(TAG, "Using MD5 auth for compatibility (deprecated)");
       md5::MD5Digest md5_hasher;
-      auth_success = this->perform_hash_auth_(&md5_hasher, this->password_, 8, ota::OTA_RESPONSE_REQUEST_AUTH,
-                                              LOG_STR("MD5"), sbuf);
+      auth_success =
+          this->perform_hash_auth_(&md5_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
 #endif  // USE_OTA_MD5
     }
 #else
@@ -286,7 +286,7 @@ void ESPHomeOTAComponent::handle_data_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     sha256::SHA256 sha_hasher;
-    auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, 16, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
+    auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
                                             LOG_STR("SHA256"), sbuf);
 #endif  // ALLOW_OTA_DOWNGRADE_MD5
 #else
@@ -295,7 +295,7 @@ void ESPHomeOTAComponent::handle_data_() {
 #ifdef USE_OTA_MD5
     md5::MD5Digest md5_hasher;
     auth_success =
-        this->perform_hash_auth_(&md5_hasher, this->password_, 8, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
+        this->perform_hash_auth_(&md5_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
 #endif  // USE_OTA_MD5
 #endif  // USE_OTA_SHA256
 
@@ -529,10 +529,11 @@ void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogSt
 }
 
 // Non-template function definition to reduce binary size
-bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, size_t nonce_size,
-                                             uint8_t auth_request, const LogString *name, char *buf) {
+bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request,
+                                             const LogString *name, char *buf) {
   // Get sizes from the hasher
-  const size_t hex_size = hasher->get_size() * 2;  // Hex is twice the byte size
+  const size_t hex_size = hasher->get_size() * 2;       // Hex is twice the byte size
+  const size_t nonce_hex_len = hasher->get_size() / 2;  // Nonce hex length is 1/4 of full hex size
 
   // Use the provided buffer for all hex operations
 
@@ -552,7 +553,7 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   nonce_bytes[2] = (r1 >> 8) & 0xFF;
   nonce_bytes[3] = r1 & 0xFF;
 
-  if (nonce_size == 8) {
+  if (nonce_hex_len == 8) {
     // MD5: 8 chars = "%08x" format = 4 bytes from one random uint32
     hasher->add(nonce_bytes, 4);
   } else {
