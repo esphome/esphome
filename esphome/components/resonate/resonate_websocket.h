@@ -24,10 +24,10 @@ class ResonateWebsocket {
   /// @brief Sends an inital hello message to the server describing the client.
   void send_hello_message(const ClientHelloMessage *msg);
 
-  void send_player_state_message(const PlayerStateMessage *msg);
+  void send_player_state_message(const PlayerUpdateMessage *msg);
 
 #ifdef USE_MEDIA_PLAYER
-  void send_stream_command_message(const media_player::MediaPlayerCommand &command);
+  void send_group_command_message(const media_player::MediaPlayerCommand &command);
 #endif
 
   void send_time_message();

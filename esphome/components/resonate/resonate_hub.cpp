@@ -18,13 +18,13 @@ namespace resonate {
 
 static const char *const TAG = "resonate.hub";
 
+static const size_t RESONATE_BINARY_CHUNK_HEADER_SIZE = 9;
+
 #ifdef USE_RESONATE_AUDIO
 static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 200;
 
 static const size_t DECODE_TASK_STACK_SIZE = 6 * 1024;
 static const UBaseType_t DECODE_TASK_PRIORITY = 2;
-
-static const size_t RESONATE_BINARY_CHUNK_HEADER_SIZE = 9;
 
 // Time synchronization accuracy thresholds:
 // When Kalman filter variance exceeds this threshold (squared), time sync is considered unreliable
@@ -134,33 +134,56 @@ void ResonateHub::loop() {
 }
 
 void ResonateHub::start() {
-  // TODO: Don't hardcode supported settings, it should be configured in yaml
-  std::vector<std::string> picture_formats;
-  std::string picture_display_size = "null";
+  ClientHelloMessage msg;
+  msg.client_id = get_mac_address_pretty();
+  msg.name = App.get_friendly_name();
+  msg.version = 1;
+
+  std::vector<std::string> supported_roles;
+  // TODO: Don't hardcode controller role
+  supported_roles.push_back("controller");
+
+#ifdef USE_RESONATE_AUDIO
+  supported_roles.push_back("player");
+  PlayerSupportObject player_support = {
+      .support_codecs = {"flac", "opus", "pcm"},
+      .support_bit_depth = {16},
+      .support_channels = {2, 1},
+      .support_sample_rates = {48000},
+      .buffer_capacity = 1000000,
+  };
+  msg.player_support = player_support;
+#endif
+
+#ifdef USE_RESONATE_METADATA
+  supported_roles.push_back("metadata");
+
+  std::vector<std::string> support_picture_formats;
 #ifdef USE_RESONATE_IMAGE
   for (auto it = this->preferred_image_formats_.begin(); it != this->preferred_image_formats_.end(); ++it) {
-    picture_formats.push_back(it->first);
-    picture_display_size = it->second;  // TODO: Update spec to pass vector of display sizes
+    support_picture_formats.push_back(it->first);
   }
 #endif
-  ClientHelloMessage msg = {.client_id = get_mac_address_pretty(),
-                            .name = App.get_friendly_name(),
-                            .support_codecs = {"flac", "opus", "pcm"},
-                            .support_channels = {2, 1},
-                            .support_sample_rates = {48000},
-                            .support_bit_depth = {16},
-                            .buffer_capacity = 1000000,
-                            .support_streams = {"media"},
-                            .support_pictures_formats = picture_formats,
-                            .media_display_size = picture_display_size};
+
+  // TODO: Don't hardcode media dimensions
+  MetadataSupportObject metadata_support = {
+      .support_picture_formats = support_picture_formats,
+      .media_width = 320,
+      .media_height = 240,
+  };
+  msg.metadata_support = metadata_support;
+#endif
+
+  msg.supported_roles = supported_roles;
+
   this->resonate_websocket_->send_hello_message(&msg);
   this->last_sent_time_message_ = esp_timer_get_time();
 }
 
 #ifdef USE_MEDIA_PLAYER
-void ResonateHub::send_stream_command(const media_player::MediaPlayerCommand &command) {
+void ResonateHub::send_group_command(const media_player::MediaPlayerCommand &command) {
   if (this->resonate_websocket_->is_connected()) {
-    this->resonate_websocket_->send_stream_command_message(command);
+    this->resonate_websocket_->send_group_command_message(command);
   }
 }
 #endif
@@ -279,41 +302,42 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
 
 bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
   ResonateBinaryType binary_type;
+
+  if (len < RESONATE_BINARY_CHUNK_HEADER_SIZE) {
+    // Packet too short for resonate binary message header
+    return false;  // deallocate payload
+  }
+
   std::memcpy((void *) &binary_type, (void *) payload, 1);
+
+  // Use the big endian datatype helpers for converting to host format
+  int64_be_t server_timestamp;
+  std::memcpy((void *) &server_timestamp, (void *) (payload + 1), sizeof(server_timestamp));
 
   switch (binary_type) {
     case RESONATE_AUDIO_BINARY: {
 #ifdef USE_RESONATE_AUDIO
-      if (len < RESONATE_BINARY_CHUNK_HEADER_SIZE) {
-        // Packet too short for resonate binary audio chunk header
+      // Create a heap-allocated chunk that takes ownership of the payload
+      AudioChunk *audio_chunk = create_audio_chunk_from_buffer(payload, len);
+      if (audio_chunk == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate AudioChunk");
         return false;  // deallocate payload
-      } else {
-        // Use the big endian datatype helpers for converting to host format
-        int64_be_t server_timestamp;
-
-        std::memcpy((void *) &server_timestamp, (void *) (payload + 1), sizeof(server_timestamp));
-
-        // Create a heap-allocated chunk that takes ownership of the payload
-        AudioChunk *audio_chunk = create_audio_chunk_from_buffer(payload, len);
-        if (audio_chunk == nullptr) {
-          ESP_LOGE(TAG, "Failed to allocate AudioChunk");
-          return false;  // deallocate payload
-        }
-        audio_chunk->offset = RESONATE_BINARY_CHUNK_HEADER_SIZE;
-        audio_chunk->size = len - RESONATE_BINARY_CHUNK_HEADER_SIZE;
-        audio_chunk->timestamp = server_timestamp;
-        audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
-
-        if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
-          // Failed to add
-          ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
-          this->encoded_chunk_queue_->reset();
-        }
-        // Release our reference, queue has its own if successful. If unsuccessful, then this will deallocate the
-        // payload
-        audio_chunk->release();
-        return true;  // don't deallocate payload, just clear pointer
       }
+      audio_chunk->offset = RESONATE_BINARY_CHUNK_HEADER_SIZE;
+      audio_chunk->size = len - RESONATE_BINARY_CHUNK_HEADER_SIZE;
+      audio_chunk->timestamp = server_timestamp;
+      audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
+
+      if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
+        // Failed to add
+        ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
+        this->encoded_chunk_queue_->reset();
+      }
+      // Release our reference, queue has its own if successful. If unsuccessful, then this will deallocate the
+      // payload
+      audio_chunk->release();
+      return true;  // don't deallocate payload, just clear pointer
+
 #else
       // Not built with audio, so ownership not transferred
       return false;  // deallocate payload
@@ -322,10 +346,11 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
     }
     case RESONATE_IMAGE_BINARY: {
 #ifdef USE_RESONATE_IMAGE
-      ResonateImageFormat image_format;
-      std::memcpy((void *) &image_format, (void *) (payload + 1), 1);
+      // TODO don't hardcode this
+      ResonateImageFormat image_format = RESONATE_IMAGE_JPG;
 
-      this->image_callbacks_.call(payload + 2, len - 2, image_format);
+      this->image_callbacks_.call(payload + RESONATE_BINARY_CHUNK_HEADER_SIZE, len - RESONATE_BINARY_CHUNK_HEADER_SIZE,
+                                  image_format);
 #else
       ESP_LOGD(TAG, "Ignoring an album art message with %d bytes", len - 2);
 #endif
@@ -342,16 +367,17 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
 }
 
 bool ResonateHub::process_json_message_(const std::string &message, int64_t timestamp) {
-  ResonateServerToPlayerMessageType message_type = determine_message_type(message);
+  ResonateServerToClientMessageType message_type = determine_message_type(message);
 
   switch (message_type) {
-    case ResonateServerToPlayerMessageType::SESSION_START: {
-      ESP_LOGD(TAG, "Session Started");
+    case ResonateServerToClientMessageType::STREAM_START:  // intentional fallthrough
+    case ResonateServerToClientMessageType::STREAM_UPDATE: {
+      ESP_LOGD(TAG, "Stream Started");
 #ifdef USE_RESONATE_AUDIO
-      audio::AudioStreamInfo session_audio_stream_info;
+      audio::AudioStreamInfo stream_audio_stream_info;
       ResonateCodecFormat codec_format;
       std::string codec_header;
-      if (process_session_start_message(message, &session_audio_stream_info, &codec_format, &codec_header)) {
+      if (process_stream_start_message(message, &stream_audio_stream_info, &codec_format, &codec_header)) {
         AudioChunk *header_chunk = nullptr;
 
         if ((codec_format == ResonateCodecFormat::PCM) || (codec_format == ResonateCodecFormat::OPUS)) {
@@ -361,9 +387,9 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
             return false;
           }
           DummyHeader *header = reinterpret_cast<DummyHeader *>(header_chunk->get_data());
-          header->sample_rate = session_audio_stream_info.get_sample_rate();
-          header->bits_per_sample = session_audio_stream_info.get_bits_per_sample();
-          header->channels = session_audio_stream_info.get_channels();
+          header->sample_rate = stream_audio_stream_info.get_sample_rate();
+          header->bits_per_sample = stream_audio_stream_info.get_bits_per_sample();
+          header->channels = stream_audio_stream_info.get_channels();
 
           header_chunk->offset = 0;
           header_chunk->size = sizeof(DummyHeader);
@@ -391,7 +417,7 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
         if (!this->encoded_chunk_queue_->add_chunk(header_chunk, 0)) {
           // failed
           ESP_LOGE(TAG, "Failed to send codec header");
-        } else {
+        } else if (message_type == ResonateServerToClientMessageType::STREAM_START) {
           this->controls_callbacks_.call(ResonateControls::START);
         }
         // Always release our reference (queue has its own if successful)
@@ -400,18 +426,20 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
         }
       }
 #else
-      // Indicate session started
-      this->controls_callbacks_.call(ResonateControls::START);
+      if (message_type == ResonateServerToClientMessageType::STREAM_START) {
+        // Indicate stream started
+        this->controls_callbacks_.call(ResonateControls::START);
+      }
 #endif
       break;
     }
-    case ResonateServerToPlayerMessageType::SESSION_END: {
-      ESP_LOGD(TAG, "Session ended");
+    case ResonateServerToClientMessageType::STREAM_END: {
+      ESP_LOGD(TAG, "Stream ended");
       xEventGroupSetBits(this->event_group_, COMMAND_STOP);  // Handles stopping in the hub component
       this->controls_callbacks_.call(ResonateControls::STOP);
       break;
     }
-    case ResonateServerToPlayerMessageType::SERVER_HELLO: {
+    case ResonateServerToClientMessageType::SERVER_HELLO: {
       std::string server_id;
       std::string server_name;
       if (process_server_hello_message(message, &server_id, &server_name)) {
@@ -423,7 +451,7 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
       }
       break;
     }
-    case ResonateServerToPlayerMessageType::SERVER_TIME: {
+    case ResonateServerToClientMessageType::SERVER_TIME: {
       TimeTransmittedReplacement time_replacement = this->resonate_websocket_->get_last_time_message();
       int64_t offset;
       int64_t max_error;
@@ -433,15 +461,15 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
       this->pending_time_message_ = false;
       break;
     }
-    case ResonateServerToPlayerMessageType::METADATA_UPDATE: {
+    case ResonateServerToClientMessageType::SESSION_UPDATE: {
 #ifdef USE_RESONATE_METADATA
-      if (process_metadata_update_message(message, &this->metadata_)) {
+      if (process_session_update_message(message, &this->metadata_)) {
         this->metadata_callbacks_.call(this->metadata_);
       }
 #endif
       break;
     }
-    case ResonateServerToPlayerMessageType::VOLUME_SET: {
+    case ResonateServerToClientMessageType::VOLUME_SET: {
 #ifdef USE_RESONATE_AUDIO
       uint8_t volume;
       if (process_volume_set_message(message, &volume)) {
@@ -451,7 +479,7 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
 #endif
       break;
     }
-    case ResonateServerToPlayerMessageType::MUTE_SET: {
+    case ResonateServerToClientMessageType::MUTE_SET: {
 #ifdef USE_RESONATE_AUDIO
       bool is_muted;
       if (process_mute_set_message(message, &is_muted)) {
@@ -492,7 +520,7 @@ void ResonateHub::update_volume(uint8_t volume) {
 }
 
 void ResonateHub::publish_client_state() {
-  const PlayerStateMessage state = {.state = this->state_, .volume = this->volume_, .muted = this->muted_};
+  const PlayerUpdateMessage state = {.state = this->state_, .volume = this->volume_, .muted = this->muted_};
   this->resonate_websocket_->send_player_state_message(&state);
 }
 

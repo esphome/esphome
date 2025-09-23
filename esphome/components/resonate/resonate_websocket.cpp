@@ -68,13 +68,13 @@ void ResonateWebsocket::send_hello_message(const ClientHelloMessage *msg) {
   this->send_text_message_(format_player_hello_message(msg));
 }
 
-void ResonateWebsocket::send_player_state_message(const PlayerStateMessage *msg) {
-  this->send_text_message_(format_player_state_message(msg));
+void ResonateWebsocket::send_player_state_message(const PlayerUpdateMessage *msg) {
+  this->send_text_message_(format_player_update_message(msg));
 }
 
 #ifdef USE_MEDIA_PLAYER
-void ResonateWebsocket::send_stream_command_message(const media_player::MediaPlayerCommand &command) {
-  this->send_text_message_(format_stream_command_message(command));
+void ResonateWebsocket::send_group_command_message(const media_player::MediaPlayerCommand &command) {
+  this->send_text_message_(format_group_command_message(command));
 }
 #endif
 

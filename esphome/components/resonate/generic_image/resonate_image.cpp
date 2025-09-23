@@ -28,7 +28,7 @@ void ResonateImage::setup() {
       break;
     case runtime_image::JPEG:
       this->resonate_format_ = RESONATE_IMAGE_JPG;
-      friendly_format = "jpg";
+      friendly_format = "jpeg";
       break;
     case runtime_image::PNG:
       this->resonate_format_ = RESONATE_IMAGE_PNG;

@@ -321,10 +321,10 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
         if (this->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
           // call.set_command(media_player::MEDIA_PLAYER_COMMAND_PAUSE);
-          this->parent_->send_stream_command(media_player::MEDIA_PLAYER_COMMAND_PAUSE);
+          this->parent_->send_group_command(media_player::MEDIA_PLAYER_COMMAND_PAUSE);
         } else {
           // call.set_command(media_player::MEDIA_PLAYER_COMMAND_PLAY);
-          this->parent_->send_stream_command(media_player::MEDIA_PLAYER_COMMAND_PLAY);
+          this->parent_->send_group_command(media_player::MEDIA_PLAYER_COMMAND_PLAY);
         }
 
         break;
@@ -334,7 +334,7 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:  // intentional fallthrough
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:  // intentional fallthrough
       case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
-        this->parent_->send_stream_command(call.get_command().value());  // Forward commands to the resonate server
+        this->parent_->send_group_command(call.get_command().value());  // Forward commands to the resonate server
         break;
 #if defined(USE_RESONATE_AUDIO)
       // TODO: Send volume commands to server if we aren't a player

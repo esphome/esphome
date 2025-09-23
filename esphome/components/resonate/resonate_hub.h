@@ -126,7 +126,7 @@ class ResonateHub : public Component {
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-  void send_stream_command(const media_player::MediaPlayerCommand &command);
+  void send_group_command(const media_player::MediaPlayerCommand &command);
 #endif
 
   void set_kalman_process_error(double process_error) { this->kalman_process_error_ = process_error; }
