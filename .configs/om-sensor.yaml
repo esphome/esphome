@@ -2,10 +2,13 @@ esphome:
   name: om-sensor
   friendly_name: OM PCB Test #OM PCB Test #OM POC board
 
+
+
 esp32:
   board: esp32-c6-devkitc-1
   framework:
     type: esp-idf
+
 # Enable logging
 logger:
   level: VERBOSE
@@ -121,7 +124,7 @@ sensor:
     id: ambient_light
     address: 0x29
     integration_time: 100ms
-    gain: AUTO
+    gain: medium
     device_factor: 53
     update_interval: 100ms
     visible:
