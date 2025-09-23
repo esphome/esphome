@@ -1100,12 +1100,12 @@ class HomeassistantServiceMap final : public ProtoMessage {
 
  protected:
 };
-class HomeassistantServiceResponse final : public ProtoMessage {
+class HomeassistantActionRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 35;
   static constexpr uint8_t ESTIMATED_SIZE = 113;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "homeassistant_service_response"; }
+  const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
   StringRef service_ref_{};
   void set_service(const StringRef &ref) { this->service_ref_ = ref; }
