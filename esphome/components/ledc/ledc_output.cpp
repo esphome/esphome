@@ -105,8 +105,14 @@ void LEDCOutput::write_state(float state) {
   auto speed_mode = get_speed_mode(this->channel_);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
-  ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
-  ledc_update_duty(speed_mode, chan_num);
+  if (duty == max_duty) {
+    ledc_stop(speed_mode, chan_num, 1);
+  } else if (duty == 0) {
+    ledc_stop(speed_mode, chan_num, 0);
+  } else {
+    ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
+    ledc_update_duty(speed_mode, chan_num);
+  }
 }
 
 void LEDCOutput::setup() {
