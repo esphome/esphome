@@ -375,8 +375,6 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     client->send_homeassistant_action(call);
   }
 }
-}
-}
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
