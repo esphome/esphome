@@ -731,6 +731,16 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
+def command_clean_platform(args: ArgsProtocol, config: ConfigType) -> int | None:
+    try:
+        writer.clean_platform()
+    except OSError as err:
+        _LOGGER.error("Error deleting platform files: %s", err)
+        return 1
+    _LOGGER.info("Done!")
+    return 0
+
+
 def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import mqtt
 
@@ -929,9 +939,10 @@ POST_CONFIG_ACTIONS = {
     "upload": command_upload,
     "logs": command_logs,
     "run": command_run,
-    "clean-mqtt": command_clean_mqtt,
-    "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
+    "clean-mqtt": command_clean_mqtt,
+    "clean-platform": command_clean_platform,
+    "mqtt-fingerprint": command_mqtt_fingerprint,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -940,6 +951,7 @@ POST_CONFIG_ACTIONS = {
 SIMPLE_CONFIG_ACTIONS = [
     "clean",
     "clean-mqtt",
+    "clean-platform",
     "config",
 ]
 
@@ -1139,6 +1151,13 @@ def parse_args(argv):
 
     parser_clean = subparsers.add_parser(
         "clean", help="Delete all temporary build files."
+    )
+    parser_clean.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+
+    parser_clean = subparsers.add_parser(
+        "clean-platform", help="Delete all platform files."
     )
     parser_clean.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
 from typing import Any
@@ -16,6 +17,7 @@ from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
+    command_clean_platform,
     command_rename,
     command_update_all,
     command_wizard,
@@ -1853,3 +1855,101 @@ esp32:
     # Should not have any Python error messages
     assert "TypeError" not in clean_output
     assert "can only concatenate str" not in clean_output
+
+
+def test_command_clean_platform_success(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_platform when writer.clean_platform() succeeds."""
+    args = MockArgs()
+    config = {}
+
+    # Set logger level to capture INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_platform") as mock_clean_platform,
+    ):
+        result = command_clean_platform(args, config)
+
+        assert result == 0
+        mock_clean_platform.assert_called_once()
+
+        # Check that success message was logged
+        assert "Done!" in caplog.text
+
+
+def test_command_clean_platform_oserror(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_platform when writer.clean_platform() raises OSError."""
+    args = MockArgs()
+    config = {}
+
+    # Create a mock OSError with a specific message
+    mock_error = OSError("Permission denied: cannot delete directory")
+
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch(
+            "esphome.writer.clean_platform", side_effect=mock_error
+        ) as mock_clean_platform,
+    ):
+        result = command_clean_platform(args, config)
+
+        assert result == 1
+        mock_clean_platform.assert_called_once()
+
+        # Check that error message was logged
+        assert (
+            "Error deleting platform files: Permission denied: cannot delete directory"
+            in caplog.text
+        )
+        # Should not have success message
+        assert "Done!" not in caplog.text
+
+
+def test_command_clean_platform_oserror_no_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_platform when writer.clean_platform() raises OSError without message."""
+    args = MockArgs()
+    config = {}
+
+    # Create a mock OSError without a message
+    mock_error = OSError()
+
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch(
+            "esphome.writer.clean_platform", side_effect=mock_error
+        ) as mock_clean_platform,
+    ):
+        result = command_clean_platform(args, config)
+
+        assert result == 1
+        mock_clean_platform.assert_called_once()
+
+        # Check that error message was logged (should show empty string for OSError without message)
+        assert "Error deleting platform files:" in caplog.text
+        # Should not have success message
+        assert "Done!" not in caplog.text
+
+
+def test_command_clean_platform_args_and_config_ignored() -> None:
+    """Test that command_clean_platform ignores args and config parameters."""
+    # Test with various args and config to ensure they don't affect the function
+    args1 = MockArgs(name="test1", file="test.bin")
+    config1 = {"wifi": {"ssid": "test"}}
+
+    args2 = MockArgs(name="test2", dashboard=True)
+    config2 = {"api": {}, "ota": {}}
+
+    with patch("esphome.writer.clean_platform") as mock_clean_platform:
+        result1 = command_clean_platform(args1, config1)
+        result2 = command_clean_platform(args2, config2)
+
+        assert result1 == 0
+        assert result2 == 0
+        assert mock_clean_platform.call_count == 2
