@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
 from typing import Any
@@ -1863,7 +1864,11 @@ def test_command_clean_platform_success(
     args = MockArgs()
     config = {}
 
-    with patch("esphome.writer.clean_platform") as mock_clean_platform:
+    # Set logger level to capture INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_platform") as mock_clean_platform,
+    ):
         result = command_clean_platform(args, config)
 
         assert result == 0
@@ -1883,9 +1888,13 @@ def test_command_clean_platform_oserror(
     # Create a mock OSError with a specific message
     mock_error = OSError("Permission denied: cannot delete directory")
 
-    with patch(
-        "esphome.writer.clean_platform", side_effect=mock_error
-    ) as mock_clean_platform:
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch(
+            "esphome.writer.clean_platform", side_effect=mock_error
+        ) as mock_clean_platform,
+    ):
         result = command_clean_platform(args, config)
 
         assert result == 1
@@ -1910,9 +1919,13 @@ def test_command_clean_platform_oserror_no_message(
     # Create a mock OSError without a message
     mock_error = OSError()
 
-    with patch(
-        "esphome.writer.clean_platform", side_effect=mock_error
-    ) as mock_clean_platform:
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch(
+            "esphome.writer.clean_platform", side_effect=mock_error
+        ) as mock_clean_platform,
+    ):
         result = command_clean_platform(args, config)
 
         assert result == 1
