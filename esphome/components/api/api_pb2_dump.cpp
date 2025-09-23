@@ -2126,7 +2126,12 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void ZWaveProxyFrame::dump_to(std::string &out) const { dump_field(out, "data", this->data); }
+void ZWaveProxyFrame::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ZWaveProxyFrame");
+  out.append("  data: ");
+  out.append(format_hex_pretty(this->data, this->data_len));
+  out.append("\n");
+}
 void ZWaveProxyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));

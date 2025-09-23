@@ -895,7 +895,18 @@ class PointerToBytesBufferType(TypeInfo):
         return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
     def dump(self, name: str) -> str:
-        return f"format_hex_pretty(this->{name}, this->{name}_len)"
+        return (
+            f"format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len)"
+        )
+
+    @property
+    def dump_content(self) -> str:
+        # Custom dump that doesn't use dump_field template
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + f"out.append({self.dump(self.field_name)});\n"
+            + 'out.append("\\n");'
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size.add_length({self.number}, this->{self.field_name}_len);"
