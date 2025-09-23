@@ -362,11 +362,17 @@ def test_clean_build(
     assert dependencies_lock.exists()
     assert platformio_cache_dir.exists()
 
-    # Mock PlatformIO's get_project_cache_dir
+    # Mock PlatformIO's ProjectConfig cache_dir
     with patch(
-        "platformio.project.helpers.get_project_cache_dir"
-    ) as mock_get_cache_dir:
-        mock_get_cache_dir.return_value = str(platformio_cache_dir)
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        mock_config = MagicMock()
+        mock_get_instance.return_value = mock_config
+        mock_config.get.side_effect = (
+            lambda section, option: str(platformio_cache_dir)
+            if (section, option) == ("platformio", "cache_dir")
+            else ""
+        )
 
         # Call the function
         with caplog.at_level("INFO"):
@@ -486,7 +492,7 @@ def test_clean_build_platformio_not_available(
 
     # Mock import error for platformio
     with (
-        patch.dict("sys.modules", {"platformio.project.helpers": None}),
+        patch.dict("sys.modules", {"platformio.project.config": None}),
         caplog.at_level("INFO"),
     ):
         # Call the function
@@ -520,11 +526,17 @@ def test_clean_build_empty_cache_dir(
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
 
-    # Mock PlatformIO's get_project_cache_dir to return whitespace
+    # Mock PlatformIO's ProjectConfig cache_dir to return whitespace
     with patch(
-        "platformio.project.helpers.get_project_cache_dir"
-    ) as mock_get_cache_dir:
-        mock_get_cache_dir.return_value = "   "  # Whitespace only
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        mock_config = MagicMock()
+        mock_get_instance.return_value = mock_config
+        mock_config.get.side_effect = (
+            lambda section, option: "   "  # Whitespace only
+            if (section, option) == ("platformio", "cache_dir")
+            else ""
+        )
 
         # Call the function
         with caplog.at_level("INFO"):
@@ -723,3 +735,126 @@ def test_write_cpp_with_duplicate_markers(
     # Call should raise an error
     with pytest.raises(EsphomeError, match="Found multiple auto generate code begins"):
         write_cpp("// New code")
+
+
+@patch("esphome.writer.CORE")
+def test_clean_platform(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_platform removes build and PlatformIO dirs."""
+    # Create build directory
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    # Create PlatformIO directories
+    pio_cache = tmp_path / "pio_cache"
+    pio_packages = tmp_path / "pio_packages"
+    pio_platforms = tmp_path / "pio_platforms"
+    pio_core = tmp_path / "pio_core"
+    for d in (pio_cache, pio_packages, pio_platforms, pio_core):
+        d.mkdir()
+        (d / "keep").write_text("x")
+
+    # Setup CORE
+    mock_core.build_path = build_dir
+
+    # Mock ProjectConfig
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        mock_config = MagicMock()
+        mock_get_instance.return_value = mock_config
+
+        def cfg_get(section: str, option: str) -> str:
+            mapping = {
+                ("platformio", "cache_dir"): str(pio_cache),
+                ("platformio", "packages_dir"): str(pio_packages),
+                ("platformio", "platforms_dir"): str(pio_platforms),
+                ("platformio", "core_dir"): str(pio_core),
+            }
+            return mapping.get((section, option), "")
+
+        mock_config.get.side_effect = cfg_get
+
+        # Call
+        from esphome.writer import clean_platform
+
+        with caplog.at_level("INFO"):
+            clean_platform()
+
+    # Verify deletions
+    assert not build_dir.exists()
+    assert not pio_cache.exists()
+    assert not pio_packages.exists()
+    assert not pio_platforms.exists()
+    assert not pio_core.exists()
+
+    # Verify logging mentions each
+    assert "Deleting" in caplog.text
+    assert str(build_dir) in caplog.text
+    assert "PlatformIO cache" in caplog.text
+    assert "PlatformIO packages" in caplog.text
+    assert "PlatformIO platforms" in caplog.text
+    assert "PlatformIO core" in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_platform_platformio_not_available(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_platform when PlatformIO is not available."""
+    # Build dir
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    mock_core.build_path = build_dir
+
+    # PlatformIO dirs that should remain untouched
+    pio_cache = tmp_path / "pio_cache"
+    pio_cache.mkdir()
+
+    from esphome.writer import clean_platform
+
+    with (
+        patch.dict("sys.modules", {"platformio.project.config": None}),
+        caplog.at_level("INFO"),
+    ):
+        clean_platform()
+
+    # Build dir removed, PlatformIO dirs remain
+    assert not build_dir.exists()
+    assert pio_cache.exists()
+
+    # No PlatformIO-specific logs
+    assert "PlatformIO" not in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_platform_partial_exists(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test clean_platform when only build dir exists."""
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    mock_core.build_path = build_dir
+
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        mock_config = MagicMock()
+        mock_get_instance.return_value = mock_config
+        # Return non-existent dirs
+        mock_config.get.side_effect = lambda *_args, **_kw: str(
+            tmp_path / "does_not_exist"
+        )
+
+        from esphome.writer import clean_platform
+
+        clean_platform()
+
+    assert not build_dir.exists()
