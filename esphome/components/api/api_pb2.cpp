@@ -22,9 +22,12 @@ bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->client_info = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->client_info = value.data();
+      this->client_info_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -45,9 +48,12 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
 bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->password = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->password = value.data();
+      this->password_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -917,9 +923,12 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 #endif
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->timezone = value.as_string();
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->timezone = value.data();
+      this->timezone_len = value.size();
       break;
+    }
     default:
       return false;
   }

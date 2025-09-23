@@ -330,11 +330,12 @@ class CommandProtoMessage : public ProtoDecodableMessage {
 class HelloRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 1;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "hello_request"; }
 #endif
-  std::string client_info{};
+  const uint8_t *client_info{nullptr};
+  uint16_t client_info_len{0};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -370,11 +371,12 @@ class HelloResponse final : public ProtoMessage {
 class AuthenticationRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 3;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "authentication_request"; }
 #endif
-  std::string password{};
+  const uint8_t *password{nullptr};
+  uint16_t password_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1188,12 +1190,13 @@ class GetTimeRequest final : public ProtoMessage {
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 14;
+  static constexpr uint8_t ESTIMATED_SIZE = 24;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "get_time_response"; }
 #endif
   uint32_t epoch_seconds{0};
-  std::string timezone{};
+  const uint8_t *timezone{nullptr};
+  uint16_t timezone_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

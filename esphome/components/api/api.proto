@@ -102,7 +102,7 @@ message HelloRequest {
   // For example "Home Assistant"
   // Not strictly necessary to send but nice for debugging
   // purposes.
-  string client_info = 1;
+  string client_info = 1 [(pointer_to_buffer) = true];
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
 }
@@ -124,7 +124,7 @@ message HelloResponse {
   // A string identifying the server (ESP); like client info this may be empty
   // and only exists for debugging/logging purposes.
   // For example "ESPHome v1.10.0 on ESP8266"
-  string server_info = 3 [(pointer_to_buffer) = true];
+  string server_info = 3;
 
   // The name of the server (App.get_name())
   string name = 4;
