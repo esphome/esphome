@@ -240,7 +240,7 @@ bool APIServer::check_password(const uint8_t *password_data, size_t password_len
   }
 
   for (size_t i = 0; i < length; i++) {
-    result |= *left++ ^ *right++;
+    result |= *left++ ^ *right++;  // NOLINT
   }
 
   return result == 0;
