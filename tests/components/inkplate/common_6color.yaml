@@ -1,0 +1,22 @@
+# I2C is required by schema but not used by SPI model
+i2c:
+  - id: i2c_inkplate
+    scl: 16
+    sda: 17
+
+esp32:
+  cpu_frequency: 240MHz
+
+display:
+  - platform: inkplate
+    id: inkplate_display
+    model: inkplate_6_color
+    partial_updating: false
+    update_interval: 60s
+    # SPI pins for inkplate_6_color
+    epaper_rst_pin: 19
+    epaper_dc_pin: 33
+    epaper_cs_pin: 27
+    epaper_busy_pin: 32
+    clk_pin: 18
+    mosi_pin: 23

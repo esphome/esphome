@@ -5,6 +5,7 @@ from esphome.components.esp32 import CONF_CPU_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
+    CONF_I2C_ID,
     CONF_ID,
     CONF_LAMBDA,
     CONF_MIRROR_X,
@@ -20,7 +21,7 @@ import esphome.final_validate as fv
 
 from .const import INKPLATE_10_CUSTOM_WAVEFORMS, WAVEFORMS
 
-DEPENDENCIES = ["i2c", "esp32"]
+DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["psram"]
 
 CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
@@ -44,6 +45,14 @@ CONF_SPH_PIN = "sph_pin"
 CONF_SPV_PIN = "spv_pin"
 CONF_VCOM_PIN = "vcom_pin"
 
+# SPI pins for COLOR model
+CONF_EPAPER_RST_PIN = "epaper_rst_pin"
+CONF_EPAPER_DC_PIN = "epaper_dc_pin"
+CONF_EPAPER_CS_PIN = "epaper_cs_pin"
+CONF_EPAPER_BUSY_PIN = "epaper_busy_pin"
+CONF_CLK_PIN = "clk_pin"
+CONF_MOSI_PIN = "mosi_pin"
+
 inkplate_ns = cg.esphome_ns.namespace("inkplate")
 Inkplate = inkplate_ns.class_(
     "Inkplate",
@@ -62,14 +71,66 @@ MODELS = {
     "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
     "inkplate_5": InkplateModel.INKPLATE_5,
     "inkplate_5_v2": InkplateModel.INKPLATE_5_V2,
+    "inkplate_6_color": InkplateModel.INKPLATE_6_COLOR,
 }
 
+# Models that use SPI communication instead of parallel GPIO
+SPI_MODELS = ["inkplate_6_color"]
+
 CONF_CUSTOM_WAVEFORM = "custom_waveform"
+
+
+def _is_spi_model(model):
+    """Check if the given model uses SPI communication."""
+    return model in SPI_MODELS
+
+
+def _is_parallel_model(model):
+    """Check if the given model uses parallel GPIO communication."""
+    return not _is_spi_model(model)
 
 
 def _validate_custom_waveform(config):
     if CONF_CUSTOM_WAVEFORM in config and config[CONF_MODEL] != "inkplate_10":
         raise cv.Invalid("Custom waveforms are only supported on the Inkplate 10")
+    return config
+
+
+def _validate_pins_for_model(config):
+    model = config[CONF_MODEL]
+
+    if _is_parallel_model(model):
+        # Note: I2C_ID validation is handled in to_code function
+
+        # Parallel GPIO models require these control pins
+        required_parallel_pins = [
+            CONF_CKV_PIN,
+            CONF_GMOD_PIN,
+            CONF_GPIO0_ENABLE_PIN,
+            CONF_OE_PIN,
+            CONF_POWERUP_PIN,
+            CONF_SPH_PIN,
+            CONF_SPV_PIN,
+            CONF_VCOM_PIN,
+            CONF_WAKEUP_PIN,
+        ]
+        missing_pins = [pin for pin in required_parallel_pins if pin not in config]
+        if missing_pins:
+            raise cv.Invalid(
+                f"Parallel GPIO models require the following pins: {', '.join(missing_pins)}"
+            )
+
+    elif _is_spi_model(model):
+        # SPI models will have defaults applied in to_code function
+        # No validation needed here since defaults will be applied automatically
+        pass
+
+    return config
+
+
+def _apply_defaults_for_model(config):
+    """Apply model-specific defaults to configuration."""
+    # Defaults will be handled in to_code function to avoid pin schema issues
     return config
 
 
@@ -92,49 +153,53 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODEL, default="inkplate_6"): cv.enum(
                 MODELS, lower=True, space="_"
             ),
-            # Control pins
-            cv.Required(CONF_CKV_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_GPIO0_ENABLE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_OE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_POWERUP_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_SPH_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_SPV_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
+            # Control pins (for non-COLOR models)
+            cv.Optional(CONF_CKV_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_GPIO0_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_OE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_POWERUP_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_SPH_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_SPV_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
+            # SPI pins
+            cv.Optional(CONF_EPAPER_RST_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_EPAPER_DC_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_EPAPER_CS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(
+                "cs_pin"
+            ): pins.gpio_output_pin_schema,  # Alternative to epaper_cs_pin
+            cv.Optional(CONF_EPAPER_BUSY_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_CL_PIN, default=0): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_LE_PIN, default=2): pins.internal_gpio_output_pin_schema,
             # Data pins
-            cv.Optional(
-                CONF_DISPLAY_DATA_0_PIN, default=4
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_1_PIN, default=5
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_2_PIN, default=18
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_3_PIN, default=19
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_4_PIN, default=23
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_5_PIN, default=25
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_6_PIN, default=26
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_7_PIN, default=27
-            ): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_0_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_1_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_2_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_3_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_4_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_5_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_6_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY_DATA_7_PIN): pins.internal_gpio_output_pin_schema,
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(i2c.i2c_device_schema(0x48)),
+    .extend(
+        cv.Schema(
+            {
+                # I2C configuration (automatically assigned for all models, used only by parallel models)
+                cv.GenerateID(CONF_I2C_ID): cv.use_id(i2c.I2CBus),
+                cv.Optional("address", default=0x48): cv.i2c_address,
+            }
+        )
+    ),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate_custom_waveform,
+    _apply_defaults_for_model,
+    _validate_pins_for_model,
 )
 
 
@@ -154,7 +219,13 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
     await display.register_display(var, config)
-    await i2c.register_i2c_device(var, config)
+
+    # Only register with I2C for parallel GPIO models
+    # SPI models handle their own communication without ESPHome SPI component
+    if _is_parallel_model(config[CONF_MODEL]):
+        await i2c.register_i2c_device(var, config)
+        # Define USE_INKPLATE_I2C for conditional I2C compilation
+        cg.add_define("USE_INKPLATE_I2C")
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -175,64 +246,103 @@ async def to_code(config):
         waveform = INKPLATE_10_CUSTOM_WAVEFORMS[custom_waveform - 1]
         waveform = [element for tupl in waveform for element in tupl]
         cg.add(var.set_waveform(waveform, True))
-    else:
+    elif _is_parallel_model(config[CONF_MODEL]):
         waveform = WAVEFORMS[config[CONF_MODEL]]
         waveform = [element for tupl in waveform for element in tupl]
         cg.add(var.set_waveform(waveform, False))
 
-    ckv = await cg.gpio_pin_expression(config[CONF_CKV_PIN])
-    cg.add(var.set_ckv_pin(ckv))
+    # Set pins based on communication method
+    if _is_spi_model(config[CONF_MODEL]):
+        # Configure SPI communication pins
+        rst = await cg.gpio_pin_expression(config[CONF_EPAPER_RST_PIN])
+        cg.add(var.set_epaper_rst_pin(rst))
 
-    gmod = await cg.gpio_pin_expression(config[CONF_GMOD_PIN])
-    cg.add(var.set_gmod_pin(gmod))
+        dc = await cg.gpio_pin_expression(config[CONF_EPAPER_DC_PIN])
+        cg.add(var.set_epaper_dc_pin(dc))
 
-    gpio0_enable = await cg.gpio_pin_expression(config[CONF_GPIO0_ENABLE_PIN])
-    cg.add(var.set_gpio0_enable_pin(gpio0_enable))
+        # Check for cs_pin first, then epaper_cs_pin
+        if "cs_pin" in config:
+            cs = await cg.gpio_pin_expression(config["cs_pin"])
+        else:
+            cs = await cg.gpio_pin_expression(config[CONF_EPAPER_CS_PIN])
+        cg.add(var.set_epaper_cs_pin(cs))
 
-    oe = await cg.gpio_pin_expression(config[CONF_OE_PIN])
-    cg.add(var.set_oe_pin(oe))
+        busy = await cg.gpio_pin_expression(config[CONF_EPAPER_BUSY_PIN])
+        cg.add(var.set_epaper_busy_pin(busy))
 
-    powerup = await cg.gpio_pin_expression(config[CONF_POWERUP_PIN])
-    cg.add(var.set_powerup_pin(powerup))
+        clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
+        cg.add(var.set_epaper_clk_pin(clk))
 
-    sph = await cg.gpio_pin_expression(config[CONF_SPH_PIN])
-    cg.add(var.set_sph_pin(sph))
+        mosi = await cg.gpio_pin_expression(config[CONF_MOSI_PIN])
+        cg.add(var.set_epaper_din_pin(mosi))
 
-    spv = await cg.gpio_pin_expression(config[CONF_SPV_PIN])
-    cg.add(var.set_spv_pin(spv))
+    elif _is_parallel_model(config[CONF_MODEL]):
+        # Configure parallel GPIO control pins
+        if CONF_CKV_PIN in config:
+            ckv = await cg.gpio_pin_expression(config[CONF_CKV_PIN])
+            cg.add(var.set_ckv_pin(ckv))
 
-    vcom = await cg.gpio_pin_expression(config[CONF_VCOM_PIN])
-    cg.add(var.set_vcom_pin(vcom))
+        if CONF_GMOD_PIN in config:
+            gmod = await cg.gpio_pin_expression(config[CONF_GMOD_PIN])
+            cg.add(var.set_gmod_pin(gmod))
 
-    wakeup = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
-    cg.add(var.set_wakeup_pin(wakeup))
+        if CONF_GPIO0_ENABLE_PIN in config:
+            gpio0_enable = await cg.gpio_pin_expression(config[CONF_GPIO0_ENABLE_PIN])
+            cg.add(var.set_gpio0_enable_pin(gpio0_enable))
 
+        if CONF_OE_PIN in config:
+            oe = await cg.gpio_pin_expression(config[CONF_OE_PIN])
+            cg.add(var.set_oe_pin(oe))
+
+        if CONF_POWERUP_PIN in config:
+            powerup = await cg.gpio_pin_expression(config[CONF_POWERUP_PIN])
+            cg.add(var.set_powerup_pin(powerup))
+
+        if CONF_SPH_PIN in config:
+            sph = await cg.gpio_pin_expression(config[CONF_SPH_PIN])
+            cg.add(var.set_sph_pin(sph))
+
+        if CONF_SPV_PIN in config:
+            spv = await cg.gpio_pin_expression(config[CONF_SPV_PIN])
+            cg.add(var.set_spv_pin(spv))
+
+        if CONF_VCOM_PIN in config:
+            vcom = await cg.gpio_pin_expression(config[CONF_VCOM_PIN])
+            cg.add(var.set_vcom_pin(vcom))
+
+        if CONF_WAKEUP_PIN in config:
+            wakeup = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
+            cg.add(var.set_wakeup_pin(wakeup))
+
+    # Set up pins that all models use (even COLOR model uses these for GPIO expander communication)
     cl = await cg.gpio_pin_expression(config[CONF_CL_PIN])
     cg.add(var.set_cl_pin(cl))
 
     le = await cg.gpio_pin_expression(config[CONF_LE_PIN])
     cg.add(var.set_le_pin(le))
 
-    display_data_0 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_0_PIN])
-    cg.add(var.set_display_data_0_pin(display_data_0))
+    # Only set up data pins for parallel GPIO models
+    if _is_parallel_model(config[CONF_MODEL]):
+        display_data_0 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_0_PIN])
+        cg.add(var.set_display_data_0_pin(display_data_0))
 
-    display_data_1 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_1_PIN])
-    cg.add(var.set_display_data_1_pin(display_data_1))
+        display_data_1 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_1_PIN])
+        cg.add(var.set_display_data_1_pin(display_data_1))
 
-    display_data_2 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_2_PIN])
-    cg.add(var.set_display_data_2_pin(display_data_2))
+        display_data_2 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_2_PIN])
+        cg.add(var.set_display_data_2_pin(display_data_2))
 
-    display_data_3 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_3_PIN])
-    cg.add(var.set_display_data_3_pin(display_data_3))
+        display_data_3 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_3_PIN])
+        cg.add(var.set_display_data_3_pin(display_data_3))
 
-    display_data_4 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_4_PIN])
-    cg.add(var.set_display_data_4_pin(display_data_4))
+        display_data_4 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_4_PIN])
+        cg.add(var.set_display_data_4_pin(display_data_4))
 
-    display_data_5 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_5_PIN])
-    cg.add(var.set_display_data_5_pin(display_data_5))
+        display_data_5 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_5_PIN])
+        cg.add(var.set_display_data_5_pin(display_data_5))
 
-    display_data_6 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_6_PIN])
-    cg.add(var.set_display_data_6_pin(display_data_6))
+        display_data_6 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_6_PIN])
+        cg.add(var.set_display_data_6_pin(display_data_6))
 
-    display_data_7 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_7_PIN])
-    cg.add(var.set_display_data_7_pin(display_data_7))
+        display_data_7 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_7_PIN])
+        cg.add(var.set_display_data_7_pin(display_data_7))
