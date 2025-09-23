@@ -371,9 +371,9 @@ void APIServer::set_password(const std::string &password) { this->password_ = pa
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
+void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
   for (auto &client : this->clients_) {
-    client->send_homeassistant_service_call(call);
+    client->send_homeassistant_action(call);
   }
 }
 #endif

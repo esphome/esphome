@@ -1101,8 +1101,8 @@ void HomeassistantServiceMap::dump_to(std::string &out) const {
   dump_field(out, "key", this->key_ref_);
   dump_field(out, "value", this->value);
 }
-void HomeassistantServiceResponse::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "HomeassistantServiceResponse");
+void HomeassistantActionRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "HomeassistantActionRequest");
   dump_field(out, "service", this->service_ref_);
   for (const auto &it : this->data) {
     out.append("  data: ");

@@ -872,7 +872,7 @@ void HomeassistantServiceMap::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->key_ref_.size());
   size.add_length(1, this->value.size());
 }
-void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
+void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service_ref_);
   for (auto &it : this->data) {
     buffer.encode_message(2, it, true);
@@ -885,7 +885,7 @@ void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(5, this->is_event);
 }
-void HomeassistantServiceResponse::calculate_size(ProtoSize &size) const {
+void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
   size.add_repeated_message(1, this->data);
   size.add_repeated_message(1, this->data_template);
