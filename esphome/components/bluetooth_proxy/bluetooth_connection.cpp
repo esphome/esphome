@@ -523,6 +523,9 @@ esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_.c_str(),
            handle);
 
+  // ESP-IDF's API requires a non-const uint8_t* but it doesn't modify the data
+  // The BTC layer immediately copies the data to its own buffer (see btc_gattc.c)
+  // const_cast is safe here and was previously hidden by a C-style cast
   esp_err_t err =
       esp_ble_gattc_write_char(this->gattc_if_, this->conn_id_, handle, length, const_cast<uint8_t *>(data),
                                response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -549,6 +552,9 @@ esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_.c_str(),
            handle);
 
+  // ESP-IDF's API requires a non-const uint8_t* but it doesn't modify the data
+  // The BTC layer immediately copies the data to its own buffer (see btc_gattc.c)
+  // const_cast is safe here and was previously hidden by a C-style cast
   esp_err_t err = esp_ble_gattc_write_char_descr(
       this->gattc_if_, this->conn_id_, handle, length, const_cast<uint8_t *>(data),
       response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
