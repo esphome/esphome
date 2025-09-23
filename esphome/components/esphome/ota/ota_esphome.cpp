@@ -532,8 +532,8 @@ void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogSt
 bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request,
                                              const LogString *name, char *buf) {
   // Get sizes from the hasher
-  const size_t hex_size = hasher->get_size() * 2;       // Hex is twice the byte size
-  const size_t nonce_hex_len = hasher->get_size() / 2;  // Nonce hex length is 1/4 of full hex size
+  const size_t hex_size = hasher->get_size() * 2;   // Hex is twice the byte size
+  const size_t nonce_len = hasher->get_size() / 4;  // Nonce is 1/4 of hash size in bytes
 
   // Use the provided buffer for all hex operations
 
@@ -553,11 +553,11 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   nonce_bytes[2] = (r1 >> 8) & 0xFF;
   nonce_bytes[3] = r1 & 0xFF;
 
-  if (nonce_hex_len == 8) {
-    // MD5: 8 chars = "%08x" format = 4 bytes from one random uint32
+  if (nonce_len == 4) {
+    // MD5: 4 bytes from one random uint32
     hasher->add(nonce_bytes, 4);
   } else {
-    // SHA256: 16 chars = "%08x%08x" format = 8 bytes from two random uint32s
+    // SHA256: 8 bytes from two random uint32s
     uint32_t r2 = random_uint32();
     nonce_bytes[4] = (r2 >> 24) & 0xFF;
     nonce_bytes[5] = (r2 >> 16) & 0xFF;
