@@ -61,14 +61,14 @@ void ZWaveProxy::loop() {
       }
       ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
-        // Zero-copy: point directly to our buffer
-        this->outgoing_proto_msg_.data = this->buffer_.data();
+        // minimize copying to reduce CPU overhead
         if (this->in_bootloader_) {
           this->outgoing_proto_msg_.data_len = this->buffer_index_;
         } else {
           // If this is a data frame, use frame length indicator + 2 (for SoF + checksum), else assume 1 for ACK/NAK/CAN
           this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
         }
+        std::memcpy(this->outgoing_proto_msg_.data, this->buffer_.data(), this->outgoing_proto_msg_.data_len);
         this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
       }
     }
@@ -228,9 +228,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
   }
   // Forward response (ACK/NAK/CAN) back to client for processing
   if (this->api_connection_ != nullptr) {
-    // Store single byte in buffer and point to it
-    this->buffer_[0] = byte;
-    this->outgoing_proto_msg_.data = this->buffer_.data();
+    this->outgoing_proto_msg_.data[0] = byte;
     this->outgoing_proto_msg_.data_len = 1;
     this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
   }

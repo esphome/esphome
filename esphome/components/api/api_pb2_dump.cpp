@@ -1649,7 +1649,7 @@ void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
   dump_field(out, "handle", this->handle);
   dump_field(out, "response", this->response);
   out.append("  data: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
+  out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
 }
 void BluetoothGATTReadDescriptorRequest::dump_to(std::string &out) const {
@@ -1662,7 +1662,7 @@ void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   out.append("  data: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
+  out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
 }
 void BluetoothGATTNotifyRequest::dump_to(std::string &out) const {
