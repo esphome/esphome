@@ -226,5 +226,54 @@ void debug_data(OpenthermData &data);
 
 void debug_error(OpenThermProtocolError &error);
 
+class OpenThermBase {
+ public:
+  OpenThermBase(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin);
+
+  virtual bool initialize();
+
+  virtual void listen();
+
+  virtual void send(OpenthermData &data);
+
+  virtual void stop();
+
+  virtual void debug_rmt() const {}
+
+  bool has_message() { return mode_ == OperationMode::RECEIVED; }
+
+  bool get_message(OpenthermData &data);
+
+  const OpenThermProtocolError &get_protocol_error() const;
+
+  bool is_sent() { return mode_ == OperationMode::SENT; }
+
+  bool is_idle() { return mode_ == OperationMode::IDLE; }
+
+  bool is_error() {
+    return mode_ == OperationMode::ERROR_TIMEOUT || mode_ == OperationMode::ERROR_PROTOCOL || mode_ == ERROR_RMT;
+  }
+
+  bool is_timeout() { return mode_ == OperationMode::ERROR_TIMEOUT; }
+
+  bool is_protocol_error() { return mode_ == OperationMode::ERROR_PROTOCOL; }
+
+  bool is_rmt_error() { return mode_ == OperationMode::ERROR_RMT; }
+
+  bool is_active() { return mode_ == LISTEN || mode_ == READ || mode_ == WRITE; }
+
+  OperationMode get_mode() { return mode_; }
+
+ protected:
+  InternalGPIOPin *in_pin_{};
+  InternalGPIOPin *out_pin_{};
+
+  OperationMode mode_{OperationMode::IDLE};
+  OpenThermProtocolError error_{};
+  uint32_t data_{};
+
+  bool check_parity_(uint32_t val);
+};
+
 }  // namespace opentherm
 }  // namespace esphome

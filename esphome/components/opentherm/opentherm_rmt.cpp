@@ -20,53 +20,24 @@ static const uint32_t RMT_CLK_FREQ = 32000000;
 static const uint32_t RMT_CLK_FREQ = 80000000;
 #endif
 
-OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t) : in_pin_(in_pin), out_pin_(out_pin) {
+OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin) : OpenThermBase(in_pin, out_pin) {
   this->isr_in_pin_ = in_pin->to_isr();
   this->isr_out_pin_ = out_pin->to_isr();
 }
 
-bool OpenTherm::initialize() {
-  this->in_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->in_pin_->setup();
-  this->out_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->out_pin_->setup();
-
-  return this->rmt_init_();
-}
+bool OpenTherm::initialize() { return OpenThermBase::initialize() && this->rmt_init_(); }
 
 void OpenTherm::listen() {
-  this->mode_ = OperationMode::LISTEN;
-  this->data_ = 0;
+  OpenThermBase::listen();
   this->rmt_read_();
 }
 
 void OpenTherm::send(OpenthermData &data) {
-  this->data_ = data.type;
-  this->data_ = (this->data_ << 12) | data.id;
-  this->data_ = (this->data_ << 8) | data.valueHB;
-  this->data_ = (this->data_ << 8) | data.valueLB;
-  if (!check_parity_(this->data_)) {
-    this->data_ = this->data_ | 0x80000000;
-  }
-
-  this->mode_ = OperationMode::WRITE;
+  OpenThermBase::send(data);
   this->rmt_write_();
 }
 
-bool OpenTherm::get_message(OpenthermData &data) {
-  if (this->mode_ == OperationMode::RECEIVED) {
-    data.type = (this->data_ >> 28) & 0x7;
-    data.id = (this->data_ >> 16) & 0xFF;
-    data.valueHB = (this->data_ >> 8) & 0xFF;
-    data.valueLB = this->data_ & 0xFF;
-    return true;
-  }
-  return false;
-}
-
-const OpenThermProtocolError &OpenTherm::get_protocol_error() const { return this->error_; }
-
-void OpenTherm::stop() { this->mode_ = OperationMode::IDLE; }
+void OpenTherm::stop() { OpenThermBase::stop(); }
 
 bool OpenTherm::rmt_init_() {
   // Configure RX channel
@@ -369,16 +340,6 @@ void OpenTherm::set_protocol_error(ProtocolErrorType error_type, size_t bit_inde
   this->error_.error_type = error_type;
   this->error_.bit_index = bit_index;
   this->error_.data = data_;
-}
-
-// https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
-bool IRAM_ATTR OpenTherm::check_parity_(uint32_t val) {
-  val ^= val >> 16;
-  val ^= val >> 8;
-  val ^= val >> 4;
-  val ^= val >> 2;
-  val ^= val >> 1;
-  return (~val) & 1;
 }
 
 void OpenTherm::debug_rmt() const {

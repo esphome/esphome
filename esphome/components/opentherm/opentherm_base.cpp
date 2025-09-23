@@ -208,5 +208,58 @@ void OpenthermData::s16(int16_t value) {
   this->valueHB = (value >> 8) & 0xFF;
 }
 
+OpenThermBase::OpenThermBase(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin) : in_pin_(in_pin), out_pin_(out_pin) {}
+
+bool OpenThermBase::initialize() {
+  this->in_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->in_pin_->setup();
+  this->out_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->out_pin_->setup();
+
+  return true;
+}
+
+void OpenThermBase::listen() {
+  this->mode_ = OperationMode::LISTEN;
+  this->data_ = 0;
+}
+
+void OpenThermBase::send(OpenthermData &data) {
+  this->data_ = data.type;
+  this->data_ = (this->data_ << 12) | data.id;
+  this->data_ = (this->data_ << 8) | data.valueHB;
+  this->data_ = (this->data_ << 8) | data.valueLB;
+  if (!check_parity_(this->data_)) {
+    this->data_ = this->data_ | 0x80000000;
+  }
+
+  this->mode_ = OperationMode::WRITE;
+}
+
+bool OpenThermBase::get_message(OpenthermData &data) {
+  if (this->mode_ == OperationMode::RECEIVED) {
+    data.type = (this->data_ >> 28) & 0x7;
+    data.id = (this->data_ >> 16) & 0xFF;
+    data.valueHB = (this->data_ >> 8) & 0xFF;
+    data.valueLB = this->data_ & 0xFF;
+    return true;
+  }
+  return false;
+}
+
+const OpenThermProtocolError &OpenThermBase::get_protocol_error() const { return this->error_; }
+
+void OpenThermBase::stop() { this->mode_ = OperationMode::IDLE; }
+
+// https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
+bool IRAM_ATTR OpenThermBase::check_parity_(uint32_t val) {
+  val ^= val >> 16;
+  val ^= val >> 8;
+  val ^= val >> 4;
+  val ^= val >> 2;
+  val ^= val >> 1;
+  return (~val) & 1;
+}
+
 }  // namespace opentherm
 }  // namespace esphome
