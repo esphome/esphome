@@ -769,7 +769,7 @@ message HomeassistantServiceMap {
   string value = 2 [(no_zero_copy) = true];
 }
 
-message HomeassistantServiceResponse {
+message HomeassistantActionRequest {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
