@@ -1985,15 +1985,14 @@ class BluetoothGATTReadResponse final : public ProtoMessage {
 class BluetoothGATTWriteRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 75;
-  static constexpr uint8_t ESTIMATED_SIZE = 29;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_request"; }
 #endif
   uint64_t address{0};
   uint32_t handle{0};
   bool response{false};
-  const uint8_t *data{nullptr};
-  uint16_t data_len{0};
+  std::string data{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2021,14 +2020,13 @@ class BluetoothGATTReadDescriptorRequest final : public ProtoDecodableMessage {
 class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 77;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_descriptor_request"; }
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  const uint8_t *data{nullptr};
-  uint16_t data_len{0};
+  std::string data{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
