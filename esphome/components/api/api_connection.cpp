@@ -1078,8 +1078,14 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
-    if (!value.timezone.empty() && value.timezone != homeassistant::global_homeassistant_time->get_timezone()) {
-      homeassistant::global_homeassistant_time->set_timezone(value.timezone);
+    if (value.timezone_len > 0) {
+      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
+      // Compare without allocating a string
+      if (current_tz.length() != value.timezone_len ||
+          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
+        homeassistant::global_homeassistant_time->set_timezone(
+            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
+      }
     }
 #endif
   }
@@ -1374,7 +1380,7 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name = msg.client_info;
+  this->client_info_.name.assign(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
   this->client_info_.peername = this->helper_->getpeername();
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
@@ -1402,7 +1408,7 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
   AuthenticationResponse resp;
   // bool invalid_password = 1;
-  resp.invalid_password = !this->parent_->check_password(msg.password);
+  resp.invalid_password = !this->parent_->check_password(msg.password, msg.password_len);
   if (!resp.invalid_password) {
     this->complete_authentication_();
   }
