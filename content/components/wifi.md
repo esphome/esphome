@@ -104,8 +104,8 @@ wifi:
 - **passive_scan** (*Optional*, boolean): If enabled, then the device will perform WiFi scans in a passive fashion.
   Defaults to `false`.
 
-- **enable_btm** (*Optional*, bool): Only on `esp32` with `esp-idf`. Enable 802.11v BSS Transition Management support.
-- **enable_rrm** (*Optional*, bool): Only on `esp32` with `esp-idf`. Enable 802.11k Radio Resource Management support.
+- **enable_btm** (*Optional*, bool): Only on `esp32`. Enable 802.11v BSS Transition Management support.
+- **enable_rrm** (*Optional*, bool): Only on `esp32`. Enable 802.11k Radio Resource Management support.
 
 - **on_connect** (*Optional*, [Automation](#automation)): An action to be performed when a connection is established.
 - **on_disconnect** (*Optional*, [Automation](#automation)): An action to be performed when the connection is dropped.
