@@ -11,6 +11,8 @@
 namespace esphome {
 namespace zwave_proxy {
 
+static constexpr size_t MAX_ZWAVE_FRAME_SIZE = 257;  // Maximum Z-Wave frame size
+
 enum ZWaveResponseTypes : uint8_t {
   ZWAVE_FRAME_TYPE_ACK = 0x06,
   ZWAVE_FRAME_TYPE_CAN = 0x18,
@@ -63,11 +65,11 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
 
-  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};  // Fixed buffer for home ID
-  std::array<uint8_t, 257> buffer_;             // Fixed buffer for incoming data
-  uint8_t buffer_index_{0};                     // Index for populating the data buffer
-  uint8_t end_frame_after_{0};                  // Payload reception ends after this index
-  uint8_t last_response_{0};                    // Last response type sent
+  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};        // Fixed buffer for home ID
+  std::array<uint8_t, MAX_ZWAVE_FRAME_SIZE> buffer_;  // Fixed buffer for incoming data
+  uint8_t buffer_index_{0};                           // Index for populating the data buffer
+  uint8_t end_frame_after_{0};                        // Payload reception ends after this index
+  uint8_t last_response_{0};                          // Last response type sent
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
   bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
 
