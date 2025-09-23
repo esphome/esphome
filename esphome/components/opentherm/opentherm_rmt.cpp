@@ -1,3 +1,5 @@
+#if defined(ESP32) || defined(USE_ESP_IDF)
+
 #include "opentherm_rmt.h"
 #include "esphome/core/helpers.h"
 #include <driver/rmt_rx.h>
@@ -20,10 +22,7 @@ static const uint32_t RMT_CLK_FREQ = 32000000;
 static const uint32_t RMT_CLK_FREQ = 80000000;
 #endif
 
-OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin) : OpenThermBase(in_pin, out_pin) {
-  this->isr_in_pin_ = in_pin->to_isr();
-  this->isr_out_pin_ = out_pin->to_isr();
-}
+OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin) : OpenThermBase(in_pin, out_pin) {}
 
 bool OpenTherm::initialize() { return OpenThermBase::initialize() && this->rmt_init_(); }
 
@@ -362,3 +361,5 @@ void OpenTherm::debug_rmt() const {
 
 }  // namespace opentherm
 }  // namespace esphome
+
+#endif

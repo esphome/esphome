@@ -6,7 +6,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#if defined(ESP32) || defined(USE_ESP_IDF)
 #include "opentherm_rmt.h"
+#endif
 
 #ifdef OPENTHERM_USE_SENSOR
 #include "esphome/components/sensor/sensor.h"

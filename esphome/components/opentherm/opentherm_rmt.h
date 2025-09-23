@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(ESP32) || defined(USE_ESP_IDF)
+
 #include <string>
 #include "opentherm_base.h"
 #include "esphome/core/hal.h"
@@ -29,9 +31,6 @@ class OpenTherm : public OpenThermBase {
   void debug_rmt() const override;
 
  private:
-  ISRInternalGPIOPin isr_in_pin_{};
-  ISRInternalGPIOPin isr_out_pin_{};
-
   // RMT resources
   rmt_channel_handle_t rx_channel_{};
   rmt_channel_handle_t tx_channel_{};
@@ -60,3 +59,5 @@ class OpenTherm : public OpenThermBase {
 
 }  // namespace opentherm
 }  // namespace esphome
+
+#endif
