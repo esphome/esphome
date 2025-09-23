@@ -6,7 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include "opentherm.h"
+#include "opentherm_rmt.h"
 
 #ifdef OPENTHERM_USE_SENSOR
 #include "esphome/components/sensor/sensor.h"

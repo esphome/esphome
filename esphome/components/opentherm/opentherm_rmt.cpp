@@ -1,11 +1,4 @@
-/*
- * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
- * heavily modified to comply with ESPHome coding standards and provide better logging.
- * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
- * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
- */
-
-#include "opentherm.h"
+#include "opentherm_rmt.h"
 #include "esphome/core/helpers.h"
 #include <driver/rmt_rx.h>
 #include <driver/rmt_tx.h>
