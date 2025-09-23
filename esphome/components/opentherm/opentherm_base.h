@@ -232,31 +232,31 @@ class OpenThermBase {
 
   virtual void stop();
 
-  virtual void debug_rmt() const {}
+  virtual void log_protocol_state() const {}
 
-  bool has_message() { return mode_ == OperationMode::RECEIVED; }
+  bool has_message() const { return mode_ == OperationMode::RECEIVED; }
 
   bool get_message(OpenthermData &data);
 
   ProtocolErrorType get_protocol_error_type() const { return this->error_type_; }
 
-  bool is_sent() { return mode_ == OperationMode::SENT; }
+  OperationMode get_mode() const { return mode_; }
 
-  bool is_idle() { return mode_ == OperationMode::IDLE; }
+  bool is_sent() const { return mode_ == OperationMode::SENT; }
 
-  bool is_error() {
+  bool is_idle() const { return mode_ == OperationMode::IDLE; }
+
+  bool is_error() const {
     return mode_ == OperationMode::ERROR_TIMEOUT || mode_ == OperationMode::ERROR_PROTOCOL || mode_ == ERROR_RMT;
   }
 
-  bool is_timeout() { return mode_ == OperationMode::ERROR_TIMEOUT; }
+  bool is_timeout() const { return mode_ == OperationMode::ERROR_TIMEOUT; }
 
-  bool is_protocol_error() { return mode_ == OperationMode::ERROR_PROTOCOL; }
+  bool is_protocol_error() const { return mode_ == OperationMode::ERROR_PROTOCOL; }
 
-  bool is_rmt_error() { return mode_ == OperationMode::ERROR_RMT; }
+  bool is_rmt_error() const { return mode_ == OperationMode::ERROR_RMT; }
 
-  bool is_active() { return mode_ == LISTEN || mode_ == READ || mode_ == WRITE; }
-
-  OperationMode get_mode() { return mode_; }
+  bool is_active() const { return mode_ == LISTEN || mode_ == READ || mode_ == WRITE; }
 
  protected:
   InternalGPIOPin *in_pin_{};

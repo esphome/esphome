@@ -28,7 +28,7 @@ class OpenTherm : public OpenThermBase {
 
   void stop() override;
 
-  void debug_rmt() const override;
+  void log_protocol_state() const override;
 
  private:
   // RMT resources

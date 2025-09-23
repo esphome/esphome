@@ -339,7 +339,7 @@ void OpenTherm::set_protocol_error(ProtocolErrorType error_type) {
   this->error_type_ = error_type;
 }
 
-void OpenTherm::debug_rmt() const {
+void OpenTherm::log_protocol_state() const {
   ESP_LOGD(TAG,
            "OpenTherm protocol error: %s\n"
            "Bit index: %u\n"

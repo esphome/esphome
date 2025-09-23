@@ -9,6 +9,9 @@
 #if defined(ESP32) || defined(USE_ESP_IDF)
 #include "opentherm_rmt.h"
 #endif
+#ifdef ESP8266
+#include "opentherm_esp8266.h"
+#endif
 
 #ifdef OPENTHERM_USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
