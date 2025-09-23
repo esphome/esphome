@@ -283,11 +283,23 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def _stdout_thread(self) -> None:
         if not self._use_popen:
             return
+        line = b""
+        cr = False
         while True:
-            data = self._proc.stdout.readline()
+            data = self._proc.stdout.read(1)
             if data:
-                data = data.replace(b"\r", b"")
-                self._queue.put_nowait(data)
+                if data == b"\r":
+                    cr = True
+                elif data == b"\n":
+                    self._queue.put_nowait(line + b"\n")
+                    line = b""
+                    cr = False
+                elif cr:
+                    self._queue.put_nowait(line + b"\r")
+                    line = data
+                    cr = False
+                else:
+                    line += data
             if self._proc.poll() is not None:
                 break
         self._proc.wait(1.0)
