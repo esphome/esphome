@@ -2397,6 +2397,39 @@ void VoiceAssistantWakeWord::calculate_size(ProtoSize &size) const {
     }
   }
 }
+bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->id = value.as_string();
+      break;
+    case 2:
+      this->wake_word = value.as_string();
+      break;
+    case 3:
+      this->trained_languages.push_back(value.as_string());
+      break;
+    case 4:
+      this->model_type = value.as_string();
+      break;
+    case 5:
+      this->url = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->external_wake_words.emplace_back();
+      value.decode_to_message(this->external_wake_words.back());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->available_wake_words) {
     buffer.encode_message(1, it, true);

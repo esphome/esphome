@@ -1824,8 +1824,23 @@ void VoiceAssistantWakeWord::dump_to(std::string &out) const {
     dump_field(out, "trained_languages", it, 4);
   }
 }
+void VoiceAssistantExternalWakeWord::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "VoiceAssistantExternalWakeWord");
+  dump_field(out, "id", this->id);
+  dump_field(out, "wake_word", this->wake_word);
+  for (const auto &it : this->trained_languages) {
+    dump_field(out, "trained_languages", it, 4);
+  }
+  dump_field(out, "model_type", this->model_type);
+  dump_field(out, "url", this->url);
+}
 void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
-  out.append("VoiceAssistantConfigurationRequest {}");
+  MessageDumpHelper helper(out, "VoiceAssistantConfigurationRequest");
+  for (const auto &it : this->external_wake_words) {
+    out.append("  external_wake_words: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
 }
 void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantConfigurationResponse");
