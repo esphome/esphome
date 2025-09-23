@@ -60,7 +60,7 @@ bool ZWaveProxy::can_proceed() {
   // Wait up to HOME_ID_TIMEOUT_MS for home ID response
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->setup_time_ > HOME_ID_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "Timeout waiting for Z-Wave home ID during setup");
+    ESP_LOGW(TAG, "Timeout reading Home ID during setup");
     return true;  // Proceed anyway after timeout
   }
 
