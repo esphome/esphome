@@ -44,6 +44,8 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  float get_setup_priority() const override;
+  bool can_proceed() override;
 
   void zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
@@ -60,19 +62,24 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
   bool response_handler_();
-
-  api::APIConnection *api_connection_{nullptr};  // Current subscribed client
-
-  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};                      // Fixed buffer for home ID
-  std::array<uint8_t, sizeof(api::ZWaveProxyFrame::data)> buffer_;  // Fixed buffer for incoming data
-  uint8_t buffer_index_{0};                                         // Index for populating the data buffer
-  uint8_t end_frame_after_{0};                                      // Payload reception ends after this index
-  uint8_t last_response_{0};                                        // Last response type sent
-  ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
-  bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
+  void process_uart_();  // Process all available UART data
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;
+  std::array<uint8_t, sizeof(api::ZWaveProxyFrame::data)> buffer_;  // Fixed buffer for incoming data
+  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};                      // Fixed buffer for home ID
+
+  // Pointers and 32-bit values (aligned together)
+  api::APIConnection *api_connection_{nullptr};  // Current subscribed client
+  uint32_t setup_time_{0};                       // Time when setup() was called
+
+  // 8-bit values (grouped together to minimize padding)
+  uint8_t buffer_index_{0};     // Index for populating the data buffer
+  uint8_t end_frame_after_{0};  // Payload reception ends after this index
+  uint8_t last_response_{0};    // Last response type sent
+  ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
+  bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
+  bool home_id_ready_{false};  // True when home ID has been received from Z-Wave module
 };
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
