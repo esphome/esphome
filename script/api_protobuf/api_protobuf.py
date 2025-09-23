@@ -373,6 +373,14 @@ def create_field_type_info(
             # Traditional fixed array approach with copy
             return FixedArrayBytesType(field, fixed_size)
 
+    # Check for pointer_to_buffer option on string fields
+    if field.type == 9:
+        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
+
+        if has_pointer_to_buffer:
+            # Zero-copy pointer approach for strings
+            return PointerToBytesBufferType(field, None)
+
     # Special handling for bytes fields
     if field.type == 12:
         return BytesType(field, needs_decode, needs_encode)
