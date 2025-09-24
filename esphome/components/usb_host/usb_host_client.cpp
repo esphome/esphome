@@ -211,8 +211,6 @@ void USBClient::usb_task_fn(void *arg) {
 }
 
 void USBClient::usb_task_loop() {
-  ESP_LOGI(TAG, "USB task started on core %d", xPortGetCoreID());
-
   while (true) {
     usb_host_client_handle_events(this->handle_, pdMS_TO_TICKS(10));
   }
@@ -232,7 +230,6 @@ void USBClient::loop() {
       case EVENT_TRANSFER_COMPLETE:
       case EVENT_CONTROL_COMPLETE: {
         auto *trq = event->data.transfer.trq;
-        // Callback was already executed in USB task, just cleanup
         this->release_trq(trq);
         break;
       }

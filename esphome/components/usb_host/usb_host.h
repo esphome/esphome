@@ -58,7 +58,6 @@ struct TransferRequest {
   USBClient *client;
 };
 
-// Lightweight event types for queue
 enum EventType : uint8_t {
   EVENT_DEVICE_NEW,
   EVENT_DEVICE_GONE,
