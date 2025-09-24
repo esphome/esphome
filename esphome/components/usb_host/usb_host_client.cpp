@@ -307,6 +307,14 @@ void USBClient::on_removed(usb_device_handle_t handle) {
   }
 }
 
+// Helper to queue transfer cleanup to main loop
+static void queue_transfer_cleanup(TransferRequest *trq, EventType type) {
+  UsbEvent event;
+  event.type = type;
+  event.data.transfer.trq = trq;
+  xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
+}
+
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void control_callback(const usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
@@ -322,10 +330,7 @@ static void control_callback(const usb_transfer_t *xfer) {
   }
 
   // Queue cleanup to main loop
-  UsbEvent event;
-  event.type = EVENT_CONTROL_COMPLETE;
-  event.data.transfer.trq = trq;
-  xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
+  queue_transfer_cleanup(trq, EVENT_CONTROL_COMPLETE);
 }
 
 TransferRequest *USBClient::get_trq_() {
@@ -402,11 +407,7 @@ static void transfer_callback(usb_transfer_t *xfer) {
   }
 
   // Queue cleanup to main loop
-  UsbEvent event;
-  event.type = EVENT_TRANSFER_COMPLETE;
-  event.data.transfer.trq = trq;
-  event.data.transfer.callback_executed = true;
-  xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
+  queue_transfer_cleanup(trq, EVENT_TRANSFER_COMPLETE);
 }
 /**
  * Performs a transfer input operation.

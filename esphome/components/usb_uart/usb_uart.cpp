@@ -266,12 +266,11 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     return;
   }
   const auto *ep = channel->cdc_dev_.out_ep;
-  // CALLBACK CONTEXT: This lambda is stored in TransferRequest and will be executed
-  // in MAIN LOOP after being queued by transfer_callback in USB task
+  // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
     channel->output_started_ = false;
-    // DEFERRED CONTEXT: Main loop (restart output in main loop)
+    // Defer restart to main loop (defer is thread-safe)
     this->defer([this, channel] { this->start_output(channel); });
   };
   channel->output_started_ = true;
