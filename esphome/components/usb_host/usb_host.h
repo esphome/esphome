@@ -7,8 +7,8 @@
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/semphr.h>
-#include <freertos/queue.h>
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
 #include <list>
 
 namespace esphome {
@@ -79,6 +79,9 @@ struct UsbEvent {
       TransferRequest *trq;
     } transfer;
   } data;
+
+  // Required for EventPool - no cleanup needed for POD types
+  void release() {}
 };
 
 // callback function type.
@@ -115,7 +118,11 @@ class USBClient : public Component {
   void release_trq(TransferRequest *trq);
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
-  QueueHandle_t get_event_queue() { return event_queue_; }
+
+  // Lock-free event queue and pool for USB task to main loop communication
+  // Must be public for access from static callbacks
+  LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
+  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
 
  protected:
   bool register_();
@@ -129,7 +136,6 @@ class USBClient : public Component {
   void usb_task_loop();
 
   TaskHandle_t usb_task_handle_{nullptr};
-  QueueHandle_t event_queue_{nullptr};  // Queue of UsbEvent structs
 
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};

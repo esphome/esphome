@@ -142,28 +142,37 @@ static std::string get_descriptor_string(const usb_str_desc_t *desc) {
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *ptr) {
   auto *client = static_cast<USBClient *>(ptr);
-  UsbEvent event;
+
+  // Allocate event from pool
+  UsbEvent *event = client->event_pool.allocate();
+  if (event == nullptr) {
+    // No events available - increment counter for periodic logging
+    client->event_queue.increment_dropped_count();
+    return;
+  }
 
   // Queue events to be processed in main loop
   switch (event_msg->event) {
     case USB_HOST_CLIENT_EVENT_NEW_DEV: {
       ESP_LOGD(TAG, "New device %d", event_msg->new_dev.address);
-      event.type = EVENT_DEVICE_NEW;
-      event.data.device_new.address = event_msg->new_dev.address;
-      xQueueSend(client->get_event_queue(), &event, portMAX_DELAY);
+      event->type = EVENT_DEVICE_NEW;
+      event->data.device_new.address = event_msg->new_dev.address;
       break;
     }
     case USB_HOST_CLIENT_EVENT_DEV_GONE: {
       ESP_LOGD(TAG, "Device gone");
-      event.type = EVENT_DEVICE_GONE;
-      event.data.device_gone.handle = event_msg->dev_gone.dev_hdl;
-      xQueueSend(client->get_event_queue(), &event, portMAX_DELAY);
+      event->type = EVENT_DEVICE_GONE;
+      event->data.device_gone.handle = event_msg->dev_gone.dev_hdl;
       break;
     }
     default:
       ESP_LOGD(TAG, "Unknown event %d", event_msg->event);
-      break;
+      client->event_pool.release(event);
+      return;
   }
+
+  // Push to lock-free queue (always succeeds since pool size == queue size)
+  client->event_queue.push(event);
 }
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
@@ -179,14 +188,6 @@ void USBClient::setup() {
   for (auto *trq : this->trq_pool_) {
     usb_host_transfer_alloc(64, 0, &trq->transfer);
     trq->client = this;
-  }
-
-  // Create event queue for communication between USB task and main loop
-  this->event_queue_ = xQueueCreate(USB_EVENT_QUEUE_SIZE, sizeof(UsbEvent));
-  if (this->event_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event queue");
-    this->mark_failed();
-    return;
   }
 
   // Create and start USB task
@@ -219,23 +220,31 @@ void USBClient::usb_task_loop() {
 
 void USBClient::loop() {
   // Process any events from the USB task
-  UsbEvent event;
-  while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
-    switch (event.type) {
+  UsbEvent *event;
+  while ((event = this->event_queue.pop()) != nullptr) {
+    switch (event->type) {
       case EVENT_DEVICE_NEW:
-        this->on_opened(event.data.device_new.address);
+        this->on_opened(event->data.device_new.address);
         break;
       case EVENT_DEVICE_GONE:
-        this->on_removed(event.data.device_gone.handle);
+        this->on_removed(event->data.device_gone.handle);
         break;
       case EVENT_TRANSFER_COMPLETE:
       case EVENT_CONTROL_COMPLETE: {
-        auto *trq = event.data.transfer.trq;
+        auto *trq = event->data.transfer.trq;
         // Callback was already executed in USB task, just cleanup
         this->release_trq(trq);
         break;
       }
     }
+    // Return event to pool for reuse
+    this->event_pool.release(event);
+  }
+
+  // Log dropped events periodically
+  uint16_t dropped = this->event_queue.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u USB events due to queue overflow", dropped);
   }
 
   switch (this->state_) {
@@ -309,10 +318,21 @@ void USBClient::on_removed(usb_device_handle_t handle) {
 
 // Helper to queue transfer cleanup to main loop
 static void queue_transfer_cleanup(TransferRequest *trq, EventType type) {
-  UsbEvent event;
-  event.type = type;
-  event.data.transfer.trq = trq;
-  xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
+  auto *client = trq->client;
+
+  // Allocate event from pool
+  UsbEvent *event = client->event_pool.allocate();
+  if (event == nullptr) {
+    // No events available - increment counter for periodic logging
+    client->event_queue.increment_dropped_count();
+    return;
+  }
+
+  event->type = type;
+  event->data.transfer.trq = trq;
+
+  // Push to lock-free queue (always succeeds since pool size == queue size)
+  client->event_queue.push(event);
 }
 
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
