@@ -139,18 +139,25 @@ static std::string get_descriptor_string(const usb_str_desc_t *desc) {
   return {buffer};
 }
 
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *ptr) {
   auto *client = static_cast<USBClient *>(ptr);
+  UsbEvent event;
+
+  // Queue events to be processed in main loop
   switch (event_msg->event) {
     case USB_HOST_CLIENT_EVENT_NEW_DEV: {
-      auto addr = event_msg->new_dev.address;
       ESP_LOGD(TAG, "New device %d", event_msg->new_dev.address);
-      client->on_opened(addr);
+      event.type = EVENT_DEVICE_NEW;
+      event.data.device_new.address = event_msg->new_dev.address;
+      xQueueSend(client->get_event_queue(), &event, portMAX_DELAY);
       break;
     }
     case USB_HOST_CLIENT_EVENT_DEV_GONE: {
-      client->on_removed(event_msg->dev_gone.dev_hdl);
-      ESP_LOGD(TAG, "Device gone %d", event_msg->new_dev.address);
+      ESP_LOGD(TAG, "Device gone");
+      event.type = EVENT_DEVICE_GONE;
+      event.data.device_gone.handle = event_msg->dev_gone.dev_hdl;
+      xQueueSend(client->get_event_queue(), &event, portMAX_DELAY);
       break;
     }
     default:
@@ -173,9 +180,66 @@ void USBClient::setup() {
     usb_host_transfer_alloc(64, 0, &trq->transfer);
     trq->client = this;
   }
+
+  // Create event queue for communication between USB task and main loop
+  this->event_queue_ = xQueueCreate(32, sizeof(UsbEvent));
+  if (this->event_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create event queue");
+    this->mark_failed();
+    return;
+  }
+
+  // Create and start USB task
+  xTaskCreatePinnedToCore(usb_task_fn, "usb_task",
+                          2048,  // Stack size (minimal - just handles USB events)
+                          this,  // Task parameter
+                          5,     // Priority (higher than main loop)
+                          &this->usb_task_handle_,
+                          1  // Core 1
+  );
+
+  if (this->usb_task_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create USB task");
+    this->mark_failed();
+  }
+}
+
+void USBClient::usb_task_fn(void *arg) {
+  auto *client = static_cast<USBClient *>(arg);
+  client->usb_task_loop();
+}
+
+void USBClient::usb_task_loop() {
+  ESP_LOGI(TAG, "USB task started on core %d", xPortGetCoreID());
+
+  // Run forever - ESPHome reboots rather than shutting down cleanly
+  while (true) {
+    // Handle USB events with a timeout to prevent blocking forever
+    usb_host_client_handle_events(this->handle_, pdMS_TO_TICKS(10));
+  }
 }
 
 void USBClient::loop() {
+  // Process any events from the USB task
+  UsbEvent event;
+  while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
+    switch (event.type) {
+      case EVENT_DEVICE_NEW:
+        this->on_opened(event.data.device_new.address);
+        break;
+      case EVENT_DEVICE_GONE:
+        this->on_removed(event.data.device_gone.handle);
+        break;
+      case EVENT_TRANSFER_COMPLETE:
+      case EVENT_CONTROL_COMPLETE: {
+        auto *trq = event.data.transfer.trq;
+        // Callback was already executed in USB task, just cleanup
+        this->release_trq(trq);
+        break;
+      }
+    }
+  }
+
   switch (this->state_) {
     case USB_CLIENT_OPEN: {
       int err;
@@ -228,7 +292,7 @@ void USBClient::loop() {
     }
 
     default:
-      usb_host_client_handle_events(this->handle_, 0);
+      // USB events are now handled in the dedicated task
       break;
   }
 }
@@ -245,6 +309,7 @@ void USBClient::on_removed(usb_device_handle_t handle) {
   }
 }
 
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void control_callback(const usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
   trq->status.error_code = xfer->status;
@@ -252,9 +317,18 @@ static void control_callback(const usb_transfer_t *xfer) {
   trq->status.endpoint = xfer->bEndpointAddress;
   trq->status.data = xfer->data_buffer;
   trq->status.data_len = xfer->actual_num_bytes;
-  if (trq->callback != nullptr)
+
+  // Execute callback in USB task context
+  if (trq->callback != nullptr) {
     trq->callback(trq->status);
-  trq->client->release_trq(trq);
+  }
+
+  // Queue cleanup to main loop
+  UsbEvent event;
+  event.type = EVENT_CONTROL_COMPLETE;
+  event.data.transfer.trq = trq;
+  event.data.transfer.callback_executed = true;
+  xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
 }
 
 TransferRequest *USBClient::get_trq_() {
@@ -315,6 +389,7 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   return true;
 }
 
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void transfer_callback(usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
   trq->status.error_code = xfer->status;
@@ -322,9 +397,19 @@ static void transfer_callback(usb_transfer_t *xfer) {
   trq->status.endpoint = xfer->bEndpointAddress;
   trq->status.data = xfer->data_buffer;
   trq->status.data_len = xfer->actual_num_bytes;
-  if (trq->callback != nullptr)
+
+  // Always execute callback in USB task context
+  // Callbacks should be fast and non-blocking (e.g., copy data to queue)
+  if (trq->callback != nullptr) {
     trq->callback(trq->status);
-  trq->client->release_trq(trq);
+  }
+
+  // Queue cleanup to main loop
+  UsbEvent event;
+  event.type = EVENT_TRANSFER_COMPLETE;
+  event.data.transfer.trq = trq;
+  event.data.transfer.callback_executed = true;
+  xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
 }
 /**
  * Performs a transfer input operation.
@@ -345,6 +430,7 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   trq->transfer->callback = transfer_callback;
   trq->transfer->bEndpointAddress = ep_address | USB_DIR_IN;
   trq->transfer->num_bytes = length;
+
   auto err = usb_host_transfer_submit(trq->transfer);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);

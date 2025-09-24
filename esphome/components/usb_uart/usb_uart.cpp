@@ -170,7 +170,37 @@ bool USBUartChannel::read_array(uint8_t *data, size_t len) {
   return status;
 }
 void USBUartComponent::setup() { USBClient::setup(); }
-void USBUartComponent::loop() { USBClient::loop(); }
+void USBUartComponent::loop() {
+  USBClient::loop();
+
+  // Process USB data from the lock-free queue
+  UsbDataChunk *chunk;
+  int chunks_processed = 0;
+  while ((chunk = this->usb_data_queue_.pop()) != nullptr) {
+    chunks_processed++;
+    auto *channel = chunk->channel;
+
+#ifdef USE_UART_DEBUGGER
+    if (channel->debug_) {
+      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
+                               ',');  // NOLINT()
+    }
+#endif
+
+    // Push data to ring buffer (now safe in main loop)
+    for (size_t i = 0; i < chunk->length; i++) {
+      channel->input_buffer_.push(chunk->data[i]);
+    }
+
+    // Return chunk to pool for reuse
+    this->free_chunks_.push(chunk);
+  }
+
+  static constexpr int LOG_CHUNK_THRESHOLD = 5;
+  if (chunks_processed > LOG_CHUNK_THRESHOLD) {
+    ESP_LOGV(TAG, "Processed %d chunks from USB queue", chunks_processed);
+  }
+}
 void USBUartComponent::dump_config() {
   USBClient::dump_config();
   for (auto &channel : this->channels_) {
@@ -187,31 +217,46 @@ void USBUartComponent::dump_config() {
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_ || channel->input_started_ ||
-      channel->input_buffer_.get_free_space() < channel->cdc_dev_.in_ep->wMaxPacketSize)
+  if (!channel->initialised_ || channel->input_started_)
     return;
+  // Note: We no longer check ring buffer space here since this may be called from USB task
+  // The lock-free queue provides backpressure instead
   const auto *ep = channel->cdc_dev_.in_ep;
+  // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
       return;
     }
-#ifdef USE_UART_DEBUGGER
-    if (channel->debug_) {
-      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
-                               std::vector<uint8_t>(status.data, status.data + status.data_len), ',');  // NOLINT()
-    }
-#endif
-    channel->input_started_ = false;
-    if (!channel->dummy_receiver_) {
-      for (size_t i = 0; i != status.data_len; i++) {
-        channel->input_buffer_.push(status.data[i]);
+
+    if (!channel->dummy_receiver_ && status.data_len > 0) {
+      // Get a free chunk from the pool
+      UsbDataChunk *chunk = this->free_chunks_.pop();
+      if (chunk == nullptr) {
+        ESP_LOGW(TAG, "No free chunks available, dropping %u bytes", status.data_len);
+        // Mark input as not started so we can retry
+        channel->input_started_ = false;
+        return;
+      }
+
+      // Copy data to chunk (this is fast, happens in USB task)
+      memcpy(chunk->data, status.data, status.data_len);
+      chunk->length = status.data_len;
+      chunk->channel = channel;
+
+      // Push to lock-free queue for main loop processing
+      if (!this->usb_data_queue_.push(chunk)) {
+        ESP_LOGW(TAG, "USB data queue full, dropping %u bytes", status.data_len);
+        // Return chunk to pool
+        this->free_chunks_.push(chunk);
       }
     }
-    if (channel->input_buffer_.get_free_space() >= channel->cdc_dev_.in_ep->wMaxPacketSize) {
-      this->defer([this, channel] { this->start_input(channel); });
-    }
+
+    // Always restart input immediately from USB task
+    // The lock-free queue will handle backpressure
+    channel->input_started_ = false;
+    this->start_input(channel);
   };
   channel->input_started_ = true;
   this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
@@ -224,9 +269,12 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     return;
   }
   const auto *ep = channel->cdc_dev_.out_ep;
+  // CALLBACK CONTEXT: This lambda is stored in TransferRequest and will be executed
+  // in MAIN LOOP after being queued by transfer_callback in USB task
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
     channel->output_started_ = false;
+    // DEFERRED CONTEXT: Main loop (restart output in main loop)
     this->defer([this, channel] { this->start_output(channel); });
   };
   channel->output_started_ = true;

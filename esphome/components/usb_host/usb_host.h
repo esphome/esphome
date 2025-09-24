@@ -5,13 +5,20 @@
 #include "esphome/core/component.h"
 #include <vector>
 #include "usb/usb_host.h"
-
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
+#include <freertos/queue.h>
 #include <list>
 
 namespace esphome {
 namespace usb_host {
 
 static const char *const TAG = "usb_host";
+
+// Forward declarations
+struct TransferRequest;
+class USBClient;
 
 // constants for setup packet type
 static const uint8_t USB_RECIP_DEVICE = 0;
@@ -49,6 +56,30 @@ struct TransferRequest {
   USBClient *client;
 };
 
+// Lightweight event types for queue
+enum EventType {
+  EVENT_DEVICE_NEW,
+  EVENT_DEVICE_GONE,
+  EVENT_TRANSFER_COMPLETE,
+  EVENT_CONTROL_COMPLETE,
+};
+
+struct UsbEvent {
+  EventType type;
+  union {
+    struct {
+      uint8_t address;
+    } device_new;
+    struct {
+      usb_device_handle_t handle;
+    } device_gone;
+    struct {
+      TransferRequest *trq;
+      bool callback_executed;  // Flag to indicate callback was already executed in USB task
+    } transfer;
+  } data;
+};
+
 // callback function type.
 
 enum ClientState {
@@ -83,6 +114,7 @@ class USBClient : public Component {
   void release_trq(TransferRequest *trq);
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
+  QueueHandle_t get_event_queue() { return event_queue_; }
 
  protected:
   bool register_();
@@ -90,6 +122,13 @@ class USBClient : public Component {
   virtual void disconnect();
   virtual void on_connected() {}
   virtual void on_disconnected() { this->init_pool(); }
+
+  // USB task management
+  static void usb_task_fn(void *arg);
+  void usb_task_loop();
+
+  TaskHandle_t usb_task_handle_{nullptr};
+  QueueHandle_t event_queue_{nullptr};  // Queue of UsbEvent structs
 
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};

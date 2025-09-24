@@ -5,11 +5,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/usb_host/usb_host.h"
+#include "esphome/core/lock_free_queue.h"
 
 namespace esphome {
 namespace usb_uart {
 class USBUartTypeCdcAcm;
 class USBUartComponent;
+class USBUartChannel;
 
 static const char *const TAG = "usb_uart";
 
@@ -68,6 +70,14 @@ class RingBuffer {
   uint8_t *buffer_;
 };
 
+// Structure for queuing received USB data chunks
+struct UsbDataChunk {
+  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB packet size
+  uint8_t data[MAX_CHUNK_SIZE];
+  size_t length;
+  USBUartChannel *channel;
+};
+
 class USBUartChannel : public uart::UARTComponent, public Parented<USBUartComponent> {
   friend class USBUartComponent;
   friend class USBUartTypeCdcAcm;
@@ -104,7 +114,18 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
 
 class USBUartComponent : public usb_host::USBClient {
  public:
-  USBUartComponent(uint16_t vid, uint16_t pid) : usb_host::USBClient(vid, pid) {}
+  USBUartComponent(uint16_t vid, uint16_t pid) : usb_host::USBClient(vid, pid) {
+    // Allocate pool of data chunks
+    for (int i = 0; i < MAX_DATA_CHUNKS; i++) {
+      this->data_chunk_pool_[i] = new UsbDataChunk();
+      this->free_chunks_.push(this->data_chunk_pool_[i]);
+    }
+  }
+  ~USBUartComponent() {
+    for (int i = 0; i < MAX_DATA_CHUNKS; i++) {
+      delete this->data_chunk_pool_[i];
+    }
+  }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -115,8 +136,16 @@ class USBUartComponent : public usb_host::USBClient {
   void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
 
+  // Lock-free data transfer from USB task to main loop
+  LockFreeQueue<UsbDataChunk, 32> usb_data_queue_;
+
  protected:
   std::vector<USBUartChannel *> channels_{};
+
+  // Pool of pre-allocated data chunks to avoid dynamic allocation
+  static constexpr int MAX_DATA_CHUNKS = 32;
+  UsbDataChunk *data_chunk_pool_[MAX_DATA_CHUNKS];
+  LockFreeQueue<UsbDataChunk, MAX_DATA_CHUNKS> free_chunks_;
 };
 
 class USBUartTypeCdcAcm : public USBUartComponent {
