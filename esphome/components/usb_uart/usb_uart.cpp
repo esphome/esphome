@@ -225,6 +225,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
+      // On failure, don't restart - let next read_array() trigger it
+      channel->input_started_.store(false);
       return;
     }
 
@@ -249,7 +251,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       this->usb_data_queue_.push(chunk);
     }
 
-    // Always restart input immediately from USB task
+    // On success, restart input immediately from USB task for performance
     // The lock-free queue will handle backpressure
     channel->input_started_.store(false);
     this->start_input(channel);
