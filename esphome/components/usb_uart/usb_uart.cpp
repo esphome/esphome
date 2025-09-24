@@ -223,8 +223,9 @@ void USBUartComponent::dump_config() {
 void USBUartComponent::start_input(USBUartChannel *channel) {
   if (!channel->initialised_.load() || channel->input_started_.load())
     return;
-  // Note: We no longer check ring buffer space here since this may be called from USB task
-  // The lock-free queue provides backpressure instead
+  // Note: This function is called from both USB task and main loop, so we cannot
+  // directly check ring buffer space here. Backpressure is handled by the chunk pool:
+  // when exhausted, USB input stops until chunks are freed by the main loop
   const auto *ep = channel->cdc_dev_.in_ep;
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
