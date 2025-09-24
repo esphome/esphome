@@ -31,6 +31,9 @@ void ESP32ImprovComponent::setup() {
 #endif
   global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
                         [this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
+
+  // Start with loop disabled - will be enabled by start() when needed
+  this->disable_loop();
 }
 
 void ESP32ImprovComponent::setup_characteristics() {

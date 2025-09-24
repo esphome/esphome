@@ -49,10 +49,10 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
+from ..helpers import write_file
 from .const import DASHBOARD_COMMAND
-from .core import DASHBOARD
-from .entries import UNKNOWN_STATE, entry_state_to_bool
-from .util.file import write_file
+from .core import DASHBOARD, ESPHomeDashboard
+from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -314,6 +314,73 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         raise NotImplementedError
 
 
+def build_cache_arguments(
+    entry: DashboardEntry | None,
+    dashboard: ESPHomeDashboard,
+    now: float,
+) -> list[str]:
+    """Build cache arguments for passing to CLI.
+
+    Args:
+        entry: Dashboard entry for the configuration
+        dashboard: Dashboard instance with cache access
+        now: Current monotonic time for DNS cache expiry checks
+
+    Returns:
+        List of cache arguments to pass to CLI
+    """
+    cache_args: list[str] = []
+
+    if not entry:
+        return cache_args
+
+    _LOGGER.debug(
+        "Building cache for entry (address=%s, name=%s)",
+        entry.address,
+        entry.name,
+    )
+
+    def add_cache_entry(hostname: str, addresses: list[str], cache_type: str) -> None:
+        """Add a cache entry to the command arguments."""
+        if not addresses:
+            return
+        normalized = hostname.rstrip(".").lower()
+        cache_args.extend(
+            [
+                f"--{cache_type}-address-cache",
+                f"{normalized}={','.join(sort_ip_addresses(addresses))}",
+            ]
+        )
+
+    # Check entry.address for cached addresses
+    if use_address := entry.address:
+        if use_address.endswith(".local"):
+            # mDNS cache for .local addresses
+            if (mdns := dashboard.mdns_status) and (
+                cached := mdns.get_cached_addresses(use_address)
+            ):
+                _LOGGER.debug("mDNS cache hit for %s: %s", use_address, cached)
+                add_cache_entry(use_address, cached, "mdns")
+        # DNS cache for non-.local addresses
+        elif cached := dashboard.dns_cache.get_cached_addresses(use_address, now):
+            _LOGGER.debug("DNS cache hit for %s: %s", use_address, cached)
+            add_cache_entry(use_address, cached, "dns")
+
+    # Check entry.name if we haven't already cached via address
+    # For mDNS devices, entry.name typically doesn't have .local suffix
+    if entry.name and not use_address:
+        mdns_name = (
+            f"{entry.name}.local" if not entry.name.endswith(".local") else entry.name
+        )
+        if (mdns := dashboard.mdns_status) and (
+            cached := mdns.get_cached_addresses(mdns_name)
+        ):
+            _LOGGER.debug("mDNS cache hit for %s: %s", mdns_name, cached)
+            add_cache_entry(mdns_name, cached, "mdns")
+
+    return cache_args
+
+
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
@@ -326,52 +393,22 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
-        addresses: list[str] = []
+
+        # Build cache arguments to pass to CLI
+        cache_args: list[str] = []
+
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            # First priority: entry.address AKA use_address
-            if (
-                (use_address := entry.address)
-                and (
-                    address_list := await dashboard.dns_cache.async_resolve(
-                        use_address, time.monotonic()
-                    )
-                )
-                and not isinstance(address_list, Exception)
-            ):
-                addresses.extend(sort_ip_addresses(address_list))
+            cache_args = build_cache_arguments(entry, dashboard, time.monotonic())
 
-            # Second priority: mDNS
-            if (
-                (mdns := dashboard.mdns_status)
-                and (address_list := await mdns.async_resolve_host(entry.name))
-                and (
-                    new_addresses := [
-                        addr for addr in address_list if addr not in addresses
-                    ]
-                )
-            ):
-                # Use the IP address if available but only
-                # if the API is loaded and the device is online
-                # since MQTT logging will not work otherwise
-                addresses.extend(sort_ip_addresses(new_addresses))
-
-        if not addresses:
-            # If no address was found, use the port directly
-            # as otherwise they will get the chooser which
-            # does not work with the dashboard as there is no
-            # interactive way to get keyboard input
-            addresses = [port]
-
-        device_args: list[str] = [
-            arg for address in addresses for arg in ("--device", address)
-        ]
-
-        return [*DASHBOARD_COMMAND, *args, config_file, *device_args]
+        # Cache arguments must come before the subcommand
+        cmd = [*DASHBOARD_COMMAND, *cache_args, *args, config_file, "--device", port]
+        _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
@@ -440,6 +477,12 @@ class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
         return [*DASHBOARD_COMMAND, "clean-mqtt", config_file]
+
+
+class EsphomeCleanPlatformHandler(EsphomeCommandWebSocket):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
+        config_file = settings.rel_path(json_message["configuration"])
+        return [*DASHBOARD_COMMAND, "clean-platform", config_file]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
@@ -544,7 +587,7 @@ class WizardRequestHandler(BaseHandler):
         destination = settings.rel_path(filename)
 
         # Check if destination file already exists
-        if os.path.exists(destination):
+        if destination.exists():
             self.set_status(409)  # Conflict status code
             self.set_header("content-type", "application/json")
             self.write(
@@ -761,10 +804,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
             "download",
             f"{storage_json.name}-{file_name}",
         )
-        path = os.path.dirname(storage_json.firmware_bin_path)
-        path = os.path.join(path, file_name)
+        path = storage_json.firmware_bin_path.with_name(file_name)
 
-        if not Path(path).is_file():
+        if not path.is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = await async_run_system_command(args)
 
@@ -979,7 +1021,7 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
@@ -1002,10 +1044,6 @@ class EditRequestHandler(BaseHandler):
             self.set_status(404)
             return None
 
-    def _write_file(self, filename: str, content: bytes) -> None:
-        """Write a file with the given content."""
-        write_file(filename, content)
-
     @authenticated
     @bind_config
     async def post(self, configuration: str | None = None) -> None:
@@ -1015,12 +1053,12 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._write_file, filename, self.request.body)
+        await loop.run_in_executor(None, write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
         DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
@@ -1035,7 +1073,7 @@ class ArchiveRequestHandler(BaseHandler):
 
         archive_path = archive_storage_path()
         mkdir_p(archive_path)
-        shutil.move(config_file, os.path.join(archive_path, configuration))
+        shutil.move(config_file, archive_path / configuration)
 
         storage_json = StorageJSON.load(storage_path)
         if storage_json is not None and storage_json.build_path:
@@ -1049,7 +1087,7 @@ class UnArchiveRequestHandler(BaseHandler):
     def post(self, configuration: str | None = None) -> None:
         config_file = settings.rel_path(configuration)
         archive_path = archive_storage_path()
-        shutil.move(os.path.join(archive_path, configuration), config_file)
+        shutil.move(archive_path / configuration, config_file)
 
 
 class LoginHandler(BaseHandler):
@@ -1136,7 +1174,7 @@ class SecretKeysRequestHandler(BaseHandler):
 
         for secret_filename in const.SECRETS_FILES:
             relative_filename = settings.rel_path(secret_filename)
-            if os.path.isfile(relative_filename):
+            if relative_filename.is_file():
                 filename = relative_filename
                 break
 
@@ -1169,16 +1207,17 @@ class JsonConfigRequestHandler(BaseHandler):
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         filename = settings.rel_path(configuration)
-        if not os.path.isfile(filename):
+        if not filename.is_file():
             self.send_error(404)
             return
 
-        args = ["esphome", "config", filename, "--show-secrets"]
+        args = ["esphome", "config", str(filename), "--show-secrets"]
 
-        rc, stdout, _ = await async_run_system_command(args)
+        rc, stdout, stderr = await async_run_system_command(args)
 
         if rc != 0:
-            self.send_error(422)
+            self.set_status(422)
+            self.write(stderr)
             return
 
         data = yaml.load(stdout, Loader=SafeLoaderIgnoreUnknown)
@@ -1187,7 +1226,7 @@ class JsonConfigRequestHandler(BaseHandler):
         self.finish()
 
 
-def get_base_frontend_path() -> str:
+def get_base_frontend_path() -> Path:
     if ENV_DEV not in os.environ:
         import esphome_dashboard
 
@@ -1198,11 +1237,12 @@ def get_base_frontend_path() -> str:
         static_path += "/"
 
     # This path can be relative, so resolve against the root or else templates don't work
-    return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
+    path = Path(os.getcwd()) / static_path / "esphome_dashboard"
+    return path.resolve()
 
 
-def get_static_path(*args: Iterable[str]) -> str:
-    return os.path.join(get_base_frontend_path(), "static", *args)
+def get_static_path(*args: Iterable[str]) -> Path:
+    return get_base_frontend_path() / "static" / Path(*args)
 
 
 @functools.cache
@@ -1219,8 +1259,7 @@ def get_static_file_url(name: str) -> str:
         return base.replace("index.js", esphome_dashboard.entrypoint())
 
     path = get_static_path(name)
-    with open(path, "rb") as f_handle:
-        hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
+    hash_ = hashlib.md5(path.read_bytes()).hexdigest()[:8]
     return f"{base}?hash={hash_}"
 
 
@@ -1280,6 +1319,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
+            (f"{rel}clean-platform", EsphomeCleanPlatformHandler),
             (f"{rel}clean", EsphomeCleanHandler),
             (f"{rel}vscode", EsphomeVscodeHandler),
             (f"{rel}ace", EsphomeAceEditorHandler),
@@ -1320,7 +1360,7 @@ def start_web_server(
     """Start the web server listener."""
 
     trash_path = trash_storage_path()
-    if os.path.exists(trash_path):
+    if trash_path.is_dir() and trash_path.exists():
         _LOGGER.info("Renaming 'trash' folder to 'archive'")
         archive_path = archive_storage_path()
         shutil.move(trash_path, archive_path)
