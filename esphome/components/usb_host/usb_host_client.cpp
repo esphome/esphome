@@ -210,7 +210,7 @@ void USBClient::usb_task_fn(void *arg) {
 
 void USBClient::usb_task_loop() {
   while (true) {
-    usb_host_client_handle_events(this->handle_, pdMS_TO_TICKS(10));
+    usb_host_client_handle_events(this->handle_, portMAX_DELAY);
   }
 }
 
