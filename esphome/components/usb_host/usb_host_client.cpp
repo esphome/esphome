@@ -182,7 +182,7 @@ void USBClient::setup() {
   }
 
   // Create event queue for communication between USB task and main loop
-  this->event_queue_ = xQueueCreate(32, sizeof(UsbEvent));
+  this->event_queue_ = xQueueCreate(USB_EVENT_QUEUE_SIZE, sizeof(UsbEvent));
   if (this->event_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create event queue");
     this->mark_failed();
@@ -191,9 +191,9 @@ void USBClient::setup() {
 
   // Create and start USB task
   xTaskCreatePinnedToCore(usb_task_fn, "usb_task",
-                          4096,  // Stack size (same as ESP-IDF USB examples)
-                          this,  // Task parameter
-                          5,     // Priority (higher than main loop)
+                          USB_TASK_STACK_SIZE,  // Stack size
+                          this,                 // Task parameter
+                          5,                    // Priority (higher than main loop)
                           &this->usb_task_handle_,
                           1  // Core 1
   );
