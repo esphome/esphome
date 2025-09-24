@@ -299,7 +299,6 @@ void USBClient::loop() {
     }
 
     default:
-      // USB events are now handled in the dedicated task
       break;
   }
 }
