@@ -60,6 +60,7 @@ CONF_CLK = "clk"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 CONF_PHY_REGISTERS = "phy_registers"
+CONF_MAC_ADDRESS = "mac_address"
 
 CONF_CLOCK_SPEED = "clock_speed"
 
@@ -182,6 +183,7 @@ BASE_SCHEMA = cv.Schema(
             "This option has been removed. Please use the [disabled] option under the "
             "new mdns component instead."
         ),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -348,6 +350,10 @@ async def to_code(config):
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
         cg.add_define(phy_define)
+
+    if CONF_MAC_ADDRESS in config:
+        mac = config[CONF_MAC_ADDRESS]
+        cg.add(var.set_fixed_mac(*mac.parts))
 
     cg.add_define("USE_ETHERNET")
 

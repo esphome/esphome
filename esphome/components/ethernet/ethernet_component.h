@@ -83,6 +83,10 @@ class EthernetComponent : public Component {
 #endif
   void set_type(EthernetType type);
   void set_manual_ip(const ManualIP &manual_ip);
+  void set_fixed_mac(uint8_t m0, uint8_t m1, uint8_t m2, uint8_t m3, uint8_t m4, uint8_t m5) {
+    this->fixed_mac_ = {m0, m1, m2, m3, m4, m5};
+    this->has_fixed_mac_ = true;
+  }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
@@ -154,6 +158,8 @@ class EthernetComponent : public Component {
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
+  bool has_fixed_mac_{false};
+  std::array<uint8_t, 6> fixed_mac_{};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
