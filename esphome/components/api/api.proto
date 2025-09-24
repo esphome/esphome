@@ -102,7 +102,7 @@ message HelloRequest {
   // For example "Home Assistant"
   // Not strictly necessary to send but nice for debugging
   // purposes.
-  string client_info = 1;
+  string client_info = 1 [(pointer_to_buffer) = true];
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
 }
@@ -139,7 +139,7 @@ message AuthenticationRequest {
   option (ifdef) = "USE_API_PASSWORD";
 
   // The password to log in with
-  string password = 1;
+  string password = 1 [(pointer_to_buffer) = true];
 }
 
 // Confirmation of successful connection. After this the connection is available for all traffic.
@@ -769,7 +769,7 @@ message HomeassistantServiceMap {
   string value = 2 [(no_zero_copy) = true];
 }
 
-message HomeassistantServiceResponse {
+message HomeassistantActionRequest {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
@@ -824,7 +824,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2;
+  string timezone = 2 [(pointer_to_buffer) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -1465,7 +1465,7 @@ message BluetoothDeviceRequest {
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
-  bool has_address_type = 3;
+  bool has_address_type = 3;  // Deprecated, should be removed in 2027.8 - https://github.com/esphome/esphome/pull/10318
   uint32 address_type = 4;
 }
 
@@ -1571,7 +1571,7 @@ message BluetoothGATTWriteRequest {
   uint32 handle = 2;
   bool response = 3;
 
-  bytes data = 4;
+  bytes data = 4 [(pointer_to_buffer) = true];
 }
 
 message BluetoothGATTReadDescriptorRequest {
@@ -1591,7 +1591,7 @@ message BluetoothGATTWriteDescriptorRequest {
   uint64 address = 1;
   uint32 handle = 2;
 
-  bytes data = 3;
+  bytes data = 3 [(pointer_to_buffer) = true];
 }
 
 message BluetoothGATTNotifyRequest {
@@ -2292,7 +2292,7 @@ message ZWaveProxyFrame {
   option (ifdef) = "USE_ZWAVE_PROXY";
   option (no_delay) = true;
 
-  bytes data = 1 [(fixed_array_size) = 257];
+  bytes data = 1 [(pointer_to_buffer) = true];
 }
 
 enum ZWaveProxyRequestType {
