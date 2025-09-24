@@ -115,15 +115,10 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
 class USBUartComponent : public usb_host::USBClient {
  public:
   USBUartComponent(uint16_t vid, uint16_t pid) : usb_host::USBClient(vid, pid) {
-    // Allocate pool of data chunks
+    // Allocate pool of data chunks (never freed - ESPHome reboots instead)
     for (int i = 0; i < MAX_DATA_CHUNKS; i++) {
       this->data_chunk_pool_[i] = new UsbDataChunk();
       this->free_chunks_.push(this->data_chunk_pool_[i]);
-    }
-  }
-  ~USBUartComponent() {
-    for (int i = 0; i < MAX_DATA_CHUNKS; i++) {
-      delete this->data_chunk_pool_[i];
     }
   }
   void setup() override;
@@ -137,14 +132,17 @@ class USBUartComponent : public usb_host::USBClient {
   void start_output(USBUartChannel *channel);
 
   // Lock-free data transfer from USB task to main loop
-  LockFreeQueue<UsbDataChunk, 32> usb_data_queue_;
+  static constexpr int USB_DATA_QUEUE_SIZE = 32;
+  LockFreeQueue<UsbDataChunk, USB_DATA_QUEUE_SIZE> usb_data_queue_;
 
  protected:
   std::vector<USBUartChannel *> channels_{};
 
   // Pool of pre-allocated data chunks to avoid dynamic allocation
-  static constexpr int MAX_DATA_CHUNKS = 32;
+  static constexpr int MAX_DATA_CHUNKS = 40;
   UsbDataChunk *data_chunk_pool_[MAX_DATA_CHUNKS];
+  // IMPORTANT: This is used bidirectionally (USB task pops, main loop pushes)
+  // which technically violates SPSC, but works in practice because operations are atomic
   LockFreeQueue<UsbDataChunk, MAX_DATA_CHUNKS> free_chunks_;
 };
 
