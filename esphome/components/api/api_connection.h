@@ -10,8 +10,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 
-#include <vector>
 #include <functional>
+#include <vector>
 
 namespace esphome::api {
 
@@ -132,10 +132,10 @@ class APIConnection final : public APIServerConnection {
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
+  void send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call, HomeassistantServiceResponse::MESSAGE_TYPE);
+    this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
   }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
