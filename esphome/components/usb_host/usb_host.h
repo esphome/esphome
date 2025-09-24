@@ -57,7 +57,7 @@ struct TransferRequest {
 };
 
 // Lightweight event types for queue
-enum EventType {
+enum EventType : uint8_t {
   EVENT_DEVICE_NEW,
   EVENT_DEVICE_GONE,
   EVENT_TRANSFER_COMPLETE,

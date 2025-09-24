@@ -75,7 +75,7 @@ class RingBuffer {
 struct UsbDataChunk {
   static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB packet size
   uint8_t data[MAX_CHUNK_SIZE];
-  size_t length;
+  uint8_t length;  // Max 64 bytes, so uint8_t is sufficient
   USBUartChannel *channel;
 
   // Required for EventPool - reset to clean state
