@@ -22,9 +22,12 @@ bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->client_info = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->client_info = value.data();
+      this->client_info_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -45,9 +48,12 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
 bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->password = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->password = value.data();
+      this->password_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -866,7 +872,7 @@ void HomeassistantServiceMap::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->key_ref_.size());
   size.add_length(1, this->value.size());
 }
-void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
+void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service_ref_);
   for (auto &it : this->data) {
     buffer.encode_message(2, it, true);
@@ -879,7 +885,7 @@ void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(5, this->is_event);
 }
-void HomeassistantServiceResponse::calculate_size(ProtoSize &size) const {
+void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
   size.add_repeated_message(1, this->data);
   size.add_repeated_message(1, this->data_template);
@@ -917,9 +923,12 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 #endif
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->timezone = value.as_string();
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->timezone = value.data();
+      this->timezone_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -2028,9 +2037,12 @@ bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt val
 }
 bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->data = value.as_string();
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -2064,9 +2076,12 @@ bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, Proto
 }
 bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->data = value.as_string();
+    case 3: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -3029,12 +3044,9 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      const std::string &data_str = value.as_string();
-      this->data_len = data_str.size();
-      if (this->data_len > 257) {
-        this->data_len = 257;
-      }
-      memcpy(this->data, data_str.data(), this->data_len);
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
     }
     default:
