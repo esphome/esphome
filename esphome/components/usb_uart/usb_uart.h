@@ -79,11 +79,8 @@ struct UsbDataChunk {
   uint8_t length;  // Max 64 bytes, so uint8_t is sufficient
   USBUartChannel *channel;
 
-  // Required for EventPool - reset to clean state
-  void release() {
-    this->length = 0;
-    this->channel = nullptr;
-  }
+  // Required for EventPool - no cleanup needed for POD types
+  void release() {}
 };
 
 class USBUartChannel : public uart::UARTComponent, public Parented<USBUartComponent> {
