@@ -193,7 +193,7 @@ void USBUartComponent::loop() {
     }
 
     // Return chunk to pool for reuse
-    this->free_chunks_.push(chunk);
+    this->chunk_pool_.release(chunk);
   }
 
   static constexpr int LOG_CHUNK_THRESHOLD = 5;
@@ -231,8 +231,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     }
 
     if (!channel->dummy_receiver_ && status.data_len > 0) {
-      // Get a free chunk from the pool
-      UsbDataChunk *chunk = this->free_chunks_.pop();
+      // Allocate a chunk from the pool
+      UsbDataChunk *chunk = this->chunk_pool_.allocate();
       if (chunk == nullptr) {
         ESP_LOGW(TAG, "No free chunks available, dropping %u bytes", status.data_len);
         // Mark input as not started so we can retry
@@ -249,7 +249,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       if (!this->usb_data_queue_.push(chunk)) {
         ESP_LOGW(TAG, "USB data queue full, dropping %u bytes", status.data_len);
         // Return chunk to pool
-        this->free_chunks_.push(chunk);
+        this->chunk_pool_.release(chunk);
       }
     }
 
