@@ -27,6 +27,7 @@ class LgIrClimate : public climate_ir::ClimateIR {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     climate_ir::ClimateIR::control(call);
   }
+  void set_ai_alternative_mode(bool value) { this->ai_alternative_mode_ = value; }
   void set_header_high(uint32_t header_high) { this->header_high_ = header_high; }
   void set_header_low(uint32_t header_low) { this->header_low_ = header_low; }
   void set_bit_high(uint32_t bit_high) { this->bit_high_ = bit_high; }
@@ -44,6 +45,7 @@ class LgIrClimate : public climate_ir::ClimateIR {
   void calc_checksum_(uint32_t &value);
   void transmit_(uint32_t value);
 
+  bool ai_alternative_mode_{false};
   uint32_t header_high_;
   uint32_t header_low_;
   uint32_t bit_high_;
