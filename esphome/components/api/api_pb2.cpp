@@ -2397,6 +2397,16 @@ void VoiceAssistantWakeWord::calculate_size(ProtoSize &size) const {
     }
   }
 }
+bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 5:
+      this->model_size = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1:
@@ -2411,7 +2421,7 @@ bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengt
     case 4:
       this->model_type = value.as_string();
       break;
-    case 5:
+    case 6:
       this->url = value.as_string();
       break;
     default:

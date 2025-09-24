@@ -2462,6 +2462,7 @@ class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
   std::string wake_word{};
   std::vector<std::string> trained_languages{};
   std::string model_type{};
+  uint32_t model_size{0};
   std::string url{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2469,6 +2470,7 @@ class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class VoiceAssistantConfigurationRequest final : public ProtoDecodableMessage {
  public:
