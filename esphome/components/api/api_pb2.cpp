@@ -22,9 +22,12 @@ bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->client_info = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->client_info = value.data();
+      this->client_info_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -42,18 +45,23 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->server_info_ref_.size());
   size.add_length(1, this->name_ref_.size());
 }
-bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+#ifdef USE_API_PASSWORD
+bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->password = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->password = value.data();
+      this->password_len = value.size();
       break;
+    }
     default:
       return false;
   }
   return true;
 }
-void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
-void ConnectResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
+void AuthenticationResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
+void AuthenticationResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
+#endif
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
@@ -127,6 +135,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_AREAS
   buffer.encode_message(22, this->area);
 #endif
+#ifdef USE_ZWAVE_PROXY
+  buffer.encode_uint32(23, this->zwave_proxy_feature_flags);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  buffer.encode_uint32(24, this->zwave_home_id);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
@@ -178,6 +192,12 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_AREAS
   size.add_message_object(2, this->area);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  size.add_uint32(2, this->zwave_proxy_feature_flags);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  size.add_uint32(2, this->zwave_home_id);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -852,7 +872,7 @@ void HomeassistantServiceMap::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->key_ref_.size());
   size.add_length(1, this->value.size());
 }
-void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
+void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service_ref_);
   for (auto &it : this->data) {
     buffer.encode_message(2, it, true);
@@ -865,7 +885,7 @@ void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(5, this->is_event);
 }
-void HomeassistantServiceResponse::calculate_size(ProtoSize &size) const {
+void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
   size.add_repeated_message(1, this->data);
   size.add_repeated_message(1, this->data_template);
@@ -903,9 +923,12 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 #endif
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->timezone = value.as_string();
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->timezone = value.data();
+      this->timezone_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -920,14 +943,6 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
   return true;
-}
-void GetTimeResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_fixed32(1, this->epoch_seconds);
-  buffer.encode_string(2, this->timezone_ref_);
-}
-void GetTimeResponse::calculate_size(ProtoSize &size) const {
-  size.add_fixed32(1, this->epoch_seconds);
-  size.add_length(1, this->timezone_ref_.size());
 }
 #ifdef USE_API_SERVICES
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
@@ -2022,9 +2037,12 @@ bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt val
 }
 bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->data = value.as_string();
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -2058,9 +2076,12 @@ bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, Proto
 }
 bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->data = value.as_string();
+    case 3: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -3012,6 +3033,33 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1:
       this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZWaveProxyFrame::encode(ProtoWriteBuffer buffer) const { buffer.encode_bytes(1, this->data, this->data_len); }
+void ZWaveProxyFrame::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_len); }
+bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->type = static_cast<enums::ZWaveProxyRequestType>(value.as_uint32());
       break;
     default:
       return false;

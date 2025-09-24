@@ -255,22 +255,21 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
 }
 
 std::string format_mac_address_pretty(const uint8_t *mac) {
-  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[18];
+  format_mac_addr_upper(mac, buf);
+  return std::string(buf);
 }
 
-static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
 std::string format_hex(const uint8_t *data, size_t length) {
   std::string ret;
   ret.resize(length * 2);
   for (size_t i = 0; i < length; i++) {
-    ret[2 * i] = format_hex_char((data[i] & 0xF0) >> 4);
+    ret[2 * i] = format_hex_char(data[i] >> 4);
     ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
   }
   return ret;
 }
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
-
-static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
@@ -280,7 +279,7 @@ static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, c
   uint8_t multiple = separator ? 3 : 2;  // 3 if separator is not \0, 2 otherwise
   ret.resize(multiple * length - (separator ? 1 : 0));
   for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[multiple * i] = format_hex_pretty_char(data[i] >> 4);
     ret[multiple * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
     if (separator && i != length - 1)
       ret[multiple * i + 2] = separator;
@@ -591,7 +590,9 @@ bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; 
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  char buf[13];
+  format_mac_addr_lower_no_sep(mac, buf);
+  return std::string(buf);
 }
 
 std::string get_mac_address_pretty() {

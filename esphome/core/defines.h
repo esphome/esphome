@@ -100,6 +100,7 @@
 #define USE_UART_DEBUGGER
 #define USE_UPDATE
 #define USE_VALVE
+#define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
@@ -156,6 +157,7 @@
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_BLE_UUID
 #define USE_ESP32_BLE_ADVERTISING
+#define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_I2C
 #define USE_IMPROV
 #define USE_MICROPHONE
@@ -175,6 +177,7 @@
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 2, 1)
 #define USE_ETHERNET
+#define USE_ETHERNET_KSZ8081
 #endif
 
 #ifdef USE_ESP_IDF

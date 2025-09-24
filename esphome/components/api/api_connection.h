@@ -10,8 +10,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 
-#include <vector>
 #include <functional>
+#include <vector>
 
 namespace esphome::api {
 
@@ -132,10 +132,10 @@ class APIConnection final : public APIServerConnection {
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
+  void send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call, HomeassistantServiceResponse::MESSAGE_TYPE);
+    this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
   }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -171,6 +171,11 @@ class APIConnection final : public APIServerConnection {
   void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+  void zwave_proxy_frame(const ZWaveProxyFrame &msg) override;
+  void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
@@ -197,7 +202,9 @@ class APIConnection final : public APIServerConnection {
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
   bool send_hello_response(const HelloRequest &msg) override;
-  bool send_connect_response(const ConnectRequest &msg) override;
+#ifdef USE_API_PASSWORD
+  bool send_authenticate_response(const AuthenticationRequest &msg) override;
+#endif
   bool send_disconnect_response(const DisconnectRequest &msg) override;
   bool send_ping_response(const PingRequest &msg) override;
   bool send_device_info_response(const DeviceInfoRequest &msg) override;
@@ -219,7 +226,6 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
 #endif
-  bool send_get_time_response(const GetTimeRequest &msg) override;
 #ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
 #endif
