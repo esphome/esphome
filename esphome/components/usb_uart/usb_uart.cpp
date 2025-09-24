@@ -188,9 +188,7 @@ void USBUartComponent::loop() {
 #endif
 
     // Push data to ring buffer (now safe in main loop)
-    for (size_t i = 0; i < chunk->length; i++) {
-      channel->input_buffer_.push(chunk->data[i]);
-    }
+    channel->input_buffer_.push(chunk->data, chunk->length);
 
     // Return chunk to pool for reuse
     this->chunk_pool_.release(chunk);
