@@ -318,18 +318,14 @@ def _format_framework_espidf_version(
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 2, 1)
-# The platform-espressif32 version to use for arduino frameworks
-#  - https://github.com/pioarduino/platform-espressif32/releases
-ARDUINO_PLATFORM_VERSION = cv.Version(54, 3, 21, "2")
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
 RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(5, 4, 2)
-# The platformio/espressif32 version to use for esp-idf frameworks
-#  - https://github.com/platformio/platform-espressif32/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(54, 3, 21, "2")
+
+# The platform-espressif32 version to use for arduino frameworks
+#  - https://github.com/pioarduino/platform-espressif32/releases
+RECOMMENDED_PLATFORM_VERSION = cv.Version(54, 3, 21, "2")
 
 # List based on https://registry.platformio.org/tools/platformio/framework-espidf/versions
 SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
@@ -390,7 +386,7 @@ def _check_versions(value):
 
         value[CONF_PLATFORM_VERSION] = value.get(
             CONF_PLATFORM_VERSION,
-            _parse_platform_version(str(ARDUINO_PLATFORM_VERSION)),
+            _parse_platform_version(str(RECOMMENDED_PLATFORM_VERSION)),
         )
 
         if value[CONF_SOURCE].startswith("http"):
@@ -429,7 +425,8 @@ def _check_versions(value):
     has_platform_ver = CONF_PLATFORM_VERSION in value
 
     value[CONF_PLATFORM_VERSION] = value.get(
-        CONF_PLATFORM_VERSION, _parse_platform_version(str(ESP_IDF_PLATFORM_VERSION))
+        CONF_PLATFORM_VERSION,
+        _parse_platform_version(str(RECOMMENDED_PLATFORM_VERSION)),
     )
 
     if (
