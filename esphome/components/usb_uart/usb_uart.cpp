@@ -198,6 +198,12 @@ void USBUartComponent::loop() {
   if (chunks_processed > LOG_CHUNK_THRESHOLD) {
     ESP_LOGV(TAG, "Processed %d chunks from USB queue", chunks_processed);
   }
+
+  // Log dropped USB data periodically
+  uint16_t dropped = this->usb_data_queue_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
+  }
 }
 void USBUartComponent::dump_config() {
   USBClient::dump_config();
@@ -232,7 +238,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Allocate a chunk from the pool
       UsbDataChunk *chunk = this->chunk_pool_.allocate();
       if (chunk == nullptr) {
-        ESP_LOGW(TAG, "No free chunks available, dropping %u bytes", status.data_len);
+        // No chunks available - queue is full or we're out of memory
+        this->usb_data_queue_.increment_dropped_count();
         // Mark input as not started so we can retry
         channel->input_started_.store(false);
         return;
