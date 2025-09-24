@@ -114,7 +114,8 @@ def _validate_api_config(config: ConfigType) -> ConfigType:
     if has_password and has_encryption:
         raise cv.Invalid(
             "The 'password' and 'encryption' options are mutually exclusive. "
-            "Please use only one authentication method. "
+            "The API client only supports one authentication method at a time. "
+            "Please remove one of them. "
             "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
             "We strongly recommend using 'encryption' instead for better security."
         )

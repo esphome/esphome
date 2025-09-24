@@ -13,7 +13,6 @@ esphome:
 
 api:
   port: 8000
-  password: pwd
   reboot_timeout: 0min
   encryption:
     key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
