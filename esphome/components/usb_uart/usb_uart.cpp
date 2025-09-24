@@ -175,9 +175,7 @@ void USBUartComponent::loop() {
 
   // Process USB data from the lock-free queue
   UsbDataChunk *chunk;
-  int chunks_processed = 0;
   while ((chunk = this->usb_data_queue_.pop()) != nullptr) {
-    chunks_processed++;
     auto *channel = chunk->channel;
 
 #ifdef USE_UART_DEBUGGER
@@ -192,11 +190,6 @@ void USBUartComponent::loop() {
 
     // Return chunk to pool for reuse
     this->chunk_pool_.release(chunk);
-  }
-
-  static constexpr int LOG_CHUNK_THRESHOLD = 5;
-  if (chunks_processed > LOG_CHUNK_THRESHOLD) {
-    ESP_LOGV(TAG, "Processed %d chunks from USB queue", chunks_processed);
   }
 
   // Log dropped USB data periodically
