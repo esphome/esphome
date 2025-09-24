@@ -191,13 +191,11 @@ void USBClient::setup() {
   }
 
   // Create and start USB task
-  xTaskCreatePinnedToCore(usb_task_fn, "usb_task",
-                          USB_TASK_STACK_SIZE,  // Stack size
-                          this,                 // Task parameter
-                          5,                    // Priority (higher than main loop)
-                          &this->usb_task_handle_,
-                          1  // Core 1
-  );
+  xTaskCreate(usb_task_fn, "usb_task",
+              USB_TASK_STACK_SIZE,  // Stack size
+              this,                 // Task parameter
+              USB_TASK_PRIORITY,    // Priority (higher than main loop)
+              &this->usb_task_handle_);
 
   if (this->usb_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB task");

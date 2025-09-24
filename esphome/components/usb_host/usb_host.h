@@ -35,6 +35,7 @@ static const size_t SETUP_PACKET_SIZE = 8;
 static const size_t MAX_REQUESTS = 16;               // maximum number of outstanding requests possible.
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
+static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
 
 // used to report a transfer status
 struct TransferStatus {
