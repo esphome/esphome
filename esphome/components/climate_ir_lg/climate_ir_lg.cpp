@@ -178,7 +178,8 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
 
     // Get temperature
-    if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->ai_alternative_mode_ ||
+        this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
       this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
     }
   }
