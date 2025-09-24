@@ -108,16 +108,20 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
 
  protected:
-  const uint8_t index_;
+  // Larger structures first for better alignment
   RingBuffer input_buffer_;
   RingBuffer output_buffer_;
+  CdcEps cdc_dev_{};
+  // Enum (likely 4 bytes)
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  // Group atomics together (each 1 byte)
   std::atomic<bool> input_started_{true};
   std::atomic<bool> output_started_{true};
-  CdcEps cdc_dev_{};
+  std::atomic<bool> initialised_{false};
+  // Group regular bytes together to minimize padding
+  const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
-  std::atomic<bool> initialised_{false};
 };
 
 class USBUartComponent : public usb_host::USBClient {
