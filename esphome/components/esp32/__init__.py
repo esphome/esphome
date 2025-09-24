@@ -341,7 +341,6 @@ SUPPORTED_PLATFORMIO_ESP_IDF_5X = [
     cv.Version(5, 0, 0),
 ]
 
-# pioarduino versions that don't require a release number
 # List based on https://github.com/pioarduino/esp-idf/releases
 SUPPORTED_PIOARDUINO_ESP_IDF_5X = [
     cv.Version(5, 5, 1),
@@ -805,6 +804,8 @@ async def to_code(config):
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+    if CONF_SOURCE in conf:
+        cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
@@ -846,8 +847,6 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
-
-    cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
