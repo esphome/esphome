@@ -54,7 +54,7 @@ The `disable_bt_logs` option intelligently disables only the Bluetooth logging c
 
 {{< /note >}}
 
-- **connection_timeout** (*Optional*, [Time](#config-time)): The maximum time to wait for a BLE connection to be established. Only available when using ESP-IDF framework. Defaults to `20s`.
+- **connection_timeout** (*Optional*, [Time](#config-time)): The maximum time to wait for a BLE connection to be established. Defaults to `20s`.
 
   - Range: 10 to 180 seconds
   - This timeout should align with the timeout used by your BLE client software to prevent connection slot waste
@@ -72,7 +72,7 @@ The `advertising` option is an advanced feature that manually enables BLE advert
 {{< /note >}}
 
 - **advertising_cycle_time** (*Optional*, [Time](#config-time)): The time interval for cycling through multiple advertisements. Only applicable when advertising is enabled. Defaults to `10s`.
-- **max_notifications** (*Optional*, integer): The maximum number of BLE characteristics that can have notifications enabled across all connections. Only available when using ESP-IDF framework. Defaults to `12`.
+- **max_notifications** (*Optional*, integer): The maximum number of BLE characteristics that can have notifications enabled across all connections. Defaults to `12`.
 
   - Range: 1 to 64
   - This is a global limit shared across all BLE connections

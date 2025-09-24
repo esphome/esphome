@@ -99,8 +99,7 @@ you can use OTA updates again.
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID for this ESP32 BLE Hub.
 - **max_connections** (*Optional*, int): The maximum number of BLE connection slots to use.
   Each configured slot consumes ~1KB of RAM. It is recommended not to exceed `5`
-  connection slots to avoid memory issues. Defaults to `3`.
-  This can only be adjusted when using the `esp-idf` framework up to a maximum of `9`.
+  connection slots to avoid memory issues. Defaults to `3`, with a maximum of `9`.
   This value cannot exceed the total number of `connection_slots` for the
   {{< docref "bluetooth_proxy/" >}} component combined with the total
   configured {{< docref "ble_client/" >}} instances.
