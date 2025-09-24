@@ -280,6 +280,7 @@ enum UpdateCommand : uint32_t {
 enum ZWaveProxyRequestType : uint32_t {
   ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
   ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
+  ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2,
 };
 #endif
 
@@ -2952,16 +2953,26 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
 class ZWaveProxyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 129;
-  static constexpr uint8_t ESTIMATED_SIZE = 2;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_request"; }
 #endif
   enums::ZWaveProxyRequestType type{};
+  std::string data{};
+  const uint8_t *data_ptr_{nullptr};
+  size_t data_len_{0};
+  void set_data(const uint8_t *data, size_t len) {
+    this->data_ptr_ = data;
+    this->data_len_ = len;
+  }
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
