@@ -43,7 +43,7 @@ bool OpenTherm::rmt_init_() {
   rmt_rx_channel_config_t rx_chan_cfg = {};
   rx_chan_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
   rx_chan_cfg.resolution_hz = RMT_RESOLUTION_HZ;  // 1 tick = 1 us
-  rx_chan_cfg.mem_block_symbols = 64;             // enough symbols
+  rx_chan_cfg.mem_block_symbols = RMT_SYMBOL_CAPACITY;
   rx_chan_cfg.gpio_num = static_cast<gpio_num_t>(this->in_pin_->get_pin());
   rx_chan_cfg.intr_priority = 0;
   rx_chan_cfg.flags.invert_in = 0;
@@ -60,7 +60,7 @@ bool OpenTherm::rmt_init_() {
   tx_chan_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
   tx_chan_cfg.resolution_hz = RMT_RESOLUTION_HZ;
   tx_chan_cfg.gpio_num = static_cast<gpio_num_t>(this->out_pin_->get_pin());
-  tx_chan_cfg.mem_block_symbols = 64;
+  tx_chan_cfg.mem_block_symbols = RMT_SYMBOL_CAPACITY;
   tx_chan_cfg.trans_queue_depth = 1;
   tx_chan_cfg.flags.io_loop_back = 0;
   tx_chan_cfg.flags.io_od_mode = 0;
