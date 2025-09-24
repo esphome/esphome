@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
+    CONF_MAC_ADDRESS,
     CONF_MANUAL_IP,
     CONF_MISO_PIN,
     CONF_MODE,
@@ -60,7 +61,6 @@ CONF_CLK = "clk"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 CONF_PHY_REGISTERS = "phy_registers"
-CONF_MAC_ADDRESS = "mac_address"
 
 CONF_CLOCK_SPEED = "clock_speed"
 
