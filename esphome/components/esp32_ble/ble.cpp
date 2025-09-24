@@ -319,6 +319,7 @@ void ESP32BLE::loop() {
         break;
       }
 #endif
+#ifdef USE_ESP32_BLE_CLIENT
       case BLEEvent::GATTC: {
         esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
@@ -329,6 +330,7 @@ void ESP32BLE::loop() {
         }
         break;
       }
+#endif
       case BLEEvent::GAP: {
         esp_gap_ble_cb_event_t gap_event = ble_event->event_.gap.gap_event;
         switch (gap_event) {
