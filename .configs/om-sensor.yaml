@@ -27,9 +27,17 @@ api:
   encryption:
     key: "mpJ8RZ/4Hgvrf/fvytXCZokzJedMVQa7B3Q2RbmZPGY="
 
+web_server:
+  port: 80
+  auth:
+    username: admin
+    password: !secret web_password
+    
 ota:
-  - platform: esphome
-    password: "faa23229fbe03188178746511093c0e5"
+  - platform: web_server
+
+
+
 
 
 # --- Remove or comment out WiFi and captive portal ---
@@ -120,12 +128,21 @@ i2c:
   scan: false
 
 sensor:
+  - platform: internal_temperature
+    name: "ESP32-C6 Internal Temperature"
+    id: esp32_temp
+    update_interval: 60s
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    entity_category: diagnostic
+
   - platform: tsl2591
     name: "Ambient Light"
     id: ambient_light
     address: 0x29
     integration_time: 100ms
-    gain: medium
+    gain: auto
     device_factor: 53
     update_interval: 100ms
     visible:

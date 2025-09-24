@@ -291,24 +291,17 @@ void IWR6843AOPComponent::parse_target_list_tlv(const std::vector<uint8_t> &tlv_
   size_t num_targets = tlv_payload.size() / TARGET_STRUCT_SIZE;
   ESP_LOGD(TAG, "tlv payload length: %d  Number of targets: %d", (int) tlv_payload.size(), (int) num_targets);
   
-  bool room_present = false;
+  // Debug: Print first 4 bytes of target list payload
+  if (tlv_payload.size() >= 4) {
+    ESP_LOGD(TAG, "First 4 bytes of target list payload: %02X %02X %02X %02X", 
+             tlv_payload[0], tlv_payload[1], tlv_payload[2], tlv_payload[3]);
+  }
+  
+  bool room_present = num_targets > 0;
   bool bed_present = false;
-  
-  ESP_LOGD(TAG, "=== TARGET LIST PARSED ===");
-  ESP_LOGD(TAG, "Number of targets detected: %d", (int)num_targets);
-  
-  // Room presence: true if ANY targets are detected (regardless of location)
-  room_present = (num_targets > 0);
-  
-  // Define presence boundary box (from IWR6843 config: presenceBoundaryBox -4 4 -4 4 0.5 2.5)
-  const float PRESENCE_X_MIN = -4.0f;
-  const float PRESENCE_X_MAX = 4.0f;
-  const float PRESENCE_Y_MIN = -4.0f;
-  const float PRESENCE_Y_MAX = 4.0f;
-  const float PRESENCE_Z_MIN = 0.5f;
-  const float PRESENCE_Z_MAX = 2.5f;
 
   for (size_t i = 0; i < num_targets; ++i) {
+    
     size_t offset = i * TARGET_STRUCT_SIZE + TLV_HEADER_SIZE;
     const uint8_t *ptr = tlv_payload.data() + offset;
 
@@ -345,42 +338,21 @@ void IWR6843AOPComponent::parse_target_list_tlv(const std::vector<uint8_t> &tlv_
     float confidence = le_bytes_to_float(ptr);
     ptr += 4;
 
-    ESP_LOGD(TAG, "TARGET DETECTED - ID: %u, Position: X=%.2f, Y=%.2f, Z=%.2f", id, posX, posY, posZ);
-    ESP_LOGD(TAG, "Target %u - Velocity: X=%.2f, Y=%.2f, Z=%.2f", id, velX, velY, velZ);
-    ESP_LOGD(TAG, "Target %u - Acceleration: X=%.2f, Y=%.2f, Z=%.2f", id, accX, accY, accZ);
-    ESP_LOGD(TAG, "Target %u - Confidence: %.2f, Gating Gain: %.2f", id, confidence, g);
-    
-    // Check if target is within presence boundary box (for logging purposes)
-    bool in_presence_box = (posX >= PRESENCE_X_MIN && posX <= PRESENCE_X_MAX &&
-                           posY >= PRESENCE_Y_MIN && posY <= PRESENCE_Y_MAX &&
-                           posZ >= PRESENCE_Z_MIN && posZ <= PRESENCE_Z_MAX);
-    
-    if (in_presence_box) {
-      ESP_LOGD(TAG, "Target %u - WITHIN PRESENCE BOUNDARY BOX", id);
-    } else {
-      ESP_LOGD(TAG, "Target %u - Outside presence boundary box (X:%.2f, Y:%.2f, Z:%.2f)", 
-               id, posX, posY, posZ);
-    }
+    ESP_LOGD(TAG, "Target %u: x=%.2f y=%.2f z=%.2f confidence = %f", id, posX, posY, posZ,confidence);
+    // Optionally log velocity, acceleration, etc.
+    // ESP_LOGD("iwr6843aop", "vel=(%.2f,%.2f,%.2f) acc=(%.2f,%.2f,%.2f) conf=%.2f", velX, velY, velZ, accX, accY, accZ,
+    // confidence);
 
     // Bed presence logic: abs(x) < width and abs(z) < length
     if (width_ && length_) {
       float width_val = width_->state;
       float length_val = length_->state;
-      ESP_LOGD(TAG, "Target %u - Checking bed presence: |X|=%.2f < %.2f? |Z|=%.2f < %.2f?", 
-               id, std::abs(posX), width_val, std::abs(posZ), length_val);
       if (std::abs(posX) < width_val && std::abs(posZ) < length_val) {
         bed_present = true;
-        ESP_LOGD(TAG, "Target %u - INSIDE BED AREA!", id);
-      } else {
-        ESP_LOGD(TAG, "Target %u - Outside bed area", id);
       }
     }
   }
 
-  ESP_LOGD(TAG, "=== BINARY SENSOR UPDATES ===");
-  ESP_LOGD(TAG, "Room presence: %s", room_present ? "TARGETS DETECTED" : "NO TARGETS DETECTED");
-  ESP_LOGD(TAG, "Bed presence: %s", bed_present ? "DETECTED IN BED AREA" : "NO TARGETS IN BED AREA");
-  
   if (room_presence_)
     room_presence_->publish_state(room_present);
   if (bed_presence_)
