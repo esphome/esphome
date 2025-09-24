@@ -162,10 +162,11 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
 
     // Get fan speed
-    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->ai_alternative_mode_)) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY ||
-               this->mode == climate::CLIMATE_MODE_FAN_ONLY || this->mode == climate::CLIMATE_MODE_HEAT) {
+    } else if (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_COOL ||
+               this->mode == climate::CLIMATE_MODE_DRY || this->mode == climate::CLIMATE_MODE_FAN_ONLY ||
+               this->mode == climate::CLIMATE_MODE_HEAT) {
       if ((remote_state & FAN_MASK) == FAN_AUTO) {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
       } else if ((remote_state & FAN_MASK) == FAN_MIN) {
