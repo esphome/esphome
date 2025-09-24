@@ -97,7 +97,8 @@ void LgIrClimate::transmit_state() {
   }
 
   // Set temperature
-  if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
+  if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->ai_alternative_mode_ ||
+      this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
     auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
     remote_state |= ((temp - 15) << TEMP_SHIFT);
   }
