@@ -105,6 +105,7 @@ the post.
 - [Medisana BS440 (and propably more scales)](https://github.com/bwynants/weegschaal) by [bwynants](https://github.com/bwynants)
 - [Novy Pureline Pro extractor hood](https://github.com/bwynants/purelinepro) by [bwynants](https://github.com/bwynants)
 - [Digoo DG-R8H and similar nexus433 sensors to MQTT component](https://github.com/FreeBear-nc/esphome-nexus433) by {{< ghuser name="FreeBear-nc" >}}
+- [Adaptive Lighting for white/warm lights](https://github.com/mdvorak/esphome-adaptive-lighting) by {{< ghuser name="mdvorak" >}}
 
 ## Sample Configurations
 
