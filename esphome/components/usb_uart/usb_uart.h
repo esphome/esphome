@@ -137,9 +137,6 @@ class USBUartComponent : public usb_host::USBClient {
   // Lock-free data transfer from USB task to main loop
   static constexpr int USB_DATA_QUEUE_SIZE = 32;
   LockFreeQueue<UsbDataChunk, USB_DATA_QUEUE_SIZE> usb_data_queue_;
-
-  // Pool for allocating data chunks (uses EventPool pattern like BLE)
-  // MUST be same size as queue to guarantee push always succeeds after allocate
   EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE> chunk_pool_;
 
  protected:
