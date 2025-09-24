@@ -352,10 +352,7 @@ async def to_code(config):
         cg.add_define(phy_define)
 
     if CONF_MAC_ADDRESS in config:
-        parts = list(config[CONF_MAC_ADDRESS].parts)
-        joined = ",".join(str(x) for x in parts)
-        vec_src = f"std::vector<uint8_t>{{{joined}}}"
-        cg.add(var.set_fixed_mac(cg.RawExpression(vec_src)))
+        cg.add(var.set_fixed_mac(config[CONF_MAC_ADDRESS].parts))
 
     cg.add_define("USE_ETHERNET")
 
