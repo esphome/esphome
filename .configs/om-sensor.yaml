@@ -34,6 +34,8 @@ web_server:
     password: !secret web_password
     
 ota:
+  - platform: esphome
+    password: "faa23229fbe03188178746511093c0e5"
   - platform: web_server
 
 
