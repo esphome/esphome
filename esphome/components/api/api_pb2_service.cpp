@@ -639,241 +639,139 @@ void APIServerConnection::on_ping_request(const PingRequest &msg) {
   }
 }
 void APIServerConnection::on_device_info_request(const DeviceInfoRequest &msg) {
-  if (this->check_connection_setup_() && !this->send_device_info_response(msg)) {
+  if (!this->send_device_info_response(msg)) {
     this->on_fatal_error();
   }
 }
-void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->list_entities(msg);
-  }
-}
+void APIServerConnection::on_list_entities_request(const ListEntitiesRequest &msg) { this->list_entities(msg); }
 void APIServerConnection::on_subscribe_states_request(const SubscribeStatesRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->subscribe_states(msg);
-  }
+  this->subscribe_states(msg);
 }
-void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->subscribe_logs(msg);
-  }
-}
+void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) { this->subscribe_logs(msg); }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServerConnection::on_subscribe_homeassistant_services_request(
     const SubscribeHomeassistantServicesRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->subscribe_homeassistant_services(msg);
-  }
+  this->subscribe_homeassistant_services(msg);
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIServerConnection::on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->subscribe_home_assistant_states(msg);
-  }
+  this->subscribe_home_assistant_states(msg);
 }
 #endif
 #ifdef USE_API_SERVICES
-void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->execute_service(msg);
-  }
-}
+void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) { this->execute_service(msg); }
 #endif
 #ifdef USE_API_NOISE
 void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
-  if (this->check_authenticated_() && !this->send_noise_encryption_set_key_response(msg)) {
+  if (!this->send_noise_encryption_set_key_response(msg)) {
     this->on_fatal_error();
   }
 }
 #endif
 #ifdef USE_BUTTON
-void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->button_command(msg);
-  }
-}
+void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) { this->button_command(msg); }
 #endif
 #ifdef USE_CAMERA
-void APIServerConnection::on_camera_image_request(const CameraImageRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->camera_image(msg);
-  }
-}
+void APIServerConnection::on_camera_image_request(const CameraImageRequest &msg) { this->camera_image(msg); }
 #endif
 #ifdef USE_CLIMATE
-void APIServerConnection::on_climate_command_request(const ClimateCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->climate_command(msg);
-  }
-}
+void APIServerConnection::on_climate_command_request(const ClimateCommandRequest &msg) { this->climate_command(msg); }
 #endif
 #ifdef USE_COVER
-void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->cover_command(msg);
-  }
-}
+void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) { this->cover_command(msg); }
 #endif
 #ifdef USE_DATETIME_DATE
-void APIServerConnection::on_date_command_request(const DateCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->date_command(msg);
-  }
-}
+void APIServerConnection::on_date_command_request(const DateCommandRequest &msg) { this->date_command(msg); }
 #endif
 #ifdef USE_DATETIME_DATETIME
 void APIServerConnection::on_date_time_command_request(const DateTimeCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->datetime_command(msg);
-  }
+  this->datetime_command(msg);
 }
 #endif
 #ifdef USE_FAN
-void APIServerConnection::on_fan_command_request(const FanCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->fan_command(msg);
-  }
-}
+void APIServerConnection::on_fan_command_request(const FanCommandRequest &msg) { this->fan_command(msg); }
 #endif
 #ifdef USE_LIGHT
-void APIServerConnection::on_light_command_request(const LightCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->light_command(msg);
-  }
-}
+void APIServerConnection::on_light_command_request(const LightCommandRequest &msg) { this->light_command(msg); }
 #endif
 #ifdef USE_LOCK
-void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->lock_command(msg);
-  }
-}
+void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg) { this->lock_command(msg); }
 #endif
 #ifdef USE_MEDIA_PLAYER
 void APIServerConnection::on_media_player_command_request(const MediaPlayerCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->media_player_command(msg);
-  }
+  this->media_player_command(msg);
 }
 #endif
 #ifdef USE_NUMBER
-void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->number_command(msg);
-  }
-}
+void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) { this->number_command(msg); }
 #endif
 #ifdef USE_SELECT
-void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->select_command(msg);
-  }
-}
+void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) { this->select_command(msg); }
 #endif
 #ifdef USE_SIREN
-void APIServerConnection::on_siren_command_request(const SirenCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->siren_command(msg);
-  }
-}
+void APIServerConnection::on_siren_command_request(const SirenCommandRequest &msg) { this->siren_command(msg); }
 #endif
 #ifdef USE_SWITCH
-void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->switch_command(msg);
-  }
-}
+void APIServerConnection::on_switch_command_request(const SwitchCommandRequest &msg) { this->switch_command(msg); }
 #endif
 #ifdef USE_TEXT
-void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->text_command(msg);
-  }
-}
+void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) { this->text_command(msg); }
 #endif
 #ifdef USE_DATETIME_TIME
-void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->time_command(msg);
-  }
-}
+void APIServerConnection::on_time_command_request(const TimeCommandRequest &msg) { this->time_command(msg); }
 #endif
 #ifdef USE_UPDATE
-void APIServerConnection::on_update_command_request(const UpdateCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->update_command(msg);
-  }
-}
+void APIServerConnection::on_update_command_request(const UpdateCommandRequest &msg) { this->update_command(msg); }
 #endif
 #ifdef USE_VALVE
-void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->valve_command(msg);
-  }
-}
+void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) { this->valve_command(msg); }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
     const SubscribeBluetoothLEAdvertisementsRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->subscribe_bluetooth_le_advertisements(msg);
-  }
+  this->subscribe_bluetooth_le_advertisements(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_device_request(msg);
-  }
+  this->bluetooth_device_request(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_gatt_get_services(msg);
-  }
+  this->bluetooth_gatt_get_services(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_gatt_read(msg);
-  }
+  this->bluetooth_gatt_read(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_gatt_write(msg);
-  }
+  this->bluetooth_gatt_write(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_gatt_read_descriptor(msg);
-  }
+  this->bluetooth_gatt_read_descriptor(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_gatt_write_descriptor(msg);
-  }
+  this->bluetooth_gatt_write_descriptor(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_gatt_notify(msg);
-  }
+  this->bluetooth_gatt_notify(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
     const SubscribeBluetoothConnectionsFreeRequest &msg) {
-  if (this->check_authenticated_() && !this->send_subscribe_bluetooth_connections_free_response(msg)) {
+  if (!this->send_subscribe_bluetooth_connections_free_response(msg)) {
     this->on_fatal_error();
   }
 }
@@ -881,59 +779,68 @@ void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
     const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->unsubscribe_bluetooth_le_advertisements(msg);
-  }
+  this->unsubscribe_bluetooth_le_advertisements(msg);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->bluetooth_scanner_set_mode(msg);
-  }
+  this->bluetooth_scanner_set_mode(msg);
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
 void APIServerConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->subscribe_voice_assistant(msg);
-  }
+  this->subscribe_voice_assistant(msg);
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
 void APIServerConnection::on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg) {
-  if (this->check_authenticated_() && !this->send_voice_assistant_get_configuration_response(msg)) {
+  if (!this->send_voice_assistant_get_configuration_response(msg)) {
     this->on_fatal_error();
   }
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
 void APIServerConnection::on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) {
-  if (this->check_authenticated_()) {
-    this->voice_assistant_set_configuration(msg);
-  }
+  this->voice_assistant_set_configuration(msg);
 }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 void APIServerConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->alarm_control_panel_command(msg);
-  }
+  this->alarm_control_panel_command(msg);
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
-  if (this->check_authenticated_()) {
-    this->zwave_proxy_frame(msg);
-  }
-}
+void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) { this->zwave_proxy_frame(msg); }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
-  if (this->check_authenticated_()) {
-    this->zwave_proxy_request(msg);
-  }
-}
+void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) { this->zwave_proxy_request(msg); }
 #endif
+
+void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
+  // Check authentication/connection requirements for messages
+  switch (msg_type) {
+    case HelloRequest::MESSAGE_TYPE:  // No setup required
+#ifdef USE_API_PASSWORD
+    case AuthenticationRequest::MESSAGE_TYPE:  // No setup required
+#endif
+    case DisconnectRequest::MESSAGE_TYPE:  // No setup required
+    case PingRequest::MESSAGE_TYPE:        // No setup required
+      break;                               // Skip all checks for these messages
+    case DeviceInfoRequest::MESSAGE_TYPE:  // Connection setup only
+      if (!this->check_connection_setup_()) {
+        return;  // Connection not setup
+      }
+      break;
+    default:
+      // All other messages require authentication (which includes connection check)
+      if (!this->check_authenticated_()) {
+        return;  // Authentication failed
+      }
+      break;
+  }
+
+  // Call base implementation to process the message
+  APIServerConnectionBase::read_message(msg_size, msg_type, msg_data);
+}
 
 }  // namespace esphome::api
