@@ -447,7 +447,6 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   trq->transfer->callback = transfer_callback;
   trq->transfer->bEndpointAddress = ep_address | USB_DIR_IN;
   trq->transfer->num_bytes = length;
-
   auto err = usb_host_transfer_submit(trq->transfer);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
