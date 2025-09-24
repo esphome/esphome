@@ -2463,6 +2463,7 @@ class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
   std::vector<std::string> trained_languages{};
   std::string model_type{};
   uint32_t model_size{0};
+  std::string model_hash{};
   std::string url{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -1833,6 +1833,7 @@ void VoiceAssistantExternalWakeWord::dump_to(std::string &out) const {
   }
   dump_field(out, "model_type", this->model_type);
   dump_field(out, "model_size", this->model_size);
+  dump_field(out, "model_hash", this->model_hash);
   dump_field(out, "url", this->url);
 }
 void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {

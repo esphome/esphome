@@ -2422,6 +2422,9 @@ bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengt
       this->model_type = value.as_string();
       break;
     case 6:
+      this->model_hash = value.as_string();
+      break;
+    case 7:
       this->url = value.as_string();
       break;
     default:

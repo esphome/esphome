@@ -1871,7 +1871,8 @@ message VoiceAssistantExternalWakeWord {
   repeated string trained_languages = 3;
   string model_type = 4;
   uint32 model_size = 5;
-  string url = 6;
+  string model_hash = 6;
+  string url = 7;
 }
 
 message VoiceAssistantConfigurationRequest {
