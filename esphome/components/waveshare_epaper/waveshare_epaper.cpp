@@ -3160,7 +3160,8 @@ void GDEY0583T81::dump_config() {
 // Product page:
 //  - https://www.good-display.com/product/483.html
 // Datasheet:
-//  - https://www.good-display.com/public/html/pdfjs/viewer/viewernew.html?file=https://v4.cecdn.yun300.cn/100001_1909185148/GDEY075T7-T01.pdf
+//  -
+//  https://www.good-display.com/public/html/pdfjs/viewer/viewernew.html?file=https://v4.cecdn.yun300.cn/100001_1909185148/GDEY075T7-T01.pdf
 // Reference code from GoodDisplay:
 //  - https://www.good-display.com/comp/xcompanyFile/downloadNew.do?appId=24&fid=2450&id=1838
 // ========================================================
