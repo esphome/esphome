@@ -191,7 +191,7 @@ void USBClient::setup() {
 
   // Create and start USB task
   xTaskCreatePinnedToCore(usb_task_fn, "usb_task",
-                          2048,  // Stack size (minimal - just handles USB events)
+                          4096,  // Stack size (same as ESP-IDF USB examples)
                           this,  // Task parameter
                           5,     // Priority (higher than main loop)
                           &this->usb_task_handle_,
