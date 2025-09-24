@@ -246,11 +246,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
-      if (!this->usb_data_queue_.push(chunk)) {
-        ESP_LOGW(TAG, "USB data queue full, dropping %u bytes", status.data_len);
-        // Return chunk to pool
-        this->chunk_pool_.release(chunk);
-      }
+      // Push always succeeds because pool size == queue size
+      this->usb_data_queue_.push(chunk);
     }
 
     // Always restart input immediately from USB task

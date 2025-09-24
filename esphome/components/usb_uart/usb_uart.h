@@ -137,8 +137,8 @@ class USBUartComponent : public usb_host::USBClient {
   LockFreeQueue<UsbDataChunk, USB_DATA_QUEUE_SIZE> usb_data_queue_;
 
   // Pool for allocating data chunks (uses EventPool pattern like BLE)
-  static constexpr int MAX_DATA_CHUNKS = 40;
-  EventPool<UsbDataChunk, MAX_DATA_CHUNKS> chunk_pool_;
+  // MUST be same size as queue to guarantee push always succeeds after allocate
+  EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE> chunk_pool_;
 
  protected:
   std::vector<USBUartChannel *> channels_{};
