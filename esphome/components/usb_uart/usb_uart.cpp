@@ -266,6 +266,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
 }
 
 void USBUartComponent::start_output(USBUartChannel *channel) {
+  // IMPORTANT: This function must only be called from the main loop!
+  // The output_buffer_ is not thread-safe and can only be accessed from main loop.
+  // USB callbacks use defer() to ensure this function runs in the correct context.
   if (channel->output_started_.load())
     return;
   if (channel->output_buffer_.is_empty()) {
