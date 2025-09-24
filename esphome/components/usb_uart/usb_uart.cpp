@@ -130,7 +130,7 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   return len;
 }
 void USBUartChannel::write_array(const uint8_t *data, size_t len) {
-  if (!this->initialised_) {
+  if (!this->initialised_.load()) {
     ESP_LOGV(TAG, "Channel not initialised - write ignored");
     return;
   }
@@ -152,7 +152,7 @@ bool USBUartChannel::peek_byte(uint8_t *data) {
   return true;
 }
 bool USBUartChannel::read_array(uint8_t *data, size_t len) {
-  if (!this->initialised_) {
+  if (!this->initialised_.load()) {
     ESP_LOGV(TAG, "Channel not initialised - read ignored");
     return false;
   }
@@ -215,7 +215,7 @@ void USBUartComponent::dump_config() {
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_ || channel->input_started_)
+  if (!channel->initialised_.load() || channel->input_started_.load())
     return;
   // Note: We no longer check ring buffer space here since this may be called from USB task
   // The lock-free queue provides backpressure instead
@@ -234,7 +234,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       if (chunk == nullptr) {
         ESP_LOGW(TAG, "No free chunks available, dropping %u bytes", status.data_len);
         // Mark input as not started so we can retry
-        channel->input_started_ = false;
+        channel->input_started_.store(false);
         return;
       }
 
@@ -250,15 +250,15 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
 
     // Always restart input immediately from USB task
     // The lock-free queue will handle backpressure
-    channel->input_started_ = false;
+    channel->input_started_.store(false);
     this->start_input(channel);
   };
-  channel->input_started_ = true;
+  channel->input_started_.store(true);
   this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
 }
 
 void USBUartComponent::start_output(USBUartChannel *channel) {
-  if (channel->output_started_)
+  if (channel->output_started_.load())
     return;
   if (channel->output_buffer_.is_empty()) {
     return;
@@ -267,11 +267,11 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
-    channel->output_started_ = false;
+    channel->output_started_.store(false);
     // Defer restart to main loop (defer is thread-safe)
     this->defer([this, channel] { this->start_output(channel); });
   };
-  channel->output_started_ = true;
+  channel->output_started_.store(true);
   uint8_t data[ep->wMaxPacketSize];
   auto len = channel->output_buffer_.pop(data, ep->wMaxPacketSize);
   this->transfer_out(ep->bEndpointAddress, callback, data, len);
@@ -314,7 +314,7 @@ void USBUartTypeCdcAcm::on_connected() {
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
-    channel->initialised_ = true;
+    channel->initialised_.store(true);
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
     if (err != ESP_OK) {
@@ -343,9 +343,9 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
-    channel->initialised_ = false;
-    channel->input_started_ = false;
-    channel->output_started_ = false;
+    channel->initialised_.store(false);
+    channel->input_started_.store(false);
+    channel->output_started_.store(false);
     channel->input_buffer_.clear();
     channel->output_buffer_.clear();
   }
@@ -354,10 +354,10 @@ void USBUartTypeCdcAcm::on_disconnected() {
 
 void USBUartTypeCdcAcm::enable_channels() {
   for (auto *channel : this->channels_) {
-    if (!channel->initialised_)
+    if (!channel->initialised_.load())
       continue;
-    channel->input_started_ = false;
-    channel->output_started_ = false;
+    channel->input_started_.store(false);
+    channel->output_started_.store(false);
     this->start_input(channel);
   }
 }

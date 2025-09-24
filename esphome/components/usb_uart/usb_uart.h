@@ -7,6 +7,7 @@
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#include <atomic>
 
 namespace esphome {
 namespace usb_uart {
@@ -111,12 +112,12 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   RingBuffer input_buffer_;
   RingBuffer output_buffer_;
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
-  bool input_started_{true};
-  bool output_started_{true};
+  std::atomic<bool> input_started_{true};
+  std::atomic<bool> output_started_{true};
   CdcEps cdc_dev_{};
   bool debug_{};
   bool dummy_receiver_{};
-  bool initialised_{};
+  std::atomic<bool> initialised_{false};
 };
 
 class USBUartComponent : public usb_host::USBClient {
