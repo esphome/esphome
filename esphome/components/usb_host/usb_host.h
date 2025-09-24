@@ -75,7 +75,6 @@ struct UsbEvent {
     } device_gone;
     struct {
       TransferRequest *trq;
-      bool callback_executed;  // Flag to indicate callback was already executed in USB task
     } transfer;
   } data;
 };

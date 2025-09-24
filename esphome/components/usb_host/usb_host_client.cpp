@@ -212,9 +212,7 @@ void USBClient::usb_task_fn(void *arg) {
 void USBClient::usb_task_loop() {
   ESP_LOGI(TAG, "USB task started on core %d", xPortGetCoreID());
 
-  // Run forever - ESPHome reboots rather than shutting down cleanly
   while (true) {
-    // Handle USB events with a timeout to prevent blocking forever
     usb_host_client_handle_events(this->handle_, pdMS_TO_TICKS(10));
   }
 }
@@ -327,7 +325,6 @@ static void control_callback(const usb_transfer_t *xfer) {
   UsbEvent event;
   event.type = EVENT_CONTROL_COMPLETE;
   event.data.transfer.trq = trq;
-  event.data.transfer.callback_executed = true;
   xQueueSend(trq->client->get_event_queue(), &event, portMAX_DELAY);
 }
 
