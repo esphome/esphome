@@ -50,9 +50,11 @@ const uint32_t COMMAND_HEAT = 0x0C000;
 // Fan speed
 const uint32_t FAN_MASK = 0xF0;
 const uint32_t FAN_AUTO = 0x50;
-const uint32_t FAN_MIN = 0x00;
-const uint32_t FAN_MED = 0x20;
-const uint32_t FAN_MAX = 0x40;
+const uint32_t FAN_MIN = 0x00;  // AKA F1
+const uint32_t FAN_F2 = 0x90;
+const uint32_t FAN_MED = 0x20;  // AKA F3
+const uint32_t FAN_F4 = 0xA0;
+const uint32_t FAN_MAX = 0x40;  // AKA F4
 
 // Temperature
 const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
