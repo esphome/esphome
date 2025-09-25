@@ -576,7 +576,7 @@ class DashboardSubscriber:
                 if settings.status_use_mqtt:
                     dashboard.mqtt_ping_request.set()
                 await asyncio.sleep(DASHBOARD_POLL_INTERVAL)
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Error in ping loop")
                 break
 
@@ -587,7 +587,7 @@ class DashboardSubscriber:
             try:
                 await dashboard.entries.async_request_update_entries()
                 await asyncio.sleep(DASHBOARD_ENTRIES_UPDATE_INTERVAL)
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Error in filesystem polling loop")
                 break
 
@@ -612,7 +612,7 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
         self._authenticated = False
         self._dashboard_unsubscribe: Callable[[], None] | None = None
 
-    async def open(self, *args: str, **kwargs: str) -> None:
+    async def open(self, *args: str, **kwargs: str) -> None:  # pylint: disable=invalid-overridden-method
         """Handle new WebSocket connection."""
         # Check authentication
         if settings.using_password and not is_authenticated(self):
