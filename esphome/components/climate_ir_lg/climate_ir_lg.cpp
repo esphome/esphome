@@ -180,10 +180,24 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else if ((remote_state & COMMAND_MASK) == COMMAND_ADV_SWING) {
     ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & COMMAND_ADV_SWING_DATA_MASK);
-    if ((remote_state & COMMAND_ADV_SWING_DATA_MASK) == COMMAND_ADV_VERT_SWING_ON) {
-      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
+    switch (remote_state & COMMAND_ADV_SWING_DATA_MASK) {
+      case COMMAND_ADV_VERT_SWING_ON:
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+        break;
+      case COMMAND_ADV_HORI_SWING_ON_LEFT:
+      case COMMAND_ADV_HORI_SWING_ON_RIGHT:
+      case COMMAND_ADV_HORI_SWING_ON_FULL:
+      case COMMAND_ADV_HORI_SWING_OFF:
+      case COMMAND_ADV_HORI_FIX_1:
+      case COMMAND_ADV_HORI_FIX_2:
+      case COMMAND_ADV_HORI_FIX_3:
+      case COMMAND_ADV_HORI_FIX_4:
+      case COMMAND_ADV_HORI_FIX_5:
+        // Ignore horizontal swing decoding for now.
+        // this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+        break;
+      default:
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
     }
 
     this->publish_state();
