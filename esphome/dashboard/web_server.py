@@ -481,8 +481,10 @@ class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
 
 class EsphomeCleanAllHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = settings.rel_path(json_message["configuration"])
-        return [*DASHBOARD_COMMAND, "clean-all", config_file]
+        clean_build_dir = json_message.get("clean_build_dir", True)
+        if clean_build_dir:
+            return [*DASHBOARD_COMMAND, "clean-all", settings.config_dir]
+        return [*DASHBOARD_COMMAND, "clean-all"]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
