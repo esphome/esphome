@@ -416,6 +416,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "TMP102","components/sensor/tmp102","tmp102.jpg","Temperature",""
 "TMP1075","components/sensor/tmp1075","tmp1075.jpg","Temperature",""
 "TMP117","components/sensor/tmp117","tmp117.jpg","Temperature",""
+"WTS01","components/sensor/wts01","wts01.png","Temperature",""
 "XGZP68xx Series","components/sensor/xgzp68xx","6897d.jpg","Differential Pressure",""
 {{< /imgtable >}}
 
