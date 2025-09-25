@@ -1158,3 +1158,41 @@ async def test_dashboard_subscriber_lifecycle(dashboard: DashboardTestHelper) ->
 
     # Should have stopped the task
     assert len(subscriber._subscribers) == 0
+
+
+@pytest.mark.asyncio
+async def test_dashboard_subscriber_entries_update_interval(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test DashboardSubscriber entries update interval."""
+    # Patch the constants to make the test run faster
+    with (
+        patch("esphome.dashboard.web_server.DASHBOARD_POLL_INTERVAL", 0.01),
+        patch("esphome.dashboard.web_server.DASHBOARD_ENTRIES_UPDATE_ITERATIONS", 2),
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.status_use_mqtt = False
+
+        # Mock dashboard dependencies
+        mock_dashboard.ping_request = Mock()
+        mock_dashboard.ping_request.set = Mock()
+        mock_dashboard.entries = Mock()
+        mock_dashboard.entries.async_request_update_entries = Mock()
+
+        subscriber = DashboardSubscriber()
+        mock_websocket = Mock()
+
+        # Subscribe to start the event loop
+        unsubscribe = subscriber.subscribe(mock_websocket)
+
+        # Wait for a few iterations to ensure entries update is called
+        await asyncio.sleep(0.05)  # Should be enough for 2+ iterations
+
+        # Unsubscribe to stop the task
+        unsubscribe()
+
+        # Verify entries update was called
+        assert mock_dashboard.entries.async_request_update_entries.call_count >= 1
+        # Verify ping request was set multiple times
+        assert mock_dashboard.ping_request.set.call_count >= 2
