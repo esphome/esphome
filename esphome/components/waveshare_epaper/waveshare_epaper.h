@@ -721,9 +721,17 @@ class GDEY0583T81 : public WaveshareEPaper {
 };
 
 class GDEY075T7 : public GDEY0583T81 {
+ public:
+  void dump_config() override;
+
+  void set_full_update_every(uint32_t full_update_every);
+
  protected:
   int get_width_internal() override;
   int get_height_internal() override;
+
+ private:
+  uint32_t full_update_every_{30};
 };
 
 class WaveshareEPaper5P65InF : public WaveshareEPaper7C {

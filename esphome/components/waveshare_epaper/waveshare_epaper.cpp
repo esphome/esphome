@@ -3166,8 +3166,18 @@ void GDEY0583T81::dump_config() {
 //  - https://www.good-display.com/comp/xcompanyFile/downloadNew.do?appId=24&fid=2450&id=1838
 // ========================================================
 
+void GDEY075T7::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 int GDEY075T7::get_width_internal() { return 800; }
 int GDEY075T7::get_height_internal() { return 480; }
+void GDEY075T7::dump_config() {
+  LOG_DISPLAY("", "GoodDisplay E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in B/W GDEY075T7");
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
