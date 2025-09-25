@@ -914,6 +914,115 @@ async def test_websocket_entry_added(
 
 
 @pytest.mark.asyncio
+async def test_websocket_entry_removed(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket entry removed event."""
+    # Create a mock entry
+    mock_entry = Mock(spec=DashboardEntry)
+    mock_entry.filename = "removed.yaml"
+    mock_entry.name = "removed_device"
+    mock_entry.to_dict.return_value = {
+        "name": "removed_device",
+        "filename": "removed.yaml",
+        "configuration": "removed.yaml",
+    }
+
+    # Simulate entry removed
+    DASHBOARD.bus.async_fire(DashboardEvent.ENTRY_REMOVED, {"entry": mock_entry})
+
+    # Should receive entry removed event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "entry_removed"
+    assert data["data"]["device"]["name"] == "removed_device"
+    assert data["data"]["device"]["filename"] == "removed.yaml"
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_added(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket importable device added event."""
+    # Simulate importable device added
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_ADDED,
+        {
+            "device": {
+                "name": "new_import_device",
+                "friendly_name": "New Import Device",
+                "package_import_url": "https://example.com/package",
+                "project_name": "test_project",
+                "project_version": "1.0.0",
+                "network": "wifi",
+            }
+        },
+    )
+
+    # Should receive importable device added event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "importable_device_added"
+    assert data["data"]["device"]["name"] == "new_import_device"
+    assert data["data"]["device"]["project_name"] == "test_project"
+    assert data["data"]["device"]["network"] == "wifi"
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_removed(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket importable device removed event."""
+    # Simulate importable device removed
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
+        {"name": "removed_import_device"},
+    )
+
+    # Should receive importable device removed event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "importable_device_removed"
+    assert data["data"]["name"] == "removed_import_device"
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_already_configured(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test that importable device event is not sent if device is already configured."""
+    # Get an existing configured device name
+    existing_entry = DASHBOARD.entries.async_all()[0]
+
+    # Simulate importable device added with same name as configured device
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_ADDED,
+        {
+            "device": {
+                "name": existing_entry.name,
+                "friendly_name": "Should Not Be Sent",
+                "package_import_url": "https://example.com/package",
+                "project_name": "test_project",
+                "project_version": "1.0.0",
+                "network": "wifi",
+            }
+        },
+    )
+
+    # Send a ping to ensure connection is still alive
+    await websocket_client.write_message(json.dumps({"event": "ping"}))
+
+    # Should only receive pong, not the importable device event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "pong"
+
+
+@pytest.mark.asyncio
 async def test_websocket_multiple_connections(dashboard: DashboardTestHelper) -> None:
     """Test multiple WebSocket connections."""
     url = f"ws://127.0.0.1:{dashboard.port}/events"
