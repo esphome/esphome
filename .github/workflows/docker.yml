@@ -6,12 +6,10 @@ on:
     branches:
       - current
     paths:
-      - requirements.txt
       - Dockerfile
       - .github/workflows/docker.yml
   pull_request:
     paths:
-      - requirements.txt
       - Dockerfile
       - .github/workflows/docker.yml
 

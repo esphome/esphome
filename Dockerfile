@@ -1,14 +1,14 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         git \
         make \
         openssh-client \
-        software-properties-common \
+        hugo \
         && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
-ENV PAGEFIND_VERSION="1.1.0"
+ENV PAGEFIND_VERSION="1.3.0"
 ARG TARGETARCH
 SHELL ["/bin/bash", "-c"]
 RUN <<EOF
@@ -28,9 +28,6 @@ USER esphome
 
 WORKDIR /workspaces/esphome-docs
 ENV PATH="${PATH}:/home/esphome/.local/bin"
-
-COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 

@@ -4,7 +4,7 @@ SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
 
 
-PAGEFIND=npx --yes pagefind@1.3.0
+PAGEFIND=$(shell command -v pagefind >/dev/null 2>&1 && echo "pagefind" || echo "npx --yes pagefind@1.3.0")
 
 export HUGO_PARAMS_COMMIT_HASH=$(shell git rev-parse --short HEAD)
 export HUGO_PARAMS_COMMIT_TITLE=$(shell git log -1 --pretty=%s)

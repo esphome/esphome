@@ -3,5 +3,4 @@ ports:
   onOpen: open-preview
 
 tasks:
-- before: pip3 install -r requirements.txt
-  command: make live-html
+- command: make live-html
