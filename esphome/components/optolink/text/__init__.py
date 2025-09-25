@@ -1,21 +1,22 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_BYTES,
     CONF_DIV_RATIO,
     CONF_ENTITY_ID,
     CONF_ID,
-    CONF_TYPE,
     CONF_MODE,
+    CONF_TYPE,
 )
+
 from .. import (
     CONF_DAY_OF_WEEK,
-    DAY_OF_WEEK,
-    optolink_ns,
     CONF_OPTOLINK_ID,
+    DAY_OF_WEEK,
     SENSOR_BASE_SCHEMA,
+    optolink_ns,
 )
 
 DEPENDENCIES = ["optolink"]

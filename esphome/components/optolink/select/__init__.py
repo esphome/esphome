@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import select
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_BYTES,
@@ -9,7 +9,8 @@ from esphome.const import (
     CONF_ID,
     CONF_TO,
 )
-from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
+
+from .. import CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA, optolink_ns
 
 DEPENDENCIES = ["optolink"]
 CODEOWNERS = ["@j0ta29"]

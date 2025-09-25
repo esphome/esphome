@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
-from .. import SENSOR_BASE_SCHEMA, optolink_ns, CONF_OPTOLINK_ID
+
+from .. import CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA, optolink_ns
 
 DEPENDENCIES = ["optolink"]
 CODEOWNERS = ["@j0ta29"]
