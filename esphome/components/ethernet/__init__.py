@@ -8,7 +8,9 @@ from esphome.components.esp32 import (
     get_esp32_variant,
 )
 from esphome.components.esp32.const import (
+    VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -142,6 +144,14 @@ def _validate(config):
         else:
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
+
+    # Validate LAN8670 is only used with ESP32 classic or ESP32-P4
+    if config[CONF_TYPE] == "LAN8670":
+        variant = get_esp32_variant()
+        if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
+            raise cv.Invalid(
+                f"LAN8670 PHY is only supported on ESP32 classic and ESP32-P4, not {variant}"
+            )
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if _is_framework_spi_polling_mode_supported():
             if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
