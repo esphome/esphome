@@ -10,6 +10,17 @@ static const char *const TAG = "climate.climate_ir_lg";
 const uint32_t COMMAND_MASK = 0xFF000;
 const uint32_t COMMAND_OFF = 0xC0000;
 const uint32_t COMMAND_SWING = 0x10000;
+const uint32_t COMMAND_ADV_SWING = 0x13000;
+
+const uint32_t COMMAND_ADV_SWING_DATA_MASK = 0xFF0;
+const uint32_t COMMAND_ADV_VERT_SWING_ON = 0x140;
+const uint32_t COMMAND_ADV_VERT_SWING_OFF = 0x150;
+const uint32_t COMMAND_ADV_VERT_SWING_1 = 0x040;
+const uint32_t COMMAND_ADV_VERT_SWING_2 = 0x050;
+const uint32_t COMMAND_ADV_VERT_SWING_3 = 0x060;
+const uint32_t COMMAND_ADV_VERT_SWING_4 = 0x070;
+const uint32_t COMMAND_ADV_VERT_SWING_5 = 0x080;
+const uint32_t COMMAND_ADV_VERT_SWING_6 = 0x090;
 
 const uint32_t COMMAND_ON_COOL = 0x00000;
 const uint32_t COMMAND_ON_DRY = 0x01000;
@@ -45,7 +56,25 @@ void LgIrClimate::transmit_state() {
   // Set command
   if (this->send_swing_cmd_) {
     this->send_swing_cmd_ = false;
-    remote_state |= COMMAND_SWING;
+    if (this->ai_alternative_mode_) {
+      switch (this->swing_mode) {
+        case climate::CLIMATE_SWING_VERTICAL:
+          ESP_LOGD(TAG, "setting swing vertical");
+          remote_state |= COMMAND_ADV_SWING;
+          remote_state |= COMMAND_ADV_VERT_SWING_ON;
+          break;
+        case climate::CLIMATE_SWING_OFF:
+          ESP_LOGD(TAG, "setting swing off");
+          remote_state |= COMMAND_ADV_SWING;
+          remote_state |= COMMAND_ADV_VERT_SWING_4;
+          break;
+      }
+      this->transmit_(remote_state);
+      this->publish_state();
+      return;
+    } else {
+      remote_state |= COMMAND_SWING;
+    }
   } else {
     bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
     switch (this->mode) {
@@ -136,6 +165,16 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else if ((remote_state & COMMAND_MASK) == COMMAND_SWING) {
     this->swing_mode =
         this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+  } else if ((remote_state & COMMAND_MASK) == COMMAND_ADV_SWING) {
+    ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & COMMAND_ADV_SWING_DATA_MASK);
+    if ((remote_state & COMMAND_ADV_SWING_DATA_MASK) == COMMAND_ADV_VERT_SWING_ON) {
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+    } else {
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+    }
+    this->publish_state();
+
+    return true;
   } else {
     switch (remote_state & COMMAND_MASK) {
       case COMMAND_DRY:
