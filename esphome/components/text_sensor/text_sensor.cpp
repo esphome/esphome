@@ -6,7 +6,6 @@ namespace text_sensor {
 
 static const char *const TAG = "text_sensor";
 
-// Function implementation of LOG_TEXT_SENSOR macro to reduce code size
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj) {
   if (obj == nullptr) {
     return;
