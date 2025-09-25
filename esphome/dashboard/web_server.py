@@ -479,10 +479,10 @@ class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
         return [*DASHBOARD_COMMAND, "clean-mqtt", config_file]
 
 
-class EsphomeCleanPlatformHandler(EsphomeCommandWebSocket):
+class EsphomeCleanAllHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
-        return [*DASHBOARD_COMMAND, "clean-platform", config_file]
+        return [*DASHBOARD_COMMAND, "clean-all", config_file]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
@@ -1319,7 +1319,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
-            (f"{rel}clean-platform", EsphomeCleanPlatformHandler),
+            (f"{rel}clean-all", EsphomeCleanAllHandler),
             (f"{rel}clean", EsphomeCleanHandler),
             (f"{rel}vscode", EsphomeVscodeHandler),
             (f"{rel}ace", EsphomeAceEditorHandler),
