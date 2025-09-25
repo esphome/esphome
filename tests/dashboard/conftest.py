@@ -18,4 +18,7 @@ def mock_dashboard() -> Mock:
     dashboard.stop_event = Mock()
     dashboard.stop_event.is_set.return_value = True
     dashboard.ping_request = Mock()
+    dashboard.ignored_devices = set()
+    dashboard.bus = Mock()
+    dashboard.bus.async_fire = Mock()
     return dashboard

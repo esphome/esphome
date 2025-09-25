@@ -887,6 +887,24 @@ async def test_websocket_ping_pong(
 
 
 @pytest.mark.asyncio
+async def test_websocket_invalid_json(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket handling of invalid JSON."""
+    # Send invalid JSON
+    await websocket_client.write_message("not valid json {]")
+
+    # Send a valid ping to verify connection is still alive
+    await websocket_client.write_message(json.dumps({"event": "ping"}))
+
+    # Should receive pong, confirming the connection wasn't closed by invalid JSON
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "pong"
+
+
+@pytest.mark.asyncio
 async def test_websocket_entry_state_changed(
     dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
 ) -> None:
