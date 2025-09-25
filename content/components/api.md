@@ -101,7 +101,8 @@ perform actions.
 
 Open the ESPHome integration page on your Home Assistant instance:
 
-{{< button href="<https://my.home-assistant.io/redirect/integration/?domain=esphome>" img="<https://my.home-assistant.io/badges/integration.svg>" alt="Open your Home Assistant instance and show an integration." >}}
+[![Open your Home Assistant instance and show the ESPHome integration.](https://my.home-assistant.io/badges/integration.svg)](https://my.home-assistant.io/redirect/integration/?domain=esphome)
+
 Then:
 
 1. Find your device in the device list
