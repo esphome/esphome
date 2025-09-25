@@ -377,7 +377,7 @@ To run the site locally:
 1. Clone this repository
 1. Navigate to the repository directory
 1. Run `make live-html`
-1. Open your browser to <http://localhost:1313/>
+1. Open your browser to <http://localhost:8000/>
 
 ## Building for Production
 
