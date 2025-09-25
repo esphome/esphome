@@ -83,6 +83,8 @@ void LgIrClimate::transmit_state() {
           remote_state |= COMMAND_ADV_SWING;
           remote_state |= COMMAND_ADV_VERT_FIX_4;
           break;
+        default:
+          return;  // Supress clang error, this integration only supports OFF and VERTICAL, this will never be reached
       }
       this->transmit_(remote_state);
       this->publish_state();
