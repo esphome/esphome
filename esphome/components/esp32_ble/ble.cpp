@@ -424,13 +424,17 @@ void load_ble_event(BLEEvent *event, esp_gap_ble_cb_event_t e, esp_ble_gap_cb_pa
   event->load_gap_event(e, p);
 }
 
+#ifdef USE_ESP32_BLE_CLIENT
 void load_ble_event(BLEEvent *event, esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
   event->load_gattc_event(e, i, p);
 }
+#endif
 
+#ifdef USE_ESP32_BLE_SERVER
 void load_ble_event(BLEEvent *event, esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
   event->load_gatts_event(e, i, p);
 }
+#endif
 
 template<typename... Args> void enqueue_ble_event(Args... args) {
   // Allocate an event from the pool
@@ -451,8 +455,12 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
 
 // Explicit template instantiations for the friend function
 template void enqueue_ble_event(esp_gap_ble_cb_event_t, esp_ble_gap_cb_param_t *);
+#ifdef USE_ESP32_BLE_SERVER
 template void enqueue_ble_event(esp_gatts_cb_event_t, esp_gatt_if_t, esp_ble_gatts_cb_param_t *);
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
 template void enqueue_ble_event(esp_gattc_cb_event_t, esp_gatt_if_t, esp_ble_gattc_cb_param_t *);
+#endif
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
