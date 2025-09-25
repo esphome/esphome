@@ -74,17 +74,21 @@ class GAPScanEventHandler {
   virtual void gap_scan_event_handler(const BLEScanResult &scan_result) = 0;
 };
 
+#ifdef USE_ESP32_BLE_CLIENT
 class GATTcEventHandler {
  public:
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
 };
+#endif
 
+#ifdef USE_ESP32_BLE_SERVER
 class GATTsEventHandler {
  public:
   virtual void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) = 0;
 };
+#endif
 
 class BLEStatusEventHandler {
  public:
@@ -123,8 +127,12 @@ class ESP32BLE : public Component {
   void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
     this->gap_scan_event_handlers_.push_back(handler);
   }
+#ifdef USE_ESP32_BLE_CLIENT
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
+#endif
+#ifdef USE_ESP32_BLE_SERVER
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
+#endif
   void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
     this->ble_status_event_handlers_.push_back(handler);
   }
@@ -152,8 +160,12 @@ class ESP32BLE : public Component {
   // Vectors (12 bytes each on 32-bit, naturally aligned to 4 bytes)
   std::vector<GAPEventHandler *> gap_event_handlers_;
   std::vector<GAPScanEventHandler *> gap_scan_event_handlers_;
+#ifdef USE_ESP32_BLE_CLIENT
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
+#endif
+#ifdef USE_ESP32_BLE_SERVER
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
+#endif
   std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
