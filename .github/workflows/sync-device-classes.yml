@@ -13,16 +13,16 @@ jobs:
     if: github.repository == 'esphome/esphome'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Checkout Home Assistant
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: home-assistant/core
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@v6.0.0
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: 3.13
 
@@ -41,7 +41,7 @@ jobs:
           python script/run-in-env.py pre-commit run --all-files
 
       - name: Commit changes
-        uses: peter-evans/create-pull-request@v7.0.8
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
           committer: esphomebot <esphome@openhomefoundation.org>
