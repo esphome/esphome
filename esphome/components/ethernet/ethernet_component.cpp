@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include "esp_event.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0) && \
-    (defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32P4))
+#ifdef USE_ETHERNET_LAN8670
 #include "esp_eth_phy_lan867x.h"
 #endif
 
@@ -205,8 +204,7 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
       break;
     }
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0) && \
-    (defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32P4))
+#ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670: {
       this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
       break;
@@ -365,8 +363,7 @@ void EthernetComponent::dump_config() {
       eth_type = "DM9051";
       break;
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0) && \
-    (defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32P4))
+#ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670:
       eth_type = "LAN8670";
       break;

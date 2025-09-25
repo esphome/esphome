@@ -86,6 +86,7 @@ ETHERNET_TYPES = {
 _PHY_TYPE_TO_DEFINE = {
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "LAN8670": "USE_ETHERNET_LAN8670",
     # Add other PHY types here only if they need conditional compilation
 }
 
@@ -362,7 +363,7 @@ async def to_code(config):
     # Also disable WiFi/BT coexistence since WiFi is disabled
     add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
-    if CORE.using_esp_idf:
+    if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
