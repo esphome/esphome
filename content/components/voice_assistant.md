@@ -175,7 +175,7 @@ Returns true if the voice assistant is currently connected to Home Assistant.
 
 ## Wake word detection
 
-See our [example YAML files on GitHub](https://github.com/esphome/firmware/blob/main/voice-assistant/m5stack-atom-echo.yaml)
+See our [example YAML files on GitHub](https://github.com/esphome/wake-word-voice-assistants/blob/main/m5stack-atom-echo/m5stack-atom-echo.yaml)
 for continuous wake word detection.
 
 ## Push to Talk
