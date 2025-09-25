@@ -39,7 +39,7 @@ class HashBase {
 
   /// Compare the hash against a provided hex-encoded hash
   bool equals_hex(const char *expected) {
-    uint8_t parsed[32];  // Max size for SHA256
+    uint8_t parsed[this->get_size()];
     if (!parse_hex(expected, parsed, this->get_size())) {
       return false;
     }
@@ -50,7 +50,7 @@ class HashBase {
   virtual size_t get_size() const = 0;
 
  protected:
-  uint8_t digest_[32];  // Common digest storage, sized for largest hash (SHA256)
+  uint8_t digest_[32];  // Storage sized for max(MD5=16, SHA256=32) bytes
 };
 
 }  // namespace esphome
