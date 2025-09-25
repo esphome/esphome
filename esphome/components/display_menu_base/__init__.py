@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_ON_VALUE,
+    CONF_SWITCH,
     CONF_TEXT,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -33,7 +34,6 @@ CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
 CONF_SELECT = "select"
-CONF_SWITCH = "switch"
 CONF_ON_TEXT = "on_text"
 CONF_OFF_TEXT = "off_text"
 CONF_VALUE_LAMBDA = "value_lambda"

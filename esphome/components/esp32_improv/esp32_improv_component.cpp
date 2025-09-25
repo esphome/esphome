@@ -31,6 +31,9 @@ void ESP32ImprovComponent::setup() {
 #endif
   global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
                         [this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
+
+  // Start with loop disabled - will be enabled by start() when needed
+  this->disable_loop();
 }
 
 void ESP32ImprovComponent::setup_characteristics() {
@@ -168,6 +171,8 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_PROVISIONED: {
       this->incoming_data_.clear();
       this->set_status_indicator_state_(false);
+      // Provisioning complete, no further loop execution needed
+      this->disable_loop();
       break;
     }
   }
@@ -254,6 +259,7 @@ void ESP32ImprovComponent::start() {
 
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
+  this->enable_loop();
 }
 
 void ESP32ImprovComponent::stop() {
@@ -324,10 +330,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_.clear();
     }
   } else if (this->incoming_data_.size() - 2 > length) {
-    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer...");
+    ESP_LOGV(TAG, "Too much data received or data malformed; resetting buffer");
     this->incoming_data_.clear();
   } else {
-    ESP_LOGV(TAG, "Waiting for split data packets...");
+    ESP_LOGV(TAG, "Waiting for split data packets");
   }
 }
 

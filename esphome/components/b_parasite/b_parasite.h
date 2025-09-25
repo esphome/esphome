@@ -16,7 +16,6 @@ class BParasite : public Component, public esp32_ble_tracker::ESPBTDeviceListene
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }

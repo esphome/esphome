@@ -26,8 +26,10 @@ struct UserData {
 
 void HttpRequestIDF::dump_config() {
   HttpRequestComponent::dump_config();
-  ESP_LOGCONFIG(TAG, "  Buffer Size RX: %u", this->buffer_size_rx_);
-  ESP_LOGCONFIG(TAG, "  Buffer Size TX: %u", this->buffer_size_tx_);
+  ESP_LOGCONFIG(TAG,
+                "  Buffer Size RX: %u\n"
+                "  Buffer Size TX: %u",
+                this->buffer_size_rx_, this->buffer_size_tx_);
 }
 
 esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
@@ -40,7 +42,6 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
         const std::string header_value = evt->header_value;
         ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
         user_data->response_headers[header_name].push_back(header_value);
-        break;
       }
       break;
     }
@@ -156,8 +157,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::str
   container->status_code = esp_http_client_get_status_code(client);
   container->feed_wdt();
   container->set_response_headers(user_data.response_headers);
+  container->duration_ms = millis() - start;
   if (is_success(container->status_code)) {
-    container->duration_ms = millis() - start;
     return container;
   }
 
@@ -190,8 +191,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::str
       container->feed_wdt();
       container->status_code = esp_http_client_get_status_code(client);
       container->feed_wdt();
+      container->duration_ms = millis() - start;
       if (is_success(container->status_code)) {
-        container->duration_ms = millis() - start;
         return container;
       }
 

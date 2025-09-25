@@ -7,13 +7,15 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
-AUTO_LOAD = ["web_server_base"]
+AUTO_LOAD = ["web_server_base", "ota.web_server"]
 DEPENDENCIES = ["wifi"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
@@ -27,11 +29,19 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_LN882X,
+            PLATFORM_RTL87XX,
+        ]
+    ),
 )
 
 
-@coroutine_with_priority(64.0)
+@coroutine_with_priority(CoroPriority.CAPTIVE_PORTAL)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
@@ -41,6 +51,7 @@ async def to_code(config):
 
     if CORE.using_arduino:
         if CORE.is_esp32:
+            cg.add_library("ESP32 Async UDP", None)
             cg.add_library("DNSServer", None)
             cg.add_library("WiFi", None)
         if CORE.is_esp8266:
