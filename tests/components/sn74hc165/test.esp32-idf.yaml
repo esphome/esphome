@@ -1,14 +1,7 @@
-sn74hc165:
-  id: sn74hc165_hub
-  clock_pin: 13
-  data_pin: 14
-  load_pin: 15
-  clock_inhibit_pin: 16
-  sr_count: 2
+substitutions:
+  clock_pin: GPIO13
+  data_pin: GPIO14
+  load_pin: GPIO15
+  clock_inhibit_pin: GPIO16
 
-binary_sensor:
-  - platform: gpio
-    id: sn74hc165_pin_0
-    pin:
-      sn74hc165: sn74hc165_hub
-      number: 0
+<<: !include common.yaml

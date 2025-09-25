@@ -1,19 +1,5 @@
-remote_transmitter:
-  pin: 2
-  carrier_duty_percent: 50%
-  id: tsvr
+substitutions:
+  tx_pin: GPIO2
+  rx_pin: GPIO4
 
-remote_receiver:
-  id: rcvr
-  pin:
-    number: 27
-    inverted: true
-    mode:
-      input: true
-      pullup: true
-  tolerance: 40%
-
-climate:
-  - platform: daikin_arc
-    name: "AC"
-    receiver_id: rcvr
+<<: !include common.yaml

@@ -1,45 +1,5 @@
-uart:
-  - id: uart_selec_meter
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-sensor:
-  - platform: selec_meter
-    total_active_energy:
-      name: SelecEM2M Total Active Energy
-    import_active_energy:
-      name: SelecEM2M Import Active Energy
-    export_active_energy:
-      name: SelecEM2M Export Active Energy
-    total_reactive_energy:
-      name: SelecEM2M Total Reactive Energy
-    import_reactive_energy:
-      name: SelecEM2M Import Reactive Energy
-    export_reactive_energy:
-      name: SelecEM2M Export Reactive Energy
-    apparent_energy:
-      name: SelecEM2M Apparent Energy
-    active_power:
-      name: SelecEM2M Active Power
-    reactive_power:
-      name: SelecEM2M Reactive Power
-    apparent_power:
-      name: SelecEM2M Apparent Power
-    voltage:
-      name: SelecEM2M Voltage
-    current:
-      name: SelecEM2M Current
-    power_factor:
-      name: SelecEM2M Power Factor
-    frequency:
-      name: SelecEM2M Frequency
-    maximum_demand_active_power:
-      name: SelecEM2M Maximum Demand Active Power
-      disabled_by_default: true
-    maximum_demand_reactive_power:
-      name: SelecEM2M Maximum Demand Reactive Power
-      disabled_by_default: true
-    maximum_demand_apparent_power:
-      name: SelecEM2M Maximum Demand Apparent Power
-      disabled_by_default: true
+<<: !include common.yaml

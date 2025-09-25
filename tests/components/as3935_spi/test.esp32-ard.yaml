@@ -1,20 +1,8 @@
-spi:
-  - id: spi_as3935
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  miso_pin: GPIO15
+  irq_pin: GPIO13
+  cs_pin: GPIO5
 
-as3935_spi:
-  cs_pin: 12
-  irq_pin: 13
-
-binary_sensor:
-  - platform: as3935
-    name: Storm Alert
-
-sensor:
-  - platform: as3935
-    lightning_energy:
-      name: Lightning Energy
-    distance:
-      name: Distance Storm
+<<: !include common.yaml

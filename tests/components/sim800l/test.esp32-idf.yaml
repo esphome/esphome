@@ -1,37 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - sim800l.send_sms:
-          recipient: '+15551234567'
-          message: Hello there
-      - sim800l.dial:
-          recipient: '+15551234567'
-      - sim800l.connect
-      - sim800l.disconnect
-      - sim800l.send_ussd:
-          ussd: test_ussd
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-uart:
-  - id: uart_sim800l
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
-
-sim800l:
-  on_sms_received:
-    - lambda: |-
-        std::string str;
-        str = sender;
-        str = message;
-    - sim800l.send_sms:
-        message: hello you
-        recipient: "+1234"
-    - sim800l.dial:
-        recipient: "+1234"
-  on_incoming_call:
-    - logger.log:
-        format: "Incoming call from '%s'"
-        args: ["caller_id.c_str()"]
-    - sim800l.disconnect
-  on_ussd_received:
-    - logger.log: "ussd_received"
+<<: !include common.yaml

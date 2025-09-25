@@ -1,0 +1,18 @@
+esphome:
+  includes:
+    - ../../../esphome/components/camera/
+
+script:
+  - id: interface_compile_check
+    then:
+      - lambda: |-
+            using namespace esphome::camera;
+            class MockCamera : public Camera {
+              public:
+                void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) override {}
+                CameraImageReader *create_image_reader() override { return 0; }
+                void request_image(CameraRequester requester) override {}
+                void start_stream(CameraRequester requester) override {}
+                void stop_stream(CameraRequester requester) override {}
+            };
+            MockCamera* camera = new MockCamera();

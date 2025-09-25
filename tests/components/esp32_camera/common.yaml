@@ -22,6 +22,7 @@ esp32_camera:
   power_down_pin: 1
   resolution: 640x480
   jpeg_quality: 10
+  frame_buffer_location: PSRAM
   on_image:
     then:
       - lambda: |-

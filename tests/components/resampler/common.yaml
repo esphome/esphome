@@ -1,0 +1,13 @@
+i2s_audio:
+  i2s_lrclk_pin: ${lrclk_pin}
+  i2s_bclk_pin: ${bclk_pin}
+  i2s_mclk_pin: ${mclk_pin}
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: ${dout_pin}
+  - platform: resampler
+    id: resampler_speaker_id
+    output_speaker: speaker_id
