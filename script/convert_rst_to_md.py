@@ -1385,7 +1385,7 @@ def process_raw_html_block(lines, i):
         alt = img_match.group(2)
 
         # Create button shortcode
-        button_lines.append(f'{{{{< button href="{href}" img="{img}" alt="{alt}" >}}}}')
+        button_lines.append(f"[![{alt}]({img})]({href})")
         return button_lines, i
 
     file_match = None

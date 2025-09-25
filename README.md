@@ -136,14 +136,6 @@ Creates an HTML anchor point that can be linked to with fragment identifiers.
 
 NOTE: Headings automatically create anchors, so it is not necessary to insert `anchor` shortcodes for them.
 
-### `button`
-
-Creates a button with an image that links to a URL.
-
-``` text
-{{< button href="https://example.com" img="/images/button.png" alt="Example Button" target="_self" >}}
-```
-
 ### `collapse`
 
 Creates a collapsible section with a title that can be clicked to show/hide content.
