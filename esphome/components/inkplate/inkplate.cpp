@@ -122,6 +122,12 @@ void Inkplate::setup() {
   this->wakeup_pin_->digital_write(false);
 }
 
+Inkplate::~Inkplate() {
+#ifdef USE_ESP32
+  delete this->spi_class_;  // NOLINT(cppcoreguidelines-owning-memory)
+#endif
+}
+
 /**
  * Allocate buffers. May be called after setup to re-initialise if e.g. greyscale is changed.
  */

@@ -116,6 +116,8 @@ class Inkplate : public display::DisplayBuffer
 
   void setup() override;
 
+  ~Inkplate();
+
   uint8_t get_panel_state() { return this->panel_on_; }
   bool get_greyscale() { return this->greyscale_; }
   bool get_partial_updating() { return this->partial_updating_; }
