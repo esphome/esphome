@@ -12,11 +12,11 @@ CONF_HEADER_LOW = "header_low"
 CONF_BIT_HIGH = "bit_high"
 CONF_BIT_ONE_LOW = "bit_one_low"
 CONF_BIT_ZERO_LOW = "bit_zero_low"
-CONF_AI_ALTERNATIVE_MODE = "ai_alternative_mode"
+CONF_ALTERNATIVE_MODE = "alternative_mode"
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(LgIrClimate).extend(
     {
-        cv.Optional(CONF_AI_ALTERNATIVE_MODE, default=False): cv.boolean,
+        cv.Optional(CONF_ALTERNATIVE_MODE, default=False): cv.boolean,
         cv.Optional(
             CONF_HEADER_HIGH, default="8000us"
         ): cv.positive_time_period_microseconds,
@@ -39,7 +39,7 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(LgIrClimate).extend(
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
 
-    cg.add(var.set_ai_alternative_mode(config[CONF_AI_ALTERNATIVE_MODE]))
+    cg.add(var.set_alternative_mode(config[CONF_ALTERNATIVE_MODE]))
     cg.add(var.set_header_high(config[CONF_HEADER_HIGH]))
     cg.add(var.set_header_low(config[CONF_HEADER_LOW]))
     cg.add(var.set_bit_high(config[CONF_BIT_HIGH]))

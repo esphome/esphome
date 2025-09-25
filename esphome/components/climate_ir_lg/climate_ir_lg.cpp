@@ -71,7 +71,7 @@ void LgIrClimate::transmit_state() {
   // Set command
   if (this->send_swing_cmd_) {
     this->send_swing_cmd_ = false;
-    if (this->ai_alternative_mode_) {
+    if (this->alternative_mode_) {
       switch (this->swing_mode) {
         case climate::CLIMATE_SWING_VERTICAL:
           ESP_LOGD(TAG, "setting swing vertical");
@@ -143,7 +143,7 @@ void LgIrClimate::transmit_state() {
   }
 
   // Set temperature
-  if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->ai_alternative_mode_) ||
+  if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->alternative_mode_) ||
       this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
     auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
     remote_state |= ((temp - 15) << TEMP_SHIFT);
@@ -233,7 +233,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
 
     // Get fan speed
-    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->ai_alternative_mode_)) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->alternative_mode_)) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
     } else if (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_COOL ||
                this->mode == climate::CLIMATE_MODE_DRY || this->mode == climate::CLIMATE_MODE_FAN_ONLY ||
@@ -250,7 +250,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
 
     // Get temperature
-    if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->ai_alternative_mode_) ||
+    if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->alternative_mode_) ||
         this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
       this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
     }
