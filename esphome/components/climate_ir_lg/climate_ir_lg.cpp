@@ -10,17 +10,30 @@ static const char *const TAG = "climate.climate_ir_lg";
 const uint32_t COMMAND_MASK = 0xFF000;
 const uint32_t COMMAND_OFF = 0xC0000;
 const uint32_t COMMAND_SWING = 0x10000;
-const uint32_t COMMAND_ADV_SWING = 0x13000;
 
-const uint32_t COMMAND_ADV_SWING_DATA_MASK = 0xFF0;
-const uint32_t COMMAND_ADV_VERT_SWING_ON = 0x140;
-const uint32_t COMMAND_ADV_VERT_SWING_OFF = 0x150;
-const uint32_t COMMAND_ADV_VERT_SWING_1 = 0x040;
-const uint32_t COMMAND_ADV_VERT_SWING_2 = 0x050;
-const uint32_t COMMAND_ADV_VERT_SWING_3 = 0x060;
-const uint32_t COMMAND_ADV_VERT_SWING_4 = 0x070;
-const uint32_t COMMAND_ADV_VERT_SWING_5 = 0x080;
-const uint32_t COMMAND_ADV_VERT_SWING_6 = 0x090;
+const uint32_t COMMAND_ADV_SWING = 0x13000;
+const uint32_t COMMAND_ADV_SWING_DATA_MASK = 0x1F0;  // Only 5 bits are relevant
+
+// Commands for Advanced Vertical Swing + 6 fixed positions
+const uint32_t COMMAND_ADV_VERT_FIX_1 = 0x040;  // Down
+const uint32_t COMMAND_ADV_VERT_FIX_2 = 0x050;
+const uint32_t COMMAND_ADV_VERT_FIX_3 = 0x060;
+const uint32_t COMMAND_ADV_VERT_FIX_4 = 0x070;
+const uint32_t COMMAND_ADV_VERT_FIX_5 = 0x080;
+const uint32_t COMMAND_ADV_VERT_FIX_6 = 0x090;      // Up
+const uint32_t COMMAND_ADV_VERT_SWING_ON = 0x140;   // Swing between 1 and 6
+const uint32_t COMMAND_ADV_VERT_SWING_OFF = 0x150;  // Stops immediately
+
+// Commands for Advanced Horizontal Swing (3 modes) + 5 fixed positions
+const uint32_t COMMAND_ADV_HORI_FIX_1 = 0x0B0;  // Left
+const uint32_t COMMAND_ADV_HORI_FIX_2 = 0x0C0;
+const uint32_t COMMAND_ADV_HORI_FIX_3 = 0x0D0;
+const uint32_t COMMAND_ADV_HORI_FIX_4 = 0x0E0;
+const uint32_t COMMAND_ADV_HORI_FIX_5 = 0x0F0;           // Right
+const uint32_t COMMAND_ADV_HORI_SWING_ON_LEFT = 0x100;   // Swing between 1 and 3
+const uint32_t COMMAND_ADV_HORI_SWING_ON_RIGHT = 0x110;  // Swing between 3 and 5
+const uint32_t COMMAND_ADV_HORI_SWING_ON_FULL = 0x160;   // Swing between 1 and 5
+const uint32_t COMMAND_ADV_HORI_SWING_OFF = 0x170;       // Stops immediately
 
 const uint32_t COMMAND_ON_COOL = 0x00000;
 const uint32_t COMMAND_ON_DRY = 0x01000;
@@ -66,7 +79,7 @@ void LgIrClimate::transmit_state() {
         case climate::CLIMATE_SWING_OFF:
           ESP_LOGD(TAG, "setting swing off");
           remote_state |= COMMAND_ADV_SWING;
-          remote_state |= COMMAND_ADV_VERT_SWING_4;
+          remote_state |= COMMAND_ADV_VERT_FIX_4;
           break;
       }
       this->transmit_(remote_state);
@@ -172,9 +185,10 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     } else {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     }
-    this->publish_state();
 
+    this->publish_state();
     return true;
+
   } else {
     switch (remote_state & COMMAND_MASK) {
       case COMMAND_DRY:
