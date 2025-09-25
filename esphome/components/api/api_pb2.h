@@ -2456,18 +2456,37 @@ class VoiceAssistantWakeWord final : public ProtoMessage {
 
  protected:
 };
-class VoiceAssistantConfigurationRequest final : public ProtoMessage {
+class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 121;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "voice_assistant_configuration_request"; }
-#endif
+  std::string id{};
+  std::string wake_word{};
+  std::vector<std::string> trained_languages{};
+  std::string model_type{};
+  uint32_t model_size{0};
+  std::string model_hash{};
+  std::string url{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantConfigurationRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 121;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "voice_assistant_configuration_request"; }
+#endif
+  std::vector<VoiceAssistantExternalWakeWord> external_wake_words{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class VoiceAssistantConfigurationResponse final : public ProtoMessage {
  public:
