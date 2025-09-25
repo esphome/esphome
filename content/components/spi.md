@@ -27,8 +27,8 @@ The SPI bus usually consists of 4 wires:
 - **MISO** (also SDI - Serial Data In): Is used to receive data. All devices on the bus share this line.
 
 In some cases one of **MOSI** or **MISO** does not exist as the receiving device only accepts data or sends data.
-It is also possible to configure a quad SPI interface using 4 output data lines, and an octal interface using 8 data output lines. This is required only for
-use with certain components.
+It is also possible to configure a quad SPI interface using 4 output data lines, and an octal interface using 8 data
+output lines. This is required only for use with certain components.
 
 {{< note >}}
 
@@ -171,8 +171,8 @@ of the specific peripheral chip.
 | ---- | ------------------- | ----------- | ------------------------------ | --------------- |
 | 0    | low                 | leading     | /CS activation and falling CLK | rising CLK      |
 | 1    | low                 | trailing    | rising CLK                     | falling CLK     |
-| 2 | high | leading | /CS activation and rising CLK | falling CLK |
-| 3 | high | trailing | falling CLK | rising CLK |
+| 2    | high                | leading     | /CS activation and rising CLK  | falling CLK     |
+| 3    | high                | trailing    | falling CLK                    | rising CLK      |
 
 ## ESP-IDF limit on bus devices
 

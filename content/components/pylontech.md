@@ -31,7 +31,7 @@ If you have multiple batteries you need to connect to the master battery's conso
 | -------- | -------------- | -------------- | ------------ | -------------------------- |
 | 3        | White/Green    | White/Orange   | Pylontech TX | ESPHome RX via transceiver |
 | 6        | Green          | Orange         | Pylontech RX | ESPHome TX via transceiver |
-| 8 | Brown | Brown | GND | GND |
+| 8        | Brown          | Brown          | GND          | GND                        |
 
 {{< img src="rj45_pinout.jpg" alt="Image" caption="RJ45 pinout" width="70.0%" class="align-center" >}}
 
@@ -41,7 +41,7 @@ If you have multiple batteries you need to connect to the master battery's conso
 | -------- | ------------ | -------------------------- |
 | 2        | Pylontech RX | ESPHome TX via transceiver |
 | 3        | Pylontech TX | ESPHome RX via transceiver |
-| 4 | GND | GND |
+| 4        | GND          | GND                        |
 
 ## Component/Hub
 
@@ -113,8 +113,10 @@ text_sensor:
 
 ## Energy Monitoring
 
-By combining {{< docref "/components/sensor/template" "template sensors" >}} and {{< docref "/components/sensor/integration" "integration sensors" >}}
-one can monitor the energy flowing into and out of all batteries combined, ready for [Homeassistant Energy Monitoring](https://www.home-assistant.io/docs/energy/battery/).
+By combining {{< docref "/components/sensor/template" "template sensors" >}} and
+{{< docref "/components/sensor/integration" "integration sensors" >}}
+one can monitor the energy flowing into and out of all batteries combined, ready for
+[Homeassistant Energy Monitoring](https://www.home-assistant.io/docs/energy/battery/).
 
 ```yaml
 sensor:

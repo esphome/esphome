@@ -16,11 +16,14 @@ inverter via the (more limited) external RS232 interface you should use the
 {{< docref "/components/modbus_controller" "Modbus" >}} component instead.
 
 {{< /note >}}
-{{< img src="sun_gtil2_controller_board.png" alt="Image" caption="Pinout of the inverter's controller board" width="50.0%" class="align-center" >}}
+{{< img src="sun_gtil2_controller_board.png" alt="Image" caption="Pinout of the inverter's controller board"
+    width="50.0%" class="align-center" >}}
 
-{{< img src="sun_gtil2_display_board.png" alt="Image" caption="Pinout of the inverter's display board" width="50.0%" class="align-center" >}}
+{{< img src="sun_gtil2_display_board.png" alt="Image" caption="Pinout of the inverter's display board"
+    width="50.0%" class="align-center" >}}
 
-{{< img src="sun_gtil2_schematic.png" alt="Image" caption="Simplified connection diagram" width="75.0%" class="align-center" >}}
+{{< img src="sun_gtil2_schematic.png" alt="Image" caption="Simplified connection diagram"
+    width="75.0%" class="align-center" >}}
 
 As the data is read from the inverter using UART, you need to have an [UART bus](#uart) in your
 configuration with the `rx_pin` connected to the TX pin of the inverter's controller board. Additionally, you

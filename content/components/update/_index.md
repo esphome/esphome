@@ -21,7 +21,8 @@ update:
 
 ## Configuration variables
 
-- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. At least one of **id** and **name** must be specified.
+- **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. At least one of **id** and
+  **name** must be specified.
 - **name** (*Optional*, string): The name of the update entity. At least one of **id** and **name** must be specified.
 
 {{< note >}}

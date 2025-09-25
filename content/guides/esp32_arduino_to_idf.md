@@ -108,8 +108,8 @@ when available:
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | {{< docref "/components/sensor/bme680_bsec" "bme680_bsec" >}}  | {{< docref "/components/sensor/bme68x_bsec2" "bme68x_bsec2" >}}              |
 | {{< docref "/components/light/fastled" "fastled_clockless" >}} | {{< docref "/components/light/esp32_rmt_led_strip" "esp32_rmt_led_strip" >}} |
-| {{< docref "/components/light/fastled" "fastled_spi" >}} | {{< docref "/components/light/spi_led_strip" "spi_led_strip" >}} |
-| {{< docref "/components/light/neopixelbus" "neopixelbus" >}} | {{< docref "/components/light/esp32_rmt_led_strip" "esp32_rmt_led_strip" >}} |
+| {{< docref "/components/light/fastled" "fastled_spi" >}}       | {{< docref "/components/light/spi_led_strip" "spi_led_strip" >}}             |
+| {{< docref "/components/light/neopixelbus" "neopixelbus" >}}   | {{< docref "/components/light/esp32_rmt_led_strip" "esp32_rmt_led_strip" >}} |
 
 **Arduino-Only Components:**
 
