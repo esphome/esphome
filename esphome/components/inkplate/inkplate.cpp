@@ -782,7 +782,7 @@ void Inkplate::display_color_() {
   this->send_command_(0x04);  // Power off register
   // Wait for busy high signal with timeout
   ESP_LOGD(TAG, "Waiting for power off complete");
-  ESP_LOGW(TAG, "Initial busy pin state after power off command: %d", this->epaper_busy_pin_->digital_read());
+  ESP_LOGV(TAG, "Initial busy pin state after power off command: %d", this->epaper_busy_pin_->digital_read());
 
   uint32_t timeout = millis() + 5000;  // 5 second timeout
   uint32_t loop_count = 0;
@@ -790,7 +790,7 @@ void Inkplate::display_color_() {
     delay(1);
     loop_count++;
     if (loop_count % 1000 == 0) {  // Log every second and feed watchdog
-      ESP_LOGW(TAG, "Still waiting for busy pin... (count: %d, pin state: %d)", loop_count,
+      ESP_LOGV(TAG, "Still waiting for busy pin... (count: %d, pin state: %d)", loop_count,
                this->epaper_busy_pin_->digital_read());
       App.feed_wdt();  // Feed the watchdog during wait
     }
@@ -801,21 +801,20 @@ void Inkplate::display_color_() {
     ESP_LOGE(TAG, "Display may not be responding to SPI commands. Check wiring and SPI initialization.");
     return;
   }
-  ESP_LOGW(TAG, "Busy pin went HIGH after power off");
-
-  ESP_LOGW(TAG, "Sending display refresh command...");
-  ESP_LOGW(TAG, "Busy pin state before display refresh command: %d", this->epaper_busy_pin_->digital_read());
+  ESP_LOGV(TAG, "Busy pin went HIGH after power off");
+  ESP_LOGD(TAG, "Sending display refresh command...");
+  ESP_LOGV(TAG, "Busy pin state before display refresh command: %d", this->epaper_busy_pin_->digital_read());
   this->send_command_(0x12);  // Display refresh register
   // Wait for busy high signal with timeout
-  ESP_LOGW(TAG, "Waiting for busy pin to go HIGH after display refresh...");
-  ESP_LOGW(TAG, "Initial busy pin state after display refresh command: %d", this->epaper_busy_pin_->digital_read());
+  ESP_LOGD(TAG, "Waiting for busy pin to go HIGH after display refresh...");
+  ESP_LOGD(TAG, "Initial busy pin state after display refresh command: %d", this->epaper_busy_pin_->digital_read());
   timeout = millis() + 30000;  // 30 second timeout for refresh
   loop_count = 0;
   while (!this->epaper_busy_pin_->digital_read() && millis() < timeout) {
     delay(1);
     loop_count++;
     if (loop_count % 1000 == 0) {  // Log every second and feed watchdog
-      ESP_LOGW(TAG, "Still waiting for display refresh... (count: %d, pin state: %d)", loop_count,
+      ESP_LOGV(TAG, "Still waiting for display refresh... (count: %d, pin state: %d)", loop_count,
                this->epaper_busy_pin_->digital_read());
       App.feed_wdt();  // Feed the watchdog during long wait
     }
@@ -825,7 +824,7 @@ void Inkplate::display_color_() {
              this->epaper_busy_pin_->digital_read());
     return;
   }
-  ESP_LOGW(TAG, "Busy pin went HIGH after display refresh");
+  ESP_LOGD(TAG, "Busy pin went HIGH after display refresh");
 
   this->send_command_(0x02);  // Additional command from Arduino library
   // Wait for busy low signal with timeout
@@ -853,7 +852,7 @@ void Inkplate::send_command_(uint8_t command) {
   if (!is_spi_model(this->model_))
     return;
 
-  ESP_LOGW(TAG, "Sending SPI command: 0x%02X", command);
+  ESP_LOGV(TAG, "Sending SPI command: 0x%02X", command);
 
 #ifdef USE_ESP32
   if (this->spi_class_ == nullptr) {
@@ -861,15 +860,15 @@ void Inkplate::send_command_(uint8_t command) {
     return;
   }
 
-  ESP_LOGW(TAG, "Setting DC=LOW (command mode), CS=LOW");
+  ESP_LOGV(TAG, "Setting DC=LOW (command mode), CS=LOW");
   this->epaper_dc_pin_->digital_write(false);  // Command mode
   this->epaper_cs_pin_->digital_write(false);  // Select device
 
-  ESP_LOGW(TAG, "Starting SPI transaction for command");
+  ESP_LOGV(TAG, "Starting SPI transaction for command");
   this->spi_class_->beginTransaction(this->spi_settings_);
   this->spi_class_->transfer(command);
   this->spi_class_->endTransaction();
-  ESP_LOGW(TAG, "Command 0x%02X sent via SPI", command);
+  ESP_LOGV(TAG, "Command 0x%02X sent via SPI", command);
 
   this->epaper_cs_pin_->digital_write(true);  // Deselect device
   ESP_LOGV(TAG, "SPI Command: 0x%02X", command);
@@ -880,7 +879,7 @@ void Inkplate::send_data_(uint8_t *data, int length) {
   if (!is_spi_model(this->model_))
     return;
 
-  ESP_LOGW(TAG, "Sending SPI data: %d bytes", length);
+  ESP_LOGV(TAG, "Sending SPI data: %d bytes", length);
 
 #ifdef USE_ESP32
   if (this->spi_class_ == nullptr) {
@@ -888,15 +887,15 @@ void Inkplate::send_data_(uint8_t *data, int length) {
     return;
   }
 
-  ESP_LOGW(TAG, "Setting DC=HIGH (data mode), CS=LOW");
+  ESP_LOGV(TAG, "Setting DC=HIGH (data mode), CS=LOW");
   this->epaper_dc_pin_->digital_write(true);   // Data mode
   this->epaper_cs_pin_->digital_write(false);  // Select device
 
-  ESP_LOGW(TAG, "Starting SPI transaction for data");
+  ESP_LOGV(TAG, "Starting SPI transaction for data");
   this->spi_class_->beginTransaction(this->spi_settings_);
   this->spi_class_->writeBytes(data, length);
   this->spi_class_->endTransaction();
-  ESP_LOGW(TAG, "Sent %d bytes of data via SPI", length);
+  ESP_LOGV(TAG, "Sent %d bytes of data via SPI", length);
 
   this->epaper_cs_pin_->digital_write(true);  // Deselect device
   ESP_LOGV(TAG, "SPI Data: %d bytes", length);
@@ -928,7 +927,7 @@ void Inkplate::send_data_(uint8_t data) {
 bool Inkplate::set_panel_deep_sleep_(bool state) {
   if (!state) {
     // Wake the panel - full initialization sequence from Arduino library
-    ESP_LOGW(TAG, "Waking panel with full initialization...");
+    ESP_LOGD(TAG, "Waking panel with full initialization...");
 
     // Set pin modes
     this->epaper_busy_pin_->pin_mode(gpio::FLAG_INPUT);
@@ -943,7 +942,7 @@ bool Inkplate::set_panel_deep_sleep_(bool state) {
     // Wait to charge capacitors and avoid big in-rush current
     delay(100);
 
-    ESP_LOGW(TAG, "Performing reset sequence...");
+    ESP_LOGD(TAG, "Performing reset sequence...");
 
     // Reset sequence
     this->epaper_rst_pin_->digital_write(false);
@@ -952,7 +951,7 @@ bool Inkplate::set_panel_deep_sleep_(bool state) {
     delay(200);
 
     // Wait for ePaper to be ready by reading busy HIGH signal
-    ESP_LOGW(TAG, "Waiting for panel to be ready after reset...");
+    ESP_LOGD(TAG, "Waiting for panel to be ready after reset...");
     uint32_t init_timeout = millis() + 10000;  // 10 second timeout
     while (!this->epaper_busy_pin_->digital_read() && millis() < init_timeout) {
       delay(1);
@@ -962,10 +961,10 @@ bool Inkplate::set_panel_deep_sleep_(bool state) {
       ESP_LOGE(TAG, "Panel not ready after reset - busy pin stuck LOW");
       return false;
     }
-    ESP_LOGW(TAG, "Panel ready after reset");
+    ESP_LOGD(TAG, "Panel ready after reset");
 
     // Send initialization commands - critical for proper display operation
-    ESP_LOGW(TAG, "Sending panel initialization commands...");
+    ESP_LOGD(TAG, "Sending panel initialization commands...");
 
     // Panel setting
     uint8_t panel_set_data[] = {0xEF, 0x08};
@@ -994,14 +993,14 @@ bool Inkplate::set_panel_deep_sleep_(bool state) {
     this->send_command_(0x50);  // VCOM_DATA_INTERVAL_REGISTER
     this->send_data_(0x37);
 
-    ESP_LOGW(TAG, "Panel initialization completed, busy pin state: %d", this->epaper_busy_pin_->digital_read());
+    ESP_LOGD(TAG, "Panel initialization completed, busy pin state: %d", this->epaper_busy_pin_->digital_read());
     return true;
   } else {
     // Put panel to sleep
-    ESP_LOGW(TAG, "Putting panel to deep sleep...");
+    ESP_LOGD(TAG, "Putting panel to deep sleep...");
     this->send_command_(0x07);  // Deep sleep command
     this->send_data_(0xA5);     // Deep sleep data
-    ESP_LOGW(TAG, "Panel put to sleep");
+    ESP_LOGD(TAG, "Panel put to sleep");
     return true;
   }
 }
