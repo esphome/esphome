@@ -18,8 +18,8 @@ from esphome.const import (
     ICON_PULSE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
+    UNIT_PULSES_PER_MINUTE,
 )
 
 pulse_counter_ulp_ns = cg.esphome_ns.namespace("pulse_counter_ulp")
