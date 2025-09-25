@@ -368,7 +368,7 @@ void Climate::save_state_() {
     const auto &supported = traits.get_supported_custom_fan_modes();
     std::vector<std::string> vec{supported.begin(), supported.end()};
     for (size_t i = 0; i < vec.size(); i++) {
-      if (vec[i] == custom_fan_mode.value()) {
+      if (vec[i] == custom_fan_mode) {
         state.custom_fan_mode = i;
         break;
       }
@@ -383,7 +383,7 @@ void Climate::save_state_() {
     const auto &supported = traits.get_supported_custom_presets();
     std::vector<std::string> vec{supported.begin(), supported.end()};
     for (size_t i = 0; i < vec.size(); i++) {
-      if (vec[i] == custom_preset.value()) {
+      if (vec[i] == custom_preset) {
         state.custom_preset = i;
         break;
       }
