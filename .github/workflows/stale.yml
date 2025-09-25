@@ -18,7 +18,7 @@ jobs:
     if: github.repository_owner == 'esphome'
     runs-on: ubuntu-latest
     steps:
-      # The 60 day stale policy for PRs
+      # The 90 day stale policy for PRs
       # - PRs
       # - No PRs marked as "not-stale"
       # - No Issues (see below)
