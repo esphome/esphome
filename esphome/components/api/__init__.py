@@ -1,4 +1,5 @@
 import base64
+import logging
 
 from esphome import automation
 from esphome.automation import Condition
@@ -25,6 +26,9 @@ from esphome.const import (
     CONF_VARIABLES,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
@@ -101,6 +105,32 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
+def _validate_api_config(config: ConfigType) -> ConfigType:
+    """Validate API configuration with mutual exclusivity check and deprecation warning."""
+    # Check if both password and encryption are configured
+    has_password = CONF_PASSWORD in config and config[CONF_PASSWORD]
+    has_encryption = CONF_ENCRYPTION in config
+
+    if has_password and has_encryption:
+        raise cv.Invalid(
+            "The 'password' and 'encryption' options are mutually exclusive. "
+            "The API client only supports one authentication method at a time. "
+            "Please remove one of them. "
+            "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
+            "We strongly recommend using 'encryption' instead for better security."
+        )
+
+    # Warn about password deprecation
+    if has_password:
+        _LOGGER.warning(
+            "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
+            "Please migrate to the 'encryption' configuration. "
+            "See https://esphome.io/components/api.html#configuration-variables"
+        )
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -131,6 +161,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_api_config,
 )
 
 
