@@ -721,7 +721,7 @@ class GDEY0583T81 : public WaveshareEPaper {
 };
 
 class GDEY075T7 : public WaveshareEPaper {
-public:
+ public:
   void initialize() override;
 
   void display() override;
