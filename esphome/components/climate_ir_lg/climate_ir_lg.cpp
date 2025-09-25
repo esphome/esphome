@@ -14,7 +14,7 @@ const uint32_t COMMAND_SWING = 0x10000;
 const uint32_t COMMAND_ADV_SWING = 0x13000;
 const uint32_t COMMAND_ADV_SWING_DATA_MASK = 0x1F0;  // Only 5 bits are relevant
 
-// Commands for Advanced Vertical Swing + 6 fixed positions
+// Commands for Advanced Vertical Control: Swing + 6 fixed positions
 const uint32_t COMMAND_ADV_VERT_FIX_1 = 0x040;  // Down
 const uint32_t COMMAND_ADV_VERT_FIX_2 = 0x050;
 const uint32_t COMMAND_ADV_VERT_FIX_3 = 0x060;
@@ -24,7 +24,7 @@ const uint32_t COMMAND_ADV_VERT_FIX_6 = 0x090;      // Up
 const uint32_t COMMAND_ADV_VERT_SWING_ON = 0x140;   // Swing between 1 and 6
 const uint32_t COMMAND_ADV_VERT_SWING_OFF = 0x150;  // Stops immediately
 
-// Commands for Advanced Horizontal Swing (3 modes) + 5 fixed positions
+// Commands for Advanced Horizontal Control: Swing (3 modes) + 5 fixed positions
 const uint32_t COMMAND_ADV_HORI_FIX_1 = 0x0B0;  // Left
 const uint32_t COMMAND_ADV_HORI_FIX_2 = 0x0C0;
 const uint32_t COMMAND_ADV_HORI_FIX_3 = 0x0D0;
@@ -54,7 +54,7 @@ const uint32_t FAN_MIN = 0x00;  // AKA F1
 const uint32_t FAN_F2 = 0x90;
 const uint32_t FAN_MED = 0x20;  // AKA F3
 const uint32_t FAN_F4 = 0xA0;
-const uint32_t FAN_MAX = 0x40;  // AKA F4
+const uint32_t FAN_MAX = 0x40;  // AKA F5
 
 // Temperature
 const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
