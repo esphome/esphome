@@ -1085,21 +1085,19 @@ async def test_dashboard_subscriber_lifecycle() -> None:
 
         # Initially no subscribers
         assert len(subscriber._subscribers) == 0
-        assert subscriber._ping_task is None
-        assert subscriber._filesystem_poll_task is None
+        assert subscriber._event_loop_task is None
 
         # Add a subscriber
         mock_websocket = Mock()
         unsubscribe = subscriber.subscribe(mock_websocket)
 
-        # Should have started tasks
+        # Should have started the event loop task
         assert len(subscriber._subscribers) == 1
-        assert subscriber._ping_task is not None
-        assert subscriber._filesystem_poll_task is not None
+        assert subscriber._event_loop_task is not None
 
         # Unsubscribe
         unsubscribe()
 
-        # Should have stopped tasks (after a small delay)
+        # Should have stopped the task (after a small delay)
         await asyncio.sleep(0.1)
         assert len(subscriber._subscribers) == 0

@@ -537,59 +537,46 @@ class DashboardSubscriber:
     def __init__(self) -> None:
         """Initialize the dashboard subscriber."""
         self._subscribers: set[DashboardEventsWebSocket] = set()
-        self._ping_task: asyncio.Task | None = None
-        self._filesystem_poll_task: asyncio.Task | None = None
+        self._event_loop_task: asyncio.Task | None = None
 
     def subscribe(self, subscriber: DashboardEventsWebSocket) -> Callable[[], None]:
-        """Subscribe to dashboard updates and start tasks if needed."""
+        """Subscribe to dashboard updates and start event loop if needed."""
         self._subscribers.add(subscriber)
-        if not self._ping_task or self._ping_task.done():
-            self._ping_task = asyncio.create_task(self._ping_loop())
-            _LOGGER.info("Started dashboard ping task")
-        if not self._filesystem_poll_task or self._filesystem_poll_task.done():
-            self._filesystem_poll_task = asyncio.create_task(
-                self._filesystem_poll_loop()
-            )
-            _LOGGER.info("Started dashboard filesystem polling")
+        if not self._event_loop_task or self._event_loop_task.done():
+            self._event_loop_task = asyncio.create_task(self._event_loop())
+            _LOGGER.info("Started dashboard event loop")
         return partial(self._unsubscribe, subscriber)
 
     def _unsubscribe(self, subscriber: DashboardEventsWebSocket) -> None:
-        """Unsubscribe from dashboard updates and stop tasks if no subscribers."""
+        """Unsubscribe from dashboard updates and stop event loop if no subscribers."""
         self._subscribers.discard(subscriber)
-        if not self._subscribers:
-            if self._ping_task and not self._ping_task.done():
-                self._ping_task.cancel()
-                self._ping_task = None
-                _LOGGER.info("Stopped dashboard ping task - no subscribers")
-            if self._filesystem_poll_task and not self._filesystem_poll_task.done():
-                self._filesystem_poll_task.cancel()
-                self._filesystem_poll_task = None
-                _LOGGER.info("Stopped dashboard filesystem polling - no subscribers")
+        if (
+            not self._subscribers
+            and self._event_loop_task
+            and not self._event_loop_task.done()
+        ):
+            self._event_loop_task.cancel()
+            self._event_loop_task = None
+            _LOGGER.info("Stopped dashboard event loop - no subscribers")
 
-    async def _ping_loop(self) -> None:
-        """Run the ping loop while there are subscribers."""
+    async def _event_loop(self) -> None:
+        """Run the event polling loop while there are subscribers."""
         dashboard = DASHBOARD
-        while self._subscribers:
-            try:
-                # Signal that we need ping updates (non-blocking)
-                dashboard.ping_request.set()
-                if settings.status_use_mqtt:
-                    dashboard.mqtt_ping_request.set()
-                await asyncio.sleep(DASHBOARD_POLL_INTERVAL)
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Error in ping loop")
-                break
+        entries_update_counter = 0
 
-    async def _filesystem_poll_loop(self) -> None:
-        """Run the filesystem polling loop while there are subscribers."""
-        dashboard = DASHBOARD
         while self._subscribers:
-            try:
+            # Signal that we need ping updates (non-blocking)
+            dashboard.ping_request.set()
+            if settings.status_use_mqtt:
+                dashboard.mqtt_ping_request.set()
+
+            # Check if it's time to update entries (every DASHBOARD_ENTRIES_UPDATE_ITERATIONS)
+            entries_update_counter += 1
+            if entries_update_counter >= DASHBOARD_ENTRIES_UPDATE_ITERATIONS:
+                entries_update_counter = 0
                 await dashboard.entries.async_request_update_entries()
-                await asyncio.sleep(DASHBOARD_ENTRIES_UPDATE_INTERVAL)
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Error in filesystem polling loop")
-                break
+
+            await asyncio.sleep(DASHBOARD_POLL_INTERVAL)
 
 
 # Global dashboard subscriber instance
