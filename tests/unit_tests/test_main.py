@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
 from typing import Any
@@ -16,6 +17,7 @@ from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
+    command_clean_all,
     command_rename,
     command_update_all,
     command_wizard,
@@ -1853,3 +1855,95 @@ esp32:
     # Should not have any Python error messages
     assert "TypeError" not in clean_output
     assert "can only concatenate str" not in clean_output
+
+
+def test_command_clean_all_success(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_all when writer.clean_all() succeeds."""
+    args = MockArgs(configuration=["/path/to/config1", "/path/to/config2"])
+
+    # Set logger level to capture INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_all") as mock_clean_all,
+    ):
+        result = command_clean_all(args)
+
+        assert result == 0
+        mock_clean_all.assert_called_once_with(["/path/to/config1", "/path/to/config2"])
+
+        # Check that success message was logged
+        assert "Done!" in caplog.text
+
+
+def test_command_clean_all_oserror(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_all when writer.clean_all() raises OSError."""
+    args = MockArgs(configuration=["/path/to/config1"])
+
+    # Create a mock OSError with a specific message
+    mock_error = OSError("Permission denied: cannot delete directory")
+
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_all", side_effect=mock_error) as mock_clean_all,
+    ):
+        result = command_clean_all(args)
+
+        assert result == 1
+        mock_clean_all.assert_called_once_with(["/path/to/config1"])
+
+        # Check that error message was logged
+        assert (
+            "Error cleaning all files: Permission denied: cannot delete directory"
+            in caplog.text
+        )
+        # Should not have success message
+        assert "Done!" not in caplog.text
+
+
+def test_command_clean_all_oserror_no_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_all when writer.clean_all() raises OSError without message."""
+    args = MockArgs(configuration=["/path/to/config1"])
+
+    # Create a mock OSError without a message
+    mock_error = OSError()
+
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_all", side_effect=mock_error) as mock_clean_all,
+    ):
+        result = command_clean_all(args)
+
+        assert result == 1
+        mock_clean_all.assert_called_once_with(["/path/to/config1"])
+
+        # Check that error message was logged (should show empty string for OSError without message)
+        assert "Error cleaning all files:" in caplog.text
+        # Should not have success message
+        assert "Done!" not in caplog.text
+
+
+def test_command_clean_all_args_used() -> None:
+    """Test that command_clean_all uses args.configuration parameter."""
+    # Test with different configuration paths
+    args1 = MockArgs(configuration=["/path/to/config1"])
+    args2 = MockArgs(configuration=["/path/to/config2", "/path/to/config3"])
+
+    with patch("esphome.writer.clean_all") as mock_clean_all:
+        result1 = command_clean_all(args1)
+        result2 = command_clean_all(args2)
+
+        assert result1 == 0
+        assert result2 == 0
+        assert mock_clean_all.call_count == 2
+
+        # Verify the correct configuration paths were passed
+        mock_clean_all.assert_any_call(["/path/to/config1"])
+        mock_clean_all.assert_any_call(["/path/to/config2", "/path/to/config3"])

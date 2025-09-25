@@ -150,10 +150,6 @@ def as_reversed_hex_array(value):
     )
 
 
-def max_connections() -> int:
-    return IDF_MAX_CONNECTIONS if CORE.using_esp_idf else DEFAULT_MAX_CONNECTIONS
-
-
 def consume_connection_slots(
     value: int, consumer: str
 ) -> Callable[[MutableMapping], MutableMapping]:
@@ -172,7 +168,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESP32BLETracker),
             cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
             cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
-                cv.positive_int, cv.Range(min=0, max=max_connections())
+                cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
             cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(
                 cv.Schema(
@@ -238,9 +234,8 @@ def validate_remaining_connections(config):
     if used_slots <= config[CONF_MAX_CONNECTIONS]:
         return config
     slot_users = ", ".join(slots)
-    hard_limit = max_connections()
 
-    if used_slots < hard_limit:
+    if used_slots < IDF_MAX_CONNECTIONS:
         _LOGGER.warning(
             "esp32_ble_tracker exceeded `%s`: components attempted to consume %d "
             "connection slot(s) out of available configured maximum %d connection "
@@ -262,9 +257,9 @@ def validate_remaining_connections(config):
         f"out of available configured maximum {config[CONF_MAX_CONNECTIONS]} "
         f"connection slot(s); Decrease the number of BLE clients ({slot_users})"
     )
-    if config[CONF_MAX_CONNECTIONS] < hard_limit:
+    if config[CONF_MAX_CONNECTIONS] < IDF_MAX_CONNECTIONS:
         msg += f" or increase {CONF_MAX_CONNECTIONS}` to {used_slots}"
-    msg += f" to stay under the {hard_limit} connection slot(s) limit."
+    msg += f" to stay under the {IDF_MAX_CONNECTIONS} connection slot(s) limit."
     raise cv.Invalid(msg)
 
 
