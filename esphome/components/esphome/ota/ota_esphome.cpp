@@ -15,6 +15,7 @@
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
@@ -528,14 +529,6 @@ void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogSt
   ESP_LOGW(TAG, "Auth: %s %s failed", LOG_STR_ARG(action), LOG_STR_ARG(hash_name));
 }
 
-// Helper to convert uint32 to big-endian bytes
-static inline void uint32_to_bytes(uint32_t value, uint8_t *bytes) {
-  bytes[0] = (value >> 24) & 0xFF;
-  bytes[1] = (value >> 16) & 0xFF;
-  bytes[2] = (value >> 8) & 0xFF;
-  bytes[3] = value & 0xFF;
-}
-
 // Non-template function definition to reduce binary size
 bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request,
                                              const LogString *name, char *buf) {
@@ -553,10 +546,10 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
 
   hasher->init();
 
-  // Generate nonce seed bytes
-  uint32_to_bytes(random_uint32(), nonce_bytes);
-  if (nonce_len > 4) {
-    uint32_to_bytes(random_uint32(), nonce_bytes + 4);
+  // Generate nonce seed bytes using random_bytes
+  if (!random_bytes(nonce_bytes, nonce_len)) {
+    this->log_auth_warning_(LOG_STR("Random bytes generation failed"), name);
+    return false;
   }
   hasher->add(nonce_bytes, nonce_len);
   hasher->calculate();
