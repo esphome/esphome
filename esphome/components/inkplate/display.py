@@ -256,8 +256,8 @@ async def to_code(config):
         # Define USE_INKPLATE_I2C for conditional I2C compilation
         cg.add_define("USE_INKPLATE_I2C")
     else:
-        # SPI models don't use the I2C fields from schema
-        pass
+        # SPI models need SPI functionality available for compilation
+        cg.add_define("USE_SPI")
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

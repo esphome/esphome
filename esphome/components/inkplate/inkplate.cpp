@@ -38,7 +38,7 @@ void Inkplate::setup() {
       this->epaper_rst_pin_->digital_write(true);
 
     ESP_LOGD(TAG, "Initializing SPI for SPI-based model");
-#ifdef USE_ESP32
+#ifdef USE_SPI
     this->spi_class_ = new SPIClass(VSPI);
     if (this->spi_class_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create SPI class");
@@ -123,7 +123,7 @@ void Inkplate::setup() {
 }
 
 Inkplate::~Inkplate() {
-#ifdef USE_ESP32
+#ifdef USE_SPI
   delete this->spi_class_;  // NOLINT(cppcoreguidelines-owning-memory)
 #endif
 }
@@ -763,7 +763,7 @@ void Inkplate::display_color_() {
   // Send pixel data via SPI
   ESP_LOGD(TAG, "Sending %d bytes to COLOR display via SPI", this->get_buffer_length_());
 
-#ifdef USE_ESP32
+#ifdef USE_SPI
   if (this->spi_class_ == nullptr) {
     ESP_LOGE(TAG, "SPI not initialized for pixel data transfer!");
     return;
@@ -858,7 +858,7 @@ void Inkplate::send_command_(uint8_t command) {
 
   ESP_LOGV(TAG, "Sending SPI command: 0x%02X", command);
 
-#ifdef USE_ESP32
+#ifdef USE_SPI
   if (this->spi_class_ == nullptr) {
     ESP_LOGE(TAG, "SPI not initialized!");
     return;
@@ -885,7 +885,7 @@ void Inkplate::send_data_(uint8_t *data, int length) {
 
   ESP_LOGV(TAG, "Sending SPI data: %d bytes", length);
 
-#ifdef USE_ESP32
+#ifdef USE_SPI
   if (this->spi_class_ == nullptr) {
     ESP_LOGE(TAG, "SPI not initialized!");
     return;
@@ -910,7 +910,7 @@ void Inkplate::send_data_(uint8_t data) {
   if (!is_spi_model(this->model_))
     return;
 
-#ifdef USE_ESP32
+#ifdef USE_SPI
   if (this->spi_class_ == nullptr) {
     ESP_LOGE(TAG, "SPI not initialized!");
     return;
