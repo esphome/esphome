@@ -101,7 +101,7 @@ const uint16_t BITS = 28;
 void LgIrClimate::transmit_state() {
   uint32_t remote_state = 0x8800000;
 
-  // ESP_LOGD(TAG, "climate_lg_ir mode_before_ code: 0x%02X", modeBefore_);
+  // ESP_LOGD(TAG, "climate_lg_ir mode_before_ code: 0x%02X", this->modeBefore_);
 
   // Set command
   if (this->send_swing_cmd_) {
@@ -149,9 +149,6 @@ void LgIrClimate::transmit_state() {
       default:
         remote_state |= CommandSys::HEADER_SYS;
         remote_state |= CommandSys::OFF;
-        this->transmit_(remote_state);
-        this->publish_state();
-        return;
     }
   }
 
