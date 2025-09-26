@@ -19,3 +19,5 @@ sensor:
     range: 800uT
     oversampling: 256x
     update_interval: 15s
+    drdy_pin: 16
+    data_rate: 200Hz
