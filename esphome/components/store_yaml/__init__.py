@@ -1,20 +1,20 @@
 import copy
-import esphome.codegen as cg
-import esphome.config_validation as cv
+
 from esphome import automation, yaml_util
-from esphome.core import CORE
-from esphome.config import strip_default_ids
+import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
-
+from esphome.config import strip_default_ids
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_URL,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
     PLATFORM_RTL87XX,
 )
+from esphome.core import CORE
 
 platforms = [
     PLATFORM_ESP32,
