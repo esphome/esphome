@@ -600,8 +600,8 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
 
     async def open(self, *args: str, **kwargs: str) -> None:  # pylint: disable=invalid-overridden-method
         """Handle new WebSocket connection."""
-        # Ensure messages from the subprocess are sent immediately
-        # to avoid a 200-500ms delay when nodelay is not set.
+        # Ensure messages are sent immediately to avoid
+        # a 200-500ms delay when nodelay is not set.
         self.set_nodelay(True)
 
         # Check authentication
