@@ -262,6 +262,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       case COMMAND_COOL:
       case COMMAND_ON_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
+        break;
       default:
         ESP_LOGD(TAG, "Got unknown command! Ignoring!");
         return false;
