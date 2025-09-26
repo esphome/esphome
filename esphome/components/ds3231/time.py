@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import i2c, time, sensor
+from esphome.components import i2c, sensor, time
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TEMPERATURE
 
@@ -66,7 +66,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     await time.register_time(var, config)
-    
+
     # Register temperature sensor if configured
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
