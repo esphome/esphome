@@ -513,17 +513,25 @@ async def to_code_characteristic(service_var, char_conf):
             on_write_conf,
         )
     if CONF_VALUE in char_conf:
-        action_conf = {
-            CONF_ID: char_conf[CONF_ID],
-            CONF_VALUE: char_conf[CONF_VALUE],
-        }
-        value_action = await ble_server_characteristic_set_value(
-            action_conf,
-            char_conf[CONF_CHAR_VALUE_ACTION_ID_],
-            cg.TemplateArguments(),
-            {},
-        )
-        cg.add(value_action.play())
+        # Check if the value is templated (Lambda)
+        value_data = char_conf[CONF_VALUE].get(CONF_DATA)
+        if isinstance(value_data, cv.Lambda):
+            # Templated value - need the full action infrastructure
+            action_conf = {
+                CONF_ID: char_conf[CONF_ID],
+                CONF_VALUE: char_conf[CONF_VALUE],
+            }
+            value_action = await ble_server_characteristic_set_value(
+                action_conf,
+                char_conf[CONF_CHAR_VALUE_ACTION_ID_],
+                cg.TemplateArguments(),
+                {},
+            )
+            cg.add(value_action.play())
+        else:
+            # Static value - just set it directly without action infrastructure
+            value = await parse_value(char_conf[CONF_VALUE], {})
+            cg.add(char_var.set_value(value))
     for descriptor_conf in char_conf[CONF_DESCRIPTORS]:
         await to_code_descriptor(descriptor_conf, char_var)
 
