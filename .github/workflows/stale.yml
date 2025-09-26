@@ -18,19 +18,19 @@ jobs:
     if: github.repository_owner == 'esphome'
     runs-on: ubuntu-latest
     steps:
-      # The 90 day stale policy for PRs
-      # - PRs
-      # - No PRs marked as "not-stale"
-      # - No Issues (see below)
-      - name: 90 days stale PRs
+      - name: Stale
         uses: actions/stale@3a9db7e6a41a89f618792c92c0e97cc736e1b13f # v10.0.0
         with:
-          days-before-stale: 90
-          days-before-close: 7
-          days-before-issue-stale: -1
-          days-before-issue-close: -1
-          operations-per-run: 150
+          debug-only: ${{ github.ref != 'refs/heads/dev' }} # Dry-run when not run on dev branch
           remove-stale-when-updated: true
+          operations-per-run: 150
+
+          # The 90 day stale policy for PRs
+          # - PRs
+          # - No PRs marked as "not-stale"
+          # - No Issues (see below)
+          days-before-pr-stale: 90
+          days-before-pr-close: 7
           stale-pr-label: "stale"
           exempt-pr-labels: "not-stale"
           stale-pr-message: >
@@ -44,18 +44,12 @@ jobs:
 
             Thank you for your contribution!
 
-      # The 90 day stale policy for Issues
-      # - Issues
-      # - No Issues marked as "not-stale"
-      # - No PRs (see above)
-      - name: 90 days stale issues
-        uses: actions/stale@3a9db7e6a41a89f618792c92c0e97cc736e1b13f # v10.0.0
-        with:
-          days-before-stale: 90
-          days-before-close: 7
-          days-before-pr-stale: -1
-          days-before-pr-close: -1
-          remove-stale-when-updated: true
+          # The 90 day stale policy for Issues
+          # - Issues
+          # - No Issues marked as "not-stale"
+          # - No PRs (see above)
+          days-before-issue-stale: 90
+          days-before-issue-close: 7
           stale-issue-label: "stale"
           exempt-issue-labels: "not-stale"
           stale-issue-message: >
