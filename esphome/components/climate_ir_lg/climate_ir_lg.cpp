@@ -8,8 +8,34 @@ static const char *const TAG = "climate.climate_ir_lg";
 
 // Commands
 const uint32_t COMMAND_MASK = 0xFF000;
-const uint32_t COMMAND_OFF = 0xC0000;
+const uint32_t COMMAND_SYS = 0xC0000;
 const uint32_t COMMAND_SWING = 0x10000;
+
+const uint32_t COMMAND_ADV_JET =
+    0x10089;  // JET MODE (only for cooling/drying/heating modes)
+              // For 30 minutes: max airflow (stronger then F5 aka FAN_MAX) + PO (min/min/max temperature respectively)
+              // After 30 minutes: F5 aka FAN_MAX + min/min/max temperature respectively
+
+const uint32_t COMMAND_SYS_OFF = 0xC0051;
+
+const uint32_t COMMAND_SYS_AUTO_CLEAN_ON = 0xC00B7;
+const uint32_t COMMAND_SYS_AUTO_CLEAN_OFF = 0xC00C8;
+
+const uint32_t COMMAND_SYS_PURIFY_ON = 0xC000C;   // From either OFF or Mode -> Purify
+const uint32_t COMMAND_SYS_PURIFY_OFF = 0xC0084;  // From Mode + Purify -> Mode
+
+const uint32_t COMMAND_SYS_QUIET_OUTDOOR_ON = 0xC0A6C;
+const uint32_t COMMAND_SYS_QUIET_OUTDOOR_OFF = 0xC0A7D;
+
+// ENERGY CTRL
+const uint32_t COMMAND_SYS_COOL_80_PERC = 0xC07D0;         // 80%
+const uint32_t COMMAND_SYS_COOL_60_PERC = 0xC07E1;         // 60%
+const uint32_t COMMAND_SYS_COOL_40_PERC = 0xC0804;         // 40%
+const uint32_t COMMAND_SYS_COOL_ENERG_CTRL_OFF = 0xC07F2;  // OFF
+
+const uint32_t COMMAND_SYS_DISPLAY_KW = 0xC0466;
+
+const uint32_t COMMAND_SYS_LIGHT_ON_OFF = 0xC00A6;
 
 const uint32_t COMMAND_ADV_SWING = 0x13000;
 const uint32_t COMMAND_ADV_SWING_DATA_MASK = 0x1F0;  // Only 5 bits are relevant
@@ -112,8 +138,11 @@ void LgIrClimate::transmit_state() {
         break;
       case climate::CLIMATE_MODE_OFF:
       default:
-        remote_state |= COMMAND_OFF;
-        break;
+        remote_state |= COMMAND_SYS;
+        remote_state |= FAN_AUTO;
+        this->transmit_(remote_state);
+        this->publish_state();
+        return;
     }
   }
 
@@ -122,24 +151,20 @@ void LgIrClimate::transmit_state() {
   ESP_LOGD(TAG, "climate_lg_ir mode code: 0x%02X", this->mode);
 
   // Set fan speed
-  if (this->mode == climate::CLIMATE_MODE_OFF) {
-    remote_state |= FAN_AUTO;
-  } else {
-    switch (this->fan_mode.value()) {
-      case climate::CLIMATE_FAN_HIGH:
-        remote_state |= FAN_MAX;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        remote_state |= FAN_MED;
-        break;
-      case climate::CLIMATE_FAN_LOW:
-        remote_state |= FAN_MIN;
-        break;
-      case climate::CLIMATE_FAN_AUTO:
-      default:
-        remote_state |= FAN_AUTO;
-        break;
-    }
+  switch (this->fan_mode.value()) {
+    case climate::CLIMATE_FAN_HIGH:
+      remote_state |= FAN_MAX;
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      remote_state |= FAN_MED;
+      break;
+    case climate::CLIMATE_FAN_LOW:
+      remote_state |= FAN_MIN;
+      break;
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      remote_state |= FAN_AUTO;
+      break;
   }
 
   // Set temperature
@@ -177,8 +202,13 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // Get command
-  if ((remote_state & COMMAND_MASK) == COMMAND_OFF) {
-    this->mode = climate::CLIMATE_MODE_OFF;
+  if ((remote_state & COMMAND_MASK) == COMMAND_SYS) {
+    if ((remote_state & 0xFF0) == FAN_AUTO) {  // Probably just coincidence
+      this->mode = climate::CLIMATE_MODE_OFF;
+    } else {
+      ESP_LOGD(TAG, "Got advanced system command! With data: 0x%02. Ignoring." PRIX32, remote_state & 0xFF0);
+      return false;
+    }
   } else if ((remote_state & COMMAND_MASK) == COMMAND_SWING) {
     this->swing_mode =
         this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
