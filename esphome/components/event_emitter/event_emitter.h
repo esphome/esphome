@@ -10,7 +10,6 @@ namespace event_emitter {
 
 using EventEmitterListenerID = uint32_t;
 static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
-void raise_event_emitter_full_error();
 
 // EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this)
 // and a list of arguments. Supports multiple listeners for each event.
