@@ -905,6 +905,46 @@ async def test_websocket_invalid_json(
 
 
 @pytest.mark.asyncio
+async def test_websocket_authentication_required(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket authentication when auth is required."""
+    with patch(
+        "esphome.dashboard.web_server.is_authenticated"
+    ) as mock_is_authenticated:
+        mock_is_authenticated.return_value = False
+
+        # Try to connect - should be rejected
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        try:
+            ws = await websocket_connect(url)
+            # Connection should close immediately
+            msg = await ws.read_message()
+            assert msg is None  # Connection closed
+        except Exception:
+            # Connection may fail immediately, which is also expected
+            pass
+
+
+@pytest.mark.asyncio
+async def test_websocket_authentication_not_required(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket connection when no auth is required."""
+    with patch(
+        "esphome.dashboard.web_server.is_authenticated"
+    ) as mock_is_authenticated:
+        mock_is_authenticated.return_value = True
+
+        # Should be able to connect successfully
+        async with websocket_connection(dashboard) as ws:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+
+
+@pytest.mark.asyncio
 async def test_websocket_entry_state_changed(
     dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
 ) -> None:

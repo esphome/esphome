@@ -596,20 +596,21 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
         """Initialize the websocket."""
         super().__init__(application, request, **kwargs)
         self._event_listeners: list[Callable[[], None]] = []
-        self._authenticated = False
         self._dashboard_unsubscribe: Callable[[], None] | None = None
 
     async def open(self, *args: str, **kwargs: str) -> None:  # pylint: disable=invalid-overridden-method
         """Handle new WebSocket connection."""
+        # Ensure messages from the subprocess are sent immediately
+        # to avoid a 200-500ms delay when nodelay is not set.
+        self.set_nodelay(True)
+
         # Check authentication
-        if settings.using_password and not is_authenticated(self):
+        if not is_authenticated(self):
             self.close(code=401, reason="Unauthorized")
             return
 
-        self._authenticated = True
-        dashboard = DASHBOARD
         # Update entries first
-        await dashboard.entries.async_request_update_entries()
+        await DASHBOARD.entries.async_request_update_entries()
         # Send initial state
         self._send_initial_state()
         # Subscribe to events
