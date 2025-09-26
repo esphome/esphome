@@ -25,13 +25,22 @@ static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
 
 class BLETriggers {
  public:
+#ifdef USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE
   static Trigger<std::vector<uint8_t>, uint16_t> *create_characteristic_on_write_trigger(
       BLECharacteristic *characteristic);
+#endif
+#ifdef USE_ESP32_BLE_SERVER_DESCRIPTOR_ON_WRITE
   static Trigger<std::vector<uint8_t>, uint16_t> *create_descriptor_on_write_trigger(BLEDescriptor *descriptor);
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_CONNECT
   static Trigger<uint16_t> *create_server_on_connect_trigger(BLEServer *server);
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
   static Trigger<uint16_t> *create_server_on_disconnect_trigger(BLEServer *server);
+#endif
 };
 
+#ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 enum BLECharacteristicSetValueActionEvt {
   PRE_NOTIFY,
 };
@@ -97,13 +106,17 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
   BLECharacteristic *parent_;
   EventEmitterListenerID listener_id_;
 };
+#endif  // USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 
+#ifdef USE_ESP32_BLE_SERVER_NOTIFY_ACTION
 template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts...> {
  public:
   BLECharacteristicNotifyAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
   void play(Ts... x) override {
+#ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
     // Call the pre-notify event
     BLECharacteristicSetValueActionManager::get_instance()->emit_pre_notify(this->parent_);
+#endif
     // Notify the characteristic
     this->parent_->notify();
   }
@@ -111,7 +124,9 @@ template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts.
  protected:
   BLECharacteristic *parent_;
 };
+#endif  // USE_ESP32_BLE_SERVER_NOTIFY_ACTION
 
+#ifdef USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...> {
  public:
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
@@ -122,6 +137,7 @@ template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...
  protected:
   BLEDescriptor *parent_;
 };
+#endif  // USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 
 }  // namespace esp32_ble_server_automations
 }  // namespace esp32_ble_server
