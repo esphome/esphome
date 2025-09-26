@@ -598,16 +598,19 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
         self._event_listeners: list[Callable[[], None]] = []
         self._dashboard_unsubscribe: Callable[[], None] | None = None
 
+    async def get(self, *args: str, **kwargs: str) -> None:
+        """Handle WebSocket upgrade request."""
+        if not is_authenticated(self):
+            self.set_status(401)
+            self.finish("Unauthorized")
+            return
+        await super().get(*args, **kwargs)
+
     async def open(self, *args: str, **kwargs: str) -> None:  # pylint: disable=invalid-overridden-method
         """Handle new WebSocket connection."""
         # Ensure messages are sent immediately to avoid
         # a 200-500ms delay when nodelay is not set.
         self.set_nodelay(True)
-
-        # Check authentication
-        if not is_authenticated(self):
-            self.close(code=401, reason="Unauthorized")
-            return
 
         # Update entries first
         await DASHBOARD.entries.async_request_update_entries()
