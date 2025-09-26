@@ -96,12 +96,12 @@ class DashboardEntries:
         #   "path/to/file.yaml": DashboardEntry,
         #   ...
         # }
-        self._entries: dict[str, DashboardEntry] = {}
+        self._entries: dict[Path, DashboardEntry] = {}
         self._loaded_entries = False
         self._update_lock = asyncio.Lock()
         self._name_to_entry: dict[str, set[DashboardEntry]] = defaultdict(set)
 
-    def get(self, path: str) -> DashboardEntry | None:
+    def get(self, path: Path) -> DashboardEntry | None:
         """Get an entry by path."""
         return self._entries.get(path)
 
@@ -267,9 +267,9 @@ class DashboardEntries:
                 name_to_entry[current_name].add(entry)
             bus.async_fire(DashboardEvent.ENTRY_UPDATED, {"entry": entry})
 
-    def _get_path_to_cache_key(self) -> dict[str, DashboardCacheKeyType]:
+    def _get_path_to_cache_key(self) -> dict[Path, DashboardCacheKeyType]:
         """Return a dict of path to cache key."""
-        path_to_cache_key: dict[str, DashboardCacheKeyType] = {}
+        path_to_cache_key: dict[Path, DashboardCacheKeyType] = {}
         #
         # The cache key is (inode, device, mtime, size)
         # which allows us to avoid locking since it ensures
