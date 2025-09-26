@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace version {
@@ -12,7 +13,7 @@ void VersionTextSensor::setup() {
   if (this->hide_timestamp_) {
     this->publish_state(ESPHOME_VERSION);
   } else {
-    this->publish_state(ESPHOME_VERSION " " + App.get_compilation_time());
+    this->publish_state(str_sprintf(ESPHOME_VERSION " %s", App.get_compilation_time().c_str()));
   }
 }
 float VersionTextSensor::get_setup_priority() const { return setup_priority::DATA; }

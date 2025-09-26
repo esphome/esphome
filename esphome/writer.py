@@ -335,13 +335,15 @@ def clean_build():
             shutil.rmtree(cache_dir)
 
 
-def clean_platform():
+def clean_all(configuration: list[str]):
     import shutil
 
     # Clean entire build dir
-    if CORE.build_path.is_dir():
-        _LOGGER.info("Deleting %s", CORE.build_path)
-        shutil.rmtree(CORE.build_path)
+    for dir in configuration:
+        buid_dir = Path(dir) / ".esphome"
+        if buid_dir.is_dir():
+            _LOGGER.info("Deleting %s", buid_dir)
+            shutil.rmtree(buid_dir)
 
     # Clean PlatformIO project files
     try:

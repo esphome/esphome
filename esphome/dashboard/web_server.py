@@ -283,11 +283,23 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def _stdout_thread(self) -> None:
         if not self._use_popen:
             return
+        line = b""
+        cr = False
         while True:
-            data = self._proc.stdout.readline()
+            data = self._proc.stdout.read(1)
             if data:
-                data = data.replace(b"\r", b"")
-                self._queue.put_nowait(data)
+                if data == b"\r":
+                    cr = True
+                elif data == b"\n":
+                    self._queue.put_nowait(line + b"\n")
+                    line = b""
+                    cr = False
+                elif cr:
+                    self._queue.put_nowait(line + b"\r")
+                    line = data
+                    cr = False
+                else:
+                    line += data
             if self._proc.poll() is not None:
                 break
         self._proc.wait(1.0)
@@ -479,10 +491,12 @@ class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
         return [*DASHBOARD_COMMAND, "clean-mqtt", config_file]
 
 
-class EsphomeCleanPlatformHandler(EsphomeCommandWebSocket):
+class EsphomeCleanAllHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
-        config_file = settings.rel_path(json_message["configuration"])
-        return [*DASHBOARD_COMMAND, "clean-platform", config_file]
+        clean_build_dir = json_message.get("clean_build_dir", True)
+        if clean_build_dir:
+            return [*DASHBOARD_COMMAND, "clean-all", settings.config_dir]
+        return [*DASHBOARD_COMMAND, "clean-all"]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
@@ -1319,7 +1333,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
-            (f"{rel}clean-platform", EsphomeCleanPlatformHandler),
+            (f"{rel}clean-all", EsphomeCleanAllHandler),
             (f"{rel}clean", EsphomeCleanHandler),
             (f"{rel}vscode", EsphomeVscodeHandler),
             (f"{rel}ace", EsphomeAceEditorHandler),
