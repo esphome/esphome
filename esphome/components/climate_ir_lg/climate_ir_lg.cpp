@@ -206,7 +206,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     if ((remote_state & 0xFF0) == FAN_AUTO) {  // Probably just coincidence
       this->mode = climate::CLIMATE_MODE_OFF;
     } else {
-      ESP_LOGD(TAG, "Got advanced system command! With data: 0x%02. Ignoring." PRIX32, remote_state & 0xFF0);
+      ESP_LOGD(TAG, "Got advanced system command! With data: 0x%02" PRIX32 " Ignoring.", remote_state & 0xFF0);
       return false;
     }
   } else if ((remote_state & COMMAND_MASK) == COMMAND_SWING) {
