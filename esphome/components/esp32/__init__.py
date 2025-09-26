@@ -375,18 +375,22 @@ def _check_versions(value):
     value[CONF_VERSION] = str(version)
 
     if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
+        if version < cv.Version(3, 0, 0):
+            raise cv.Invalid("Only Arduino 3.0+ is supported.")
+        recommended_version = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
+        platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
-        recommended_framework = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
-        platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
     else:
+        if version < cv.Version(5, 0, 0):
+            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
+        platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
             _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
         )
-        recommended_framework = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
-        platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
 
     if CONF_PLATFORM_VERSION not in value:
         if platform_lookup is None:
@@ -395,7 +399,7 @@ def _check_versions(value):
             )
         value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
 
-    if version != recommended_framework:
+    if version != recommended_version:
         _LOGGER.warning(
             "The selected framework version is not the recommended one. "
             "If there are connectivity or build issues please remove the manual version."
