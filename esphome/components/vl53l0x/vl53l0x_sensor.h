@@ -30,7 +30,6 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void setup() override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
 
   void loop() override;

@@ -13,13 +13,15 @@ from esphome.const import (
     CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_TYPE,
+    CONF_X,
+    CONF_Y,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, CONF_X, CONF_Y, LV_GRAD_DIR
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR, TYPE_GRID
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
@@ -36,29 +38,43 @@ from .types import (
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
 
+TIME_TEXT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TIME_FORMAT): cv.string,
+        cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
+    }
+)
+
+PRINTF_TEXT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_FORMAT): cv.string,
+            cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
+        },
+    ),
+    validate_printf,
+)
+
+
+def _validate_text(value):
+    """
+    Do some sanity checking of the format to get better error messages
+    than using cv.Any
+    """
+    if value is None:
+        raise cv.Invalid("No text specified")
+    if isinstance(value, dict):
+        if CONF_TIME_FORMAT in value:
+            return TIME_TEXT_SCHEMA(value)
+        return PRINTF_TEXT_SCHEMA(value)
+
+    return cv.templatable(cv.string)(value)
+
+
 # A schema for text properties
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TEXT): cv.Any(
-            cv.All(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_FORMAT): cv.string,
-                        cv.Optional(CONF_ARGS, default=list): cv.ensure_list(
-                            cv.lambda_
-                        ),
-                    },
-                ),
-                validate_printf,
-            ),
-            cv.Schema(
-                {
-                    cv.Required(CONF_TIME_FORMAT): cv.string,
-                    cv.GenerateID(CONF_TIME): cv.templatable(cv.use_id(RealTimeClock)),
-                }
-            ),
-            cv.templatable(cv.string),
-        )
+        cv.Optional(CONF_TEXT): _validate_text,
     }
 )
 
@@ -156,13 +172,13 @@ STYLE_PROPS = {
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
-    "outline_pad": lvalid.pixels,
+    "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
-    "pad_all": lvalid.pixels,
-    "pad_bottom": lvalid.pixels,
-    "pad_left": lvalid.pixels,
-    "pad_right": lvalid.pixels,
-    "pad_top": lvalid.pixels,
+    "pad_all": lvalid.padding,
+    "pad_bottom": lvalid.padding,
+    "pad_left": lvalid.padding,
+    "pad_right": lvalid.padding,
+    "pad_top": lvalid.padding,
     "shadow_color": lvalid.lv_color,
     "shadow_ofs_x": lvalid.lv_int,
     "shadow_ofs_y": lvalid.lv_int,
@@ -226,8 +242,8 @@ FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
     {
         cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
         cv.Optional(df.CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-        cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-        cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+        cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+        cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
     }
 )
 
@@ -247,11 +263,13 @@ FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
 def part_schema(parts):
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
-    :param parts:  The parts to include in the schema
+    :param parts:  The parts to include
     :return: The schema
     """
-    return cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts}).extend(
-        STATE_SCHEMA
+    return (
+        cv.Schema({cv.Optional(part): STATE_SCHEMA for part in parts})
+        .extend(STATE_SCHEMA)
+        .extend(FLAG_SCHEMA)
     )
 
 
@@ -288,22 +306,18 @@ def base_update_schema(widget_type, parts):
     :param parts:  The allowable parts to specify
     :return:
     """
-    return (
-        part_schema(parts)
-        .extend(
-            {
-                cv.Required(CONF_ID): cv.ensure_list(
-                    cv.maybe_simple_value(
-                        {
-                            cv.Required(CONF_ID): cv.use_id(widget_type),
-                        },
-                        key=CONF_ID,
-                    )
-                ),
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-            }
-        )
-        .extend(FLAG_SCHEMA)
+    return part_schema(parts).extend(
+        {
+            cv.Required(CONF_ID): cv.ensure_list(
+                cv.maybe_simple_value(
+                    {
+                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                    },
+                    key=CONF_ID,
+                )
+            ),
+            cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        }
     )
 
 
@@ -321,7 +335,6 @@ def obj_schema(widget_type: WidgetType):
     """
     return (
         part_schema(widget_type.parts)
-        .extend(FLAG_SCHEMA)
         .extend(LAYOUT_SCHEMA)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
@@ -336,15 +349,68 @@ def obj_schema(widget_type: WidgetType):
     )
 
 
+def _validate_grid_layout(config):
+    layout = config[df.CONF_LAYOUT]
+    rows = len(layout[df.CONF_GRID_ROWS])
+    columns = len(layout[df.CONF_GRID_COLUMNS])
+    used_cells = [[None] * columns for _ in range(rows)]
+    for index, widget in enumerate(config[df.CONF_WIDGETS]):
+        _, w = next(iter(widget.items()))
+        if (df.CONF_GRID_CELL_COLUMN_POS in w) != (df.CONF_GRID_CELL_ROW_POS in w):
+            # pylint: disable=raise-missing-from
+            raise cv.Invalid(
+                "Both row and column positions must be specified, or both omitted",
+                [df.CONF_WIDGETS, index],
+            )
+        if df.CONF_GRID_CELL_ROW_POS in w:
+            row = w[df.CONF_GRID_CELL_ROW_POS]
+            column = w[df.CONF_GRID_CELL_COLUMN_POS]
+        else:
+            try:
+                row, column = next(
+                    (r_idx, c_idx)
+                    for r_idx, row in enumerate(used_cells)
+                    for c_idx, value in enumerate(row)
+                    if value is None
+                )
+            except StopIteration:
+                # pylint: disable=raise-missing-from
+                raise cv.Invalid(
+                    "No free cells available in grid layout", [df.CONF_WIDGETS, index]
+                )
+            w[df.CONF_GRID_CELL_ROW_POS] = row
+            w[df.CONF_GRID_CELL_COLUMN_POS] = column
+
+        for i in range(w[df.CONF_GRID_CELL_ROW_SPAN]):
+            for j in range(w[df.CONF_GRID_CELL_COLUMN_SPAN]):
+                if row + i >= rows or column + j >= columns:
+                    # pylint: disable=raise-missing-from
+                    raise cv.Invalid(
+                        f"Cell at {row}/{column} span {w[df.CONF_GRID_CELL_ROW_SPAN]}x{w[df.CONF_GRID_CELL_COLUMN_SPAN]} "
+                        f"exceeds grid size {rows}x{columns}",
+                        [df.CONF_WIDGETS, index],
+                    )
+                if used_cells[row + i][column + j] is not None:
+                    # pylint: disable=raise-missing-from
+                    raise cv.Invalid(
+                        f"Cell span {row + i}/{column + j} already occupied by widget at index {used_cells[row + i][column + j]}",
+                        [df.CONF_WIDGETS, index],
+                    )
+                used_cells[row + i][column + j] = index
+
+    return config
+
+
 LAYOUT_SCHEMAS = {}
+LAYOUT_VALIDATORS = {TYPE_GRID: _validate_grid_layout}
 
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_obj_t),
             cv.Required(df.CONF_ALIGN): df.ALIGN_ALIGNMENTS.one_of,
-            cv.Optional(df.CONF_X, default=0): lvalid.pixels_or_percent,
-            cv.Optional(df.CONF_Y, default=0): lvalid.pixels_or_percent,
+            cv.Optional(CONF_X, default=0): lvalid.pixels_or_percent,
+            cv.Optional(CONF_Y, default=0): lvalid.pixels_or_percent,
         }
     )
 }
@@ -370,8 +436,8 @@ LAYOUT_SCHEMA = {
                 cv.Required(df.CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(df.CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(df.CONF_GRID_ROW_ALIGN): grid_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
             },
             df.TYPE_FLEX: {
                 cv.Optional(
@@ -380,8 +446,8 @@ LAYOUT_SCHEMA = {
                 cv.Optional(df.CONF_FLEX_ALIGN_MAIN, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_CROSS, default="start"): flex_alignments,
                 cv.Optional(df.CONF_FLEX_ALIGN_TRACK, default="start"): flex_alignments,
-                cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-                cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+                cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+                cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
             },
         },
         lower=True,
@@ -389,8 +455,8 @@ LAYOUT_SCHEMA = {
 }
 
 GRID_CELL_SCHEMA = {
-    cv.Required(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
-    cv.Required(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
@@ -427,8 +493,8 @@ ALL_STYLES = {
     **STYLE_PROPS,
     **GRID_CELL_SCHEMA,
     **FLEX_OBJ_SCHEMA,
-    cv.Optional(df.CONF_PAD_ROW): lvalid.pixels,
-    cv.Optional(df.CONF_PAD_COLUMN): lvalid.pixels,
+    cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
+    cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
 }
 
 
@@ -441,9 +507,13 @@ def container_validator(schema, widget_type: WidgetType):
     """
 
     def validator(value):
-        result = schema
         if w_sch := widget_type.schema:
-            result = result.extend(w_sch)
+            if isinstance(w_sch, dict):
+                w_sch = cv.Schema(w_sch)
+            # order is important here to preserve extras
+            result = w_sch.extend(schema)
+        else:
+            result = schema
         ltype = df.TYPE_NONE
         if value and (layout := value.get(df.CONF_LAYOUT)):
             if not isinstance(layout, dict):
@@ -457,7 +527,10 @@ def container_validator(schema, widget_type: WidgetType):
         result = result.extend(
             LAYOUT_SCHEMAS.get(ltype.lower(), LAYOUT_SCHEMAS[df.TYPE_NONE])
         )
-        return result(value)
+        value = result(value)
+        if layout_validator := LAYOUT_VALIDATORS.get(ltype):
+            value = layout_validator(value)
+        return value
 
     return validator
 

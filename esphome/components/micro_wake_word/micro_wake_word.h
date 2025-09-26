@@ -121,8 +121,6 @@ class MicroWakeWord : public Component {
   /// @param audio_features (int8_t *) Buffer containing new spectrogram features
   /// @return True if successful, false if any errors were encountered
   bool update_model_probabilities_(const int8_t audio_features[PREPROCESSOR_FEATURE_SIZE]);
-
-  inline uint16_t new_samples_to_get_() { return (this->features_step_size_ * (AUDIO_SAMPLE_FREQUENCY / 1000)); }
 };
 
 }  // namespace micro_wake_word

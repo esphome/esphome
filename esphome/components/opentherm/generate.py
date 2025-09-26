@@ -1,5 +1,5 @@
-from collections.abc import Awaitable
-from typing import Any, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
@@ -103,7 +103,7 @@ def define_setting_readers(component_type: str, keys: list[str]) -> None:
 
 
 def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
-    messages: dict[str, tuple[bool, Optional[int]]] = {}
+    messages: dict[str, tuple[bool, int | None]] = {}
     for key in keys:
         messages[schemas[key].message] = (
             schemas[key].keep_updated,

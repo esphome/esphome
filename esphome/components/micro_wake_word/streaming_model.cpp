@@ -11,19 +11,23 @@ namespace esphome {
 namespace micro_wake_word {
 
 void WakeWordModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "    - Wake Word: %s", this->wake_word_.c_str());
-  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.2f", this->probability_cutoff_ / 255.0f);
-  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG,
+                "    - Wake Word: %s\n"
+                "      Probability cutoff: %.2f\n"
+                "      Sliding window size: %d",
+                this->wake_word_.c_str(), this->probability_cutoff_ / 255.0f, this->sliding_window_size_);
 }
 
 void VADModel::log_model_config() {
-  ESP_LOGCONFIG(TAG, "    - VAD Model");
-  ESP_LOGCONFIG(TAG, "      Probability cutoff: %.2f", this->probability_cutoff_ / 255.0f);
-  ESP_LOGCONFIG(TAG, "      Sliding window size: %d", this->sliding_window_size_);
+  ESP_LOGCONFIG(TAG,
+                "    - VAD Model\n"
+                "      Probability cutoff: %.2f\n"
+                "      Sliding window size: %d",
+                this->probability_cutoff_ / 255.0f, this->sliding_window_size_);
 }
 
 bool StreamingModel::load_model_() {
-  RAMAllocator<uint8_t> arena_allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> arena_allocator;
 
   if (this->tensor_arena_ == nullptr) {
     this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
@@ -92,7 +96,7 @@ bool StreamingModel::load_model_() {
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
 
-  RAMAllocator<uint8_t> arena_allocator(RAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> arena_allocator;
 
   if (this->tensor_arena_ != nullptr) {
     arena_allocator.deallocate(this->tensor_arena_, this->tensor_arena_size_);
@@ -147,7 +151,11 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
       this->recent_streaming_probabilities_[this->last_n_index_] = output->data.uint8[0];  // probability;
       this->unprocessed_probability_status_ = true;
     }
-    this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+    if (this->recent_streaming_probabilities_[this->last_n_index_] < this->probability_cutoff_) {
+      // Only increment ignore windows if less than the probability cutoff; this forces the model to "cool-off" from a
+      // previous detection and calling ``reset_probabilities`` so it avoids duplicate detections
+      this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
+    }
   }
   return true;
 }
@@ -159,12 +167,13 @@ void StreamingModel::reset_probabilities() {
   this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
 }
 
-WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t probability_cutoff,
+WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
                              size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
                              bool default_enabled, bool internal_only) {
   this->id_ = id;
   this->model_start_ = model_start;
-  this->probability_cutoff_ = probability_cutoff;
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_average_size;
   this->recent_streaming_probabilities_.resize(sliding_window_average_size, 0);
   this->wake_word_ = wake_word;
@@ -222,10 +231,11 @@ DetectionEvent WakeWordModel::determine_detected() {
   return detection_event;
 }
 
-VADModel::VADModel(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
+VADModel::VADModel(const uint8_t *model_start, uint8_t default_probability_cutoff, size_t sliding_window_size,
                    size_t tensor_arena_size) {
   this->model_start_ = model_start;
-  this->probability_cutoff_ = probability_cutoff;
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_size;
   this->recent_streaming_probabilities_.resize(sliding_window_size, 0);
   this->tensor_arena_size_ = tensor_arena_size;

@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BORDER,
     CONF_COLOR,
+    CONF_CONTINUOUS,
     CONF_DIRECTION,
     CONF_DURATION,
     CONF_HEIGHT,
@@ -61,8 +62,6 @@ VALUE_POSITION_TYPE = {
     "BELOW": ValuePositionType.VALUE_POSITION_TYPE_BELOW,
 }
 
-CONF_CONTINUOUS = "continuous"
-
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GraphTrace),
@@ -117,7 +116,7 @@ GRAPH_SCHEMA = cv.Schema(
 
 
 def _relocate_fields_to_subfolder(config, subfolder, subschema):
-    fields = [k.schema for k in subschema.schema.keys()]
+    fields = [k.schema for k in subschema.schema]
     fields.remove(CONF_ID)
     if subfolder in config:
         # Ensure no ambiguous fields in base of config

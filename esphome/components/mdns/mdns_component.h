@@ -33,14 +33,20 @@ class MDNSComponent : public Component {
 #if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_ARDUINO)
   void loop() override;
 #endif
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
+#ifdef USE_MDNS_EXTRA_SERVICES
   void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
+#endif
+
+  std::vector<MDNSService> get_services();
 
   void on_shutdown() override;
 
  protected:
+#ifdef USE_MDNS_EXTRA_SERVICES
   std::vector<MDNSService> services_extra_{};
+#endif
   std::vector<MDNSService> services_{};
   std::string hostname_;
   void compile_records_();

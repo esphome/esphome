@@ -76,10 +76,11 @@ def test_package_unused(basic_esphome, basic_wifi):
 
 def test_package_invalid_dict(basic_esphome, basic_wifi):
     """
-    Ensures an error is raised if packages is not valid.
+    If a url: key is present, it's expected to be well-formed remote package spec. Ensure an error is raised if not.
+    Any other simple dict passed as a package will be merged as usual but may fail later validation.
 
     """
-    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: basic_wifi}
+    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: basic_wifi | {CONF_URL: ""}}
 
     with pytest.raises(cv.Invalid):
         do_packages_pass(config)

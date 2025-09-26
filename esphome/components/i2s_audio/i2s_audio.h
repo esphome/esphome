@@ -3,8 +3,8 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_I2S_LEGACY
 #include <driver/i2s.h>
 #else

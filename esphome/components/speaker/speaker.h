@@ -104,12 +104,9 @@ class Speaker {
 
   /// Callback function for sending the duration of the audio written to the speaker since the last callback.
   /// Parameters:
-  ///   - Duration in milliseconds. Never rounded and should always be less than or equal to the actual duration.
-  ///   - Remainder duration in microseconds. Rounded duration after subtracting the previous parameter from the actual
-  ///     duration.
-  ///   - Duration of remaining, unwritten audio buffered in the speaker in milliseconds.
-  ///   - System time in microseconds when the last write was completed.
-  void add_audio_output_callback(std::function<void(uint32_t, uint32_t, uint32_t, uint32_t)> &&callback) {
+  ///   - Frames played
+  ///   - System time in microseconds when the frames were written to the DAC
+  void add_audio_output_callback(std::function<void(uint32_t, int64_t)> &&callback) {
     this->audio_output_callback_.add(std::move(callback));
   }
 
@@ -123,7 +120,7 @@ class Speaker {
   audio_dac::AudioDac *audio_dac_{nullptr};
 #endif
 
-  CallbackManager<void(uint32_t, uint32_t, uint32_t, uint32_t)> audio_output_callback_{};
+  CallbackManager<void(uint32_t, int64_t)> audio_output_callback_{};
 };
 
 }  // namespace speaker

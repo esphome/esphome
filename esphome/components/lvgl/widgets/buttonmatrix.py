@@ -19,7 +19,7 @@ from ..defines import (
     CONF_SELECTED,
 )
 from ..helpers import lvgl_components_required
-from ..lv_validation import key_code, lv_bool, pixels
+from ..lv_validation import key_code, lv_bool, padding
 from ..lvcode import lv, lv_add, lv_expr
 from ..schemas import automation_schema
 from ..types import (
@@ -59,8 +59,8 @@ BUTTONMATRIX_BUTTON_SCHEMA = cv.Schema(
 BUTTONMATRIX_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ONE_CHECKED, default=False): lv_bool,
-        cv.Optional(CONF_PAD_ROW): pixels,
-        cv.Optional(CONF_PAD_COLUMN): pixels,
+        cv.Optional(CONF_PAD_ROW): padding,
+        cv.Optional(CONF_PAD_COLUMN): padding,
         cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         cv.Required(CONF_ROWS): cv.ensure_list(
             cv.Schema(
@@ -193,7 +193,7 @@ class ButtonMatrixType(WidgetType):
     async def to_code(self, w: Widget, config):
         lvgl_components_required.add("BUTTONMATRIX")
         if CONF_ROWS not in config:
-            return []
+            return
         text_list, ctrl_list, width_list, key_list = await get_button_data(
             config[CONF_ROWS], w
         )

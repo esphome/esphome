@@ -1,6 +1,7 @@
 #include "debug_component.h"
 
 #ifdef USE_ESP32
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <esp_sleep.h>
@@ -10,11 +11,11 @@
 #include <esp_chip_info.h>
 #include <esp_partition.h>
 
+#include <map>
+
 #ifdef USE_ARDUINO
 #include <Esp.h>
 #endif
-
-#include <map>
 
 namespace esphome {
 namespace debug {
@@ -42,16 +43,41 @@ static const char *const RESET_REASONS[] = {
     "CPU lock up",
 };
 
+static const char *const REBOOT_KEY = "reboot_source";
+static const size_t REBOOT_MAX_LEN = 24;
+
+// on shutdown, store the source of the reboot request
+void DebugComponent::on_shutdown() {
+  auto *component = App.get_current_component();
+  char buffer[REBOOT_MAX_LEN]{};
+  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+  if (component != nullptr) {
+    strncpy(buffer, LOG_STR_ARG(component->get_component_log_str()), REBOOT_MAX_LEN - 1);
+    buffer[REBOOT_MAX_LEN - 1] = '\0';
+  }
+  ESP_LOGD(TAG, "Storing reboot source: %s", buffer);
+  pref.save(&buffer);
+  global_preferences->sync();
+}
+
 std::string DebugComponent::get_reset_reason_() {
   std::string reset_reason;
   unsigned reason = esp_reset_reason();
   if (reason < sizeof(RESET_REASONS) / sizeof(RESET_REASONS[0])) {
     reset_reason = RESET_REASONS[reason];
+    if (reason == ESP_RST_SW) {
+      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+      char buffer[REBOOT_MAX_LEN]{};
+      if (pref.load(&buffer)) {
+        buffer[REBOOT_MAX_LEN - 1] = '\0';
+        reset_reason = "Reboot request from " + std::string(buffer);
+      }
+    }
   } else {
     reset_reason = "unknown source";
   }
   ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
-  return "Reset by " + reset_reason;
+  return reset_reason;
 }
 
 static const char *const WAKEUP_CAUSES[] = {
@@ -83,8 +109,10 @@ std::string DebugComponent::get_wakeup_cause_() {
 }
 
 void DebugComponent::log_partition_info_() {
-  ESP_LOGCONFIG(TAG, "Partition table:");
-  ESP_LOGCONFIG(TAG, "  %-12s %-4s %-8s %-10s %-10s", "Name", "Type", "Subtype", "Address", "Size");
+  ESP_LOGCONFIG(TAG,
+                "Partition table:\n"
+                "  %-12s %-4s %-8s %-10s %-10s",
+                "Name", "Type", "Subtype", "Address", "Size");
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
   while (it != NULL) {
     const esp_partition_t *partition = esp_partition_get(it);
