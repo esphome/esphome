@@ -37,7 +37,8 @@ def validate_mapping(value):
 CONF_MAP = "map"
 MAP_ID = "mappings"
 CONFIG_SCHEMA = (
-    select.SELECT_SCHEMA.extend(
+    select.select_schema(OptolinkSelect)
+    .extend(
         {
             cv.GenerateID(): cv.declare_id(OptolinkSelect),
             cv.GenerateID(MAP_ID): cv.declare_id(

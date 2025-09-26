@@ -29,7 +29,8 @@ OptolinkText = optolink_ns.class_("OptolinkText", text.Text, cg.PollingComponent
 
 
 CONFIG_SCHEMA = cv.All(
-    text.TEXT_SCHEMA.extend(
+    text.text_schema(OptolinkText)
+    .extend(
         {
             cv.GenerateID(): cv.declare_id(OptolinkText),
             cv.Optional(CONF_MODE, default="TEXT"): cv.enum(text.TEXT_MODES),
