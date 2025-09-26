@@ -313,10 +313,8 @@ void BLECharacteristic::remove_client_from_notify_list_(uint16_t conn_id) {
   // for the common case by swapping with the last element and popping
   for (size_t i = 0; i < this->clients_to_notify_.size(); i++) {
     if (this->clients_to_notify_[i].conn_id == conn_id) {
-      // Swap with last element and pop
-      if (i != this->clients_to_notify_.size() - 1) {
-        this->clients_to_notify_[i] = this->clients_to_notify_.back();
-      }
+      // Swap with last element and pop (safe even when i is the last element)
+      this->clients_to_notify_[i] = this->clients_to_notify_.back();
       this->clients_to_notify_.pop_back();
       return;
     }

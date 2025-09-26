@@ -83,10 +83,8 @@ void BLECharacteristicSetValueActionManager::remove_listener_(BLECharacteristic 
   // Since we typically have very few listeners, optimize by swapping with back and popping
   for (size_t i = 0; i < this->listeners_.size(); i++) {
     if (this->listeners_[i].characteristic == characteristic) {
-      // Swap with last element and pop
-      if (i != this->listeners_.size() - 1) {
-        this->listeners_[i] = this->listeners_.back();
-      }
+      // Swap with last element and pop (safe even when i is the last element)
+      this->listeners_[i] = this->listeners_.back();
       this->listeners_.pop_back();
       return;
     }
