@@ -9,7 +9,7 @@
 #include "esphome/components/i2c/i2c.h"
 #endif
 
-#ifdef USE_ESP32
+#ifdef USE_SPI
 #include <SPI.h>
 #endif
 
@@ -267,7 +267,7 @@ class Inkplate : public display::DisplayBuffer
   GPIOPin *epaper_clk_pin_;
   GPIOPin *epaper_din_pin_;
 
-#ifdef USE_ESP32
+#ifdef USE_SPI
   // SPI communication for SPI-based models
   SPIClass *spi_class_{nullptr};
   SPISettings spi_settings_;
