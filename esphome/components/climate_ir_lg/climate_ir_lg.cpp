@@ -38,8 +38,10 @@ enum CommandSys : uint32_t {
   COOL_ENERG_CTRL_OFF = 0x7F0,  // OFF
 
   DISPLAY_KW = 0x460,
-
   LIGHT_ON_OFF = 0x0A0,
+
+  TEMP_UNIT_F = 0x170,
+  TEMP_UNIT_C = 0x160,
 };
 
 enum CommandAdvSwing : uint32_t {
@@ -259,9 +261,10 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
         break;
       case COMMAND_COOL:
       case COMMAND_ON_COOL:
-      default:
         this->mode = climate::CLIMATE_MODE_COOL;
-        break;
+      default:
+        ESP_LOGD(TAG, "Got unknown command! Ignoring!");
+        return false;
     }
 
     // Get fan speed
