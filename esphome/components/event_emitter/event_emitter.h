@@ -16,17 +16,17 @@ static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
 template<typename EvtType, typename... Args> class EventEmitter {
  public:
   EventEmitterListenerID on(EvtType event, std::function<void(Args...)> listener) {
-    EventEmitterListenerID listener_id = get_next_id_();
+    EventEmitterListenerID listener_id = this->get_next_id_();
 
     // Find or create event entry
-    EventEntry *entry = find_or_create_event_(event);
+    EventEntry *entry = this->find_or_create_event_(event);
     entry->listeners.push_back({listener_id, listener});
 
     return listener_id;
   }
 
   void off(EvtType event, EventEmitterListenerID id) {
-    EventEntry *entry = find_event_(event);
+    EventEntry *entry = this->find_event_(event);
     if (entry == nullptr)
       return;
 
@@ -39,7 +39,7 @@ template<typename EvtType, typename... Args> class EventEmitter {
 
         // Remove event entry if no more listeners
         if (entry->listeners.empty()) {
-          remove_event_(event);
+          this->remove_event_(event);
         }
         return;
       }
@@ -48,7 +48,7 @@ template<typename EvtType, typename... Args> class EventEmitter {
 
  protected:
   void emit_(EvtType event, Args... args) {
-    EventEntry *entry = find_event_(event);
+    EventEntry *entry = this->find_event_(event);
     if (entry == nullptr)
       return;
 
@@ -70,7 +70,7 @@ template<typename EvtType, typename... Args> class EventEmitter {
   };
 
   EventEntry *find_event_(EvtType event) {
-    for (auto &entry : events_) {
+    for (auto &entry : this->events_) {
       if (entry.event == event) {
         return &entry;
       }
@@ -79,21 +79,21 @@ template<typename EvtType, typename... Args> class EventEmitter {
   }
 
   EventEntry *find_or_create_event_(EvtType event) {
-    EventEntry *entry = find_event_(event);
+    EventEntry *entry = this->find_event_(event);
     if (entry != nullptr)
       return entry;
 
     // Create new event entry
-    events_.push_back({event, {}});
-    return &events_.back();
+    this->events_.push_back({event, {}});
+    return &this->events_.back();
   }
 
   void remove_event_(EvtType event) {
-    for (auto it = events_.begin(); it != events_.end(); ++it) {
+    for (auto it = this->events_.begin(); it != this->events_.end(); ++it) {
       if (it->event == event) {
         // Swap with last and pop
-        *it = events_.back();
-        events_.pop_back();
+        *it = this->events_.back();
+        this->events_.pop_back();
         return;
       }
     }
@@ -101,12 +101,12 @@ template<typename EvtType, typename... Args> class EventEmitter {
 
   EventEmitterListenerID get_next_id_() {
     // Simple incrementing ID, wrapping around at max
-    EventEmitterListenerID next_id = (current_id_ + 1);
+    EventEmitterListenerID next_id = (this->current_id_ + 1);
     if (next_id == 0) {  // Skip 0 as it's often used as "invalid"
       next_id = 1;
     }
-    current_id_ = next_id;
-    return current_id_;
+    this->current_id_ = next_id;
+    return this->current_id_;
   }
 
   std::vector<EventEntry> events_;
