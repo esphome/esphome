@@ -195,6 +195,7 @@ void ESP32ImprovComponent::set_status_indicator_state_(bool state) {
 #endif
 }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 const char *ESP32ImprovComponent::state_to_string_(improv::State state) {
   switch (state) {
     case improv::STATE_STOPPED:
@@ -211,6 +212,7 @@ const char *ESP32ImprovComponent::state_to_string_(improv::State state) {
       return "UNKNOWN";
   }
 }
+#endif
 
 bool ESP32ImprovComponent::check_identify_() {
   uint32_t now = millis();
@@ -225,10 +227,12 @@ bool ESP32ImprovComponent::check_identify_() {
 }
 
 void ESP32ImprovComponent::set_state_(improv::State state) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   if (this->state_ != state) {
     ESP_LOGD(TAG, "State transition: %s (0x%02X) -> %s (0x%02X)", this->state_to_string_(this->state_), this->state_,
              this->state_to_string_(state), state);
   }
+#endif
   this->state_ = state;
   if (this->status_ != nullptr && (this->status_->get_value().empty() || this->status_->get_value()[0] != state)) {
     this->status_->set_value(ByteBuffer::wrap(static_cast<uint8_t>(state)));
