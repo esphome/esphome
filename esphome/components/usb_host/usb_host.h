@@ -5,13 +5,20 @@
 #include "esphome/core/component.h"
 #include <vector>
 #include "usb/usb_host.h"
-
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
 #include <list>
 
 namespace esphome {
 namespace usb_host {
 
 static const char *const TAG = "usb_host";
+
+// Forward declarations
+struct TransferRequest;
+class USBClient;
 
 // constants for setup packet type
 static const uint8_t USB_RECIP_DEVICE = 0;
@@ -25,7 +32,10 @@ static const uint8_t USB_DIR_IN = 1 << 7;
 static const uint8_t USB_DIR_OUT = 0;
 static const size_t SETUP_PACKET_SIZE = 8;
 
-static const size_t MAX_REQUESTS = 16;  // maximum number of outstanding requests possible.
+static const size_t MAX_REQUESTS = 16;               // maximum number of outstanding requests possible.
+static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
+static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
+static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
 
 // used to report a transfer status
 struct TransferStatus {
@@ -47,6 +57,31 @@ struct TransferRequest {
   transfer_cb_t callback;
   TransferStatus status;
   USBClient *client;
+};
+
+enum EventType : uint8_t {
+  EVENT_DEVICE_NEW,
+  EVENT_DEVICE_GONE,
+  EVENT_TRANSFER_COMPLETE,
+  EVENT_CONTROL_COMPLETE,
+};
+
+struct UsbEvent {
+  EventType type;
+  union {
+    struct {
+      uint8_t address;
+    } device_new;
+    struct {
+      usb_device_handle_t handle;
+    } device_gone;
+    struct {
+      TransferRequest *trq;
+    } transfer;
+  } data;
+
+  // Required for EventPool - no cleanup needed for POD types
+  void release() {}
 };
 
 // callback function type.
@@ -84,12 +119,23 @@ class USBClient : public Component {
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
+  // Lock-free event queue and pool for USB task to main loop communication
+  // Must be public for access from static callbacks
+  LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
+  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
+
  protected:
   bool register_();
   TransferRequest *get_trq_();
   virtual void disconnect();
   virtual void on_connected() {}
   virtual void on_disconnected() { this->init_pool(); }
+
+  // USB task management
+  static void usb_task_fn(void *arg);
+  void usb_task_loop();
+
+  TaskHandle_t usb_task_handle_{nullptr};
 
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};

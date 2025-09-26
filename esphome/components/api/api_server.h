@@ -37,7 +37,7 @@ class APIServer : public Component, public Controller {
   void on_shutdown() override;
   bool teardown() override;
 #ifdef USE_API_PASSWORD
-  bool check_password(const std::string &password) const;
+  bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
 #endif
   void set_port(uint16_t port);
@@ -107,7 +107,8 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+  void send_homeassistant_action(const HomeassistantActionRequest &call);
+
 #endif
 #ifdef USE_API_SERVICES
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }

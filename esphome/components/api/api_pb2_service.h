@@ -477,6 +477,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
+  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 }  // namespace esphome::api
