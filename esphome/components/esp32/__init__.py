@@ -359,7 +359,7 @@ def _check_versions(value):
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
             raise cv.Invalid(
-                "Version needs to be explicitly set when a custom source or platform is used."
+                "Version needs to be explicitly set when a custom source or platform_version is used."
             )
 
         platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
@@ -395,7 +395,7 @@ def _check_versions(value):
     if CONF_PLATFORM_VERSION not in value:
         if platform_lookup is None:
             raise cv.Invalid(
-                f"Framework version not recognized; please specify '{CONF_PLATFORM_VERSION}'"
+                "Framework version not recognized; please specify platform_version"
             )
         value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
 
