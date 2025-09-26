@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_max44009
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: max44009
-    name: MAX44009 Brightness
-    internal: true
-    mode: low_power
-    address: 0x4A
-    update_interval: 30s
+<<: !include common.yaml

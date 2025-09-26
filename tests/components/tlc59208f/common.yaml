@@ -1,0 +1,50 @@
+i2c:
+  - id: i2c_tlc59208f
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+tlc59208f:
+  - address: 0x20
+    id: tlc59208f_1
+  - address: 0x22
+    id: tlc59208f_2
+  - address: 0x24
+    id: tlc59208f_3
+
+output:
+  - platform: tlc59208f
+    id: tlc_0
+    channel: 0
+    tlc59208f_id: tlc59208f_1
+  - platform: tlc59208f
+    id: tlc_1
+    channel: 1
+    tlc59208f_id: tlc59208f_1
+  - platform: tlc59208f
+    id: tlc_2
+    channel: 2
+    tlc59208f_id: tlc59208f_1
+  - platform: tlc59208f
+    id: tlc_3
+    channel: 0
+    tlc59208f_id: tlc59208f_2
+  - platform: tlc59208f
+    id: tlc_4
+    channel: 1
+    tlc59208f_id: tlc59208f_2
+  - platform: tlc59208f
+    id: tlc_5
+    channel: 2
+    tlc59208f_id: tlc59208f_2
+  - platform: tlc59208f
+    id: tlc_6
+    channel: 0
+    tlc59208f_id: tlc59208f_3
+  - platform: tlc59208f
+    id: tlc_7
+    channel: 1
+    tlc59208f_id: tlc59208f_3
+  - platform: tlc59208f
+    id: tlc_8
+    channel: 2
+    tlc59208f_id: tlc59208f_3

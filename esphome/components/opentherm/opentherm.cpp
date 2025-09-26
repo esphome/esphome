@@ -52,7 +52,9 @@ bool OpenTherm::initialize() {
   OpenTherm::instance = this;
 #endif
   this->in_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->in_pin_->setup();
   this->out_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->out_pin_->setup();
   this->out_pin_->digital_write(true);
 
 #if defined(ESP32) || defined(USE_ESP_IDF)
@@ -182,7 +184,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
       }
       arg->capture_ = 1;  // reset counter
     } else if (arg->capture_ > 0xFF) {
-      // no change for too long, invalid mancheter encoding
+      // no change for too long, invalid manchester encoding
       arg->mode_ = OperationMode::ERROR_PROTOCOL;
       arg->error_type_ = ProtocolErrorType::NO_CHANGE_TOO_LONG;
       arg->stop_timer_();
@@ -270,18 +272,13 @@ bool OpenTherm::init_esp32_timer_() {
   this->timer_idx_ = timer_idx;
 
   timer_config_t const config = {
-    .alarm_en = TIMER_ALARM_EN,
-    .counter_en = TIMER_PAUSE,
-    .intr_type = TIMER_INTR_LEVEL,
-    .counter_dir = TIMER_COUNT_UP,
-    .auto_reload = TIMER_AUTORELOAD_EN,
-#if ESP_IDF_VERSION_MAJOR >= 5
-    .clk_src = TIMER_SRC_CLK_DEFAULT,
-#endif
-    .divider = 80,
-#if defined(SOC_TIMER_GROUP_SUPPORT_XTAL) && ESP_IDF_VERSION_MAJOR < 5
-    .clk_src = TIMER_SRC_CLK_APB
-#endif
+      .alarm_en = TIMER_ALARM_EN,
+      .counter_en = TIMER_PAUSE,
+      .intr_type = TIMER_INTR_LEVEL,
+      .counter_dir = TIMER_COUNT_UP,
+      .auto_reload = TIMER_AUTORELOAD_EN,
+      .clk_src = TIMER_SRC_CLK_DEFAULT,
+      .divider = 80,
   };
 
   esp_err_t result;
@@ -312,21 +309,31 @@ bool OpenTherm::init_esp32_timer_() {
 }
 
 void IRAM_ATTR OpenTherm::start_esp32_timer_(uint64_t alarm_value) {
-  esp_err_t result;
+  // We will report timer errors outside of interrupt handler
+  this->timer_error_ = ESP_OK;
+  this->timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
 
-  result = timer_set_alarm_value(this->timer_group_, this->timer_idx_, alarm_value);
-  if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to set alarm value. Error: %s", error);
+  this->timer_error_ = timer_set_alarm_value(this->timer_group_, this->timer_idx_, alarm_value);
+  if (this->timer_error_ != ESP_OK) {
+    this->timer_error_type_ = TimerErrorType::SET_ALARM_VALUE_ERROR;
+    return;
+  }
+  this->timer_error_ = timer_start(this->timer_group_, this->timer_idx_);
+  if (this->timer_error_ != ESP_OK) {
+    this->timer_error_type_ = TimerErrorType::TIMER_START_ERROR;
+  }
+}
+
+void OpenTherm::report_and_reset_timer_error() {
+  if (this->timer_error_ == ESP_OK) {
     return;
   }
 
-  result = timer_start(this->timer_group_, this->timer_idx_);
-  if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to start the timer. Error: %s", error);
-    return;
-  }
+  ESP_LOGE(TAG, "Error occured while manipulating timer (%s): %s", this->timer_error_to_str(this->timer_error_type_),
+           esp_err_to_name(this->timer_error_));
+
+  this->timer_error_ = ESP_OK;
+  this->timer_error_type_ = NO_TIMER_ERROR;
 }
 
 // 5 kHz timer_
@@ -343,21 +350,18 @@ void IRAM_ATTR OpenTherm::start_write_timer_() {
 
 void IRAM_ATTR OpenTherm::stop_timer_() {
   InterruptLock const lock;
+  // We will report timer errors outside of interrupt handler
+  this->timer_error_ = ESP_OK;
+  this->timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
 
-  esp_err_t result;
-
-  result = timer_pause(this->timer_group_, this->timer_idx_);
-  if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to pause the timer. Error: %s", error);
+  this->timer_error_ = timer_pause(this->timer_group_, this->timer_idx_);
+  if (this->timer_error_ != ESP_OK) {
+    this->timer_error_type_ = TimerErrorType::TIMER_PAUSE_ERROR;
     return;
   }
-
-  result = timer_set_counter_value(this->timer_group_, this->timer_idx_, 0);
-  if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to set timer counter to 0 after pausing. Error: %s", error);
-    return;
+  this->timer_error_ = timer_set_counter_value(this->timer_group_, this->timer_idx_, 0);
+  if (this->timer_error_ != ESP_OK) {
+    this->timer_error_type_ = TimerErrorType::SET_COUNTER_VALUE_ERROR;
   }
 }
 
@@ -386,6 +390,9 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   timer1_detachInterrupt();
 }
 
+// There is nothing to report on ESP8266
+void OpenTherm::report_and_reset_timer_error() {}
+
 #endif  // END ESP8266
 
 // https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
@@ -412,17 +419,29 @@ const char *OpenTherm::operation_mode_to_str(OperationMode mode) {
     TO_STRING_MEMBER(SENT)
     TO_STRING_MEMBER(ERROR_PROTOCOL)
     TO_STRING_MEMBER(ERROR_TIMEOUT)
+    TO_STRING_MEMBER(ERROR_TIMER)
     default:
       return "<INVALID>";
   }
 }
-const char *OpenTherm::protocol_error_to_to_str(ProtocolErrorType error_type) {
+const char *OpenTherm::protocol_error_to_str(ProtocolErrorType error_type) {
   switch (error_type) {
     TO_STRING_MEMBER(NO_ERROR)
     TO_STRING_MEMBER(NO_TRANSITION)
     TO_STRING_MEMBER(INVALID_STOP_BIT)
     TO_STRING_MEMBER(PARITY_ERROR)
     TO_STRING_MEMBER(NO_CHANGE_TOO_LONG)
+    default:
+      return "<INVALID>";
+  }
+}
+const char *OpenTherm::timer_error_to_str(TimerErrorType error_type) {
+  switch (error_type) {
+    TO_STRING_MEMBER(NO_TIMER_ERROR)
+    TO_STRING_MEMBER(SET_ALARM_VALUE_ERROR)
+    TO_STRING_MEMBER(TIMER_START_ERROR)
+    TO_STRING_MEMBER(TIMER_PAUSE_ERROR)
+    TO_STRING_MEMBER(SET_COUNTER_VALUE_ERROR)
     default:
       return "<INVALID>";
   }

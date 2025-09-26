@@ -1,18 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.components import switch
-from esphome.const import (
-    CONF_BEEPER,
-    CONF_DISPLAY,
-    ENTITY_CATEGORY_CONFIG,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_BEEPER, CONF_DISPLAY, ENTITY_CATEGORY_CONFIG
+import esphome.final_validate as fv
+
 from ..climate import (
     CONF_HAIER_ID,
     CONF_PROTOCOL,
+    PROTOCOL_HON,
     HaierClimateBase,
     haier_ns,
-    PROTOCOL_HON,
 )
 
 CODEOWNERS = ["@paveldn"]

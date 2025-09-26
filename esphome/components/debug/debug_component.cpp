@@ -1,9 +1,10 @@
 #include "debug_component.h"
 
 #include <algorithm>
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #include <cinttypes>
 #include <climits>
@@ -14,10 +15,6 @@ namespace debug {
 static const char *const TAG = "debug";
 
 void DebugComponent::dump_config() {
-#ifndef ESPHOME_LOG_HAS_DEBUG
-  return;  // Can't log below if debug logging is disabled
-#endif
-
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
@@ -25,6 +22,7 @@ void DebugComponent::dump_config() {
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
   LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
+  LOG_SENSOR("  ", "CPU frequency", this->cpu_frequency_sensor_);
 #if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
 #endif  // defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
@@ -50,6 +48,10 @@ void DebugComponent::dump_config() {
     this->reset_reason_->publish_state(get_reset_reason_());
   }
 #endif  // USE_TEXT_SENSOR
+
+#ifdef USE_ESP32
+  this->log_partition_info_();  // Log partition information for ESP32
+#endif                          // USE_ESP32
 }
 
 void DebugComponent::loop() {
@@ -64,7 +66,7 @@ void DebugComponent::loop() {
 #ifdef USE_SENSOR
   // calculate loop time - from last call to this one
   if (this->loop_time_sensor_ != nullptr) {
-    uint32_t now = millis();
+    uint32_t now = App.get_loop_component_start_time();
     uint32_t loop_time = now - this->last_loop_timetag_;
     this->max_loop_time_ = std::max(this->max_loop_time_, loop_time);
     this->last_loop_timetag_ = now;
@@ -81,6 +83,9 @@ void DebugComponent::update() {
   if (this->loop_time_sensor_ != nullptr) {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
     this->max_loop_time_ = 0;
+  }
+  if (this->cpu_frequency_sensor_ != nullptr) {
+    this->cpu_frequency_sensor_->publish_state(arch_get_cpu_freq_hz());
   }
 
 #endif  // USE_SENSOR

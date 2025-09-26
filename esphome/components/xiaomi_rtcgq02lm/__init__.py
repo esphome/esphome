@@ -1,8 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import esp32_ble_tracker
-from esphome.const import CONF_MAC_ADDRESS, CONF_ID, CONF_BINDKEY
-
+import esphome.config_validation as cv
+from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 
 AUTO_LOAD = ["xiaomi_ble"]
 CODEOWNERS = ["@jesserockz"]

@@ -51,7 +51,7 @@ MSGBOX_SCHEMA = container_schema(
             cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BODY, default=""): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BUTTONS): cv.ensure_list(BUTTONMATRIX_BUTTON_SCHEMA),
-            cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec),
+            cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec.parts),
             cv.Optional(CONF_CLOSE_BUTTON, default=True): lv_bool,
             cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         }

@@ -10,9 +10,11 @@ namespace libretiny {
 static const char *const TAG = "lt.component";
 
 void LTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "LibreTiny:");
-  ESP_LOGCONFIG(TAG, "  Version: %s", LT_BANNER_STR + 10);
-  ESP_LOGCONFIG(TAG, "  Loglevel: %u", LT_LOGLEVEL);
+  ESP_LOGCONFIG(TAG,
+                "LibreTiny:\n"
+                "  Version: %s\n"
+                "  Loglevel: %u",
+                LT_BANNER_STR + 10, LT_LOGLEVEL);
 
 #ifdef USE_TEXT_SENSOR
   if (this->version_ != nullptr) {

@@ -1,10 +1,5 @@
-uart:
-  - id: uart_wl_134
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
 
-text_sensor:
-  - platform: wl_134
-    name: Transponder Code
-    reset: true
+<<: !include common.yaml

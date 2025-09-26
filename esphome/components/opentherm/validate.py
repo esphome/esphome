@@ -1,20 +1,25 @@
-from typing import Callable
+from collections.abc import Callable
 
 from voluptuous import Schema
 
 import esphome.config_validation as cv
 
-from . import const, schema, generate
+from . import const, generate, schema
 from .schema import TSchema
 
 
 def create_entities_schema(
-    entities: dict[str, schema.EntitySchema],
+    entities: dict[str, TSchema],
     get_entity_validation_schema: Callable[[TSchema], cv.Schema],
 ) -> Schema:
     entity_schema = {}
     for key, entity in entities.items():
-        entity_schema[cv.Optional(key)] = get_entity_validation_schema(entity)
+        schema_key = (
+            cv.Optional(key, entity.default_value)
+            if hasattr(entity, "default_value")
+            else cv.Optional(key)
+        )
+        entity_schema[schema_key] = get_entity_validation_schema(entity)
     return cv.Schema(entity_schema)
 
 

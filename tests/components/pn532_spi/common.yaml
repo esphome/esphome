@@ -1,0 +1,15 @@
+spi:
+  - id: spi_pn532
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}
+
+pn532_spi:
+  id: pn532_nfcc
+  cs_pin: ${cs_pin}
+
+binary_sensor:
+  - platform: pn532
+    pn532_id: pn532_nfcc
+    name: PN532 NFC Tag
+    uid: 74-10-37-94

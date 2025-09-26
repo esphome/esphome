@@ -11,7 +11,6 @@ class CopyCover : public cover::Cover, public Component {
   void set_source(cover::Cover *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   cover::CoverTraits get_traits() override;
 

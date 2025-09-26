@@ -1,6 +1,6 @@
 sm16716:
-  clock_pin: 4
-  data_pin: 5
+  clock_pin: ${clock_pin}
+  data_pin: ${data_pin}
   num_channels: 3
   num_chips: 1
 

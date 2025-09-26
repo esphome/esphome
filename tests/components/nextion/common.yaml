@@ -1,5 +1,9 @@
 esphome:
   on_boot:
+    - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(main_lcd).is_connected()));'
+
+    - display.nextion.set_brightness: 80%
+
     # Binary sensor publish action tests
     - binary_sensor.nextion.publish:
         id: r0_sensor
@@ -276,6 +280,9 @@ display:
   - platform: nextion
     id: main_lcd
     update_interval: 5s
+    command_spacing: 5ms
+    max_commands_per_loop: 20
+    max_queue_size: 50
     on_sleep:
       then:
         lambda: 'ESP_LOGD("display","Display went to sleep");'

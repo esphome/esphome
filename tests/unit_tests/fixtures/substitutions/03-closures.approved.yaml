@@ -1,0 +1,18 @@
+substitutions:
+  B: 5
+  var7: 79
+package_result:
+  - The value of A*B is 35, where A is a package var and B is a substitution in the
+    root file
+  - Double substitution also works; the value of var7 is 79, where A is a package
+    var
+  - key79: Key should substitute to key79
+local_results:
+  - The value of B is 5
+  - 'You will see, however, that
+
+    ${A} is not substituted here, since
+
+    it is out of scope.
+
+    '

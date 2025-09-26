@@ -1,0 +1,25 @@
+substitutions:
+  width: 7
+  height: 8
+  enabled: true
+  pin:
+    number: 18
+    inverted: true
+  area: 25
+  numberOne: 1
+  var1: 79
+
+test_list:
+  - "The area is ${width * height}"
+  - ${width * height}
+  - ${width * height} + 1
+  - ${enabled and "ENABLED" or "DISABLED"}
+  - list: ${ [width, height] }
+  - "${ {'width': width, 'height': height} }"
+  - ${pin}
+  - The pin number is ${pin.number}
+  - The square root is: ${math.sqrt(area)}
+  - The number is ${var${numberOne} + 1}
+  - ord("a") = ${ ord("a") }
+  - chr(97) = ${ chr(97) }
+  - len([1,2,3]) = ${ len([1,2,3]) }
