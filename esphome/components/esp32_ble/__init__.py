@@ -242,6 +242,19 @@ def final_validation(config):
                 f"Name '{name}' is too long, maximum length is {max_length} characters"
             )
 
+    # Set GATT Client/Server sdkconfig options based on which components are loaded
+    full_config = fv.full_config.get()
+
+    # Check if BLE Server is needed
+    has_ble_server = "esp32_ble_server" in full_config
+    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server)
+
+    # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
+    has_ble_client = (
+        "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
+    )
+    add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
+
     return config
 
 
