@@ -587,16 +587,8 @@ DASHBOARD_SUBSCRIBER = DashboardSubscriber()
 class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
     """WebSocket handler for real-time dashboard events."""
 
-    def __init__(
-        self,
-        application: tornado.web.Application,
-        request: tornado.httputil.HTTPServerRequest,
-        **kwargs: Any,
-    ) -> None:
-        """Initialize the websocket."""
-        super().__init__(application, request, **kwargs)
-        self._event_listeners: list[Callable[[], None]] = []
-        self._dashboard_unsubscribe: Callable[[], None] | None = None
+    _event_listeners: list[Callable[[], None]] | None = None
+    _dashboard_unsubscribe: Callable[[], None] | None = None
 
     async def get(self, *args: str, **kwargs: str) -> None:
         """Handle WebSocket upgrade request."""
@@ -642,35 +634,32 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
 
     def _subscribe_to_events(self) -> None:
         """Subscribe to dashboard events."""
-        bus = DASHBOARD.bus
-
+        async_add_listener = DASHBOARD.bus.async_add_listener
         # Subscribe to all events
-        self._event_listeners.extend(
-            [
-                bus.async_add_listener(
-                    DashboardEvent.ENTRY_STATE_CHANGED, self._on_entry_state_changed
-                ),
-                bus.async_add_listener(
-                    DashboardEvent.ENTRY_ADDED,
-                    self._make_entry_handler(DashboardEvent.ENTRY_ADDED),
-                ),
-                bus.async_add_listener(
-                    DashboardEvent.ENTRY_REMOVED,
-                    self._make_entry_handler(DashboardEvent.ENTRY_REMOVED),
-                ),
-                bus.async_add_listener(
-                    DashboardEvent.ENTRY_UPDATED,
-                    self._make_entry_handler(DashboardEvent.ENTRY_UPDATED),
-                ),
-                bus.async_add_listener(
-                    DashboardEvent.IMPORTABLE_DEVICE_ADDED, self._on_importable_added
-                ),
-                bus.async_add_listener(
-                    DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
-                    self._on_importable_removed,
-                ),
-            ]
-        )
+        self._event_listeners = [
+            async_add_listener(
+                DashboardEvent.ENTRY_STATE_CHANGED, self._on_entry_state_changed
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_ADDED,
+                self._make_entry_handler(DashboardEvent.ENTRY_ADDED),
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_REMOVED,
+                self._make_entry_handler(DashboardEvent.ENTRY_REMOVED),
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_UPDATED,
+                self._make_entry_handler(DashboardEvent.ENTRY_UPDATED),
+            ),
+            async_add_listener(
+                DashboardEvent.IMPORTABLE_DEVICE_ADDED, self._on_importable_added
+            ),
+            async_add_listener(
+                DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
+                self._on_importable_removed,
+            ),
+        ]
 
     def _on_entry_state_changed(self, event: Event) -> None:
         """Handle entry state change event."""
@@ -744,7 +733,7 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
             self._dashboard_unsubscribe = None
 
         # Unsubscribe from events
-        for remove_listener in self._event_listeners:
+        for remove_listener in self._event_listeners or []:
             remove_listener()
 
         _LOGGER.debug("Dashboard status WebSocket closed")
