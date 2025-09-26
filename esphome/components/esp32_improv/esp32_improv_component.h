@@ -108,7 +108,9 @@ class ESP32ImprovComponent : public Component {
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   const char *state_to_string_(improv::State state);
+#endif
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
