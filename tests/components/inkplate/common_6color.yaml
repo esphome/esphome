@@ -1,9 +1,3 @@
-# I2C is required by schema but not used by SPI model
-i2c:
-  - id: i2c_inkplate
-    scl: 16
-    sda: 17
-
 esp32:
   cpu_frequency: 240MHz
 

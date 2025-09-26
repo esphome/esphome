@@ -5,7 +5,6 @@ from esphome.components.esp32 import CONF_CPU_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
-    CONF_I2C_ID,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_LAMBDA,
@@ -101,7 +100,9 @@ def _validate_pins_for_model(config):
     model = config[CONF_MODEL]
 
     if _is_parallel_model(model):
-        # Note: I2C_ID validation is handled in to_code function
+        # Parallel models require I2C to be available in the configuration
+        # but i2c_id can be omitted to use the default I2C bus
+        # I2C validation is handled by i2c.register_i2c_device() in to_code
 
         # Parallel GPIO models require these control pins
         required_parallel_pins = [
@@ -135,85 +136,99 @@ def _apply_defaults_for_model(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(
-    display.FULL_DISPLAY_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(Inkplate),
-            cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
-            cv.Optional(CONF_CUSTOM_WAVEFORM): cv.All(
-                cv.uint8_t, cv.Range(min=1, max=len(INKPLATE_10_CUSTOM_WAVEFORMS))
-            ),
-            cv.Optional(CONF_TRANSFORM): cv.Schema(
-                {
-                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
-            cv.Optional(CONF_MODEL, default="inkplate_6"): cv.enum(
-                MODELS, lower=True, space="_"
-            ),
-            # Control pins
-            cv.Required(CONF_CKV_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_GPIO0_ENABLE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_OE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_POWERUP_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_SPH_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_SPV_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(
-                CONF_CL_PIN,
-                default={CONF_NUMBER: 0, CONF_IGNORE_STRAPPING_WARNING: True},
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_LE_PIN,
-                default={CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True},
-            ): pins.internal_gpio_output_pin_schema,
-            # Data pins
-            cv.Optional(
-                CONF_DISPLAY_DATA_0_PIN, default=4
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_1_PIN,
-                default={CONF_NUMBER: 5, CONF_IGNORE_STRAPPING_WARNING: True},
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_2_PIN, default=18
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_3_PIN, default=19
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_4_PIN, default=23
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_5_PIN, default=25
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_6_PIN, default=26
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_7_PIN, default=27
-            ): pins.internal_gpio_output_pin_schema,
-        }
-    )
-    .extend(cv.polling_component_schema("5s"))
-    .extend(
-        cv.Schema(
+def _build_schema_for_model(config):
+    """Build the appropriate schema based on model type."""
+    # Just validate - schema building is handled by _conditional_schema
+    return config
+
+
+# Base schema without I2C extension
+_BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(Inkplate),
+        cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
+        cv.Optional(CONF_CUSTOM_WAVEFORM): cv.All(
+            cv.uint8_t, cv.Range(min=1, max=len(INKPLATE_10_CUSTOM_WAVEFORMS))
+        ),
+        cv.Optional(CONF_TRANSFORM): cv.Schema(
             {
-                # I2C configuration (automatically assigned for all models, used only by parallel models)
-                cv.GenerateID(CONF_I2C_ID): cv.use_id(i2c.I2CBus),
-                cv.Optional("address", default=0x48): cv.i2c_address,
+                cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
             }
-        )
-    ),
+        ),
+        cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
+        cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
+        cv.Optional(CONF_MODEL, default="inkplate_6"): cv.enum(
+            MODELS, lower=True, space="_"
+        ),
+        # Control pins (for non-COLOR models)
+        cv.Optional(CONF_CKV_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_GPIO0_ENABLE_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_OE_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_POWERUP_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_SPH_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_SPV_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
+        # SPI pins
+        cv.Optional(CONF_EPAPER_RST_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_EPAPER_DC_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_EPAPER_CS_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(
+            "cs_pin"
+        ): pins.gpio_output_pin_schema,  # Alternative to epaper_cs_pin
+        cv.Optional(CONF_EPAPER_BUSY_PIN): pins.gpio_input_pin_schema,
+        cv.Optional(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(
+            CONF_CL_PIN,
+            default={CONF_NUMBER: 0, CONF_IGNORE_STRAPPING_WARNING: True},
+        ): pins.internal_gpio_output_pin_schema,
+        cv.Optional(
+            CONF_LE_PIN,
+            default={CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True},
+        ): pins.internal_gpio_output_pin_schema,
+        # Data pins
+        cv.Optional(CONF_DISPLAY_DATA_0_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(
+            CONF_DISPLAY_DATA_1_PIN,
+            default={CONF_NUMBER: 5, CONF_IGNORE_STRAPPING_WARNING: True},
+        ): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_DISPLAY_DATA_2_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_DISPLAY_DATA_3_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_DISPLAY_DATA_4_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_DISPLAY_DATA_5_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_DISPLAY_DATA_6_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Optional(CONF_DISPLAY_DATA_7_PIN): pins.internal_gpio_output_pin_schema,
+    }
+).extend(cv.polling_component_schema("5s"))
+
+
+def _conditional_schema(value):
+    """Conditionally extend schema based on model."""
+    if not isinstance(value, dict):
+        return value
+
+    model = value.get(CONF_MODEL, "inkplate_6")
+
+    if _is_parallel_model(model):
+        # Apply I2C device schema for parallel models
+        schema = _BASE_SCHEMA.extend(i2c.i2c_device_schema(0x48))
+    else:
+        # SPI models don't need I2C schema
+        schema = _BASE_SCHEMA
+
+    return schema(value)
+
+
+CONFIG_SCHEMA = cv.All(
+    _conditional_schema,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate_custom_waveform,
     _apply_defaults_for_model,
     _validate_pins_for_model,
+    _build_schema_for_model,
 )
 
 
@@ -240,6 +255,9 @@ async def to_code(config):
         await i2c.register_i2c_device(var, config)
         # Define USE_INKPLATE_I2C for conditional I2C compilation
         cg.add_define("USE_INKPLATE_I2C")
+    else:
+        # SPI models don't use the I2C fields from schema
+        pass
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
