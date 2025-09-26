@@ -8,58 +8,67 @@ static const char *const TAG = "climate.climate_ir_lg";
 
 // Commands
 const uint32_t COMMAND_MASK = 0xFF000;
-const uint32_t COMMAND_SYS = 0xC0000;
-const uint32_t COMMAND_SWING = 0x10000;
+const uint32_t COMMAND_DATA_MASK = 0x00FF0;
 
-const uint32_t COMMAND_ADV_JET =
-    0x10089;  // JET MODE (only for cooling/drying/heating modes)
-              // For 30 minutes: max airflow (stronger then F5 aka FAN_MAX) + PO (min/min/max temperature respectively)
-              // After 30 minutes: F5 aka FAN_MAX + min/min/max temperature respectively
+const uint32_t COMMAND_BASIC_SWING = 0x10000;  // ON/OFF swing
 
-const uint32_t COMMAND_SYS_OFF = 0xC0051;
+// JET MODE (only for cooling/drying/heating modes)
+// For 30 minutes: max airflow (stronger then F5 aka FAN_MAX) + PO (min/min/max temperature respectively)
+// After 30 minutes: F5 aka FAN_MAX + min/min/max temperature respectively
+const uint32_t COMMAND_BASIC_JET = 0x10089;
 
-const uint32_t COMMAND_SYS_AUTO_CLEAN_ON = 0xC00B7;
-const uint32_t COMMAND_SYS_AUTO_CLEAN_OFF = 0xC00C8;
+enum COMMAND_SYS : uint32_t {
+  HEADER_SYS = 0xC0000,
 
-const uint32_t COMMAND_SYS_PURIFY_ON = 0xC000C;   // From either OFF or Mode -> Purify
-const uint32_t COMMAND_SYS_PURIFY_OFF = 0xC0084;  // From Mode + Purify -> Mode
+  OFF = 0x050,
 
-const uint32_t COMMAND_SYS_QUIET_OUTDOOR_ON = 0xC0A6C;
-const uint32_t COMMAND_SYS_QUIET_OUTDOOR_OFF = 0xC0A7D;
+  AUTO_CLEAN_ON = 0x0B0,
+  AUTO_CLEAN_OFF = 0x0C0,
 
-// ENERGY CTRL
-const uint32_t COMMAND_SYS_COOL_ENERG_CTRL_80 = 0xC07D0;   // 80%
-const uint32_t COMMAND_SYS_COOL_ENERG_CTRL_60 = 0xC07E1;   // 60%
-const uint32_t COMMAND_SYS_COOL_ENERG_CTRL_40 = 0xC0804;   // 40%
-const uint32_t COMMAND_SYS_COOL_ENERG_CTRL_OFF = 0xC07F2;  // OFF
+  PURIFY_ON = 0x000,   // From either OFF or Mode -> Purify
+  PURIFY_OFF = 0x080,  // From Mode + Purify -> Mode
 
-const uint32_t COMMAND_SYS_DISPLAY_KW = 0xC0466;
+  QUIET_OUTDOOR_ON = 0xA60,
+  QUIET_OUTDOOR_OFF = 0xA70,
 
-const uint32_t COMMAND_SYS_LIGHT_ON_OFF = 0xC00A6;
+  // ENERGY CTRL (only in Cooling mode)
+  COOL_ENERG_CTRL_80 = 0x7D0,   // 80%
+  COOL_ENERG_CTRL_60 = 0x7E0,   // 60%
+  COOL_ENERG_CTRL_40 = 0x800,   // 40%
+  COOL_ENERG_CTRL_OFF = 0x7F0,  // OFF
 
-const uint32_t COMMAND_ADV_SWING = 0x13000;
-const uint32_t COMMAND_ADV_SWING_DATA_MASK = 0x1F0;  // Only 5 bits are relevant
+  DISPLAY_KW = 0x460,
 
-// Commands for Advanced Vertical Control: Swing + 6 fixed positions
-const uint32_t COMMAND_ADV_VERT_FIX_1 = 0x040;  // Down
-const uint32_t COMMAND_ADV_VERT_FIX_2 = 0x050;
-const uint32_t COMMAND_ADV_VERT_FIX_3 = 0x060;
-const uint32_t COMMAND_ADV_VERT_FIX_4 = 0x070;
-const uint32_t COMMAND_ADV_VERT_FIX_5 = 0x080;
-const uint32_t COMMAND_ADV_VERT_FIX_6 = 0x090;      // Up
-const uint32_t COMMAND_ADV_VERT_SWING_ON = 0x140;   // Swing between 1 and 6
-const uint32_t COMMAND_ADV_VERT_SWING_OFF = 0x150;  // Stops immediately
+  LIGHT_ON_OFF = 0x0A0,
+};
 
-// Commands for Advanced Horizontal Control: Swing (3 modes) + 5 fixed positions
-const uint32_t COMMAND_ADV_HORI_FIX_1 = 0x0B0;  // Left
-const uint32_t COMMAND_ADV_HORI_FIX_2 = 0x0C0;
-const uint32_t COMMAND_ADV_HORI_FIX_3 = 0x0D0;
-const uint32_t COMMAND_ADV_HORI_FIX_4 = 0x0E0;
-const uint32_t COMMAND_ADV_HORI_FIX_5 = 0x0F0;           // Right
-const uint32_t COMMAND_ADV_HORI_SWING_ON_LEFT = 0x100;   // Swing between 1 and 3
-const uint32_t COMMAND_ADV_HORI_SWING_ON_RIGHT = 0x110;  // Swing between 3 and 5
-const uint32_t COMMAND_ADV_HORI_SWING_ON_FULL = 0x160;   // Swing between 1 and 5
-const uint32_t COMMAND_ADV_HORI_SWING_OFF = 0x170;       // Stops immediately
+enum COMMAND_ADV_SWING : uint32_t {
+  HEADER_ADV_SWING = 0x13000,
+
+  // Only 5 bits are relevant, I got 0x13952 once - not sure what is the 8th bit so ignoring that.
+  DATA_MASK = 0x1F0,
+
+  // Commands for Advanced Vertical Control: Swing + 6 fixed positions
+  VERT_FIX_1 = 0x040,  // Down
+  VERT_FIX_2 = 0x050,
+  VERT_FIX_3 = 0x060,
+  VERT_FIX_4 = 0x070,
+  VERT_FIX_5 = 0x080,
+  VERT_FIX_6 = 0x090,      // Up
+  VERT_SWING_ON = 0x140,   // Swing between 1 and 6
+  VERT_SWING_OFF = 0x150,  // Stops immediately
+
+  // Commands for Advanced Horizontal Control: Swing (3 modes) + 5 fixed positions
+  HORI_FIX_1 = 0x0B0,  // Left
+  HORI_FIX_2 = 0x0C0,
+  HORI_FIX_3 = 0x0D0,
+  HORI_FIX_4 = 0x0E0,
+  HORI_FIX_5 = 0x0F0,           // Right
+  HORI_SWING_ON_LEFT = 0x100,   // Swing between 1 and 3
+  HORI_SWING_ON_RIGHT = 0x110,  // Swing between 3 and 5
+  HORI_SWING_ON_FULL = 0x160,   // Swing between 1 and 5
+  HORI_SWING_OFF = 0x170,       // Stops immediately
+};
 
 const uint32_t COMMAND_ON_COOL = 0x00000;
 const uint32_t COMMAND_ON_DRY = 0x01000;
@@ -101,13 +110,13 @@ void LgIrClimate::transmit_state() {
       switch (this->swing_mode) {
         case climate::CLIMATE_SWING_VERTICAL:
           ESP_LOGD(TAG, "setting swing vertical");
-          remote_state |= COMMAND_ADV_SWING;
-          remote_state |= COMMAND_ADV_VERT_SWING_ON;
+          remote_state |= COMMAND_ADV_SWING::HEADER_ADV_SWING;
+          remote_state |= COMMAND_ADV_SWING::VERT_SWING_ON;
           break;
         case climate::CLIMATE_SWING_OFF:
           ESP_LOGD(TAG, "setting swing off");
-          remote_state |= COMMAND_ADV_SWING;
-          remote_state |= COMMAND_ADV_VERT_FIX_4;
+          remote_state |= COMMAND_ADV_SWING::HEADER_ADV_SWING;
+          remote_state |= COMMAND_ADV_SWING::VERT_FIX_3;
           break;
         default:
           return;  // Supress clang error, this integration only supports OFF and VERTICAL, this will never be reached
@@ -116,7 +125,7 @@ void LgIrClimate::transmit_state() {
       this->publish_state();
       return;
     } else {
-      remote_state |= COMMAND_SWING;
+      remote_state |= COMMAND_BASIC_SWING;
     }
   } else {
     bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
@@ -138,8 +147,8 @@ void LgIrClimate::transmit_state() {
         break;
       case climate::CLIMATE_MODE_OFF:
       default:
-        remote_state |= COMMAND_SYS;
-        remote_state |= FAN_AUTO;
+        remote_state |= COMMAND_SYS::HEADER_SYS;
+        remote_state |= COMMAND_SYS::OFF;
         this->transmit_(remote_state);
         this->publish_state();
         return;
@@ -202,33 +211,29 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // Get command
-  if ((remote_state & COMMAND_MASK) == COMMAND_SYS) {
-    if ((remote_state & 0xFF0) == FAN_AUTO) {  // Probably just coincidence
-      this->mode = climate::CLIMATE_MODE_OFF;
-    } else {
-      ESP_LOGD(TAG, "Got advanced system command! With data: 0x%02" PRIX32 " Ignoring.", remote_state & 0xFF0);
-      return false;
-    }
-  } else if ((remote_state & COMMAND_MASK) == COMMAND_SWING) {
-    this->swing_mode =
-        this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
-  } else if ((remote_state & COMMAND_MASK) == COMMAND_ADV_SWING) {
-    ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & COMMAND_ADV_SWING_DATA_MASK);
-    switch (remote_state & COMMAND_ADV_SWING_DATA_MASK) {
-      case COMMAND_ADV_VERT_SWING_ON:
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  if ((remote_state & COMMAND_MASK) == COMMAND_SYS::HEADER_SYS) {
+    ESP_LOGD(TAG, "Got system command! With data: 0x%02" PRIX32, remote_state & COMMAND_DATA_MASK);
+    switch (remote_state & COMMAND_DATA_MASK) {
+      case COMMAND_SYS::OFF &COMMAND_DATA_MASK:
+        this->mode = climate::CLIMATE_MODE_OFF;
         break;
-      case COMMAND_ADV_HORI_SWING_ON_LEFT:
-      case COMMAND_ADV_HORI_SWING_ON_RIGHT:
-      case COMMAND_ADV_HORI_SWING_ON_FULL:
-      case COMMAND_ADV_HORI_SWING_OFF:
-      case COMMAND_ADV_HORI_FIX_1:
-      case COMMAND_ADV_HORI_FIX_2:
-      case COMMAND_ADV_HORI_FIX_3:
-      case COMMAND_ADV_HORI_FIX_4:
-      case COMMAND_ADV_HORI_FIX_5:
-        // Ignore horizontal swing decoding for now.
-        // this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      default:
+        return false;
+    }
+  } else if ((remote_state & COMMAND_MASK) == COMMAND_BASIC_SWING) {
+    if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == (COMMAND_BASIC_JET & COMMAND_DATA_MASK)) {
+      ESP_LOGD(TAG, "Got jet command command! Ignoring");
+      return false;
+    } else if (this->swing_mode == climate::CLIMATE_SWING_OFF) {
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+    } else {
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+    }
+  } else if ((remote_state & COMMAND_MASK) == COMMAND_ADV_SWING::HEADER_ADV_SWING) {
+    ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & COMMAND_ADV_SWING::DATA_MASK);
+    switch (remote_state & COMMAND_ADV_SWING::DATA_MASK) {
+      case COMMAND_ADV_SWING::VERT_SWING_ON:
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
         break;
       default:
         this->swing_mode = climate::CLIMATE_SWING_OFF;
