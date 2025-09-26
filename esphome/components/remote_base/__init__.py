@@ -1385,8 +1385,11 @@ async def rc6_action(var, config, args):
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
 
+
 # RC6Nbits
-RC6NbitsData, RC6NbitsBinarySensor, RC6NbitsTrigger, RC6NbitsAction, RC6NbitsDumper = declare_protocol("RC6Nbits")
+RC6NbitsData, RC6NbitsBinarySensor, RC6NbitsTrigger, RC6NbitsAction, RC6NbitsDumper = (
+    declare_protocol("RC6Nbits")
+)
 RC6NBITS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NBITS): cv.hex_uint8_t,

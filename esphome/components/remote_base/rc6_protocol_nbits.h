@@ -32,7 +32,6 @@ template<typename... Ts> class RC6NbitsAction : public RemoteTransmitterActionBa
     data.code = this->code_.value(x...);
     RC6NbitsProtocol().encode(dst, data);
   }
-
 };
 
 }  // namespace remote_base

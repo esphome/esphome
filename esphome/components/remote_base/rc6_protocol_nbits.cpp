@@ -26,19 +26,18 @@ void RC6NbitsProtocol::encode(RemoteTransmitData *dst, const RC6NbitsData &data)
   int i = 1;
   int32_t next = 0;
 
-  for (uint64_t mask = 1ULL << (data.nbits - 1) ; mask; i++, mask >>= 1) {
-      uint16_t bit_time = (i == 4) ? 2 * RC6NBITS_UNIT : RC6NBITS_UNIT; // traditionally, toggle bit
-      if (data.code & mask) {
-        dst->mark(bit_time);
-        dst->space(bit_time);
-      } else {
-        dst->space(bit_time);
-        dst->mark(bit_time);
-      }
+  for (uint64_t mask = 1ULL << (data.nbits - 1); mask; i++, mask >>= 1) {
+    uint16_t bit_time = (i == 4) ? 2 * RC6NBITS_UNIT : RC6NBITS_UNIT;  // traditionally, toggle bit
+    if (data.code & mask) {
+      dst->mark(bit_time);
+      dst->space(bit_time);
+    } else {
+      dst->space(bit_time);
+      dst->mark(bit_time);
+    }
   }
 
   dst->space(RC6NBITS_FOOTER_SPACE);
-
 }
 
 optional<RC6NbitsData> RC6NbitsProtocol::decode(RemoteReceiveData src) {
@@ -66,15 +65,15 @@ optional<RC6NbitsData> RC6NbitsProtocol::decode(RemoteReceiveData src) {
   uint64_t buffer{0};
 
   while (offset < 64) {
-    if (src.get_index() == src.size() -1)
+    if (src.get_index() == src.size() - 1)
       break;
     bit = src.peek() > 0;
     buffer = (buffer << 1) | bit;
     src.advance();
-    offset ++;
+    offset++;
 
-    uint16_t bit_time = (offset == 4) ? RC6NBITS_UNIT * 2: RC6NBITS_UNIT;
-    uint16_t next_bit_time = (offset == 3) ? RC6NBITS_UNIT * 2: RC6NBITS_UNIT;
+    uint16_t bit_time = (offset == 4) ? RC6NBITS_UNIT * 2 : RC6NBITS_UNIT;
+    uint16_t next_bit_time = (offset == 3) ? RC6NBITS_UNIT * 2 : RC6NBITS_UNIT;
 
     if (src.get_index() == src.size() - 1)
       break;
