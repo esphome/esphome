@@ -1,4 +1,5 @@
 #include "zwave_proxy.h"
+#include "esphome/components/api/api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -102,9 +103,9 @@ void ZWaveProxy::process_uart_() {
         if (this->set_home_id(&this->buffer_[4])) {
           api::ZWaveProxyRequest msg;
           msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
-          msg.data = std::string(reinterpret_cast<const char *>(this->home_id_.data()), this->home_id_.size());
-          if (this->api_connection_ != nullptr) {
-            this->api_connection_->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+          msg.set_data(this->home_id_.data(), this->home_id_.size());
+          if (api::global_api_server != nullptr) {
+            api::global_api_server->on_zwave_proxy_request(msg);
           }
         }
       }
