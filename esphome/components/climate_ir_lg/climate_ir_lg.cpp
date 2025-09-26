@@ -17,7 +17,7 @@ const uint32_t COMMAND_BASIC_SWING = 0x10000;  // ON/OFF swing
 // After 30 minutes: F5 aka FAN_MAX + min/min/max temperature respectively
 const uint32_t COMMAND_BASIC_JET = 0x10089;
 
-enum COMMAND_SYS : uint32_t {
+enum CommandSys : uint32_t {
   HEADER_SYS = 0xC0000,
 
   OFF = 0x050,
@@ -42,7 +42,7 @@ enum COMMAND_SYS : uint32_t {
   LIGHT_ON_OFF = 0x0A0,
 };
 
-enum COMMAND_ADV_SWING : uint32_t {
+enum CommandAdvSwing : uint32_t {
   HEADER_ADV_SWING = 0x13000,
 
   // Only 5 bits are relevant, I got 0x13952 once - not sure what is the 8th bit so ignoring that.
@@ -110,13 +110,13 @@ void LgIrClimate::transmit_state() {
       switch (this->swing_mode) {
         case climate::CLIMATE_SWING_VERTICAL:
           ESP_LOGD(TAG, "setting swing vertical");
-          remote_state |= COMMAND_ADV_SWING::HEADER_ADV_SWING;
-          remote_state |= COMMAND_ADV_SWING::VERT_SWING_ON;
+          remote_state |= CommandAdvSwing::HEADER_ADV_SWING;
+          remote_state |= CommandAdvSwing::VERT_SWING_ON;
           break;
         case climate::CLIMATE_SWING_OFF:
           ESP_LOGD(TAG, "setting swing off");
-          remote_state |= COMMAND_ADV_SWING::HEADER_ADV_SWING;
-          remote_state |= COMMAND_ADV_SWING::VERT_FIX_3;
+          remote_state |= CommandAdvSwing::HEADER_ADV_SWING;
+          remote_state |= CommandAdvSwing::VERT_FIX_3;
           break;
         default:
           return;  // Supress clang error, this integration only supports OFF and VERTICAL, this will never be reached
@@ -147,8 +147,8 @@ void LgIrClimate::transmit_state() {
         break;
       case climate::CLIMATE_MODE_OFF:
       default:
-        remote_state |= COMMAND_SYS::HEADER_SYS;
-        remote_state |= COMMAND_SYS::OFF;
+        remote_state |= CommandSys::HEADER_SYS;
+        remote_state |= CommandSys::OFF;
         this->transmit_(remote_state);
         this->publish_state();
         return;
@@ -211,10 +211,10 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // Get command
-  if ((remote_state & COMMAND_MASK) == COMMAND_SYS::HEADER_SYS) {
+  if ((remote_state & COMMAND_MASK) == CommandSys::HEADER_SYS) {
     ESP_LOGD(TAG, "Got system command! With data: 0x%02" PRIX32, remote_state & COMMAND_DATA_MASK);
     switch (remote_state & COMMAND_DATA_MASK) {
-      case COMMAND_SYS::OFF &COMMAND_DATA_MASK:
+      case CommandSys::OFF &COMMAND_DATA_MASK:
         this->mode = climate::CLIMATE_MODE_OFF;
         break;
       default:
@@ -229,10 +229,10 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     } else {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     }
-  } else if ((remote_state & COMMAND_MASK) == COMMAND_ADV_SWING::HEADER_ADV_SWING) {
-    ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & COMMAND_ADV_SWING::DATA_MASK);
-    switch (remote_state & COMMAND_ADV_SWING::DATA_MASK) {
-      case COMMAND_ADV_SWING::VERT_SWING_ON:
+  } else if ((remote_state & COMMAND_MASK) == CommandAdvSwing::HEADER_ADV_SWING) {
+    ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & CommandAdvSwing::DATA_MASK);
+    switch (remote_state & CommandAdvSwing::DATA_MASK) {
+      case CommandAdvSwing::VERT_SWING_ON:
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
         break;
       default:
