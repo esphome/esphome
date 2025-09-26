@@ -2972,18 +2972,13 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
 class ZWaveProxyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 129;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_request"; }
 #endif
   enums::ZWaveProxyRequestType type{};
-  std::string data{};
-  const uint8_t *data_ptr_{nullptr};
-  size_t data_len_{0};
-  void set_data(const uint8_t *data, size_t len) {
-    this->data_ptr_ = data;
-    this->data_len_ = len;
-  }
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

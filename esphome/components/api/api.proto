@@ -2318,5 +2318,5 @@ message ZWaveProxyRequest {
   option (ifdef) = "USE_ZWAVE_PROXY";
 
   ZWaveProxyRequestType type = 1;
-  bytes data = 2;
+  bytes data = 2 [(pointer_to_buffer) = true];
 }

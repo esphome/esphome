@@ -2164,11 +2164,7 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
   out.append("  data: ");
-  if (this->data_ptr_ != nullptr) {
-    out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  } else {
-    out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
-  }
+  out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
 }
 #endif
