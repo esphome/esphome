@@ -69,6 +69,16 @@ template<typename EvtType, typename... Args> class EventEmitter {
     std::vector<Listener> listeners;
   };
 
+  EventEmitterListenerID get_next_id_() {
+    // Simple incrementing ID, wrapping around at max
+    EventEmitterListenerID next_id = (this->current_id_ + 1);
+    if (next_id == INVALID_LISTENER_ID) {
+      next_id = 1;
+    }
+    this->current_id_ = next_id;
+    return this->current_id_;
+  }
+
   EventEntry *find_event_(EvtType event) {
     for (auto &entry : this->events_) {
       if (entry.event == event) {
@@ -97,16 +107,6 @@ template<typename EvtType, typename... Args> class EventEmitter {
         return;
       }
     }
-  }
-
-  EventEmitterListenerID get_next_id_() {
-    // Simple incrementing ID, wrapping around at max
-    EventEmitterListenerID next_id = (this->current_id_ + 1);
-    if (next_id == 0) {  // Skip 0 as it's often used as "invalid"
-      next_id = 1;
-    }
-    this->current_id_ = next_id;
-    return this->current_id_;
   }
 
   std::vector<EventEntry> events_;
