@@ -538,6 +538,7 @@ class DashboardSubscriber:
         """Initialize the dashboard subscriber."""
         self._subscribers: set[DashboardEventsWebSocket] = set()
         self._event_loop_task: asyncio.Task | None = None
+        self._refresh_event: asyncio.Event = asyncio.Event()
 
     def subscribe(self, subscriber: DashboardEventsWebSocket) -> Callable[[], None]:
         """Subscribe to dashboard updates and start event loop if needed."""
@@ -559,6 +560,10 @@ class DashboardSubscriber:
             self._event_loop_task = None
             _LOGGER.info("Stopped dashboard event loop - no subscribers")
 
+    def request_refresh(self) -> None:
+        """Signal the polling loop to refresh immediately."""
+        self._refresh_event.set()
+
     async def _event_loop(self) -> None:
         """Run the event polling loop while there are subscribers."""
         dashboard = DASHBOARD
@@ -570,13 +575,25 @@ class DashboardSubscriber:
             if settings.status_use_mqtt:
                 dashboard.mqtt_ping_request.set()
 
-            # Check if it's time to update entries (every DASHBOARD_ENTRIES_UPDATE_ITERATIONS)
+            # Check if it's time to update entries or if refresh was requested
             entries_update_counter += 1
-            if entries_update_counter >= DASHBOARD_ENTRIES_UPDATE_ITERATIONS:
+            if (
+                entries_update_counter >= DASHBOARD_ENTRIES_UPDATE_ITERATIONS
+                or self._refresh_event.is_set()
+            ):
                 entries_update_counter = 0
                 await dashboard.entries.async_request_update_entries()
+                # Clear the refresh event if it was set
+                self._refresh_event.clear()
 
-            await asyncio.sleep(DASHBOARD_POLL_INTERVAL)
+            # Wait for either timeout or refresh event
+            try:
+                async with asyncio.timeout(DASHBOARD_POLL_INTERVAL):
+                    await self._refresh_event.wait()
+                    # If we get here, refresh was requested - continue loop immediately
+            except TimeoutError:
+                # Normal timeout - continue with regular polling
+                pass
 
 
 # Global dashboard subscriber instance
@@ -724,6 +741,10 @@ class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
             # Send pong response for client ping
             _LOGGER.debug("Received client ping, sending pong")
             self._safe_send_message({"event": DashboardEvent.PONG})
+        elif event == DashboardEvent.REFRESH:
+            # Signal the polling loop to refresh immediately
+            _LOGGER.debug("Received refresh request, signaling polling loop")
+            DASHBOARD_SUBSCRIBER.request_refresh()
 
     def on_close(self) -> None:
         """Handle WebSocket close."""

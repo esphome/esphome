@@ -7,7 +7,7 @@ import gzip
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 import pytest_asyncio
@@ -1232,3 +1232,73 @@ async def test_dashboard_subscriber_entries_update_interval(
         assert mock_dashboard.entries.async_request_update_entries.call_count >= 1
         # Verify ping request was set multiple times
         assert mock_dashboard.ping_request.set.call_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_websocket_refresh_command(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket refresh command triggers dashboard update."""
+    with patch("esphome.dashboard.web_server.DASHBOARD_SUBSCRIBER") as mock_subscriber:
+        mock_subscriber.request_refresh = Mock()
+
+        # Send refresh command
+        await websocket_client.write_message(json.dumps({"event": "refresh"}))
+
+        # Give it a moment to process
+        await asyncio.sleep(0.01)
+
+        # Verify request_refresh was called
+        mock_subscriber.request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_subscriber_refresh_event(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test DashboardSubscriber refresh event triggers immediate update."""
+    # Patch the constants to make the test run faster
+    with (
+        patch(
+            "esphome.dashboard.web_server.DASHBOARD_POLL_INTERVAL", 1.0
+        ),  # Long timeout
+        patch(
+            "esphome.dashboard.web_server.DASHBOARD_ENTRIES_UPDATE_ITERATIONS", 100
+        ),  # Won't reach naturally
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.status_use_mqtt = False
+
+        # Mock dashboard dependencies
+        mock_dashboard.ping_request = Mock()
+        mock_dashboard.ping_request.set = Mock()
+        mock_dashboard.entries = Mock()
+        mock_dashboard.entries.async_request_update_entries = AsyncMock()
+
+        subscriber = DashboardSubscriber()
+        mock_websocket = Mock()
+
+        # Subscribe to start the event loop
+        unsubscribe = subscriber.subscribe(mock_websocket)
+
+        # Wait a bit to ensure loop is running
+        await asyncio.sleep(0.01)
+
+        # Verify entries update hasn't been called yet (iterations not reached)
+        assert mock_dashboard.entries.async_request_update_entries.call_count == 0
+
+        # Request refresh
+        subscriber.request_refresh()
+
+        # Wait for the refresh to be processed
+        await asyncio.sleep(0.01)
+
+        # Now entries update should have been called
+        assert mock_dashboard.entries.async_request_update_entries.call_count == 1
+
+        # Unsubscribe to stop the task
+        unsubscribe()
+
+        # Give it a moment to clean up
+        await asyncio.sleep(0.01)
