@@ -731,11 +731,11 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
-def command_clean_platform(args: ArgsProtocol, config: ConfigType) -> int | None:
+def command_clean_all(args: ArgsProtocol) -> int | None:
     try:
-        writer.clean_platform()
+        writer.clean_all(args.configuration)
     except OSError as err:
-        _LOGGER.error("Error deleting platform files: %s", err)
+        _LOGGER.error("Error cleaning all files: %s", err)
         return 1
     _LOGGER.info("Done!")
     return 0
@@ -931,6 +931,7 @@ PRE_CONFIG_ACTIONS = {
     "dashboard": command_dashboard,
     "vscode": command_vscode,
     "update-all": command_update_all,
+    "clean-all": command_clean_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -941,7 +942,6 @@ POST_CONFIG_ACTIONS = {
     "run": command_run,
     "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
-    "clean-platform": command_clean_platform,
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "idedata": command_idedata,
     "rename": command_rename,
@@ -951,7 +951,6 @@ POST_CONFIG_ACTIONS = {
 SIMPLE_CONFIG_ACTIONS = [
     "clean",
     "clean-mqtt",
-    "clean-platform",
     "config",
 ]
 
@@ -1156,11 +1155,9 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
-    parser_clean = subparsers.add_parser(
-        "clean-platform", help="Delete all platform files."
-    )
-    parser_clean.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    parser_clean_all = subparsers.add_parser("clean-all", help="Clean all files.")
+    parser_clean_all.add_argument(
+        "configuration", help="Your YAML configuration directory.", nargs="*"
     )
 
     parser_dashboard = subparsers.add_parser(
@@ -1209,7 +1206,7 @@ def parse_args(argv):
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directories.", nargs="+"
+        "configuration", help="Your YAML configuration file or directory.", nargs="+"
     )
 
     parser_idedata = subparsers.add_parser("idedata")

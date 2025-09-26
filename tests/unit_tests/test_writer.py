@@ -738,16 +738,24 @@ def test_write_cpp_with_duplicate_markers(
 
 
 @patch("esphome.writer.CORE")
-def test_clean_platform(
+def test_clean_all(
     mock_core: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_platform removes build and PlatformIO dirs."""
-    # Create build directory
-    build_dir = tmp_path / "build"
-    build_dir.mkdir()
-    (build_dir / "dummy.txt").write_text("x")
+    """Test clean_all removes build and PlatformIO dirs."""
+    # Create build directories for multiple configurations
+    config1_dir = tmp_path / "config1"
+    config2_dir = tmp_path / "config2"
+    config1_dir.mkdir()
+    config2_dir.mkdir()
+
+    build_dir1 = config1_dir / ".esphome"
+    build_dir2 = config2_dir / ".esphome"
+    build_dir1.mkdir()
+    build_dir2.mkdir()
+    (build_dir1 / "dummy.txt").write_text("x")
+    (build_dir2 / "dummy.txt").write_text("x")
 
     # Create PlatformIO directories
     pio_cache = tmp_path / "pio_cache"
@@ -757,9 +765,6 @@ def test_clean_platform(
     for d in (pio_cache, pio_packages, pio_platforms, pio_core):
         d.mkdir()
         (d / "keep").write_text("x")
-
-    # Setup CORE
-    mock_core.build_path = build_dir
 
     # Mock ProjectConfig
     with patch(
@@ -780,13 +785,14 @@ def test_clean_platform(
         mock_config.get.side_effect = cfg_get
 
         # Call
-        from esphome.writer import clean_platform
+        from esphome.writer import clean_all
 
         with caplog.at_level("INFO"):
-            clean_platform()
+            clean_all([str(config1_dir), str(config2_dir)])
 
     # Verify deletions
-    assert not build_dir.exists()
+    assert not build_dir1.exists()
+    assert not build_dir2.exists()
     assert not pio_cache.exists()
     assert not pio_packages.exists()
     assert not pio_platforms.exists()
@@ -794,7 +800,8 @@ def test_clean_platform(
 
     # Verify logging mentions each
     assert "Deleting" in caplog.text
-    assert str(build_dir) in caplog.text
+    assert str(build_dir1) in caplog.text
+    assert str(build_dir2) in caplog.text
     assert "PlatformIO cache" in caplog.text
     assert "PlatformIO packages" in caplog.text
     assert "PlatformIO platforms" in caplog.text
@@ -802,28 +809,29 @@ def test_clean_platform(
 
 
 @patch("esphome.writer.CORE")
-def test_clean_platform_platformio_not_available(
+def test_clean_all_platformio_not_available(
     mock_core: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_platform when PlatformIO is not available."""
-    # Build dir
-    build_dir = tmp_path / "build"
+    """Test clean_all when PlatformIO is not available."""
+    # Build dirs
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    build_dir = config_dir / ".esphome"
     build_dir.mkdir()
-    mock_core.build_path = build_dir
 
     # PlatformIO dirs that should remain untouched
     pio_cache = tmp_path / "pio_cache"
     pio_cache.mkdir()
 
-    from esphome.writer import clean_platform
+    from esphome.writer import clean_all
 
     with (
         patch.dict("sys.modules", {"platformio.project.config": None}),
         caplog.at_level("INFO"),
     ):
-        clean_platform()
+        clean_all([str(config_dir)])
 
     # Build dir removed, PlatformIO dirs remain
     assert not build_dir.exists()
@@ -834,14 +842,15 @@ def test_clean_platform_platformio_not_available(
 
 
 @patch("esphome.writer.CORE")
-def test_clean_platform_partial_exists(
+def test_clean_all_partial_exists(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test clean_platform when only build dir exists."""
-    build_dir = tmp_path / "build"
+    """Test clean_all when only some build dirs exist."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    build_dir = config_dir / ".esphome"
     build_dir.mkdir()
-    mock_core.build_path = build_dir
 
     with patch(
         "platformio.project.config.ProjectConfig.get_instance"
@@ -853,8 +862,8 @@ def test_clean_platform_partial_exists(
             tmp_path / "does_not_exist"
         )
 
-        from esphome.writer import clean_platform
+        from esphome.writer import clean_all
 
-        clean_platform()
+        clean_all([str(config_dir)])
 
     assert not build_dir.exists()
