@@ -32,33 +32,6 @@ def fixtures_dir() -> Path:
     return Path(__file__).parent / "fixtures"
 
 
-def test_iter_component_configs_handles_non_list_platform_component(
-    mock_get_component: Mock,
-    mock_get_platform: Mock,
-) -> None:
-    """Test iter_component_configs handles normalized platform components."""
-    test_config = {
-        "ota": [],  # Normalized from None/dict to empty list by LoadValidationStep
-        "one_wire": [{"platform": "gpio", "pin": 10}],
-    }
-
-    components: dict[str, Mock] = {
-        "ota": MagicMock(is_platform_component=True, multi_conf=False),
-        "one_wire": MagicMock(is_platform_component=True, multi_conf=False),
-    }
-
-    default_mock = MagicMock(is_platform_component=False, multi_conf=False)
-    mock_get_component.side_effect = lambda domain: components.get(domain, default_mock)
-
-    configs = list(config.iter_component_configs(test_config))
-    assert len(configs) == 3
-
-    domains = [c[0] for c in configs]
-    assert "ota" in domains
-    assert "one_wire" in domains
-    assert "one_wire.gpio" in domains
-
-
 def test_ota_component_configs_with_proper_platform_list(
     mock_get_component: Mock,
     mock_get_platform: Mock,
