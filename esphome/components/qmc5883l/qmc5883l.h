@@ -3,9 +3,12 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/logger/logger.h"
 
 namespace esphome {
 namespace qmc5883l {
+
 
 enum QMC5883LDatarate {
   QMC5883L_DATARATE_10_HZ = 0b00,
@@ -32,6 +35,9 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+  void loop() override;
+
+  void set_drdy_pin(GPIOPin *pin) { drdy_pin_ = pin; }
 
   void set_datarate(QMC5883LDatarate datarate) { datarate_ = datarate; }
   void set_range(QMC5883LRange range) { range_ = range; }
@@ -42,7 +48,11 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   void set_heading_sensor(sensor::Sensor *heading_sensor) { heading_sensor_ = heading_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
 
+  uint8_t get_datarate_hz();
+
  protected:
+  void read_data();
+  uint32_t get_update_ms();
   QMC5883LDatarate datarate_{QMC5883L_DATARATE_10_HZ};
   QMC5883LRange range_{QMC5883L_RANGE_200_UT};
   QMC5883LOversampling oversampling_{QMC5883L_SAMPLING_512};
@@ -51,6 +61,7 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *heading_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
+  GPIOPin * drdy_pin_{nullptr};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,

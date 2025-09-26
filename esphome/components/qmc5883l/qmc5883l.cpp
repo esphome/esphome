@@ -8,6 +8,7 @@ namespace esphome {
 namespace qmc5883l {
 
 static const char *const TAG = "qmc5883l";
+
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
 static const uint8_t QMC5883L_REGISTER_DATA_X_LSB = 0x00;
@@ -24,6 +25,7 @@ static const uint8_t QMC5883L_REGISTER_CONTROL_2 = 0x0A;
 static const uint8_t QMC5883L_REGISTER_PERIOD = 0x0B;
 
 void QMC5883LComponent::setup() {
+
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -31,6 +33,9 @@ void QMC5883LComponent::setup() {
     return;
   }
   delay(10);
+
+  if(this->drdy_pin_ != nullptr)
+    this->drdy_pin_->setup();
 
   uint8_t control_1 = 0;
   control_1 |= 0b01 << 0;  // MODE (Mode) -> 0b00=standby, 0b01=continuous
@@ -60,12 +65,45 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  if (this->get_update_interval() < App.get_loop_interval()) {
+  uint32_t updateMS = this->get_update_ms();
+  uint32_t loopInt  = App.get_loop_interval();
+  bool     bHF;
+  
+  if((bHF = updateMS < loopInt) == true)
     high_freq_.start();
+  
+  ESP_LOGW(
+    TAG,
+    "interval = %lu | loop_interval = %lu | hf = %s",
+    updateMS,
+    loopInt,
+    (bHF ? "true" : "false")
+  );
+}
+
+void QMC5883LComponent::loop()
+{
+  // Changed ORIGINAL update() to read_data().
+  //
+  // If DRDY Pin is Defined AND Signalled, Read Data; Otherwise, Handle in update()!
+  if(this->drdy_pin_ != nullptr)
+  {
+    if(this->drdy_pin_->digital_read())
+    {
+      this->read_data();
+    }
   }
 }
+
 void QMC5883LComponent::dump_config() {
+
+  // Save Current Log Level for Component (NOTE: Causes COMPILE WARNING).
+  uint8_t logLevelOld = esphome::logger::global_logger->level_for(TAG);
+  // Set to DEBUG to FORCE Printing of Component Config.
+  esphome::logger::global_logger->set_log_level(TAG, 5);
+
   ESP_LOGCONFIG(TAG, "QMC5883L:");
+  ESP_LOGCONFIG(TAG, "  Component Log Level: %d", logLevelOld);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -77,9 +115,29 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
+  ESP_LOGCONFIG(TAG, "  Datarate (Hz): %d", this->get_datarate_hz());
+
+  // Restore Original Log Level
+  esphome::logger::global_logger->set_log_level(TAG, logLevelOld);
 }
+
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
-void QMC5883LComponent::update() {
+
+void QMC5883LComponent::update()
+{
+  // Changed ORIGINAL update() to read_data().
+  //
+  // If NO DRDY Pin is Defined, Read Data on update() Call; Otherwise, Handle in loop()!
+  if(this->drdy_pin_ == nullptr)
+  {
+    this->read_data();
+  }
+
+  return;
+}
+
+void QMC5883LComponent::read_data() {
   i2c::ErrorCode err;
   uint8_t status = false;
   // Status byte gets cleared when data is read, so we have to read this first.
@@ -169,6 +227,36 @@ i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t
     data[i] = convert_little_endian(data[i]);
   return err;
 }
+
+uint8_t QMC5883LComponent::get_datarate_hz()
+{
+  switch(this->datarate_)
+  {
+    case 0b00:
+      return(10);
+    case 0b01:
+      return(50);
+    case 0b10:
+      return(100);
+    case 0b11:
+      return(200);
+  }
+
+  return(0);
+}
+
+uint32_t QMC5883LComponent::get_update_ms()
+{
+  uint32_t  result        = 0;
+  
+  if(this->drdy_pin_ == nullptr)
+    result  = this->get_update_interval();
+  else
+    result  = static_cast<uint32_t>(1000.0f * (1.0f / static_cast<float>(this->get_datarate_hz())));
+
+  return(result);
+}
+
 
 }  // namespace qmc5883l
 }  // namespace esphome
