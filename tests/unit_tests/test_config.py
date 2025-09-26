@@ -32,33 +32,11 @@ def fixtures_dir() -> Path:
     return Path(__file__).parent / "fixtures"
 
 
-def test_iter_components_handles_non_list_platform_component(
-    mock_get_component: Mock,
-) -> None:
-    """Test that iter_components handles platform components that have been normalized to empty list."""
-    test_config = {
-        "ota": [],  # Normalized from None/dict to empty list by LoadValidationStep
-        "wifi": {"ssid": "test"},
-    }
-
-    components = {
-        "ota": MagicMock(is_platform_component=True),
-        "wifi": MagicMock(is_platform_component=False),
-    }
-
-    mock_get_component.side_effect = lambda domain: components.get(
-        domain, MagicMock(is_platform_component=False)
-    )
-
-    components_list = list(config.iter_components(test_config))
-    assert len(components_list) == 2  # ota and wifi (ota has no platforms)
-
-
 def test_iter_component_configs_handles_non_list_platform_component(
     mock_get_component: Mock,
     mock_get_platform: Mock,
 ) -> None:
-    """Test that iter_component_configs handles platform components that have been normalized."""
+    """Test iter_component_configs handles normalized platform components."""
     test_config = {
         "ota": [],  # Normalized from None/dict to empty list by LoadValidationStep
         "one_wire": [{"platform": "gpio", "pin": 10}],
@@ -81,57 +59,11 @@ def test_iter_component_configs_handles_non_list_platform_component(
     assert "one_wire.gpio" in domains
 
 
-def test_iter_components_with_valid_platform_list(
-    mock_get_component: Mock,
-    mock_get_platform: Mock,
-) -> None:
-    """Test that iter_components works correctly with valid platform component list."""
-    mock_component = MagicMock()
-    mock_component.is_platform_component = True
-
-    test_config = {
-        "sensor": [
-            {"platform": "dht", "pin": 5},
-            {"platform": "bme280", "address": 0x76},
-        ],
-    }
-
-    mock_get_component.return_value = mock_component
-
-    components = list(config.iter_components(test_config))
-    assert len(components) == 3
-
-    domains = [c[0] for c in components]
-    assert "sensor" in domains
-    assert "sensor.dht" in domains
-    assert "sensor.bme280" in domains
-
-
-def test_ota_with_proper_platform_list(
-    mock_get_component: Mock,
-    mock_get_platform: Mock,
-) -> None:
-    """Test that OTA component works correctly when configured as a list with platforms."""
-    test_config = {
-        "ota": [
-            {"platform": "esphome", "password": "test123"},
-        ],
-    }
-
-    mock_get_component.return_value = MagicMock(is_platform_component=True)
-    components = list(config.iter_components(test_config))
-
-    assert len(components) == 2
-    domains = [c[0] for c in components]
-    assert "ota" in domains
-    assert "ota.esphome" in domains
-
-
 def test_ota_component_configs_with_proper_platform_list(
     mock_get_component: Mock,
     mock_get_platform: Mock,
 ) -> None:
-    """Test that iter_component_configs handles OTA properly configured as a list."""
+    """Test iter_component_configs handles OTA properly configured as a list."""
     test_config = {
         "ota": [
             {"platform": "esphome", "password": "test123", "id": "my_ota"},
