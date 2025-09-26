@@ -914,16 +914,12 @@ async def test_websocket_authentication_required(
     ) as mock_is_authenticated:
         mock_is_authenticated.return_value = False
 
-        # Try to connect - should be rejected
+        # Try to connect - should be rejected with 401
         url = f"ws://127.0.0.1:{dashboard.port}/events"
-        try:
-            ws = await websocket_connect(url)
-            # Connection should close immediately
-            msg = await ws.read_message()
-            assert msg is None  # Connection closed
-        except Exception:
-            # Connection may fail immediately, which is also expected
-            pass
+        with pytest.raises(HTTPClientError) as exc_info:
+            await websocket_connect(url)
+        # Should get HTTP 401 Unauthorized
+        assert exc_info.value.code == 401
 
 
 @pytest.mark.asyncio
