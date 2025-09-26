@@ -318,13 +318,14 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(3, 3, 1),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 1): cv.Version(55, 3, 31),
+    cv.Version(3, 3, 0): cv.Version(55, 3, 31),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(3, 2, 0): cv.Version(54, 3, 21, "2"),
     cv.Version(3, 1, 3): cv.Version(53, 3, 13),
     cv.Version(3, 1, 2): cv.Version(53, 3, 13),
     cv.Version(3, 1, 1): cv.Version(53, 3, 13),
     cv.Version(3, 1, 0): cv.Version(53, 3, 13),
-    cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
 }
 
 # The default/recommended esp-idf framework version
@@ -335,13 +336,16 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 1),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 1): cv.Version(55, 3, 31),
+    cv.Version(5, 5, 0): cv.Version(55, 3, 31),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 3, 2): cv.Version(53, 3, 13),
     cv.Version(5, 3, 1): cv.Version(53, 3, 13),
     cv.Version(5, 3, 0): cv.Version(53, 3, 13),
-    cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
+    cv.Version(5, 1, 6): cv.Version(51, 3, 7),
+    cv.Version(5, 1, 5): cv.Version(51, 3, 7),
 }
 
 # The platform-espressif32 version
