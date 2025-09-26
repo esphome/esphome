@@ -38,8 +38,10 @@ class OpenTherm : public OpenThermBase {
   rmt_encoder_handle_t tx_encoder_{};
   // RX buffer for one OpenTherm frame
   // One OpenTherm frame contains 34 Manchester symbols (start + 32 data + stop) and we
-  // allow a little slack for diagnostic captures.
-  static constexpr size_t RMT_SYMBOL_CAPACITY = 40;
+  // allow a little slack for diagnostic captures. Current ESP32 variants have 48 or 64
+  // words per buffer which is more than enough.
+  static constexpr size_t RMT_SYMBOL_CAPACITY = SOC_RMT_MEM_WORDS_PER_CHANNEL;
+  static_assert(RMT_SYMBOL_CAPACITY >= 40, "RMT RX buffer is too small on this ESP32 variant");
   rmt_symbol_word_t rmt_buffer_[RMT_SYMBOL_CAPACITY]{};
   size_t rmt_buffer_symbol_count_{};
   // RMT clock resolution in Hz (1 MHz => 1 tick == 1 us)
