@@ -4,6 +4,7 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_DATA_RATE,
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
@@ -13,7 +14,6 @@ from esphome.const import (
     CONF_RANGE,
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
-    CONF_DATA_RATE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_SCREEN_ROTATION,
@@ -57,20 +57,19 @@ QMC5883LOversamplings = {
 
 
 def validate_config(config):
-
     valErrors = []
 
     # "never" is Translated to uint32_t MAX (4294967295)
-    if(config[CONF_UPDATE_INTERVAL] in  [4294967295, "never"]):
-        if(not(CONF_DRDY_PIN in config)):
-            valErrors.append("\"drdy_pin\" REQUIRED for update_interval of \"never\"")
-        if(config[CONF_DATA_RATE] is None):
-            valErrors.append("\"data_rate\" REQUIRED for update_interval of \"never\"")
-    
-    if(len(valErrors) > 0):
+    if config[CONF_UPDATE_INTERVAL] in [4294967295, "never"]:
+        if CONF_DRDY_PIN not in config:
+            valErrors.append('"drdy_pin" REQUIRED for update_interval of "never"')
+        if config[CONF_DATA_RATE] is None:
+            valErrors.append('"data_rate" REQUIRED for update_interval of "never"')
+
+    if len(valErrors) > 0:
         raise cv.Invalid("\n".join(valErrors))
 
-    return(config)
+    return config
 
 
 def validate_enum(enum_values, units=None, int=True):
@@ -129,12 +128,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DATA_RATE, default=None): cv.Any(
                 validate_enum(QMC5883LDatarates, units=["hz", "Hz"]),
                 None,
-            )
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x0D)),
-    validate_config
+    validate_config,
 )
 
 
@@ -152,7 +151,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
-    if(CONF_DRDY_PIN in config):
+    if CONF_DRDY_PIN in config:
         cg.add(var.set_datarate(config[CONF_DATA_RATE]))
     else:
         cg.add(var.set_datarate(auto_data_rate(config)))

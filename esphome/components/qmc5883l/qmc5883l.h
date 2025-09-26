@@ -9,7 +9,6 @@
 namespace esphome {
 namespace qmc5883l {
 
-
 enum QMC5883LDatarate {
   QMC5883L_DATARATE_10_HZ = 0b00,
   QMC5883L_DATARATE_50_HZ = 0b01,
@@ -61,7 +60,7 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *heading_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
-  GPIOPin * drdy_pin_{nullptr};
+  GPIOPin *drdy_pin_{nullptr};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
