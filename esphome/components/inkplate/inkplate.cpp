@@ -224,10 +224,8 @@ void Inkplate::initialize_() {
 float Inkplate::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 size_t Inkplate::get_buffer_length_() {
-  if (this->model_ == INKPLATE_6_COLOR) {
-    // COLOR model uses 4-bit per pixel (2 pixels per byte)
-    return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 2u;
-  } else if (this->greyscale_) {
+  if (this->model_ == INKPLATE_6_COLOR || this->greyscale_) {
+    // COLOR model and greyscale both use 4-bit per pixel (2 pixels per byte)
     return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 2u;
   } else {
     return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
@@ -524,6 +522,9 @@ void Inkplate::display1b_() {
       clean_fast_(0, 11);
       rep = 3;
       break;
+    case INKPLATE_6_COLOR:
+      // COLOR model doesn't support 1-bit display mode
+      break;
   }
 
   uint32_t clock = (1 << this->cl_pin_->get_pin());
@@ -691,6 +692,9 @@ void Inkplate::display3b_() {
       clean_fast_(1, 11);
       clean_fast_(2, 1);
       clean_fast_(0, 11);
+      break;
+    case INKPLATE_6_COLOR:
+      // COLOR model doesn't support 3-bit display mode
       break;
   }
 
