@@ -319,13 +319,13 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(3, 3, 1): cv.Version(55, 3, 31),
-    cv.Version(3, 3, 0): cv.Version(55, 3, 31),
+    cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
-    cv.Version(3, 2, 0): cv.Version(54, 3, 21, "2"),
+    cv.Version(3, 2, 0): cv.Version(54, 3, 20),
     cv.Version(3, 1, 3): cv.Version(53, 3, 13),
-    cv.Version(3, 1, 2): cv.Version(53, 3, 13),
-    cv.Version(3, 1, 1): cv.Version(53, 3, 13),
-    cv.Version(3, 1, 0): cv.Version(53, 3, 13),
+    cv.Version(3, 1, 2): cv.Version(53, 3, 12),
+    cv.Version(3, 1, 1): cv.Version(53, 3, 11),
+    cv.Version(3, 1, 0): cv.Version(53, 3, 10),
 }
 
 # The default/recommended esp-idf framework version
