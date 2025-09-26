@@ -66,7 +66,12 @@ class BLEServer : public Component,
   void ble_before_disabled_event_handler() override;
 
  protected:
-  static std::string get_service_key(ESPBTUUID uuid, uint8_t inst_id);
+  struct ServiceEntry {
+    ESPBTUUID uuid;
+    uint8_t inst_id;
+    BLEService *service;
+  };
+
   void restart_advertising_();
 
   void add_client_(uint16_t conn_id) { this->clients_.insert(conn_id); }
@@ -77,7 +82,7 @@ class BLEServer : public Component,
   bool registered_{false};
 
   std::unordered_set<uint16_t> clients_;
-  std::unordered_map<std::string, BLEService *> services_{};
+  std::vector<ServiceEntry> services_{};
   std::vector<BLEService *> services_to_start_{};
   BLEService *device_information_service_{};
 
