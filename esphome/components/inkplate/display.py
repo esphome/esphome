@@ -4,6 +4,7 @@ from esphome.components import display, i2c
 from esphome.components.esp32 import CONF_CPU_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLK_PIN,
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_NUMBER,
+    CONF_MOSI_PIN,
     CONF_OE_PIN,
     CONF_PAGES,
     CONF_TRANSFORM,
@@ -50,8 +52,6 @@ CONF_EPAPER_RST_PIN = "epaper_rst_pin"
 CONF_EPAPER_DC_PIN = "epaper_dc_pin"
 CONF_EPAPER_CS_PIN = "epaper_cs_pin"
 CONF_EPAPER_BUSY_PIN = "epaper_busy_pin"
-CONF_CLK_PIN = "clk_pin"
-CONF_MOSI_PIN = "mosi_pin"
 
 inkplate_ns = cg.esphome_ns.namespace("inkplate")
 Inkplate = inkplate_ns.class_(

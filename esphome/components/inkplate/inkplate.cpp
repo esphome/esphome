@@ -844,7 +844,7 @@ void Inkplate::display_color_() {
   if (millis() >= timeout) {
     ESP_LOGE(TAG, "Timeout waiting for busy pin to go low after command 0x02");
   }
-  delay(200);
+  delay(200);  // NOLINT
 
   // Put the panel to sleep again
   this->set_panel_deep_sleep_(true);
@@ -944,7 +944,7 @@ bool Inkplate::set_panel_deep_sleep_(bool state) {
     this->epaper_cs_pin_->digital_write(true);
 
     // Wait to charge capacitors and avoid big in-rush current
-    delay(100);
+    delay(100);  // NOLINT
 
     ESP_LOGD(TAG, "Performing reset sequence...");
 
@@ -952,7 +952,7 @@ bool Inkplate::set_panel_deep_sleep_(bool state) {
     this->epaper_rst_pin_->digital_write(false);
     delay(1);
     this->epaper_rst_pin_->digital_write(true);
-    delay(200);
+    delay(200);  // NOLINT
 
     // Wait for ePaper to be ready by reading busy HIGH signal
     ESP_LOGD(TAG, "Waiting for panel to be ready after reset...");
