@@ -5,6 +5,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -22,6 +23,7 @@ from esphome.const import (
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
+    CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
@@ -35,10 +37,12 @@ from esphome.const import (
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_PORT,
+    CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
@@ -51,8 +55,9 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 
@@ -65,7 +70,7 @@ def AUTO_LOAD():
 
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
-CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
+CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
 
 def validate_message_just_topic(value):
@@ -99,6 +104,8 @@ MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
+MQTTEnableAction = mqtt_ns.class_("MQTTEnableAction", automation.Action)
+MQTTDisableAction = mqtt_ns.class_("MQTTDisableAction", automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
@@ -208,6 +215,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
             cv.Required(CONF_BROKER): cv.string_strict,
+            cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
@@ -292,6 +300,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
             ),
+            cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
+            cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
     ),
     validate_config,
@@ -302,17 +312,16 @@ CONFIG_SCHEMA = cv.All(
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -325,6 +334,7 @@ async def to_code(config):
     cg.add_global(mqtt_ns.using)
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
@@ -366,7 +376,7 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
@@ -399,7 +409,7 @@ async def to_code(config):
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [
-                cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)
+                cg.RawExpression(f"0x{fingerprint[i : i + 2]}") for i in range(0, 40, 2)
             ]
             cg.add(var.add_ssl_fingerprint(arr))
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
@@ -443,6 +453,10 @@ async def to_code(config):
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
+
+    cg.add(var.set_wait_for_connection(config[CONF_WAIT_FOR_CONNECTION]))
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
@@ -555,3 +569,41 @@ async def register_mqtt_component(var, config):
 async def mqtt_connected_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_action(
+    "mqtt.enable",
+    MQTTEnableAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(MQTTClientComponent),
+        }
+    ),
+)
+async def mqtt_enable_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "mqtt.disable",
+    MQTTDisableAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(MQTTClientComponent),
+        }
+    ),
+)
+async def mqtt_disable_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "mqtt_backend_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+    }
+)

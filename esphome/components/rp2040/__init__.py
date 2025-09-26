@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 from string import ascii_letters, digits
 
 import esphome.codegen as cg
@@ -10,14 +10,16 @@ from esphome.const import (
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_RP2040,
+    ThreadModel,
 )
-from esphome.core import CORE, EsphomeError, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, mkdir_p, write_file, read_file
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
@@ -27,6 +29,7 @@ from .gpio import rp2040_pin_to_code  # noqa
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def set_core_data(config):
@@ -146,23 +149,30 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_WATCHDOG_TIMEOUT, default="8388ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=8388)),
+            ),
         }
     ),
     set_core_data,
 )
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(rp2040_ns.setup_preferences())
 
     # Allow LDF to properly discover dependency including those in preprocessor
     # conditionals
     cg.add_platformio_option("lib_ldf_mode", "chain+")
+    cg.add_platformio_option("lib_compat_mode", "strict")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
+    cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
+    cg.add_define(ThreadModel.SINGLE)
 
     cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
@@ -188,13 +198,15 @@ async def to_code(config):
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
 
+    cg.add_define("USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT])
+
 
 def add_pio_file(component: str, key: str, data: str):
     try:
         cv.validate_id_name(key)
     except cv.Invalid as e:
         raise EsphomeError(
-            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/issues"
+            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/esphome/issues"
         ) from e
     CORE.data[KEY_RP2040][KEY_PIO_FILES][key] = data
 
@@ -209,18 +221,18 @@ def generate_pio_files() -> bool:
     if not files:
         return False
     for key, data in files.items():
-        pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
-        mkdir_p(os.path.dirname(pio_path))
-        write_file(pio_path, data)
+        pio_path = CORE.build_path / "src" / "pio" / f"{key}.pio"
+        pio_path.parent.mkdir(parents=True, exist_ok=True)
+        write_file_if_changed(pio_path, data)
         includes.append(f"pio/{key}.pio.h")
 
-    write_file(
+    write_file_if_changed(
         CORE.relative_build_path("src/pio_includes.h"),
         "#pragma once\n" + "\n".join([f'#include "{include}"' for include in includes]),
     )
 
-    dir = os.path.dirname(__file__)
-    build_pio_file = os.path.join(dir, "build_pio.py.script")
+    dir = Path(__file__).parent
+    build_pio_file = dir / "build_pio.py.script"
     copy_file_if_changed(
         build_pio_file,
         CORE.relative_build_path("build_pio.py"),
@@ -231,8 +243,8 @@ def generate_pio_files() -> bool:
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
@@ -240,4 +252,4 @@ def copy_files():
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")
         content = read_file(path).rstrip("\n")
-        write_file(path, content + '\n#include "pio_includes.h"\n')
+        write_file_if_changed(path, content + '\n#include "pio_includes.h"\n')

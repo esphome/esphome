@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import modbus, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, modbus
 from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_CURRENT,

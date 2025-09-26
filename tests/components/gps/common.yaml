@@ -1,0 +1,28 @@
+uart:
+  - id: uart_gps
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+    parity: EVEN
+
+gps:
+  latitude:
+    name: "Latitude"
+  longitude:
+    name: "Longitude"
+  altitude:
+    name: "Altitude"
+  speed:
+    name: "Speed"
+  course:
+    name: "Course"
+  satellites:
+    name: "Satellites"
+  hdop:
+    name: "HDOP"
+
+time:
+  - platform: gps
+    on_time_sync:
+      then:
+        logger.log: "It's time!"

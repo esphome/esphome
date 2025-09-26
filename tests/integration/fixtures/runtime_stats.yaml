@@ -1,0 +1,39 @@
+esphome:
+  name: runtime-stats-test
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+  logs:
+    runtime_stats: INFO
+
+runtime_stats:
+  log_interval: 1s
+
+# Add some components that will execute periodically to generate stats
+sensor:
+  - platform: template
+    name: "Test Sensor 1"
+    id: test_sensor_1
+    lambda: return 42.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: "Test Sensor 2"
+    id: test_sensor_2
+    lambda: return 24.0;
+    update_interval: 0.2s
+
+switch:
+  - platform: template
+    name: "Test Switch"
+    id: test_switch
+    optimistic: true
+
+interval:
+  - interval: 0.5s
+    then:
+      - switch.toggle: test_switch

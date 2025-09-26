@@ -15,10 +15,12 @@ from esphome.components.libretiny.const import (
 )
 from esphome.core import CORE
 
-from .boards import RTL87XX_BOARDS, RTL87XX_BOARD_PINS
+from .boards import RTL87XX_BOARD_PINS, RTL87XX_BOARDS
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["libretiny"]
+IS_TARGET_PLATFORM = True
+
 
 COMPONENT_DATA = LibreTinyComponent(
     name=COMPONENT_RTL87XX,

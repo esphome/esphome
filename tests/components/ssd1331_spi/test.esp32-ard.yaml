@@ -1,24 +1,8 @@
-spi:
-  - id: spi_ssd1331_spi
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
+substitutions:
+  clk_pin: GPIO16
+  mosi_pin: GPIO17
+  cs_pin: GPIO12
+  dc_pin: GPIO13
+  reset_pin: GPIO14
 
-display:
-  - platform: ssd1331_spi
-    cs_pin: 12
-    dc_pin: 13
-    reset_pin: 14
-    pages:
-      - id: page1
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
-        lambda: |-
-          it.rectangle(0, 0, it.get_width(), it.get_height());
-    on_page_change:
-      from: page1
-      to: page2
-      then:
-        lambda: |-
-          ESP_LOGD("display", "1 -> 2");
+<<: !include common.yaml

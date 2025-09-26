@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
+from dataclasses import dataclass
+from functools import lru_cache
 import logging
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from esphome import const, util
+from esphome.enum import StrEnum
 from esphome.storage_json import StorageJSON, ext_storage_path
 
 from .const import (
@@ -16,7 +19,6 @@ from .const import (
     EVENT_ENTRY_STATE_CHANGED,
     EVENT_ENTRY_UPDATED,
 )
-from .enum import StrEnum
 from .util.subprocess import async_run_system_command
 
 if TYPE_CHECKING:
@@ -27,37 +29,53 @@ _LOGGER = logging.getLogger(__name__)
 
 DashboardCacheKeyType = tuple[int, int, float, int]
 
-# Currently EntryState is a simple
-# online/offline/unknown enum, but in the future
-# it may be expanded to include more states
+
+@dataclass(frozen=True)
+class EntryState:
+    """Represents the state of an entry."""
+
+    reachable: ReachableState
+    source: EntryStateSource
 
 
-class EntryState(StrEnum):
-    ONLINE = "online"
-    OFFLINE = "offline"
+class EntryStateSource(StrEnum):
+    MDNS = "mdns"
+    PING = "ping"
+    MQTT = "mqtt"
     UNKNOWN = "unknown"
 
 
-_BOOL_TO_ENTRY_STATE = {
-    True: EntryState.ONLINE,
-    False: EntryState.OFFLINE,
-    None: EntryState.UNKNOWN,
-}
-_ENTRY_STATE_TO_BOOL = {
-    EntryState.ONLINE: True,
-    EntryState.OFFLINE: False,
-    EntryState.UNKNOWN: None,
-}
+class ReachableState(StrEnum):
+    ONLINE = "online"
+    OFFLINE = "offline"
+    DNS_FAILURE = "dns_failure"
+    UNKNOWN = "unknown"
 
 
-def bool_to_entry_state(value: bool) -> EntryState:
+_BOOL_TO_REACHABLE_STATE = {
+    True: ReachableState.ONLINE,
+    False: ReachableState.OFFLINE,
+    None: ReachableState.UNKNOWN,
+}
+_REACHABLE_STATE_TO_BOOL = {
+    ReachableState.ONLINE: True,
+    ReachableState.OFFLINE: False,
+    ReachableState.DNS_FAILURE: False,
+    ReachableState.UNKNOWN: None,
+}
+
+UNKNOWN_STATE = EntryState(ReachableState.UNKNOWN, EntryStateSource.UNKNOWN)
+
+
+@lru_cache  # creating frozen dataclass instances is expensive, so we cache them
+def bool_to_entry_state(value: bool | None, source: EntryStateSource) -> EntryState:
     """Convert a bool to an entry state."""
-    return _BOOL_TO_ENTRY_STATE[value]
+    return EntryState(_BOOL_TO_REACHABLE_STATE[value], source)
 
 
 def entry_state_to_bool(value: EntryState) -> bool | None:
     """Convert an entry state to a bool."""
-    return _ENTRY_STATE_TO_BOOL[value]
+    return _REACHABLE_STATE_TO_BOOL[value.reachable]
 
 
 class DashboardEntries:
@@ -118,6 +136,55 @@ class DashboardEntries:
     async def _async_set_state(self, entry: DashboardEntry, state: EntryState) -> None:
         """Set the state for an entry."""
         self.async_set_state(entry, state)
+
+    def set_state_if_online_or_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if its online or provided by the source or unknown."""
+        asyncio.run_coroutine_threadsafe(
+            self._async_set_state_if_online_or_source(entry, state), self._loop
+        ).result()
+
+    async def _async_set_state_if_online_or_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if its online or provided by the source or unknown."""
+        self.async_set_state_if_online_or_source(entry, state)
+
+    def async_set_state_if_online_or_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if its online or provided by the source or unknown."""
+        if (
+            state.reachable is ReachableState.ONLINE
+            and entry.state.reachable is not ReachableState.ONLINE
+        ) or entry.state.source in (
+            EntryStateSource.UNKNOWN,
+            state.source,
+        ):
+            self.async_set_state(entry, state)
+
+    def set_state_if_source(self, entry: DashboardEntry, state: EntryState) -> None:
+        """Set the state for an entry if provided by the source or unknown."""
+        asyncio.run_coroutine_threadsafe(
+            self._async_set_state_if_source(entry, state), self._loop
+        ).result()
+
+    async def _async_set_state_if_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if rovided by the source or unknown."""
+        self.async_set_state_if_source(entry, state)
+
+    def async_set_state_if_source(
+        self, entry: DashboardEntry, state: EntryState
+    ) -> None:
+        """Set the state for an entry if provided by the source or unknown."""
+        if entry.state.source in (
+            EntryStateSource.UNKNOWN,
+            state.source,
+        ):
+            self.async_set_state(entry, state)
 
     def async_set_state(self, entry: DashboardEntry, state: EntryState) -> None:
         """Set the state for an entry."""
@@ -220,12 +287,12 @@ class DashboardEntries:
         for file in util.list_yaml_files([self._config_dir]):
             try:
                 # Prefer the json storage path if it exists
-                stat = os.stat(ext_storage_path(os.path.basename(file)))
+                stat = ext_storage_path(file.name).stat()
             except OSError:
                 try:
                     # Fallback to the yaml file if the storage
                     # file does not exist or could not be generated
-                    stat = os.stat(file)
+                    stat = file.stat()
                 except OSError:
                     # File was deleted, ignore
                     continue
@@ -262,14 +329,14 @@ class DashboardEntry:
         "_to_dict",
     )
 
-    def __init__(self, path: str, cache_key: DashboardCacheKeyType) -> None:
+    def __init__(self, path: Path, cache_key: DashboardCacheKeyType) -> None:
         """Initialize the DashboardEntry."""
         self.path = path
-        self.filename: str = os.path.basename(path)
+        self.filename: str = path.name
         self._storage_path = ext_storage_path(self.filename)
         self.cache_key = cache_key
         self.storage: StorageJSON | None = None
-        self.state = EntryState.UNKNOWN
+        self.state = UNKNOWN_STATE
         self._to_dict: dict[str, Any] | None = None
 
     def __repr__(self) -> str:
@@ -298,7 +365,7 @@ class DashboardEntry:
                 "loaded_integrations": sorted(self.loaded_integrations),
                 "deployed_version": self.update_old,
                 "current_version": self.update_new,
-                "path": self.path,
+                "path": str(self.path),
                 "comment": self.comment,
                 "address": self.address,
                 "web_port": self.web_port,

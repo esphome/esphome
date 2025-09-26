@@ -2,8 +2,11 @@
 
 #include "ble_descriptor.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/components/event_emitter/event_emitter.h"
+#include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <vector>
+#include <unordered_map>
 
 #ifdef USE_ESP32
 
@@ -19,24 +22,30 @@ namespace esphome {
 namespace esp32_ble_server {
 
 using namespace esp32_ble;
+using namespace bytebuffer;
+using namespace event_emitter;
 
 class BLEService;
 
-class BLECharacteristic {
+namespace BLECharacteristicEvt {
+enum VectorEvt {
+  ON_WRITE,
+};
+
+enum EmptyEvt {
+  ON_READ,
+};
+}  // namespace BLECharacteristicEvt
+
+class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>,
+                          public EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t> {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
 
-  void set_value(const uint8_t *data, size_t length);
-  void set_value(std::vector<uint8_t> value);
-  void set_value(const std::string &value);
-  void set_value(uint8_t &data);
-  void set_value(uint16_t &data);
-  void set_value(uint32_t &data);
-  void set_value(int &data);
-  void set_value(float &data);
-  void set_value(double &data);
-  void set_value(bool &data);
+  void set_value(ByteBuffer buffer);
+  void set_value(const std::vector<uint8_t> &buffer);
+  void set_value(const std::string &buffer);
 
   void set_broadcast_property(bool value);
   void set_indicate_property(bool value);
@@ -45,12 +54,11 @@ class BLECharacteristic {
   void set_write_property(bool value);
   void set_write_no_response_property(bool value);
 
-  void notify(bool notification = true);
+  void notify();
 
   void do_create(BLEService *service);
+  void do_delete() { this->clients_to_notify_.clear(); }
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-
-  void on_write(const std::function<void(const std::vector<uint8_t> &)> &&func) { this->on_write_ = func; }
 
   void add_descriptor(BLEDescriptor *descriptor);
   void remove_descriptor(BLEDescriptor *descriptor);
@@ -71,7 +79,7 @@ class BLECharacteristic {
 
  protected:
   bool write_event_{false};
-  BLEService *service_;
+  BLEService *service_{};
   ESPBTUUID uuid_;
   esp_gatt_char_prop_t properties_;
   uint16_t handle_{0xFFFF};
@@ -81,8 +89,7 @@ class BLECharacteristic {
   SemaphoreHandle_t set_value_lock_;
 
   std::vector<BLEDescriptor *> descriptors_;
-
-  std::function<void(const std::vector<uint8_t> &)> on_write_;
+  std::unordered_map<uint16_t, bool> clients_to_notify_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 

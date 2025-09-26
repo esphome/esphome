@@ -1,48 +1,5 @@
-i2c:
-  - id: i2c_bme280
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-apds9960:
-  address: 0x20
-  update_interval: 60s
-
-binary_sensor:
-  - platform: apds9960
-    id: apds9960_binary_sensor
-    direction: up
-    name: APDS9960 Up
-    device_class: motion
-    filters:
-      - invert
-      - delayed_on: 20ms
-      - delayed_off: 20ms
-      - lambda: "return false;"
-    on_state:
-      - logger.log: New state
-  - platform: apds9960
-    direction: down
-    name: APDS9960 Down
-  - platform: apds9960
-    direction: left
-    name: APDS9960 Left
-  - platform: apds9960
-    direction: right
-    name: APDS9960 Right
-
-sensor:
-  - platform: apds9960
-    type: proximity
-    name: APDS9960 Proximity
-  - platform: apds9960
-    type: clear
-    name: APDS9960 Clear
-  - platform: apds9960
-    type: red
-    name: APDS9960 Red
-  - platform: apds9960
-    type: green
-    name: APDS9960 Green
-  - platform: apds9960
-    type: blue
-    name: APDS9960 Blue
+<<: !include common.yaml

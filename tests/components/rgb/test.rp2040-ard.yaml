@@ -1,18 +1,7 @@
-output:
-  - platform: rp2040_pwm
-    id: light_output_1
-    pin: 12
-  - platform: rp2040_pwm
-    id: light_output_2
-    pin: 13
-  - platform: rp2040_pwm
-    id: light_output_3
-    pin: 14
+substitutions:
+  light_platform: rp2040_pwm
+  pin1: GPIO2
+  pin2: GPIO3
+  pin3: GPIO4
 
-light:
-  - platform: rgb
-    name: RGB Light
-    id: rgb_light
-    red: light_output_1
-    green: light_output_2
-    blue: light_output_3
+<<: !include common.yaml

@@ -1,8 +1,8 @@
 #include "tcs34725.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include <algorithm>
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome {
 namespace tcs34725 {
@@ -18,7 +18,6 @@ static const uint8_t TCS34725_REGISTER_ENABLE = TCS34725_COMMAND_BIT | 0x00;
 static const uint8_t TCS34725_REGISTER_CRGBDATAL = TCS34725_COMMAND_BIT | 0x14;
 
 void TCS34725Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TCS34725...");
   uint8_t id;
   if (this->read_register(TCS34725_REGISTER_ID, &id, 1) != i2c::ERROR_OK) {
     this->mark_failed();
@@ -46,7 +45,7 @@ void TCS34725Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCS34725:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TCS34725 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 

@@ -1,13 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
-    ICON_MOLECULE_CO2,
     DEVICE_CLASS_CARBON_DIOXIDE,
+    ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SenseAirComponent),
-            cv.Required(CONF_CO2): sensor.sensor_schema(
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
@@ -57,8 +57,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
+    if co2 := config.get(CONF_CO2):
+        sens = await sensor.new_sensor(co2)
         cg.add(var.set_co2_sensor(sens))
 
 

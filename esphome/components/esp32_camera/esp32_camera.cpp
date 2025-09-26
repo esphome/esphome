@@ -1,8 +1,9 @@
 #ifdef USE_ESP32
 
 #include "esp32_camera.h"
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 #include <freertos/task.h>
 
@@ -13,7 +14,11 @@ static const char *const TAG = "esp32_camera";
 
 /* ---------------- public API (derivated) ---------------- */
 void ESP32Camera::setup() {
-  global_esp32_camera = this;
+#ifdef USE_I2C
+  if (this->i2c_bus_ != nullptr) {
+    this->config_.sccb_i2c_port = this->i2c_bus_->get_port();
+  }
+#endif
 
   /* initialize time to now */
   this->last_update_ = millis();
@@ -36,7 +41,7 @@ void ESP32Camera::setup() {
   xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
                           "framebuffer_task",  // name
                           1024,                // stack size
-                          nullptr,             // task pv params
+                          this,                // task pv params
                           1,                   // priority
                           nullptr,             // handle
                           1                    // core
@@ -45,21 +50,20 @@ void ESP32Camera::setup() {
 
 void ESP32Camera::dump_config() {
   auto conf = this->config_;
-  ESP_LOGCONFIG(TAG, "ESP32 Camera:");
-  ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
-  ESP_LOGCONFIG(TAG, "  Internal: %s", YESNO(this->internal_));
-  ESP_LOGCONFIG(TAG, "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d", conf.pin_d0, conf.pin_d1,
-                conf.pin_d2, conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7);
-  ESP_LOGCONFIG(TAG, "  VSYNC Pin: %d", conf.pin_vsync);
-  ESP_LOGCONFIG(TAG, "  HREF Pin: %d", conf.pin_href);
-  ESP_LOGCONFIG(TAG, "  Pixel Clock Pin: %d", conf.pin_pclk);
-  ESP_LOGCONFIG(TAG, "  External Clock: Pin:%d Frequency:%u", conf.pin_xclk, conf.xclk_freq_hz);
-#ifdef USE_ESP_IDF  // Temporary until the espressif/esp32-camera library is updated
-  ESP_LOGCONFIG(TAG, "  I2C Pins: SDA:%d SCL:%d", conf.pin_sscb_sda, conf.pin_sscb_scl);
-#else
-  ESP_LOGCONFIG(TAG, "  I2C Pins: SDA:%d SCL:%d", conf.pin_sccb_sda, conf.pin_sccb_scl);
-#endif
-  ESP_LOGCONFIG(TAG, "  Reset Pin: %d", conf.pin_reset);
+  ESP_LOGCONFIG(TAG,
+                "ESP32 Camera:\n"
+                "  Name: %s\n"
+                "  Internal: %s\n"
+                "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d\n"
+                "  VSYNC Pin: %d\n"
+                "  HREF Pin: %d\n"
+                "  Pixel Clock Pin: %d\n"
+                "  External Clock: Pin:%d Frequency:%u\n"
+                "  I2C Pins: SDA:%d SCL:%d\n"
+                "  Reset Pin: %d",
+                this->name_.c_str(), YESNO(this->is_internal()), conf.pin_d0, conf.pin_d1, conf.pin_d2, conf.pin_d3,
+                conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7, conf.pin_vsync, conf.pin_href, conf.pin_pclk,
+                conf.pin_xclk, conf.xclk_freq_hz, conf.pin_sccb_sda, conf.pin_sccb_scl, conf.pin_reset);
   switch (this->config_.frame_size) {
     case FRAMESIZE_QQVGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 160x120 (QQVGA)");
@@ -126,24 +130,31 @@ void ESP32Camera::dump_config() {
 
   sensor_t *s = esp_camera_sensor_get();
   auto st = s->status;
-  ESP_LOGCONFIG(TAG, "  JPEG Quality: %u", st.quality);
-  ESP_LOGCONFIG(TAG, "  Framebuffer Count: %u", conf.fb_count);
-  ESP_LOGCONFIG(TAG, "  Contrast: %d", st.contrast);
-  ESP_LOGCONFIG(TAG, "  Brightness: %d", st.brightness);
-  ESP_LOGCONFIG(TAG, "  Saturation: %d", st.saturation);
-  ESP_LOGCONFIG(TAG, "  Vertical Flip: %s", ONOFF(st.vflip));
-  ESP_LOGCONFIG(TAG, "  Horizontal Mirror: %s", ONOFF(st.hmirror));
-  ESP_LOGCONFIG(TAG, "  Special Effect: %u", st.special_effect);
-  ESP_LOGCONFIG(TAG, "  White Balance Mode: %u", st.wb_mode);
+  ESP_LOGCONFIG(TAG,
+                "  JPEG Quality: %u\n"
+                "  Framebuffer Count: %u\n"
+                "  Framebuffer Location: %s\n"
+                "  Contrast: %d\n"
+                "  Brightness: %d\n"
+                "  Saturation: %d\n"
+                "  Vertical Flip: %s\n"
+                "  Horizontal Mirror: %s\n"
+                "  Special Effect: %u\n"
+                "  White Balance Mode: %u",
+                st.quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM",
+                st.contrast, st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect,
+                st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
-  ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
-  ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
-  ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
-  ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
+  ESP_LOGCONFIG(TAG,
+                "  Auto Exposure Control: %u\n"
+                "  Auto Exposure Control 2: %u\n"
+                "  Auto Exposure Level: %d\n"
+                "  Auto Exposure Value: %u\n"
+                "  AGC: %u\n"
+                "  AGC Gain: %u\n"
+                "  Gain Ceiling: %u",
+                st.aec, st.aec2, st.ae_level, st.aec_value, st.agc, st.agc_gain, st.gainceiling);
   // ESP_LOGCONFIG(TAG, "  BPC: %u", st.bpc);
   // ESP_LOGCONFIG(TAG, "  WPC: %u", st.wpc);
   // ESP_LOGCONFIG(TAG, "  RAW_GMA: %u", st.raw_gma);
@@ -162,10 +173,10 @@ void ESP32Camera::loop() {
   }
 
   // request idle image every idle_update_interval
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->idle_update_interval_ != 0 && now - this->last_idle_request_ > this->idle_update_interval_) {
     this->last_idle_request_ = now;
-    this->request_image(IDLE);
+    this->request_image(camera::IDLE);
   }
 
   // Check if we should fetch a new image
@@ -191,7 +202,7 @@ void ESP32Camera::loop() {
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     return;
   }
-  this->current_image_ = std::make_shared<CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
+  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
   this->new_image_callback_.call(this->current_image_);
@@ -214,8 +225,6 @@ ESP32Camera::ESP32Camera() {
   this->config_.fb_count = 1;
   this->config_.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   this->config_.fb_location = CAMERA_FB_IN_PSRAM;
-
-  global_esp32_camera = this;
 }
 
 /* ---------------- setters ---------------- */
@@ -238,14 +247,16 @@ void ESP32Camera::set_external_clock(uint8_t pin, uint32_t frequency) {
   this->config_.xclk_freq_hz = frequency;
 }
 void ESP32Camera::set_i2c_pins(uint8_t sda, uint8_t scl) {
-#ifdef USE_ESP_IDF  // Temporary until the espressif/esp32-camera library is updated
-  this->config_.pin_sscb_sda = sda;
-  this->config_.pin_sscb_scl = scl;
-#else
   this->config_.pin_sccb_sda = sda;
   this->config_.pin_sccb_scl = scl;
-#endif
 }
+#ifdef USE_I2C
+void ESP32Camera::set_i2c_id(i2c::InternalI2CBus *i2c_bus) {
+  this->i2c_bus_ = i2c_bus;
+  this->config_.pin_sccb_sda = -1;
+  this->config_.pin_sccb_scl = -1;
+}
+#endif  // USE_I2C
 void ESP32Camera::set_reset_pin(uint8_t pin) { this->config_.pin_reset = pin; }
 void ESP32Camera::set_power_down_pin(uint8_t pin) { this->config_.pin_pwdn = pin; }
 
@@ -341,9 +352,12 @@ void ESP32Camera::set_frame_buffer_count(uint8_t fb_count) {
   this->config_.fb_count = fb_count;
   this->set_frame_buffer_mode(fb_count > 1 ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY);
 }
+void ESP32Camera::set_frame_buffer_location(camera_fb_location_t fb_location) {
+  this->config_.fb_location = fb_location;
+}
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) {
+void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<camera::CameraImage>)> &&callback) {
   this->new_image_callback_.add(std::move(callback));
 }
 void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
@@ -352,15 +366,16 @@ void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
 void ESP32Camera::add_stream_stop_callback(std::function<void()> &&callback) {
   this->stream_stop_callback_.add(std::move(callback));
 }
-void ESP32Camera::start_stream(CameraRequester requester) {
+void ESP32Camera::start_stream(camera::CameraRequester requester) {
   this->stream_start_callback_.call();
   this->stream_requesters_ |= (1U << requester);
 }
-void ESP32Camera::stop_stream(CameraRequester requester) {
+void ESP32Camera::stop_stream(camera::CameraRequester requester) {
   this->stream_stop_callback_.call();
   this->stream_requesters_ &= ~(1U << requester);
 }
-void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
+void ESP32Camera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
+camera::CameraImageReader *ESP32Camera::create_image_reader() { return new ESP32CameraImageReader; }
 void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
   /* update image */
@@ -389,39 +404,39 @@ void ESP32Camera::update_camera_parameters() {
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
 void ESP32Camera::framebuffer_task(void *pv) {
+  ESP32Camera *that = (ESP32Camera *) pv;
   while (true) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
-    xQueueSend(global_esp32_camera->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
+    xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
     // return is no-op for config with 1 fb
-    xQueueReceive(global_esp32_camera->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
+    xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
   }
 }
 
-ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-/* ---------------- CameraImageReader class ---------------- */
-void CameraImageReader::set_image(std::shared_ptr<CameraImage> image) {
-  this->image_ = std::move(image);
+/* ---------------- ESP32CameraImageReader class ----------- */
+void ESP32CameraImageReader::set_image(std::shared_ptr<camera::CameraImage> image) {
+  this->image_ = std::static_pointer_cast<ESP32CameraImage>(image);
   this->offset_ = 0;
 }
-size_t CameraImageReader::available() const {
+size_t ESP32CameraImageReader::available() const {
   if (!this->image_)
     return 0;
 
   return this->image_->get_data_length() - this->offset_;
 }
-void CameraImageReader::return_image() { this->image_.reset(); }
-void CameraImageReader::consume_data(size_t consumed) { this->offset_ += consumed; }
-uint8_t *CameraImageReader::peek_data_buffer() { return this->image_->get_data_buffer() + this->offset_; }
+void ESP32CameraImageReader::return_image() { this->image_.reset(); }
+void ESP32CameraImageReader::consume_data(size_t consumed) { this->offset_ += consumed; }
+uint8_t *ESP32CameraImageReader::peek_data_buffer() { return this->image_->get_data_buffer() + this->offset_; }
 
-/* ---------------- CameraImage class ---------------- */
-CameraImage::CameraImage(camera_fb_t *buffer, uint8_t requesters) : buffer_(buffer), requesters_(requesters) {}
+/* ---------------- ESP32CameraImage class ----------- */
+ESP32CameraImage::ESP32CameraImage(camera_fb_t *buffer, uint8_t requesters)
+    : buffer_(buffer), requesters_(requesters) {}
 
-camera_fb_t *CameraImage::get_raw_buffer() { return this->buffer_; }
-uint8_t *CameraImage::get_data_buffer() { return this->buffer_->buf; }
-size_t CameraImage::get_data_length() { return this->buffer_->len; }
-bool CameraImage::was_requested_by(CameraRequester requester) const {
+camera_fb_t *ESP32CameraImage::get_raw_buffer() { return this->buffer_; }
+uint8_t *ESP32CameraImage::get_data_buffer() { return this->buffer_->buf; }
+size_t ESP32CameraImage::get_data_length() { return this->buffer_->len; }
+bool ESP32CameraImage::was_requested_by(camera::CameraRequester requester) const {
   return (this->requesters_ & (1 << requester)) != 0;
 }
 

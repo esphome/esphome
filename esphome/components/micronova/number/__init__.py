@@ -1,19 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import (
-    DEVICE_CLASS_TEMPERATURE,
-    UNIT_CELSIUS,
-    CONF_STEP,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_STEP, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
 
 from .. import (
+    CONF_MEMORY_ADDRESS,
+    CONF_MEMORY_LOCATION,
+    CONF_MICRONOVA_ID,
+    MICRONOVA_LISTENER_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
-    CONF_MICRONOVA_ID,
-    CONF_MEMORY_LOCATION,
-    CONF_MEMORY_ADDRESS,
-    MICRONOVA_LISTENER_SCHEMA,
     micronova_ns,
 )
 

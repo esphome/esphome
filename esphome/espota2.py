@@ -4,13 +4,14 @@ import gzip
 import hashlib
 import io
 import logging
+from pathlib import Path
 import random
 import socket
 import sys
 import time
 
 from esphome.core import EsphomeError
-from esphome.helpers import is_ip_address, resolve_ip_address
+from esphome.helpers import resolve_ip_address
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -88,10 +89,7 @@ def recv_decode(sock, amount, decode=True):
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
-    if decode:
-        data = []
-    else:
-        data = b""
+    data = [] if decode else b""
 
     try:
         data += recv_decode(sock, 1, decode=decode)
@@ -194,7 +192,7 @@ def send_check(sock, data, msg):
 
 
 def perform_ota(
-    sock: socket.socket, password: str, file_handle: io.IOBase, filename: str
+    sock: socket.socket, password: str, file_handle: io.IOBase, filename: Path
 ) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
@@ -249,6 +247,9 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
+    # Set higher timeout during upload
+    sock.settimeout(30.0)
+
     upload_size = len(upload_contents)
     upload_size_encoded = [
         (upload_size >> 24) & 0xFF,
@@ -271,8 +272,6 @@ def perform_ota(
     # show the actual progress
 
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
-    # Set higher timeout during upload
-    sock.settimeout(30.0)
     start_time = time.perf_counter()
 
     offset = 0
@@ -310,50 +309,62 @@ def perform_ota(
     time.sleep(1)
 
 
-def run_ota_impl_(remote_host, remote_port, password, filename):
-    if is_ip_address(remote_host):
-        _LOGGER.info("Connecting to %s", remote_host)
-        ip = remote_host
-    else:
-        _LOGGER.info("Resolving IP address of %s", remote_host)
-        try:
-            ip = resolve_ip_address(remote_host)
-        except EsphomeError as err:
-            _LOGGER.error(
-                "Error resolving IP address of %s. Is it connected to WiFi?",
-                remote_host,
-            )
-            _LOGGER.error(
-                "(If this error persists, please set a static IP address: "
-                "https://esphome.io/components/wifi.html#manual-ips)"
-            )
-            raise OTAError(err) from err
-        _LOGGER.info(" -> %s", ip)
+def run_ota_impl_(
+    remote_host: str | list[str], remote_port: int, password: str, filename: Path
+) -> tuple[int, str | None]:
+    from esphome.core import CORE
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(10.0)
+    # Handle both single host and list of hosts
     try:
-        sock.connect((ip, remote_port))
-    except OSError as err:
-        sock.close()
-        _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
-        return 1
+        # Resolve all hosts at once for parallel DNS resolution
+        res = resolve_ip_address(
+            remote_host, remote_port, address_cache=CORE.address_cache
+        )
+    except EsphomeError as err:
+        _LOGGER.error(
+            "Error resolving IP address of %s. Is it connected to WiFi?",
+            remote_host,
+        )
+        _LOGGER.error(
+            "(If this error persists, please set a static IP address: "
+            "https://esphome.io/components/wifi.html#manual-ips)"
+        )
+        raise OTAError(err) from err
 
-    with open(filename, "rb") as file_handle:
+    for r in res:
+        af, socktype, _, _, sa = r
+        _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
+        sock = socket.socket(af, socktype)
+        sock.settimeout(10.0)
         try:
-            perform_ota(sock, password, file_handle, filename)
-        except OTAError as err:
-            _LOGGER.error(str(err))
-            return 1
-        finally:
+            sock.connect(sa)
+        except OSError as err:
             sock.close()
+            _LOGGER.error("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
+            continue
 
-    return 0
+        _LOGGER.info("Connected to %s", sa[0])
+        with open(filename, "rb") as file_handle:
+            try:
+                perform_ota(sock, password, file_handle, filename)
+            except OTAError as err:
+                _LOGGER.error(str(err))
+                return 1, None
+            finally:
+                sock.close()
+
+        # Successfully uploaded to sa[0]
+        return 0, sa[0]
+
+    _LOGGER.error("Connection failed.")
+    return 1, None
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota(
+    remote_host: str | list[str], remote_port: int, password: str, filename: Path
+) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
+        return 1, None
