@@ -81,8 +81,17 @@ void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> da
   // when changing both properties, avoiding the brief gap that would occur with separate calls.
 
   this->advertising_init_();
-  this->advertising_->set_service_data(data);
-  this->advertising_->set_include_name(include_name);
+
+  if (include_name) {
+    // When including name, clear service data first to avoid packet overflow
+    this->advertising_->set_service_data(std::span<const uint8_t>{});
+    this->advertising_->set_include_name(true);
+  } else {
+    // When including service data, clear name first to avoid packet overflow
+    this->advertising_->set_include_name(false);
+    this->advertising_->set_service_data(data);
+  }
+
   this->advertising_start();
 }
 
