@@ -83,12 +83,9 @@ void DNSServer::stop() {
 
 void DNSServer::process_next_request() {
   // Process one request if socket is valid and data is available
-  if (this->socket_ != nullptr && this->socket_->ready()) {
-    this->process_dns_request();
+  if (this->socket_ == nullptr || !this->socket_->ready()) {
+    return;
   }
-}
-
-void DNSServer::process_dns_request() {
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(client_addr);
 
