@@ -17,8 +17,6 @@ class DNSServer {
  protected:
   static constexpr size_t DNS_BUFFER_SIZE = 192;
 
-  void process_dns_request();
-
   std::unique_ptr<socket::Socket> socket_{nullptr};
   network::IPAddress server_ip_;
   uint8_t buffer_[DNS_BUFFER_SIZE];

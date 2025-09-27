@@ -83,12 +83,9 @@ void DNSServer::stop() {
 
 void DNSServer::process_next_request() {
   // Process one request if socket is valid and data is available
-  if (this->socket_ != nullptr && this->socket_->ready()) {
-    this->process_dns_request();
+  if (this->socket_ == nullptr || !this->socket_->ready()) {
+    return;
   }
-}
-
-void DNSServer::process_dns_request() {
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(client_addr);
 
@@ -110,7 +107,7 @@ void DNSServer::process_dns_request() {
 
   ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
-  if (len < sizeof(DNSHeader) + 1) {
+  if (len < static_cast<ssize_t>(sizeof(DNSHeader) + 1)) {
     ESP_LOGV(TAG, "Request too short: %d", len);
     return;
   }
