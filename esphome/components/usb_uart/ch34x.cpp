@@ -73,8 +73,7 @@ void USBUartTypeCH34X::enable_channels() {
     if (channel->index_ <= 1) {
       baud_cmd += channel->index_;
       flowctl_cmd += channel->index_;
-    }
-    else if (channel->index_ <= 3) {
+    } else if (channel->index_ <= 3) {
       baud_cmd += (0x10 + (channel->index_ - 2));
       flowctl_cmd += (0x10 + (channel->index_ - 2));
     }
