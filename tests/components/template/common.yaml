@@ -10,6 +10,13 @@ sensor:
       }
     update_interval: 60s
 
+  - platform: template
+    name: "Template Sensor Dynamic"
+    id: template_sensor_dynamic
+    update_interval: 1s
+    dynamic_lambda:
+      source_id: template_sensor_dynamic_script
+
 esphome:
   on_boot:
     - sensor.template.publish:
@@ -33,6 +40,8 @@ esphome:
     - datetime.date.set:
         id: test_date
         date: "2021-01-01"
+    - script.execute: template_text_dynamic_lambda_test
+    - script.execute: template_dynamic_lambda_components_test
 
 binary_sensor:
   - platform: template
@@ -46,6 +55,12 @@ binary_sensor:
         // Garage Door is closed.
         return false;
       }
+
+  - platform: template
+    name: "Template Binary Dynamic"
+    id: template_binary_dynamic
+    dynamic_lambda:
+      source_id: template_binary_dynamic_script
 
 output:
   - platform: template
@@ -67,6 +82,12 @@ switch:
       - logger.log: "turn_on_action"
     turn_off_action:
       - logger.log: "turn_off_action"
+
+  - platform: template
+    name: "Template Switch Dynamic"
+    id: template_switch_dynamic
+    dynamic_lambda:
+      source_id: template_switch_dynamic_script
 
 button:
   - platform: template
@@ -98,6 +119,15 @@ number:
     min_value: 0
     max_value: 100
     step: 1
+
+  - platform: template
+    name: "Template number dynamic"
+    id: template_number_dynamic
+    min_value: 0
+    max_value: 100
+    step: 1
+    dynamic_lambda:
+      source_id: template_number_dynamic_script
 
 select:
   - platform: template
@@ -160,6 +190,92 @@ text:
         - logger.log:
             format: Template Text set to %s
             args: ["x.c_str()"]
+  - platform: template
+    id: template_text_dynamic
+    name: "Template dynamic lambda"
+    mode: text
+    dynamic_lambda:
+      id: template_text_dynamic_result
+      name: Template Dynamic Result
+
+text_sensor:
+  - platform: template
+    name: "Template Sensor Script"
+    id: template_sensor_dynamic_script
+
+  - platform: template
+    name: "Template Binary Script"
+    id: template_binary_dynamic_script
+
+  - platform: template
+    name: "Template Switch Script"
+    id: template_switch_dynamic_script
+
+  - platform: template
+    name: "Template Number Script"
+    id: template_number_dynamic_script
+
+script:
+  - id: template_text_dynamic_lambda_test
+    then:
+      - text.set:
+          id: template_text_dynamic
+          value: 'result = "dynamic string";'
+      - lambda: |-
+          assert(id(template_text_dynamic_result).state == "dynamic string");
+      - text.set:
+          id: template_text_dynamic
+          value: "result = 123;"
+      - lambda: |-
+          assert(id(template_text_dynamic_result).state == "123");
+      - text.set:
+          id: template_text_dynamic
+          value: "result = 3.25;"
+      - lambda: |-
+          assert(id(template_text_dynamic_result).state == "3.25");
+
+  - id: template_dynamic_lambda_components_test
+    then:
+      - text_sensor.template.publish:
+          id: template_sensor_dynamic_script
+          state: "result = 12.5;"
+      - lambda: |-
+          assert(id(template_sensor_dynamic).state == 12.5f);
+      - text_sensor.template.publish:
+          id: template_sensor_dynamic_script
+          state: "result = 6;"
+      - lambda: |-
+          assert(id(template_sensor_dynamic).state == 6.0f);
+      - text_sensor.template.publish:
+          id: template_binary_dynamic_script
+          state: "result = true;"
+      - lambda: |-
+          assert(id(template_binary_dynamic).state);
+      - text_sensor.template.publish:
+          id: template_binary_dynamic_script
+          state: "result = 0;"
+      - lambda: |-
+          assert(!id(template_binary_dynamic).state);
+      - text_sensor.template.publish:
+          id: template_switch_dynamic_script
+          state: "result = 1;"
+      - lambda: |-
+          assert(id(template_switch_dynamic).state);
+      - text_sensor.template.publish:
+          id: template_switch_dynamic_script
+          state: "result = false;"
+      - lambda: |-
+          assert(!id(template_switch_dynamic).state);
+      - text_sensor.template.publish:
+          id: template_number_dynamic_script
+          state: "result = 7.25;"
+      - lambda: |-
+          assert(id(template_number_dynamic).state == 7.25f);
+      - text_sensor.template.publish:
+          id: template_number_dynamic_script
+          state: "result = true;"
+      - lambda: |-
+          assert(id(template_number_dynamic).state == 1.0f);
 
 alarm_control_panel:
   - platform: template

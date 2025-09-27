@@ -1,5 +1,5 @@
 #include "template_text.h"
-#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <string>
@@ -9,29 +9,9 @@ namespace template_ {
 
 static const char *const TAG = "template.text";
 
-void print(WRContext *c, const WRValue *argv, const int argn, WRValue &retVal, void *usr) {
-  char buf[255];
-  for (int i = 0; i < argn; ++i) {
-    printf("%s", argv[i].asString(buf, 255));
-  }
-}
-
-void switches(WRContext *c, const WRValue *argv, const int argn, WRValue &retVal, void *usr) {
-  std::vector<switch_::Switch *> sw = App.get_switches();
-  char buf[255];
-
-  for (int i = 0; i < argn; ++i) {
-    printf("%s", argv[i].asString(buf, 255));
-  }
-
-  for (unsigned int i = 0; i < sw.size(); i++) {
-    ESP_LOGD(TAG, "switch: %s", sw[i]->get_name().c_str());
-    ESP_LOGD(TAG, "switch: %i", sw[i]->state);
-    if (strcmp(sw[i]->get_name().c_str(), buf) == 0) {
-      wr_makeInt(&retVal, sw[i]->state);
-    }
-  };
-}
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+TemplateText::~TemplateText() { this->destroy_runtime_(); }
+#endif
 
 void TemplateText::setup() {
   if (!(this->f_ == nullptr)) {
@@ -39,13 +19,11 @@ void TemplateText::setup() {
       return;
   }
 
-  std::string value;
-  ESP_LOGD(TAG, "Setting up Template Text Input");
-  value = this->initial_value_;
+  std::string value = this->initial_value_;
   if (!this->pref_) {
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());
   } else {
-    uint32_t key = this->get_object_id_hash();
+    uint32_t key = this->get_preference_hash();
     key += this->traits.get_min_length() << 2;
     key += this->traits.get_max_length() << 4;
     key += fnv1_hash(this->traits.get_pattern()) << 6;
@@ -54,20 +32,18 @@ void TemplateText::setup() {
   if (!value.empty())
     this->publish_state(value);
 
-  if (this->dynamic_) {
-    ESP_LOGD(TAG, "Initiate wrench");
-    this->w = wr_newState();
-    wr_registerFunction(this->w, "print", print);
-    wr_registerFunction(this->w, "switches", switches);
-  }
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  if (this->dynamic_ && !value.empty())
+    this->execute_wrench_(value);
+#endif
 }
 
 void TemplateText::update() {
-  ESP_LOGD(TAG, "update");
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  if (this->dynamic_)
+    this->execute_wrench_(this->state);
+#endif
 
-  if (this->dynamic_) {
-    this->execute_wrench(this->state);
-  }
   if (this->f_ == nullptr)
     return;
 
@@ -79,32 +55,20 @@ void TemplateText::update() {
     return;
 
   this->publish_state(*val);
-}
 
-void TemplateText::execute_wrench(const std::string &value) {
-  int err = wr_compile(value.c_str(), strlen(value.c_str()), &this->outBytes, &this->outLen);  // compile it
-
-  ESP_LOGD(TAG, "wrench err: %i", err);
-  if (err == 0) {
-    WRContext *gc = wr_run(this->w, this->outBytes, this->outLen);  // load and run the code!
-
-    WRValue *g = wr_getGlobalRef(gc, "result");
-
-    if (g) {
-      char buf[1024];
-      this->lambda_result_->publish_state(g->asString(buf, 1024));
-    }
-
-    delete[] outBytes;  // clean up
-  }
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  if (this->dynamic_)
+    this->execute_wrench_(*val);
+#endif
 }
 
 void TemplateText::control(const std::string &value) {
   this->set_trigger_->trigger(value);
 
-  if (this->dynamic_) {
-    this->execute_wrench(value);
-  }
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  if (this->dynamic_)
+    this->execute_wrench_(value);
+#endif
 
   if (this->optimistic_)
     this->publish_state(value);
@@ -115,12 +79,121 @@ void TemplateText::control(const std::string &value) {
     }
   }
 }
+
 void TemplateText::dump_config() {
   LOG_TEXT("", "Template Text Input", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
-  ESP_LOGCONFIG(TAG, "  Dynamic: %s", YESNO(this->dynamic_));
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  ESP_LOGCONFIG(TAG, "  Dynamic lambda: %s", YESNO(this->dynamic_));
+#endif
   LOG_UPDATE_INTERVAL(this);
 }
 
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+bool TemplateText::ensure_runtime_() {
+  if (this->wrench_state_ != nullptr)
+    return true;
+
+  this->wrench_state_ = wr_newState();
+  if (this->wrench_state_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to initialize Wrench state");
+    return false;
+  }
+
+  return true;
+}
+
+void TemplateText::destroy_runtime_() {
+  if (this->wrench_state_ == nullptr)
+    return;
+
+  wr_destroyState(this->wrench_state_);
+  this->wrench_state_ = nullptr;
+}
+
+void TemplateText::execute_wrench_(const std::string &source) {
+  if (!this->lambda_result_) {
+    ESP_LOGW(TAG, "Dynamic lambda configured without helper text sensor");
+    return;
+  }
+
+  if (!this->ensure_runtime_())
+    return;
+
+  if (source.empty()) {
+    this->lambda_result_->publish_state("");
+    return;
+  }
+
+  unsigned char *bytecode = nullptr;
+  int bytecode_length = 0;
+  char error_message[128] = {0};
+  WRError compile_error = wr_compile(source.c_str(), static_cast<int>(source.size()), &bytecode, &bytecode_length, error_message);
+  if (compile_error != WR_ERR_None) {
+    ESP_LOGE(TAG, "Failed to compile dynamic lambda (%d): %s", static_cast<int>(compile_error), error_message);
+    if (bytecode != nullptr)
+      wr_free(bytecode);
+    return;
+  }
+
+  WRContext *context = wr_run(this->wrench_state_, bytecode, bytecode_length, false, false);
+  if (context == nullptr) {
+    WRError runtime_error = wr_getLastError(this->wrench_state_);
+    ESP_LOGE(TAG, "Dynamic lambda execution failed (%d)", static_cast<int>(runtime_error));
+    wr_free(bytecode);
+    return;
+  }
+
+  WRValue *result_value = wr_getGlobalRef(context, "result");
+  if (result_value == nullptr)
+    result_value = wr_returnValueFromLastCall(context);
+
+  std::string payload;
+  bool recognized = false;
+
+  if (result_value != nullptr) {
+    if (result_value->isString()) {
+      WRValue::MallocStrScoped value_string(*result_value);
+      if (value_string) {
+        payload.assign(value_string, value_string.size());
+        recognized = true;
+      }
+    } else if (result_value->isInt()) {
+      payload = str_sprintf("%d", result_value->asInt());
+      recognized = true;
+    } else if (result_value->isFloat()) {
+      payload = str_sprintf("%.6f", result_value->asFloat());
+      auto dot = payload.find('.');
+      if (dot != std::string::npos) {
+        while (!payload.empty() && payload.back() == '0')
+          payload.pop_back();
+        if (!payload.empty() && payload.back() == '.')
+          payload.pop_back();
+      }
+      recognized = true;
+    } else {
+      ESP_LOGW(TAG, "Unsupported dynamic lambda result type");
+    }
+  } else {
+    ESP_LOGW(TAG, "Dynamic lambda did not produce a result");
+  }
+
+  wr_destroyContext(context);
+  wr_free(bytecode);
+
+  if (!recognized)
+    return;
+
+  auto max_length = this->traits.get_max_length();
+  if (max_length > 0 && payload.size() > static_cast<size_t>(max_length)) {
+    ESP_LOGW(TAG, "Dynamic lambda result truncated from %zu to %d characters", payload.size(), max_length);
+    payload.resize(max_length);
+  }
+
+  this->lambda_result_->publish_state(payload);
+}
+#endif
+
 }  // namespace template_
 }  // namespace esphome
+

@@ -3,16 +3,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text, text_sensor
 from esphome.const import (
+    CONF_DYNAMIC_LAMBDA,
     CONF_INITIAL_VALUE,
     CONF_LAMBDA,
-    CONF_OPTIMISTIC,
-    CONF_RESTORE_VALUE,
     CONF_MAX_LENGTH,
     CONF_MIN_LENGTH,
+    CONF_OPTIMISTIC,
     CONF_PATTERN,
+    CONF_RESTORE_VALUE,
     CONF_SET_ACTION,
-    CONF_DYNAMIC_LAMBDA,
 )
+
 from .. import template_ns
 
 AUTO_LOAD = ["text_sensor"]
@@ -36,6 +37,9 @@ def validate(config):
     elif CONF_INITIAL_VALUE not in config:
         config[CONF_INITIAL_VALUE] = ""
 
+    if CONF_DYNAMIC_LAMBDA in config and CONF_LAMBDA in config:
+        raise cv.Invalid("dynamic_lambda cannot be used with lambda")
+
     if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
         raise cv.Invalid(
             "Either optimistic mode must be enabled, or set_action must be set, to handle the text input being set."
@@ -48,11 +52,11 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    text.TEXT_SCHEMA.extend(
+    text.text_schema(TemplateText)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateText),
             cv.Optional(CONF_MIN_LENGTH, default=0): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=1024),
+            cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=255),
             cv.Optional(CONF_PATTERN): cv.string,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -61,7 +65,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
             cv.Optional(CONF_DYNAMIC_LAMBDA): text_sensor.text_sensor_schema(),
         }
-    ).extend(cv.polling_component_schema("60s")),
+    )
+    .extend(cv.polling_component_schema("60s")),
     validate,
 )
 
@@ -90,10 +95,11 @@ async def to_code(config):
             saver = TextSaverTemplate.template(args).new()
             cg.add(var.set_value_saver(saver))
         if CONF_DYNAMIC_LAMBDA in config:
+            cg.add_define("USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA")
             cg.add(var.set_dynamic(True))
             sens = await text_sensor.new_text_sensor(config[CONF_DYNAMIC_LAMBDA])
             cg.add(var.set_lambda_result(sens))
-            cg.add_library("jingoro2112/wrench", "6.0.3")
+            cg.add_library("jingoro2112/wrench", "6.0.18")
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
