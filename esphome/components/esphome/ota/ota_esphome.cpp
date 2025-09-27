@@ -156,33 +156,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
   while (true) {
     switch (this->ota_state_) {
       case OTAState::MAGIC_READ: {
-        // Try to read remaining magic bytes
-        if (this->handshake_buf_pos_ < 5) {
-          // Read as many bytes as available
-          uint8_t bytes_to_read = 5 - this->handshake_buf_pos_;
-          ssize_t read = this->client_->read(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_read);
-
-          if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            return;  // No data yet, try again next loop
-          }
-
-          if (read <= 0) {
-            // Error or connection closed
-            if (read == -1) {
-              this->log_socket_error_(LOG_STR("reading magic bytes"));
-            } else {
-              this->log_remote_closed_(LOG_STR("handshake"));
-            }
-            this->cleanup_connection_();
-            return;
-          }
-
-          this->handshake_buf_pos_ += read;
-        }
-
-        // Check if we have all 5 magic bytes
-        if (this->handshake_buf_pos_ != 5) {
-          break;
+        // Try to read remaining magic bytes (5 total)
+        if (!this->try_read_(5, LOG_STR("reading magic bytes"), LOG_STR("handshake"))) {
+          return;
         }
 
         // Validate magic bytes
@@ -237,19 +213,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       case OTAState::FEATURE_READ: {
         // Read features - 1 byte
-        ssize_t read = this->client_->read(this->handshake_buf_, 1);
-
-        if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-          return;  // No data yet, try again next loop
-        }
-
-        if (read <= 0) {
-          if (read == -1) {
-            this->log_socket_error_(LOG_STR("reading features"));
-          } else {
-            this->log_remote_closed_(LOG_STR("feature read"));
-          }
-          this->cleanup_connection_();
+        if (!this->try_read_(1, LOG_STR("reading features"), LOG_STR("feature read"))) {
           return;
         }
 
@@ -592,6 +556,31 @@ void ESPHomeOTAComponent::log_start_(const LogString *phase) {
 
 void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
   ESP_LOGW(TAG, "Remote closed during %s", LOG_STR_ARG(during));
+}
+
+bool ESPHomeOTAComponent::try_read_(size_t to_read, const LogString *error_desc, const LogString *close_desc) {
+  // Read bytes into handshake buffer, starting at handshake_buf_pos_
+  size_t bytes_to_read = to_read - this->handshake_buf_pos_;
+  ssize_t read = this->client_->read(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_read);
+
+  if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    return false;  // No data yet, try again next loop
+  }
+
+  if (read <= 0) {
+    // Error or connection closed
+    if (read == -1) {
+      this->log_socket_error_(error_desc);
+    } else {
+      this->log_remote_closed_(close_desc);
+    }
+    this->cleanup_connection_();
+    return false;
+  }
+
+  this->handshake_buf_pos_ += read;
+  // Return true only if we have all the requested bytes
+  return this->handshake_buf_pos_ >= to_read;
 }
 
 void ESPHomeOTAComponent::cleanup_connection_() {
