@@ -4,7 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/logger/logger.h"
 
 namespace esphome {
 namespace qmc5883l {

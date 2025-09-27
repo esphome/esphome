@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/logger/logger.h"
 #include <cmath>
 
 namespace esphome {
@@ -70,7 +71,7 @@ void QMC5883LComponent::setup() {
   if (high_frequency)
     high_freq_.start();
 
-  ESP_LOGW(TAG, "interval = %u | loop_interval = %lu | hf = %s", update_ms, loop_interval,
+  ESP_LOGW(TAG, "interval = %u | loop_interval = %u | hf = %s", update_ms, loop_interval,
            (high_frequency ? "true" : "false"));
 }
 
