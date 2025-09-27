@@ -81,18 +81,9 @@ void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> da
   // when changing both properties, avoiding the brief gap that would occur with separate calls.
 
   this->advertising_init_();
-  bool needs_restart = false;
-
   this->advertising_->set_service_data(data);
-
-  if (this->advertising_->get_include_name() != include_name) {
-    this->advertising_->set_include_name(include_name);
-    needs_restart = true;
-  }
-
-  if (needs_restart || !data.empty()) {
-    this->advertising_start();
-  }
+  this->advertising_->set_include_name(include_name);
+  this->advertising_start();
 }
 
 void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
