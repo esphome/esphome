@@ -749,16 +749,14 @@ bool ESPHomeOTAComponent::prepare_auth_nonce_(HashBase *hasher) {
 
 bool ESPHomeOTAComponent::verify_hash_auth_(HashBase *hasher, size_t hex_size) {
   // Get pointers to the data in the buffer (see prepare_auth_nonce_ for buffer layout)
-  char *nonce = reinterpret_cast<char *>(this->auth_buf_.get() + 1);  // Skip auth_type byte
-  size_t cnonce_offset = 1 + hex_size;                                // Offset where cnonce starts in buffer
-  char *cnonce = reinterpret_cast<char *>(this->auth_buf_.get() + cnonce_offset);
-  const char *response = cnonce + hex_size;  // Response immediately follows cnonce
+  const char *nonce = reinterpret_cast<char *>(this->auth_buf_.get() + 1);  // Skip auth_type byte
+  const char *cnonce = nonce + hex_size;                                    // CNonce immediately follows nonce
+  const char *response = cnonce + hex_size;                                 // Response immediately follows cnonce
 
   // Calculate expected hash: password + nonce + cnonce
   hasher->init();
   hasher->add(this->password_.c_str(), this->password_.length());
-  hasher->add(nonce, hex_size);
-  hasher->add(cnonce, hex_size);
+  hasher->add(nonce, hex_size * 2);  // Add both nonce and cnonce (contiguous in buffer)
   hasher->calculate();
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
