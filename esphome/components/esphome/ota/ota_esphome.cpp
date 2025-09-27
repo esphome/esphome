@@ -717,15 +717,6 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
 
   const size_t to_read = hex_size * 2;  // CNonce + Response
 
-  // Initialize buffer if not already done
-  if (!this->auth_buf_) {
-    // Note: we're reusing the buffer from handle_auth_send_ which should have the nonce
-    // But if we reach here without it, something went wrong
-    this->log_auth_warning_(LOG_STR("Auth buffer not initialized"));
-    this->cleanup_connection_();
-    return false;
-  }
-
   // Try to read remaining bytes (CNonce + Response)
   // We need to read into the buffer starting after the auth_type (1 byte) and nonce (hex_size bytes)
   size_t offset = 1 + hex_size;
