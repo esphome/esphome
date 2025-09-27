@@ -32,6 +32,15 @@ static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size 
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 10000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
+#ifdef USE_OTA_PASSWORD
+#ifdef USE_OTA_MD5
+static constexpr size_t MD5_HEX_SIZE = 32;  // MD5 hash as hex string (16 bytes * 2)
+#endif
+#ifdef USE_OTA_SHA256
+static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 bytes * 2)
+#endif
+#endif  // USE_OTA_PASSWORD
+
 void ESPHomeOTAComponent::setup() {
 #ifdef USE_OTA_STATE_CALLBACK
   ota::register_ota_platform(this);
@@ -811,7 +820,14 @@ bool ESPHomeOTAComponent::verify_hash_auth_(HashBase *hasher, size_t hex_size) {
 }
 
 size_t ESPHomeOTAComponent::get_auth_hex_size_() const {
-  return this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH ? 64 : 32;
+#ifdef USE_OTA_SHA256
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
+    return SHA256_HEX_SIZE;
+  }
+#endif
+#ifdef USE_OTA_MD5
+  return MD5_HEX_SIZE;
+#endif
 }
 
 void ESPHomeOTAComponent::cleanup_auth_() {
