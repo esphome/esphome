@@ -789,6 +789,10 @@ size_t ESPHomeOTAComponent::get_auth_hex_size_() const {
 #endif
 #ifdef USE_OTA_MD5
   return MD5_HEX_SIZE;
+#else
+#ifndef USE_OTA_SHA256
+#error "Either USE_OTA_MD5 or USE_OTA_SHA256 must be defined when USE_OTA_PASSWORD is enabled"
+#endif
 #endif
 }
 
