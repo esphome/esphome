@@ -1,8 +1,9 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import number
+from esphome.components import number, text_sensor
 from esphome.const import (
+    CONF_DYNAMIC_LAMBDA,
     CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_LAMBDA,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_RESTORE_VALUE,
     CONF_STEP,
     CONF_SET_ACTION,
+    CONF_SOURCE_ID,
 )
 from .. import template_ns
 
@@ -34,6 +36,15 @@ def validate(config):
             raise cv.Invalid("initial_value cannot be used with lambda")
         if CONF_RESTORE_VALUE in config:
             raise cv.Invalid("restore_value cannot be used with lambda")
+    if CONF_DYNAMIC_LAMBDA in config:
+        if CONF_LAMBDA in config:
+            raise cv.Invalid("dynamic_lambda cannot be used with lambda")
+        if config[CONF_OPTIMISTIC]:
+            raise cv.Invalid("optimistic cannot be used with dynamic_lambda")
+        if CONF_SET_ACTION in config:
+            raise cv.Invalid("set_action cannot be used with dynamic_lambda")
+        if CONF_RESTORE_VALUE in config:
+            raise cv.Invalid("restore_value cannot be used with dynamic_lambda")
     elif CONF_INITIAL_VALUE not in config:
         config[CONF_INITIAL_VALUE] = config[CONF_MIN_VALUE]
 
@@ -52,6 +63,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_DYNAMIC_LAMBDA): cv.Schema(
+                {
+                    cv.Required(CONF_SOURCE_ID): cv.use_id(text_sensor.TextSensor),
+                }
+            ),
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_VALUE): cv.float_,
@@ -80,6 +96,14 @@ async def to_code(config):
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_template(template_))
+
+    elif CONF_DYNAMIC_LAMBDA in config:
+        dyn = config[CONF_DYNAMIC_LAMBDA]
+        cg.add_define("USE_TEMPLATE_NUMBER_DYNAMIC_LAMBDA")
+        cg.add(var.set_dynamic(True))
+        source = await cg.get_variable(dyn[CONF_SOURCE_ID])
+        cg.add(var.set_lambda_source(source))
+        cg.add_library("jingoro2112/wrench", "6.0.18")
 
     else:
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))

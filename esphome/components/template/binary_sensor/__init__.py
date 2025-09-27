@@ -1,22 +1,40 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
+from esphome.components import binary_sensor, text_sensor
+from esphome.const import (
+    CONF_DYNAMIC_LAMBDA,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_SOURCE_ID,
+    CONF_STATE,
+)
 from .. import template_ns
 
 TemplateBinarySensor = template_ns.class_(
     "TemplateBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
-CONFIG_SCHEMA = (
+
+def _validate(config):
+    if CONF_LAMBDA in config and CONF_DYNAMIC_LAMBDA in config:
+        raise cv.Invalid("dynamic_lambda cannot be used with lambda")
+    return config
+
+CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(TemplateBinarySensor)
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_DYNAMIC_LAMBDA): cv.Schema(
+                {
+                    cv.Required(CONF_SOURCE_ID): cv.use_id(text_sensor.TextSensor),
+                }
+            ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _validate,
 )
 
 
@@ -29,6 +47,14 @@ async def to_code(config):
             config[CONF_LAMBDA], [], return_type=cg.optional.template(bool)
         )
         cg.add(var.set_template(template_))
+
+    if CONF_DYNAMIC_LAMBDA in config:
+        dyn = config[CONF_DYNAMIC_LAMBDA]
+        cg.add_define("USE_TEMPLATE_BINARY_SENSOR_DYNAMIC_LAMBDA")
+        cg.add(var.set_dynamic(True))
+        source = await cg.get_variable(dyn[CONF_SOURCE_ID])
+        cg.add(var.set_lambda_source(source))
+        cg.add_library("jingoro2112/wrench", "6.0.18")
 
 
 @automation.register_action(

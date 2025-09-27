@@ -1,13 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import switch
+from esphome.components import switch, text_sensor
 from esphome.const import (
     CONF_ASSUMED_STATE,
+    CONF_DYNAMIC_LAMBDA,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
     CONF_RESTORE_STATE,
+    CONF_SOURCE_ID,
     CONF_STATE,
     CONF_TURN_OFF_ACTION,
     CONF_TURN_ON_ACTION,
@@ -18,6 +20,17 @@ TemplateSwitch = template_ns.class_("TemplateSwitch", switch.Switch, cg.Componen
 
 
 def validate(config):
+    if CONF_DYNAMIC_LAMBDA in config:
+        if CONF_LAMBDA in config:
+            raise cv.Invalid("dynamic_lambda cannot be used with lambda")
+        if config[CONF_OPTIMISTIC]:
+            raise cv.Invalid("optimistic cannot be used with dynamic_lambda")
+        if CONF_TURN_ON_ACTION in config or CONF_TURN_OFF_ACTION in config:
+            raise cv.Invalid("turn_on_action/turn_off_action cannot be used with dynamic_lambda")
+        if CONF_RESTORE_STATE in config:
+            raise cv.Invalid("restore_state cannot be used with dynamic_lambda")
+        return config
+
     if (
         not config[CONF_OPTIMISTIC]
         and CONF_TURN_ON_ACTION not in config
@@ -35,6 +48,11 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_DYNAMIC_LAMBDA): cv.Schema(
+                {
+                    cv.Required(CONF_SOURCE_ID): cv.use_id(text_sensor.TextSensor),
+                }
+            ),
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
             cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(
@@ -62,6 +80,13 @@ async def to_code(config):
             config[CONF_LAMBDA], [], return_type=cg.optional.template(bool)
         )
         cg.add(var.set_state_lambda(template_))
+    if CONF_DYNAMIC_LAMBDA in config:
+        dyn = config[CONF_DYNAMIC_LAMBDA]
+        cg.add_define("USE_TEMPLATE_SWITCH_DYNAMIC_LAMBDA")
+        cg.add(var.set_dynamic(True))
+        source = await cg.get_variable(dyn[CONF_SOURCE_ID])
+        cg.add(var.set_lambda_source(source))
+        cg.add_library("jingoro2112/wrench", "6.0.18")
     if CONF_TURN_OFF_ACTION in config:
         await automation.build_automation(
             var.get_turn_off_trigger(), [], config[CONF_TURN_OFF_ACTION]

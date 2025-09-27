@@ -1,11 +1,14 @@
 #pragma once
 
-#include <esphome/components/text_sensor/text_sensor.h>
 #include "esphome/components/text/text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "wrench.h"
+#endif
 
 namespace esphome {
 namespace template_ {
@@ -65,6 +68,10 @@ class TemplateText : public text::Text, public PollingComponent {
  public:
   void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
 
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  ~TemplateText();
+#endif
+
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -75,24 +82,28 @@ class TemplateText : public text::Text, public PollingComponent {
   void set_initial_value(const std::string &initial_value) { this->initial_value_ = initial_value; }
   void set_value_saver(TemplateTextSaverBase *restore_value_saver) { this->pref_ = restore_value_saver; }
   void set_dynamic(bool dynamic) { this->dynamic_ = dynamic; }
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
   void set_lambda_result(text_sensor::TextSensor *lambda_result) { this->lambda_result_ = lambda_result; }
+#endif
 
  protected:
   void control(const std::string &value) override;
   bool optimistic_ = false;
-  bool dynamic_ = true;
+  bool dynamic_ = false;
   std::string initial_value_;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   optional<std::function<optional<std::string>()>> f_{nullptr};
-  void execute_wrench(const std::string &value);
 
   TemplateTextSaverBase *pref_ = nullptr;
+#ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
+  void execute_wrench_(const std::string &source);
+  bool ensure_runtime_();
+  void destroy_runtime_();
   text_sensor::TextSensor *lambda_result_{nullptr};
-  // text_sensor::TextSensor *lambda_result_nullptr};
-  unsigned char *outBytes;  // compiled code is alloc'ed
-  int outLen;
-  WRState *w;
+  WRState *wrench_state_{nullptr};
+#endif
 };
 
 }  // namespace template_
 }  // namespace esphome
+
