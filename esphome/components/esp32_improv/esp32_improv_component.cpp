@@ -20,6 +20,11 @@ static constexpr uint16_t STOP_ADVERTISING_DELAY =
 static constexpr uint16_t NAME_ADVERTISING_INTERVAL = 60000;  // Advertise name every 60 seconds
 static constexpr uint16_t NAME_ADVERTISING_DURATION = 1000;   // Advertise name for 1 second
 
+// Improv service data constants
+static constexpr uint8_t IMPROV_SERVICE_DATA_SIZE = 8;
+static constexpr uint8_t IMPROV_PROTOCOL_ID_1 = 0x77;  // 'P' << 1 | 'R' >> 7
+static constexpr uint8_t IMPROV_PROTOCOL_ID_2 = 0x46;  // 'I' << 1 | 'M' >> 7
+
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
 void ESP32ImprovComponent::setup() {
@@ -122,14 +127,7 @@ void ESP32ImprovComponent::loop() {
           esp32_ble::global_ble->advertising_start();
 
           // Set initial state based on whether we have an authorizer
-          // authorizer_ member only exists when USE_BINARY_SENSOR is defined
-#ifdef USE_BINARY_SENSOR
-          this->set_state_(
-              this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION, false);
-#else
-          // No binary_sensor support = no authorizer possible, start as authorized
-          this->set_state_(improv::STATE_AUTHORIZED, false);
-#endif
+          this->set_state_(this->get_initial_state_(), false);
           this->set_error_(improv::ERROR_NONE);
           ESP_LOGD(TAG, "Service started!");
         }
@@ -140,24 +138,21 @@ void ESP32ImprovComponent::loop() {
       if (this->authorizer_ == nullptr ||
           (this->authorized_start_ != 0 && ((now - this->authorized_start_) < this->authorized_duration_))) {
         this->set_state_(improv::STATE_AUTHORIZED);
-      } else
-#else
-      { this->set_state_(improv::STATE_AUTHORIZED); }
-#endif
-      {
+      } else {
         if (!this->check_identify_())
           this->set_status_indicator_state_(true);
       }
+#else
+      this->set_state_(improv::STATE_AUTHORIZED);
+#endif
       break;
     }
     case improv::STATE_AUTHORIZED: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ != nullptr) {
-        if (now - this->authorized_start_ > this->authorized_duration_) {
-          ESP_LOGD(TAG, "Authorization timeout");
-          this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
-          return;
-        }
+      if (this->authorizer_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
+        ESP_LOGD(TAG, "Authorization timeout");
+        this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
+        return;
       }
 #endif
       if (!this->check_identify_()) {
@@ -400,9 +395,9 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 }
 
 void ESP32ImprovComponent::advertise_service_data_() {
-  uint8_t service_data[8] = {};
-  service_data[0] = 0x77;  // PR
-  service_data[1] = 0x46;  // IM
+  uint8_t service_data[IMPROV_SERVICE_DATA_SIZE] = {};
+  service_data[0] = IMPROV_PROTOCOL_ID_1;  // PR
+  service_data[1] = IMPROV_PROTOCOL_ID_2;  // IM
   service_data[2] = static_cast<uint8_t>(this->state_);
 
   uint8_t capabilities = 0x00;
@@ -441,6 +436,16 @@ void ESP32ImprovComponent::update_advertising_type_() {
     // Atomically clear service data and enable name in advertising data
     esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>{}, true);
   }
+}
+
+improv::State ESP32ImprovComponent::get_initial_state_() const {
+#ifdef USE_BINARY_SENSOR
+  // If we have an authorizer, start in awaiting authorization state
+  return this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
+#else
+  // No binary_sensor support = no authorizer possible, start as authorized
+  return improv::STATE_AUTHORIZED;
+#endif
 }
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
