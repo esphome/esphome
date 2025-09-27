@@ -33,6 +33,11 @@ void Modbus::loop() {
       (uint16_t) this->frame_delay_ms_,
       (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
                                                                                        : 0));
+  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
+  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
+  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
+  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
+  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   if (millis() - this->last_modbus_byte_ > timeout) {
     clear_rx_buffer_("timeout");
   }
