@@ -20,7 +20,11 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
     MAGIC_ACK,     // Sending OK and version after magic bytes
     FEATURE_READ,  // Reading feature flags from client
     FEATURE_ACK,   // Sending feature acknowledgment
-    DATA,          // Processing OTA data (authentication, update, etc.)
+#ifdef USE_OTA_PASSWORD
+    AUTH_SEND,  // Sending authentication request
+    AUTH_READ,  // Reading authentication data
+#endif          // USE_OTA_PASSWORD
+    DATA,       // BLOCKING! Processing OTA data (update, etc.)
   };
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
@@ -40,9 +44,10 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void handle_handshake_();
   void handle_data_();
 #ifdef USE_OTA_PASSWORD
-  bool perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request, const LogString *name,
-                          char *buf);
-  void log_auth_warning_(const LogString *action, const LogString *hash_name);
+  bool handle_auth_send_();
+  bool handle_auth_read_();
+  void cleanup_auth_();
+  void log_auth_warning_(const LogString *msg);
 #endif  // USE_OTA_PASSWORD
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
@@ -56,6 +61,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void log_start_(const LogString *phase);
   void log_remote_closed_(const LogString *during);
   void cleanup_connection_();
+  void send_error_and_cleanup_(ota::OTAResponseTypes error);
   void yield_and_feed_watchdog_();
 
 #ifdef USE_OTA_PASSWORD
@@ -72,6 +78,12 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   OTAState ota_state_{OTAState::IDLE};
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
+#ifdef USE_OTA_PASSWORD
+  std::unique_ptr<HashBase> auth_hasher_;
+  std::unique_ptr<uint8_t[]> auth_buf_;
+  size_t auth_buf_size_{0};
+  size_t auth_buf_pos_{0};
+#endif  // USE_OTA_PASSWORD
 };
 
 }  // namespace esphome

@@ -1,10 +1,12 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
+#ifdef USE_OTA_PASSWORD
 #ifdef USE_OTA_MD5
 #include "esphome/components/md5/md5.h"
 #endif
 #ifdef USE_OTA_SHA256
 #include "esphome/components/sha256/sha256.h"
+#endif
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/components/ota/ota_backend.h"
@@ -165,10 +167,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
       if (memcmp(this->handshake_buf_, MAGIC_BYTES, 5) != 0) {
         ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->handshake_buf_[0],
                  this->handshake_buf_[1], this->handshake_buf_[2], this->handshake_buf_[3], this->handshake_buf_[4]);
-        // Send error response (non-blocking, best effort)
-        uint8_t error = static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_MAGIC);
-        this->client_->write(&error, 1);
-        this->cleanup_connection_();
+        this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_MAGIC);
         return;
       }
 
@@ -221,10 +220,39 @@ void ESPHomeOTAComponent::handle_handshake_() {
         return;
       }
 
-      // Handshake complete, move to data phase
+#ifdef USE_OTA_PASSWORD
+      // If password is set, move to auth phase
+      if (!this->password_.empty()) {
+        this->transition_ota_state_(OTAState::AUTH_SEND);
+        [[fallthrough]];
+      } else
+#endif
+      {
+        // No password, move directly to data phase
+        this->transition_ota_state_(OTAState::DATA);
+        [[fallthrough]];
+      }
+    }
+
+#ifdef USE_OTA_PASSWORD
+    case OTAState::AUTH_SEND: {
+      // Non-blocking authentication send
+      if (!this->handle_auth_send_()) {
+        return;
+      }
+      this->transition_ota_state_(OTAState::AUTH_READ);
+      [[fallthrough]];
+    }
+
+    case OTAState::AUTH_READ: {
+      // Non-blocking authentication read & verify
+      if (!this->handle_auth_read_()) {
+        return;
+      }
       this->transition_ota_state_(OTAState::DATA);
       [[fallthrough]];
     }
+#endif
 
     case OTAState::DATA:
       this->handle_data_();
@@ -240,8 +268,10 @@ void ESPHomeOTAComponent::handle_data_() {
   /// Handle the OTA data transfer and update process.
   ///
   /// This method is blocking and will not return until the OTA update completes,
-  /// fails, or times out. It handles authentication, receives the firmware data,
-  /// writes it to flash, and reboots on success.
+  /// fails, or times out. It receives the firmware data, writes it to flash,
+  /// and reboots on success.
+  ///
+  /// Authentication has already been handled in the non-blocking states AUTH_SEND/AUTH_READ.
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
   size_t total = 0;
@@ -253,80 +283,12 @@ void ESPHomeOTAComponent::handle_data_() {
   size_t size_acknowledged = 0;
 #endif
 
-  // The handshake has already been completed in handle_handshake_()
+  // The handshake and auth have already been completed
   // We already have:
   // - this->backend_ created
   // - this->ota_features_ set
   // - Feature acknowledgment sent
-
-#ifdef USE_OTA_PASSWORD
-  if (!this->password_.empty()) {
-    bool auth_success = false;
-
-#ifdef USE_OTA_SHA256
-    // SECURITY HARDENING: Prefer SHA256 authentication on platforms that support it.
-    //
-    // This is a hardening measure to prevent future downgrade attacks where an attacker
-    // could force the use of MD5 authentication by manipulating the feature flags.
-    //
-    // While MD5 is currently still acceptable for our OTA authentication use case
-    // (where the password is a shared secret and we're only authenticating, not
-    // encrypting), at some point in the future MD5 will likely become so weak that
-    // it could be practically attacked.
-    //
-    // We enforce SHA256 now on capable platforms because:
-    // 1. We can't retroactively update device firmware in the field
-    // 2. Clients (like esphome CLI) can always be updated to support SHA256
-    // 3. This prevents any possibility of downgrade attacks in the future
-    //
-    // Devices that don't support SHA256 (due to platform limitations) will
-    // continue to use MD5 as their only option (see #else branch below).
-
-    bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
-
-#ifdef ALLOW_OTA_DOWNGRADE_MD5
-    // Temporary compatibility mode: Allow MD5 for ~3 versions to enable OTA downgrades
-    // This prevents users from being locked out if they need to downgrade after updating
-    // TODO: Remove this entire ifdef block in 2026.1.0
-    if (client_supports_sha256) {
-      sha256::SHA256 sha_hasher;
-      auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
-                                              LOG_STR("SHA256"), sbuf);
-    } else {
-#ifdef USE_OTA_MD5
-      ESP_LOGW(TAG, "Using MD5 auth for compatibility (deprecated)");
-      md5::MD5Digest md5_hasher;
-      auth_success =
-          this->perform_hash_auth_(&md5_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
-#endif  // USE_OTA_MD5
-    }
-#else
-    // Strict mode: SHA256 required on capable platforms (future default)
-    if (!client_supports_sha256) {
-      ESP_LOGW(TAG, "Client requires SHA256");
-      error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    sha256::SHA256 sha_hasher;
-    auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
-                                            LOG_STR("SHA256"), sbuf);
-#endif  // ALLOW_OTA_DOWNGRADE_MD5
-#else
-    // Platform only supports MD5 - use it as the only available option
-    // This is not a security downgrade as the platform cannot support SHA256
-#ifdef USE_OTA_MD5
-    md5::MD5Digest md5_hasher;
-    auth_success =
-        this->perform_hash_auth_(&md5_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
-#endif  // USE_OTA_MD5
-#endif  // USE_OTA_SHA256
-
-    if (!auth_success) {
-      error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-  }
-#endif  // USE_OTA_PASSWORD
+  // - Authentication completed (if password was set)
 
   // Acknowledge auth OK - 1 byte
   buf[0] = ota::OTA_RESPONSE_AUTH_OK;
@@ -594,6 +556,15 @@ void ESPHomeOTAComponent::cleanup_connection_() {
   this->ota_state_ = OTAState::IDLE;
   this->ota_features_ = 0;
   this->backend_ = nullptr;
+#ifdef USE_OTA_PASSWORD
+  this->cleanup_auth_();
+#endif
+}
+
+void ESPHomeOTAComponent::send_error_and_cleanup_(ota::OTAResponseTypes error) {
+  uint8_t error_byte = static_cast<uint8_t>(error);
+  this->client_->write(&error_byte, 1);  // Best effort, non-blocking
+  this->cleanup_connection_();
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
@@ -602,86 +573,202 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
 }
 
 #ifdef USE_OTA_PASSWORD
-void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogString *hash_name) {
-  ESP_LOGW(TAG, "Auth: %s %s failed", LOG_STR_ARG(action), LOG_STR_ARG(hash_name));
+void ESPHomeOTAComponent::log_auth_warning_(const LogString *msg) { ESP_LOGW(TAG, "Auth: %s", LOG_STR_ARG(msg)); }
+
+bool ESPHomeOTAComponent::handle_auth_send_() {
+  // Determine which auth type to use based on platform capabilities and client support
+  uint8_t auth_type;
+
+#ifdef USE_OTA_SHA256
+  bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+
+#ifdef ALLOW_OTA_DOWNGRADE_MD5
+  if (client_supports_sha256) {
+    auth_type = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+    if (!this->auth_hasher_) {
+      this->auth_hasher_ = std::make_unique<sha256::SHA256>();
+    }
+  } else {
+#ifdef USE_OTA_MD5
+    this->log_auth_warning_(LOG_STR("Using MD5 for compatibility (deprecated)"));
+    auth_type = ota::OTA_RESPONSE_REQUEST_AUTH;
+    if (!this->auth_hasher_) {
+      this->auth_hasher_ = std::make_unique<md5::MD5Digest>();
+    }
+#else
+    this->log_auth_warning_(LOG_STR("Client doesn't support SHA256 and MD5 is disabled"));
+    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+    return false;
+#endif  // USE_OTA_MD5
+  }
+#else   // !ALLOW_OTA_DOWNGRADE_MD5
+  if (!client_supports_sha256) {
+    this->log_auth_warning_(LOG_STR("Client requires SHA256"));
+    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+    return false;
+  }
+  auth_type = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+  if (!this->auth_hasher_) {
+    this->auth_hasher_ = std::make_unique<sha256::SHA256>();
+  }
+#endif  // ALLOW_OTA_DOWNGRADE_MD5
+#else   // !USE_OTA_SHA256
+#ifdef USE_OTA_MD5
+  auth_type = ota::OTA_RESPONSE_REQUEST_AUTH;
+  if (!this->auth_hasher_) {
+    this->auth_hasher_ = std::make_unique<md5::MD5Digest>();
+  }
+#else
+  this->log_auth_warning_(LOG_STR("No auth methods available"));
+  this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+  return false;
+#endif  // USE_OTA_MD5
+#endif  // USE_OTA_SHA256
+
+  // Initialize auth buffer if not already done
+  if (!this->auth_buf_) {
+    // Calculate required buffer size
+    const size_t hex_size = this->auth_hasher_->get_size() * 2;
+    const size_t nonce_len = this->auth_hasher_->get_size() / 4;
+    // Buffer needs: 1 (auth_type) + hex_size (nonce) + hex_size*2 (cnonce+response)
+    this->auth_buf_size_ = 1 + hex_size + hex_size * 2;
+    this->auth_buf_ = std::make_unique<uint8_t[]>(this->auth_buf_size_);
+    this->auth_buf_pos_ = 0;
+
+    // Generate nonce
+    char *buf = reinterpret_cast<char *>(this->auth_buf_.get() + 1);
+    if (!random_bytes(reinterpret_cast<uint8_t *>(buf), nonce_len)) {
+      this->log_auth_warning_(LOG_STR("Random bytes generation failed"));
+      this->cleanup_connection_();
+      return false;
+    }
+
+    this->auth_hasher_->init();
+    this->auth_hasher_->add(buf, nonce_len);
+    this->auth_hasher_->calculate();
+
+    // Prepare buffer: auth_type (1 byte) + nonce (hex_size bytes)
+    this->auth_buf_[0] = auth_type;
+    this->auth_hasher_->get_hex(buf);
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    // Log nonce for debugging
+    char log_buf[hex_size + 1];
+    memcpy(log_buf, buf, hex_size);
+    log_buf[hex_size] = '\0';
+    ESP_LOGV(TAG, "Auth: Nonce is %s", log_buf);
+#endif
+  }
+
+  // Try to write auth_type + nonce
+  const size_t hex_size = this->auth_hasher_->get_size() * 2;
+  const size_t to_write = 1 + hex_size;
+  size_t remaining = to_write - this->auth_buf_pos_;
+
+  ssize_t written = this->client_->write(this->auth_buf_.get() + this->auth_buf_pos_, remaining);
+  if (written == -1) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return false;  // Try again next loop
+    }
+    this->log_auth_warning_(LOG_STR("Writing auth type and nonce failed"));
+    this->cleanup_connection_();
+    return false;
+  }
+
+  this->auth_buf_pos_ += written;
+
+  // Check if we still have more to write
+  if (this->auth_buf_pos_ < to_write) {
+    return false;  // More to write, try again next loop
+  }
+
+  // All written, prepare for reading phase
+  this->auth_buf_pos_ = 0;
+
+  // Start challenge hash: password + nonce
+  this->auth_hasher_->init();
+  this->auth_hasher_->add(this->password_.c_str(), this->password_.length());
+  this->auth_hasher_->add(reinterpret_cast<char *>(this->auth_buf_.get() + 1), hex_size);
+
+  return true;
 }
 
-// Non-template function definition to reduce binary size
-bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request,
-                                             const LogString *name, char *buf) {
-  // Get sizes from the hasher
-  const size_t hex_size = hasher->get_size() * 2;   // Hex is twice the byte size
-  const size_t nonce_len = hasher->get_size() / 4;  // Nonce is 1/4 of hash size in bytes
+bool ESPHomeOTAComponent::handle_auth_read_() {
+  const size_t hex_size = this->auth_hasher_->get_size() * 2;
+  const size_t to_read = hex_size * 2;  // CNonce + Response
 
-  // Use the provided buffer for all operations
+  // Try to read remaining bytes
+  size_t remaining = to_read - this->auth_buf_pos_;
+  ssize_t read = this->client_->read(this->auth_buf_.get() + this->auth_buf_pos_, remaining);
 
-  // Generate nonce seed bytes using random_bytes
-  if (!random_bytes(reinterpret_cast<uint8_t *>(buf), nonce_len)) {
-    this->log_auth_warning_(LOG_STR("Random bytes generation failed"), name);
+  if (read == -1) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return false;  // Try again next loop
+    }
+    this->log_auth_warning_(LOG_STR("Reading cnonce response failed"));
+    this->cleanup_connection_();
     return false;
   }
 
-  hasher->init();
-  hasher->add(buf, nonce_len);
-  hasher->calculate();
-
-  // Prepare buffer: auth_type (1 byte) + nonce (hex_size bytes)
-  buf[0] = auth_request;
-  hasher->get_hex(buf + 1);
-
-  // Log nonce for debugging
-  buf[1 + hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), buf + 1);
-
-  // Send auth_type + nonce in a single write
-  if (!this->writeall_(reinterpret_cast<uint8_t *>(buf), 1 + hex_size)) {
-    this->log_auth_warning_(LOG_STR("Writing auth type and nonce"), name);
+  if (read == 0) {
+    this->log_auth_warning_(LOG_STR("Remote closed during auth read"));
+    this->cleanup_connection_();
     return false;
   }
 
-  // Start challenge: password + nonce (nonce is at buf + 1)
-  hasher->init();
-  hasher->add(password.c_str(), password.length());
-  hasher->add(buf + 1, hex_size);
+  this->auth_buf_pos_ += read;
 
-  // Read cnonce and add to hash
-  if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size * 2)) {
-    this->log_auth_warning_(LOG_STR("Reading cnonce response"), name);
-    return false;
+  // Check if we still need more data
+  if (this->auth_buf_pos_ < to_read) {
+    return false;  // More to read, try again next loop
   }
 
-  // Response is located after CNonce in the buffer
+  // We have all the data, verify it
+  char *buf = reinterpret_cast<char *>(this->auth_buf_.get());
   const char *response = buf + hex_size;
 
-  hasher->add(buf, hex_size);  // add CNonce in binary
-  hasher->calculate();
+  // Add CNonce to hash
+  this->auth_hasher_->add(buf, hex_size);
+  this->auth_hasher_->calculate();
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char log_buf[hex_size + 1];
-  // Log CNonce for debugging
-  memcpy(log_buf, buf, hex_size);  // Save CNonce for logging
+  // Log CNonce
+  memcpy(log_buf, buf, hex_size);
   log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), log_buf);
+  ESP_LOGV(TAG, "Auth: CNonce is %s", log_buf);
 
-  // Log computed hash for debugging
-  hasher->get_hex(log_buf);
+  // Log computed hash
+  this->auth_hasher_->get_hex(log_buf);
   log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), log_buf);
+  ESP_LOGV(TAG, "Auth: Result is %s", log_buf);
 
   // Log received response
-  memcpy(log_buf, response, hex_size);  // Save response for logging
+  memcpy(log_buf, response, hex_size);
   log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), log_buf);
-#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  ESP_LOGV(TAG, "Auth: Response is %s", log_buf);
+#endif
 
-  // Compare response directly with digest in hasher
-  bool matches = hasher->equals_hex(response);
+  // Compare response
+  bool matches = this->auth_hasher_->equals_hex(response);
 
   if (!matches) {
-    this->log_auth_warning_(LOG_STR("Password mismatch"), name);
+    this->log_auth_warning_(LOG_STR("Password mismatch"));
+    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+    return false;
   }
 
-  return matches;
+  // Authentication successful - clean up auth state
+  this->cleanup_auth_();
+
+  return true;
+}
+
+void ESPHomeOTAComponent::cleanup_auth_() {
+  this->auth_hasher_ = nullptr;
+  this->auth_buf_ = nullptr;
+  this->auth_buf_size_ = 0;
+  this->auth_buf_pos_ = 0;
 }
 #endif  // USE_OTA_PASSWORD
 
