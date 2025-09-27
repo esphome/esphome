@@ -28,6 +28,7 @@ namespace esphome {
 
 static const char *const TAG = "esphome.ota";
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
+static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size for OTA data transfer
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 10000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
@@ -276,7 +277,8 @@ void ESPHomeOTAComponent::handle_data_() {
   bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
-  uint8_t buf[1024];
+  uint8_t buf[OTA_BUFFER_SIZE];
+  const size_t buf_size = sizeof(buf);
   char *sbuf = reinterpret_cast<char *>(buf);
   size_t ota_size;
 #if USE_OTA_VERSION == 2
@@ -342,7 +344,6 @@ void ESPHomeOTAComponent::handle_data_() {
   while (total < ota_size) {
     // TODO: timeout check
     size_t remaining = ota_size - total;
-    const size_t buf_size = sizeof(buf);
     size_t requested = remaining < buf_size ? remaining : buf_size;
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
