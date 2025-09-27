@@ -13,13 +13,11 @@ static const char *const TAG = "captive_portal.dns";
 
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;
-static constexpr uint16_t DNS_MAX_LEN = 256;
 static constexpr uint16_t DNS_QR_FLAG = 1 << 15;
 static constexpr uint16_t DNS_OPCODE_MASK = 0x7800;
 static constexpr uint16_t DNS_QTYPE_A = 0x0001;
 static constexpr uint16_t DNS_QCLASS_IN = 0x0001;
 static constexpr uint16_t DNS_ANSWER_TTL = 300;
-static constexpr size_t DNS_TASK_STACK_SIZE = 3072;
 
 // DNS Header structure
 struct DNSHeader {
