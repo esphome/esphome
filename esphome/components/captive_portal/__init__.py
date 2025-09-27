@@ -16,7 +16,7 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     auto_load = ["web_server_base", "ota.web_server"]
     if CORE.using_esp_idf:
         auto_load.append("socket")
