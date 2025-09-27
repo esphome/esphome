@@ -536,19 +536,16 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   const size_t hex_size = hasher->get_size() * 2;   // Hex is twice the byte size
   const size_t nonce_len = hasher->get_size() / 4;  // Nonce is 1/4 of hash size in bytes
 
-  // Use the provided buffer for all hex operations
-
-  // Small stack buffer for nonce seed bytes
-  uint8_t nonce_bytes[8];  // Max 8 bytes (2 x uint32_t for SHA256)
-
-  hasher->init();
+  // Use the provided buffer for all operations
 
   // Generate nonce seed bytes using random_bytes
-  if (!random_bytes(nonce_bytes, nonce_len)) {
+  if (!random_bytes(reinterpret_cast<uint8_t *>(buf), nonce_len)) {
     this->log_auth_warning_(LOG_STR("Random bytes generation failed"), name);
     return false;
   }
-  hasher->add(nonce_bytes, nonce_len);
+
+  hasher->init();
+  hasher->add(buf, nonce_len);
   hasher->calculate();
 
   // Prepare buffer: auth_type (1 byte) + nonce (hex_size bytes)
@@ -571,31 +568,37 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   hasher->add(buf + 1, hex_size);
 
   // Read cnonce and add to hash
-  if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
-    this->log_auth_warning_(LOG_STR("Reading cnonce"), name);
+  if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size * 2)) {
+    this->log_auth_warning_(LOG_STR("Reading cnonce response"), name);
     return false;
   }
-  buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), buf);
 
-  hasher->add(buf, hex_size);
+  // Response is located after CNonce in the buffer
+  const char *response = buf + hex_size;
+
+  hasher->add(buf, hex_size);  // add CNonce in binary
   hasher->calculate();
 
-  // Log expected result (digest is already in hasher)
-  hasher->get_hex(buf);
-  buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), buf);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char log_buf[hex_size + 1];
+  // Log CNonce for debugging
+  memcpy(log_buf, buf, hex_size);  // Save CNonce for logging
+  log_buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), log_buf);
 
-  // Read response into the buffer
-  if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
-    this->log_auth_warning_(LOG_STR("Reading response"), name);
-    return false;
-  }
-  buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), buf);
+  // Log computed hash for debugging
+  hasher->get_hex(log_buf);
+  log_buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), log_buf);
+
+  // Log received response
+  memcpy(log_buf, response, hex_size);  // Save response for logging
+  log_buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), log_buf);
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 
   // Compare response directly with digest in hasher
-  bool matches = hasher->equals_hex(buf);
+  bool matches = hasher->equals_hex(response);
 
   if (!matches) {
     this->log_auth_warning_(LOG_STR("Password mismatch"), name);
