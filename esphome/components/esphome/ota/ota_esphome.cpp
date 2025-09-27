@@ -575,43 +575,58 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
 #ifdef USE_OTA_PASSWORD
 void ESPHomeOTAComponent::log_auth_warning_(const LogString *msg) { ESP_LOGW(TAG, "Auth: %s", LOG_STR_ARG(msg)); }
 
+bool ESPHomeOTAComponent::select_auth_type_() {
+#ifdef USE_OTA_SHA256
+  bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+
+#ifdef ALLOW_OTA_DOWNGRADE_MD5
+  // Allow fallback to MD5 if client doesn't support SHA256
+  if (client_supports_sha256) {
+    this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+    return true;
+  }
+#ifdef USE_OTA_MD5
+  this->log_auth_warning_(LOG_STR("Using MD5 for compatibility (deprecated)"));
+  this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
+  return true;
+#else
+  this->log_auth_warning_(LOG_STR("Client doesn't support SHA256 and MD5 is disabled"));
+  this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+  return false;
+#endif  // USE_OTA_MD5
+
+#else   // !ALLOW_OTA_DOWNGRADE_MD5
+  // Require SHA256
+  if (!client_supports_sha256) {
+    this->log_auth_warning_(LOG_STR("Client requires SHA256"));
+    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+    return false;
+  }
+  this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+  return true;
+#endif  // ALLOW_OTA_DOWNGRADE_MD5
+
+#else  // !USE_OTA_SHA256
+#ifdef USE_OTA_MD5
+  // Only MD5 available
+  this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
+  return true;
+#else
+  // No auth methods available
+  this->log_auth_warning_(LOG_STR("No auth methods available"));
+  this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+  return false;
+#endif  // USE_OTA_MD5
+#endif  // USE_OTA_SHA256
+}
+
 bool ESPHomeOTAComponent::handle_auth_send_() {
   // Initialize auth buffer if not already done
   if (!this->auth_buf_) {
-    // Determine which auth type to use
-#ifdef USE_OTA_SHA256
-    bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
-
-#ifdef ALLOW_OTA_DOWNGRADE_MD5
-    if (client_supports_sha256) {
-      this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
-    } else {
-#ifdef USE_OTA_MD5
-      this->log_auth_warning_(LOG_STR("Using MD5 for compatibility (deprecated)"));
-      this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
-#else
-      this->log_auth_warning_(LOG_STR("Client doesn't support SHA256 and MD5 is disabled"));
-      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-      return false;
-#endif  // USE_OTA_MD5
-    }
-#else   // !ALLOW_OTA_DOWNGRADE_MD5
-    if (!client_supports_sha256) {
-      this->log_auth_warning_(LOG_STR("Client requires SHA256"));
-      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+    // Select auth type based on client capabilities and configuration
+    if (!this->select_auth_type_()) {
       return false;
     }
-    this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
-#endif  // ALLOW_OTA_DOWNGRADE_MD5
-#else   // !USE_OTA_SHA256
-#ifdef USE_OTA_MD5
-    this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
-#else
-    this->log_auth_warning_(LOG_STR("No auth methods available"));
-    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-    return false;
-#endif  // USE_OTA_MD5
-#endif  // USE_OTA_SHA256
 
     // Generate nonce with appropriate hasher
     bool success = false;
