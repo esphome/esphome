@@ -45,8 +45,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
-  std::string ssid = request->arg("ssid");
-  std::string psk = request->arg("psk");
+  std::string ssid = request->arg("ssid").c_str();  // NOLINT(readability-redundant-string-cstr)
+  std::string psk = request->arg("psk").c_str();    // NOLINT(readability-redundant-string-cstr)
   ESP_LOGI(TAG, "Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
