@@ -509,8 +509,7 @@ bool ESPHomeOTAComponent::try_read_(size_t to_read, const LogString *error_desc,
   }
 
   if (read <= 0) {
-    // Error or connection closed
-    read == -1 ? this->log_socket_error_(error_desc) : this->log_remote_closed_(close_desc);
+    read == 0 ? this->log_remote_closed_(close_desc) : this->log_socket_error_(error_desc);
     this->cleanup_connection_();
     return false;
   }
