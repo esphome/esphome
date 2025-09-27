@@ -15,7 +15,7 @@ class DNSServer {
   void process_next_request();
 
  protected:
-  static constexpr size_t DNS_BUFFER_SIZE = 128;
+  static constexpr size_t DNS_BUFFER_SIZE = 192;
 
   void process_dns_request();
 
