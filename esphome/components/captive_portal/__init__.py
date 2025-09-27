@@ -15,7 +15,14 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
-AUTO_LOAD = ["web_server_base", "ota.web_server"]
+
+def AUTO_LOAD():
+    auto_load = ["web_server_base", "ota.web_server"]
+    if CORE.using_esp_idf:
+        auto_load.append("socket")
+    return auto_load
+
+
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
 
