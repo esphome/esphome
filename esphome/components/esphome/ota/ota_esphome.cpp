@@ -541,9 +541,6 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   // Small stack buffer for nonce seed bytes
   uint8_t nonce_bytes[8];  // Max 8 bytes (2 x uint32_t for SHA256)
 
-  // Send auth request type
-  this->writeall_(&auth_request, 1);
-
   hasher->init();
 
   // Generate nonce seed bytes using random_bytes
@@ -554,20 +551,24 @@ bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string
   hasher->add(nonce_bytes, nonce_len);
   hasher->calculate();
 
-  // Generate and send nonce
-  hasher->get_hex(buf);
-  buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), buf);
+  // Prepare buffer: auth_type (1 byte) + nonce (hex_size bytes)
+  buf[0] = auth_request;
+  hasher->get_hex(buf + 1);
 
-  if (!this->writeall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
-    this->log_auth_warning_(LOG_STR("Writing nonce"), name);
+  // Log nonce for debugging
+  buf[1 + hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), buf + 1);
+
+  // Send auth_type + nonce in a single write
+  if (!this->writeall_(reinterpret_cast<uint8_t *>(buf), 1 + hex_size)) {
+    this->log_auth_warning_(LOG_STR("Writing auth type and nonce"), name);
     return false;
   }
 
-  // Start challenge: password + nonce
+  // Start challenge: password + nonce (nonce is at buf + 1)
   hasher->init();
   hasher->add(password.c_str(), password.length());
-  hasher->add(buf, hex_size);
+  hasher->add(buf + 1, hex_size);
 
   // Read cnonce and add to hash
   if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
