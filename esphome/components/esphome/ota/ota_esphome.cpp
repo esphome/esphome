@@ -171,7 +171,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
             if (read == -1) {
               this->log_socket_error_(LOG_STR("reading magic bytes"));
             } else {
-              ESP_LOGW(TAG, "Remote closed during handshake");
+              this->log_remote_closed_(LOG_STR("handshake"));
             }
             this->cleanup_connection_();
             return;
@@ -247,7 +247,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
           if (read == -1) {
             this->log_socket_error_(LOG_STR("reading features"));
           } else {
-            ESP_LOGW(TAG, "Remote closed during feature read");
+            this->log_remote_closed_(LOG_STR("feature read"));
           }
           this->cleanup_connection_();
           return;
@@ -588,6 +588,10 @@ void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG,
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
   ESP_LOGD(TAG, "Starting %s from %s", LOG_STR_ARG(phase), this->client_->getpeername().c_str());
+}
+
+void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
+  ESP_LOGW(TAG, "Remote closed during %s", LOG_STR_ARG(during));
 }
 
 void ESPHomeOTAComponent::cleanup_connection_() {

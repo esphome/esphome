@@ -49,6 +49,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
   void log_start_(const LogString *phase);
+  void log_remote_closed_(const LogString *during);
   void cleanup_connection_();
   void yield_and_feed_watchdog_();
 
