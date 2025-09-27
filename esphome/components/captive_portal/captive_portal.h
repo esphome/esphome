@@ -5,6 +5,9 @@
 #ifdef USE_ARDUINO
 #include <DNSServer.h>
 #endif
+#ifdef USE_ESP_IDF
+#include "dns_server_esp32_idf.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -34,26 +37,14 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   void end() {
     this->active_ = false;
     this->base_->deinit();
-#ifdef USE_ARDUINO
-    this->dns_server_->stop();
-    this->dns_server_ = nullptr;
-#endif
+    if (this->dns_server_ != nullptr) {
+      this->dns_server_->stop();
+      this->dns_server_ = nullptr;
+    }
   }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    if (!this->active_)
-      return false;
-
-    if (request->method() == HTTP_GET) {
-      if (request->url() == F("/"))
-        return true;
-      if (request->url() == F("/config.json"))
-        return true;
-      if (request->url() == F("/wifisave"))
-        return true;
-    }
-
-    return false;
+    return this->active_ && request->method() == HTTP_GET;
   }
 
   void handle_config(AsyncWebServerRequest *request);
@@ -66,7 +57,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   web_server_base::WebServerBase *base_;
   bool initialized_{false};
   bool active_{false};
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
   std::unique_ptr<DNSServer> dns_server_{nullptr};
 #endif
 };
