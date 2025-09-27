@@ -817,7 +817,6 @@ size_t ESPHomeOTAComponent::get_auth_hex_size_() const {
 
 void ESPHomeOTAComponent::cleanup_auth_() {
   this->auth_buf_ = nullptr;
-  this->auth_buf_size_ = 0;
   this->auth_buf_pos_ = 0;
   this->auth_type_ = 0;
 }
