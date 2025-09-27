@@ -665,10 +665,10 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   const size_t to_read = hex_size * 2;  // CNonce + Response
 
   // Try to read remaining bytes (CNonce + Response)
-  // We need to read into the buffer starting after the auth_type (1 byte) and nonce (hex_size bytes)
-  size_t offset = 1 + hex_size;
+  // We read cnonce+response starting at offset 1+hex_size (after auth_type and our nonce)
+  size_t cnonce_offset = 1 + hex_size;  // Offset where cnonce should be stored in buffer
   size_t remaining = to_read - this->auth_buf_pos_;
-  ssize_t read = this->client_->read(this->auth_buf_.get() + offset + this->auth_buf_pos_, remaining);
+  ssize_t read = this->client_->read(this->auth_buf_.get() + cnonce_offset + this->auth_buf_pos_, remaining);
 
   if (read == -1) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -760,11 +760,17 @@ bool ESPHomeOTAComponent::prepare_auth_nonce_(HashBase *hasher) {
 }
 
 bool ESPHomeOTAComponent::verify_hash_auth_(HashBase *hasher, size_t hex_size) {
-  // Get pointers to the data
-  size_t offset = 1 + hex_size;                                       // Skip auth_type byte and nonce
+  // Buffer layout after AUTH_READ completes:
+  //   [0]: auth_type (1 byte)
+  //   [1...hex_size]: nonce (hex_size bytes) - our random nonce sent in AUTH_SEND
+  //   [1+hex_size...1+2*hex_size-1]: cnonce (hex_size bytes) - client's nonce
+  //   [1+2*hex_size...1+3*hex_size-1]: response (hex_size bytes) - client's hash
+
+  // Get pointers to the data in the buffer
   char *nonce = reinterpret_cast<char *>(this->auth_buf_.get() + 1);  // Skip auth_type byte
-  char *cnonce = reinterpret_cast<char *>(this->auth_buf_.get() + offset);
-  const char *response = cnonce + hex_size;
+  size_t cnonce_offset = 1 + hex_size;                                // Offset where cnonce starts in buffer
+  char *cnonce = reinterpret_cast<char *>(this->auth_buf_.get() + cnonce_offset);
+  const char *response = cnonce + hex_size;  // Response immediately follows cnonce
 
   // Calculate expected hash: password + nonce + cnonce
   hasher->init();
