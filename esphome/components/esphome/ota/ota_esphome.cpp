@@ -734,11 +734,14 @@ bool ESPHomeOTAComponent::prepare_auth_nonce_(HashBase *hasher) {
   // Calculate required buffer size using the hasher
   const size_t hex_size = hasher->get_size() * 2;
   const size_t nonce_len = hasher->get_size() / 4;
-  // Buffer layout:
-  //   - auth_type (1 byte) + nonce (hex_size) - sent in AUTH_SEND
-  //   - cnonce (hex_size) + response (hex_size) - read in AUTH_READ at offset 1+hex_size
-  // Total: 1 + hex_size + (hex_size * 2)
-  const size_t auth_buf_size = 1 + hex_size + hex_size * 2;
+
+  // Buffer layout after AUTH_READ completes:
+  //   [0]: auth_type (1 byte)
+  //   [1...hex_size]: nonce (hex_size bytes) - our random nonce sent in AUTH_SEND
+  //   [1+hex_size...1+2*hex_size-1]: cnonce (hex_size bytes) - client's nonce
+  //   [1+2*hex_size...1+3*hex_size-1]: response (hex_size bytes) - client's hash
+  // Total: 1 + 3*hex_size
+  const size_t auth_buf_size = 1 + 3 * hex_size;
   this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
   this->auth_buf_pos_ = 0;
 
@@ -770,13 +773,7 @@ bool ESPHomeOTAComponent::prepare_auth_nonce_(HashBase *hasher) {
 }
 
 bool ESPHomeOTAComponent::verify_hash_auth_(HashBase *hasher, size_t hex_size) {
-  // Buffer layout after AUTH_READ completes:
-  //   [0]: auth_type (1 byte)
-  //   [1...hex_size]: nonce (hex_size bytes) - our random nonce sent in AUTH_SEND
-  //   [1+hex_size...1+2*hex_size-1]: cnonce (hex_size bytes) - client's nonce
-  //   [1+2*hex_size...1+3*hex_size-1]: response (hex_size bytes) - client's hash
-
-  // Get pointers to the data in the buffer
+  // Get pointers to the data in the buffer (see prepare_auth_nonce_ for buffer layout)
   char *nonce = reinterpret_cast<char *>(this->auth_buf_.get() + 1);  // Skip auth_type byte
   size_t cnonce_offset = 1 + hex_size;                                // Offset where cnonce starts in buffer
   char *cnonce = reinterpret_cast<char *>(this->auth_buf_.get() + cnonce_offset);
