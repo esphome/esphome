@@ -3,8 +3,8 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/socket/socket.h"
 #include <lwip/sockets.h>
-#include <lwip/netdb.h>
 #include <lwip/inet.h>
 
 namespace esphome::captive_portal {
@@ -51,83 +51,57 @@ void DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
   ESP_LOGI(TAG, "Starting DNS server on %s", ip.str().c_str());
 
-  // Create socket
-  this->dns_socket_ = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-  if (this->dns_socket_ < 0) {
-    ESP_LOGE(TAG, "Socket create failed: %d", errno);
+  // Create loop-monitored UDP socket
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP);
+  if (this->socket_ == nullptr) {
+    ESP_LOGE(TAG, "Socket create failed");
     return;
   }
-  ESP_LOGD(TAG, "Socket created: %d", this->dns_socket_);
 
   // Set socket options
   int enable = 1;
-  if (setsockopt(this->dns_socket_, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
-    ESP_LOGW(TAG, "SO_REUSEADDR failed: %d", errno);
-  }
+  this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
 
   // Bind to port 53
-  struct sockaddr_in server_addr = {};
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  server_addr.sin_port = htons(DNS_PORT);
+  struct sockaddr_storage server_addr = {};
+  socklen_t addr_len = socket::set_sockaddr_any((struct sockaddr *) &server_addr, sizeof(server_addr), DNS_PORT);
 
-  if (bind(this->dns_socket_, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+  int err = this->socket_->bind((struct sockaddr *) &server_addr, addr_len);
+  if (err != 0) {
     ESP_LOGE(TAG, "Bind failed: %d", errno);
-    close(this->dns_socket_);
-    this->dns_socket_ = -1;
+    this->socket_ = nullptr;
     return;
   }
   ESP_LOGD(TAG, "Bound to port %d", DNS_PORT);
-
-  // Create task
-  BaseType_t task_result =
-      xTaskCreate(&DNSServer::dns_server_task, "dns_server", DNS_TASK_STACK_SIZE, this, 1, &this->dns_task_handle_);
-  if (task_result != pdPASS) {
-    ESP_LOGE(TAG, "Task create failed");
-    close(this->dns_socket_);
-    this->dns_socket_ = -1;
-    return;
-  }
 }
 
 void DNSServer::stop() {
-  if (this->dns_task_handle_) {
-    vTaskDelete(this->dns_task_handle_);
-    this->dns_task_handle_ = nullptr;
+  if (this->socket_ != nullptr) {
+    this->socket_->close();
+    this->socket_ = nullptr;
   }
-
-  if (this->dns_socket_ >= 0) {
-    close(this->dns_socket_);
-    this->dns_socket_ = -1;
-  }
-
   ESP_LOGV(TAG, "Stopped");
 }
 
-void DNSServer::dns_server_task(void *pvParameters) {
-  DNSServer *server = static_cast<DNSServer *>(pvParameters);
-  ESP_LOGV(TAG, "Task started, socket: %d", server->dns_socket_);
-
-  // Set socket timeout to prevent blocking forever
-  struct timeval timeout;
-  timeout.tv_sec = 1;
-  timeout.tv_usec = 0;
-  if (setsockopt(server->dns_socket_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-    ESP_LOGW(TAG, "SO_RCVTIMEO failed: %d", errno);
-  }
-
-  while (true) {
-    server->process_dns_request(server->dns_socket_);
+void DNSServer::process_next_request() {
+  // Process one request if socket is valid and data is available
+  if (this->socket_ != nullptr && this->socket_->ready()) {
+    this->process_dns_request();
   }
 }
 
-void DNSServer::process_dns_request(int sock) {
+void DNSServer::process_dns_request() {
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(client_addr);
-  uint8_t buffer[DNS_MAX_LEN];
 
-  // Receive DNS request
-  int len = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr *) &client_addr, &client_addr_len);
+  // Receive DNS request using raw fd for recvfrom
+  int fd = this->socket_->get_fd();
+  if (fd < 0) {
+    return;
+  }
+
+  ssize_t len = recvfrom(fd, this->buffer_, sizeof(this->buffer_), MSG_DONTWAIT, (struct sockaddr *) &client_addr,
+                         &client_addr_len);
 
   if (len < 0) {
     if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
@@ -144,7 +118,7 @@ void DNSServer::process_dns_request(int sock) {
   }
 
   // Parse DNS header
-  DNSHeader *header = (DNSHeader *) buffer;
+  DNSHeader *header = (DNSHeader *) this->buffer_;
   uint16_t flags = ntohs(header->flags);
   uint16_t qd_count = ntohs(header->qd_count);
 
@@ -155,8 +129,8 @@ void DNSServer::process_dns_request(int sock) {
   }
 
   // Parse domain name (we don't actually care about it - redirect everything)
-  uint8_t *ptr = buffer + sizeof(DNSHeader);
-  uint8_t *end = buffer + len;
+  uint8_t *ptr = this->buffer_ + sizeof(DNSHeader);
+  uint8_t *end = this->buffer_ + len;
 
   while (ptr < end && *ptr != 0) {
     uint8_t label_len = *ptr;
@@ -197,16 +171,16 @@ void DNSServer::process_dns_request(int sock) {
   header->an_count = htons(1);                  // One answer
 
   // Add answer section after the question
-  size_t question_len = (ptr + sizeof(DNSQuestion)) - buffer - sizeof(DNSHeader);
+  size_t question_len = (ptr + sizeof(DNSQuestion)) - this->buffer_ - sizeof(DNSHeader);
   size_t answer_offset = sizeof(DNSHeader) + question_len;
 
   // Check if we have room for the answer
-  if (answer_offset + sizeof(DNSAnswer) > sizeof(buffer)) {
+  if (answer_offset + sizeof(DNSAnswer) > sizeof(this->buffer_)) {
     ESP_LOGW(TAG, "Response too large");
     return;
   }
 
-  DNSAnswer *answer = (DNSAnswer *) (buffer + answer_offset);
+  DNSAnswer *answer = (DNSAnswer *) (this->buffer_ + answer_offset);
 
   // Pointer to name in question (offset from start of packet)
   answer->ptr_offset = htons(0xC000 | sizeof(DNSHeader));
@@ -222,7 +196,8 @@ void DNSServer::process_dns_request(int sock) {
   size_t response_len = answer_offset + sizeof(DNSAnswer);
 
   // Send response
-  int sent = sendto(sock, buffer, response_len, 0, (struct sockaddr *) &client_addr, client_addr_len);
+  ssize_t sent =
+      this->socket_->sendto(this->buffer_, response_len, 0, (struct sockaddr *) &client_addr, client_addr_len);
   if (sent < 0) {
     ESP_LOGV(TAG, "Send failed: %d", errno);
   } else {

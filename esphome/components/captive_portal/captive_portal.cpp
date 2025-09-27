@@ -56,10 +56,8 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
 }
 
 void CaptivePortal::setup() {
-#ifndef USE_ARDUINO
-  // Disable loop for non-Arduino frameworks (DNS runs in its own task on ESP-IDF)
+  // Disable loop by default - will be enabled when captive portal starts
   this->disable_loop();
-#endif
 }
 void CaptivePortal::start() {
   this->base_->init();
@@ -79,12 +77,14 @@ void CaptivePortal::start() {
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   this->dns_server_->start(53, F("*"), ip);
-  // Re-enable loop() when DNS server is started
-  this->enable_loop();
 #endif
 
   this->initialized_ = true;
   this->active_ = true;
+
+  // Enable loop() now that captive portal is active
+  this->enable_loop();
+
   ESP_LOGV(TAG, "Captive portal started");
 }
 

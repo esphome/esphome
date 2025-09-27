@@ -22,20 +22,24 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
   void dump_config() override;
-#ifdef USE_ARDUINO
   void loop() override {
+#ifdef USE_ARDUINO
     if (this->dns_server_ != nullptr) {
       this->dns_server_->processNextRequest();
-    } else {
-      this->disable_loop();
     }
-  }
 #endif
+#ifdef USE_ESP_IDF
+    if (this->dns_server_ != nullptr) {
+      this->dns_server_->process_next_request();
+    }
+#endif
+  }
   float get_setup_priority() const override;
   void start();
   bool is_active() const { return this->active_; }
   void end() {
     this->active_ = false;
+    this->disable_loop();  // Stop processing DNS requests
     this->base_->deinit();
     if (this->dns_server_ != nullptr) {
       this->dns_server_->stop();
