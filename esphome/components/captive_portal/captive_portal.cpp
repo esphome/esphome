@@ -66,7 +66,6 @@ void CaptivePortal::start() {
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  ESP_LOGI(TAG, "Starting captive portal on IP: %s", ip.str().c_str());
 
 #ifdef USE_ESP_IDF
   // Create DNS server instance for ESP-IDF
