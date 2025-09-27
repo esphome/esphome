@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
-from esphome.coroutine import coroutine_with_priority
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
@@ -213,7 +213,7 @@ automation.register_condition(
 )(microphone_action)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(microphone_ns.using)
     cg.add_define("USE_MICROPHONE")

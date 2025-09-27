@@ -100,6 +100,7 @@
 #define USE_UART_DEBUGGER
 #define USE_UPDATE
 #define USE_VALVE
+#define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
@@ -115,13 +116,16 @@
 #define USE_API_PLAINTEXT
 #define USE_API_SERVICES
 #define USE_MD5
+#define USE_SHA256
 #define USE_MQTT
 #define USE_NETWORK
 #define USE_ONLINE_IMAGE_BMP_SUPPORT
 #define USE_ONLINE_IMAGE_PNG_SUPPORT
 #define USE_ONLINE_IMAGE_JPEG_SUPPORT
 #define USE_OTA
+#define USE_OTA_MD5
 #define USE_OTA_PASSWORD
+#define USE_OTA_SHA256
 #define USE_OTA_STATE_CALLBACK
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
@@ -148,11 +152,15 @@
 
 #define USE_BLUETOOTH_PROXY
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #define USE_CAPTIVE_PORTAL
 #define USE_ESP32_BLE
 #define USE_ESP32_BLE_CLIENT
 #define USE_ESP32_BLE_DEVICE
 #define USE_ESP32_BLE_SERVER
+#define USE_ESP32_BLE_UUID
+#define USE_ESP32_BLE_ADVERTISING
+#define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_I2C
 #define USE_IMPROV
 #define USE_MICROPHONE
@@ -163,6 +171,7 @@
 #define USE_SPI
 #define USE_VOICE_ASSISTANT
 #define USE_WEBSERVER
+#define USE_WEBSERVER_AUTH
 #define USE_WEBSERVER_OTA
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WEBSERVER_SORTING
@@ -171,6 +180,7 @@
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 2, 1)
 #define USE_ETHERNET
+#define USE_ETHERNET_KSZ8081
 #endif
 
 #ifdef USE_ESP_IDF
@@ -210,6 +220,7 @@
   {}
 
 #define USE_WEBSERVER
+#define USE_WEBSERVER_AUTH
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
@@ -226,6 +237,7 @@
 #define USE_SOCKET_IMPL_LWIP_SOCKETS
 #define USE_SOCKET_SELECT_SUPPORT
 #define USE_WEBSERVER
+#define USE_WEBSERVER_AUTH
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
@@ -234,13 +246,20 @@
 #define USE_SOCKET_SELECT_SUPPORT
 #endif
 
+#ifdef USE_NRF52
+#define USE_NRF52_DFU
+#endif
+
 // Disabled feature flags
 // #define USE_BSEC   // Requires a library with proprietary license
 // #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT
 
-// Default entity counts for static analysis
+// Default counts for static analysis
+#define ESPHOME_COMPONENT_COUNT 50
+#define ESPHOME_DEVICE_COUNT 10
+#define ESPHOME_AREA_COUNT 10
 #define ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT 1
 #define ESPHOME_ENTITY_BINARY_SENSOR_COUNT 1
 #define ESPHOME_ENTITY_BUTTON_COUNT 1

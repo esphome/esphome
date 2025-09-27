@@ -27,7 +27,7 @@ class DashboardSettings:
 
     def __init__(self) -> None:
         """Initialize the dashboard settings."""
-        self.config_dir: str = ""
+        self.config_dir: Path = None
         self.password_hash: str = ""
         self.username: str = ""
         self.using_password: bool = False
@@ -45,10 +45,10 @@ class DashboardSettings:
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
-        self.config_dir = args.configuration
-        self.absolute_config_dir = Path(self.config_dir).resolve()
+        self.config_dir = Path(args.configuration)
+        self.absolute_config_dir = self.config_dir.resolve()
         self.verbose = args.verbose
-        CORE.config_path = os.path.join(self.config_dir, ".")
+        CORE.config_path = self.config_dir / "."
 
     @property
     def relative_url(self) -> str:
@@ -81,9 +81,9 @@ class DashboardSettings:
         # Compare password in constant running time (to prevent timing attacks)
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
-    def rel_path(self, *args: Any) -> str:
+    def rel_path(self, *args: Any) -> Path:
         """Return a path relative to the ESPHome config folder."""
-        joined_path = os.path.join(self.config_dir, *args)
+        joined_path = self.config_dir / Path(*args)
         # Raises ValueError if not relative to ESPHome config folder
-        Path(joined_path).resolve().relative_to(self.absolute_config_dir)
+        joined_path.resolve().relative_to(self.absolute_config_dir)
         return joined_path

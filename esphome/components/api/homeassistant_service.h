@@ -3,10 +3,10 @@
 #include "api_server.h"
 #ifdef USE_API
 #ifdef USE_API_HOMEASSISTANT_SERVICES
+#include <vector>
 #include "api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-#include <vector>
 
 namespace esphome::api {
 
@@ -62,7 +62,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   }
 
   void play(Ts... x) override {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     std::string service_value = this->service_.value(x...);
     resp.set_service(StringRef(service_value));
     resp.is_event = this->is_event_;
@@ -84,7 +84,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
       kv.set_key(StringRef(it.key));
       kv.value = it.value.value(x...);
     }
-    this->parent_->send_homeassistant_service_call(resp);
+    this->parent_->send_homeassistant_action(resp);
   }
 
  protected:

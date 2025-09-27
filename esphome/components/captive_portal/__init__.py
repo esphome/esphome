@@ -11,10 +11,11 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 AUTO_LOAD = ["web_server_base", "ota.web_server"]
 DEPENDENCIES = ["wifi"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(64.0)
+@coroutine_with_priority(CoroPriority.CAPTIVE_PORTAL)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 

@@ -327,7 +327,7 @@ void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callb
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^
+  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_preference_hash() ^
                                                                               RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
@@ -367,9 +367,11 @@ void Climate::save_state_() {
     state.uses_custom_fan_mode = true;
     const auto &supported = traits.get_supported_custom_fan_modes();
     std::vector<std::string> vec{supported.begin(), supported.end()};
-    auto it = std::find(vec.begin(), vec.end(), custom_fan_mode);
-    if (it != vec.end()) {
-      state.custom_fan_mode = std::distance(vec.begin(), it);
+    for (size_t i = 0; i < vec.size(); i++) {
+      if (vec[i] == custom_fan_mode) {
+        state.custom_fan_mode = i;
+        break;
+      }
     }
   }
   if (traits.get_supports_presets() && preset.has_value()) {
@@ -380,10 +382,11 @@ void Climate::save_state_() {
     state.uses_custom_preset = true;
     const auto &supported = traits.get_supported_custom_presets();
     std::vector<std::string> vec{supported.begin(), supported.end()};
-    auto it = std::find(vec.begin(), vec.end(), custom_preset);
-    // only set custom preset if value exists, otherwise leave it as is
-    if (it != vec.cend()) {
-      state.custom_preset = std::distance(vec.begin(), it);
+    for (size_t i = 0; i < vec.size(); i++) {
+      if (vec[i] == custom_preset) {
+        state.custom_preset = i;
+        break;
+      }
     }
   }
   if (traits.get_supports_swing_modes()) {

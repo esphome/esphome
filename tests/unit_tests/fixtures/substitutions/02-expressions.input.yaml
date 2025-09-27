@@ -20,3 +20,6 @@ test_list:
   - The pin number is ${pin.number}
   - The square root is: ${math.sqrt(area)}
   - The number is ${var${numberOne} + 1}
+  - ord("a") = ${ ord("a") }
+  - chr(97) = ${ chr(97) }
+  - len([1,2,3]) = ${ len([1,2,3]) }

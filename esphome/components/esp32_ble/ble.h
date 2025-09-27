@@ -1,14 +1,17 @@
 #pragma once
 
-#include "ble_advertising.h"
+#include "esphome/core/defines.h"  // Must be included before conditional includes
+
 #include "ble_uuid.h"
 #include "ble_scan_result.h"
+#ifdef USE_ESP32_BLE_ADVERTISING
+#include "ble_advertising.h"
+#endif
 
 #include <functional>
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include "ble_event.h"
@@ -23,20 +26,13 @@
 
 namespace esphome::esp32_ble {
 
-// Maximum number of BLE scan results to buffer
-// Sized to handle bursts of advertisements while allowing for processing delays
-// With 16 advertisements per batch and some safety margin:
-// - Without PSRAM: 24 entries (1.5× batch size)
-// - With PSRAM: 36 entries (2.25× batch size)
-// The reduced structure size (~80 bytes vs ~400 bytes) allows for larger buffers
+// Maximum size of the BLE event queue
+// Increased to absorb the ring buffer capacity from esp32_ble_tracker
 #ifdef USE_PSRAM
-static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 36;
+static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 100;  // 64 + 36 (ring buffer size with PSRAM)
 #else
-static constexpr uint8_t SCAN_RESULT_BUFFER_SIZE = 24;
+static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 88;  // 64 + 24 (ring buffer size without PSRAM)
 #endif
-
-// Maximum size of the BLE event queue - must be power of 2 for lock-free queue
-static constexpr size_t MAX_BLE_QUEUE_SIZE = 64;
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
 
@@ -78,17 +74,21 @@ class GAPScanEventHandler {
   virtual void gap_scan_event_handler(const BLEScanResult &scan_result) = 0;
 };
 
+#ifdef USE_ESP32_BLE_CLIENT
 class GATTcEventHandler {
  public:
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
 };
+#endif
 
+#ifdef USE_ESP32_BLE_SERVER
 class GATTsEventHandler {
  public:
   virtual void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) = 0;
 };
+#endif
 
 class BLEStatusEventHandler {
  public:
@@ -113,6 +113,7 @@ class ESP32BLE : public Component {
   float get_setup_priority() const override;
   void set_name(const std::string &name) { this->name_ = name; }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_start();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
@@ -120,27 +121,38 @@ class ESP32BLE : public Component {
   void advertising_add_service_uuid(ESPBTUUID uuid);
   void advertising_remove_service_uuid(ESPBTUUID uuid);
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
+#endif
 
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
   void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
     this->gap_scan_event_handlers_.push_back(handler);
   }
+#ifdef USE_ESP32_BLE_CLIENT
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
+#endif
+#ifdef USE_ESP32_BLE_SERVER
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
+#endif
   void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
     this->ble_status_event_handlers_.push_back(handler);
   }
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
+#ifdef USE_ESP32_BLE_SERVER
   static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
   static void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+#endif
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
   bool ble_setup_();
   bool ble_dismantle_();
   bool ble_pre_setup_();
+#ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
+#endif
 
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
@@ -148,8 +160,12 @@ class ESP32BLE : public Component {
   // Vectors (12 bytes each on 32-bit, naturally aligned to 4 bytes)
   std::vector<GAPEventHandler *> gap_event_handlers_;
   std::vector<GAPScanEventHandler *> gap_scan_event_handlers_;
+#ifdef USE_ESP32_BLE_CLIENT
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
+#endif
+#ifdef USE_ESP32_BLE_SERVER
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
+#endif
   std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
@@ -160,7 +176,9 @@ class ESP32BLE : public Component {
   optional<std::string> name_;
 
   // 4-byte aligned members
-  BLEAdvertising *advertising_{};             // 4 bytes (pointer)
+#ifdef USE_ESP32_BLE_ADVERTISING
+  BLEAdvertising *advertising_{};  // 4 bytes (pointer)
+#endif
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
   uint32_t advertising_cycle_time_{};         // 4 bytes
 
