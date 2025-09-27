@@ -64,14 +64,14 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 
   std::unique_ptr<socket::Socket> server_;
   std::unique_ptr<socket::Socket> client_;
+  std::unique_ptr<ota::OTABackend> backend_;
 
-  OTAState ota_state_{OTAState::IDLE};
   uint32_t client_connect_time_{0};
   uint16_t port_;
   uint8_t handshake_buf_[5];
+  OTAState ota_state_{OTAState::IDLE};
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
-  std::unique_ptr<ota::OTABackend> backend_;
 };
 
 }  // namespace esphome
