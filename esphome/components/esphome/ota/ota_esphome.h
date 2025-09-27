@@ -46,6 +46,9 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 #ifdef USE_OTA_PASSWORD
   bool handle_auth_send_();
   bool handle_auth_read_();
+  bool prepare_auth_nonce_(HashBase *hasher);
+  bool verify_hash_auth_(HashBase *hasher, size_t hex_size);
+  size_t get_auth_hex_size_() const;
   void cleanup_auth_();
   void log_auth_warning_(const LogString *msg);
 #endif  // USE_OTA_PASSWORD
