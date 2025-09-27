@@ -183,6 +183,61 @@ def test_get_changed_files_github_actions_pull_request(
         assert result == expected_files
 
 
+def test_get_changed_files_github_actions_pull_request_large_pr(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Test _get_changed_files_github_actions fallback for PRs with >300 files."""
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+
+    expected_files = ["file1.py", "file2.cpp"]
+
+    with (
+        patch("helpers._get_pr_number_from_github_env", return_value="10214"),
+        patch("helpers._get_changed_files_from_command") as mock_get,
+    ):
+        # First call fails with too many files error, second succeeds with API method
+        mock_get.side_effect = [
+            Exception("Sorry, the diff exceeded the maximum number of files (300)"),
+            expected_files,
+        ]
+
+        result = _get_changed_files_github_actions()
+
+        assert mock_get.call_count == 2
+        mock_get.assert_any_call(["gh", "pr", "diff", "10214", "--name-only"])
+        mock_get.assert_any_call(
+            [
+                "gh",
+                "api",
+                "repos/esphome/esphome/pulls/10214/files",
+                "--paginate",
+                "--jq",
+                ".[].filename",
+            ]
+        )
+        assert result == expected_files
+
+
+def test_get_changed_files_github_actions_pull_request_other_error(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Test _get_changed_files_github_actions re-raises non-file-limit errors."""
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+
+    with (
+        patch("helpers._get_pr_number_from_github_env", return_value="1234"),
+        patch("helpers._get_changed_files_from_command") as mock_get,
+    ):
+        # Error that is not about file limit
+        mock_get.side_effect = Exception("Command failed: authentication required")
+
+        with pytest.raises(Exception, match="authentication required"):
+            _get_changed_files_github_actions()
+
+        # Should only be called once (no retry with API)
+        mock_get.assert_called_once_with(["gh", "pr", "diff", "1234", "--name-only"])
+
+
 def test_get_changed_files_github_actions_pull_request_no_pr_number(
     monkeypatch: MonkeyPatch,
 ) -> None:

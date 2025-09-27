@@ -6,6 +6,7 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 import sys
 from typing import Any
+from unittest import mock
 
 import pytest
 
@@ -17,6 +18,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.types import ConfigType
+from esphome.util import OrderedDict
 
 # Add package root to python path
 here = Path(__file__).parent
@@ -40,9 +42,9 @@ def config_path(request: pytest.FixtureRequest) -> Generator[None]:
     if config_dir.exists():
         # Set config_path to a dummy yaml file in the config directory
         # This ensures CORE.config_dir points to the config directory
-        CORE.config_path = str(config_dir / "dummy.yaml")
+        CORE.config_path = config_dir / "dummy.yaml"
     else:
-        CORE.config_path = str(Path(request.fspath).parent / "dummy.yaml")
+        CORE.config_path = Path(request.fspath).parent / "dummy.yaml"
 
     yield
     CORE.config_path = original_path
@@ -129,9 +131,35 @@ def generate_main() -> Generator[Callable[[str | Path], str]]:
     """Generates the C++ main.cpp from a given yaml file and returns it in string form."""
 
     def generator(path: str | Path) -> str:
-        CORE.config_path = str(path)
+        CORE.config_path = Path(path)
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
         return CORE.cpp_main_section
 
     yield generator
+
+
+@pytest.fixture
+def mock_clone_or_update() -> Generator[Any]:
+    """Mock git.clone_or_update for testing."""
+    with mock.patch("esphome.git.clone_or_update") as mock_func:
+        # Default return value
+        mock_func.return_value = (Path("/tmp/test"), None)
+        yield mock_func
+
+
+@pytest.fixture
+def mock_load_yaml() -> Generator[Any]:
+    """Mock yaml_util.load_yaml for testing."""
+
+    with mock.patch("esphome.yaml_util.load_yaml") as mock_func:
+        # Default return value
+        mock_func.return_value = OrderedDict({"sensor": []})
+        yield mock_func
+
+
+@pytest.fixture
+def mock_install_meta_finder() -> Generator[Any]:
+    """Mock loader.install_meta_finder for testing."""
+    with mock.patch("esphome.loader.install_meta_finder") as mock_func:
+        yield mock_func
