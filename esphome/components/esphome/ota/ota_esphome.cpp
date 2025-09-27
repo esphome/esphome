@@ -153,88 +153,86 @@ void ESPHomeOTAComponent::handle_handshake_() {
     return;
   }
 
-  while (true) {
-    switch (this->ota_state_) {
-      case OTAState::MAGIC_READ: {
-        // Try to read remaining magic bytes (5 total)
-        if (!this->try_read_(5, LOG_STR("reading magic bytes"), LOG_STR("handshake"))) {
-          return;
-        }
-
-        // Validate magic bytes
-        static const uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
-        if (memcmp(this->handshake_buf_, MAGIC_BYTES, 5) != 0) {
-          ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->handshake_buf_[0],
-                   this->handshake_buf_[1], this->handshake_buf_[2], this->handshake_buf_[3], this->handshake_buf_[4]);
-          // Send error response (non-blocking, best effort)
-          uint8_t error = static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_MAGIC);
-          this->client_->write(&error, 1);
-          this->cleanup_connection_();
-          return;
-        }
-
-        // Magic bytes valid, move to next state
-        this->transition_ota_state_(OTAState::MAGIC_ACK);
-        continue;
-      }
-
-      case OTAState::MAGIC_ACK: {
-        // Send OK and version - 2 bytes
-        // Prepare response in handshake buffer if not already done
-        if (this->handshake_buf_pos_ == 0) {
-          this->handshake_buf_[0] = ota::OTA_RESPONSE_OK;
-          this->handshake_buf_[1] = USE_OTA_VERSION;
-        }
-
-        if (!this->try_write_(2, LOG_STR("writing magic ack"))) {
-          return;
-        }
-
-        // All bytes sent, create backend and move to next state
-        this->backend_ = ota::make_ota_backend();
-        this->transition_ota_state_(OTAState::FEATURE_READ);
-        continue;
-      }
-
-      case OTAState::FEATURE_READ: {
-        // Read features - 1 byte
-        if (!this->try_read_(1, LOG_STR("reading features"), LOG_STR("feature read"))) {
-          return;
-        }
-
-        this->ota_features_ = this->handshake_buf_[0];
-        ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
-        this->transition_ota_state_(OTAState::FEATURE_ACK);
-        continue;
-      }
-
-      case OTAState::FEATURE_ACK: {
-        // Acknowledge header - 1 byte
-        // Prepare response in handshake buffer if not already done
-        if (this->handshake_buf_pos_ == 0) {
-          this->handshake_buf_[0] =
-              ((this->ota_features_ & FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression())
-                  ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION
-                  : ota::OTA_RESPONSE_HEADER_OK;
-        }
-
-        if (!this->try_write_(1, LOG_STR("writing feature ack"))) {
-          return;
-        }
-
-        // Handshake complete, move to data phase
-        this->transition_ota_state_(OTAState::DATA);
-        continue;
-      }
-
-      case OTAState::DATA:
-        this->handle_data_();
+  switch (this->ota_state_) {
+    case OTAState::MAGIC_READ: {
+      // Try to read remaining magic bytes (5 total)
+      if (!this->try_read_(5, LOG_STR("reading magic bytes"), LOG_STR("handshake"))) {
         return;
+      }
 
-      case OTAState::IDLE:
-        // This shouldn't happen
+      // Validate magic bytes
+      static const uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
+      if (memcmp(this->handshake_buf_, MAGIC_BYTES, 5) != 0) {
+        ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->handshake_buf_[0],
+                 this->handshake_buf_[1], this->handshake_buf_[2], this->handshake_buf_[3], this->handshake_buf_[4]);
+        // Send error response (non-blocking, best effort)
+        uint8_t error = static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_MAGIC);
+        this->client_->write(&error, 1);
+        this->cleanup_connection_();
         return;
+      }
+
+      // Magic bytes valid, move to next state
+      this->transition_ota_state_(OTAState::MAGIC_ACK);
+      [[fallthrough]];
     }
+
+    case OTAState::MAGIC_ACK: {
+      // Send OK and version - 2 bytes
+      // Prepare response in handshake buffer if not already done
+      if (this->handshake_buf_pos_ == 0) {
+        this->handshake_buf_[0] = ota::OTA_RESPONSE_OK;
+        this->handshake_buf_[1] = USE_OTA_VERSION;
+      }
+
+      if (!this->try_write_(2, LOG_STR("writing magic ack"))) {
+        return;
+      }
+
+      // All bytes sent, create backend and move to next state
+      this->backend_ = ota::make_ota_backend();
+      this->transition_ota_state_(OTAState::FEATURE_READ);
+      [[fallthrough]];
+    }
+
+    case OTAState::FEATURE_READ: {
+      // Read features - 1 byte
+      if (!this->try_read_(1, LOG_STR("reading features"), LOG_STR("feature read"))) {
+        return;
+      }
+
+      this->ota_features_ = this->handshake_buf_[0];
+      ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
+      this->transition_ota_state_(OTAState::FEATURE_ACK);
+      [[fallthrough]];
+    }
+
+    case OTAState::FEATURE_ACK: {
+      // Acknowledge header - 1 byte
+      // Prepare response in handshake buffer if not already done
+      if (this->handshake_buf_pos_ == 0) {
+        this->handshake_buf_[0] =
+            ((this->ota_features_ & FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression())
+                ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION
+                : ota::OTA_RESPONSE_HEADER_OK;
+      }
+
+      if (!this->try_write_(1, LOG_STR("writing feature ack"))) {
+        return;
+      }
+
+      // Handshake complete, move to data phase
+      this->transition_ota_state_(OTAState::DATA);
+      [[fallthrough]];
+    }
+
+    case OTAState::DATA:
+      this->handle_data_();
+      return;
+
+    case OTAState::IDLE:
+      // This shouldn't happen
+      return;
   }
 }
 
