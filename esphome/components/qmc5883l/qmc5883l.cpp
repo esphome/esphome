@@ -120,8 +120,6 @@ void QMC5883LComponent::update() {
   if (this->drdy_pin_ == nullptr) {
     this->read_data_();
   }
-
-  return;
 }
 
 void QMC5883LComponent::read_data_() {
