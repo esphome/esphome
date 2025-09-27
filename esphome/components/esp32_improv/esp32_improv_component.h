@@ -79,12 +79,12 @@ class ESP32ImprovComponent : public Component {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  BLEService *service_ = nullptr;
-  BLECharacteristic *status_;
-  BLECharacteristic *error_;
-  BLECharacteristic *rpc_;
-  BLECharacteristic *rpc_response_;
-  BLECharacteristic *capabilities_;
+  BLEService *service_{nullptr};
+  BLECharacteristic *status_{nullptr};
+  BLECharacteristic *error_{nullptr};
+  BLECharacteristic *rpc_{nullptr};
+  BLECharacteristic *rpc_response_{nullptr};
+  BLECharacteristic *capabilities_{nullptr};
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *authorizer_{nullptr};
@@ -108,6 +108,9 @@ class ESP32ImprovComponent : public Component {
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  const char *state_to_string_(improv::State state);
+#endif
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

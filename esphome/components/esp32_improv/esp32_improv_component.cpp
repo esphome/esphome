@@ -15,6 +15,8 @@ using namespace bytebuffer;
 
 static const char *const TAG = "esp32_improv.component";
 static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
+static constexpr uint16_t STOP_ADVERTISING_DELAY =
+    10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
 
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
@@ -193,6 +195,25 @@ void ESP32ImprovComponent::set_status_indicator_state_(bool state) {
 #endif
 }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+const char *ESP32ImprovComponent::state_to_string_(improv::State state) {
+  switch (state) {
+    case improv::STATE_STOPPED:
+      return "STOPPED";
+    case improv::STATE_AWAITING_AUTHORIZATION:
+      return "AWAITING_AUTHORIZATION";
+    case improv::STATE_AUTHORIZED:
+      return "AUTHORIZED";
+    case improv::STATE_PROVISIONING:
+      return "PROVISIONING";
+    case improv::STATE_PROVISIONED:
+      return "PROVISIONED";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+
 bool ESP32ImprovComponent::check_identify_() {
   uint32_t now = millis();
 
@@ -206,31 +227,42 @@ bool ESP32ImprovComponent::check_identify_() {
 }
 
 void ESP32ImprovComponent::set_state_(improv::State state) {
-  ESP_LOGV(TAG, "Setting state: %d", state);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  if (this->state_ != state) {
+    ESP_LOGD(TAG, "State transition: %s (0x%02X) -> %s (0x%02X)", this->state_to_string_(this->state_), this->state_,
+             this->state_to_string_(state), state);
+  }
+#endif
   this->state_ = state;
-  if (this->status_->get_value().empty() || this->status_->get_value()[0] != state) {
+  if (this->status_ != nullptr && (this->status_->get_value().empty() || this->status_->get_value()[0] != state)) {
     this->status_->set_value(ByteBuffer::wrap(static_cast<uint8_t>(state)));
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
-  std::vector<uint8_t> service_data(8, 0);
-  service_data[0] = 0x77;  // PR
-  service_data[1] = 0x46;  // IM
-  service_data[2] = static_cast<uint8_t>(state);
+  // Only advertise valid Improv states (0x01-0x04).
+  // STATE_STOPPED (0x00) is internal only and not part of the Improv spec.
+  // Advertising 0x00 causes undefined behavior in some clients and makes them
+  // repeatedly connect trying to determine the actual state.
+  if (state != improv::STATE_STOPPED) {
+    std::vector<uint8_t> service_data(8, 0);
+    service_data[0] = 0x77;  // PR
+    service_data[1] = 0x46;  // IM
+    service_data[2] = static_cast<uint8_t>(state);
 
-  uint8_t capabilities = 0x00;
+    uint8_t capabilities = 0x00;
 #ifdef USE_OUTPUT
-  if (this->status_indicator_ != nullptr)
-    capabilities |= improv::CAPABILITY_IDENTIFY;
+    if (this->status_indicator_ != nullptr)
+      capabilities |= improv::CAPABILITY_IDENTIFY;
 #endif
 
-  service_data[3] = capabilities;
-  service_data[4] = 0x00;  // Reserved
-  service_data[5] = 0x00;  // Reserved
-  service_data[6] = 0x00;  // Reserved
-  service_data[7] = 0x00;  // Reserved
+    service_data[3] = capabilities;
+    service_data[4] = 0x00;  // Reserved
+    service_data[5] = 0x00;  // Reserved
+    service_data[6] = 0x00;  // Reserved
+    service_data[7] = 0x00;  // Reserved
 
-  esp32_ble::global_ble->advertising_set_service_data(service_data);
+    esp32_ble::global_ble->advertising_set_service_data(service_data);
+  }
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
   this->state_callback_.call(this->state_, this->error_state_);
 #endif
@@ -240,7 +272,12 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   if (error != improv::ERROR_NONE) {
     ESP_LOGE(TAG, "Error: %d", error);
   }
-  if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
+  // The error_ characteristic is initialized in setup_characteristics() which is called
+  // from the loop, while the BLE disconnect callback is registered in setup().
+  // error_ can be nullptr if:
+  // 1. A client connects/disconnects before setup_characteristics() is called
+  // 2. The device is already provisioned so the service never starts (should_start_ is false)
+  if (this->error_ != nullptr && (this->error_->get_value().empty() || this->error_->get_value()[0] != error)) {
     this->error_->set_value(ByteBuffer::wrap(static_cast<uint8_t>(error)));
     if (this->state_ != improv::STATE_STOPPED)
       this->error_->notify();
@@ -264,7 +301,10 @@ void ESP32ImprovComponent::start() {
 
 void ESP32ImprovComponent::stop() {
   this->should_start_ = false;
-  this->set_timeout("end-service", 1000, [this] {
+  // Wait before stopping the service to ensure all BLE clients see the state change.
+  // This prevents clients from repeatedly reconnecting and wasting resources by allowing
+  // them to observe that the device is provisioned before the service disappears.
+  this->set_timeout("end-service", STOP_ADVERTISING_DELAY, [this] {
     if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
       return;
     this->service_->stop();
