@@ -341,7 +341,9 @@ void ESPHomeOTAComponent::handle_data_() {
 
   while (total < ota_size) {
     // TODO: timeout check
-    size_t requested = std::min(sizeof(buf), ota_size - total);
+    size_t remaining = ota_size - total;
+    const size_t buf_size = sizeof(buf);
+    size_t requested = remaining < buf_size ? remaining : buf_size;
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
       if (this->would_block_(errno)) {
