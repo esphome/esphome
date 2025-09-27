@@ -14,6 +14,14 @@ namespace esphome {
 /// ESPHomeOTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class ESPHomeOTAComponent : public ota::OTAComponent {
  public:
+  enum class OTAState : uint8_t {
+    IDLE,
+    MAGIC_READ,    // Reading magic bytes
+    MAGIC_ACK,     // Sending OK and version after magic bytes
+    FEATURE_READ,  // Reading feature flags from client
+    FEATURE_ACK,   // Sending feature acknowledgment
+    DATA,          // Processing OTA data (authentication, update, etc.)
+  };
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
 #endif  // USE_OTA_PASSWORD
@@ -51,10 +59,13 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   std::unique_ptr<socket::Socket> server_;
   std::unique_ptr<socket::Socket> client_;
 
+  OTAState ota_state_{OTAState::IDLE};
   uint32_t client_connect_time_{0};
   uint16_t port_;
-  uint8_t magic_buf_[5];
-  uint8_t magic_buf_pos_{0};
+  uint8_t handshake_buf_[5];
+  uint8_t handshake_buf_pos_{0};
+  uint8_t ota_features_{0};
+  std::unique_ptr<ota::OTABackend> backend_;
 };
 
 }  // namespace esphome
