@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/hash_base.h"
 
 namespace esphome {
 
@@ -30,6 +31,11 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
  protected:
   void handle_handshake_();
   void handle_data_();
+#ifdef USE_OTA_PASSWORD
+  bool perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request, const LogString *name,
+                          char *buf);
+  void log_auth_warning_(const LogString *action, const LogString *hash_name);
+#endif  // USE_OTA_PASSWORD
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
   void log_socket_error_(const LogString *msg);

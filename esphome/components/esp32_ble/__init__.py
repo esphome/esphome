@@ -174,16 +174,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
-        cv.SplitDefault(CONF_DISABLE_BT_LOGS, esp32_idf=True): cv.All(
-            cv.only_with_esp_idf, cv.boolean
-        ),
-        cv.SplitDefault(CONF_CONNECTION_TIMEOUT, esp32_idf="20s"): cv.All(
-            cv.only_with_esp_idf,
+        cv.Optional(CONF_DISABLE_BT_LOGS, default=True): cv.boolean,
+        cv.Optional(CONF_CONNECTION_TIMEOUT, default="20s"): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(min=TimePeriod(seconds=10), max=TimePeriod(seconds=180)),
         ),
-        cv.SplitDefault(CONF_MAX_NOTIFICATIONS, esp32_idf=12): cv.All(
-            cv.only_with_esp_idf,
+        cv.Optional(CONF_MAX_NOTIFICATIONS, default=12): cv.All(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
@@ -245,6 +241,19 @@ def final_validation(config):
             raise cv.Invalid(
                 f"Name '{name}' is too long, maximum length is {max_length} characters"
             )
+
+    # Set GATT Client/Server sdkconfig options based on which components are loaded
+    full_config = fv.full_config.get()
+
+    # Check if BLE Server is needed
+    has_ble_server = "esp32_ble_server" in full_config
+    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server)
+
+    # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
+    has_ble_client = (
+        "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
+    )
+    add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
 
     return config
 
