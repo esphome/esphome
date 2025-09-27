@@ -771,40 +771,21 @@ bool ESPHomeOTAComponent::verify_hash_auth_(HashBase *hasher, size_t hex_size) {
   hasher->calculate();
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-#ifdef USE_OTA_SHA256
-  char log_buf_sha[65];  // 64 hex chars + null terminator for SHA256
-#endif
-#ifdef USE_OTA_MD5
-  char log_buf_md5[33];  // 32 hex chars + null terminator for MD5
-#endif
-  char *log_buf = nullptr;
-#ifdef USE_OTA_SHA256
-  if (hex_size == 64) {
-    log_buf = log_buf_sha;
-  }
-#endif
-#ifdef USE_OTA_MD5
-  if (hex_size == 32) {
-    log_buf = log_buf_md5;
-  }
-#endif
+  char log_buf[hex_size + 1];
+  // Log CNonce
+  memcpy(log_buf, cnonce, hex_size);
+  log_buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: CNonce is %s", log_buf);
 
-  if (log_buf) {
-    // Log CNonce
-    memcpy(log_buf, cnonce, hex_size);
-    log_buf[hex_size] = '\0';
-    ESP_LOGV(TAG, "Auth: CNonce is %s", log_buf);
+  // Log computed hash
+  hasher->get_hex(log_buf);
+  log_buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: Result is %s", log_buf);
 
-    // Log computed hash
-    hasher->get_hex(log_buf);
-    log_buf[hex_size] = '\0';
-    ESP_LOGV(TAG, "Auth: Result is %s", log_buf);
-
-    // Log received response
-    memcpy(log_buf, response, hex_size);
-    log_buf[hex_size] = '\0';
-    ESP_LOGV(TAG, "Auth: Response is %s", log_buf);
-  }
+  // Log received response
+  memcpy(log_buf, response, hex_size);
+  log_buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: Response is %s", log_buf);
 #endif
 
   // Compare response
