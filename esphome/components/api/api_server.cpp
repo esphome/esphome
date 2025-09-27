@@ -358,6 +358,8 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 
 #ifdef USE_ZWAVE_PROXY
 void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+  // We could add code to manage a second subscription type, but, since this message type is
+  //  very infrequent and small, we simply send it to all clients
   for (auto &c : this->clients_)
     c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
 }
