@@ -86,7 +86,6 @@ void QMC5883LComponent::loop() {
 }
 
 void QMC5883LComponent::dump_config() {
-
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
