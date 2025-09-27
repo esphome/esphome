@@ -56,20 +56,27 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
 
-  bool try_read_(size_t to_read, const LogString *error_desc, const LogString *close_desc);
-  bool try_write_(size_t to_write, const LogString *error_desc);
+  bool try_read_(size_t to_read, const LogString *desc);
+  bool try_write_(size_t to_write, const LogString *desc);
 
-  bool would_block_(int error_code) const { return error_code == EAGAIN || error_code == EWOULDBLOCK; }
-  bool handle_read_error_(ssize_t read, const LogString *error_desc, const LogString *close_desc);
-  bool handle_write_error_(ssize_t written, const LogString *error_desc);
-  void transition_ota_state_(OTAState next_state);
+  inline bool would_block_(int error_code) const { return error_code == EAGAIN || error_code == EWOULDBLOCK; }
+  bool handle_read_error_(ssize_t read, const LogString *desc);
+  bool handle_write_error_(ssize_t written, const LogString *desc);
+  inline void transition_ota_state_(OTAState next_state) {
+    this->ota_state_ = next_state;
+    this->handshake_buf_pos_ = 0;  // Reset buffer position for next state
+  }
 
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
   void log_start_(const LogString *phase);
   void log_remote_closed_(const LogString *during);
   void cleanup_connection_();
-  void send_error_and_cleanup_(ota::OTAResponseTypes error);
+  inline void send_error_and_cleanup_(ota::OTAResponseTypes error) {
+    uint8_t error_byte = static_cast<uint8_t>(error);
+    this->client_->write(&error_byte, 1);  // Best effort, non-blocking
+    this->cleanup_connection_();
+  }
   void yield_and_feed_watchdog_();
 
 #ifdef USE_OTA_PASSWORD
