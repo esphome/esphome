@@ -344,7 +344,7 @@ void ESPHomeOTAComponent::handle_data_() {
     size_t requested = std::min(sizeof(buf), ota_size - total);
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (this->would_block_(errno)) {
         this->yield_and_feed_watchdog_();
         continue;
       }
@@ -442,7 +442,7 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
 
     ssize_t read = this->client_->read(buf + at, len - at);
     if (read == -1) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      if (!this->would_block_(errno)) {
         ESP_LOGW(TAG, "Error reading %d bytes, errno %d", len, errno);
         return false;
       }
@@ -469,7 +469,7 @@ bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
 
     ssize_t written = this->client_->write(buf + at, len - at);
     if (written == -1) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      if (!this->would_block_(errno)) {
         ESP_LOGW(TAG, "Error writing %d bytes, errno %d", len, errno);
         return false;
       }
@@ -499,18 +499,37 @@ void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
   ESP_LOGW(TAG, "Remote closed during %s", LOG_STR_ARG(during));
 }
 
-bool ESPHomeOTAComponent::try_read_(size_t to_read, const LogString *error_desc, const LogString *close_desc) {
-  // Read bytes into handshake buffer, starting at handshake_buf_pos_
-  size_t bytes_to_read = to_read - this->handshake_buf_pos_;
-  ssize_t read = this->client_->read(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_read);
-
-  if (read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+bool ESPHomeOTAComponent::handle_read_error_(ssize_t read, const LogString *error_desc, const LogString *close_desc) {
+  if (read == -1 && this->would_block_(errno)) {
     return false;  // No data yet, try again next loop
   }
 
   if (read <= 0) {
     read == 0 ? this->log_remote_closed_(close_desc) : this->log_socket_error_(error_desc);
     this->cleanup_connection_();
+    return false;
+  }
+  return true;
+}
+
+bool ESPHomeOTAComponent::handle_write_error_(ssize_t written, const LogString *error_desc) {
+  if (written == -1) {
+    if (this->would_block_(errno)) {
+      return false;  // Try again next loop
+    }
+    this->log_socket_error_(error_desc);
+    this->cleanup_connection_();
+    return false;
+  }
+  return true;
+}
+
+bool ESPHomeOTAComponent::try_read_(size_t to_read, const LogString *error_desc, const LogString *close_desc) {
+  // Read bytes into handshake buffer, starting at handshake_buf_pos_
+  size_t bytes_to_read = to_read - this->handshake_buf_pos_;
+  ssize_t read = this->client_->read(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_read);
+
+  if (!this->handle_read_error_(read, error_desc, close_desc)) {
     return false;
   }
 
@@ -524,12 +543,7 @@ bool ESPHomeOTAComponent::try_write_(size_t to_write, const LogString *error_des
   size_t bytes_to_write = to_write - this->handshake_buf_pos_;
   ssize_t written = this->client_->write(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_write);
 
-  if (written == -1) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return false;  // Try again next loop
-    }
-    this->log_socket_error_(error_desc);
-    this->cleanup_connection_();
+  if (!this->handle_write_error_(written, error_desc)) {
     return false;
   }
 
@@ -649,12 +663,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
   size_t remaining = to_write - this->auth_buf_pos_;
 
   ssize_t written = this->client_->write(this->auth_buf_.get() + this->auth_buf_pos_, remaining);
-  if (written == -1) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return false;  // Try again next loop
-    }
-    this->log_auth_warning_(LOG_STR("Writing auth type and nonce failed"));
-    this->cleanup_connection_();
+  if (!this->handle_write_error_(written, LOG_STR("auth write"))) {
     return false;
   }
 
@@ -680,18 +689,8 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   size_t remaining = to_read - this->auth_buf_pos_;
   ssize_t read = this->client_->read(this->auth_buf_.get() + cnonce_offset + this->auth_buf_pos_, remaining);
 
-  if (read == -1) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return false;  // Try again next loop
-    }
-    this->log_auth_warning_(LOG_STR("Reading cnonce response failed"));
-    this->cleanup_connection_();
-    return false;
-  }
-
-  if (read == 0) {
-    this->log_auth_warning_(LOG_STR("Remote closed during auth read"));
-    this->cleanup_connection_();
+  auto *auth_read_desc = LOG_STR("auth read");
+  if (!this->handle_read_error_(read, auth_read_desc, auth_read_desc)) {
     return false;
   }
 

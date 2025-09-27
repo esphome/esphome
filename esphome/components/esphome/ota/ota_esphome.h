@@ -58,6 +58,10 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 
   bool try_read_(size_t to_read, const LogString *error_desc, const LogString *close_desc);
   bool try_write_(size_t to_write, const LogString *error_desc);
+
+  bool would_block_(int error_code) const { return error_code == EAGAIN || error_code == EWOULDBLOCK; }
+  bool handle_read_error_(ssize_t read, const LogString *error_desc, const LogString *close_desc);
+  bool handle_write_error_(ssize_t written, const LogString *error_desc);
   void transition_ota_state_(OTAState next_state);
 
   void log_socket_error_(const LogString *msg);
