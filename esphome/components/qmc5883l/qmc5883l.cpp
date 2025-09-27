@@ -64,13 +64,14 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  uint32_t  update_ms       = this->get_update_ms_();
-  uint32_t  loop_interval   = App.get_loop_interval();
-  bool      high_frequency  = update_ms < loop_interval;
+  uint32_t update_ms = this->get_update_ms_();
+  uint32_t loop_interval = App.get_loop_interval();
+  bool high_frequency = update_ms < loop_interval;
   if (high_frequency)
     high_freq_.start();
 
-  ESP_LOGW(TAG, "interval = %u | loop_interval = %lu | hf = %s", update_ms, loop_interval, (high_frequency ? "true" : "false"));
+  ESP_LOGW(TAG, "interval = %u | loop_interval = %lu | hf = %s", update_ms, loop_interval,
+           (high_frequency ? "true" : "false"));
 }
 
 void QMC5883LComponent::loop() {
