@@ -6,6 +6,8 @@ namespace climate_ir_lg {
 
 static const char *const TAG = "climate.climate_ir_lg";
 
+const uint32_t LG_HEADER = 0x8800000;
+
 // Commands
 const uint32_t COMMAND_MASK = 0xFF000;
 const uint32_t COMMAND_DATA_MASK = 0x00FF0;
@@ -101,7 +103,7 @@ const uint32_t TEMP_SHIFT = 8;
 const uint16_t BITS = 28;
 
 void LgIrClimate::transmit_state() {
-  uint32_t remote_state = 0x8800000;
+  uint32_t remote_state = LG_HEADER;
 
   // ESP_LOGD(TAG, "climate_lg_ir mode_before_ code: 0x%02X", this->modeBefore_);
 
@@ -207,6 +209,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   ESP_LOGD(TAG, "Decoded 0x%02" PRIX32, remote_state);
   if ((remote_state & 0xFF00000) != 0x8800000)
+  if ((remote_state & 0xFF00000) != LG_HEADER)
     return false;
 
   // Get command
