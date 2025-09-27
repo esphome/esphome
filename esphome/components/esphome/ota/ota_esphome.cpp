@@ -724,11 +724,11 @@ bool ESPHomeOTAComponent::prepare_auth_nonce_(HashBase *hasher) {
   // Calculate required buffer size using the hasher
   const size_t hex_size = hasher->get_size() * 2;
   const size_t nonce_len = hasher->get_size() / 4;
-  // Buffer needs to hold max of:
-  //   - During send: auth_type (1) + nonce (hex_size)
-  //   - During read: cnonce (hex_size) + response (hex_size)
-  // So max is hex_size * 2
-  const size_t auth_buf_size = hex_size * 2;
+  // Buffer layout:
+  //   - auth_type (1 byte) + nonce (hex_size) - sent in AUTH_SEND
+  //   - cnonce (hex_size) + response (hex_size) - read in AUTH_READ at offset 1+hex_size
+  // Total: 1 + hex_size + (hex_size * 2)
+  const size_t auth_buf_size = 1 + hex_size + hex_size * 2;
   this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
   this->auth_buf_pos_ = 0;
 
