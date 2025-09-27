@@ -223,14 +223,13 @@ void ESPHomeOTAComponent::handle_handshake_() {
       // If password is set, move to auth phase
       if (!this->password_.empty()) {
         this->transition_ota_state_(OTAState::AUTH_SEND);
-        [[fallthrough]];
       } else
 #endif
       {
         // No password, move directly to data phase
         this->transition_ota_state_(OTAState::DATA);
-        [[fallthrough]];
       }
+      [[fallthrough]];
     }
 
 #ifdef USE_OTA_PASSWORD
