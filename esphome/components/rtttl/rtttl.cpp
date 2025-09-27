@@ -176,8 +176,8 @@ void Rtttl::finish_() {
 
   this->on_finished_playback_callback_.call();
   ESP_LOGD(TAG, "Playback finished");
-}  
-  
+}
+
 void Rtttl::loop() {
   if (this->state_ == State::STATE_STOPPED) {
     this->disable_loop();
