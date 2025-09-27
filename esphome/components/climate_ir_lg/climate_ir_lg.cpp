@@ -24,6 +24,7 @@ enum CommandSys : uint32_t {
 
   OFF = 0x050,
 
+  // Also known as 'auto-dry'
   AUTO_CLEAN_ON = 0x0B0,
   AUTO_CLEAN_OFF = 0x0C0,
 
