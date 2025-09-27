@@ -46,24 +46,26 @@ class Modbus : public uart::UARTDevice, public Component {
   ModbusRole role;
 
  protected:
-  GPIOPin *flow_control_pin_{nullptr};
-  uint8_t waiting_for_response_{0};
-
   bool parse_modbus_byte_(uint8_t byte);
   void receive_and_parse_modbus_bytes_();
-  uint16_t send_wait_time_{250};
-  uint16_t frame_delay_ms_{5};
-  uint16_t long_rx_buffer_delay_ms_{0};
-  uint16_t turnaround_delay_ms_{100};
-  bool disable_crc_;
-  std::vector<uint8_t> rx_buffer_;
   void clear_rx_buffer_(const std::string &reason);
+  void send_next_frame_();
+
   uint32_t last_modbus_byte_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
+  uint16_t frame_delay_ms_{5};
+  uint16_t long_rx_buffer_delay_ms_{0};
+  uint16_t send_wait_time_{250};
+  uint16_t turnaround_delay_ms_{100};
+  uint8_t waiting_for_response_{0};
+  bool disable_crc_;
+
+  GPIOPin *flow_control_pin_{nullptr};
+
+  std::vector<uint8_t> rx_buffer_;
   std::vector<ModbusDevice *> devices_;
   std::deque<std::vector<uint8_t>> tx_buffer_;
-  void send_next_frame_();
 };
 
 class ModbusDevice {
