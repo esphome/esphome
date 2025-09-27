@@ -576,60 +576,59 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
 void ESPHomeOTAComponent::log_auth_warning_(const LogString *msg) { ESP_LOGW(TAG, "Auth: %s", LOG_STR_ARG(msg)); }
 
 bool ESPHomeOTAComponent::handle_auth_send_() {
-  // Determine which auth type to use based on platform capabilities and client support
-  uint8_t auth_type;
+  // Initialize auth buffer if not already done
+  if (!this->auth_buf_) {
+    // Determine which auth type to use and create hasher on stack
+    HashBase *hasher = nullptr;
 
 #ifdef USE_OTA_SHA256
-  bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+    sha256::SHA256 sha256_hasher;
+#endif
+#ifdef USE_OTA_MD5
+    md5::MD5Digest md5_hasher;
+#endif
+
+#ifdef USE_OTA_SHA256
+    bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
 
 #ifdef ALLOW_OTA_DOWNGRADE_MD5
-  if (client_supports_sha256) {
-    auth_type = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
-    if (!this->auth_hasher_) {
-      this->auth_hasher_ = std::make_unique<sha256::SHA256>();
-    }
-  } else {
+    if (client_supports_sha256) {
+      this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+      hasher = &sha256_hasher;
+    } else {
 #ifdef USE_OTA_MD5
-    this->log_auth_warning_(LOG_STR("Using MD5 for compatibility (deprecated)"));
-    auth_type = ota::OTA_RESPONSE_REQUEST_AUTH;
-    if (!this->auth_hasher_) {
-      this->auth_hasher_ = std::make_unique<md5::MD5Digest>();
-    }
+      this->log_auth_warning_(LOG_STR("Using MD5 for compatibility (deprecated)"));
+      this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
+      hasher = &md5_hasher;
 #else
-    this->log_auth_warning_(LOG_STR("Client doesn't support SHA256 and MD5 is disabled"));
-    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-    return false;
+      this->log_auth_warning_(LOG_STR("Client doesn't support SHA256 and MD5 is disabled"));
+      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+      return false;
 #endif  // USE_OTA_MD5
-  }
+    }
 #else   // !ALLOW_OTA_DOWNGRADE_MD5
-  if (!client_supports_sha256) {
-    this->log_auth_warning_(LOG_STR("Client requires SHA256"));
-    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-    return false;
-  }
-  auth_type = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
-  if (!this->auth_hasher_) {
-    this->auth_hasher_ = std::make_unique<sha256::SHA256>();
-  }
+    if (!client_supports_sha256) {
+      this->log_auth_warning_(LOG_STR("Client requires SHA256"));
+      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+      return false;
+    }
+    this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
+    hasher = &sha256_hasher;
 #endif  // ALLOW_OTA_DOWNGRADE_MD5
 #else   // !USE_OTA_SHA256
 #ifdef USE_OTA_MD5
-  auth_type = ota::OTA_RESPONSE_REQUEST_AUTH;
-  if (!this->auth_hasher_) {
-    this->auth_hasher_ = std::make_unique<md5::MD5Digest>();
-  }
+    this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
+    hasher = &md5_hasher;
 #else
-  this->log_auth_warning_(LOG_STR("No auth methods available"));
-  this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-  return false;
+    this->log_auth_warning_(LOG_STR("No auth methods available"));
+    this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
+    return false;
 #endif  // USE_OTA_MD5
 #endif  // USE_OTA_SHA256
 
-  // Initialize auth buffer if not already done
-  if (!this->auth_buf_) {
-    // Calculate required buffer size
-    const size_t hex_size = this->auth_hasher_->get_size() * 2;
-    const size_t nonce_len = this->auth_hasher_->get_size() / 4;
+    // Calculate required buffer size using the hasher
+    const size_t hex_size = hasher->get_size() * 2;
+    const size_t nonce_len = hasher->get_size() / 4;
     // Buffer needs: 1 (auth_type) + hex_size (nonce) + hex_size*2 (cnonce+response)
     this->auth_buf_size_ = 1 + hex_size + hex_size * 2;
     this->auth_buf_ = std::make_unique<uint8_t[]>(this->auth_buf_size_);
@@ -643,13 +642,13 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
       return false;
     }
 
-    this->auth_hasher_->init();
-    this->auth_hasher_->add(buf, nonce_len);
-    this->auth_hasher_->calculate();
+    hasher->init();
+    hasher->add(buf, nonce_len);
+    hasher->calculate();
 
     // Prepare buffer: auth_type (1 byte) + nonce (hex_size bytes)
-    this->auth_buf_[0] = auth_type;
-    this->auth_hasher_->get_hex(buf);
+    this->auth_buf_[0] = this->auth_type_;
+    hasher->get_hex(buf);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     // Log nonce for debugging
@@ -661,7 +660,19 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
   }
 
   // Try to write auth_type + nonce
-  const size_t hex_size = this->auth_hasher_->get_size() * 2;
+  // Calculate hex_size based on auth_type
+  size_t hex_size;
+#ifdef USE_OTA_SHA256
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
+    hex_size = 64;  // SHA256 = 32 bytes * 2
+  } else
+#endif
+  {
+#ifdef USE_OTA_MD5
+    hex_size = 32;  // MD5 = 16 bytes * 2
+#endif
+  }
+
   const size_t to_write = 1 + hex_size;
   size_t remaining = to_write - this->auth_buf_pos_;
 
@@ -685,21 +696,41 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
   // All written, prepare for reading phase
   this->auth_buf_pos_ = 0;
 
-  // Start challenge hash: password + nonce
-  this->auth_hasher_->init();
-  this->auth_hasher_->add(this->password_.c_str(), this->password_.length());
-  this->auth_hasher_->add(reinterpret_cast<char *>(this->auth_buf_.get() + 1), hex_size);
+  // We'll start the challenge hash in handle_auth_read_ when we have the cnonce
 
   return true;
 }
 
 bool ESPHomeOTAComponent::handle_auth_read_() {
-  const size_t hex_size = this->auth_hasher_->get_size() * 2;
+  // Calculate hex_size based on auth_type
+  size_t hex_size;
+#ifdef USE_OTA_SHA256
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
+    hex_size = 64;  // SHA256 = 32 bytes * 2
+  } else
+#endif
+  {
+#ifdef USE_OTA_MD5
+    hex_size = 32;  // MD5 = 16 bytes * 2
+#endif
+  }
+
   const size_t to_read = hex_size * 2;  // CNonce + Response
 
-  // Try to read remaining bytes
+  // Initialize buffer if not already done
+  if (!this->auth_buf_) {
+    // Note: we're reusing the buffer from handle_auth_send_ which should have the nonce
+    // But if we reach here without it, something went wrong
+    this->log_auth_warning_(LOG_STR("Auth buffer not initialized"));
+    this->cleanup_connection_();
+    return false;
+  }
+
+  // Try to read remaining bytes (CNonce + Response)
+  // We need to read into the buffer starting after the auth_type (1 byte) and nonce (hex_size bytes)
+  size_t offset = 1 + hex_size;
   size_t remaining = to_read - this->auth_buf_pos_;
-  ssize_t read = this->client_->read(this->auth_buf_.get() + this->auth_buf_pos_, remaining);
+  ssize_t read = this->client_->read(this->auth_buf_.get() + offset + this->auth_buf_pos_, remaining);
 
   if (read == -1) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -724,33 +755,79 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   }
 
   // We have all the data, verify it
-  char *buf = reinterpret_cast<char *>(this->auth_buf_.get());
-  const char *response = buf + hex_size;
+  // Create hasher on stack based on auth_type
+  HashBase *hasher = nullptr;
 
-  // Add CNonce to hash
-  this->auth_hasher_->add(buf, hex_size);
-  this->auth_hasher_->calculate();
+#ifdef USE_OTA_SHA256
+  sha256::SHA256 sha256_hasher;
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
+    hasher = &sha256_hasher;
+  }
+#endif
+#ifdef USE_OTA_MD5
+  md5::MD5Digest md5_hasher;
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_AUTH) {
+    hasher = &md5_hasher;
+  }
+#endif
+
+  if (!hasher) {
+    this->log_auth_warning_(LOG_STR("Invalid auth type"));
+    this->cleanup_connection_();
+    return false;
+  }
+
+  // Get pointers to the data
+  char *nonce = reinterpret_cast<char *>(this->auth_buf_.get() + 1);  // Skip auth_type byte
+  char *cnonce = reinterpret_cast<char *>(this->auth_buf_.get() + offset);
+  const char *response = cnonce + hex_size;
+
+  // Calculate expected hash: password + nonce + cnonce
+  hasher->init();
+  hasher->add(this->password_.c_str(), this->password_.length());
+  hasher->add(nonce, hex_size);
+  hasher->add(cnonce, hex_size);
+  hasher->calculate();
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char log_buf[hex_size + 1];
-  // Log CNonce
-  memcpy(log_buf, buf, hex_size);
-  log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: CNonce is %s", log_buf);
+#ifdef USE_OTA_SHA256
+  char log_buf_sha[65];  // 64 hex chars + null terminator for SHA256
+#endif
+#ifdef USE_OTA_MD5
+  char log_buf_md5[33];  // 32 hex chars + null terminator for MD5
+#endif
+  char *log_buf = nullptr;
+#ifdef USE_OTA_SHA256
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
+    log_buf = log_buf_sha;
+  }
+#endif
+#ifdef USE_OTA_MD5
+  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_AUTH) {
+    log_buf = log_buf_md5;
+  }
+#endif
 
-  // Log computed hash
-  this->auth_hasher_->get_hex(log_buf);
-  log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: Result is %s", log_buf);
+  if (log_buf) {
+    // Log CNonce
+    memcpy(log_buf, cnonce, hex_size);
+    log_buf[hex_size] = '\0';
+    ESP_LOGV(TAG, "Auth: CNonce is %s", log_buf);
 
-  // Log received response
-  memcpy(log_buf, response, hex_size);
-  log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: Response is %s", log_buf);
+    // Log computed hash
+    hasher->get_hex(log_buf);
+    log_buf[hex_size] = '\0';
+    ESP_LOGV(TAG, "Auth: Result is %s", log_buf);
+
+    // Log received response
+    memcpy(log_buf, response, hex_size);
+    log_buf[hex_size] = '\0';
+    ESP_LOGV(TAG, "Auth: Response is %s", log_buf);
+  }
 #endif
 
   // Compare response
-  bool matches = this->auth_hasher_->equals_hex(response);
+  bool matches = hasher->equals_hex(response);
 
   if (!matches) {
     this->log_auth_warning_(LOG_STR("Password mismatch"));
@@ -765,10 +842,10 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
 }
 
 void ESPHomeOTAComponent::cleanup_auth_() {
-  this->auth_hasher_ = nullptr;
   this->auth_buf_ = nullptr;
   this->auth_buf_size_ = 0;
   this->auth_buf_pos_ = 0;
+  this->auth_type_ = 0;
 }
 #endif  // USE_OTA_PASSWORD
 
