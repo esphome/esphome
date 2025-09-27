@@ -50,8 +50,8 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t get_datarate_hz();
 
  protected:
-  void read_data();
-  uint32_t get_update_ms();
+  void read_data_();
+  uint32_t get_update_ms_();
   QMC5883LDatarate datarate_{QMC5883L_DATARATE_10_HZ};
   QMC5883LRange range_{QMC5883L_RANGE_200_UT};
   QMC5883LOversampling oversampling_{QMC5883L_SAMPLING_512};

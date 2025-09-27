@@ -64,35 +64,34 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  uint32_t updateMS = this->get_update_ms();
-  uint32_t loopInt = App.get_loop_interval();
-  bool bHF;
-
-  if ((bHF = updateMS < loopInt) == true)
+  uint32_t  update_ms       = this->get_update_ms_();
+  uint32_t  loop_interval   = App.get_loop_interval();
+  bool      high_frequency  = update_ms < loop_interval;
+  if (high_frequency)
     high_freq_.start();
 
-  ESP_LOGW(TAG, "interval = %lu | loop_interval = %lu | hf = %s", updateMS, loopInt, (bHF ? "true" : "false"));
+  ESP_LOGW(TAG, "interval = %u | loop_interval = %lu | hf = %s", update_ms, loop_interval, (high_frequency ? "true" : "false"));
 }
 
 void QMC5883LComponent::loop() {
-  // Changed ORIGINAL update() to read_data().
+  // Changed ORIGINAL update() to read_data_().
   //
   // If DRDY Pin is Defined AND Signalled, Read Data; Otherwise, Handle in update()!
   if (this->drdy_pin_ != nullptr) {
     if (this->drdy_pin_->digital_read()) {
-      this->read_data();
+      this->read_data_();
     }
   }
 }
 
 void QMC5883LComponent::dump_config() {
   // Save Current Log Level for Component (NOTE: Causes COMPILE WARNING).
-  uint8_t logLevelOld = esphome::logger::global_logger->level_for(TAG);
+  uint8_t log_level_old = esphome::logger::global_logger->level_for(TAG);
   // Set to DEBUG to FORCE Printing of Component Config.
   esphome::logger::global_logger->set_log_level(TAG, 5);
 
   ESP_LOGCONFIG(TAG, "QMC5883L:");
-  ESP_LOGCONFIG(TAG, "  Component Log Level: %d", logLevelOld);
+  ESP_LOGCONFIG(TAG, "  Component Log Level: %d", log_level_old);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -108,23 +107,23 @@ void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Datarate (Hz): %d", this->get_datarate_hz());
 
   // Restore Original Log Level
-  esphome::logger::global_logger->set_log_level(TAG, logLevelOld);
+  esphome::logger::global_logger->set_log_level(TAG, log_level_old);
 }
 
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void QMC5883LComponent::update() {
-  // Changed ORIGINAL update() to read_data().
+  // Changed ORIGINAL update() to read_data_().
   //
   // If NO DRDY Pin is Defined, Read Data on update() Call; Otherwise, Handle in loop()!
   if (this->drdy_pin_ == nullptr) {
-    this->read_data();
+    this->read_data_();
   }
 
   return;
 }
 
-void QMC5883LComponent::read_data() {
+void QMC5883LComponent::read_data_() {
   i2c::ErrorCode err;
   uint8_t status = false;
   // Status byte gets cleared when data is read, so we have to read this first.
@@ -230,13 +229,14 @@ uint8_t QMC5883LComponent::get_datarate_hz() {
   return (0);
 }
 
-uint32_t QMC5883LComponent::get_update_ms() {
+uint32_t QMC5883LComponent::get_update_ms_() {
   uint32_t result = 0;
 
-  if (this->drdy_pin_ == nullptr)
+  if (this->drdy_pin_ == nullptr) {
     result = this->get_update_interval();
-  else
+  } else {
     result = static_cast<uint32_t>(1000.0f * (1.0f / static_cast<float>(this->get_datarate_hz())));
+  }
 
   return (result);
 }
