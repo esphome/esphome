@@ -607,11 +607,11 @@ bool ESPHomeOTAComponent::select_auth_type_() {
     return true;
   }
 #ifdef USE_OTA_MD5
-  this->log_auth_warning_(LOG_STR("Using MD5 for compatibility (deprecated)"));
+  this->log_auth_warning_(LOG_STR("Using deprecated MD5"));
   this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
   return true;
 #else
-  this->log_auth_warning_(LOG_STR("Client doesn't support SHA256 and MD5 is disabled"));
+  this->log_auth_warning_(LOG_STR("SHA256 required"));
   this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
   return false;
 #endif  // USE_OTA_MD5
@@ -619,7 +619,7 @@ bool ESPHomeOTAComponent::select_auth_type_() {
 #else   // !ALLOW_OTA_DOWNGRADE_MD5
   // Require SHA256
   if (!client_supports_sha256) {
-    this->log_auth_warning_(LOG_STR("Client requires SHA256"));
+    this->log_auth_warning_(LOG_STR("SHA256 required"));
     this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
     return false;
   }
@@ -759,7 +759,7 @@ bool ESPHomeOTAComponent::prepare_auth_nonce_(HashBase *hasher) {
   // Generate nonce
   char *buf = reinterpret_cast<char *>(this->auth_buf_.get() + 1);
   if (!random_bytes(reinterpret_cast<uint8_t *>(buf), nonce_len)) {
-    this->log_auth_warning_(LOG_STR("Random bytes generation failed"));
+    this->log_auth_warning_(LOG_STR("Random failed"));
     this->cleanup_connection_();
     return false;
   }
