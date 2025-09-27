@@ -39,7 +39,6 @@ class BLEAdvertising {
   void set_service_data(const std::vector<uint8_t> &data);
   void set_service_data(std::span<const uint8_t> data);
   void set_include_name(bool include_name) { this->include_name_in_adv_ = include_name; }
-  bool get_include_name() const { return this->include_name_in_adv_; }
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 
   void start();
