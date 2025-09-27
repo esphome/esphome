@@ -106,6 +106,8 @@ void ZWaveProxy::process_uart_() {
           msg.data = this->home_id_.data();
           msg.data_len = this->home_id_.size();
           if (api::global_api_server != nullptr) {
+            // We could add code to manage a second subscription type, but, since this message is
+            //  very infrequent and small, we simply send it to all clients
             api::global_api_server->on_zwave_proxy_request(msg);
           }
         }
