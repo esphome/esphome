@@ -208,9 +208,8 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   ESP_LOGD(TAG, "Decoded 0x%02" PRIX32, remote_state);
-  if ((remote_state & 0xFF00000) != 0x8800000)
-    if ((remote_state & 0xFF00000) != LG_HEADER)
-      return false;
+  if ((remote_state & 0xFF00000) != LG_HEADER)
+    return false;
 
   // Get command
   if ((remote_state & COMMAND_MASK) == CommandSys::HEADER_SYS) {
