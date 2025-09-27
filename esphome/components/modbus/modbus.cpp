@@ -204,27 +204,19 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           // Ignore modbus exception not related to a pending command
           ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response");
         }
-      } else if (this->role == ModbusRole::SERVER && (function_code == 0x3 || function_code == 0x4)) {
-        this->defer("on_modbus_read_registers", [device, data, function_code]() {
-          device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
-                                           uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-        });
+      } else if (this->role == ModbusRole::SERVER) {
+        if ((function_code == 0x3 || function_code == 0x4)) {
+          this->defer("on_modbus_read_registers", [device, data, function_code]() {
+            device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
+                                             uint16_t(data[3]) | (uint16_t(data[2]) << 8));
+          });
+        } else if (function_code == 0x6 || function_code == 0x10) {
+          this->defer("on_modbus_write_registers",
+                      [device, data, function_code]() { device->on_modbus_write_registers(function_code, data); });
+        }
       } else {
         this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
       }
-      if (this->role == ModbusRole::SERVER) {
-        if (function_code == 0x3 || function_code == 0x4) {
-          device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
-                                           uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-          continue;
-        }
-        if (function_code == 0x6 || function_code == 0x10) {
-          device->on_modbus_write_registers(function_code, data);
-          continue;
-        }
-      }
-      // fallthrough for other function codes
-      device->on_modbus_data(data);
     }
   }
 
