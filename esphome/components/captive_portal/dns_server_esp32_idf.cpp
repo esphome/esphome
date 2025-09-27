@@ -110,7 +110,7 @@ void DNSServer::process_dns_request() {
 
   ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
-  if (len < sizeof(DNSHeader) + 1) {
+  if (len < static_cast<ssize_t>(sizeof(DNSHeader) + 1)) {
     ESP_LOGV(TAG, "Request too short: %d", len);
     return;
   }
