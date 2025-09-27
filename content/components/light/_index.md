@@ -1016,9 +1016,9 @@ light:
 
 ### E1.31 Effect
 
-This effect enables controlling addressable lights by way of the UDP-based E1.31_ protocol.
+This effect enables controlling addressable lights by way of the UDP-based E1.31 protocol.
 
-For example, when enabled, JINX_or Hyperion.NG_ could be used to control the LEDs connected to the ESPHome device.
+For example, when enabled, JINX or Hyperion.NG could be used to control the LEDs connected to the ESPHome device.
 
 ```yaml
 e131:
@@ -1063,10 +1063,10 @@ ESPHome will listen on UDP port `5568`.
 
 ### Adalight Effect
 
-This effect enables controlling addressable lights using the serial Adalight_ protocol, allowing the creation of
+This effect enables controlling addressable lights using the serial Adalight protocol, allowing the creation of
 realtime ambient lighting effects.
 
-Prismatik_can be used to control addressable lights via Adalight_ protocol on ESPHome.
+Prismatik can be used to control addressable lights via Adalight protocol on ESPHome.
 
 ```yaml
 # Example configuration entry
@@ -1096,10 +1096,10 @@ light:
 
 ### WLED Effect
 
-This effect enables controlling addressable lights using the `UDP Realtime Control`*protocol used by WLED*, allowing
+This effect enables controlling addressable lights using the `UDP Realtime Control` *protocol used by WLED*, allowing
 creation of realtime ambient lighting effects.
 
-Prismatik_and/or LedFx_ can be used to control addressable lights over the network on ESPHome. Use the connection type
+[Prismatik](https://github.com/psieg/Lightpack) and/or [LedFx](https://github.com/LedFx/LedFx) can be used to control addressable lights over the network on ESPHome. Use the connection type
 `udp` on the default port and add the data prefix `0201`.
 
 ```yaml
