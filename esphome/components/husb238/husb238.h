@@ -214,7 +214,7 @@ class Husb238VoltageSelect : public select::Select, public Parented<Husb238Compo
  protected:
   void control(const std::string &value) override {
     this->publish_state(value);
-    this->parent_->command_request_voltage(state);
+    this->parent_->command_request_voltage(value);
     this->parent_->defer_update();
   };
 };
