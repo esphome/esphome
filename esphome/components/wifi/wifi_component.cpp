@@ -3,7 +3,7 @@
 #include <cinttypes>
 #include <map>
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
 #include <esp_eap_client.h>
 #else
@@ -11,7 +11,7 @@
 #endif
 #endif
 
-#if defined(USE_ESP32) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 #include <esp_wifi.h>
 #endif
 #ifdef USE_ESP8266
@@ -344,7 +344,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
     ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
     ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     std::map<esp_eap_ttls_phase2_types, std::string> phase2types = {{ESP_EAP_TTLS_PHASE2_PAP, "pap"},
                                                                     {ESP_EAP_TTLS_PHASE2_CHAP, "chap"},

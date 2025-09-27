@@ -82,6 +82,16 @@ template<typename T> constexpr T byteswap(T n) {
   return m;
 }
 template<> constexpr uint8_t byteswap(uint8_t n) { return n; }
+#ifdef USE_LIBRETINY
+// LibreTiny's Beken framework redefines __builtin_bswap functions as non-constexpr
+template<> inline uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> inline uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> inline uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> inline int8_t byteswap(int8_t n) { return n; }
+template<> inline int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> inline int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> inline int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#else
 template<> constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
 template<> constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
 template<> constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
@@ -89,6 +99,7 @@ template<> constexpr int8_t byteswap(int8_t n) { return n; }
 template<> constexpr int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
 template<> constexpr int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
 template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#endif
 
 ///@}
 
