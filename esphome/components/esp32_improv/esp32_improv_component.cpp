@@ -17,6 +17,8 @@ static const char *const TAG = "esp32_improv.component";
 static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 static constexpr uint16_t STOP_ADVERTISING_DELAY =
     10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
+static constexpr uint16_t NAME_ADVERTISING_INTERVAL = 60000;  // Advertise name every 60 seconds
+static constexpr uint16_t NAME_ADVERTISING_DURATION = 1000;   // Advertise name for 1 second
 
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
@@ -99,6 +101,11 @@ void ESP32ImprovComponent::loop() {
     this->process_incoming_data_();
   uint32_t now = App.get_loop_component_start_time();
 
+  // Check if we need to update advertising type
+  if (this->state_ != improv::STATE_STOPPED && this->state_ != improv::STATE_PROVISIONED) {
+    this->update_advertising_type_();
+  }
+
   switch (this->state_) {
     case improv::STATE_STOPPED:
       this->set_status_indicator_state_(false);
@@ -107,9 +114,22 @@ void ESP32ImprovComponent::loop() {
         if (this->service_->is_created()) {
           this->service_->start();
         } else if (this->service_->is_running()) {
+          // Start by advertising the device name first BEFORE setting any state
+          ESP_LOGV(TAG, "Starting with device name advertising");
+          this->advertising_device_name_ = true;
+          this->last_name_adv_time_ = App.get_loop_component_start_time();
+          esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>{}, true);
           esp32_ble::global_ble->advertising_start();
 
-          this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
+          // Set initial state based on whether we have an authorizer
+          // authorizer_ member only exists when USE_BINARY_SENSOR is defined
+#ifdef USE_BINARY_SENSOR
+          this->set_state_(
+              this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION, false);
+#else
+          // No binary_sensor support = no authorizer possible, start as authorized
+          this->set_state_(improv::STATE_AUTHORIZED, false);
+#endif
           this->set_error_(improv::ERROR_NONE);
           ESP_LOGD(TAG, "Service started!");
         }
@@ -226,12 +246,15 @@ bool ESP32ImprovComponent::check_identify_() {
   return identify;
 }
 
-void ESP32ImprovComponent::set_state_(improv::State state) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-  if (this->state_ != state) {
-    ESP_LOGD(TAG, "State transition: %s (0x%02X) -> %s (0x%02X)", this->state_to_string_(this->state_), this->state_,
-             this->state_to_string_(state), state);
+void ESP32ImprovComponent::set_state_(improv::State state, bool update_advertising) {
+  // Skip if state hasn't changed
+  if (this->state_ == state) {
+    return;
   }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  ESP_LOGD(TAG, "State transition: %s (0x%02X) -> %s (0x%02X)", this->state_to_string_(this->state_), this->state_,
+           this->state_to_string_(state), state);
 #endif
   this->state_ = state;
   if (this->status_ != nullptr && (this->status_->get_value().empty() || this->status_->get_value()[0] != state)) {
@@ -243,25 +266,13 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
   // STATE_STOPPED (0x00) is internal only and not part of the Improv spec.
   // Advertising 0x00 causes undefined behavior in some clients and makes them
   // repeatedly connect trying to determine the actual state.
-  if (state != improv::STATE_STOPPED) {
-    std::vector<uint8_t> service_data(8, 0);
-    service_data[0] = 0x77;  // PR
-    service_data[1] = 0x46;  // IM
-    service_data[2] = static_cast<uint8_t>(state);
-
-    uint8_t capabilities = 0x00;
-#ifdef USE_OUTPUT
-    if (this->status_indicator_ != nullptr)
-      capabilities |= improv::CAPABILITY_IDENTIFY;
-#endif
-
-    service_data[3] = capabilities;
-    service_data[4] = 0x00;  // Reserved
-    service_data[5] = 0x00;  // Reserved
-    service_data[6] = 0x00;  // Reserved
-    service_data[7] = 0x00;  // Reserved
-
-    esp32_ble::global_ble->advertising_set_service_data(service_data);
+  if (state != improv::STATE_STOPPED && update_advertising) {
+    // State change always overrides name advertising and resets the timer
+    this->advertising_device_name_ = false;
+    // Reset the timer so we wait another 60 seconds before advertising name
+    this->last_name_adv_time_ = App.get_loop_component_start_time();
+    // Advertise the new state via service data
+    this->advertise_service_data_();
   }
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
   this->state_callback_.call(this->state_, this->error_state_);
@@ -386,6 +397,50 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
+}
+
+void ESP32ImprovComponent::advertise_service_data_() {
+  uint8_t service_data[8] = {};
+  service_data[0] = 0x77;  // PR
+  service_data[1] = 0x46;  // IM
+  service_data[2] = static_cast<uint8_t>(this->state_);
+
+  uint8_t capabilities = 0x00;
+#ifdef USE_OUTPUT
+  if (this->status_indicator_ != nullptr)
+    capabilities |= improv::CAPABILITY_IDENTIFY;
+#endif
+
+  service_data[3] = capabilities;
+  // service_data[4-7] are already 0 (Reserved)
+
+  // Atomically set service data and disable name in advertising
+  esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>(service_data), false);
+}
+
+void ESP32ImprovComponent::update_advertising_type_() {
+  uint32_t now = App.get_loop_component_start_time();
+
+  // If we're advertising the device name and it's been more than NAME_ADVERTISING_DURATION, switch back to service data
+  if (this->advertising_device_name_) {
+    if (now - this->last_name_adv_time_ >= NAME_ADVERTISING_DURATION) {
+      ESP_LOGV(TAG, "Switching back to service data advertising");
+      this->advertising_device_name_ = false;
+      // Restore service data advertising
+      this->advertise_service_data_();
+    }
+    return;
+  }
+
+  // Check if it's time to advertise the device name (every NAME_ADVERTISING_INTERVAL)
+  if (now - this->last_name_adv_time_ >= NAME_ADVERTISING_INTERVAL) {
+    ESP_LOGV(TAG, "Switching to device name advertising");
+    this->advertising_device_name_ = true;
+    this->last_name_adv_time_ = now;
+
+    // Atomically clear service data and enable name in advertising data
+    esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>{}, true);
+  }
 }
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
