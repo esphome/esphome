@@ -47,7 +47,7 @@ struct DNSAnswer {
 
 void DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
-  ESP_LOGI(TAG, "Starting DNS server on %s", ip.str().c_str());
+  ESP_LOGV(TAG, "Starting DNS server on %s", ip.str().c_str());
 
   // Create loop-monitored UDP socket
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP);
@@ -70,7 +70,7 @@ void DNSServer::start(const network::IPAddress &ip) {
     this->socket_ = nullptr;
     return;
   }
-  ESP_LOGD(TAG, "Bound to port %d", DNS_PORT);
+  ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
 }
 
 void DNSServer::stop() {
@@ -111,7 +111,7 @@ void DNSServer::process_dns_request() {
   ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
   if (len < sizeof(DNSHeader) + 1) {
-    ESP_LOGW(TAG, "Request too short: %d", len);
+    ESP_LOGV(TAG, "Request too short: %d", len);
     return;
   }
 
