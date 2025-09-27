@@ -2,10 +2,21 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <memory>
 #include <string>
 
 namespace esphome {
 namespace template_ {
+
+namespace {
+struct WrenchBytecodeDeleter {
+  void operator()(unsigned char *ptr) const {
+    if (ptr != nullptr) {
+      wr_free(ptr);
+    }
+  }
+};
+}  // namespace
 
 static const char *const TAG = "template.text";
 
@@ -54,12 +65,38 @@ void TemplateText::update() {
   if (!val.has_value())
     return;
 
-  this->publish_state(*val);
-
+  this->publish_state(*val);\
 #ifdef USE_TEMPLATE_TEXT_DYNAMIC_LAMBDA
   if (this->dynamic_)
     this->execute_wrench_(*val);
 #endif
+
+void TemplateText::execute_wrench(const std::string &value) {
+  unsigned char *bytecode_raw = nullptr;
+  int bytecode_len = 0;
+  int err = wr_compile(value.c_str(), value.size(), &bytecode_raw, &bytecode_len);  // compile it
+
+  ESP_LOGD(TAG, "wrench err: %i", err);
+  if (err != 0) {
+    if (bytecode_raw != nullptr) {
+      wr_free(bytecode_raw);
+    }
+    return;
+  }
+
+  std::unique_ptr<unsigned char, WrenchBytecodeDeleter> bytecode(bytecode_raw);
+  WRContext *gc = wr_run(this->w, bytecode.get(), bytecode_len, false);  // load and run the code!
+
+  if (gc == nullptr) {
+    return;
+  }
+
+  WRValue *g = wr_getGlobalRef(gc, "result");
+
+  if (g != nullptr) {
+    char buf[1024];
+    this->lambda_result_->publish_state(g->asString(buf, 1024));
+  }
 }
 
 void TemplateText::control(const std::string &value) {
