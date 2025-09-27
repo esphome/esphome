@@ -2,7 +2,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/logger/logger.h"
 #include <cmath>
 
 namespace esphome {
@@ -87,13 +86,8 @@ void QMC5883LComponent::loop() {
 }
 
 void QMC5883LComponent::dump_config() {
-  // Save Current Log Level for Component (NOTE: Causes COMPILE WARNING).
-  uint8_t log_level_old = esphome::logger::global_logger->level_for(TAG);
-  // Set to DEBUG to FORCE Printing of Component Config.
-  esphome::logger::global_logger->set_log_level(TAG, 5);
 
   ESP_LOGCONFIG(TAG, "QMC5883L:");
-  ESP_LOGCONFIG(TAG, "  Component Log Level: %d", log_level_old);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -107,9 +101,6 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
   ESP_LOGCONFIG(TAG, "  Datarate (Hz): %d", this->get_datarate_hz());
-
-  // Restore Original Log Level
-  esphome::logger::global_logger->set_log_level(TAG, log_level_old);
 }
 
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
