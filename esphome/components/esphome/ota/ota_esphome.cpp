@@ -81,7 +81,7 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  err = this->server_->listen(4);
+  err = this->server_->listen(1);  // Only one client at a time
   if (err != 0) {
     this->log_socket_error_(LOG_STR("listen"));
     this->mark_failed();
