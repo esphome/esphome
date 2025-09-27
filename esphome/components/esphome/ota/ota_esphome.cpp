@@ -254,7 +254,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
     case OTAState::DATA:
       this->handle_data_();
-      [[fallthrough]];
+      return;
 
     default:
       break;
