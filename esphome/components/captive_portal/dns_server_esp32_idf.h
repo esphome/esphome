@@ -10,8 +10,6 @@ namespace esphome::captive_portal {
 
 class DNSServer {
  public:
-  ~DNSServer();
-
   void start(const network::IPAddress &ip);
   void stop();
 

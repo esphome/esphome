@@ -85,7 +85,7 @@ void CaptivePortal::start() {
 
   this->initialized_ = true;
   this->active_ = true;
-  ESP_LOGI(TAG, "Captive portal started");
+  ESP_LOGV(TAG, "Captive portal started");
 }
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
