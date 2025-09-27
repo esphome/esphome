@@ -174,8 +174,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
         }
 
         // Magic bytes valid, move to next state
-        this->ota_state_ = OTAState::MAGIC_ACK;
-        this->handshake_buf_pos_ = 0;  // Reset for reuse
+        this->transition_ota_state_(OTAState::MAGIC_ACK);
         continue;
       }
 
@@ -187,27 +186,13 @@ void ESPHomeOTAComponent::handle_handshake_() {
           this->handshake_buf_[1] = USE_OTA_VERSION;
         }
 
-        // Write remaining bytes (2 total)
-        size_t bytes_to_write = 2 - this->handshake_buf_pos_;
-        ssize_t written = this->client_->write(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_write);
-
-        if (written == -1) {
-          if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return;  // Try again next loop
-          }
-          this->log_socket_error_(LOG_STR("writing magic ack"));
-          this->cleanup_connection_();
+        if (!this->try_write_(2, LOG_STR("writing magic ack"))) {
           return;
         }
 
-        this->handshake_buf_pos_ += written;
-        if (this->handshake_buf_pos_ != 2) {
-          return;
-        }
         // All bytes sent, create backend and move to next state
         this->backend_ = ota::make_ota_backend();
-        this->ota_state_ = OTAState::FEATURE_READ;
-        this->handshake_buf_pos_ = 0;  // Reset for reuse
+        this->transition_ota_state_(OTAState::FEATURE_READ);
         continue;
       }
 
@@ -219,30 +204,26 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
         this->ota_features_ = this->handshake_buf_[0];
         ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
-        this->ota_state_ = OTAState::FEATURE_ACK;
-        this->handshake_buf_pos_ = 0;  // Reset for reuse
+        this->transition_ota_state_(OTAState::FEATURE_ACK);
         continue;
       }
 
       case OTAState::FEATURE_ACK: {
         // Acknowledge header - 1 byte
-        uint8_t ack =
-            ((this->ota_features_ & FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression())
-                ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION
-                : ota::OTA_RESPONSE_HEADER_OK;
+        // Prepare response in handshake buffer if not already done
+        if (this->handshake_buf_pos_ == 0) {
+          this->handshake_buf_[0] =
+              ((this->ota_features_ & FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression())
+                  ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION
+                  : ota::OTA_RESPONSE_HEADER_OK;
+        }
 
-        ssize_t written = this->client_->write(&ack, 1);
-        if (written == -1) {
-          if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return;  // Try again next loop
-          }
-          this->log_socket_error_(LOG_STR("writing feature ack"));
-          this->cleanup_connection_();
+        if (!this->try_write_(1, LOG_STR("writing feature ack"))) {
           return;
         }
 
         // Handshake complete, move to data phase
-        this->ota_state_ = OTAState::DATA;
+        this->transition_ota_state_(OTAState::DATA);
         continue;
       }
 
@@ -581,6 +562,30 @@ bool ESPHomeOTAComponent::try_read_(size_t to_read, const LogString *error_desc,
   this->handshake_buf_pos_ += read;
   // Return true only if we have all the requested bytes
   return this->handshake_buf_pos_ >= to_read;
+}
+
+bool ESPHomeOTAComponent::try_write_(size_t to_write, const LogString *error_desc) {
+  // Write bytes from handshake buffer, starting at handshake_buf_pos_
+  size_t bytes_to_write = to_write - this->handshake_buf_pos_;
+  ssize_t written = this->client_->write(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_write);
+
+  if (written == -1) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return false;  // Try again next loop
+    }
+    this->log_socket_error_(error_desc);
+    this->cleanup_connection_();
+    return false;
+  }
+
+  this->handshake_buf_pos_ += written;
+  // Return true only if we have written all the requested bytes
+  return this->handshake_buf_pos_ >= to_write;
+}
+
+void ESPHomeOTAComponent::transition_ota_state_(OTAState next_state) {
+  this->ota_state_ = next_state;
+  this->handshake_buf_pos_ = 0;  // Reset buffer position for next state
 }
 
 void ESPHomeOTAComponent::cleanup_connection_() {
