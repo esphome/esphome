@@ -543,7 +543,7 @@ void USBClient::release_trq(TransferRequest *trq) {
   // Atomically clear bit i to mark slot as available
   // fetch_and with inverted bitmask clears the bit atomically
   uint16_t bit = 1U << index;
-  this->trq_in_use_.fetch_and(~bit, std::memory_order_release);
+  this->trq_in_use_.fetch_and(static_cast<uint16_t>(~bit), std::memory_order_release);
 }
 
 }  // namespace usb_host
