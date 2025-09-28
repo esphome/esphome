@@ -2310,11 +2310,13 @@ message ZWaveProxyFrame {
 enum ZWaveProxyRequestType {
   ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
   ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+  ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2;
 }
 message ZWaveProxyRequest {
   option (id) = 129;
-  option (source) = SOURCE_CLIENT;
+  option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZWAVE_PROXY";
 
   ZWaveProxyRequestType type = 1;
+  bytes data = 2 [(pointer_to_buffer) = true];
 }
