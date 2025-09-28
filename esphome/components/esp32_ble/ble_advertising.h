@@ -4,6 +4,7 @@
 
 #include <array>
 #include <functional>
+#include <span>
 #include <vector>
 
 #ifdef USE_ESP32
@@ -36,6 +37,8 @@ class BLEAdvertising {
   void set_manufacturer_data(const std::vector<uint8_t> &data);
   void set_appearance(uint16_t appearance) { this->advertising_data_.appearance = appearance; }
   void set_service_data(const std::vector<uint8_t> &data);
+  void set_service_data(std::span<const uint8_t> data);
+  void set_include_name(bool include_name) { this->include_name_in_adv_ = include_name; }
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 
   void start();
@@ -45,6 +48,7 @@ class BLEAdvertising {
   esp_err_t services_advertisement_();
 
   bool scan_response_;
+  bool include_name_in_adv_{false};
   esp_ble_adv_data_t advertising_data_;
   esp_ble_adv_data_t scan_response_data_;
   esp_ble_adv_params_t advertising_params_;

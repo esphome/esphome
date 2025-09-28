@@ -73,6 +73,28 @@ void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &dat
   this->advertising_start();
 }
 
+void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name) {
+  // This method atomically updates both service data and device name inclusion in BLE advertising.
+  // When include_name is true, the device name is included in the advertising packet making it
+  // visible to passive BLE scanners. When false, the name is only visible in scan response
+  // (requires active scanning). This atomic operation ensures we only restart advertising once
+  // when changing both properties, avoiding the brief gap that would occur with separate calls.
+
+  this->advertising_init_();
+
+  if (include_name) {
+    // When including name, clear service data first to avoid packet overflow
+    this->advertising_->set_service_data(std::span<const uint8_t>{});
+    this->advertising_->set_include_name(true);
+  } else {
+    // When including service data, clear name first to avoid packet overflow
+    this->advertising_->set_include_name(false);
+    this->advertising_->set_service_data(data);
+  }
+
+  this->advertising_start();
+}
+
 void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
   this->advertising_init_();
   this->advertising_->register_raw_advertisement_callback(std::move(callback));
