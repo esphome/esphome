@@ -182,7 +182,7 @@ struct OpenthermData {
   /**
    * @return float representation of data packet value
    */
-  float f88();
+  float f88() const;
 
   /**
    * @param float number to set as value of this data packet
@@ -192,7 +192,7 @@ struct OpenthermData {
   /**
    * @return unsigned 16b integer representation of data packet value
    */
-  uint16_t u16();
+  uint16_t u16() const;
 
   /**
    * @param unsigned 16b integer number to set as value of this data packet
@@ -202,7 +202,7 @@ struct OpenthermData {
   /**
    * @return signed 16b integer representation of data packet value
    */
-  int16_t s16();
+  int16_t s16() const;
 
   /**
    * @param signed 16b integer number to set as value of this data packet

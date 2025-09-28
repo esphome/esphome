@@ -187,11 +187,11 @@ bool IRAM_ATTR check_parity(uint32_t val) {
   return (~val) & 1;
 }
 
-float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
+float OpenthermData::f88() const { return ((float) this->s16()) / 256.0; }
 
 void OpenthermData::f88(float value) { this->s16((int16_t) (value * 256)); }
 
-uint16_t OpenthermData::u16() {
+uint16_t OpenthermData::u16() const {
   uint16_t const value = this->valueHB;
   return (value << 8) | this->valueLB;
 }
@@ -201,7 +201,7 @@ void OpenthermData::u16(uint16_t value) {
   this->valueHB = (value >> 8) & 0xFF;
 }
 
-int16_t OpenthermData::s16() {
+int16_t OpenthermData::s16() const {
   int16_t const value = this->valueHB;
   return (value << 8) | this->valueLB;
 }
