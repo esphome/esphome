@@ -343,8 +343,7 @@ def clean_all(configuration: list[str]):
         buid_dir = Path(dir) / ".esphome"
         if buid_dir.is_dir():
             _LOGGER.info("Deleting %s", buid_dir)
-            # Don't remove storage as it will cause the dashboard to regenerate all
-            # config files and that could cause issues
+            # Don't remove storage as it will cause the dashboard to regenerate all configs
             for item in buid_dir.iterdir():
                 if item.is_file():
                     item.unlink()
