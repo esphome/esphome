@@ -172,7 +172,7 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
   uint32_t coeff = 1;
-  if (this->data_.model == CSE7761_MODEL_POWCT) {
+  if (this->data_.model == CSE7761_MODEL_SONOFF_POWCT) {
     coeff = 5;
   }
   switch (unit) {
@@ -234,7 +234,7 @@ bool CSE7761Component::chip_init_() {
                                 =000, PGA of current channel A=1 (Pow CT)
     */
 
-    if (this->data_.model == CSE7761_MODEL_POWCT) {
+    if (this->data_.model == CSE7761_MODEL_SONOFF_POWCT) {
       this->write_(CSE7761_REG_SYSCON | 0x80, 0xFE00);  // POW CT + enable channel B
     } else {
       this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);  // Sonoff Dual R3

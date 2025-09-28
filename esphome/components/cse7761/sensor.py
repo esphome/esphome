@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_MODEL,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
@@ -28,12 +29,11 @@ CONF_CURRENT_1 = "current_1"
 CONF_CURRENT_2 = "current_2"
 CONF_ACTIVE_POWER_1 = "active_power_1"
 CONF_ACTIVE_POWER_2 = "active_power_2"
-CONF_SONOFF_MODEL = "sonoff_model"
 
-SonoffModel = cse7761_ns.enum("SonoffModel")
-SONOFF_MODEL = {
-    "DUALR3": SonoffModel.CSE7761_MODEL_DUALR3,
-    "POWCT": SonoffModel.CSE7761_MODEL_POWCT,
+CSE7761Model = cse7761_ns.enum("CSE7761Model")
+MODELS = {
+    "SONOFF DUALR3": CSE7761Model.CSE7761_MODEL_SONOFF_DUALR3,
+    "SONOFF POWCT": CSE7761Model.CSE7761_MODEL_SONOFF_POWCT,
 }
 
 CONFIG_SCHEMA = (
@@ -76,8 +76,8 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_SONOFF_MODEL, default="DUALR3"): cv.enum(
-                SONOFF_MODEL, upper=True
+            cv.Optional(CONF_MODEL, default="SONOFF DUALR3"): cv.enum(
+                MODELS, upper=True
             ),
         }
     )
@@ -109,4 +109,4 @@ async def to_code(config):
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))
 
-    cg.add(var.set_model(config[CONF_SONOFF_MODEL]))
+    cg.add(var.set_model(config[CONF_MODEL]))
