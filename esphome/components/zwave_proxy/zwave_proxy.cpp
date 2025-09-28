@@ -1,4 +1,5 @@
 #include "zwave_proxy.h"
+#include "esphome/components/api/api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -97,12 +98,19 @@ void ZWaveProxy::process_uart_() {
       // - buffer_[3]: Command ID (0x20 for GET_NETWORK_IDS)
       if (this->buffer_[3] == ZWAVE_COMMAND_GET_NETWORK_IDS && this->buffer_[2] == ZWAVE_COMMAND_TYPE_RESPONSE &&
           this->buffer_[1] >= ZWAVE_MIN_GET_NETWORK_IDS_LENGTH && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
-        // Extract the 4-byte Home ID starting at offset 4
+        // Store the 4-byte Home ID, which starts at offset 4, and notify connected clients if it changed
         // The frame parser has already validated the checksum and ensured all bytes are present
-        std::memcpy(this->home_id_.data(), this->buffer_.data() + 4, this->home_id_.size());
-        this->home_id_ready_ = true;
-        ESP_LOGI(TAG, "Home ID: %s",
-                 format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+        if (this->set_home_id(&this->buffer_[4])) {
+          api::ZWaveProxyRequest msg;
+          msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
+          msg.data = this->home_id_.data();
+          msg.data_len = this->home_id_.size();
+          if (api::global_api_server != nullptr) {
+            // We could add code to manage a second subscription type, but, since this message is
+            //  very infrequent and small, we simply send it to all clients
+            api::global_api_server->on_zwave_proxy_request(msg);
+          }
+        }
       }
       ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
       if (this->api_connection_ != nullptr) {
@@ -120,7 +128,12 @@ void ZWaveProxy::process_uart_() {
   }
 }
 
-void ZWaveProxy::dump_config() { ESP_LOGCONFIG(TAG, "Z-Wave Proxy"); }
+void ZWaveProxy::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Z-Wave Proxy:\n"
+                "  Home ID: %s",
+                format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+}
 
 void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
   switch (type) {
@@ -143,6 +156,17 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       ESP_LOGW(TAG, "Unknown request type: %d", type);
       break;
   }
+}
+
+bool ZWaveProxy::set_home_id(const uint8_t *new_home_id) {
+  if (std::memcmp(this->home_id_.data(), new_home_id, this->home_id_.size()) == 0) {
+    ESP_LOGV(TAG, "Home ID unchanged");
+    return false;  // No change
+  }
+  std::memcpy(this->home_id_.data(), new_home_id, this->home_id_.size());
+  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+  this->home_id_ready_ = true;
+  return true;  // Home ID was changed
 }
 
 void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
