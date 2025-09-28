@@ -790,9 +790,14 @@ def test_clean_all(
         with caplog.at_level("INFO"):
             clean_all([str(config1_dir), str(config2_dir)])
 
-    # Verify deletions
-    assert not build_dir1.exists()
-    assert not build_dir2.exists()
+    # Verify deletions - .esphome directories remain but contents are cleaned
+    # The .esphome directory itself is not removed because it may contain storage
+    assert build_dir1.exists()
+    assert build_dir2.exists()
+
+    # Verify that files in .esphome were removed
+    assert not (build_dir1 / "dummy.txt").exists()
+    assert not (build_dir2 / "dummy.txt").exists()
     assert not pio_cache.exists()
     assert not pio_packages.exists()
     assert not pio_platforms.exists()
@@ -806,6 +811,55 @@ def test_clean_all(
     assert "PlatformIO packages" in caplog.text
     assert "PlatformIO platforms" in caplog.text
     assert "PlatformIO core" in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_preserves_storage(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all preserves storage directory."""
+    # Create build directory with storage subdirectory
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+    (build_dir / "other_file.txt").write_text("y")
+
+    # Create storage directory with content
+    storage_dir = build_dir / "storage"
+    storage_dir.mkdir()
+    (storage_dir / "storage.json").write_text('{"test": "data"}')
+    (storage_dir / "other_storage.txt").write_text("storage content")
+
+    # Call clean_all
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    # Verify .esphome directory still exists
+    assert build_dir.exists()
+
+    # Verify storage directory still exists with its contents
+    assert storage_dir.exists()
+    assert (storage_dir / "storage.json").exists()
+    assert (storage_dir / "other_storage.txt").exists()
+
+    # Verify storage contents are intact
+    assert (storage_dir / "storage.json").read_text() == '{"test": "data"}'
+    assert (storage_dir / "other_storage.txt").read_text() == "storage content"
+
+    # Verify other files were removed
+    assert not (build_dir / "dummy.txt").exists()
+    assert not (build_dir / "other_file.txt").exists()
+
+    # Verify logging mentions deletion
+    assert "Deleting" in caplog.text
+    assert str(build_dir) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -833,8 +887,8 @@ def test_clean_all_platformio_not_available(
     ):
         clean_all([str(config_dir)])
 
-    # Build dir removed, PlatformIO dirs remain
-    assert not build_dir.exists()
+        # Build dir contents cleaned, PlatformIO dirs remain
+        assert build_dir.exists()
     assert pio_cache.exists()
 
     # No PlatformIO-specific logs
@@ -866,4 +920,4 @@ def test_clean_all_partial_exists(
 
         clean_all([str(config_dir)])
 
-    assert not build_dir.exists()
+        assert build_dir.exists()
