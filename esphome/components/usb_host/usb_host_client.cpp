@@ -361,24 +361,30 @@ TransferRequest *USBClient::get_trq_() {
   uint16_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
 
   // Find first available slot (bit = 0) and try to claim it atomically
-  for (size_t i = 0; i < MAX_REQUESTS; i++) {
-    if (!(mask & (1U << i))) {
-      // Slot i appears available, try to claim it atomically
-      uint16_t expected = mask;
-      uint16_t desired = mask | (1U << i);  // Set bit i to mark as in-use
-
-      if (this->trq_in_use_.compare_exchange_weak(expected, desired, std::memory_order_acquire,
-                                                  std::memory_order_relaxed)) {
-        // Successfully claimed slot i - prepare the TransferRequest
-        auto *trq = &this->requests_[i];
-        trq->transfer->context = trq;
-        trq->transfer->device_handle = this->device_handle_;
-        return trq;
-      }
-      // Another thread claimed this slot, retry with updated mask
-      mask = expected;
-      i--;  // Retry the same index with new mask value
+  // We use a while loop to allow retrying the same slot after CAS failure
+  size_t i = 0;
+  while (i < MAX_REQUESTS) {
+    if (mask & (1U << i)) {
+      // Slot is in use, move to next slot
+      i++;
+      continue;
     }
+
+    // Slot i appears available, try to claim it atomically
+    uint16_t expected = mask;
+    uint16_t desired = mask | (1U << i);  // Set bit i to mark as in-use
+
+    if (this->trq_in_use_.compare_exchange_weak(expected, desired, std::memory_order_acquire,
+                                                std::memory_order_relaxed)) {
+      // Successfully claimed slot i - prepare the TransferRequest
+      auto *trq = &this->requests_[i];
+      trq->transfer->context = trq;
+      trq->transfer->device_handle = this->device_handle_;
+      return trq;
+    }
+    // Another thread claimed this slot, retry with updated mask
+    // Don't increment i - retry the same slot with the updated mask
+    mask = expected;
   }
 
   ESP_LOGE(TAG, "Too many requests queued (all %d slots in use)", MAX_REQUESTS);
