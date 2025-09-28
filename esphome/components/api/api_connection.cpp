@@ -30,6 +30,9 @@
 #ifdef USE_VOICE_ASSISTANT
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
+#ifdef USE_ZWAVE_PROXY
+#include "esphome/components/zwave_proxy/zwave_proxy.h"
+#endif
 
 namespace esphome::api {
 
@@ -41,6 +44,8 @@ static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+
+static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
 static const char *const TAG = "api.connection";
 #ifdef USE_CAMERA
@@ -1070,16 +1075,22 @@ void APIConnection::camera_image(const CameraImageRequest &msg) {
 
 #ifdef USE_HOMEASSISTANT_TIME
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
-  if (homeassistant::global_homeassistant_time != nullptr)
+  if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
+#ifdef USE_TIME_TIMEZONE
+    if (value.timezone_len > 0) {
+      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
+      // Compare without allocating a string
+      if (current_tz.length() != value.timezone_len ||
+          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
+        homeassistant::global_homeassistant_time->set_timezone(
+            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
+      }
+    }
+#endif
+  }
 }
 #endif
-
-bool APIConnection::send_get_time_response(const GetTimeRequest &msg) {
-  GetTimeResponse resp;
-  resp.epoch_seconds = ::time(nullptr);
-  return this->send_message(resp, GetTimeResponse::MESSAGE_TYPE);
-}
 
 #ifdef USE_BLUETOOTH_PROXY
 void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
@@ -1191,6 +1202,23 @@ bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceA
       resp_wake_word.trained_languages.push_back(lang);
     }
   }
+
+  // Filter external wake words
+  for (auto &wake_word : msg.external_wake_words) {
+    if (wake_word.model_type != "micro") {
+      // microWakeWord only
+      continue;
+    }
+
+    resp.available_wake_words.emplace_back();
+    auto &resp_wake_word = resp.available_wake_words.back();
+    resp_wake_word.set_id(StringRef(wake_word.id));
+    resp_wake_word.set_wake_word(StringRef(wake_word.wake_word));
+    for (const auto &lang : wake_word.trained_languages) {
+      resp_wake_word.trained_languages.push_back(lang);
+    }
+  }
+
   resp.active_wake_words = &config.active_wake_words;
   resp.max_active_wake_words = config.max_active_wake_words;
   return this->send_message(resp, VoiceAssistantConfigurationResponse::MESSAGE_TYPE);
@@ -1201,7 +1229,16 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
     voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
   }
 }
+#endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
+  zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
+}
+
+void APIConnection::zwave_proxy_request(const ZWaveProxyRequest &msg) {
+  zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+}
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -1360,7 +1397,7 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name = msg.client_info;
+  this->client_info_.name.assign(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
   this->client_info_.peername = this->helper_->getpeername();
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
@@ -1370,9 +1407,8 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   HelloResponse resp;
   resp.api_version_major = 1;
   resp.api_version_minor = 12;
-  // Temporary string for concatenation - will be valid during send_message call
-  std::string server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
-  resp.set_server_info(StringRef(server_info));
+  // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
+  resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
 
 #ifdef USE_API_PASSWORD
@@ -1385,20 +1421,17 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
-bool APIConnection::send_connect_response(const ConnectRequest &msg) {
-  bool correct = true;
 #ifdef USE_API_PASSWORD
-  correct = this->parent_->check_password(msg.password);
-#endif
-
-  ConnectResponse resp;
+bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
+  AuthenticationResponse resp;
   // bool invalid_password = 1;
-  resp.invalid_password = !correct;
-  if (correct) {
+  resp.invalid_password = !this->parent_->check_password(msg.password, msg.password_len);
+  if (!resp.invalid_password) {
     this->complete_authentication_();
   }
-  return this->send_message(resp, ConnectResponse::MESSAGE_TYPE);
+  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
 }
+#endif  // USE_API_PASSWORD
 
 bool APIConnection::send_ping_response(const PingRequest &msg) {
   PingResponse resp;
@@ -1419,8 +1452,6 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   std::string mac_address = get_mac_address_pretty();
   resp.set_mac_address(StringRef(mac_address));
 
-  // Compile-time StringRef constants
-  static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
   resp.set_compilation_time(App.get_compilation_time_ref());
@@ -1463,6 +1494,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_VOICE_ASSISTANT
   resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
+#endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
