@@ -392,8 +392,8 @@ void CSE7761Component::get_data_() {
     this->voltage_sensor_->publish_state(voltage);
   }
 
-  float freq = (this->data_.frequency) ? ((float) CSE7761_FREF / 8 / this->data_.frequency) : 0;  // Hz
   if (this->frequency_sensor_ != nullptr) {
+    float freq = (this->data_.frequency) ? ((float) CSE7761_FREF / 8 / this->data_.frequency) : 0;  // Hz
     this->frequency_sensor_->publish_state(freq);
   }
   for (uint8_t channel = 0; channel < 2; channel++) {
