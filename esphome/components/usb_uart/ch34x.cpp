@@ -68,12 +68,9 @@ void USBUartTypeCH34X::enable_channels() {
     value |= channel->data_bits_ - 5;
     value <<= 8;
     value |= 0x8C;
-    uint8_t cmd = 0xA1;
-    if (channel->index_ <= 1) {
-      cmd += channel->index_;
-    } else if (channel->index_ <= 3) {
-      cmd += (0x10 + (channel->index_ - 2));
-    }
+    uint8_t cmd = 0xA1 + channel->index_;
+    if (channel->index_ >= 2)
+      cmd += 0xE;
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor, callback);
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0, callback);
   }
