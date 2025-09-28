@@ -39,14 +39,14 @@ void Modbus::loop() {
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   if (millis() - this->last_modbus_byte_ > timeout) {
-    clear_rx_buffer_("timeout");
+    clear_rx_buffer_("timeout after partial response", true);
   }
 
   // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
   if (this->waiting_for_response_ != 0 &&
       millis() - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
       (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_)) {
-    ESP_LOGV(TAG, "Stop waiting for response from %d %dms after last send", this->waiting_for_response_,
+    ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send", this->waiting_for_response_,
              millis() - this->last_send_);
     this->waiting_for_response_ = 0;
   }
@@ -89,7 +89,7 @@ void Modbus::receive_and_parse_modbus_bytes_() {
 
     // If the bytes in the rx buffer do not parse, clear out the buffer
     if (!this->parse_modbus_byte_(byte)) {
-      this->clear_rx_buffer_("parse failed");
+      this->clear_rx_buffer_("parse failed", true);
     }
     this->last_modbus_byte_ = millis();
   }
@@ -200,14 +200,16 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       // Is it an error response?
       if ((function_code & FunctionCode::EXCEPTION_BIT_MASK) == FunctionCode::EXCEPTION_BIT_MASK) {
         uint8_t exception = raw[2];
-        ESP_LOGD(TAG, "Modbus error function code: 0x%X exception: %d", function_code, exception);
+        ESP_LOGW(TAG, "Modbus error function code: 0x%X exception: %d, address: %d, %dms after last send",
+                 function_code, exception, address, millis() - this->last_send_);
         if (waiting_for_response_ == address) {
           this->defer("on_modbus_error", [device, function_code, exception]() {
             device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
           });
         } else if (this->role == ModbusRole::CLIENT) {
           // Ignore modbus exception not related to a pending command
-          ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response");
+          ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response from %d, %dms after last send", address,
+                   millis() - this->last_send_);
         }
       } else if (this->role == ModbusRole::SERVER) {
         if (function_code == FunctionCode::READ_HOLDING_REGISTERS ||
@@ -222,13 +224,20 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
                       [device, data, function_code]() { device->on_modbus_write_registers(function_code, data); });
         }
       } else {
-        this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
+        if (waiting_for_response_ == address) {
+          this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
+        } else {
+          // Ignore modbus response not related to a pending command
+          ESP_LOGW(TAG, "Ignoring Modbus response - not expecting a response from %d, %dms after last send", address,
+                   millis() - this->last_send_);
+        }
       }
     }
   }
 
   if (!found && this->role == ModbusRole::CLIENT) {
-    ESP_LOGW(TAG, "Got Modbus frame from unknown address 0x%02X! ", address);
+    ESP_LOGW(TAG, "Got Modbus frame from unknown address %d, %dms after last send", address,
+             millis() - this->last_send_);
   }
 
   this->clear_rx_buffer_("parse succeeded");
@@ -343,15 +352,20 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     this->tx_buffer_.push_back(data);
   } else {
-    ESP_LOGW(TAG, "Modbus write buffer full, dropped: %s", format_hex_pretty(data).c_str());
+    ESP_LOGE(TAG, "Modbus write buffer full, dropped: %s", format_hex_pretty(data).c_str());
   }
 }
 
-void Modbus::clear_rx_buffer_(const std::string &reason) {
+void Modbus::clear_rx_buffer_(const std::string &reason, bool warn) {
   size_t at = this->rx_buffer_.size();
   if (at > 0) {
-    ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
-             millis() - this->last_send_);
+    if (warn) {
+      ESP_LOGW(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
+               millis() - this->last_send_);
+    } else {
+      ESP_LOGV(TAG, "Clearing buffer of %d bytes - %s %dms after last send", at, reason.c_str(),
+               millis() - this->last_send_);
+    }
     this->rx_buffer_.clear();
   }
 }
