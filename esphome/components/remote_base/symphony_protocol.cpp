@@ -26,18 +26,17 @@ static const uint32_t INTER_FRAME_GAP_US = 34760;
 
 void SymphonyProtocol::encode(RemoteTransmitData *dst, const SymphonyData &data) {
   dst->set_carrier_frequency(CARRIER_FREQUENCY);
-  const uint8_t repeats = data.repeats == 0 ? 1 : data.repeats;
   ESP_LOGD(TAG, "Sending Symphony: data=0x%0*X nbits=%u repeats=%u", (data.nbits + 3) / 4, (unsigned int) data.data,
-           data.nbits, repeats);
+           data.nbits, data.repeats);
   // Each bit produces a mark+space (2 entries). We fold the inter-frame/footer gap
   // into the last bit's space of each frame to avoid over-length gaps.
-  dst->reserve(data.nbits * 2u * repeats);
+  dst->reserve(data.nbits * 2u * data.repeats);
 
-  for (uint8_t r = 0; r < repeats; r++) {
+  for (uint8_t repeats = 0; repeats < data.repeats; repeats++) {
     // Data bits (MSB first)
     for (uint32_t mask = 1UL << (data.nbits - 1); mask != 0; mask >>= 1) {
       const bool is_last_bit = (mask == 1);
-      const bool is_last_frame = (r == (repeats - 1));
+      const bool is_last_frame = (repeats == (data.repeats - 1));
       if (is_last_bit) {
         // Emit last bit's mark; replace its space with the proper gap
         if (data.data & mask) {
