@@ -1,0 +1,17 @@
+substitutions:
+  pin: GPIO5
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+remote_receiver:
+  id: rcvr
+  pin: ${pin}
+  dump: all
+
+climate:
+  - platform: toshiba
+    name: "RAS-2819T Climate"
+    model: RAS-2819T
+    receiver_id: rcvr
