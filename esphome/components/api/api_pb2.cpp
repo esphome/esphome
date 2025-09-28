@@ -3112,6 +3112,27 @@ bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   }
   return true;
 }
+bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, static_cast<uint32_t>(this->type));
+  buffer.encode_bytes(2, this->data, this->data_len);
+}
+void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, static_cast<uint32_t>(this->type));
+  size.add_length(2, this->data_len);
+}
 #endif
 
 }  // namespace esphome::api
