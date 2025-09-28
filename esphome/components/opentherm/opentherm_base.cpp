@@ -167,13 +167,15 @@ const char *message_id_to_str(MessageId id) {
   }
 }
 
-void debug_data(OpenthermData &data) {
-  ESP_LOGD(TAG, "%s %s %s %s", format_bin(data.type).c_str(), format_bin(data.id).c_str(),
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+void debug_data(const OpenthermData &data) {
+  ESP_LOGV(TAG, "%s %s %s %s", format_bin(data.type).c_str(), format_bin(data.id).c_str(),
            format_bin(data.valueHB).c_str(), format_bin(data.valueLB).c_str());
   ESP_LOGD(TAG, "type: %s; id: %s; HB: %s; LB: %s; uint_16: %s; float: %s",
            message_type_to_str((MessageType) data.type), to_string(data.id).c_str(), to_string(data.valueHB).c_str(),
            to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(), to_string(data.f88()).c_str());
 }
+#endif
 
 // https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
 bool IRAM_ATTR check_parity(uint32_t val) {

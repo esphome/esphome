@@ -216,7 +216,11 @@ const char *message_type_to_str(MessageType message_type);
 const char *operation_mode_to_str(OperationMode mode);
 const char *message_id_to_str(MessageId id);
 
-void debug_data(OpenthermData &data);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+void debug_data(const OpenthermData &data);
+#else
+inline void debug_data(const OpenthermData &data) {};
+#endif
 
 bool check_parity(uint32_t val);
 
