@@ -96,6 +96,7 @@ CO5300 = DriverChip(
     brightness=0xD0,
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
+    no_slpout=True,
     initsequence=(
         (SLPOUT,),  # Requires early SLPOUT
         (PAGESEL, 0x00),
