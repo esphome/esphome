@@ -6,18 +6,25 @@ namespace climate_ir_lg {
 
 static const char *const TAG = "climate.climate_ir_lg";
 
+// All codes provided here are missing the checksum (last 4 bits)
+// this checksum needs to be calculated before sending (look at `calc_checksum_()`)
+
 const uint32_t LG_HEADER = 0x8800000;
 
 // Commands
-const uint32_t COMMAND_MASK = 0xFF000;
+const uint32_t COMMAND_HEADER_MASK = 0xFF000;
 const uint32_t COMMAND_DATA_MASK = 0x00FF0;
+const uint32_t CHECKSUM_MASK = 0xF;
 
-const uint32_t COMMAND_BASIC_SWING = 0x10000;  // ON/OFF swing
+enum CommandBasic : uint32_t {
+  HEADER_BASIC = 0x10000,
+  BASIC_SWING_TOGGLE = 0x000,
 
-// JET MODE (only for cooling/drying/heating modes)
-// For 30 minutes: max airflow (stronger then F5 aka FAN_MAX) + PO (min/min/max temperature respectively)
-// After 30 minutes: F5 aka FAN_MAX + min/min/max temperature respectively
-const uint32_t COMMAND_BASIC_JET = 0x10089;
+  // JET MODE (only for cooling/drying/heating modes)
+  // For 30 minutes: max airflow (stronger than F5 aka FAN_MAX) + PO (min/min/max temperature respectively)
+  // After 30 minutes: F5 aka FAN_MAX + min/min/max temperature respectively
+  BASIC_JET = 0x080,
+};
 
 enum CommandSys : uint32_t {
   HEADER_SYS = 0xC0000,
@@ -75,6 +82,9 @@ enum CommandAdvSwing : uint32_t {
   HORI_SWING_OFF = 0x170,       // Stops immediately
 };
 
+// Following commands contain mode, fan speed and temperature
+
+// Modes
 const uint32_t COMMAND_ON_COOL = 0x00000;
 const uint32_t COMMAND_ON_DRY = 0x01000;
 const uint32_t COMMAND_ON_FAN_ONLY = 0x02000;
@@ -88,7 +98,7 @@ const uint32_t COMMAND_AI = 0x0B000;
 const uint32_t COMMAND_HEAT = 0x0C000;
 
 // Fan speed
-const uint32_t FAN_MASK = 0xF0;
+const uint32_t FAN_SPEED_MASK = 0xF0;
 const uint32_t FAN_AUTO = 0x50;
 const uint32_t FAN_MIN = 0x00;  // AKA F1
 const uint32_t FAN_F2 = 0x90;
@@ -124,16 +134,17 @@ void LgIrClimate::transmit_state() {
           remote_state |= CommandAdvSwing::VERT_FIX_3;
           break;
         default:
-          return;  // Supress clang error, this integration only supports OFF and VERTICAL, this will never be reached
+          return;
       }
       this->transmit_(remote_state);
       this->publish_state();
       return;
-    } else {
-      remote_state |= COMMAND_BASIC_SWING;
+    } else {  // not alternative_mode, so just toggle swing
+      remote_state |= HEADER_BASIC;
+      remote_state |= BASIC_SWING_TOGGLE;
     }
-  } else {
-    bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
+  } else {  // Mode commands
+    const bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
     switch (this->mode) {
       case climate::CLIMATE_MODE_COOL:
         remote_state |= climate_is_off ? COMMAND_ON_COOL : COMMAND_COOL;
@@ -178,11 +189,19 @@ void LgIrClimate::transmit_state() {
       break;
   }
 
-  // Set temperature
-  if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->alternative_mode_) ||
-      this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
-    auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
-    remote_state |= ((temp - 15) << TEMP_SHIFT);
+  uint8_t temp;
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      if (!this->alternative_mode_) {  // Keep previous behavior
+        break;
+      }
+    case climate::CLIMATE_MODE_COOL:
+    case climate::CLIMATE_MODE_HEAT:
+      temp = static_cast<uint8_t>(roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX)));
+      remote_state |= (temp - 15) << TEMP_SHIFT;
+      break;
+    default:
+      break;
   }
 
   this->transmit_(remote_state);
@@ -208,92 +227,117 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  ESP_LOGD(TAG, "Decoded 0x%02" PRIX32, remote_state);
+  ESP_LOGD(TAG, "Received 0x%02" PRIX32, remote_state);
   if ((remote_state & 0xFF00000) != LG_HEADER)
     return false;
 
-  // Get command
-  if ((remote_state & COMMAND_MASK) == CommandSys::HEADER_SYS) {
-    ESP_LOGD(TAG, "Got system command! With data: 0x%02" PRIX32, remote_state & COMMAND_DATA_MASK);
-    switch (remote_state & COMMAND_DATA_MASK) {
-      case CommandSys::OFF &COMMAND_DATA_MASK:
-        this->mode = climate::CLIMATE_MODE_OFF;
-        break;
-      default:
-        return false;
-    }
-  } else if ((remote_state & COMMAND_MASK) == COMMAND_BASIC_SWING) {
-    if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == (COMMAND_BASIC_JET & COMMAND_DATA_MASK)) {
-      ESP_LOGD(TAG, "Got jet command command! Ignoring");
-      return false;
-    } else if (this->swing_mode == climate::CLIMATE_SWING_OFF) {
-      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
-  } else if ((remote_state & COMMAND_MASK) == CommandAdvSwing::HEADER_ADV_SWING) {
-    ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & CommandAdvSwing::DATA_MASK);
-    switch (remote_state & CommandAdvSwing::DATA_MASK) {
-      case CommandAdvSwing::VERT_SWING_ON:
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        break;
-      default:
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
-
-    this->publish_state();
-    return true;
-
-  } else {
-    switch (remote_state & COMMAND_MASK) {
-      case COMMAND_DRY:
-      case COMMAND_ON_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case COMMAND_FAN_ONLY:
-      case COMMAND_ON_FAN_ONLY:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case COMMAND_AI:
-      case COMMAND_ON_AI:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case COMMAND_HEAT:
-      case COMMAND_ON_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case COMMAND_COOL:
-      case COMMAND_ON_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      default:
-        ESP_LOGD(TAG, "Got unknown command! Ignoring!");
-        return false;
-    }
-
-    // Get fan speed
-    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->alternative_mode_)) {
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    } else if (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_COOL ||
-               this->mode == climate::CLIMATE_MODE_DRY || this->mode == climate::CLIMATE_MODE_FAN_ONLY ||
-               this->mode == climate::CLIMATE_MODE_HEAT) {
-      if ((remote_state & FAN_MASK) == FAN_AUTO) {
-        this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      } else if ((remote_state & FAN_MASK) == FAN_MIN) {
-        this->fan_mode = climate::CLIMATE_FAN_LOW;
-      } else if ((remote_state & FAN_MASK) == FAN_MED) {
-        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      } else if ((remote_state & FAN_MASK) == FAN_MAX) {
-        this->fan_mode = climate::CLIMATE_FAN_HIGH;
+  // Decode commands
+  switch (remote_state & COMMAND_HEADER_MASK) {
+    case CommandSys::HEADER_SYS:
+      ESP_LOGD(TAG, "Got system command! With data: 0x%02" PRIX32, remote_state & COMMAND_DATA_MASK);
+      switch (remote_state & COMMAND_DATA_MASK) {
+        case CommandSys::OFF:
+          this->mode = climate::CLIMATE_MODE_OFF;
+          break;
+        default:
+          return false;
       }
-    }
+      break;
+    case CommandAdvSwing::HEADER_ADV_SWING:
+      ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & CommandAdvSwing::DATA_MASK);
+      switch (remote_state & CommandAdvSwing::DATA_MASK) {
+        case CommandAdvSwing::VERT_SWING_ON:
+          this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+          break;
+        case CommandAdvSwing::VERT_FIX_1:
+        case CommandAdvSwing::VERT_FIX_2:
+        case CommandAdvSwing::VERT_FIX_3:
+        case CommandAdvSwing::VERT_FIX_4:
+        case CommandAdvSwing::VERT_FIX_5:
+        case CommandAdvSwing::VERT_FIX_6:
+          this->swing_mode = climate::CLIMATE_SWING_OFF;
+          break;
+        default:
+          return false;  // Ignore all other (horizontal) swing commands
+      }
 
-    // Get temperature
-    if ((this->mode == climate::CLIMATE_MODE_HEAT_COOL && this->alternative_mode_) ||
-        this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
-      this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
-    }
+      this->publish_state();
+      return true;
+
+    case HEADER_BASIC:
+      if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == BASIC_JET) {
+        ESP_LOGD(TAG, "Got jet command! Ignoring");
+        return false;
+      }
+
+      // Keep previous behavior
+      if (this->swing_mode == climate::CLIMATE_SWING_OFF) {  // Just flip between vertical and off
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      } else {
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
+      }
+      break;
+
+    // Following commands also contain fan speed and temperature, so no 'return' in these cases
+    case COMMAND_DRY:
+    case COMMAND_ON_DRY:
+      this->mode = climate::CLIMATE_MODE_DRY;
+      break;
+    case COMMAND_FAN_ONLY:
+    case COMMAND_ON_FAN_ONLY:
+      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+      break;
+    case COMMAND_AI:
+    case COMMAND_ON_AI:
+      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+      break;
+    case COMMAND_HEAT:
+    case COMMAND_ON_HEAT:
+      this->mode = climate::CLIMATE_MODE_HEAT;
+      break;
+    case COMMAND_COOL:
+    case COMMAND_ON_COOL:
+      this->mode = climate::CLIMATE_MODE_COOL;
+      break;
+    default:
+      ESP_LOGD(TAG, "Got unknown command! Ignoring!");
+      return false;
   }
+
+  // Decode fan speed
+  switch (remote_state & FAN_SPEED_MASK) {
+    case FAN_AUTO:
+      this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+    case FAN_MIN:
+      this->fan_mode = climate::CLIMATE_FAN_LOW;
+      break;
+    case FAN_MED:
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      break;
+    case FAN_MAX:
+      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+      break;
+    default:
+      return false;
+  }
+
+  // Keep previous behavior
+  if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->alternative_mode_)) {
+    this->fan_mode = climate::CLIMATE_FAN_AUTO;
+  }
+
+  // Decode temperature for modes that support it
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_HEAT_COOL:
+    case climate::CLIMATE_MODE_COOL:
+    case climate::CLIMATE_MODE_HEAT:
+      this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
+      break;
+    default:
+      break;
+  }
+
   this->publish_state();
 
   return true;
@@ -321,14 +365,14 @@ void LgIrClimate::transmit_(uint32_t value) {
   data->mark(this->bit_high_);
   transmit.perform();
 }
+
 void LgIrClimate::calc_checksum_(uint32_t &value) {
-  uint32_t mask = 0xF;
   uint32_t sum = 0;
   for (uint8_t i = 1; i < 8; i++) {
-    sum += (value & (mask << (i * 4))) >> (i * 4);
+    sum += (value & (CHECKSUM_MASK << (i * 4))) >> (i * 4);
   }
 
-  value |= (sum & mask);
+  value |= (sum & CHECKSUM_MASK);
 }
 
 }  // namespace climate_ir_lg
