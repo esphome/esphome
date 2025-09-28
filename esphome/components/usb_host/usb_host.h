@@ -52,7 +52,8 @@ static const uint8_t USB_DIR_IN = 1 << 7;
 static const uint8_t USB_DIR_OUT = 0;
 static const size_t SETUP_PACKET_SIZE = 8;
 
-static const size_t MAX_REQUESTS = 16;               // maximum number of outstanding requests possible.
+static const size_t MAX_REQUESTS = 16;  // maximum number of outstanding requests possible.
+static_assert(MAX_REQUESTS <= 16, "MAX_REQUESTS must be <= 16 to fit in uint16_t bitmask");
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
@@ -164,6 +165,7 @@ class USBClient : public Component {
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers (both threads can allocate)
   // Single producer for deallocation (main loop only)
+  // Limited to 16 slots by uint16_t size (enforced by static_assert)
   std::atomic<uint16_t> trq_in_use_;
   TransferRequest requests_[MAX_REQUESTS]{};
 };
