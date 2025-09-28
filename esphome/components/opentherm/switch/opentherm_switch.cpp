@@ -5,9 +5,9 @@ namespace opentherm {
 
 static const char *const TAG = "opentherm.switch";
 
-void OpenthermSwitch::write_state(bool state) { this->publish_state(state); }
+void AbstractOpenthermSwitch::write_state(bool state) { this->publish_state(state); }
 
-void OpenthermSwitch::setup() {
+void AbstractOpenthermSwitch::setup() {
   auto restored = this->get_initial_state_with_restore_mode();
   bool state = false;
   if (!restored.has_value()) {
@@ -19,7 +19,7 @@ void OpenthermSwitch::setup() {
   this->write_state(state);
 }
 
-void OpenthermSwitch::dump_config() {
+void AbstractOpenthermSwitch::dump_config() {
   LOG_SWITCH("", "OpenTherm Switch", this);
   ESP_LOGCONFIG(TAG, "  Current state: %d", this->state);
 }

@@ -6,6 +6,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include "opentherm_base.h"
+
 #ifdef USE_ESP32
 #include "opentherm_rmt.h"
 #endif
@@ -13,38 +15,29 @@
 #include "opentherm_esp8266.h"
 #endif
 
-#ifdef OPENTHERM_USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-
-#ifdef OPENTHERM_USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-
-#ifdef OPENTHERM_USE_SWITCH
-#include "esphome/components/opentherm/switch/opentherm_switch.h"
-#endif
-
-#ifdef OPENTHERM_USE_OUTPUT
-#include "esphome/components/opentherm/output/opentherm_output.h"
-#endif
-
-#ifdef OPENTHERM_USE_NUMBER
-#include "esphome/components/opentherm/number/opentherm_number.h"
-#endif
-
 #include <functional>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-
-#include "opentherm_macros.h"
 
 namespace esphome {
 namespace opentherm {
 
 static const uint8_t REPEATING_MESSAGE_ORDER = 255;
 static const uint8_t INITIAL_UNORDERED_MESSAGE_ORDER = 254;
+
+class MessageProcessor {
+ protected:
+  const char *id_ = nullptr;
+
+ public:
+  virtual void prepare_data_out(OpenthermData &data) const = 0;
+  virtual void parse_and_publish(const OpenthermData &data){};
+
+  virtual const char *get_type_name() const = 0;
+  void set_id(const char *id) { this->id_ = id; }
+  const char *get_id() const { return this->id_; }
+};
 
 // OpenTherm component for ESPHome
 class OpenthermHub : public Component {
@@ -54,19 +47,8 @@ class OpenthermHub : public Component {
   // The OpenTherm interface
   std::unique_ptr<OpenTherm> opentherm_;
 
-  OPENTHERM_SENSOR_LIST(OPENTHERM_DECLARE_SENSOR, )
-
-  OPENTHERM_BINARY_SENSOR_LIST(OPENTHERM_DECLARE_BINARY_SENSOR, )
-
-  OPENTHERM_SWITCH_LIST(OPENTHERM_DECLARE_SWITCH, )
-
-  OPENTHERM_NUMBER_LIST(OPENTHERM_DECLARE_NUMBER, )
-
-  OPENTHERM_OUTPUT_LIST(OPENTHERM_DECLARE_OUTPUT, )
-
-  OPENTHERM_INPUT_SENSOR_LIST(OPENTHERM_DECLARE_INPUT_SENSOR, )
-
-  OPENTHERM_SETTING_LIST(OPENTHERM_DECLARE_SETTING, )
+  // All the defined data items
+  std::unordered_multimap<MessageId, MessageProcessor *> message_processors_;
 
   bool sending_initial_ = true;
   std::unordered_map<MessageId, uint8_t> configured_messages_;
@@ -75,8 +57,6 @@ class OpenthermHub : public Component {
 
   uint32_t last_conversation_start_ = 0;
   uint32_t last_conversation_end_ = 0;
-  OperationMode last_mode_ = IDLE;
-  OpenthermData last_request_;
 
   // Synchronous communication mode prevents other components from disabling interrupts while
   // we are talking to the boiler. Enable if you experience random intermittent invalid response errors.
@@ -88,6 +68,7 @@ class OpenthermHub : public Component {
 
   // Create OpenTherm messages based on the message id
   OpenthermData build_request_(MessageId request_id) const;
+  bool prepare_data_out_(MessageId request_id, OpenthermData &data) const;
   bool handle_error_(OperationMode mode);
   void handle_protocol_error_();
   void handle_timeout_error_();
@@ -125,19 +106,9 @@ class OpenthermHub : public Component {
   void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin_ = in_pin; }
   void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
 
-  OPENTHERM_SENSOR_LIST(OPENTHERM_SET_SENSOR, )
-
-  OPENTHERM_BINARY_SENSOR_LIST(OPENTHERM_SET_BINARY_SENSOR, )
-
-  OPENTHERM_SWITCH_LIST(OPENTHERM_SET_SWITCH, )
-
-  OPENTHERM_NUMBER_LIST(OPENTHERM_SET_NUMBER, )
-
-  OPENTHERM_OUTPUT_LIST(OPENTHERM_SET_OUTPUT, )
-
-  OPENTHERM_INPUT_SENSOR_LIST(OPENTHERM_SET_INPUT_SENSOR, )
-
-  OPENTHERM_SETTING_LIST(OPENTHERM_SET_SETTING, )
+  void register_message_processor(MessageId msg, MessageProcessor *item) {
+    this->message_processors_.emplace(msg, item);
+  }
 
   // Add a request to the vector of initial requests
   void add_initial_message(MessageId message_id) {

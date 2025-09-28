@@ -219,7 +219,7 @@ const char *message_id_to_str(MessageId id);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 void debug_data(const OpenthermData &data);
 #else
-inline void debug_data(const OpenthermData &data) {};
+inline void debug_data(const OpenthermData &data){};
 #endif
 
 bool check_parity(uint32_t val);

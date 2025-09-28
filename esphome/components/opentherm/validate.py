@@ -7,7 +7,7 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import const, generate, schema
+from . import const, generate
 from .schema import TSchema
 
 
@@ -17,17 +17,12 @@ def create_entities_schema(
 ) -> Schema:
     entity_schema = {}
     for key, entity in entities.items():
-        schema_key = (
-            cv.Optional(key, entity.default_value)
-            if hasattr(entity, "default_value")
-            else cv.Optional(key)
-        )
-        entity_schema[schema_key] = get_entity_validation_schema(entity)
+        entity_schema[cv.Optional(key)] = get_entity_validation_schema(entity)
     return cv.Schema(entity_schema)
 
 
 def create_component_schema(
-    entities: dict[str, schema.EntitySchema],
+    entities: dict[str, TSchema],
     get_entity_validation_schema: Callable[[TSchema], cv.Schema],
 ) -> Schema:
     return (

@@ -11,11 +11,17 @@ DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.NUMBER
 
 OpenthermNumber = generate.opentherm_ns.class_(
-    "OpenthermNumber", number.Number, cg.Component, input.OpenthermInput
+    "OpenthermNumber",
+    number.Number,
+    cg.Component,
+    input.OpenthermInput,
+    generate.MessageProcessor,
 )
 
 
-async def new_openthermnumber(config: dict[str, Any]) -> cg.Pvariable:
+async def new_openthermnumber(
+    config: dict[str, Any], key: str, hub: cg.MockObj
+) -> cg.MockObj:
     var = await number.new_number(
         config,
         min_value=config[input.CONF_min_value],
@@ -56,11 +62,10 @@ CONFIG_SCHEMA = validate.create_component_schema(
 
 
 async def to_code(config: dict[str, Any]) -> None:
-    keys = await generate.component_to_code(
+    await generate.component_to_code(
         COMPONENT_TYPE,
         schema.INPUTS,
         OpenthermNumber,
-        generate.create_only_conf(new_openthermnumber),
+        new_openthermnumber,
         config,
     )
-    generate.define_readers(COMPONENT_TYPE, keys)

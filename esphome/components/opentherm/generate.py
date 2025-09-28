@@ -1,105 +1,80 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from esphome import core
 import esphome.codegen as cg
 from esphome.const import CONF_ID
+from esphome.cpp_generator import StringLiteral
 
-from . import const
-from .schema import SettingSchema, TSchema
+from . import const, schema
+from .schema import EntitySchema, TSchema
 
 opentherm_ns = cg.esphome_ns.namespace("opentherm")
-OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
+message_data_ns = opentherm_ns.namespace("message_data")
+
+MessageId = opentherm_ns.enum("MessageId")
+MessageProcessor = opentherm_ns.class_("MessageProcessor")
 OpenthermData = opentherm_ns.class_("OpenthermData")
+OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
+OpenthermInputSensor = opentherm_ns.class_("OpenthermInputSensor", MessageProcessor)
+OpenthermSetting = opentherm_ns.class_("OpenthermSetting", MessageProcessor)
+
+TYPE_LIST = [
+    "flag8_lb_0",
+    "flag8_lb_1",
+    "flag8_lb_2",
+    "flag8_lb_3",
+    "flag8_lb_4",
+    "flag8_lb_5",
+    "flag8_lb_6",
+    "flag8_lb_7",
+    "flag8_hb_0",
+    "flag8_hb_1",
+    "flag8_hb_2",
+    "flag8_hb_3",
+    "flag8_hb_4",
+    "flag8_hb_5",
+    "flag8_hb_6",
+    "flag8_hb_7",
+    "u8_lb",
+    "u8_hb",
+    "s8_lb",
+    "s8_hb",
+    "u8_lb_60",
+    "u8_hb_60",
+    "u16",
+    "s16",
+    "f88",
+]
+TYPE_MAP = {x: message_data_ns.class_(x) for x in TYPE_LIST}
 
 
-def define_has_component(component_type: str, keys: list[str]) -> None:
-    cg.add_define(
-        f"OPENTHERM_{component_type.upper()}_LIST(F, sep)",
-        cg.RawExpression(
-            " sep ".join(map(lambda key: f"F({key}_{component_type.lower()})", keys))
-        ),
+def add_input_sensor(hub: cg.MockObj, key: str, input_sensor: cg.MockObj) -> None:
+    input = schema.INPUTS[key]
+    input_id = core.ID(
+        f"{hub}_input_{key}",
+        is_declaration=True,
+        type=OpenthermInputSensor,
     )
-    for key in keys:
-        cg.add_define(f"OPENTHERM_HAS_{component_type.upper()}_{key}")
+    input_var = cg.new_Pvariable(input_id, accessor_template(input))
+    cg.add(input_var.set_sensor(input_sensor))
+    cg.add(input_var.set_id(StringLiteral(key)))
+    cg.add(hub.register_message_processor(getattr(MessageId, input.message), input_var))
 
 
-# We need a separate set of macros for settings because there are different backing field types we need to take
-# into account
-def define_has_settings(keys: list[str], schemas: dict[str, SettingSchema]) -> None:
-    cg.add_define(
-        "OPENTHERM_SETTING_LIST(F, sep)",
-        cg.RawExpression(
-            " sep ".join(
-                map(
-                    lambda key: f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})",
-                    keys,
-                )
-            )
-        ),
+def add_setting(hub: cg.MockObj, key: str, value: Any) -> None:
+    setting = schema.SETTINGS[key]
+    setting_id = core.ID(
+        f"{hub}_setting_{key}",
+        is_declaration=True,
+        type=OpenthermSetting,
     )
-    for key in keys:
-        cg.add_define(f"OPENTHERM_HAS_SETTING_{key}")
-
-
-def define_message_handler(
-    component_type: str, keys: list[str], schemas: dict[str, TSchema]
-) -> None:
-    # The macros defined here should be able to generate things like this:
-    # // Parsing a message and publishing to sensors
-    # case MessageId::Message:
-    #     // Can have multiple sensors here, for example for a Status message with multiple flags
-    #     this->thing_binary_sensor->publish_state(parse_flag8_lb_0(response));
-    #     this->other_binary_sensor->publish_state(parse_flag8_lb_1(response));
-    #     break;
-    # // Building a message for a write request
-    # case MessageId::Message: {
-    #     unsigned int data = 0;
-    #     data = write_flag8_lb_0(some_input_switch->state, data); // Where input_sensor can also be a number/output/switch
-    #     data = write_u8_hb(some_number->state, data);
-    #     return opentherm_->build_request_(MessageType::WriteData, MessageId::Message, data);
-    # }
-
-    messages: dict[str, list[tuple[str, str]]] = {}
-    for key in keys:
-        msg = schemas[key].message
-        if msg not in messages:
-            messages[msg] = []
-        messages[msg].append((key, schemas[key].message_data))
-
-    cg.add_define(
-        f"OPENTHERM_{component_type.upper()}_MESSAGE_HANDLERS(MESSAGE, ENTITY, entity_sep, postscript, msg_sep)",
-        cg.RawExpression(
-            " msg_sep ".join(
-                [
-                    f"MESSAGE({msg}) "
-                    + " entity_sep ".join(
-                        [
-                            f"ENTITY({key}_{component_type.lower()}, {msg_data})"
-                            for key, msg_data in keys
-                        ]
-                    )
-                    + " postscript"
-                    for msg, keys in messages.items()
-                ]
-            )
-        ),
+    setting_var = cg.new_Pvariable(setting_id, accessor_template(setting))
+    cg.add(setting_var.set_value(value))
+    cg.add(setting_var.set_id(StringLiteral(key)))
+    cg.add(
+        hub.register_message_processor(getattr(MessageId, setting.message), setting_var)
     )
-
-
-def define_readers(component_type: str, keys: list[str]) -> None:
-    for key in keys:
-        cg.add_define(
-            f"OPENTHERM_READ_{key}",
-            cg.RawExpression(f"this->{key}_{component_type.lower()}->state"),
-        )
-
-
-def define_setting_readers(component_type: str, keys: list[str]) -> None:
-    for key in keys:
-        cg.add_define(
-            f"OPENTHERM_READ_{key}",
-            cg.RawExpression(f"this->{key}_{component_type.lower()}"),
-        )
 
 
 def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
@@ -110,7 +85,7 @@ def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
             schemas[key].order if hasattr(schemas[key], "order") else None,
         )
     for msg, (keep_updated, order) in messages.items():
-        msg_expr = cg.RawExpression(f"esphome::opentherm::MessageId::{msg}")
+        msg_expr = getattr(MessageId, msg)
         if keep_updated:
             cg.add(hub.add_repeating_message(msg_expr))
         elif order is not None:
@@ -124,13 +99,11 @@ def add_property_set(var: cg.MockObj, config_key: str, config: dict[str, Any]) -
         cg.add(getattr(var, f"set_{config_key}")(config[config_key]))
 
 
-Create = Callable[[dict[str, Any], str, cg.MockObj], Awaitable[cg.Pvariable]]
+def accessor_template(es: EntitySchema) -> cg.TemplateArguments:
+    return cg.TemplateArguments(TYPE_MAP[es.message_data])
 
 
-def create_only_conf(
-    create: Callable[[dict[str, Any]], Awaitable[cg.Pvariable]],
-) -> Create:
-    return lambda conf, _key, _hub: create(conf)
+Create = Callable[[dict[str, Any], str, cg.MockObj], Awaitable[cg.MockObj]]
 
 
 async def component_to_code(
@@ -152,8 +125,6 @@ async def component_to_code(
 
     Returns: The list of keys for the created components
     """
-    cg.add_define(f"OPENTHERM_USE_{component_type.upper()}")
-
     hub = await cg.get_variable(config[const.CONF_OPENTHERM_ID])
 
     keys: list[str] = []
@@ -162,14 +133,17 @@ async def component_to_code(
             continue
         id = conf[CONF_ID]
         if id and id.type == type:
-            entity = await create(conf, key, hub)
             if const.CONF_DATA_TYPE in conf:
                 schemas[key].message_data = conf[const.CONF_DATA_TYPE]
-            cg.add(getattr(hub, f"set_{key}_{component_type.lower()}")(entity))
+            entity = await create(conf, key, hub)
+            cg.add(entity.set_id(StringLiteral(f"{key} ({id})")))
+            cg.add(
+                hub.register_message_processor(
+                    getattr(MessageId, schemas[key].message), entity
+                )
+            )
             keys.append(key)
 
-    define_has_component(component_type, keys)
-    define_message_handler(component_type, keys, schemas)
     add_messages(hub, keys, schemas)
 
     return keys
