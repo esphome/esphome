@@ -2,18 +2,18 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FREQUENCY,
     CONF_ID,
     CONF_VOLTAGE,
-    CONF_FREQUENCY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
+    UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_WATT,
-    UNIT_HERTZ,
 )
 
 CODEOWNERS = ["@berfenger"]
