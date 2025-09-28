@@ -387,7 +387,7 @@ TransferRequest *USBClient::get_trq_() {
     mask = expected;
   }
 
-  ESP_LOGE(TAG, "Too many requests queued (all %d slots in use)", MAX_REQUESTS);
+  ESP_LOGE(TAG, "All %d transfer slots in use", MAX_REQUESTS);
   return nullptr;
 }
 void USBClient::disconnect() {
