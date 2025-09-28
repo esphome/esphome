@@ -8,7 +8,6 @@
 #include "esphome/core/automation.h"
 
 #include <vector>
-#include <unordered_map>
 #include <functional>
 
 #ifdef USE_ESP32
@@ -20,6 +19,9 @@ namespace esp32_ble_server_automations {
 
 using namespace esp32_ble;
 using namespace event_emitter;
+
+// Invalid listener ID constant - 0 is used as sentinel value in EventEmitter
+static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
 
 class BLETriggers {
  public:
@@ -55,14 +57,27 @@ class BLECharacteristicSetValueActionManager
   void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id,
                     const std::function<void()> &pre_notify_listener);
   EventEmitterListenerID get_listener(BLECharacteristic *characteristic) {
-    return this->listeners_[characteristic].first;
+    for (const auto &entry : this->listeners_) {
+      if (entry.characteristic == characteristic) {
+        return entry.listener_id;
+      }
+    }
+    return INVALID_LISTENER_ID;
   }
   void emit_pre_notify(BLECharacteristic *characteristic) {
     this->emit_(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, characteristic);
   }
 
  private:
-  std::unordered_map<BLECharacteristic *, std::pair<EventEmitterListenerID, EventEmitterListenerID>> listeners_;
+  struct ListenerEntry {
+    BLECharacteristic *characteristic;
+    EventEmitterListenerID listener_id;
+    EventEmitterListenerID pre_notify_listener_id;
+  };
+  std::vector<ListenerEntry> listeners_;
+
+  ListenerEntry *find_listener_(BLECharacteristic *characteristic);
+  void remove_listener_(BLECharacteristic *characteristic);
 };
 
 template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {

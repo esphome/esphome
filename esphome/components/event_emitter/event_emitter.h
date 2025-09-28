@@ -1,5 +1,4 @@
 #pragma once
-#include <unordered_map>
 #include <vector>
 #include <functional>
 #include <limits>
@@ -10,52 +9,107 @@ namespace esphome {
 namespace event_emitter {
 
 using EventEmitterListenerID = uint32_t;
-void raise_event_emitter_full_error();
+static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
 
 // EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this)
 // and a list of arguments. Supports multiple listeners for each event.
 template<typename EvtType, typename... Args> class EventEmitter {
  public:
   EventEmitterListenerID on(EvtType event, std::function<void(Args...)> listener) {
-    EventEmitterListenerID listener_id = get_next_id_(event);
-    listeners_[event][listener_id] = listener;
+    EventEmitterListenerID listener_id = this->get_next_id_();
+
+    // Find or create event entry
+    EventEntry *entry = this->find_or_create_event_(event);
+    entry->listeners.push_back({listener_id, listener});
+
     return listener_id;
   }
 
   void off(EvtType event, EventEmitterListenerID id) {
-    if (listeners_.count(event) == 0)
+    EventEntry *entry = this->find_event_(event);
+    if (entry == nullptr)
       return;
-    listeners_[event].erase(id);
+
+    // Remove listener with given id
+    for (auto it = entry->listeners.begin(); it != entry->listeners.end(); ++it) {
+      if (it->id == id) {
+        // Swap with last and pop for efficient removal
+        *it = entry->listeners.back();
+        entry->listeners.pop_back();
+
+        // Remove event entry if no more listeners
+        if (entry->listeners.empty()) {
+          this->remove_event_(event);
+        }
+        return;
+      }
+    }
   }
 
  protected:
   void emit_(EvtType event, Args... args) {
-    if (listeners_.count(event) == 0)
+    EventEntry *entry = this->find_event_(event);
+    if (entry == nullptr)
       return;
-    for (const auto &listener : listeners_[event]) {
-      listener.second(args...);
-    }
-  }
 
-  EventEmitterListenerID get_next_id_(EvtType event) {
-    // Check if the map is full
-    if (listeners_[event].size() == std::numeric_limits<EventEmitterListenerID>::max()) {
-      // Raise an error if the map is full
-      raise_event_emitter_full_error();
-      off(event, 0);
-      return 0;
+    // Call all listeners for this event
+    for (const auto &listener : entry->listeners) {
+      listener.callback(args...);
     }
-    // Get the next ID for the given event.
-    EventEmitterListenerID next_id = (current_id_ + 1) % std::numeric_limits<EventEmitterListenerID>::max();
-    while (listeners_[event].count(next_id) > 0) {
-      next_id = (next_id + 1) % std::numeric_limits<EventEmitterListenerID>::max();
-    }
-    current_id_ = next_id;
-    return current_id_;
   }
 
  private:
-  std::unordered_map<EvtType, std::unordered_map<EventEmitterListenerID, std::function<void(Args...)>>> listeners_;
+  struct Listener {
+    EventEmitterListenerID id;
+    std::function<void(Args...)> callback;
+  };
+
+  struct EventEntry {
+    EvtType event;
+    std::vector<Listener> listeners;
+  };
+
+  EventEmitterListenerID get_next_id_() {
+    // Simple incrementing ID, wrapping around at max
+    EventEmitterListenerID next_id = (this->current_id_ + 1);
+    if (next_id == INVALID_LISTENER_ID) {
+      next_id = 1;
+    }
+    this->current_id_ = next_id;
+    return this->current_id_;
+  }
+
+  EventEntry *find_event_(EvtType event) {
+    for (auto &entry : this->events_) {
+      if (entry.event == event) {
+        return &entry;
+      }
+    }
+    return nullptr;
+  }
+
+  EventEntry *find_or_create_event_(EvtType event) {
+    EventEntry *entry = this->find_event_(event);
+    if (entry != nullptr)
+      return entry;
+
+    // Create new event entry
+    this->events_.push_back({event, {}});
+    return &this->events_.back();
+  }
+
+  void remove_event_(EvtType event) {
+    for (auto it = this->events_.begin(); it != this->events_.end(); ++it) {
+      if (it->event == event) {
+        // Swap with last and pop
+        *it = this->events_.back();
+        this->events_.pop_back();
+        return;
+      }
+    }
+  }
+
+  std::vector<EventEntry> events_;
   EventEmitterListenerID current_id_ = 0;
 };
 

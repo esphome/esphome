@@ -217,7 +217,7 @@ void SX126x::configure() {
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 4);
 
     // set packet params and sync word
-    this->set_packet_params_(this->payload_length_);
+    this->set_packet_params_(this->get_max_packet_size());
     if (this->sync_value_.size() == 2) {
       this->write_register_(REG_LORA_SYNCWORD, this->sync_value_.data(), this->sync_value_.size());
     }
@@ -236,7 +236,7 @@ void SX126x::configure() {
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 8);
 
     // set packet params and sync word
-    this->set_packet_params_(this->payload_length_);
+    this->set_packet_params_(this->get_max_packet_size());
     if (!this->sync_value_.empty()) {
       this->write_register_(REG_GFSK_SYNCWORD, this->sync_value_.data(), this->sync_value_.size());
     }
@@ -274,7 +274,7 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
     buf[2] = (this->preamble_detect_ > 0) ? ((this->preamble_detect_ - 1) | 0x04) : 0x00;
     buf[3] = this->sync_value_.size() * 8;
     buf[4] = 0x00;
-    buf[5] = 0x00;
+    buf[5] = (this->payload_length_ > 0) ? 0x00 : 0x01;
     buf[6] = payload_length;
     buf[7] = this->crc_enable_ ? 0x06 : 0x01;
     buf[8] = 0x00;
@@ -314,6 +314,9 @@ SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
   buf[0] = 0xFF;
   buf[1] = 0xFF;
   this->write_opcode_(RADIO_CLR_IRQSTATUS, buf, 2);
+  if (this->payload_length_ == 0) {
+    this->set_packet_params_(this->get_max_packet_size());
+  }
   if (this->rx_start_) {
     this->set_mode_rx();
   } else {

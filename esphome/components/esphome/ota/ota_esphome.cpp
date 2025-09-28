@@ -1,6 +1,11 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
+#ifdef USE_OTA_MD5
 #include "esphome/components/md5/md5.h"
+#endif
+#ifdef USE_OTA_SHA256
+#include "esphome/components/sha256/sha256.h"
+#endif
 #include "esphome/components/network/util.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_arduino_esp32.h"
@@ -10,6 +15,7 @@
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
@@ -95,6 +101,15 @@ void ESPHomeOTAComponent::loop() {
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
+#ifdef USE_OTA_SHA256
+static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
+#endif
+
+// Temporary flag to allow MD5 downgrade for ~3 versions (until 2026.1.0)
+// This allows users to downgrade via OTA if they encounter issues after updating.
+// Without this, users would need to do a serial flash to downgrade.
+// TODO: Remove this flag and all associated code in 2026.1.0
+#define ALLOW_OTA_DOWNGRADE_MD5
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the initial OTA handshake.
@@ -225,57 +240,67 @@ void ESPHomeOTAComponent::handle_data_() {
 
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
-    buf[0] = ota::OTA_RESPONSE_REQUEST_AUTH;
-    this->writeall_(buf, 1);
-    md5::MD5Digest md5{};
-    md5.init();
-    sprintf(sbuf, "%08" PRIx32, random_uint32());
-    md5.add(sbuf, 8);
-    md5.calculate();
-    md5.get_hex(sbuf);
-    ESP_LOGV(TAG, "Auth: Nonce is %s", sbuf);
+    bool auth_success = false;
 
-    // Send nonce, 32 bytes hex MD5
-    if (!this->writeall_(reinterpret_cast<uint8_t *>(sbuf), 32)) {
-      ESP_LOGW(TAG, "Auth: Writing nonce failed");
+#ifdef USE_OTA_SHA256
+    // SECURITY HARDENING: Prefer SHA256 authentication on platforms that support it.
+    //
+    // This is a hardening measure to prevent future downgrade attacks where an attacker
+    // could force the use of MD5 authentication by manipulating the feature flags.
+    //
+    // While MD5 is currently still acceptable for our OTA authentication use case
+    // (where the password is a shared secret and we're only authenticating, not
+    // encrypting), at some point in the future MD5 will likely become so weak that
+    // it could be practically attacked.
+    //
+    // We enforce SHA256 now on capable platforms because:
+    // 1. We can't retroactively update device firmware in the field
+    // 2. Clients (like esphome CLI) can always be updated to support SHA256
+    // 3. This prevents any possibility of downgrade attacks in the future
+    //
+    // Devices that don't support SHA256 (due to platform limitations) will
+    // continue to use MD5 as their only option (see #else branch below).
+
+    bool client_supports_sha256 = (ota_features & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+
+#ifdef ALLOW_OTA_DOWNGRADE_MD5
+    // Temporary compatibility mode: Allow MD5 for ~3 versions to enable OTA downgrades
+    // This prevents users from being locked out if they need to downgrade after updating
+    // TODO: Remove this entire ifdef block in 2026.1.0
+    if (client_supports_sha256) {
+      sha256::SHA256 sha_hasher;
+      auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
+                                              LOG_STR("SHA256"), sbuf);
+    } else {
+#ifdef USE_OTA_MD5
+      ESP_LOGW(TAG, "Using MD5 auth for compatibility (deprecated)");
+      md5::MD5Digest md5_hasher;
+      auth_success =
+          this->perform_hash_auth_(&md5_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
+#endif  // USE_OTA_MD5
+    }
+#else
+    // Strict mode: SHA256 required on capable platforms (future default)
+    if (!client_supports_sha256) {
+      ESP_LOGW(TAG, "Client requires SHA256");
+      error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
+    sha256::SHA256 sha_hasher;
+    auth_success = this->perform_hash_auth_(&sha_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_SHA256_AUTH,
+                                            LOG_STR("SHA256"), sbuf);
+#endif  // ALLOW_OTA_DOWNGRADE_MD5
+#else
+    // Platform only supports MD5 - use it as the only available option
+    // This is not a security downgrade as the platform cannot support SHA256
+#ifdef USE_OTA_MD5
+    md5::MD5Digest md5_hasher;
+    auth_success =
+        this->perform_hash_auth_(&md5_hasher, this->password_, ota::OTA_RESPONSE_REQUEST_AUTH, LOG_STR("MD5"), sbuf);
+#endif  // USE_OTA_MD5
+#endif  // USE_OTA_SHA256
 
-    // prepare challenge
-    md5.init();
-    md5.add(this->password_.c_str(), this->password_.length());
-    // add nonce
-    md5.add(sbuf, 32);
-
-    // Receive cnonce, 32 bytes hex MD5
-    if (!this->readall_(buf, 32)) {
-      ESP_LOGW(TAG, "Auth: Reading cnonce failed");
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    sbuf[32] = '\0';
-    ESP_LOGV(TAG, "Auth: CNonce is %s", sbuf);
-    // add cnonce
-    md5.add(sbuf, 32);
-
-    // calculate result
-    md5.calculate();
-    md5.get_hex(sbuf);
-    ESP_LOGV(TAG, "Auth: Result is %s", sbuf);
-
-    // Receive result, 32 bytes hex MD5
-    if (!this->readall_(buf + 64, 32)) {
-      ESP_LOGW(TAG, "Auth: Reading response failed");
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    sbuf[64 + 32] = '\0';
-    ESP_LOGV(TAG, "Auth: Response is %s", sbuf + 64);
-
-    bool matches = true;
-    for (uint8_t i = 0; i < 32; i++)
-      matches = matches && buf[i] == buf[64 + i];
-
-    if (!matches) {
-      ESP_LOGW(TAG, "Auth failed! Passwords do not match");
+    if (!auth_success) {
       error_code = ota::OTA_RESPONSE_ERROR_AUTH_INVALID;
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -498,6 +523,86 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
   App.feed_wdt();
   delay(1);
 }
+
+#ifdef USE_OTA_PASSWORD
+void ESPHomeOTAComponent::log_auth_warning_(const LogString *action, const LogString *hash_name) {
+  ESP_LOGW(TAG, "Auth: %s %s failed", LOG_STR_ARG(action), LOG_STR_ARG(hash_name));
+}
+
+// Non-template function definition to reduce binary size
+bool ESPHomeOTAComponent::perform_hash_auth_(HashBase *hasher, const std::string &password, uint8_t auth_request,
+                                             const LogString *name, char *buf) {
+  // Get sizes from the hasher
+  const size_t hex_size = hasher->get_size() * 2;   // Hex is twice the byte size
+  const size_t nonce_len = hasher->get_size() / 4;  // Nonce is 1/4 of hash size in bytes
+
+  // Use the provided buffer for all hex operations
+
+  // Small stack buffer for nonce seed bytes
+  uint8_t nonce_bytes[8];  // Max 8 bytes (2 x uint32_t for SHA256)
+
+  // Send auth request type
+  this->writeall_(&auth_request, 1);
+
+  hasher->init();
+
+  // Generate nonce seed bytes using random_bytes
+  if (!random_bytes(nonce_bytes, nonce_len)) {
+    this->log_auth_warning_(LOG_STR("Random bytes generation failed"), name);
+    return false;
+  }
+  hasher->add(nonce_bytes, nonce_len);
+  hasher->calculate();
+
+  // Generate and send nonce
+  hasher->get_hex(buf);
+  buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Nonce is %s", LOG_STR_ARG(name), buf);
+
+  if (!this->writeall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
+    this->log_auth_warning_(LOG_STR("Writing nonce"), name);
+    return false;
+  }
+
+  // Start challenge: password + nonce
+  hasher->init();
+  hasher->add(password.c_str(), password.length());
+  hasher->add(buf, hex_size);
+
+  // Read cnonce and add to hash
+  if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
+    this->log_auth_warning_(LOG_STR("Reading cnonce"), name);
+    return false;
+  }
+  buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s CNonce is %s", LOG_STR_ARG(name), buf);
+
+  hasher->add(buf, hex_size);
+  hasher->calculate();
+
+  // Log expected result (digest is already in hasher)
+  hasher->get_hex(buf);
+  buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Result is %s", LOG_STR_ARG(name), buf);
+
+  // Read response into the buffer
+  if (!this->readall_(reinterpret_cast<uint8_t *>(buf), hex_size)) {
+    this->log_auth_warning_(LOG_STR("Reading response"), name);
+    return false;
+  }
+  buf[hex_size] = '\0';
+  ESP_LOGV(TAG, "Auth: %s Response is %s", LOG_STR_ARG(name), buf);
+
+  // Compare response directly with digest in hasher
+  bool matches = hasher->equals_hex(buf);
+
+  if (!matches) {
+    this->log_auth_warning_(LOG_STR("Password mismatch"), name);
+  }
+
+  return matches;
+}
+#endif  // USE_OTA_PASSWORD
 
 }  // namespace esphome
 #endif
