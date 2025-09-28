@@ -382,9 +382,10 @@ TransferRequest *USBClient::get_trq_() {
       trq->transfer->device_handle = this->device_handle_;
       return trq;
     }
-    // Another thread claimed this slot, retry with updated mask
-    // Don't increment i - retry the same slot with the updated mask
-    mask = expected;
+    // CAS failed - another thread modified the bitmask
+    // Restart search from the beginning with the updated mask
+    mask = this->trq_in_use_.load(std::memory_order_relaxed);
+    i = 0;
   }
 
   ESP_LOGE(TAG, "All %d transfer slots in use", MAX_REQUESTS);
