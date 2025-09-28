@@ -9,10 +9,30 @@
 #include <freertos/task.h>
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
-#include <list>
+#include <atomic>
 
 namespace esphome {
 namespace usb_host {
+
+// THREADING MODEL:
+// This component uses a dedicated USB task for event processing to prevent data loss.
+// - USB Task (high priority): Handles USB events, executes transfer callbacks
+// - Main Loop Task: Initiates transfers, processes completion events
+//
+// Thread-safe communication:
+// - Lock-free queues for USB task -> main loop events (SPSC pattern)
+// - Lock-free TransferRequest pool using atomic bitmask (MCSP pattern)
+//
+// TransferRequest pool access pattern:
+// - get_trq_() [allocate]: Called from BOTH USB task and main loop threads
+//   * USB task: via USB UART input callbacks that restart transfers immediately
+//   * Main loop: for output transfers and flow-controlled input restarts
+// - release_trq() [deallocate]: Called from main loop thread only
+//
+// The multi-threaded allocation is intentional for performance:
+// - USB task can immediately restart input transfers without context switching
+// - Main loop controls backpressure by deciding when to restart after consuming data
+// The atomic bitmask ensures thread-safe allocation without mutex blocking.
 
 static const char *const TAG = "usb_host";
 
@@ -98,13 +118,7 @@ class USBClient : public Component {
   friend class USBHost;
 
  public:
-  USBClient(uint16_t vid, uint16_t pid) : vid_(vid), pid_(pid) { init_pool(); }
-
-  void init_pool() {
-    this->trq_pool_.clear();
-    for (size_t i = 0; i != MAX_REQUESTS; i++)
-      this->trq_pool_.push_back(&this->requests_[i]);
-  }
+  USBClient(uint16_t vid, uint16_t pid) : vid_(vid), pid_(pid), trq_in_use_(0) {}
   void setup() override;
   void loop() override;
   // setup must happen after the host bus has been setup
@@ -126,10 +140,13 @@ class USBClient : public Component {
 
  protected:
   bool register_();
-  TransferRequest *get_trq_();
+  TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
-  virtual void on_disconnected() { this->init_pool(); }
+  virtual void on_disconnected() {
+    // Reset all requests to available (all bits to 0)
+    this->trq_in_use_.store(0);
+  }
 
   // USB task management
   static void usb_task_fn(void *arg);
@@ -143,7 +160,11 @@ class USBClient : public Component {
   int state_{USB_CLIENT_INIT};
   uint16_t vid_{};
   uint16_t pid_{};
-  std::list<TransferRequest *> trq_pool_{};
+  // Lock-free pool management using atomic bitmask (no dynamic allocation)
+  // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
+  // Supports multiple concurrent consumers (both threads can allocate)
+  // Single producer for deallocation (main loop only)
+  std::atomic<uint16_t> trq_in_use_;
   TransferRequest requests_[MAX_REQUESTS]{};
 };
 class USBHost : public Component {
