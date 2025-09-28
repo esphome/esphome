@@ -49,12 +49,15 @@ def validate_internal_filter(value):
             [CONF_USE_PCNT],
         )
 
-    if CORE.is_esp32 and use_pcnt:
-        if value.get(CONF_INTERNAL_FILTER).total_microseconds > 13:
-            raise cv.Invalid(
-                "Maximum internal filter value when using ESP32 hardware PCNT is 13us",
-                [CONF_INTERNAL_FILTER],
-            )
+    if (
+        CORE.is_esp32
+        and use_pcnt
+        and value.get(CONF_INTERNAL_FILTER).total_microseconds > 13
+    ):
+        raise cv.Invalid(
+            "Maximum internal filter value when using ESP32 hardware PCNT is 13us",
+            [CONF_INTERNAL_FILTER],
+        )
 
     return value
 

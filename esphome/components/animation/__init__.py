@@ -34,17 +34,20 @@ SetFrameAction = animation_ns.class_(
     "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
 
-CONFIG_SCHEMA = espImage.IMAGE_SCHEMA.extend(
-    {
-        cv.Required(CONF_ID): cv.declare_id(Animation_),
-        cv.Optional(CONF_LOOP): cv.All(
-            {
-                cv.Optional(CONF_START_FRAME, default=0): cv.positive_int,
-                cv.Optional(CONF_END_FRAME): cv.positive_int,
-                cv.Optional(CONF_REPEAT): cv.positive_int,
-            }
-        ),
-    },
+CONFIG_SCHEMA = cv.All(
+    espImage.IMAGE_SCHEMA.extend(
+        {
+            cv.Required(CONF_ID): cv.declare_id(Animation_),
+            cv.Optional(CONF_LOOP): cv.All(
+                {
+                    cv.Optional(CONF_START_FRAME, default=0): cv.positive_int,
+                    cv.Optional(CONF_END_FRAME): cv.positive_int,
+                    cv.Optional(CONF_REPEAT): cv.positive_int,
+                }
+            ),
+        },
+    ),
+    espImage.validate_settings,
 )
 
 

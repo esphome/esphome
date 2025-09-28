@@ -1,5 +1,5 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "usb_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -70,7 +70,7 @@ static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
   ESP_LOGV(TAG, "bMaxPower %dmA", cfg_desc->bMaxPower * 2);
 }
 
-void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
+static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
   if (devc_desc == NULL) {
     return;
   }
@@ -92,8 +92,8 @@ void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
   ESP_LOGV(TAG, "bNumConfigurations %d", devc_desc->bNumConfigurations);
 }
 
-void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
-                                        print_class_descriptor_cb class_specific_cb) {
+static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
+                                               print_class_descriptor_cb class_specific_cb) {
   if (cfg_desc == nullptr) {
     return;
   }
@@ -128,9 +128,9 @@ void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
 static std::string get_descriptor_string(const usb_str_desc_t *desc) {
   char buffer[256];
   if (desc == nullptr)
-    return "(unknown)";
+    return "(unspecified)";
   char *p = buffer;
-  for (size_t i = 0; i != desc->bLength / 2; i++) {
+  for (int i = 0; i != desc->bLength / 2; i++) {
     auto c = desc->wData[i];
     if (c < 0x100)
       *p++ = static_cast<char>(c);
@@ -139,24 +139,40 @@ static std::string get_descriptor_string(const usb_str_desc_t *desc) {
   return {buffer};
 }
 
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *ptr) {
   auto *client = static_cast<USBClient *>(ptr);
+
+  // Allocate event from pool
+  UsbEvent *event = client->event_pool.allocate();
+  if (event == nullptr) {
+    // No events available - increment counter for periodic logging
+    client->event_queue.increment_dropped_count();
+    return;
+  }
+
+  // Queue events to be processed in main loop
   switch (event_msg->event) {
     case USB_HOST_CLIENT_EVENT_NEW_DEV: {
-      auto addr = event_msg->new_dev.address;
       ESP_LOGD(TAG, "New device %d", event_msg->new_dev.address);
-      client->on_opened(addr);
+      event->type = EVENT_DEVICE_NEW;
+      event->data.device_new.address = event_msg->new_dev.address;
       break;
     }
     case USB_HOST_CLIENT_EVENT_DEV_GONE: {
-      client->on_removed(event_msg->dev_gone.dev_hdl);
-      ESP_LOGD(TAG, "Device gone %d", event_msg->new_dev.address);
+      ESP_LOGD(TAG, "Device gone");
+      event->type = EVENT_DEVICE_GONE;
+      event->data.device_gone.handle = event_msg->dev_gone.dev_hdl;
       break;
     }
     default:
       ESP_LOGD(TAG, "Unknown event %d", event_msg->event);
-      break;
+      client->event_pool.release(event);
+      return;
   }
+
+  // Push to lock-free queue (always succeeds since pool size == queue size)
+  client->event_queue.push(event);
 }
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
@@ -169,14 +185,63 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  for (auto trq : this->trq_pool_) {
+  for (auto *trq : this->trq_pool_) {
     usb_host_transfer_alloc(64, 0, &trq->transfer);
     trq->client = this;
   }
-  ESP_LOGCONFIG(TAG, "client setup complete");
+
+  // Create and start USB task
+  xTaskCreate(usb_task_fn, "usb_task",
+              USB_TASK_STACK_SIZE,  // Stack size
+              this,                 // Task parameter
+              USB_TASK_PRIORITY,    // Priority (higher than main loop)
+              &this->usb_task_handle_);
+
+  if (this->usb_task_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create USB task");
+    this->mark_failed();
+  }
+}
+
+void USBClient::usb_task_fn(void *arg) {
+  auto *client = static_cast<USBClient *>(arg);
+  client->usb_task_loop();
+}
+
+void USBClient::usb_task_loop() {
+  while (true) {
+    usb_host_client_handle_events(this->handle_, portMAX_DELAY);
+  }
 }
 
 void USBClient::loop() {
+  // Process any events from the USB task
+  UsbEvent *event;
+  while ((event = this->event_queue.pop()) != nullptr) {
+    switch (event->type) {
+      case EVENT_DEVICE_NEW:
+        this->on_opened(event->data.device_new.address);
+        break;
+      case EVENT_DEVICE_GONE:
+        this->on_removed(event->data.device_gone.handle);
+        break;
+      case EVENT_TRANSFER_COMPLETE:
+      case EVENT_CONTROL_COMPLETE: {
+        auto *trq = event->data.transfer.trq;
+        this->release_trq(trq);
+        break;
+      }
+    }
+    // Return event to pool for reuse
+    this->event_pool.release(event);
+  }
+
+  // Log dropped events periodically
+  uint16_t dropped = this->event_queue.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u USB events due to queue overflow", dropped);
+  }
+
   switch (this->state_) {
     case USB_CLIENT_OPEN: {
       int err;
@@ -197,7 +262,8 @@ void USBClient::loop() {
         ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
         if (desc->idVendor == this->vid_ && desc->idProduct == this->pid_ || this->vid_ == 0 && this->pid_ == 0) {
           usb_device_info_t dev_info;
-          if ((err = usb_host_device_info(this->device_handle_, &dev_info)) != ESP_OK) {
+          err = usb_host_device_info(this->device_handle_, &dev_info);
+          if (err != ESP_OK) {
             ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
             this->disconnect();
             break;
@@ -228,7 +294,6 @@ void USBClient::loop() {
     }
 
     default:
-      usb_host_client_handle_events(this->handle_, 0);
       break;
   }
 }
@@ -245,6 +310,26 @@ void USBClient::on_removed(usb_device_handle_t handle) {
   }
 }
 
+// Helper to queue transfer cleanup to main loop
+static void queue_transfer_cleanup(TransferRequest *trq, EventType type) {
+  auto *client = trq->client;
+
+  // Allocate event from pool
+  UsbEvent *event = client->event_pool.allocate();
+  if (event == nullptr) {
+    // No events available - increment counter for periodic logging
+    client->event_queue.increment_dropped_count();
+    return;
+  }
+
+  event->type = type;
+  event->data.transfer.trq = trq;
+
+  // Push to lock-free queue (always succeeds since pool size == queue size)
+  client->event_queue.push(event);
+}
+
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void control_callback(const usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
   trq->status.error_code = xfer->status;
@@ -252,9 +337,14 @@ static void control_callback(const usb_transfer_t *xfer) {
   trq->status.endpoint = xfer->bEndpointAddress;
   trq->status.data = xfer->data_buffer;
   trq->status.data_len = xfer->actual_num_bytes;
-  if (trq->callback != nullptr)
+
+  // Execute callback in USB task context
+  if (trq->callback != nullptr) {
     trq->callback(trq->status);
-  trq->client->release_trq(trq);
+  }
+
+  // Queue cleanup to main loop
+  queue_transfer_cleanup(trq, EVENT_CONTROL_COMPLETE);
 }
 
 TransferRequest *USBClient::get_trq_() {
@@ -315,6 +405,7 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   return true;
 }
 
+// CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void transfer_callback(usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
   trq->status.error_code = xfer->status;
@@ -322,9 +413,15 @@ static void transfer_callback(usb_transfer_t *xfer) {
   trq->status.endpoint = xfer->bEndpointAddress;
   trq->status.data = xfer->data_buffer;
   trq->status.data_len = xfer->actual_num_bytes;
-  if (trq->callback != nullptr)
+
+  // Always execute callback in USB task context
+  // Callbacks should be fast and non-blocking (e.g., copy data to queue)
+  if (trq->callback != nullptr) {
     trq->callback(trq->status);
-  trq->client->release_trq(trq);
+  }
+
+  // Queue cleanup to main loop
+  queue_transfer_cleanup(trq, EVENT_TRANSFER_COMPLETE);
 }
 /**
  * Performs a transfer input operation.
@@ -336,7 +433,7 @@ static void transfer_callback(usb_transfer_t *xfer) {
  * @throws None.
  */
 void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
-  auto trq = this->get_trq_();
+  auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
     return;
@@ -349,7 +446,6 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
-    this->disconnect();
   }
 }
 
@@ -364,7 +460,7 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
  * @throws None.
  */
 void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
-  auto trq = this->get_trq_();
+  auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
     return;
@@ -381,9 +477,11 @@ void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   }
 }
 void USBClient::dump_config() {
-  ESP_LOGCONFIG(TAG, "USBClient");
-  ESP_LOGCONFIG(TAG, "  Vendor id %04X", this->vid_);
-  ESP_LOGCONFIG(TAG, "  Product id %04X", this->pid_);
+  ESP_LOGCONFIG(TAG,
+                "USBClient\n"
+                "  Vendor id %04X\n"
+                "  Product id %04X",
+                this->vid_, this->pid_);
 }
 void USBClient::release_trq(TransferRequest *trq) { this->trq_pool_.push_back(trq); }
 

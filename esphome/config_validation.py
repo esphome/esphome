@@ -1,11 +1,21 @@
 """Helpers for config validation using voluptuous."""
 
-from contextlib import contextmanager
+from __future__ import annotations
+
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
-from ipaddress import AddressValueError, IPv4Address, ip_address
+from ipaddress import (
+    AddressValueError,
+    IPv4Address,
+    IPv4Network,
+    IPv6Address,
+    IPv6Network,
+    ip_address,
+    ip_network,
+)
 import logging
-import os
+from pathlib import Path
 import re
 from string import ascii_letters, digits
 import uuid as uuid_
@@ -21,6 +31,7 @@ from esphome.const import (
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
     CONF_DAY,
+    CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -62,6 +73,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
+    Framework,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
@@ -75,7 +87,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import add_class_to_obj, list_starts_with
+from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -271,6 +283,40 @@ class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
 
 
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+    extra: str = ""
+
+    def __str__(self):
+        if self.extra:
+            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> Version:
+        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3])
+        extra = match[4] or ""
+        return Version(major=major, minor=minor, patch=patch, extra=extra)
+
+    @property
+    def is_beta(self) -> bool:
+        """Check if this version is a beta version."""
+        return self.extra.startswith("b")
+
+    @property
+    def is_dev(self) -> bool:
+        """Check if this version is a development version."""
+        return self.extra.startswith("dev")
+
+
 def check_not_templatable(value):
     if isinstance(value, Lambda):
         raise Invalid("This option is not templatable!")
@@ -345,6 +391,16 @@ def icon(value):
     raise Invalid(
         'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
     )
+
+
+def sub_device_id(value: str | None) -> core.ID | None:
+    # Lazy import to avoid circular imports
+    from esphome.core.config import Device
+
+    if not value:
+        return None
+
+    return use_id(Device)(value)
 
 
 def boolean(value):
@@ -601,16 +657,27 @@ def only_on(platforms):
     return validator_
 
 
-def only_with_framework(frameworks):
+def only_with_framework(
+    frameworks: Framework | str | list[Framework | str], suggestions=None
+):
     """Validate that this option can only be specified on the given frameworks."""
     if not isinstance(frameworks, list):
         frameworks = [frameworks]
 
+    frameworks = [Framework(framework) for framework in frameworks]
+
+    if suggestions is None:
+        suggestions = {}
+
     def validator_(obj):
         if CORE.target_framework not in frameworks:
-            raise Invalid(
-                f"This feature is only available with frameworks {frameworks}"
-            )
+            err_str = f"This feature is only available with framework(s) {', '.join([framework.value for framework in frameworks])}"
+            if suggestion := suggestions.get(CORE.target_framework, None):
+                (component, docs_path) = suggestion
+                err_str += f"\nPlease use '{component}'"
+                if docs_path:
+                    err_str += f": {docs_url(path=f'components/{docs_path}')}"
+            raise Invalid(err_str)
         return obj
 
     return validator_
@@ -619,8 +686,8 @@ def only_with_framework(frameworks):
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
-only_with_arduino = only_with_framework("arduino")
-only_with_esp_idf = only_with_framework("esp-idf")
+only_with_arduino = only_with_framework(Framework.ARDUINO)
+only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
 
 
 # Adapted from:
@@ -1037,6 +1104,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
     return validator
 
 
+bps = float_with_unit("bits per second", "(bps|bits/s|bit/s)?")
 frequency = float_with_unit("frequency", "(Hz|HZ|hz)?")
 resistance = float_with_unit("resistance", "(Ω|Ω|ohm|Ohm|OHM)?")
 current = float_with_unit("current", "(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
@@ -1044,8 +1112,8 @@ voltage = float_with_unit("voltage", "(v|V|volt|Volts)?")
 distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
-_temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
-_temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
+_temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
+_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
@@ -1176,6 +1244,14 @@ def ipv4address(value):
     return address
 
 
+def ipv6address(value):
+    try:
+        address = IPv6Address(value)
+    except AddressValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv6 address") from exc
+    return address
+
+
 def ipv4address_multi_broadcast(value):
     address = ipv4address(value)
     if not (address.is_multicast or (address == IPv4Address("255.255.255.255"))):
@@ -1191,6 +1267,33 @@ def ipaddress(value):
     except ValueError as exc:
         raise Invalid(f"{value} is not a valid IP address") from exc
     return address
+
+
+def ipv4network(value):
+    """Validate that the value is a valid IPv4 network."""
+    try:
+        network = IPv4Network(value, strict=False)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv4 network") from exc
+    return network
+
+
+def ipv6network(value):
+    """Validate that the value is a valid IPv6 network."""
+    try:
+        network = IPv6Network(value, strict=False)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IPv6 network") from exc
+    return network
+
+
+def ipnetwork(value):
+    """Validate that the value is a valid IP network."""
+    try:
+        network = ip_network(value, strict=False)
+    except ValueError as exc:
+        raise Invalid(f"{value} is not a valid IP network") from exc
+    return network
 
 
 def _valid_topic(value):
@@ -1506,34 +1609,32 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
-def directory(value):
+def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isdir(path):
+    if not path.is_dir():
         raise Invalid(
-            f"Path '{path}' is not a directory (full path: {os.path.abspath(path)})."
+            f"Path '{path}' is not a directory (full path: {path.resolve()})."
         )
-    return value
+    return path
 
 
-def file_(value):
+def file_(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isfile(path):
-        raise Invalid(
-            f"Path '{path}' is not a file (full path: {os.path.abspath(path)})."
-        )
-    return value
+    if not path.is_file():
+        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
+    return path
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
@@ -1667,6 +1768,26 @@ class OnlyWith(Optional):
         pass
 
 
+class OnlyWithout(Optional):
+    """Set the default value only if the given component is NOT loaded."""
+
+    def __init__(self, key, component, default=None):
+        super().__init__(key)
+        self._component = component
+        self._default = vol.default_factory(default)
+
+    @property
+    def default(self):
+        if self._component not in CORE.loaded_integrations:
+            return self._default
+        return vol.UNDEFINED
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
+
+
 def _entity_base_validator(config):
     if CONF_NAME not in config and CONF_ID not in config:
         raise Invalid("At least one of 'id:' or 'name:' is required!")
@@ -1740,7 +1861,7 @@ def validate_registry_entry(name, registry):
 
 def none(value):
     if value in ("none", "None"):
-        return None
+        return
     raise Invalid("Must be none")
 
 
@@ -1833,6 +1954,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
         Optional(CONF_ENTITY_CATEGORY): entity_category,
+        Optional(CONF_DEVICE_ID): sub_device_id,
     }
 )
 
@@ -1889,26 +2011,6 @@ def source_refresh(value: str):
     if value.lower() == "never":
         return source_refresh("365250d")
     return positive_time_period_seconds(value)
-
-
-@dataclass(frozen=True, order=True)
-class Version:
-    major: int
-    minor: int
-    patch: int
-
-    def __str__(self):
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    @classmethod
-    def parse(cls, value: str) -> "Version":
-        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
-        if match is None:
-            raise ValueError(f"Not a valid version number {value}")
-        major = int(match[1])
-        minor = int(match[2])
-        patch = int(match[3])
-        return Version(major=major, minor=minor, patch=patch)
 
 
 def version_number(value):
@@ -2006,10 +2108,8 @@ def require_esphome_version(year, month, patch):
 
 @contextmanager
 def suppress_invalid():
-    try:
+    with suppress(vol.Invalid):
         yield
-    except vol.Invalid:
-        pass
 
 
 GIT_SCHEMA = Schema(

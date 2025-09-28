@@ -17,9 +17,9 @@ from esphome.const import (
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -61,6 +61,9 @@ _BUTTON_SCHEMA = (
 )
 
 
+_BUTTON_SCHEMA.add_extra(entity_duplicate_validator("button"))
+
+
 def button_schema(
     class_: MockObjClass,
     *,
@@ -87,7 +90,7 @@ BUTTON_SCHEMA.add_extra(cv.deprecated_schema_constant("button"))
 
 
 async def setup_button_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "button")
 
     for conf in config.get(CONF_ON_PRESS, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -108,6 +111,7 @@ async def register_button(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_button(var))
+    CORE.register_platform_component("button", var)
     await setup_button_core_(var, config)
 
 
@@ -130,7 +134,6 @@ async def button_press_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(button_ns.using)
-    cg.add_define("USE_BUTTON")

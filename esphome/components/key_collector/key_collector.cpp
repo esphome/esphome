@@ -32,8 +32,10 @@ void KeyCollector::dump_config() {
   if (!this->start_keys_.empty())
     ESP_LOGCONFIG(TAG, "  start keys '%s'", this->start_keys_.c_str());
   if (!this->end_keys_.empty()) {
-    ESP_LOGCONFIG(TAG, "  end keys '%s'", this->end_keys_.c_str());
-    ESP_LOGCONFIG(TAG, "  end key is required: %s", ONOFF(this->end_key_required_));
+    ESP_LOGCONFIG(TAG,
+                  "  end keys '%s'\n"
+                  "  end key is required: %s",
+                  this->end_keys_.c_str(), ONOFF(this->end_key_required_));
   }
   if (!this->allowed_keys_.empty())
     ESP_LOGCONFIG(TAG, "  allowed keys '%s'", this->allowed_keys_.c_str());

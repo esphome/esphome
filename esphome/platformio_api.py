@@ -18,23 +18,25 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    from os import makedirs
-    from os.path import getmtime, isdir, join
-
     from platformio.run import cli, helpers
 
     def patched_clean_build_dir(build_dir, *args):
         from platformio import fs
         from platformio.project.helpers import get_project_dir
 
-        platformio_ini = join(get_project_dir(), "platformio.ini")
+        platformio_ini = Path(get_project_dir()) / "platformio.ini"
+
+        build_dir = Path(build_dir)
 
         # if project's config is modified
-        if isdir(build_dir) and getmtime(platformio_ini) > getmtime(build_dir):
+        if (
+            build_dir.is_dir()
+            and platformio_ini.stat().st_mtime > build_dir.stat().st_mtime
+        ):
             fs.rmtree(build_dir)
 
-        if not isdir(build_dir):
-            makedirs(build_dir)
+        if not build_dir.is_dir():
+            build_dir.mkdir(parents=True)
 
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir
@@ -61,6 +63,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Advanced Memory Usage is available via .*",
     r"Merged .* ELF section",
     r"esptool.py v.*",
+    r"esptool v.*",
     r"Checking size .*",
     r"Retrieving maximum program size .*",
     r"PLATFORM: .*",
@@ -69,15 +72,19 @@ FILTER_PLATFORMIO_LINES = [
     r" - tool-esptool.* \(.*\)",
     r" - toolchain-.* \(.*\)",
     r"Creating BIN file .*",
+    r"Warning! Could not find file \".*.crt\"",
+    r"Warning! Arduino framework as an ESP-IDF component doesn't handle the `variant` field! The default `esp32` variant will be used.",
 ]
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
-    os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
+    os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
     os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
+        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
+    # Suppress Python syntax warnings from third-party scripts during compilation
+    os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     cmd = ["platformio"] + list(args)
 
     if not CORE.verbose:
@@ -93,7 +100,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
-    command = ["run", "-d", CORE.build_path]
+    command = ["run", "-d", str(CORE.build_path)]
     if verbose:
         command += ["-v"]
     command += list(args)
@@ -125,13 +132,15 @@ def _run_idedata(config):
 
 
 def _load_idedata(config):
-    platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
-    temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    temp_idedata = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
 
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if not changed:
@@ -206,7 +215,7 @@ def _decode_pc(config, addr):
         return
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).decode().strip()
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
@@ -294,7 +303,7 @@ def process_stacktrace(config, line, backtrace_state):
 
 @dataclass
 class FlashImage:
-    path: str
+    path: Path
     offset: str
 
 
@@ -303,17 +312,17 @@ class IDEData:
         self.raw = raw
 
     @property
-    def firmware_elf_path(self):
-        return self.raw["prog_path"]
+    def firmware_elf_path(self) -> Path:
+        return Path(self.raw["prog_path"])
 
     @property
-    def firmware_bin_path(self) -> str:
-        return str(Path(self.firmware_elf_path).with_suffix(".bin"))
+    def firmware_bin_path(self) -> Path:
+        return self.firmware_elf_path.with_suffix(".bin")
 
     @property
     def extra_flash_images(self) -> list[FlashImage]:
         return [
-            FlashImage(path=entry["path"], offset=entry["offset"])
+            FlashImage(path=Path(entry["path"]), offset=entry["offset"])
             for entry in self.raw["extra"]["flash_images"]
         ]
 

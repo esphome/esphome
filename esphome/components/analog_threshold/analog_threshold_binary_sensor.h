@@ -12,8 +12,6 @@ class AnalogThresholdBinarySensor : public Component, public binary_sensor::Bina
   void dump_config() override;
   void setup() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void set_sensor(sensor::Sensor *analog_sensor);
   template<typename T> void set_upper_threshold(T upper_threshold) { this->upper_threshold_ = upper_threshold; }
   template<typename T> void set_lower_threshold(T lower_threshold) { this->lower_threshold_ = lower_threshold; }
