@@ -156,7 +156,7 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
   uint16_t number_of_registers;
   uint16_t payload_offset;
 
-  if (function_code == 0x10) {
+  if (function_code == modbus::FunctionCode::WRITE_MULTIPLE_REGISTERS) {
     number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
     if (number_of_registers == 0 || number_of_registers > 0x7B) {
       ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
@@ -171,7 +171,7 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
       return;
     }
     payload_offset = 5;
-  } else if (function_code == 0x06) {
+  } else if (function_code == modbus::FunctionCode::WRITE_SINGLE_REGISTER) {
     number_of_registers = 1;
     payload_offset = 2;
   } else {
@@ -291,7 +291,7 @@ void ModbusController::update_range_(RegisterRange &r) {
             });
         command_item.register_address = (*sensor)->start_address;
         command_item.register_count = (*sensor)->register_count;
-        command_item.function_code = ModbusFunctionCode::CUSTOM;
+        command_item.function_code = modbus::FunctionCode::CUSTOM;
         queue_command(command_item);
       }
     } else {
@@ -516,7 +516,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::HOLDING;
-  cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
+  cmd.function_code = modbus::FunctionCode::WRITE_MULTIPLE_REGISTERS;
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -536,7 +536,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::COIL;
-  cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_COIL;
+  cmd.function_code = modbus::FunctionCode::WRITE_SINGLE_COIL;
   cmd.register_address = address;
   cmd.register_count = 1;
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -553,7 +553,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::COIL;
-  cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_COILS;
+  cmd.function_code = modbus::FunctionCode::WRITE_MULTIPLE_COILS;
   cmd.register_address = start_address;
   cmd.register_count = values.size();
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -585,7 +585,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::HOLDING;
-  cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_REGISTER;
+  cmd.function_code = modbus::FunctionCode::WRITE_SINGLE_REGISTER;
   cmd.register_address = start_address;
   cmd.register_count = 1;  // not used here anyways
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -605,7 +605,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.function_code = ModbusFunctionCode::CUSTOM;
+  cmd.function_code = modbus::FunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
@@ -624,7 +624,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
         &&handler) {
   ModbusCommandItem cmd = {};
   cmd.modbusdevice = modbusdevice;
-  cmd.function_code = ModbusFunctionCode::CUSTOM;
+  cmd.function_code = modbus::FunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
@@ -641,7 +641,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 }
 
 bool ModbusCommandItem::send() {
-  if (this->function_code != ModbusFunctionCode::CUSTOM) {
+  if (this->function_code != modbus::FunctionCode::CUSTOM) {
     modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
                        this->payload.empty() ? nullptr : &this->payload[0]);
   } else {
@@ -656,7 +656,7 @@ bool ModbusCommandItem::send() {
 bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
   // for custom commands we have to check for identical payloads, since
   // address/count/type fields will be set to zero
-  return this->function_code == ModbusFunctionCode::CUSTOM
+  return this->function_code == modbus::FunctionCode::CUSTOM
              ? this->payload == other.payload
              : other.register_address == this->register_address && other.register_count == this->register_count &&
                    other.register_type == this->register_type && other.function_code == this->function_code;

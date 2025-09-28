@@ -44,6 +44,7 @@ CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
+modbus_ns = cg.esphome_ns.namespace("modbus")
 ModbusController = modbus_controller_ns.class_(
     "ModbusController", cg.PollingComponent, modbus.ModbusDevice
 )
@@ -51,8 +52,8 @@ ModbusController = modbus_controller_ns.class_(
 SensorItem = modbus_controller_ns.struct("SensorItem")
 ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
-ModbusFunctionCode_ns = modbus_controller_ns.namespace("ModbusFunctionCode")
-ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
+ModbusFunctionCode_ns = modbus_ns.namespace("FunctionCode")
+ModbusFunctionCode = ModbusFunctionCode_ns.enum("FunctionCode")
 MODBUS_FUNCTION_CODE = {
     "read_coils": ModbusFunctionCode.READ_COILS,
     "read_discrete_inputs": ModbusFunctionCode.READ_DISCRETE_INPUTS,

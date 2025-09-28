@@ -16,28 +16,6 @@ namespace modbus_controller {
 
 class ModbusController;
 
-enum class ModbusFunctionCode {
-  CUSTOM = 0x00,
-  READ_COILS = 0x01,
-  READ_DISCRETE_INPUTS = 0x02,
-  READ_HOLDING_REGISTERS = 0x03,
-  READ_INPUT_REGISTERS = 0x04,
-  WRITE_SINGLE_COIL = 0x05,
-  WRITE_SINGLE_REGISTER = 0x06,
-  READ_EXCEPTION_STATUS = 0x07,   // not implemented
-  DIAGNOSTICS = 0x08,             // not implemented
-  GET_COMM_EVENT_COUNTER = 0x0B,  // not implemented
-  GET_COMM_EVENT_LOG = 0x0C,      // not implemented
-  WRITE_MULTIPLE_COILS = 0x0F,
-  WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
-};
-
 enum class ModbusRegisterType : uint8_t {
   CUSTOM = 0x0,
   COIL = 0x01,
@@ -67,39 +45,39 @@ inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
 
-inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+inline modbus::FunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
-      return ModbusFunctionCode::READ_COILS;
+      return modbus::FunctionCode::READ_COILS;
       break;
     case ModbusRegisterType::DISCRETE_INPUT:
-      return ModbusFunctionCode::READ_DISCRETE_INPUTS;
+      return modbus::FunctionCode::READ_DISCRETE_INPUTS;
       break;
     case ModbusRegisterType::HOLDING:
-      return ModbusFunctionCode::READ_HOLDING_REGISTERS;
+      return modbus::FunctionCode::READ_HOLDING_REGISTERS;
       break;
     case ModbusRegisterType::READ:
-      return ModbusFunctionCode::READ_INPUT_REGISTERS;
+      return modbus::FunctionCode::READ_INPUT_REGISTERS;
       break;
     default:
-      return ModbusFunctionCode::CUSTOM;
+      return modbus::FunctionCode::CUSTOM;
       break;
   }
 }
-inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+inline modbus::FunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
-      return ModbusFunctionCode::WRITE_SINGLE_COIL;
+      return modbus::FunctionCode::WRITE_SINGLE_COIL;
       break;
     case ModbusRegisterType::DISCRETE_INPUT:
-      return ModbusFunctionCode::CUSTOM;
+      return modbus::FunctionCode::CUSTOM;
       break;
     case ModbusRegisterType::HOLDING:
-      return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+      return modbus::FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
       break;
     case ModbusRegisterType::READ:
     default:
-      return ModbusFunctionCode::CUSTOM;
+      return modbus::FunctionCode::CUSTOM;
       break;
   }
 }
@@ -367,7 +345,7 @@ class ModbusCommandItem {
   ModbusController *modbusdevice{nullptr};
   uint16_t register_address{0};
   uint16_t register_count{0};
-  ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
+  modbus::FunctionCode function_code{modbus::FunctionCode::CUSTOM};
   ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
   std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
