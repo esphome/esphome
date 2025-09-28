@@ -662,6 +662,8 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
       return "ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE";
     case enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       return "ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE:
+      return "ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE";
     default:
       return "UNKNOWN";
   }
@@ -2161,6 +2163,9 @@ void ZWaveProxyFrame::dump_to(std::string &out) const {
 void ZWaveProxyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
+  out.append("  data: ");
+  out.append(format_hex_pretty(this->data, this->data_len));
+  out.append("\n");
 }
 #endif
 

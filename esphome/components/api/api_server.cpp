@@ -356,6 +356,15 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+  // We could add code to manage a second subscription type, but, since this message type is
+  //  very infrequent and small, we simply send it to all clients
+  for (auto &c : this->clients_)
+    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
