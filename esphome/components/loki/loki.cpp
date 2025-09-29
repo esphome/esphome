@@ -34,7 +34,7 @@ void Loki::setup() {
 #endif
 }
 
-void Loki::log_(const int level, const char *tag, const char *message, size_t message_len) const {
+void Loki::log_(const int level, const char *tag, const char *message, size_t message_len) {
   if (!this->enabled_ || level > this->log_level_)
     return;
 

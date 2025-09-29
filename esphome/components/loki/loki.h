@@ -97,7 +97,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
 
  protected:
   int log_level_;
-  void log_(int level, const char *tag, const char *message, size_t message_len) const;
+  void log_(int level, const char *tag, const char *message, size_t message_len);
   void send_to_loki_(const std::string &json_payload);
   std::string get_full_url_() const;
   std::list<http_request::Header> get_headers_() const;
