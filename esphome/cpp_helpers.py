@@ -1,11 +1,21 @@
 import logging
 
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_MQTT,
+    CONF_NAME,
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
+    CONF_TOPIC_NAME_SOURCE,
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
     KEY_PAST_SAFE_MODE,
+    TOPIC_NAME_SOURCE_ID,
+    TOPIC_NAME_SOURCE_NAME,
 )
 from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
@@ -13,6 +23,7 @@ from esphome.cpp_generator import LogStringLiteral, add, get_variable
 from esphome.cpp_types import App
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
+from esphome.helpers import sanitize, snake_case
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +99,36 @@ async def register_parented(var, value):
     else:
         paren = value
     add(var.set_parent(paren))
+
+
+async def setup_entity(var, config):
+    """Set up generic properties of an Entity"""
+    add(var.set_name(config[CONF_NAME]))
+    topic_name_source = TOPIC_NAME_SOURCE_NAME
+    if CORE.config is not None and CONF_MQTT in CORE.config:
+        topic_name_source = CORE.config[CONF_MQTT].get(
+            CONF_TOPIC_NAME_SOURCE, TOPIC_NAME_SOURCE_NAME
+        )
+
+    id_set = False
+    if topic_name_source == TOPIC_NAME_SOURCE_ID and CONF_ID in config:
+        id_value = getattr(config[CONF_ID], "id", None) or str(config[CONF_ID])
+        if id_value:
+            add(var.set_object_id(sanitize(id_value)))
+            id_set = True
+
+    if not id_set:
+        if not config[CONF_NAME]:
+            add(var.set_object_id(sanitize(snake_case(CORE.friendly_name))))
+        else:
+            add(var.set_object_id(sanitize(snake_case(config[CONF_NAME]))))
+    add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    if CONF_INTERNAL in config:
+        add(var.set_internal(config[CONF_INTERNAL]))
+    if CONF_ICON in config:
+        add(var.set_icon(config[CONF_ICON]))
+    if CONF_ENTITY_CATEGORY in config:
+        add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
 def extract_registry_entry_config(

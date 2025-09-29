@@ -8,9 +8,11 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <codecvt>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <cwchar>
 
 #ifdef USE_ESP32
 #include "rom/crc.h"
@@ -188,20 +190,68 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
 std::string str_snake_case(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
+  // Use the ctype-aware helper so we only lowercase ASCII characters and
+  // leave multi-byte UTF-8 sequences untouched before replacing spaces with
+  // underscores. This keeps Cyrillic and other Unicode characters intact
+  // when generating default object IDs.
+  std::string result = str_ctype_transform<std::tolower>(str);
   std::replace(result.begin(), result.end(), ' ', '_');
   return result;
 }
+namespace {
+
+bool is_allowed_ascii(unsigned char c) {
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '-' || c == '_';
+}
+
+}  // namespace
+
 std::string str_sanitize(const std::string &str) {
-  std::string out = str;
-  std::replace_if(
-      out.begin(), out.end(),
-      [](const char &c) {
-        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z');
-      },
-      '_');
+  std::string out;
+  out.reserve(str.size());
+
+  std::codecvt_utf8<char32_t> codecvt;
+
+  for (size_t i = 0; i < str.size();) {
+    const unsigned char byte = static_cast<unsigned char>(str[i]);
+    if (byte < 0x80u) {
+      out.push_back(is_allowed_ascii(byte) ? static_cast<char>(byte) : '_');
+      ++i;
+      continue;
+    }
+
+    // Preserve multi-byte UTF-8 sequences so MQTT topics derived from friendly names stay
+    // readable while keeping the legacy ASCII whitelist intact. We let the standard codecvt
+    // facet validate the sequence, copy bytes for code points at or above U+00C0, and collapse
+    // the rest (plus malformed sequences) to underscores to mirror the Python helper.
+    std::mbstate_t state{};
+    const char *from = str.data() + i;
+    const char *from_end = str.data() + str.size();
+    const char *from_next = from;
+    char32_t code_point = 0;
+    char32_t *to = &code_point;
+    char32_t *to_next = to;
+
+    const auto result = codecvt.in(state, from, from_end, from_next, to, to + 1, to_next);
+    if (result == std::codecvt_base::ok && from_next > from) {
+      const size_t consumed = static_cast<size_t>(from_next - from);
+      if (code_point >= 0x00C0) {
+        // Keep decoded code points at U+00C0 and above so Cyrillic, accented Latin, and
+        // other friendly-name characters survive MQTT topic generation.  Lower values
+        // are treated like extended ASCII and collapse to underscores to mirror the
+        // Python helper.
+        out.append(from, consumed);
+      } else {
+        out.push_back('_');
+      }
+      i += consumed;
+      continue;
+    }
+
+    out.push_back('_');
+    ++i;
+  }
+
   return out;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {

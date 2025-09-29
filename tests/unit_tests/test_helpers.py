@@ -267,6 +267,13 @@ def test_snake_case(text, expected):
     "text, expected",
     (
         ("foo_bar", "foo_bar"),
+        ('!"$%&/()=?foo_bar', "__________foo_bar"),
+        ('foo_!"$%&/()=?bar', "foo___________bar"),
+        ('foo_bar!"$%&/()=?', "foo_bar__________"),
+        ('foo-bar!"$%&/()=?', "foo-bar__________"),
+        ("датчик", "датчик"),
+        ("датчик 1", "датчик_1"),
+        ("éclair", "éclair"),
         ('!"§$%&/()=?foo_bar', "___________foo_bar"),
         ('foo_!"§$%&/()=?bar', "foo____________bar"),
         ('foo_bar!"§$%&/()=?', "foo_bar___________"),

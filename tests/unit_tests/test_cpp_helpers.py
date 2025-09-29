@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
+from types import SimpleNamespace
 
 from esphome import const, cpp_helpers as ch
 
@@ -70,3 +71,117 @@ async def test_register_component__with_setup_priority(monkeypatch):
     assert add_mock.call_count == 4
     app_mock.register_component.assert_called_with(var)
     assert core_mock.component_ids == []
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_default_topic_from_name(monkeypatch):
+    var = Mock()
+    monkeypatch.setattr(ch, "add", Mock())
+    core_mock = SimpleNamespace(
+        config={const.CONF_MQTT: {}},
+        friendly_name="Friendly Name",
+    )
+    monkeypatch.setattr(ch, "CORE", core_mock)
+
+    config = {
+        const.CONF_NAME: "Мой Датчик",
+        const.CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await ch.setup_entity(var, config)
+
+    var.set_object_id.assert_called_once_with("мой_датчик")
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_topic_from_id(monkeypatch):
+    var = Mock()
+    monkeypatch.setattr(ch, "add", Mock())
+    core_mock = SimpleNamespace(
+        config={
+            const.CONF_MQTT: {
+                const.CONF_TOPIC_NAME_SOURCE: const.TOPIC_NAME_SOURCE_ID,
+            }
+        },
+        friendly_name="Friendly Name",
+    )
+    monkeypatch.setattr(ch, "CORE", core_mock)
+
+    config = {
+        const.CONF_NAME: "My Sensor",
+        const.CONF_ID: SimpleNamespace(id="sensor_id"),
+        const.CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await ch.setup_entity(var, config)
+
+    var.set_object_id.assert_called_once_with("sensor_id")
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_topic_from_unicode_id(monkeypatch):
+    var = Mock()
+    monkeypatch.setattr(ch, "add", Mock())
+    core_mock = SimpleNamespace(
+        config={
+            const.CONF_MQTT: {
+                const.CONF_TOPIC_NAME_SOURCE: const.TOPIC_NAME_SOURCE_ID,
+            }
+        },
+        friendly_name="Friendly Name",
+    )
+    monkeypatch.setattr(ch, "CORE", core_mock)
+
+    config = {
+        const.CONF_NAME: "My Sensor",
+        const.CONF_ID: SimpleNamespace(id="датчик_1"),
+        const.CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await ch.setup_entity(var, config)
+
+    var.set_object_id.assert_called_once_with("датчик_1")
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_topic_from_id_without_id_falls_back_to_name(monkeypatch):
+    var = Mock()
+    monkeypatch.setattr(ch, "add", Mock())
+    core_mock = SimpleNamespace(
+        config={
+            const.CONF_MQTT: {
+                const.CONF_TOPIC_NAME_SOURCE: const.TOPIC_NAME_SOURCE_ID,
+            }
+        },
+        friendly_name="Friendly Name",
+    )
+    monkeypatch.setattr(ch, "CORE", core_mock)
+
+    config = {
+        const.CONF_NAME: "My Sensor",
+        const.CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await ch.setup_entity(var, config)
+
+    var.set_object_id.assert_called_once_with("my_sensor")
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_uses_core_friendly_name_when_name_empty(monkeypatch):
+    var = Mock()
+    monkeypatch.setattr(ch, "add", Mock())
+    core_mock = SimpleNamespace(
+        config={const.CONF_MQTT: {}},
+        friendly_name="Гостиная Датчик",
+    )
+    monkeypatch.setattr(ch, "CORE", core_mock)
+
+    config = {
+        const.CONF_NAME: "",
+        const.CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await ch.setup_entity(var, config)
+
+    var.set_object_id.assert_called_once_with("гостиная_датчик")

@@ -200,6 +200,13 @@ bool MQTTComponent::is_discovery_enabled() const {
 }
 
 std::string MQTTComponent::get_default_object_id_() const {
+  const auto *entity = this->get_entity();
+  if (entity != nullptr) {
+    auto object_id = entity->get_object_id();
+    if (!object_id.empty()) {
+      return object_id;
+    }
+  }
   return str_sanitize(str_snake_case(this->friendly_name()));
 }
 

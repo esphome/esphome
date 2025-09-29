@@ -1,0 +1,14 @@
+esphome:
+  name: unicode_topic_example
+
+mqtt:
+  broker: 127.0.0.1
+  topic_name_source: id
+
+sensor:
+  - platform: template
+    id: living_room_temperature
+    name: "Температура Гостиной"
+    unit_of_measurement: "°C"
+    lambda: |-
+      return 21.5;

@@ -48,6 +48,11 @@ from esphome.const import (
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
+    CONF_TOPIC_NAME_SOURCE,
+    TOPIC_NAME_SOURCE_NAME,
+    TOPIC_NAME_SOURCE_OPTIONS,
+    TOPIC_NAME_SOURCE_ID,
+    CONF_MQTT,
     CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
@@ -58,6 +63,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.helpers import sanitize
 
 DEPENDENCIES = ["network"]
 
@@ -255,6 +261,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(
+                CONF_TOPIC_NAME_SOURCE, default=TOPIC_NAME_SOURCE_NAME
+            ): cv.enum(TOPIC_NAME_SOURCE_OPTIONS),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(
@@ -518,12 +527,30 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     return var
 
 
+def _sanitize_topic_fragment(value):
+    if not value:
+        return ""
+    return sanitize(value.lower().replace(" ", "_"))
+
+
 def get_default_topic_for(data, component_type, name, suffix):
-    allowlist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-    sanitized_name = "".join(
-        x for x in name.lower().replace(" ", "_") if x in allowlist
-    )
-    return f"{data.topic_prefix}/{component_type}/{sanitized_name}/{suffix}"
+    topic_name_source = TOPIC_NAME_SOURCE_NAME
+    if CORE.config is not None and CONF_MQTT in CORE.config:
+        topic_name_source = CORE.config[CONF_MQTT].get(
+            CONF_TOPIC_NAME_SOURCE, TOPIC_NAME_SOURCE_NAME
+        )
+
+    topic_fragment = ""
+    if topic_name_source == TOPIC_NAME_SOURCE_ID:
+        object_id = getattr(data, "object_id", None)
+        if object_id:
+            topic_fragment = sanitize(str(object_id))
+
+    if not topic_fragment:
+        fallback_name = name or getattr(CORE, "friendly_name", "")
+        topic_fragment = _sanitize_topic_fragment(fallback_name)
+
+    return f"{data.topic_prefix}/{component_type}/{topic_fragment}/{suffix}"
 
 
 async def register_mqtt_component(var, config):
