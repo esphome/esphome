@@ -81,10 +81,9 @@ void Modbus::receive_and_parse_modbus_bytes_() {
     uint8_t byte;
     this->read_byte(&byte);
     if (this->rx_buffer_.empty()) {
-      ESP_LOGV(TAG, "Modbus received first Byte %d (0X%x) %dms after last send", byte, byte,
-               millis() - this->last_send_);
+      ESP_LOGV(TAG, "Received first byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
     } else {
-      ESP_LOGVV(TAG, "Modbus received Byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
+      ESP_LOGVV(TAG, "Received byte %d (0X%x) %dms after last send", byte, byte, millis() - this->last_send_);
     }
 
     // If the bytes in the rx buffer do not parse, clear out the buffer
@@ -136,7 +135,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     if (computed_crc != remote_crc)
       return true;
 
-    ESP_LOGD(TAG, "Modbus user-defined function %02X found", function_code);
+    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
@@ -183,11 +182,11 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
     if (computed_crc != remote_crc) {
       if (this->disable_crc_) {
-        ESP_LOGD(TAG, "Modbus CRC Check failed, but ignored! %02X!=%02X  %s %dms after last send", computed_crc,
-                 remote_crc, format_hex_pretty(this->rx_buffer_).c_str(), millis() - this->last_send_);
+        ESP_LOGD(TAG, "CRC check failed %dms after last send; ignoring", millis() - this->last_send_);
+        ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
       } else {
-        ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X %s %dms after last send", computed_crc, remote_crc,
-                 format_hex_pretty(this->rx_buffer_).c_str(), millis() - this->last_send_);
+        ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
+        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
         return false;
       }
     }
@@ -200,15 +199,15 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       // Is it an error response?
       if ((function_code & FunctionCode::EXCEPTION_BIT_MASK) == FunctionCode::EXCEPTION_BIT_MASK) {
         uint8_t exception = raw[2];
-        ESP_LOGW(TAG, "Modbus error function code: 0x%X exception: %d, address: %d, %dms after last send",
-                 function_code, exception, address, millis() - this->last_send_);
+        ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
+                 exception, address, millis() - this->last_send_);
         if (waiting_for_response_ == address) {
           this->defer("on_modbus_error", [device, function_code, exception]() {
             device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
           });
         } else if (this->role == ModbusRole::CLIENT) {
           // Ignore modbus exception not related to a pending command
-          ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response from %d, %dms after last send", address,
+          ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d, %dms after last send", address,
                    millis() - this->last_send_);
         }
       } else if (this->role == ModbusRole::SERVER) {
@@ -228,7 +227,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
         } else {
           // Ignore modbus response not related to a pending command
-          ESP_LOGW(TAG, "Ignoring Modbus response - not expecting a response from %d, %dms after last send", address,
+          ESP_LOGW(TAG, "Ignoring response - not expecting a response from %d, %dms after last send", address,
                    millis() - this->last_send_);
         }
       }
@@ -236,8 +235,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   }
 
   if (!found && this->role == ModbusRole::CLIENT) {
-    ESP_LOGW(TAG, "Got Modbus frame from unknown address %d, %dms after last send", address,
-             millis() - this->last_send_);
+    ESP_LOGW(TAG, "Got frame from unknown address %d, %dms after last send", address, millis() - this->last_send_);
   }
 
   this->clear_rx_buffer_("parse succeeded");
@@ -274,11 +272,11 @@ void Modbus::send_next_frame_() {
 
   this->tx_buffer_.pop_front();
 
-  ESP_LOGV(TAG, "Modbus write: %s %dms after last send", format_hex_pretty(data).c_str(), millis() - this->last_send_);
+  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty(data).c_str(), millis() - this->last_send_);
   this->last_send_ = millis();
 
   if (!this->tx_buffer_.empty()) {
-    ESP_LOGV(TAG, "Modbus write queue contains %d items.", this->tx_buffer_.size());
+    ESP_LOGV(TAG, "Write queue contains %d items.", this->tx_buffer_.size());
   }
 }
 
@@ -352,7 +350,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     this->tx_buffer_.push_back(data);
   } else {
-    ESP_LOGE(TAG, "Modbus write buffer full, dropped: %s", format_hex_pretty(data).c_str());
+    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(data).c_str());
   }
 }
 
