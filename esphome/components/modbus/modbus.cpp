@@ -196,21 +196,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
       found = true;
-      // Is it an error response?
-      if ((function_code & FunctionCode::EXCEPTION_BIT_MASK) == FunctionCode::EXCEPTION_BIT_MASK) {
-        uint8_t exception = raw[2];
-        ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
-                 exception, address, millis() - this->last_send_);
-        if (waiting_for_response_ == address) {
-          this->defer("on_modbus_error", [device, function_code, exception]() {
-            device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
-          });
-        } else if (this->role == ModbusRole::CLIENT) {
-          // Ignore modbus exception not related to a pending command
-          ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d, %dms after last send", address,
-                   millis() - this->last_send_);
-        }
-      } else if (this->role == ModbusRole::SERVER) {
+      if (this->role == ModbusRole::SERVER) {
         if (function_code == FunctionCode::READ_HOLDING_REGISTERS ||
             function_code == FunctionCode::READ_INPUT_REGISTERS) {
           this->defer("on_modbus_read_registers", [device, data, function_code]() {
@@ -222,13 +208,28 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           this->defer("on_modbus_write_registers",
                       [device, data, function_code]() { device->on_modbus_write_registers(function_code, data); });
         }
-      } else {
-        if (waiting_for_response_ == address) {
-          this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
-        } else {
-          // Ignore modbus response not related to a pending command
-          ESP_LOGW(TAG, "Ignoring response - not expecting a response from %d, %dms after last send", address,
-                   millis() - this->last_send_);
+      } else {  // We're a client
+        // Is it an error response?
+        if ((function_code & FunctionCode::EXCEPTION_BIT_MASK) == FunctionCode::EXCEPTION_BIT_MASK) {
+          uint8_t exception = raw[2];
+          ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
+                   exception, address, millis() - this->last_send_);
+          if (waiting_for_response_ == address) {
+            this->defer("on_modbus_error", [device, function_code, exception]() {
+              device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
+            });
+          } else {
+            // Ignore modbus exception not related to a pending command
+            ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d", address);
+          }
+        } else {  // Not an error response
+          if (waiting_for_response_ == address) {
+            this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
+          } else {
+            // Ignore modbus response not related to a pending command
+            ESP_LOGW(TAG, "Ignoring response - not expecting a response from %d, %dms after last send", address,
+                     millis() - this->last_send_);
+          }
         }
       }
     }
