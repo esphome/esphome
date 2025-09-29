@@ -804,7 +804,7 @@ def test_clean_all(
     assert not pio_core.exists()
 
     # Verify logging mentions each
-    assert "Deleting" in caplog.text
+    assert "Cleaning" in caplog.text
     assert str(build_dir1) in caplog.text
     assert str(build_dir2) in caplog.text
     assert "PlatformIO cache" in caplog.text
@@ -858,7 +858,7 @@ def test_clean_all_preserves_storage(
     assert not (build_dir / "other_file.txt").exists()
 
     # Verify logging mentions deletion
-    assert "Deleting" in caplog.text
+    assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
 
 
