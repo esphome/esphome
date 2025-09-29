@@ -37,12 +37,14 @@ void APIServer::setup() {
 
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
 
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // Only load saved PSK if not set from YAML
   SavedNoisePsk noise_pref_saved{};
   if (this->noise_pref_.load(&noise_pref_saved)) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-
     this->set_noise_psk(noise_pref_saved.psk);
   }
+#endif
 #endif
 
   // Schedule reboot if no clients connect within timeout
@@ -419,6 +421,12 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
   auto &old_psk = this->noise_ctx_->get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
@@ -447,6 +455,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
     });
   }
   return true;
+#endif
 }
 #endif
 

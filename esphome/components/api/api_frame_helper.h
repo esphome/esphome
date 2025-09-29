@@ -17,6 +17,16 @@ namespace esphome::api {
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
 
+// Maximum message size limits to prevent OOM on constrained devices
+// Voice Assistant is our largest user at 1024 bytes per audio chunk
+// Using 2048 + 256 bytes overhead = 2304 bytes total to support voice and future needs
+// ESP8266 has very limited RAM and cannot support voice assistant
+#ifdef USE_ESP8266
+static constexpr uint16_t MAX_MESSAGE_SIZE = 512;  // Keep small for memory constrained ESP8266
+#else
+static constexpr uint16_t MAX_MESSAGE_SIZE = 2304;  // Support voice (1024) + headroom for larger messages
+#endif
+
 // Forward declaration
 struct ClientInfo;
 

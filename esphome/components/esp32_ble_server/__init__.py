@@ -514,7 +514,7 @@ async def to_code_characteristic(service_var, char_conf):
         )
     if CONF_VALUE in char_conf:
         # Check if the value is templated (Lambda)
-        value_data = char_conf[CONF_VALUE].get(CONF_DATA)
+        value_data = char_conf[CONF_VALUE][CONF_DATA]
         if isinstance(value_data, cv.Lambda):
             # Templated value - need the full action infrastructure
             action_conf = {
