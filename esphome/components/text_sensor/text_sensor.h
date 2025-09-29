@@ -11,16 +11,9 @@
 namespace esphome {
 namespace text_sensor {
 
-#define LOG_TEXT_SENSOR(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
-  }
+void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj);
+
+#define LOG_TEXT_SENSOR(prefix, type, obj) log_text_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_TEXT_SENSOR(name) \
  protected: \
