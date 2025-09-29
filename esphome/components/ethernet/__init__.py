@@ -2,9 +2,15 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+)
 from esphome.components.esp32.const import (
+    VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -75,12 +81,14 @@ ETHERNET_TYPES = {
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
+    "LAN8670": EthernetType.ETHERNET_TYPE_LAN8670,
 }
 
 # PHY types that need compile-time defines for conditional compilation
 _PHY_TYPE_TO_DEFINE = {
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "LAN8670": "USE_ETHERNET_LAN8670",
     # Add other PHY types here only if they need conditional compilation
 }
 
@@ -136,6 +144,7 @@ def _validate(config):
         else:
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
+
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if _is_framework_spi_polling_mode_supported():
             if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
@@ -168,6 +177,12 @@ def _validate(config):
             del config[CONF_CLK_MODE]
         elif CONF_CLK not in config:
             raise cv.Invalid("'clk' is a required option for [ethernet].")
+        variant = get_esp32_variant()
+        if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
+            raise cv.Invalid(
+                f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
+                f"on ESP32 classic and ESP32-P4, not {variant}"
+            )
 
     return config
 
@@ -248,6 +263,7 @@ CONFIG_SCHEMA = cv.All(
             "W5500": SPI_SCHEMA,
             "OPENETH": BASE_SCHEMA,
             "DM9051": SPI_SCHEMA,
+            "LAN8670": RMII_SCHEMA,
         },
         upper=True,
     ),
@@ -355,6 +371,10 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
     # Also disable WiFi/BT coexistence since WiFi is disabled
     add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+
+    if config[CONF_TYPE] == "LAN8670":
+        # Add LAN867x 10BASE-T1S PHY support component
+        add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)

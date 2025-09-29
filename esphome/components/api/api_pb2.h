@@ -280,6 +280,7 @@ enum UpdateCommand : uint32_t {
 enum ZWaveProxyRequestType : uint32_t {
   ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
   ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
+  ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2,
 };
 #endif
 
@@ -2456,18 +2457,37 @@ class VoiceAssistantWakeWord final : public ProtoMessage {
 
  protected:
 };
-class VoiceAssistantConfigurationRequest final : public ProtoMessage {
+class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 121;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "voice_assistant_configuration_request"; }
-#endif
+  std::string id{};
+  std::string wake_word{};
+  std::vector<std::string> trained_languages{};
+  std::string model_type{};
+  uint32_t model_size{0};
+  std::string model_hash{};
+  std::string url{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class VoiceAssistantConfigurationRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 121;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "voice_assistant_configuration_request"; }
+#endif
+  std::vector<VoiceAssistantExternalWakeWord> external_wake_words{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class VoiceAssistantConfigurationResponse final : public ProtoMessage {
  public:
@@ -2952,16 +2972,21 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
 class ZWaveProxyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 129;
-  static constexpr uint8_t ESTIMATED_SIZE = 2;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "z_wave_proxy_request"; }
 #endif
   enums::ZWaveProxyRequestType type{};
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif

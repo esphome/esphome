@@ -1202,6 +1202,23 @@ bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceA
       resp_wake_word.trained_languages.push_back(lang);
     }
   }
+
+  // Filter external wake words
+  for (auto &wake_word : msg.external_wake_words) {
+    if (wake_word.model_type != "micro") {
+      // microWakeWord only
+      continue;
+    }
+
+    resp.available_wake_words.emplace_back();
+    auto &resp_wake_word = resp.available_wake_words.back();
+    resp_wake_word.set_id(StringRef(wake_word.id));
+    resp_wake_word.set_wake_word(StringRef(wake_word.wake_word));
+    for (const auto &lang : wake_word.trained_languages) {
+      resp_wake_word.trained_languages.push_back(lang);
+    }
+  }
+
   resp.active_wake_words = &config.active_wake_words;
   resp.max_active_wake_words = config.max_active_wake_words;
   return this->send_message(resp, VoiceAssistantConfigurationResponse::MESSAGE_TYPE);
