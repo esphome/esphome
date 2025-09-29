@@ -32,6 +32,13 @@ extend google.protobuf.FieldOptions {
     optional string fixed_array_size_define = 50010;
     optional string fixed_array_with_length_define = 50011;
 
+    // pointer_to_buffer: Use pointer instead of array for fixed-size byte fields
+    // When set, the field will be declared as a pointer (const uint8_t *data)
+    // instead of an array (uint8_t data[N]). This allows zero-copy on decode
+    // by pointing directly to the protobuf buffer. The buffer must remain valid
+    // until the message is processed (which is guaranteed for stack-allocated messages).
+    optional bool pointer_to_buffer = 50012 [default=false];
+
     // container_pointer: Zero-copy optimization for repeated fields.
     //
     // When container_pointer is set on a repeated field, the generated message will
