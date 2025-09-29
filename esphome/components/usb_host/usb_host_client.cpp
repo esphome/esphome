@@ -371,11 +371,9 @@ TransferRequest *USBClient::get_trq_() {
     }
 
     // Slot i appears available, try to claim it atomically
-    uint16_t expected = mask;
     uint16_t desired = mask | (1U << i);  // Set bit i to mark as in-use
 
-    if (this->trq_in_use_.compare_exchange_weak(expected, desired, std::memory_order_acquire,
-                                                std::memory_order_relaxed)) {
+    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order_acquire, std::memory_order_relaxed)) {
       // Successfully claimed slot i - prepare the TransferRequest
       auto *trq = &this->requests_[i];
       trq->transfer->context = trq;
@@ -383,8 +381,8 @@ TransferRequest *USBClient::get_trq_() {
       return trq;
     }
     // CAS failed - another thread modified the bitmask
-    // Restart search from the beginning with the updated mask
-    mask = this->trq_in_use_.load(std::memory_order_relaxed);
+    // mask was already updated by compare_exchange_weak with the current value
+    // No need to reload - the CAS already did that for us
     i = 0;
   }
 
