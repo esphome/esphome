@@ -79,12 +79,12 @@ class ESP32ImprovComponent : public Component {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  BLEService *service_ = nullptr;
-  BLECharacteristic *status_;
-  BLECharacteristic *error_;
-  BLECharacteristic *rpc_;
-  BLECharacteristic *rpc_response_;
-  BLECharacteristic *capabilities_;
+  BLEService *service_{nullptr};
+  BLECharacteristic *status_{nullptr};
+  BLECharacteristic *error_{nullptr};
+  BLECharacteristic *rpc_{nullptr};
+  BLECharacteristic *rpc_response_{nullptr};
+  BLECharacteristic *capabilities_{nullptr};
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *authorizer_{nullptr};
@@ -100,14 +100,22 @@ class ESP32ImprovComponent : public Component {
 #endif
 
   bool status_indicator_state_{false};
+  uint32_t last_name_adv_time_{0};
+  bool advertising_device_name_{false};
   void set_status_indicator_state_(bool state);
+  void update_advertising_type_();
 
-  void set_state_(improv::State state);
+  void set_state_(improv::State state, bool update_advertising = true);
   void set_error_(improv::Error error);
+  improv::State get_initial_state_() const;
   void send_response_(std::vector<uint8_t> &response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
+  void advertise_service_data_();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  const char *state_to_string_(improv::State state);
+#endif
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

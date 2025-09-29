@@ -32,21 +32,21 @@ def test_list_yaml_files_with_files_and_directories(tmp_path: Path) -> None:
 
     # Test with mixed input (directories and files)
     configs = [
-        str(dir1),
-        str(standalone1),
-        str(dir2),
-        str(standalone2),
+        dir1,
+        standalone1,
+        dir2,
+        standalone2,
     ]
 
     result = util.list_yaml_files(configs)
 
     # Should include all YAML files but not the .txt file
     assert set(result) == {
-        str(dir1 / "config1.yaml"),
-        str(dir1 / "config2.yml"),
-        str(dir2 / "config3.yaml"),
-        str(standalone1),
-        str(standalone2),
+        dir1 / "config1.yaml",
+        dir1 / "config2.yml",
+        dir2 / "config3.yaml",
+        standalone1,
+        standalone2,
     }
     # Check that results are sorted
     assert result == sorted(result)
@@ -63,12 +63,12 @@ def test_list_yaml_files_only_directories(tmp_path: Path) -> None:
     (dir1 / "b.yml").write_text("test: b")
     (dir2 / "c.yaml").write_text("test: c")
 
-    result = util.list_yaml_files([str(dir1), str(dir2)])
+    result = util.list_yaml_files([dir1, dir2])
 
     assert set(result) == {
-        str(dir1 / "a.yaml"),
-        str(dir1 / "b.yml"),
-        str(dir2 / "c.yaml"),
+        dir1 / "a.yaml",
+        dir1 / "b.yml",
+        dir2 / "c.yaml",
     }
     assert result == sorted(result)
 
@@ -88,17 +88,17 @@ def test_list_yaml_files_only_files(tmp_path: Path) -> None:
     # Include a non-YAML file to test filtering
     result = util.list_yaml_files(
         [
-            str(file1),
-            str(file2),
-            str(file3),
-            str(non_yaml),
+            file1,
+            file2,
+            file3,
+            non_yaml,
         ]
     )
 
     assert set(result) == {
-        str(file1),
-        str(file2),
-        str(file3),
+        file1,
+        file2,
+        file3,
     }
     assert result == sorted(result)
 
@@ -108,7 +108,7 @@ def test_list_yaml_files_empty_directory(tmp_path: Path) -> None:
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
 
-    result = util.list_yaml_files([str(empty_dir)])
+    result = util.list_yaml_files([empty_dir])
 
     assert result == []
 
@@ -121,7 +121,7 @@ def test_list_yaml_files_nonexistent_path(tmp_path: Path) -> None:
 
     # Should raise an error for non-existent directory
     with pytest.raises(FileNotFoundError):
-        util.list_yaml_files([str(nonexistent), str(existing)])
+        util.list_yaml_files([nonexistent, existing])
 
 
 def test_list_yaml_files_mixed_extensions(tmp_path: Path) -> None:
@@ -137,11 +137,11 @@ def test_list_yaml_files_mixed_extensions(tmp_path: Path) -> None:
     yml_file.write_text("test: yml")
     other_file.write_text("test: txt")
 
-    result = util.list_yaml_files([str(dir1)])
+    result = util.list_yaml_files([dir1])
 
     assert set(result) == {
-        str(yaml_file),
-        str(yml_file),
+        yaml_file,
+        yml_file,
     }
 
 
@@ -174,17 +174,18 @@ def test_list_yaml_files_does_not_recurse_into_subdirectories(tmp_path: Path) ->
     assert len(result) == 3
 
     # Check that only root-level files are found
-    assert str(root / "config1.yaml") in result
-    assert str(root / "config2.yml") in result
-    assert str(root / "device.yaml") in result
+    assert root / "config1.yaml" in result
+    assert root / "config2.yml" in result
+    assert root / "device.yaml" in result
 
     # Ensure nested files are NOT found
     for r in result:
-        assert "subdir" not in r
-        assert "deeper" not in r
-        assert "nested1.yaml" not in r
-        assert "nested2.yml" not in r
-        assert "very_nested.yaml" not in r
+        r_str = str(r)
+        assert "subdir" not in r_str
+        assert "deeper" not in r_str
+        assert "nested1.yaml" not in r_str
+        assert "nested2.yml" not in r_str
+        assert "very_nested.yaml" not in r_str
 
 
 def test_list_yaml_files_excludes_secrets(tmp_path: Path) -> None:
@@ -202,10 +203,10 @@ def test_list_yaml_files_excludes_secrets(tmp_path: Path) -> None:
 
     # Should find 2 files (config.yaml and device.yaml), not secrets
     assert len(result) == 2
-    assert str(root / "config.yaml") in result
-    assert str(root / "device.yaml") in result
-    assert str(root / "secrets.yaml") not in result
-    assert str(root / "secrets.yml") not in result
+    assert root / "config.yaml" in result
+    assert root / "device.yaml" in result
+    assert root / "secrets.yaml" not in result
+    assert root / "secrets.yml" not in result
 
 
 def test_list_yaml_files_excludes_hidden_files(tmp_path: Path) -> None:
@@ -223,93 +224,102 @@ def test_list_yaml_files_excludes_hidden_files(tmp_path: Path) -> None:
 
     # Should find only non-hidden files
     assert len(result) == 2
-    assert str(root / "config.yaml") in result
-    assert str(root / "device.yaml") in result
-    assert str(root / ".hidden.yaml") not in result
-    assert str(root / ".backup.yml") not in result
+    assert root / "config.yaml" in result
+    assert root / "device.yaml" in result
+    assert root / ".hidden.yaml" not in result
+    assert root / ".backup.yml" not in result
 
 
 def test_filter_yaml_files_basic() -> None:
     """Test filter_yaml_files function."""
     files = [
-        "/path/to/config.yaml",
-        "/path/to/device.yml",
-        "/path/to/readme.txt",
-        "/path/to/script.py",
-        "/path/to/data.json",
-        "/path/to/another.yaml",
+        Path("/path/to/config.yaml"),
+        Path("/path/to/device.yml"),
+        Path("/path/to/readme.txt"),
+        Path("/path/to/script.py"),
+        Path("/path/to/data.json"),
+        Path("/path/to/another.yaml"),
     ]
 
     result = util.filter_yaml_files(files)
 
     assert len(result) == 3
-    assert "/path/to/config.yaml" in result
-    assert "/path/to/device.yml" in result
-    assert "/path/to/another.yaml" in result
-    assert "/path/to/readme.txt" not in result
-    assert "/path/to/script.py" not in result
-    assert "/path/to/data.json" not in result
+    assert Path("/path/to/config.yaml") in result
+    assert Path("/path/to/device.yml") in result
+    assert Path("/path/to/another.yaml") in result
+    assert Path("/path/to/readme.txt") not in result
+    assert Path("/path/to/script.py") not in result
+    assert Path("/path/to/data.json") not in result
 
 
 def test_filter_yaml_files_excludes_secrets() -> None:
     """Test that filter_yaml_files excludes secrets files."""
     files = [
-        "/path/to/config.yaml",
-        "/path/to/secrets.yaml",
-        "/path/to/secrets.yml",
-        "/path/to/device.yaml",
-        "/some/dir/secrets.yaml",
+        Path("/path/to/config.yaml"),
+        Path("/path/to/secrets.yaml"),
+        Path("/path/to/secrets.yml"),
+        Path("/path/to/device.yaml"),
+        Path("/some/dir/secrets.yaml"),
     ]
 
     result = util.filter_yaml_files(files)
 
     assert len(result) == 2
-    assert "/path/to/config.yaml" in result
-    assert "/path/to/device.yaml" in result
-    assert "/path/to/secrets.yaml" not in result
-    assert "/path/to/secrets.yml" not in result
-    assert "/some/dir/secrets.yaml" not in result
+    assert Path("/path/to/config.yaml") in result
+    assert Path("/path/to/device.yaml") in result
+    assert Path("/path/to/secrets.yaml") not in result
+    assert Path("/path/to/secrets.yml") not in result
+    assert Path("/some/dir/secrets.yaml") not in result
 
 
 def test_filter_yaml_files_excludes_hidden() -> None:
     """Test that filter_yaml_files excludes hidden files."""
     files = [
-        "/path/to/config.yaml",
-        "/path/to/.hidden.yaml",
-        "/path/to/.backup.yml",
-        "/path/to/device.yaml",
-        "/some/dir/.config.yaml",
+        Path("/path/to/config.yaml"),
+        Path("/path/to/.hidden.yaml"),
+        Path("/path/to/.backup.yml"),
+        Path("/path/to/device.yaml"),
+        Path("/some/dir/.config.yaml"),
     ]
 
     result = util.filter_yaml_files(files)
 
     assert len(result) == 2
-    assert "/path/to/config.yaml" in result
-    assert "/path/to/device.yaml" in result
-    assert "/path/to/.hidden.yaml" not in result
-    assert "/path/to/.backup.yml" not in result
-    assert "/some/dir/.config.yaml" not in result
+    assert Path("/path/to/config.yaml") in result
+    assert Path("/path/to/device.yaml") in result
+    assert Path("/path/to/.hidden.yaml") not in result
+    assert Path("/path/to/.backup.yml") not in result
+    assert Path("/some/dir/.config.yaml") not in result
 
 
 def test_filter_yaml_files_case_sensitive() -> None:
     """Test that filter_yaml_files is case-sensitive for extensions."""
     files = [
-        "/path/to/config.yaml",
-        "/path/to/config.YAML",
-        "/path/to/config.YML",
-        "/path/to/config.Yaml",
-        "/path/to/config.yml",
+        Path("/path/to/config.yaml"),
+        Path("/path/to/config.YAML"),
+        Path("/path/to/config.YML"),
+        Path("/path/to/config.Yaml"),
+        Path("/path/to/config.yml"),
     ]
 
     result = util.filter_yaml_files(files)
 
     # Should only match lowercase .yaml and .yml
     assert len(result) == 2
-    assert "/path/to/config.yaml" in result
-    assert "/path/to/config.yml" in result
-    assert "/path/to/config.YAML" not in result
-    assert "/path/to/config.YML" not in result
-    assert "/path/to/config.Yaml" not in result
+
+    # Check the actual suffixes to ensure case-sensitive filtering
+    result_suffixes = [p.suffix for p in result]
+    assert ".yaml" in result_suffixes
+    assert ".yml" in result_suffixes
+
+    # Verify the filtered files have the expected names
+    result_names = [p.name for p in result]
+    assert "config.yaml" in result_names
+    assert "config.yml" in result_names
+    # Ensure uppercase extensions are NOT included
+    assert "config.YAML" not in result_names
+    assert "config.YML" not in result_names
+    assert "config.Yaml" not in result_names
 
 
 @pytest.mark.parametrize(

@@ -401,6 +401,12 @@ class DriverChip:
         sequence.append((MADCTL, madctl))
         return madctl
 
+    def skip_command(self, command: str):
+        """
+        Allow suppressing a standard command in the init sequence.
+        """
+        return self.get_default(f"no_{command.lower()}", False)
+
     def get_sequence(self, config) -> tuple[tuple[int, ...], int]:
         """
         Create the init sequence for the display.
@@ -432,7 +438,9 @@ class DriverChip:
             sequence.append((INVOFF,))
         if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
             sequence.append((BRIGHTNESS, brightness))
-        sequence.append((SLPOUT,))
+        # Add a SLPOUT command if required.
+        if not self.skip_command("SLPOUT"):
+            sequence.append((SLPOUT,))
         sequence.append((DISPON,))
 
         # Flatten the sequence into a list of bytes, with the length of each command
