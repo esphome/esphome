@@ -44,7 +44,7 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
     case 12:
       return "CH9102F";
     case 13:
-      retval = "CH9102X";
+      return "CH9102X";
     case 14:
       return "CH9103M";
     case 15:
