@@ -39,7 +39,7 @@ void SlowPWMOutput::set_output_state_(bool new_state) {
 }
 
 void SlowPWMOutput::loop() {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
   float scaled_state = this->state_ * this->current_period_;
 
   if (this->state_ > 0 && (!this->max_period_ || this->current_period_ < this->max_period_) &&
@@ -96,11 +96,17 @@ void SlowPWMOutput::dump_config() {
   if (this->turn_off_trigger_) {
     ESP_LOGCONFIG(TAG, "  Turn off automation configured");
   }
-  ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
-  ESP_LOGCONFIG(TAG, "  Restart cycle on state change: %s", YESNO(this->restart_cycle_on_state_change_));
-  ESP_LOGCONFIG(TAG, "  Minimum time on: %d ms", this->min_time_on_);
-  ESP_LOGCONFIG(TAG, "  Minimum time off: %d ms", this->min_time_off_);
-  ESP_LOGCONFIG(TAG, "  Maximum period length: %d ms", this->max_period_);
+  ESP_LOGCONFIG(TAG,
+                "  Period: %d ms\n"
+                "  Restart cycle on state change: %s\n"
+                "  Minimum time on: %d ms\n"
+                "  Minimum time off: %d ms\n"
+                "  Maximum period length: %d ms",
+                this->period_,
+                YESNO(this->restart_cycle_on_state_change_),
+                this->min_time_on_,
+                this->min_time_off_,
+                this->max_period_);
   LOG_FLOAT_OUTPUT(this);
 }
 
