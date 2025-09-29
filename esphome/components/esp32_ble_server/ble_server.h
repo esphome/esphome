@@ -31,11 +31,9 @@ enum EmptyEvt {
 };
 }  // namespace BLEServerEvt
 
-class BLEServer : public Component,
-                  public GATTsEventHandler,
-                  public BLEStatusEventHandler,
-                  public Parented<ESP32BLE>,
-                  public EventEmitter<BLEServerEvt::EmptyEvt, uint16_t> {
+// Base class for BLE server
+// Note: Only one BLEServer instance exists per build, so we can use fixed defines
+class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
@@ -65,7 +63,16 @@ class BLEServer : public Component,
 
   void ble_before_disabled_event_handler() override;
 
+  // Event listener registration - overridden by generated specialized classes if needed
+  virtual EventEmitterListenerID on_connect(std::function<void(uint16_t)> &&listener) { return INVALID_LISTENER_ID; }
+  virtual EventEmitterListenerID on_disconnect(std::function<void(uint16_t)> &&listener) { return INVALID_LISTENER_ID; }
+  virtual void off_connect(EventEmitterListenerID id) {}
+  virtual void off_disconnect(EventEmitterListenerID id) {}
+
  protected:
+  // Virtual methods for emitting events
+  virtual void emit_on_connect_(uint16_t conn_id) {}
+  virtual void emit_on_disconnect_(uint16_t conn_id) {}
   struct ServiceEntry {
     ESPBTUUID uuid;
     uint8_t inst_id;

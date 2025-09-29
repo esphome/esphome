@@ -1,5 +1,5 @@
 #pragma once
-#include <vector>
+#include <array>
 #include <functional>
 #include <limits>
 
@@ -13,34 +13,31 @@ static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
 
 // EventEmitter class that can emit events with a specific name (it is highly recommended to use an enum class for this)
 // and a list of arguments. Supports multiple listeners for each event.
-template<typename EvtType, typename... Args> class EventEmitter {
+// MaxListeners is the compile-time maximum number of listeners per event type.
+template<typename EvtType, size_t MaxListeners, typename... Args> class EventEmitter {
  public:
   EventEmitterListenerID on(EvtType event, std::function<void(Args...)> listener) {
-    EventEmitterListenerID listener_id = this->get_next_id_();
-
-    // Find or create event entry
-    EventEntry *entry = this->find_or_create_event_(event);
-    entry->listeners.push_back({listener_id, listener});
-
-    return listener_id;
+    // Find a free slot in the listeners array
+    for (auto &entry : this->listeners_) {
+      if (entry.id == INVALID_LISTENER_ID) {
+        // Found empty slot
+        EventEmitterListenerID listener_id = this->get_next_id_();
+        entry.id = listener_id;
+        entry.event = event;
+        entry.callback = std::move(listener);
+        return listener_id;
+      }
+    }
+    // No free slots - array is full
+    return INVALID_LISTENER_ID;
   }
 
   void off(EvtType event, EventEmitterListenerID id) {
-    EventEntry *entry = this->find_event_(event);
-    if (entry == nullptr)
-      return;
-
-    // Remove listener with given id
-    for (auto it = entry->listeners.begin(); it != entry->listeners.end(); ++it) {
-      if (it->id == id) {
-        // Swap with last and pop for efficient removal
-        *it = entry->listeners.back();
-        entry->listeners.pop_back();
-
-        // Remove event entry if no more listeners
-        if (entry->listeners.empty()) {
-          this->remove_event_(event);
-        }
+    // Find and remove listener with given id
+    for (auto &entry : this->listeners_) {
+      if (entry.id == id && entry.event == event) {
+        entry.id = INVALID_LISTENER_ID;
+        entry.callback = nullptr;
         return;
       }
     }
@@ -48,25 +45,19 @@ template<typename EvtType, typename... Args> class EventEmitter {
 
  protected:
   void emit_(EvtType event, Args... args) {
-    EventEntry *entry = this->find_event_(event);
-    if (entry == nullptr)
-      return;
-
     // Call all listeners for this event
-    for (const auto &listener : entry->listeners) {
-      listener.callback(args...);
+    for (const auto &entry : this->listeners_) {
+      if (entry.id != INVALID_LISTENER_ID && entry.event == event) {
+        entry.callback(args...);
+      }
     }
   }
 
  private:
-  struct Listener {
-    EventEmitterListenerID id;
-    std::function<void(Args...)> callback;
-  };
-
-  struct EventEntry {
+  struct ListenerEntry {
     EvtType event;
-    std::vector<Listener> listeners;
+    EventEmitterListenerID id{INVALID_LISTENER_ID};
+    std::function<void(Args...)> callback{nullptr};
   };
 
   EventEmitterListenerID get_next_id_() {
@@ -79,38 +70,8 @@ template<typename EvtType, typename... Args> class EventEmitter {
     return this->current_id_;
   }
 
-  EventEntry *find_event_(EvtType event) {
-    for (auto &entry : this->events_) {
-      if (entry.event == event) {
-        return &entry;
-      }
-    }
-    return nullptr;
-  }
-
-  EventEntry *find_or_create_event_(EvtType event) {
-    EventEntry *entry = this->find_event_(event);
-    if (entry != nullptr)
-      return entry;
-
-    // Create new event entry
-    this->events_.push_back({event, {}});
-    return &this->events_.back();
-  }
-
-  void remove_event_(EvtType event) {
-    for (auto it = this->events_.begin(); it != this->events_.end(); ++it) {
-      if (it->event == event) {
-        // Swap with last and pop
-        *it = this->events_.back();
-        this->events_.pop_back();
-        return;
-      }
-    }
-  }
-
-  std::vector<EventEntry> events_;
-  EventEmitterListenerID current_id_ = 0;
+  std::array<ListenerEntry, MaxListeners> listeners_{};
+  EventEmitterListenerID current_id_{0};
 };
 
 }  // namespace event_emitter

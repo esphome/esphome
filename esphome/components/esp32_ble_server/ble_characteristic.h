@@ -6,6 +6,7 @@
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <vector>
+#include <span>
 
 #ifdef USE_ESP32
 
@@ -36,8 +37,9 @@ enum EmptyEvt {
 };
 }  // namespace BLECharacteristicEvt
 
-class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>,
-                          public EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t> {
+// Base class for BLE characteristics
+// Specialized classes with EventEmitter support are generated per-UUID in the build process
+class BLECharacteristic {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
@@ -76,7 +78,19 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   bool is_created();
   bool is_failed();
 
+  // Event listener registration - overridden by generated specialized classes
+  virtual EventEmitterListenerID on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&listener) {
+    return INVALID_LISTENER_ID;
+  }
+  virtual EventEmitterListenerID on_read(std::function<void(uint16_t)> &&listener) { return INVALID_LISTENER_ID; }
+  virtual void off_write(EventEmitterListenerID id) {}
+  virtual void off_read(EventEmitterListenerID id) {}
+
  protected:
+  // Virtual methods for emitting events - overridden by generated specialized classes
+  virtual void emit_on_write_(std::span<const uint8_t> value, uint16_t conn_id) {}
+  virtual void emit_on_read_(uint16_t conn_id) {}
+
   bool write_event_{false};
   BLEService *service_{};
   ESPBTUUID uuid_;

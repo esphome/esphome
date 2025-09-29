@@ -41,6 +41,10 @@ BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_ch
   return characteristic;
 }
 
+void BLEService::add_characteristic(BLECharacteristic *characteristic) {
+  this->characteristics_.push_back(characteristic);
+}
+
 void BLEService::do_create(BLEServer *server) {
   this->server_ = server;
 

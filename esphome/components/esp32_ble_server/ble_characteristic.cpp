@@ -208,8 +208,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (!param->read.need_rsp)
         break;  // For some reason you can request a read but not want a response
 
-      this->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::emit_(BLECharacteristicEvt::EmptyEvt::ON_READ,
-                                                                          param->read.conn_id);
+      this->emit_on_read_(param->read.conn_id);
 
       uint16_t max_offset = 22;
 
@@ -277,8 +276,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       }
 
       if (!param->write.is_prep) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->write.conn_id);
+        this->emit_on_write_(this->value_, param->write.conn_id);
       }
 
       break;
@@ -289,8 +287,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         break;
       this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->exec_write.conn_id);
+        this->emit_on_write_(this->value_, param->exec_write.conn_id);
       }
       esp_err_t err =
           esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);

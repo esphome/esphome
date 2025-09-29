@@ -31,6 +31,9 @@ class BLEService {
   BLECharacteristic *create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties);
 
+  // Add pre-constructed characteristic (used by generated code)
+  void add_characteristic(BLECharacteristic *characteristic);
+
   ESPBTUUID get_uuid() { return this->uuid_; }
   uint8_t get_inst_id() { return this->inst_id_; }
   BLECharacteristic *get_last_created_characteristic() { return this->last_created_characteristic_; }

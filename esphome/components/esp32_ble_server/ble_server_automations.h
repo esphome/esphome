@@ -46,8 +46,12 @@ enum BLECharacteristicSetValueActionEvt {
 };
 
 // Class to make sure only one BLECharacteristicSetValueAction is active at a time for each characteristic
+#ifndef BLE_SET_VALUE_ACTION_MAX_LISTENERS
+#define BLE_SET_VALUE_ACTION_MAX_LISTENERS 1
+#endif
+
 class BLECharacteristicSetValueActionManager
-    : public EventEmitter<BLECharacteristicSetValueActionEvt, BLECharacteristic *> {
+    : public EventEmitter<BLECharacteristicSetValueActionEvt, BLE_SET_VALUE_ACTION_MAX_LISTENERS, BLECharacteristic *> {
  public:
   // Singleton pattern
   static BLECharacteristicSetValueActionManager *get_instance() {
@@ -92,11 +96,10 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
     // Set initial value
     this->parent_->set_value(this->buffer_.value(x...));
     // Set the listener for read events
-    this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::on(
-        BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...](uint16_t id) {
-          // Set the value of the characteristic every time it is read
-          this->parent_->set_value(this->buffer_.value(x...));
-        });
+    this->listener_id_ = this->parent_->on_read([this, x...](uint16_t id) {
+      // Set the value of the characteristic every time it is read
+      this->parent_->set_value(this->buffer_.value(x...));
+    });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
         this->parent_, this->listener_id_, [this, x...]() { this->parent_->set_value(this->buffer_.value(x...)); });

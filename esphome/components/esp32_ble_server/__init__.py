@@ -1,4 +1,5 @@
 import encodings
+from typing import TypeAlias
 
 from esphome import automation
 import esphome.codegen as cg
@@ -30,6 +31,92 @@ AUTO_LOAD = ["esp32_ble", "bytebuffer", "event_emitter"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_ble_server"
+
+# Type aliases
+_ListenerAllocation: TypeAlias = tuple[str, int | str, int]  # (component, uuid, count)
+_ServerListenerAllocation: TypeAlias = tuple[str, int]  # (component, count)
+
+# Event listener allocation tracking - used by components to reserve slots
+_LISTENER_ALLOCATIONS: dict[
+    str, list[_ListenerAllocation | _ServerListenerAllocation]
+] = {
+    "characteristic_write": [],
+    "characteristic_read": [],
+    "descriptor_write": [],
+    "server_connect": [],
+    "server_disconnect": [],
+}
+
+
+def allocate_characteristic_event_listener(
+    uuid: int | str, event_type: str, component: str, count: int = 1
+) -> None:
+    """
+    Allocate event listener slots for a characteristic.
+
+    Args:
+        uuid: The characteristic UUID (int or string)
+        event_type: "WRITE" or "READ"
+        component: Name of the component requesting allocation
+        count: Number of listeners needed (default 1)
+    """
+    if event_type not in ("WRITE", "READ"):
+        raise ValueError(f"Unknown event_type: {event_type}")
+
+    key = f"characteristic_{event_type.lower()}"
+    _LISTENER_ALLOCATIONS[key].append((component, uuid, count))
+
+
+def allocate_descriptor_event_listener(
+    uuid: int | str, event_type: str, component: str, count: int = 1
+) -> None:
+    """Allocate event listener slots for a descriptor."""
+    if event_type != "WRITE":
+        raise ValueError(f"Unknown event_type: {event_type}")
+
+    _LISTENER_ALLOCATIONS["descriptor_write"].append((component, uuid, count))
+
+
+def allocate_server_event_listener(
+    event_type: str, component: str, count: int = 1
+) -> None:
+    """Allocate event listener slots for server events."""
+    if event_type not in ("CONNECT", "DISCONNECT"):
+        raise ValueError(f"Unknown event_type: {event_type}")
+
+    key = f"server_{event_type.lower()}"
+    _LISTENER_ALLOCATIONS[key].append((component, count))
+
+
+def _sum_allocations_for_uuid(allocation_key: str, uuid: int | str) -> int:
+    """Helper to sum allocations for a specific UUID."""
+    return sum(
+        count
+        for comp, alloc_uuid, count in _LISTENER_ALLOCATIONS[allocation_key]
+        if alloc_uuid == uuid
+    )
+
+
+def _get_allocations_for_uuid(uuid: int | str, event_type: str) -> int:
+    """Get total allocated listeners for a specific UUID and event type."""
+    if event_type not in ("WRITE", "READ"):
+        return 0
+    key = f"characteristic_{event_type.lower()}"
+    return _sum_allocations_for_uuid(key, uuid)
+
+
+def _get_descriptor_allocations_for_uuid(uuid: int | str) -> int:
+    """Get total allocated listeners for a descriptor UUID."""
+    return _sum_allocations_for_uuid("descriptor_write", uuid)
+
+
+def sanitize_uuid_for_identifier(uuid: int | str) -> str:
+    """Convert UUID to valid C++ identifier."""
+    if isinstance(uuid, int):
+        return f"0x{uuid:04X}"
+    # For string UUIDs, replace dashes and colons with underscores
+    return str(uuid).replace("-", "_").replace(":", "_").lower()
+
 
 CONF_ADVERTISE = "advertise"
 CONF_APPEARANCE = "appearance"
