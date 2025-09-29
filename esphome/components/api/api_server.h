@@ -191,13 +191,10 @@ class APIServer : public Component, public Controller {
   // Group smaller types together
   uint16_t port_{6053};
   uint16_t batch_delay_{100};
-#ifdef USE_ESP8266
-  uint8_t listen_backlog_{1};
-  uint8_t max_connections_{4};
-#else
+  // Connection limits - these defaults will be overridden by config values
+  // from cv.SplitDefault in __init__.py which sets platform-specific defaults
   uint8_t listen_backlog_{4};
   uint8_t max_connections_{8};
-#endif
   bool shutting_down_ = false;
   // 7 bytes used, 1 byte padding
 
