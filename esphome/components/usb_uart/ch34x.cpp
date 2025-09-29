@@ -104,7 +104,6 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
 }
 
 void USBUartTypeCH34X::enum_chip_type_() {
-  uint8_t size = 8;
   std::vector<uint8_t> buffer = {0, 0, 0, 0, 0, 0, 0, 0};
   usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
     if (!status.success) {
