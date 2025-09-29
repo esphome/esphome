@@ -83,7 +83,7 @@ class EthernetComponent : public Component {
 #endif
   void set_type(EthernetType type);
   void set_manual_ip(const ManualIP &manual_ip);
-  void set_fixed_mac(const std::vector<uint8_t> &mac) { fixed_mac_ = mac; }
+  void set_fixed_mac(const std::vector<uint8_t> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
