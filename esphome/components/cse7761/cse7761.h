@@ -22,7 +22,7 @@ struct CSE7761DataStruct {
   uint16_t coefficient[8] = {0};
   uint8_t energy_update = 0;
   bool ready = false;
-  CSE7761Model model = CSE7761_MODEL_DUALR3;
+  CSE7761Model model = CSE7761_MODEL_SONOFF_DUALR3;
 };
 
 /// This class implements support for the CSE7761 UART power sensor.
