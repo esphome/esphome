@@ -382,6 +382,12 @@ class LoadValidationStep(ConfigValidationStep):
             result.add_str_error(f"Component not found: {self.domain}", path)
             return
         CORE.loaded_integrations.add(self.domain)
+        # For platform components, normalize conf before creating MetadataValidationStep
+        if component.is_platform_component:
+            if not self.conf:
+                result[self.domain] = self.conf = []
+            elif not isinstance(self.conf, list):
+                result[self.domain] = self.conf = [self.conf]
 
         # Process AUTO_LOAD
         for load in component.auto_load:
@@ -398,12 +404,6 @@ class LoadValidationStep(ConfigValidationStep):
         # This is a platform component, proceed to reading platform entries
         # Remove this is as an output path
         result.remove_output_path([self.domain], self.domain)
-
-        # Ensure conf is a list
-        if not self.conf:
-            result[self.domain] = self.conf = []
-        elif not isinstance(self.conf, list):
-            result[self.domain] = self.conf = [self.conf]
 
         for i, p_config in enumerate(self.conf):
             path = [self.domain, i]
