@@ -103,10 +103,7 @@ void SlowPWMOutput::dump_config() {
                 "  Minimum time on: %d ms\n"
                 "  Minimum time off: %d ms\n"
                 "  Maximum period length: %d ms",
-                this->period_,
-                YESNO(this->restart_cycle_on_state_change_),
-                this->min_time_on_,
-                this->min_time_off_,
+                this->period_, YESNO(this->restart_cycle_on_state_change_), this->min_time_on_, this->min_time_off_,
                 this->max_period_);
   LOG_FLOAT_OUTPUT(this);
 }
