@@ -8,13 +8,14 @@
 #include <esp_gatt_defs.h>
 #include <esp_gatts_api.h>
 #include <span>
+#include <functional>
+#include <memory>
 
 namespace esphome {
 namespace esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
-using namespace event_emitter;
 
 class BLECharacteristic;
 
@@ -34,9 +35,10 @@ class BLEDescriptor {
   bool is_created() { return this->state_ == CREATED; }
   bool is_failed() { return this->state_ == FAILED; }
 
-  // Direct callback registration
+  // Direct callback registration - only allocates when callback is set
   void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
-    this->on_write_callback_ = std::move(callback);
+    this->on_write_callback_ =
+        std::make_unique<std::function<void(std::span<const uint8_t>, uint16_t)>>(std::move(callback));
   }
 
  protected:
@@ -46,7 +48,7 @@ class BLEDescriptor {
 
   esp_attr_value_t value_{};
 
-  std::function<void(std::span<const uint8_t>, uint16_t)> on_write_callback_{nullptr};
+  std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
 
   esp_gatt_perm_t permissions_{};
 
