@@ -185,6 +185,9 @@ void Loki::esphome_loki_task(void *params) {
     struct QueueElement *elem = this_loki->loki_queue_.pop();
     if (elem != nullptr) {
       if (this_loki->enabled_) {
+        // Set HTTP timeout to prevent hanging connections
+        this_loki->set_http_timeout_();
+
         // Send HTTP POST request directly
         std::string payload(elem->json_payload, elem->payload_len);
         this_loki->parent_->post(this_loki->get_full_url_(), payload, this_loki->get_headers_());
@@ -250,6 +253,13 @@ void Loki::send_batch_() {
     return;
   }
 
+  // Rate limit HTTP requests to prevent connection exhaustion
+  uint32_t now = millis();
+  if (now - this->last_http_time_ < CONNECTION_DELAY_MS) {
+    // Too soon since last request, skip this batch
+    return;
+  }
+
   // Build JSON payload for the batch
   std::string json_payload = this->build_batch_json_();
 
@@ -258,6 +268,9 @@ void Loki::send_batch_() {
     // Queue is full - increment counter but don't log immediately to avoid cascade effect
     this->loki_queue_.increment_dropped_count();
   }
+
+  // Update timing
+  this->last_http_time_ = now;
 
   // Clear the batch
   this->log_batch_.clear();
@@ -309,6 +322,11 @@ std::string Loki::build_batch_json_() {
       }
     }
   });
+}
+
+void Loki::set_http_timeout_() {
+  // Set HTTP timeout to prevent hanging connections
+  this->parent_->set_timeout(HTTP_TIMEOUT_MS);
 }
 #endif  // USE_ESP32
 

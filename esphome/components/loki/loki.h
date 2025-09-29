@@ -124,11 +124,13 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
 #endif
 
 #ifdef USE_ESP32
-  static const uint8_t LOKI_QUEUE_LENGTH = 20;  // 20 queue elements for log messages
+  static const uint8_t LOKI_QUEUE_LENGTH = 10;  // Reduced queue size to prevent connection buildup
   static const size_t TASK_STACK_SIZE = 3072;
   static const ssize_t TASK_PRIORITY = 5;
-  static const uint8_t BATCH_SIZE = 5;            // Batch up to 5 log messages per HTTP request
-  static const uint32_t BATCH_TIMEOUT_MS = 1000;  // Send batch after 1 second even if not full
+  static const uint8_t BATCH_SIZE = 3;              // Smaller batch size to reduce connection time
+  static const uint32_t BATCH_TIMEOUT_MS = 2000;    // Longer timeout to allow batching
+  static const uint32_t HTTP_TIMEOUT_MS = 5000;     // HTTP request timeout
+  static const uint32_t CONNECTION_DELAY_MS = 100;  // Delay between HTTP requests
 
   static void esphome_loki_task(void *params);
   EventPool<struct QueueElement, LOKI_QUEUE_LENGTH> loki_event_pool_;
@@ -139,9 +141,11 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   // Batching support
   std::vector<BatchedLogEntry> log_batch_;
   uint32_t last_batch_time_{0};
+  uint32_t last_http_time_{0};
   void add_to_batch_(int level, const char *tag, const char *message, size_t message_len, int64_t timestamp_ns);
   void send_batch_();
   std::string build_batch_json_();
+  void set_http_timeout_();
 #endif
 };
 }  // namespace loki
