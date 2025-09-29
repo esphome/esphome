@@ -10,7 +10,7 @@ params:
 The `debug` component can be used to debug problems with ESPHome. At startup, it prints
 a bunch of useful information like reset reason, free heap size, ESPHome version and so on.
 It also allows you to get the same information as a text sensor, and to monitor the state of the
-ESP heap memory (free space, maximum free block size and fragmentation level) and the main-loop timing.
+ESP heap memory (free space, maximum free block size and fragmentation level) and the main-loop timing. Monitoring can be done via the logger or web server component if it has been configured.
 
 {{< img src="debug.png" alt="Image" caption="Example debug component output." class="align-center" >}}
 
@@ -40,10 +40,6 @@ sensor:
       name: "Free PSRAM"
     cpu_frequency:
       name: "CPU Frequency"
-
-# Logger must be configured
-logger:
-  level: debug
 ```
 
 ## Text Sensor

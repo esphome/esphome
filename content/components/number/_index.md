@@ -231,7 +231,7 @@ Configuration variables:
 
 ### `number.to_min` Action
 
-This is an [Action](#config-action) seting a number to its minimum value, given
+This is an [Action](#config-action) setting a number to its minimum value, given
 a number component that has a minimum value defined for it.
 
 ```yaml
@@ -250,7 +250,7 @@ Configuration variables:
 
 ### `number.to_max` Action
 
-This is an [Action](#config-action) seting a number to its maximum value (given
+This is an [Action](#config-action) setting a number to its maximum value, given
 a number component that has a maximum value defined for it.
 
 ```yaml

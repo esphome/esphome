@@ -6,8 +6,9 @@ params:
     description: Instructions for setting up a StatsD
 ---
 
-StatsD is a [protocol](https://github.com/statsd/statsd/blob/master/docs/metric_types.md) to send metrics to a Daemon to store and aggregate them.
-Today there are many monitoring solutions that support receiving metrics via the StatsD protocol.
+StatsD is a [protocol](https://github.com/statsd/statsd/blob/master/docs/metric_types.md) to send metrics to a Daemon
+to store and aggregate them. Today there are many monitoring solutions that support receiving metrics via the StatsD
+protocol.
 
 ```yaml
 # Example configuration entry

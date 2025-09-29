@@ -136,14 +136,6 @@ Creates an HTML anchor point that can be linked to with fragment identifiers.
 
 NOTE: Headings automatically create anchors, so it is not necessary to insert `anchor` shortcodes for them.
 
-### `button`
-
-Creates a button with an image that links to a URL.
-
-``` text
-{{< button href="https://example.com" img="/images/button.png" alt="Example Button" target="_self" >}}
-```
-
 ### `collapse`
 
 Creates a collapsible section with a title that can be clicked to show/hide content.
@@ -385,7 +377,7 @@ To run the site locally:
 1. Clone this repository
 1. Navigate to the repository directory
 1. Run `make live-html`
-1. Open your browser to <http://localhost:1313/>
+1. Open your browser to <http://localhost:8000/>
 
 ## Building for Production
 

@@ -116,7 +116,7 @@ menu:
 
     - name: Community
       weight: 2
-    - { parent: Community, url: "https://discord.gg/KhAMKrd/", post: "discord", name: Discord}
+    - { parent: Community, url: "https://discord.gg/KhAMKrd", post: "discord", name: Discord}
     - { parent: Community, url: "https://github.com/esphome/esphome", post: "github", name: Github}
     - { parent: Community, url: "https://community.home-assistant.io/c/esphome/", post: "comments", name: Forum}
 

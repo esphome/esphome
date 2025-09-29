@@ -31,7 +31,8 @@ All time configuration schemas inherit these options.
 - **on_time_sync** (*Optional*, [Automation](#automation)): Automation to run when the time source
   could be (re-)synchronized.. See [`on_time_sync` Trigger](#time-on_time_sync).
 
-- **update_interval** (*Optional*, [Time](#config-time)): How often to synchronize the device time from the source. Defaults to `15min`.
+- **update_interval** (*Optional*, [Time](#config-time)): How often to synchronize the device time from the source.
+  Defaults to `15min`.
 
 {{< anchor "time-has_time_condition" >}}
 
@@ -65,7 +66,8 @@ specific times of day. The syntax is a subset of the [crontab](https://crontab.g
 There are two ways to specify time intervals: Either with using the `seconds:`, `minutes:`, ...
 keys as seen below or using a cron alike expression like `* /5 * * * *`.
 
-Be aware normal cron implementations does not know about seconds like this esphome implementation, therefore you got 6 fields (seconds,minutes,hours,dayofmonth,month,dayofweek).
+Be aware normal cron implementations does not know about seconds like this esphome implementation, therefore you got 6
+fields (seconds,minutes,hours,dayofmonth,month,dayofweek).
 
 Basically, the automation engine looks at your configured time schedule every second and
 evaluates if the automation should run.
@@ -118,7 +120,9 @@ Configuration variables:
   Range is from 1 (Sunday) to 7 (Saturday).
 
 - **cron** (*Optional*, string): Alternatively, you can specify a whole cron expression like
-  `* /5 * * * *`. Please note that years and some special characters like `L`, `#` are currently not supported. Also, the day of week field is interpreted like the **days_of_week** variable (range from 1 (Sunday) to 7 (Saturday)) and not like other cron implementations would do it (range from 0 (Sunday) to 7 (Sunday)).
+  `* /5 * * * *`. Please note that years and some special characters like `L`, `#` are currently not supported. Also,
+  the day of week field is interpreted like the **days_of_week** variable (range from 1 (Sunday) to 7 (Saturday)) and
+  not like other cron implementations would do it (range from 0 (Sunday) to 7 (Sunday)).
 
 - See [Automation](#automation).
 

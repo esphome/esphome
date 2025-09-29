@@ -4,18 +4,19 @@ Convert Sphinx RST files to Hugo Markdown format.
 This script helps migrate the ESPHome documentation from Sphinx to Hugo.
 """
 
-import os
-from itertools import zip_longest
-import io
-import re
-import csv
 import argparse
+import csv
+import io
+import os
+import re
 import shutil
+from itertools import zip_longest
 
 from git import Repo
 
 # Global anchor map to store all anchors and their document paths
 anchor_map = {}
+
 
 # Global variables for image tracking
 class ImageInfo:
@@ -29,10 +30,10 @@ class ImageInfo:
         self.count += 1
 
 
-
 image_map = {}
 included_files = set()
 substitutions = {}
+
 
 def find_included_files(file_path):
     """
@@ -47,11 +48,11 @@ def find_included_files(file_path):
     include_file_list = []
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Look for .. include:: directives
-        include_pattern = r'^\s*\.\.\s+include::\s+(.+?)$'
+        include_pattern = r"^\s*\.\.\s+include::\s+(.+?)$"
         matches = re.finditer(include_pattern, content, re.MULTILINE)
 
         for match in matches:
@@ -59,7 +60,9 @@ def find_included_files(file_path):
 
             # Handle relative paths
             if not os.path.isabs(included_path):
-                included_path = os.path.normpath(os.path.join(os.path.dirname(file_path), included_path))
+                included_path = os.path.normpath(
+                    os.path.join(os.path.dirname(file_path), included_path)
+                )
 
             # Check if the file exists
             if os.path.exists(included_path):
@@ -73,56 +76,67 @@ def find_included_files(file_path):
         print(f"Error parsing includes in {file_path}: {e}")
         return []
 
+
 def get_all_included_files(input_dir):
     for root, _, files in os.walk(input_dir):
         for file in files:
-            if file.endswith('.rst'):
-                included_files.update(set(find_included_files(os.path.join(root, file))))
+            if file.endswith(".rst"):
+                included_files.update(
+                    set(find_included_files(os.path.join(root, file)))
+                )
+
 
 def build_anchor_map(input_dir):
     """Scan all RST files and build a map of anchors to their document paths."""
     print("Building anchor map...")
-    
+
     for root, _, files in os.walk(input_dir):
         for file in files:
             file_path = str(os.path.join(root, file))
-            if not file_path in included_files and file.endswith('.rst'):
+            if file_path not in included_files and file.endswith(".rst"):
                 rel_path = os.path.relpath(file_path, input_dir)
                 doc_path = os.path.splitext(rel_path)[0]
-                
+
                 # Convert to Hugo path format
                 doc_path = doc_path.lower()
-                
+
                 # Handle index files
-                if os.path.basename(doc_path) == 'index':
-                    doc_path = os.path.dirname(doc_path) + '/_index'
+                if os.path.basename(doc_path) == "index":
+                    doc_path = os.path.dirname(doc_path) + "/_index"
 
                 rel_path, rst_content = get_rst_content(input_dir, file_path)
                 for i, line in enumerate(rst_content):
-
-                    if line.startswith('.. _') and line.endswith(':'):
-                        anchor_name = line[4:-1]  # Extract the anchor name without the '.. _' prefix and ':' suffix
+                    if line.startswith(".. _") and line.endswith(":"):
+                        anchor_name = line[
+                            4:-1
+                        ]  # Extract the anchor name without the '.. _' prefix and ':' suffix
                         if i < len(rst_content) - 2:
                             text = rst_content[i + 2].strip()
                         else:
-                            text = ''
+                            text = ""
                         anchor_map[anchor_name] = doc_path, text
 
     print(f"Found {len(anchor_map)} anchors across all documents")
 
+
 def normalize_csv_lines(lines, delimiter=","):
     # Read from list of lines using StringIO
-    reader = csv.reader(io.StringIO('\n'.join(lines)), delimiter=delimiter, quotechar='"', skipinitialspace=True)
+    reader = csv.reader(
+        io.StringIO("\n".join(lines)),
+        delimiter=delimiter,
+        quotechar='"',
+        skipinitialspace=True,
+    )
     rows = list(reader)
 
     # Find the max number of columns
     max_columns = max(len(row) for row in rows)
 
     # Pad rows with missing columns
-    normalized_rows = [row + [''] * (max_columns - len(row)) for row in rows]
+    normalized_rows = [row + [""] * (max_columns - len(row)) for row in rows]
     for row in normalized_rows:
         if len(row) > 2:
-            row[2] = row[2].replace('.avif', '.webp')
+            row[2] = row[2].replace(".avif", ".webp")
 
     return normalized_rows
 
@@ -135,35 +149,36 @@ def get_indented_block(lines, i, current_indent):
     md_lines = []
     # Determine the indentation level of the code block content
     code_indent = 0
-    if i < len(lines) and lines[i].startswith(' '):
-        code_indent = len(lines[i]) - len(lines[i].lstrip(' '))
+    if i < len(lines) and lines[i].startswith(" "):
+        code_indent = len(lines[i]) - len(lines[i].lstrip(" "))
 
     # Add code content
     while i < len(lines):
         line = lines[i]
         this_indent = min(len(line) - len(line.lstrip()), code_indent)
         if not line:
-            md_lines.append('')
+            md_lines.append("")
             i += 1
-        elif this_indent and this_indent >= code_indent -1:
+        elif this_indent and this_indent >= code_indent - 1:
             # Remove only the code block indentation, preserve any existing indentation
             if this_indent >= code_indent:
                 line = line[this_indent:]
             else:
-                line = line[this_indent - 1:]
-            md_lines.append(' ' * current_indent + line)
+                line = line[this_indent - 1 :]
+            md_lines.append(" " * current_indent + line)
             i += 1
         else:  # Line without expected indentation - end of code block
             break
     return i, md_lines
 
-bullet_regex = re.compile(r'^(\s*)([-*+])\s+')
+
+bullet_regex = re.compile(r"^(\s*)([-*+])\s+")
 
 
 def get_heading(lines, index, heading_underlines):
     while index < len(lines):
         line = lines[index]
-        if line.strip() == '':
+        if line.strip() == "":
             index += 1
             continue
         if line and index + 1 < len(lines) and len(lines[index + 1]) >= len(line):
@@ -175,16 +190,15 @@ def get_heading(lines, index, heading_underlines):
         break
     return None, None, None
 
+
 def rst_unicode_to_markdown(text):
     # Capture: optional text, optional whitespace, and one or more 0xAB sequences
-    pattern = re.compile(
-        r'unicode::\s*([^\d]*?)?\s*((?:0x[0-9A-Fa-f]+(?:\s+)?)+)'
-    )
+    pattern = re.compile(r"unicode::\s*([^\d]*?)?\s*((?:0x[0-9A-Fa-f]+(?:\s+)?)+)")
 
     def repl(match):
-        literal_text = (match.group(1) or '').rstrip()
+        literal_text = (match.group(1) or "").rstrip()
         codepoints = match.group(2).split()
-        chars = ''.join(chr(int(cp, 16)) for cp in codepoints)
+        chars = "".join(chr(int(cp, 16)) for cp in codepoints)
         return f"{literal_text}{chars}"
 
     return pattern.sub(repl, text)
@@ -203,7 +217,6 @@ def convert_rst_to_md(lines, filename):
     skip_build = False
 
     def process_lines(inner_lines):
-
         result_lines = []
         current_idx = 0
 
@@ -214,12 +227,14 @@ def convert_rst_to_md(lines, filename):
 
             current_indent = len(this_line) - len(this_line.lstrip())
             # Skip title directive
-            if this_line.startswith('.. title::'):
+            if this_line.startswith(".. title::"):
                 current_idx += 1
                 continue
 
             if this_line.startswith(".. seo::"):
-                current_idx, seo_lines = get_indented_block(inner_lines, current_idx + 1, 0)
+                current_idx, seo_lines = get_indented_block(
+                    inner_lines, current_idx + 1, 0
+                )
                 for this_line in seo_lines:
                     if this_line.strip().startswith(":description:"):
                         seo["description"] = this_line.split(":")[2].strip()
@@ -227,45 +242,51 @@ def convert_rst_to_md(lines, filename):
                         seo["image"] = this_line.split(":")[2].strip()
                 continue
 
-            if this_line.startswith('.. option::'):
-                text = this_line.replace('.. option::', '').strip()
+            if this_line.startswith(".. option::"):
+                text = this_line.replace(".. option::", "").strip()
                 current_idx += 1
-                while current_idx < len(inner_lines) and not inner_lines[current_idx].strip():
+                while (
+                    current_idx < len(inner_lines)
+                    and not inner_lines[current_idx].strip()
+                ):
                     current_idx += 1
                 result_lines.append(f'{{{{< option "{text}" >}}}}')
                 while current_idx < len(inner_lines):
                     if not inner_lines[current_idx]:
-                        result_lines.append('')
+                        result_lines.append("")
                         current_idx += 1
                         continue
-                    if inner_lines[current_idx].startswith(' '):
+                    if inner_lines[current_idx].startswith(" "):
                         result_lines.append(inner_lines[current_idx].strip())
                         current_idx += 1
                     else:
                         break
-                result_lines.append('{{< /option >}}')
+                result_lines.append("{{< /option >}}")
                 continue
 
             # Handle imgtable directive
-            if this_line.strip() == '.. imgtable::':
+            if this_line.strip() == ".. imgtable::":
                 current_idx += 1
                 # Skip empty lines
-                while current_idx < len(inner_lines) and not inner_lines[current_idx].strip():
+                while (
+                    current_idx < len(inner_lines)
+                    and not inner_lines[current_idx].strip()
+                ):
                     current_idx += 1
 
                 # Start the imgtable shortcode
-                result_lines.append('{{< imgtable >}}')
+                result_lines.append("{{< imgtable >}}")
                 csv_lines = []
                 # Process each entry (each line should be indented)
                 while current_idx < len(inner_lines):
                     current_line = inner_lines[current_idx].strip()
 
                     # If we hit an empty line or a non-indented line, we're done with this imgtable
-                    if not inner_lines[current_idx].startswith('    ') and current_line:
+                    if not inner_lines[current_idx].startswith("    ") and current_line:
                         break
 
                     # Skip empty lines within the imgtable
-                    if not current_line or current_line.startswith(':'):
+                    if not current_line or current_line.startswith(":"):
                         current_idx += 1
                         continue
 
@@ -275,59 +296,82 @@ def convert_rst_to_md(lines, filename):
 
                 csv_lines = normalize_csv_lines(csv_lines)
                 for row in csv_lines:
-                    result_lines.append(",".join('"' + col.strip().replace('"', '""').replace(':', ' -') + '"' for col in row))
+                    result_lines.append(
+                        ",".join(
+                            '"'
+                            + col.strip().replace('"', '""').replace(":", " -")
+                            + '"'
+                            for col in row
+                        )
+                    )
                 # Close the imgtable shortcode
-                result_lines.append('{{< /imgtable >}}')
+                result_lines.append("{{< /imgtable >}}")
                 continue
 
-            if this_line.startswith('.. program::'):
+            if this_line.startswith(".. program::"):
                 current_idx += 1
                 continue
 
             # Skip title (we'll add it later with frontmatter)
-            if this_line == title and current_idx + 1 < len(inner_lines) and re.match(r'^=+$', inner_lines[current_idx + 1]):
+            if (
+                this_line == title
+                and current_idx + 1 < len(inner_lines)
+                and re.match(r"^=+$", inner_lines[current_idx + 1])
+            ):
                 current_idx += 2
                 continue
 
             # Handle existing anchor shortcodes
             anchor_name = None
             if re.match(r'^\{{<\s+anchor\s+["\'](\w+)["\']\s+>}}', this_line):
-                anchor_name = re.match(r'^\{{<\s+anchor\s+["\'](\w+)["\']\s+>}}', this_line).group(1)
+                anchor_name = re.match(
+                    r'^\{{<\s+anchor\s+["\'](\w+)["\']\s+>}}', this_line
+                ).group(1)
             # Handle RST anchors (.. _anchor:)
-            elif this_line.startswith('.. _') and this_line.endswith(':'):
-                anchor_name = this_line[4:-1]  # Extract the anchor name without the '.. _' prefix and ':' suffix
+            elif this_line.startswith(".. _") and this_line.endswith(":"):
+                anchor_name = this_line[
+                    4:-1
+                ]  # Extract the anchor name without the '.. _' prefix and ':' suffix
             if anchor_name:
                 current_idx += 1
-                level, next_index, heading = get_heading(inner_lines, current_idx, heading_underlines)
+                level, next_index, heading = get_heading(
+                    inner_lines, current_idx, heading_underlines
+                )
                 if heading:
-                    heading = heading.lower().replace(' ', '-')
+                    heading = heading.lower().replace(" ", "-")
                 if heading != anchor_name.lower():
                     result_lines.append(f'{{{{< anchor "{anchor_name.lower()}" >}}}}')
                 continue
 
             # Handle raw HTML blocks that might contain buttons
-            if this_line.strip().startswith('.. raw:: html'):
+            if this_line.strip().startswith(".. raw:: html"):
                 button_lines, new_i = process_raw_html_block(inner_lines, current_idx)
                 result_lines.extend(button_lines)
                 current_idx = new_i
                 continue
 
             # Handle list-table directive
-            if this_line.strip().startswith('.. list-table::') or this_line.strip().startswith('..  list-table::'):
+            if this_line.strip().startswith(
+                ".. list-table::"
+            ) or this_line.strip().startswith("..  list-table::"):
                 table_lines, new_i = process_list_table(inner_lines, current_idx)
                 result_lines.extend(table_lines)
                 current_idx = new_i
                 continue
 
             # Handle csv-table directive
-            if this_line.strip().startswith('.. csv-table::'):
+            if this_line.strip().startswith(".. csv-table::"):
                 table_lines, new_i = process_csv_table(inner_lines, current_idx)
                 result_lines.extend(table_lines)
                 current_idx = new_i
                 continue
 
             # Handle headings
-            if this_line and current_idx + 1 < len(inner_lines) and len(inner_lines[current_idx + 1]) >= len(this_line):
+            if (
+                this_line
+                and current_idx + 1 < len(inner_lines)
+                and len(inner_lines[current_idx + 1]) >= len(this_line)
+            ):
                 next_line = inner_lines[current_idx + 1]
                 uchar = next_line[0]
                 if uchar in heading_underlines and all(x == uchar for x in next_line):
@@ -338,67 +382,79 @@ def convert_rst_to_md(lines, filename):
                     continue
 
             # Handle code blocks
-            if match := re.match(r'^(\s*)(-\s)?\.\.\s+(code-block|code)::\s*(\w*)', this_line):
-
+            if match := re.match(
+                r"^(\s*)(-\s)?\.\.\s+(code-block|code)::\s*(\w*)", this_line
+            ):
                 # Extract language
                 language = match.group(4)
-                prefix = match.group(2) or ''
-                leading_space = match.group(1) or ''
-                indent = len(prefix) + len (leading_space)
+                prefix = match.group(2) or ""
+                leading_space = match.group(1) or ""
+                indent = len(prefix) + len(leading_space)
 
                 # Add the code block start with proper indentation
                 result_lines.append(prefix + f"```{language}")
 
-                current_idx, new_lines = get_indented_block(inner_lines, current_idx + 1, current_indent + indent)
+                current_idx, new_lines = get_indented_block(
+                    inner_lines, current_idx + 1, current_indent + indent
+                )
                 while len(new_lines) and not new_lines[-1].strip():
                     new_lines.pop()
                 result_lines.extend(new_lines)
                 result_lines.append("")
-                result_lines.append(' ' * len(prefix) + "```")
+                result_lines.append(" " * len(prefix) + "```")
                 continue
 
-            if this_line.lstrip().startswith('.. math::'):
+            if this_line.lstrip().startswith(".. math::"):
                 # Get the indentation of the current line
 
                 # Add the code block start with proper indentation
-                result_lines.append(' ' * current_indent + "{{< math >}}")
+                result_lines.append(" " * current_indent + "{{< math >}}")
 
-                current_idx, new_lines = get_indented_block(inner_lines, current_idx + 1, current_indent)
+                current_idx, new_lines = get_indented_block(
+                    inner_lines, current_idx + 1, current_indent
+                )
                 result_lines.extend(new_lines)
-                result_lines.append(' ' * current_indent + "{{< /math >}}")
+                result_lines.append(" " * current_indent + "{{< /math >}}")
                 continue
 
-            if this_line.lstrip().startswith('.. collapse::'):
+            if this_line.lstrip().startswith(".. collapse::"):
                 # Get the indentation of the current line
                 collapse_title = this_line.strip().removeprefix(".. collapse::").strip()
 
                 # Add the code block start with proper indentation
 
                 is_open = False
-                current_idx, new_lines = get_indented_block(inner_lines, current_idx + 1, current_indent)
+                current_idx, new_lines = get_indented_block(
+                    inner_lines, current_idx + 1, current_indent
+                )
                 if new_lines[0].startswith(":open:"):
                     is_open = True
                     new_lines = new_lines[1:]
-                result_lines.append(' ' * current_indent + f'{{{{< collapse "{collapse_title}" {is_open} >}}}}')
+                result_lines.append(
+                    " " * current_indent
+                    + f'{{{{< collapse "{collapse_title}" {is_open} >}}}}'
+                )
                 result_lines.extend(new_lines)
-                result_lines.append(' ' * current_indent + "{{< /collapse >}}")
+                result_lines.append(" " * current_indent + "{{< /collapse >}}")
                 continue
-
-
 
             # Handle notes
             handled = False
             for directive in ["note", "warning", "caution", "important", "tip"]:
-                if this_line.strip().startswith(f'.. {directive}::'):
-                    if not this_line.strip().endswith(f'.. {directive}::'):
+                if this_line.strip().startswith(f".. {directive}::"):
+                    if not this_line.strip().endswith(f".. {directive}::"):
                         result_lines.append(f"{{{{< {directive} >}}}}")
-                        result_lines.append(this_line.removeprefix(f'.. {directive}::').strip())
+                        result_lines.append(
+                            this_line.removeprefix(f".. {directive}::").strip()
+                        )
                         result_lines.append(f"{{{{< /{directive} >}}}}")
                         current_idx += 1
                     else:
                         # Get the indentation level of the note directive
                         result_lines.append(f"{{{{< {directive} >}}}}")
-                        current_idx, note_lines = get_indented_block(inner_lines, current_idx + 1, current_indent)
+                        current_idx, note_lines = get_indented_block(
+                            inner_lines, current_idx + 1, current_indent
+                        )
                         note_lines = process_lines(note_lines)
                         # Note blocks can't be indented.
                         result_lines.extend(x[current_indent:] for x in note_lines)
@@ -409,7 +465,7 @@ def convert_rst_to_md(lines, filename):
                 continue
 
             # Handle figures
-            if this_line.strip().startswith('.. figure::'):
+            if this_line.strip().startswith(".. figure::"):
                 shortcode, new_i = process_image_directive(inner_lines, current_idx)
                 result_lines.append(shortcode)
                 result_lines.append("")
@@ -417,33 +473,44 @@ def convert_rst_to_md(lines, filename):
                 continue
 
             # Handle image directives
-            if this_line.strip().startswith('.. image::'):
+            if this_line.strip().startswith(".. image::"):
                 shortcode, new_i = process_image_directive(inner_lines, current_idx)
                 result_lines.append(shortcode)
                 current_idx = new_i
                 continue
 
             # Skip toctree
-            if this_line.startswith('.. toctree::'):
-                current_idx, _ = get_indented_block(inner_lines, current_idx + 1, current_indent)
+            if this_line.startswith(".. toctree::"):
+                current_idx, _ = get_indented_block(
+                    inner_lines, current_idx + 1, current_indent
+                )
                 continue
 
             # Handle grid tables
-            if (this_line.strip() and
-                    (this_line.count('=') > 3 or this_line.count('-') > 3) and
-                    all(c in '=+-| ' for c in this_line)):
+            if (
+                this_line.strip()
+                and (this_line.count("=") > 3 or this_line.count("-") > 3)
+                and all(c in "=+-| " for c in this_line)
+            ):
                 # Check if this is likely a grid table by looking at surrounding lines
                 is_grid_table = False
 
                 # Check if there's a content line after this separator
-                if current_idx + 1 < len(inner_lines) and inner_lines[current_idx + 1].strip():
+                if (
+                    current_idx + 1 < len(inner_lines)
+                    and inner_lines[current_idx + 1].strip()
+                ):
                     # If the next line has content and is followed by another separator, it's likely a table
-                    if (current_idx + 2 < len(inner_lines) and
-                            inner_lines[current_idx + 2].strip() and
-                            all(c in '=+-| ' for c in inner_lines[current_idx + 2].strip())):
+                    if (
+                        current_idx + 2 < len(inner_lines)
+                        and inner_lines[current_idx + 2].strip()
+                        and all(
+                            c in "=+-| " for c in inner_lines[current_idx + 2].strip()
+                        )
+                    ):
                         is_grid_table = True
                     # Or if the next line has content with multiple spaces between words (column alignment)
-                    elif '  ' in inner_lines[current_idx + 1]:
+                    elif "  " in inner_lines[current_idx + 1]:
                         is_grid_table = True
 
                 if is_grid_table:
@@ -454,19 +521,21 @@ def convert_rst_to_md(lines, filename):
                         continue
 
             # Handle footnote definitions
-            footnote_match = re.match(r'^\.\. \[([0-9#][^]]*)]', this_line.strip())
+            footnote_match = re.match(r"^\.\. \[([0-9#][^]]*)]", this_line.strip())
             if footnote_match:
                 footnote_label = footnote_match.group(1)
                 # Remove the # prefix if it exists (for auto-numbered or labeled footnotes)
-                if footnote_label.startswith('#'):
+                if footnote_label.startswith("#"):
                     footnote_label = footnote_label[1:]
 
                 # Get the indentation of the current line
                 current_indent = len(this_line) - len(this_line.lstrip())
 
                 # Get the footnote text from the same line after the label
-                rest_of_line = this_line.strip()[len(footnote_match.group(0)):].strip()
-                current_idx, new_lines = get_indented_block(inner_lines, current_idx + 1, current_indent)
+                rest_of_line = this_line.strip()[len(footnote_match.group(0)) :].strip()
+                current_idx, new_lines = get_indented_block(
+                    inner_lines, current_idx + 1, current_indent
+                )
 
                 # Store the footnote to add at the end of the document
                 footnotes.append([f"[^{footnote_label}]: {rest_of_line}"] + new_lines)
@@ -488,38 +557,55 @@ def convert_rst_to_md(lines, filename):
                     if not indent_stack:
                         indent_stack.append(indent_len)
 
-
             processed_line = process_inline_markup(fixed_line)
             processed_line = replace_substitutions(processed_line)
 
-
             # Fix image paths in markdown content
-            if '/components/' in filename and '![' in processed_line and '](/components/' in processed_line:
-                processed_line = processed_line.replace('](/components/', '](../')
-            elif '/components/' in filename and '![' in processed_line and '](images/' in processed_line:
-                processed_line = processed_line.replace('](images/', '](../images/')
+            if (
+                "/components/" in filename
+                and "![" in processed_line
+                and "](/components/" in processed_line
+            ):
+                processed_line = processed_line.replace("](/components/", "](../")
+            elif (
+                "/components/" in filename
+                and "![" in processed_line
+                and "](images/" in processed_line
+            ):
+                processed_line = processed_line.replace("](images/", "](../images/")
 
             # Fix SVG image paths in markdown content
-            if '![' in processed_line and '](_build/_images/' in processed_line and '.svg)' in processed_line:
-                processed_line = processed_line.replace('](_build/_images/', '](/images/_build/_images/')
+            if (
+                "![" in processed_line
+                and "](_build/_images/" in processed_line
+                and ".svg)" in processed_line
+            ):
+                processed_line = processed_line.replace(
+                    "](_build/_images/", "](/images/_build/_images/"
+                )
 
             # Special handling for wireguard
-            processed_line = re.sub(r'WireGuard®_', r'[WireGuard®](https://www.wireguard.org/)', processed_line)
+            processed_line = re.sub(
+                r"WireGuard®_",
+                r"[WireGuard®](https://www.wireguard.org/)",
+                processed_line,
+            )
             # Add the processed line
             result_lines.append(processed_line)
             current_idx += 1
         return [x.rstrip() for x in result_lines]
-     # Check for explicit title directive
+
+    # Check for explicit title directive
     for i, line in enumerate(lines):
         if "This is a dummy file" in line:
             skip_build = True
-        if line.startswith('.. title::'):
-            explicit_title = line.replace('.. title::', '').strip()
+        if line.startswith(".. title::"):
+            explicit_title = line.replace(".. title::", "").strip()
             break
 
     # Find title (first line with underline of = or - characters)
     for i in range(len(lines) - 1):
-        if re.match(r'^[=-]+$', lines[i + 1]) and lines[i]:
+        if re.match(r"^[=-]+$", lines[i + 1]) and lines[i]:
             title = lines[i]
             break
 
@@ -532,15 +618,19 @@ def convert_rst_to_md(lines, filename):
     i = 0
     while i < len(lines):
         line = lines[i]
-        if line and not line.startswith(".") and len(line.lstrip()) == len(line) and i + 1 < len(lines):
-            underline = lines[i+1]
+        if (
+            line
+            and not line.startswith(".")
+            and len(line.lstrip()) == len(line)
+            and i + 1 < len(lines)
+        ):
+            underline = lines[i + 1]
             if re.match(r'^[-_=#+*~^".`]+', underline) and len(underline) >= len(line):
                 underchar = underline[0]
                 if all(x == underchar for x in underline):
                     if underchar not in heading_underlines:
                         heading_underlines.append(underchar)
         i += 1
-
 
     # Parse substitutions from original lines
     all_lines = lines[:]
@@ -560,17 +650,17 @@ def convert_rst_to_md(lines, filename):
             md_lines.extend(footnote)
 
     # Generate frontmatter
-    frontmatter = ['---']
+    frontmatter = ["---"]
 
     # Use description from SEO if available, otherwise use title
-    description = seo.get('description', title)
+    description = seo.get("description", title)
     if not description:
         description = title
 
     # Avoid repeating "ESPHome" in the description if it's already in the title
-    if title.startswith('ESPHome') and description.startswith('ESPHome'):
-        description = description[len('ESPHome'):].strip()
-        if description.startswith('-'):
+    if title.startswith("ESPHome") and description.startswith("ESPHome"):
+        description = description[len("ESPHome") :].strip()
+        if description.startswith("-"):
             description = description[1:].strip()
 
     description = description.replace('"', '\\"')
@@ -578,36 +668,38 @@ def convert_rst_to_md(lines, filename):
     title = title.replace('"', '\\"')
     frontmatter.append(f'title: "{title}"')
     if skip_build:
-        frontmatter.append('build: {render: never}')
+        frontmatter.append("build: {render: never}")
     if seo:
         frontmatter.append("params:")
         frontmatter.append("  seo:")
         for k, v in seo.items():
-            frontmatter.append(f'    {k}: {v}')
-    frontmatter.append('---')
+            frontmatter.append(f"    {k}: {v}")
+    frontmatter.append("---")
     # Make sure the file will end with a newline
     if md_lines[-1].strip() != "":
         md_lines.append("")
 
     return frontmatter + ["", ""] + md_lines
 
+
 def process_inline_markup(line):
     """Process inline markup in a line of text."""
     processed_line = line
 
     # Code
-    #processed_line = replace_substitutions(processed_line)
-    #processed_line = rst_unicode_to_markdown(processed_line)
-    processed_line = re.sub(r'``([^`]+)``', r'`\1`  ', processed_line)
+    # processed_line = replace_substitutions(processed_line)
+    # processed_line = rst_unicode_to_markdown(processed_line)
+    processed_line = re.sub(r"``([^`]+)``", r"`\1`  ", processed_line)
 
     def footnote_ref_repl(match):
         ref = match.group(1).strip()
-        if ref.startswith('#'):
+        if ref.startswith("#"):
             # For auto-numbered or labeled footnotes, remove the # prefix
             ref = ref[1:]
         return f"[^{ref}]"
 
-    processed_line = re.sub(r'\[([0-9#a-zA-Z_]+)]_', footnote_ref_repl, processed_line)
+    processed_line = re.sub(r"\[([0-9#a-zA-Z_]+)]_", footnote_ref_repl, processed_line)
+
     # Find and store all :ref: patterns
     def ref_repl(match):
         content = match.group(1)
@@ -631,7 +723,8 @@ def process_inline_markup(line):
         anchor_text = anchor_text or content
         # If we can't find the document, just use the anchor
         return f"[{anchor_text}](#{content.lower()})"
-    processed_line = re.sub(r':ref:`([^`]+)`', ref_repl, processed_line)
+
+    processed_line = re.sub(r":ref:`([^`]+)`", ref_repl, processed_line)
 
     def doc_repl(match):
         content = match.group(1).strip()
@@ -641,13 +734,14 @@ def process_inline_markup(line):
             text, doc_path = [x.strip() for x in content.split("<", 1)]
             doc_path = doc_path.rstrip(">")
             # Use the docref shortcode with custom text
-            return f"{{{{< docref \"{doc_path}\" \"{text.strip()}\" >}}}}"
+            return f'{{{{< docref "{doc_path}" "{text.strip()}" >}}}}'
             # Simple document references
         doc_path = fix_doc_path(content)
-        return f"{{{{< docref \"{doc_path}\" >}}}}"
-    processed_line = re.sub(r':doc:`([^`]+)`', doc_repl, processed_line)
+        return f'{{{{< docref "{doc_path}" >}}}}'
 
-    processed_line = re.sub(r':code:`([^`]+)`', r'`\1`', processed_line)
+    processed_line = re.sub(r":doc:`([^`]+)`", doc_repl, processed_line)
+
+    processed_line = re.sub(r":code:`([^`]+)`", r"`\1`", processed_line)
 
     processed_line = process_api(processed_line, "apiref")
     processed_line = process_api(processed_line, "apistruct")
@@ -657,7 +751,7 @@ def process_inline_markup(line):
     def ghuser_repl(match):
         content = match.group(1).strip()
         # Check for the form: text <username>
-        m = re.match(r'([^<`]+)<([^>]+)>', content)
+        m = re.match(r"([^<`]+)<([^>]+)>", content)
         if m:
             text = m.group(1).strip()
             username = m.group(2).strip()
@@ -666,33 +760,35 @@ def process_inline_markup(line):
             username = content
             return f'{{{{< ghuser name="{username}" >}}}}'
 
-    processed_line = re.sub(r':ghuser:`([^`]+)`', ghuser_repl, processed_line)
+    processed_line = re.sub(r":ghuser:`([^`]+)`", ghuser_repl, processed_line)
 
     def esphome_repl(match):
         content = match.group(1).strip()
         number = content
         return f'{{{{< pr number="{number}" repo="esphome" >}}}}'
 
-    processed_line = re.sub(r':esphomepr:`([^`]+)`', esphome_repl, processed_line)
-    processed_line = re.sub(r':yamlpr:`([^`]+)`', esphome_repl, processed_line)
+    processed_line = re.sub(r":esphomepr:`([^`]+)`", esphome_repl, processed_line)
+    processed_line = re.sub(r":yamlpr:`([^`]+)`", esphome_repl, processed_line)
 
     def docs_repl(match):
         content = match.group(1).strip()
         number = content
         return f'{{{{< pr number="{number}" repo="esphome-docs" >}}}}'
 
-    processed_line = re.sub(r':docspr:`([^`]+)`', docs_repl, processed_line)
+    processed_line = re.sub(r":docspr:`([^`]+)`", docs_repl, processed_line)
 
     def lib_repl(match):
         content = match.group(1).strip()
         number = content
         return f'{{{{< pr number="{number}" repo="esphome-core" >}}}}'
 
-    processed_line = re.sub(r':libpr:`([^`]+)`', lib_repl, processed_line)
+    processed_line = re.sub(r":libpr:`([^`]+)`", lib_repl, processed_line)
 
     # External links
-    processed_line = re.sub(r'`\s*([^`]*[^` ]+)\s*<([^`]+)>`_+', fr'[\1](\2)', processed_line)
-    processed_line = re.sub(r'^\.\. _([^:]+):\s*(http.*)$', r'', processed_line)
+    processed_line = re.sub(
+        r"`\s*([^`]*[^` ]+)\s*<([^`]+)>`_+", r"[\1](\2)", processed_line
+    )
+    processed_line = re.sub(r"^\.\. _([^:]+):\s*(http.*)$", r"", processed_line)
 
     if ":ghedit:" in processed_line:
         processed_line = ""
@@ -701,7 +797,6 @@ def process_inline_markup(line):
 
 
 def process_api(processed_line, shortcode):
-
     def api_repl(match):
         content = match.group(1).strip()
 
@@ -710,10 +805,10 @@ def process_api(processed_line, shortcode):
             text, api_path = content.split("<", 1)
             api_path = api_path.rstrip(">")
             # Use the apiref shortcode with custom text
-            return f"{{{{< {shortcode} \"{text.strip()}\" \"{api_path}\" >}}}}"
-        return f"{{{{< {shortcode} \"{content}\" \"{content}\" >}}}}"
+            return f'{{{{< {shortcode} "{text.strip()}" "{api_path}" >}}}}'
+        return f'{{{{< {shortcode} "{content}" "{content}" >}}}}'
 
-    return re.sub(fr':{shortcode}:`([^`]+)`', api_repl, processed_line)
+    return re.sub(rf":{shortcode}:`([^`]+)`", api_repl, processed_line)
 
 
 def process_multiline_references(lines):
@@ -725,10 +820,14 @@ def process_multiline_references(lines):
         current_line = lines[i]
 
         # Check if this line might contain the start of a split reference
-        if current_line.count('`') % 2 == 1 and '>' not in current_line and i + 1 < len(lines):
+        if (
+            current_line.count("`") % 2 == 1
+            and ">" not in current_line
+            and i + 1 < len(lines)
+        ):
             # Look ahead to see if the next line completes the reference
             next_line = lines[i + 1]
-            if '>' in next_line and ('`_' in next_line or '>' in next_line):
+            if ">" in next_line and ("`_" in next_line or ">" in next_line):
                 # This is a split reference, combine the lines
                 combined_line = current_line + next_line
                 # Process the combined line
@@ -743,59 +842,70 @@ def process_multiline_references(lines):
 
     return processed_lines
 
+
 def parse_substitutions(lines):
     global substitutions
     subs = {}
     i = 0
     while i < len(lines):
         line = lines[i]
-        m = re.match(r'^\s*\.\.\s+\|([^|]+)\|\s+(.*)', line)
+        m = re.match(r"^\s*\.\.\s+\|([^|]+)\|\s+(.*)", line)
         if m:
             subname = m.group(1).strip()
             html_lines = [rst_unicode_to_markdown(m.group(2).strip())]
             i += 1
             # Collect indented HTML lines
-            while i < len(lines) and (lines[i].strip() == '' or lines[i].startswith('   ')):
-                if lines[i].strip() != '':
+            while i < len(lines) and (
+                lines[i].strip() == "" or lines[i].startswith("   ")
+            ):
+                if lines[i].strip() != "":
                     html_lines.append(lines[i].lstrip())
                 i += 1
-            subs[subname] = '\n'.join(html_lines)
+            subs[subname] = "\n".join(html_lines)
         else:
             i += 1
     substitutions = subs
+
 
 def replace_substitutions(line):
     def repl(m):
         name = m.group(1)
         return substitutions.get(name, m.group(0))
-    return re.sub(r'\|([^|]+)\|', repl, line)
+
+    return re.sub(r"\|([^|]+)\|", repl, line)
+
 
 def remove_substitution_definitions(lines):
     out = []
     i = 0
     while i < len(lines):
         line = lines[i]
-        m = re.match(r'^\s*\.\.\s+\|([^|]+)\|\s+(.*)', line)
+        m = re.match(r"^\s*\.\.\s+\|([^|]+)\|\s+(.*)", line)
         if m:
             i += 1
             # Skip indented HTML lines
-            while i < len(lines) and (lines[i].strip() == '' or lines[i].startswith('   ')):
+            while i < len(lines) and (
+                lines[i].strip() == "" or lines[i].startswith("   ")
+            ):
                 i += 1
             continue  # skip this definition block
         out.append(line)
         i += 1
     return out
 
+
 def process_redirects(lines):
     out = []
     i = 0
     while i < len(lines):
         line = lines[i]
-        if re.match(r'^\s*\.\.\s+redirect::\s*$', line):
+        if re.match(r"^\s*\.\.\s+redirect::\s*$", line):
             url = None
             i += 1
-            while i < len(lines) and (lines[i].strip() == '' or lines[i].startswith('   ')):
-                m = re.match(r'^\s*:url:\s*(\S+)', lines[i].strip())
+            while i < len(lines) and (
+                lines[i].strip() == "" or lines[i].startswith("   ")
+            ):
+                m = re.match(r"^\s*:url:\s*(\S+)", lines[i].strip())
                 if m:
                     url = m.group(1)
                 i += 1
@@ -806,50 +916,52 @@ def process_redirects(lines):
         i += 1
     return out
 
+
 def process_anchors_and_images(lines):
     out = []
     i = 0
     while i < len(lines):
         line = lines[i]
-        indent = re.match(r'^(\s*)', line).group(1)
+        indent = re.match(r"^(\s*)", line).group(1)
         # Detect RST anchor (.. _anchor:)
-        anchor_match = re.match(r'^\s*\.\.\s*_([a-zA-Z0-9_-]+):\s*$', line)
+        anchor_match = re.match(r"^\s*\.\.\s*_([a-zA-Z0-9_-]+):\s*$", line)
         if anchor_match:
             anchor = anchor_match.group(1)
             out.append(f'{indent}{{{{< anchor "{anchor.lower()}" >}}}}')
             i += 1
             continue
         # Detect indented .. image:: (even inside lists/admonitions)
-        image_match = re.match(r'^\s*\.\.\s*image::\s*(\S+)\s*$', line)
+        image_match = re.match(r"^\s*\.\.\s*image::\s*(\S+)\s*$", line)
         if image_match:
             image_path = image_match.group(1)
-            if image_path.endswith('.avif'):
-                image_path = image_path.replace('.avif', '.webp')
+            if image_path.endswith(".avif"):
+                image_path = image_path.replace(".avif", ".webp")
             # Collect options (indented lines)
             options = {}
             j = i + 1
-            while j < len(lines) and (lines[j].strip() and  lines[j].startswith('   ')):
+            while j < len(lines) and (lines[j].strip() and lines[j].startswith("   ")):
                 opt_line = lines[j].strip()
-                m = re.match(r':([a-zA-Z0-9_-]+):\s*(.*)', opt_line)
+                m = re.match(r":([a-zA-Z0-9_-]+):\s*(.*)", opt_line)
                 if m:
                     options[m.group(1)] = m.group(2)
                 j += 1
-            alt = options.get('alt', '')
-            width = options.get('width')
-            height = options.get('height')
+            alt = options.get("alt", "")
+            width = options.get("width")
+            height = options.get("height")
             # Build img shortcode
             shortcode = f'{{{{< img src="{image_path}" alt="{alt}" '
             if width:
                 shortcode += f' width="{width}"'
             if height:
                 shortcode += f' height="{height}"'
-            shortcode += ' >}}'
-            out.append(f'{indent}{shortcode}')
+            shortcode += " >}}"
+            out.append(f"{indent}{shortcode}")
             i = j
             continue
         out.append(line)
         i += 1
     return out
+
 
 def convert_image_directive_in_text(text, indent=""):
     # Handles .. image:: and .. figure:: path [options] in a text block (single or multiline)
@@ -858,31 +970,31 @@ def convert_image_directive_in_text(text, indent=""):
     i = 0
     while i < len(lines):
         line = lines[i]
-        img_match = re.match(r'^\s*\.\.\s*(image|figure)::\s*(\S+)\s*$', line)
+        img_match = re.match(r"^\s*\.\.\s*(image|figure)::\s*(\S+)\s*$", line)
         if img_match:
             image_path = img_match.group(2)
-            if image_path.endswith('.avif'):
-                image_path = image_path.replace('.avif', '.webp')
-            is_figure = img_match.group(1) == 'figure'
+            if image_path.endswith(".avif"):
+                image_path = image_path.replace(".avif", ".webp")
+            is_figure = img_match.group(1) == "figure"
             options = {}
             caption_lines = []
             j = i + 1
             # Collect options and caption (for figure::)
-            while j < len(lines) and (lines[j].strip() and lines[j].startswith('   ')):
+            while j < len(lines) and (lines[j].strip() and lines[j].startswith("   ")):
                 opt_line = lines[j].strip()
-                m = re.match(r':([a-zA-Z0-9_-]+):\s*(.*)', opt_line)
+                m = re.match(r":([a-zA-Z0-9_-]+):\s*(.*)", opt_line)
                 if m:
                     options[m.group(1)] = m.group(2)
                 elif is_figure:
                     caption_lines.append(opt_line)
                 j += 1
-            alt = options.get('alt', '')
-            width = options.get('width')
-            height = options.get('height')
-            caption = ''
+            alt = options.get("alt", "")
+            width = options.get("width")
+            height = options.get("height")
+            caption = ""
             if is_figure and caption_lines:
                 # Join and process caption lines as inline markup
-                caption = ' '.join(caption_lines)
+                caption = " ".join(caption_lines)
             shortcode = f'{{{{< img src="{image_path}" alt="{alt}" '
             if caption:
                 shortcode += f'caption="{caption}" '
@@ -890,16 +1002,18 @@ def convert_image_directive_in_text(text, indent=""):
                 shortcode += f'width="{width}" '
             if height:
                 shortcode += f'height="{height}" '
-            shortcode += '>}}'
-            out.append(f'{indent}{shortcode}')
+            shortcode += ">}}"
+            out.append(f"{indent}{shortcode}")
             i = j
             continue
         out.append(line)
         i += 1
-    return '\n'.join(out)
+    return "\n".join(out)
+
 
 def get_indent(line):
     return len(line) - len(line.lstrip())
+
 
 def process_list_table(lines, start_idx):
     """Process a list-table directive and convert it to a Markdown table."""
@@ -909,25 +1023,31 @@ def process_list_table(lines, start_idx):
     align = ""
 
     current_line = lines[start_idx].strip()
-    if current_line.startswith('.. list-table::') or current_line.startswith('..  list-table::'):
-        title = current_line.replace('.. list-table::', '').replace('..  list-table::', '').strip()
+    if current_line.startswith(".. list-table::") or current_line.startswith(
+        "..  list-table::"
+    ):
+        title = (
+            current_line.replace(".. list-table::", "")
+            .replace("..  list-table::", "")
+            .strip()
+        )
 
     # Process table options
     idx = start_idx + 1
-    while idx < len(lines) and lines[idx].strip().startswith(':'):
+    while idx < len(lines) and lines[idx].strip().startswith(":"):
         option_line = lines[idx].strip()
-        if option_line.startswith(':header-rows:'):
+        if option_line.startswith(":header-rows:"):
             try:
-                header_rows = int(option_line.split(':', 2)[2].strip())
+                header_rows = int(option_line.split(":", 2)[2].strip())
             except (ValueError, IndexError):
                 pass
-        elif option_line.startswith(':width:'):
-            pass #width = option_line.split(':', 2)[2].strip()
-        elif option_line.startswith(':widths:'):
+        elif option_line.startswith(":width:"):
+            pass  # width = option_line.split(':', 2)[2].strip()
+        elif option_line.startswith(":widths:"):
             pass
-        elif option_line.startswith(':align:'):
-            align = option_line.split(':', 2)[2].strip()
-        elif option_line.startswith(':class:'):
+        elif option_line.startswith(":align:"):
+            align = option_line.split(":", 2)[2].strip()
+        elif option_line.startswith(":class:"):
             # We don't use class in Markdown, but we'll parse it anyway
             pass
         idx += 1
@@ -946,24 +1066,28 @@ def process_list_table(lines, start_idx):
 
         # End of table when we hit a non-indented line after a blank line
         if not line:
-            if idx + 1 < len(lines) and not lines[idx + 1].startswith('    '):
+            if idx + 1 < len(lines) and not lines[idx + 1].startswith("    "):
                 break
             idx += 1
             continue
 
-        if line.strip().startswith('.. _') and line.endswith(':') or line.strip().startswith("{{"):
+        if (
+            line.strip().startswith(".. _")
+            and line.endswith(":")
+            or line.strip().startswith("{{")
+        ):
             anchor = line
             idx += 1
             continue
         # New row starts with *
-        if line.startswith('*'):
+        if line.startswith("*"):
             if current_row:
                 table_data.append(current_row)
             current_row = []
 
             # Extract the first cell value
             cell_value = line[1:].strip()
-            if cell_value.startswith('-'):
+            if cell_value.startswith("-"):
                 cell_value = anchor.strip() + cell_value[1:].strip()
                 anchor = ""
                 current_row.append(cell_value)
@@ -972,7 +1096,7 @@ def process_list_table(lines, start_idx):
             continue
 
         # Cell values start with -
-        if line.startswith('-'):
+        if line.startswith("-"):
             cell_value = [line[1:].strip()]
             this_indent = get_indent(lines[idx])
             idx += 1
@@ -985,7 +1109,11 @@ def process_list_table(lines, start_idx):
                     cell_value.append(lines[idx])
                     idx += 1
                     continue
-                if not lines[idx].strip() and idx + 1 < len(lines) and get_indent(lines[idx + 1]) > this_indent:
+                if (
+                    not lines[idx].strip()
+                    and idx + 1 < len(lines)
+                    and get_indent(lines[idx + 1]) > this_indent
+                ):
                     cell_value.append(lines[idx])
                     idx += 1
                     continue
@@ -994,7 +1122,7 @@ def process_list_table(lines, start_idx):
             current_row.append(cell_text)
             continue
         # If we get here, it's either the end of the table or something we don't understand
-        if not lines[idx].startswith('    '):
+        if not lines[idx].startswith("    "):
             break
 
         idx += 1
@@ -1009,7 +1137,7 @@ def process_list_table(lines, start_idx):
     # Add title if present and not empty
     if title and title.strip():
         # Remove any leading colon from the title
-        if title.startswith(':'):
+        if title.startswith(":"):
             title = title[1:].strip()
         md_table.append(f"### {title}")
         md_table.append("")
@@ -1024,7 +1152,13 @@ def process_list_table(lines, start_idx):
         # Create the table header
         if header_rows > 0:
             header_row = table_data[0]
-            md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in header_row) + " |")
+            md_table.append(
+                "| "
+                + " | ".join(
+                    convert_image_directive_in_text(cell) for cell in header_row
+                )
+                + " |"
+            )
 
             # Add alignment to the separator row if specified
             if align == "center":
@@ -1038,11 +1172,19 @@ def process_list_table(lines, start_idx):
 
             # Add data rows
             for row in table_data[header_rows:]:
-                md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in row) + " |")
+                md_table.append(
+                    "| "
+                    + " | ".join(convert_image_directive_in_text(cell) for cell in row)
+                    + " |"
+                )
         else:
             # No header, just data rows
             for row in table_data:
-                md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in row) + " |")
+                md_table.append(
+                    "| "
+                    + " | ".join(convert_image_directive_in_text(cell) for cell in row)
+                    + " |"
+                )
 
     # Add a blank line after the table
     md_table.append("")
@@ -1052,7 +1194,7 @@ def process_list_table(lines, start_idx):
 
 def process_cell_value(cell_value):
     if isinstance(cell_value, str):
-        cell_value = cell_value.split('\n')
+        cell_value = cell_value.split("\n")
     cell_text = ""
     i = 0
     while i < len(cell_value):
@@ -1074,29 +1216,29 @@ def process_csv_table(lines, start_idx):
     delimiter = ","
 
     current_line = lines[start_idx].strip()
-    if current_line.startswith('.. csv-table::'):
-        title = current_line.replace('.. csv-table::', '').strip()
+    if current_line.startswith(".. csv-table::"):
+        title = current_line.replace(".. csv-table::", "").strip()
 
     # Process table options
     idx = start_idx + 1
-    while idx < len(lines) and lines[idx].strip().startswith(':'):
+    while idx < len(lines) and lines[idx].strip().startswith(":"):
         option_line = lines[idx].strip()
-        if option_line.startswith(':header:'):
-            header_rows = normalize_csv_lines([option_line.split(':', 2)[2].strip()])[0]
-        elif option_line.startswith(':width:'):
-            pass #width = option_line.split(':', 2)[2].strip()
-        elif option_line.startswith(':align:'):
-            align = option_line.split(':', 2)[2].strip()
-        elif option_line.startswith(':delim:'):
-            delimiter = option_line.split(':', 2)[2].strip()
+        if option_line.startswith(":header:"):
+            header_rows = normalize_csv_lines([option_line.split(":", 2)[2].strip()])[0]
+        elif option_line.startswith(":width:"):
+            pass  # width = option_line.split(':', 2)[2].strip()
+        elif option_line.startswith(":align:"):
+            align = option_line.split(":", 2)[2].strip()
+        elif option_line.startswith(":delim:"):
+            delimiter = option_line.split(":", 2)[2].strip()
             # Handle special delimiter cases
-            if delimiter == 'tab':
-                delimiter = '\t'
-            elif delimiter == 'space':
-                delimiter = ' '
-        elif option_line.startswith(':file:'):
+            if delimiter == "tab":
+                delimiter = "\t"
+            elif delimiter == "space":
+                delimiter = " "
+        elif option_line.startswith(":file:"):
             # Handle CSV file inclusion
-            csv_file = option_line.split(':', 2)[2].strip()
+            csv_file = option_line.split(":", 2)[2].strip()
             # This would need to be implemented to read from the file
             # For now, we'll just print a warning
             print(f"Warning: CSV file inclusion not yet supported: {csv_file}")
@@ -1114,13 +1256,13 @@ def process_csv_table(lines, start_idx):
 
         # End of table when we hit a non-indented line after a blank line
         if not line:
-            if idx + 1 < len(lines) and not lines[idx + 1].startswith('    '):
+            if idx + 1 < len(lines) and not lines[idx + 1].startswith("    "):
                 break
             idx += 1
             continue
 
         # End of table when we hit a line that doesn't start with whitespace
-        if not lines[idx].startswith('    '):
+        if not lines[idx].startswith("    "):
             break
 
         # Process CSV line
@@ -1135,7 +1277,7 @@ def process_csv_table(lines, start_idx):
     # Add title if present and not empty
     if title and title.strip():
         # Remove any leading colon from the title
-        if title.startswith(':'):
+        if title.startswith(":"):
             title = title[1:].strip()
         md_table.append(f"### {title}")
         md_table.append("")
@@ -1150,7 +1292,13 @@ def process_csv_table(lines, start_idx):
         # Create the table header and separator
         if header_rows:
             # Add header row
-            md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in header_rows) + " |")
+            md_table.append(
+                "| "
+                + " | ".join(
+                    convert_image_directive_in_text(cell) for cell in header_rows
+                )
+                + " |"
+            )
 
             # Add alignment to the separator row if specified
             if align == "center":
@@ -1164,17 +1312,29 @@ def process_csv_table(lines, start_idx):
 
             # Add data rows
             for row in table_data:
-                md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in row) + " |")
+                md_table.append(
+                    "| "
+                    + " | ".join(convert_image_directive_in_text(cell) for cell in row)
+                    + " |"
+                )
         else:
             # No header specified, but we still need to add a separator after the first row
             if table_data:
                 # Add first row
                 first_row = table_data[0]
-                md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in first_row) + " |")
+                md_table.append(
+                    "| "
+                    + " | ".join(
+                        convert_image_directive_in_text(cell) for cell in first_row
+                    )
+                    + " |"
+                )
 
                 # Add separator row
                 if align == "center":
-                    md_table.append("| " + " | ".join([":---:"] * len(first_row)) + " |")
+                    md_table.append(
+                        "| " + " | ".join([":---:"] * len(first_row)) + " |"
+                    )
                 elif align == "right":
                     md_table.append("| " + " | ".join(["---:"] * len(first_row)) + " |")
                 elif align == "left":
@@ -1184,12 +1344,19 @@ def process_csv_table(lines, start_idx):
 
                 # Add remaining data rows
                 for row in table_data[1:]:
-                    md_table.append("| " + " | ".join(convert_image_directive_in_text(cell) for cell in row) + " |")
+                    md_table.append(
+                        "| "
+                        + " | ".join(
+                            convert_image_directive_in_text(cell) for cell in row
+                        )
+                        + " |"
+                    )
 
     # Add a blank line after the table
     md_table.append("")
 
     return md_table, idx
+
 
 def process_grid_table(lines, start_idx):
     """Process a grid table directive and convert it to a Markdown table.
@@ -1229,7 +1396,7 @@ def process_grid_table(lines, start_idx):
         return [], start_idx
 
     # Determine if this is a table with | separators or whitespace alignment
-    has_pipe_separators = '+' in table_lines[0]
+    has_pipe_separators = "+" in table_lines[0]
 
     if has_pipe_separators:
         return process_pipe_separated_table(table_lines), i
@@ -1270,29 +1437,28 @@ def process_pipe_separated_table(lines):
 
     # Now build Markdown
     md_lines = []
-    header_done = False
     for row in merged_rows:
         if row == ["HEADER-SEPARATOR"]:
             # Add Markdown separator for header
             md_lines.append("|" + "|".join("---" for _ in merged_rows[0]) + "|")
-            header_done = True
         else:
             md_lines.append("| " + " | ".join(row) + " |")
 
     return md_lines
+
 
 def process_whitespace_aligned_table(table_lines, end_idx):
     """Process a grid table with whitespace alignment."""
     # Find separator rows (rows with only =, -, + and spaces)
     separator_rows = []
     for idx, line in enumerate(table_lines):
-        if all(c in '=+-| ' for c in line):
+        if all(c in "=+-| " for c in line):
             separator_rows.append(idx)
 
     # Identify the header rows (usually the first and last rows with = characters)
     header_rows = []
     for idx, line in enumerate(table_lines):
-        if '=' in line and all(c in '=+-| ' for c in line):
+        if "=" in line and all(c in "=+-| " for c in line):
             header_rows.append(idx)
 
     # Find column boundaries by analyzing the content rows
@@ -1310,11 +1476,11 @@ def process_whitespace_aligned_table(table_lines, end_idx):
     # Find column positions by looking for groups of non-space characters
     in_column = False
     for i, char in enumerate(first_header):
-        if not in_column and char != ' ':
+        if not in_column and char != " ":
             # Start of a column
             in_column = True
             column_positions.append(i)
-        elif in_column and char == ' ':
+        elif in_column and char == " ":
             # End of a column (followed by at least one more space or end of line)
             in_column = False
 
@@ -1332,9 +1498,9 @@ def process_whitespace_aligned_table(table_lines, end_idx):
         # Skip separator rows for Markdown output
         if line_idx in separator_rows:
             # If this is the separator after the header row, add a Markdown header separator
-            if not header_added and line_idx > 0 and line_idx-1 not in separator_rows:
+            if not header_added and line_idx > 0 and line_idx - 1 not in separator_rows:
                 header_added = True
-                header_cells = ['---' for _ in range(column_count-1)]
+                header_cells = ["---" for _ in range(column_count - 1)]
                 rows.append(header_cells)
             continue
 
@@ -1343,23 +1509,24 @@ def process_whitespace_aligned_table(table_lines, end_idx):
         for i in range(column_count):
             start_pos = column_positions[i]
             # End position is either the next column start or the end of the line
-            end_pos = column_positions[i+1] if i+1 < column_count else len(line)
+            end_pos = column_positions[i + 1] if i + 1 < column_count else len(line)
 
             # Make sure we don't go out of bounds
             if start_pos < len(line):
-                cell_content = line[start_pos:min(end_pos, len(line))].strip()
+                cell_content = line[start_pos : min(end_pos, len(line))].strip()
                 cell_content = process_cell_value(replace_substitutions(cell_content))
                 cells.append(cell_content)
 
         # Add the row to Markdown output
         if len(cells) < column_count - 1:
-            cells += ['' for _ in range(column_count - 1 - len(cells))]
+            cells += ["" for _ in range(column_count - 1 - len(cells))]
         if header_added and not cells[0].strip():
-            rows[-1] = [p + ' ' + n for p, n in zip(rows[-1], cells)]
+            rows[-1] = [p + " " + n for p, n in zip(rows[-1], cells)]
         else:
             rows.append(cells)
-    markdown_rows = ['| ' + ' | '.join(row) + ' |' for row in rows]
+    markdown_rows = ["| " + " | ".join(row) + " |" for row in rows]
     return markdown_rows, end_idx
+
 
 def process_raw_html_block(lines, i):
     """Process raw HTML button patterns and convert them to button shortcode."""
@@ -1368,14 +1535,14 @@ def process_raw_html_block(lines, i):
 
     i, raw_html_content = get_indented_block(lines, i + 1, raw_html_indent)
     html_content = [x.strip() for x in raw_html_content]
-    html = ' '.join(html_content)
+    html = " ".join(html_content)
 
     # --- API KEY SHORTCODE REPLACEMENT (for api.rst) ---
-    if  '<input type="text"' in html and 'id="api-key"' in html and "<script" in html:
+    if '<input type="text"' in html and 'id="api-key"' in html and "<script" in html:
         return ["{{< api-key-input >}}"], i
     # --- END API KEY SHORTCODE REPLACEMENT ---
 
-# Check if it's a button pattern
+    # Check if it's a button pattern
     href_match = re.search(r'<a\s+href="([^"]+)"[^>]*>', html)
     img_match = re.search(r'<img\s+src="([^"]+)"[^>]*alt="([^"]*)"[^>]*/?>', html)
 
@@ -1385,47 +1552,47 @@ def process_raw_html_block(lines, i):
         alt = img_match.group(2)
 
         # Create button shortcode
-        button_lines.append(f'{{{{< button href="{href}" img="{img}" alt="{alt}" >}}}}')
+        button_lines.append(f"[![{alt}]({img})]({href})")
         return button_lines, i
 
     file_match = None
     class_match = None
     for line in raw_html_content:
         if not file_match:
-            file_match = re.search(r':file: (.+)', line.strip())
+            file_match = re.search(r":file: (.+)", line.strip())
         if not class_match:
-            class_match = re.search(r':class: (.+)', line.strip())
+            class_match = re.search(r":class: (.+)", line.strip())
 
     if file_match:
         href = file_match.group(1)
-        href = href.replace('../', '', 1)
+        href = href.replace("../", "", 1)
         class_ = ""
         if class_match:
-            classes = class_match.group(1).replace(',', ' ').strip()
+            classes = class_match.group(1).replace(",", " ").strip()
             class_ = 'class="' + classes + '"'
         button_lines.append(f'{{{{< html_file file="{href}" {class_} >}}}}')
         button_lines.append("")
         return button_lines, i
 
-
     # If it's not a button pattern, just keep the raw HTML
-    button_lines.append('\n'.join(raw_html_content))
+    button_lines.append("\n".join(raw_html_content))
     return button_lines, i
+
 
 def process_image_directive(lines, i):
     """Process an image or figure directive and convert it to a Hugo shortcode."""
     line = lines[i]
 
     is_figure = False
-    if 'figure::' in line:
+    if "figure::" in line:
         is_figure = True
-        image_path = line.replace('(\\.\\. )?figure::', '').strip()
+        image_path = line.replace("(\\.\\. )?figure::", "").strip()
     else:
-        image_path = line.replace('(\\.\\. )?image::', '').strip()
+        image_path = line.replace("(\\.\\. )?image::", "").strip()
 
     # Extract the image filename
-    if image_path.endswith('.avif'):
-        image_path = image_path.replace('.avif', '.webp')
+    if image_path.endswith(".avif"):
+        image_path = image_path.replace(".avif", ".webp")
     image_filename = os.path.basename(image_path)
 
     # Skip options
@@ -1438,21 +1605,25 @@ def process_image_directive(lines, i):
     height = ""
     align = ""
 
-    while i < len(lines) and (not lines[i].strip() or lines[i].startswith('  ') and lines[i].strip().startswith(':')):
+    while i < len(lines) and (
+        not lines[i].strip()
+        or lines[i].startswith("  ")
+        and lines[i].strip().startswith(":")
+    ):
         option_line = lines[i].strip()
-        if option_line.startswith(':alt:'):
-            alt_text = option_line.replace(':alt:', '').strip()
-        elif option_line.startswith(':width:'):
-            width = option_line.split(':', 2)[2].strip()
-        elif option_line.startswith(':height:'):
-            height = option_line.split(':', 2)[2].strip()
-        elif option_line.startswith(':align:'):
-            align = option_line.split(':', 2)[2].strip()
+        if option_line.startswith(":alt:"):
+            alt_text = option_line.replace(":alt:", "").strip()
+        elif option_line.startswith(":width:"):
+            width = option_line.split(":", 2)[2].strip()
+        elif option_line.startswith(":height:"):
+            height = option_line.split(":", 2)[2].strip()
+        elif option_line.startswith(":align:"):
+            align = option_line.split(":", 2)[2].strip()
         i += 1
 
     # Get caption if present (for figures)
     caption_lines = []
-    while i < len(lines) and lines[i].startswith('  ') and is_figure:
+    while i < len(lines) and lines[i].startswith("  ") and is_figure:
         caption_lines.append(lines[i].strip())
         i += 1
 
@@ -1463,7 +1634,7 @@ def process_image_directive(lines, i):
     # Process caption for inline markup if present
     if caption_lines:
         # Join caption lines into a single string
-        caption_text = ' '.join(caption_lines)
+        caption_text = " ".join(caption_lines)
         # Process the caption for inline markup (references, formatting, etc.)
         caption = process_inline_markup(caption_text)
 
@@ -1483,9 +1654,10 @@ def process_image_directive(lines, i):
         shortcode += f'height="{height}" '
     if align:
         shortcode += f'class="align-{align}" '
-    shortcode += '>}}'
+    shortcode += ">}}"
 
     return shortcode, i
+
 
 def process_includes(lines, current_dir):
     """Process include directives in RST files."""
@@ -1496,7 +1668,7 @@ def process_includes(lines, current_dir):
         line = lines[i]
 
         # Check for include directive
-        include_match = re.match(r'^(\s*)\.\.[\s]+include::[\s]+(.+\.rst)$', line)
+        include_match = re.match(r"^(\s*)\.\.[\s]+include::[\s]+(.+\.rst)$", line)
         if include_match:
             indent = include_match.group(1)
             include_file = include_match.group(2).strip()
@@ -1506,11 +1678,11 @@ def process_includes(lines, current_dir):
 
             if os.path.exists(include_path):
                 # Read the included file
-                with open(include_path, 'r', encoding='utf-8') as f:
+                with open(include_path, "r", encoding="utf-8") as f:
                     include_content = f.read()
 
                 # Process the included content
-                include_lines = include_content.split('\n')
+                include_lines = include_content.split("\n")
 
                 # Add indentation to all lines from the included file
                 for include_line in include_lines:
@@ -1520,7 +1692,9 @@ def process_includes(lines, current_dir):
                         processed_lines.append("")
             else:
                 # If the file doesn't exist, just keep the include directive as a comment
-                processed_lines.append(f"{indent}<!-- Include not found: {include_file} -->")
+                processed_lines.append(
+                    f"{indent}<!-- Include not found: {include_file} -->"
+                )
         else:
             processed_lines.append(line)
 
@@ -1528,36 +1702,38 @@ def process_includes(lines, current_dir):
 
     return processed_lines
 
+
 def fix_doc_path(path):
     """Fix document paths to match Hugo's content structure."""
     # Remove .rst extension if present
     path = path.lower()
-    if path.endswith('.rst'):
+    if path.endswith(".rst"):
         path = path[:-4]
-    if path.endswith('/index'):
+    if path.endswith("/index"):
         path = path[:-6]
 
     # Handle special cases for components
-#    if path.startswith('components/'):
-#        path = path[11:]  # Remove 'components/' prefix
-#    elif '/' in path and not path.startswith('/'):
-#        # For paths like 'switch/gpio', we need to make them '/components/switch/gpio'
-#        path = f"/components/{path}"
+    #    if path.startswith('components/'):
+    #        path = path[11:]  # Remove 'components/' prefix
+    #    elif '/' in path and not path.startswith('/'):
+    #        # For paths like 'switch/gpio', we need to make them '/components/switch/gpio'
+    #        path = f"/components/{path}"
 
     # Don't add trailing slash for file references
     # Check if it's likely a file reference (contains no hash and has a name after the last slash)
-    if not path.startswith('#') and '/' in path:
-        last_part = path.split('/')[-1]
+    if not path.startswith("#") and "/" in path:
+        last_part = path.split("/")[-1]
         # If the last part looks like a filename (not empty and doesn't end with a slash)
-        if last_part and not path.endswith('/'):
+        if last_part and not path.endswith("/"):
             # Don't add a trailing slash
             return path
 
     # Add trailing slash for section references (if not to a specific anchor)
-    if not path.startswith('#') and not path.endswith('/') and '#' not in path:
+    if not path.startswith("#") and not path.endswith("/") and "#" not in path:
         path = f"{path}/"
 
     return path
+
 
 def scan_image_references(input_dir):
     """Scan all RST files for image references and track their usage."""
@@ -1565,12 +1741,12 @@ def scan_image_references(input_dir):
 
     # Regular expressions to match different types of image references
     image_patterns = [
-        r'.. figure:: ([^\s]+)',  # Figure directive
-        r'.. image:: ([^\s]+)',   # Image directive
-        r'image:: ([^\s]+)',      # Image reference
-        r':image: ([^\s]+)',      # Seo Image reference
+        r".. figure:: ([^\s]+)",  # Figure directive
+        r".. image:: ([^\s]+)",  # Image directive
+        r"image:: ([^\s]+)",  # Image reference
+        r":image: ([^\s]+)",  # Seo Image reference
         r'src="([^"]+\.(avif|png|jpg|jpeg|gif|svg))"',  # HTML img tag
-        r'!\[(.*?)\]\(([^)]+\.(avif|png|jpg|jpeg|gif|svg))\)'  # Markdown image syntax
+        r"!\[(.*?)\]\(([^)]+\.(avif|png|jpg|jpeg|gif|svg))\)",  # Markdown image syntax
     ]
 
     # Initialize image tracking dictionaries
@@ -1578,10 +1754,10 @@ def scan_image_references(input_dir):
 
     for root, _, files in os.walk(input_dir):
         for file in files:
-            if file.endswith('.rst'):
+            if file.endswith(".rst"):
                 src_file = os.path.join(root, file)
 
-                with open(src_file, 'r', encoding='utf-8') as f:
+                with open(src_file, "r", encoding="utf-8") as f:
                     content = f.read()
                     lines = content.splitlines()
 
@@ -1591,29 +1767,38 @@ def scan_image_references(input_dir):
                         image_path = match.group(1).strip()
 
                         # Skip alignment options and other non-image paths
-                        if image_path in ['center', 'left', 'right']:
+                        if image_path in ["center", "left", "right"]:
                             continue
 
                         # Skip URLs
-                        if image_path.startswith(('http://', 'https://')):
+                        if image_path.startswith(("http://", "https://")):
                             continue
 
                         # Normalize path
-                        if image_path.startswith('/'):
+                        if image_path.startswith("/"):
                             # Absolute path within docs
-                            abs_image_path = os.path.join(input_dir, image_path.lstrip('/'))
+                            abs_image_path = os.path.join(
+                                input_dir, image_path.lstrip("/")
+                            )
                         else:
                             # Relative path
-                            abs_image_path = os.path.join(os.path.dirname(src_file), image_path)
+                            abs_image_path = os.path.join(
+                                os.path.dirname(src_file), image_path
+                            )
                             if not os.path.exists(abs_image_path):
-                                abs_image_path = os.path.join(input_dir, "images/" + image_path.lstrip('/'))
+                                abs_image_path = os.path.join(
+                                    input_dir, "images/" + image_path.lstrip("/")
+                                )
 
                         # Only count if the image file exists
                         if os.path.exists(abs_image_path):
                             image_filename = os.path.basename(image_path)
-                            entry = result.setdefault(image_filename, ImageInfo(image_filename, abs_image_path, src_file))
+                            entry = result.setdefault(
+                                image_filename,
+                                ImageInfo(image_filename, abs_image_path, src_file),
+                            )
                             entry.increment()
-                            #print(f"Found image: {image_filename} in {rel_path}")
+                            # print(f"Found image: {image_filename} in {rel_path}")
 
                 # Find images in imgtable directives
                 i = 0
@@ -1621,7 +1806,7 @@ def scan_image_references(input_dir):
                     line = lines[i].strip()
 
                     # Check for imgtable directive
-                    if line == '.. imgtable::':
+                    if line == ".. imgtable::":
                         i += 1
                         # Skip empty lines
                         while i < len(lines) and not lines[i].strip():
@@ -1632,7 +1817,7 @@ def scan_image_references(input_dir):
                             current_line = lines[i].strip()
 
                             # If we hit an empty line or a non-indented line, we're done with this imgtable
-                            if not lines[i].startswith('    ') and current_line:
+                            if not lines[i].startswith("    ") and current_line:
                                 break
 
                             # Skip empty lines within the imgtable
@@ -1641,33 +1826,48 @@ def scan_image_references(input_dir):
                                 continue
 
                             # Process the entry - format is typically: Title, Link, Image, [Description]
-                            parts = [part.strip() for part in current_line.split(',')]
-                            if len(parts) >= 3:  # We need at least 3 parts (title, link, image)
+                            parts = [part.strip() for part in current_line.split(",")]
+                            if (
+                                len(parts) >= 3
+                            ):  # We need at least 3 parts (title, link, image)
                                 image_path = parts[2]
 
                                 # Skip URLs
-                                if image_path.startswith(('http://', 'https://')):
+                                if image_path.startswith(("http://", "https://")):
                                     i += 1
                                     continue
 
                                 # Normalize path
-                                if image_path.startswith('/'):
+                                if image_path.startswith("/"):
                                     # Absolute path within docs
-                                    abs_image_path = os.path.join(input_dir, image_path.lstrip('/'))
+                                    abs_image_path = os.path.join(
+                                        input_dir, image_path.lstrip("/")
+                                    )
                                 else:
                                     # Relative path
-                                    abs_image_path = os.path.join(os.path.dirname(src_file), image_path)
+                                    abs_image_path = os.path.join(
+                                        os.path.dirname(src_file), image_path
+                                    )
                                     if not os.path.exists(abs_image_path):
-                                        abs_image_path = os.path.join(input_dir, "images", image_path)
+                                        abs_image_path = os.path.join(
+                                            input_dir, "images", image_path
+                                        )
 
                                 # Only count if the image file exists
                                 if os.path.exists(abs_image_path):
                                     image_filename = os.path.basename(image_path)
-                                    entry = result.setdefault(image_filename, ImageInfo(image_filename, abs_image_path, src_file))
+                                    entry = result.setdefault(
+                                        image_filename,
+                                        ImageInfo(
+                                            image_filename, abs_image_path, src_file
+                                        ),
+                                    )
                                     entry.increment()
-                                    #print(f"Found image in imgtable: {image_filename} in {rel_path}")
+                                    # print(f"Found image in imgtable: {image_filename} in {rel_path}")
                                 else:
-                                    print(f"Image not found: {image_path} in {abs_image_path}")
+                                    print(
+                                        f"Image not found: {image_path} in {abs_image_path}"
+                                    )
 
                             i += 1
                     else:
@@ -1680,29 +1880,34 @@ def scan_image_references(input_dir):
 
     return result
 
+
 # Special handling for some files
+
 
 def process_actions_file(lines):
     start_actions = lines.index("## All Actions")
     end_actions = lines.index('{{< anchor "tips-and-tricks" >}}')
 
     if start_actions and end_actions:
-        lines = lines[:start_actions] + [
-            '## All Actions',
-            '{{< render-automations "actions" >}}',
-            '{{< anchor "config-condition" >}}',
-            '## All Conditions',
-            '{{< render-automations "conditions" >}}'
-        ] + lines[end_actions:]
+        lines = (
+            lines[:start_actions]
+            + [
+                "## All Actions",
+                '{{< render-automations "actions" >}}',
+                '{{< anchor "config-condition" >}}',
+                "## All Conditions",
+                '{{< render-automations "conditions" >}}',
+            ]
+            + lines[end_actions:]
+        )
     return lines
 
 
 def process_file(src_file, output_dir, input_dir):
     output_dir = os.path.join(output_dir, "content")
     """Process a single RST file and convert it to Markdown."""
-    #print(rf"Processing file: {src_file}", end="", flush=True)
+    # print(rf"Processing file: {src_file}", end="", flush=True)
     try:
-
         # Read the RST file
         rel_path, rst_content = get_rst_content(input_dir, src_file)
 
@@ -1710,11 +1915,15 @@ def process_file(src_file, output_dir, input_dir):
         md_content = convert_rst_to_md(rst_content, rel_path)
 
         # Determine output path
-        if os.path.basename(src_file) == 'index.rst':
+        if os.path.basename(src_file) == "index.rst":
             # Convert index.rst to _index.md for Hugo
-            output_path = os.path.join(output_dir, os.path.dirname(rel_path), '_index.md')
+            output_path = os.path.join(
+                output_dir, os.path.dirname(rel_path), "_index.md"
+            )
         else:
-            output_path = os.path.join(output_dir, os.path.splitext(rel_path)[0] + '.md')
+            output_path = os.path.join(
+                output_dir, os.path.splitext(rel_path)[0] + ".md"
+            )
 
         if output_path.endswith("automations/actions.md"):
             md_content = process_actions_file(md_content)
@@ -1727,29 +1936,30 @@ def process_file(src_file, output_dir, input_dir):
         if not os.path.exists(output_path):
             repo = Repo(".")
             repo.git.mv(src_file, output_path, "-f")
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(md_content))
 
-        #print(f"  Converted {src_file} -> {output_path}\033G", end="", flush=True)
-        #print(f"Output file size: {len(md_content)} bytes")
+        # print(f"  Converted {src_file} -> {output_path}\033G", end="", flush=True)
+        # print(f"Output file size: {len(md_content)} bytes")
 
         return output_path
     except Exception as e:
         print(f"Error converting {src_file}: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return None
 
 
 def get_rst_content(input_dir, src_file):
-    with open(src_file, 'r', encoding='utf-8') as f:
+    with open(src_file, "r", encoding="utf-8") as f:
         rst_content = f.read()
-    #print(f"File size: {len(rst_content)} bytes")
+    # print(f"File size: {len(rst_content)} bytes")
     # Get the relative path of the file
     rel_path = os.path.relpath(src_file, input_dir)
     # Process includes before conversion
     current_dir = os.path.dirname(src_file)
-    rst_lines = rst_content.split('\n')
+    rst_lines = rst_content.split("\n")
     rst_lines = process_includes(rst_lines, current_dir)
     return rel_path, rst_lines
 
@@ -1762,26 +1972,32 @@ def process_directory(input_dir, output_dir):
     rstfiles = []
     for root, _, files in os.walk(input_dir):
         for file in files:
-            if file.endswith('.rst'):
+            if file.endswith(".rst"):
                 fullpath = os.path.join(root, file)
                 rstfiles.append(fullpath)
                 included_files.update(set(find_included_files(fullpath)))
 
     for fullpath in rstfiles:
         root = os.path.dirname(fullpath)
-        if os.path.basename(root) == input_dir and os.path.basename(fullpath) == 'index.rst':
+        if (
+            os.path.basename(root) == input_dir
+            and os.path.basename(fullpath) == "index.rst"
+        ):
             print("Skipping top-level index.rst file:", fullpath)
             continue
         if fullpath in included_files:
             print("Skipping included file:", fullpath)
             continue
-        elif fullpath.endswith('.rst'):
+        elif fullpath.endswith(".rst"):
             included_files.update(set(find_included_files(fullpath)))
             total_count += 1
             if process_file(fullpath, output_dir, input_dir):
                 success_count += 1
 
-    print(f"Conversion complete. {success_count}/{total_count} files successfully converted to {output_dir}")
+    print(
+        f"Conversion complete. {success_count}/{total_count} files successfully converted to {output_dir}"
+    )
+
 
 def should_copy_file(source_path, target_path):
     """
@@ -1797,19 +2013,20 @@ def should_copy_file(source_path, target_path):
 
     return source_mtime > target_mtime
 
+
 def copy_images_to_output(output_dir, input_dir, replace=False):
     """Copy images to the appropriate locations based on usage."""
     print("Copying images to output directories...")
 
     # Create global images directory
-    global_images_dir = os.path.join(output_dir, 'static', 'images')
+    global_images_dir = os.path.join(output_dir, "static", "images")
     os.makedirs(global_images_dir, exist_ok=True)
 
     # Copy images based on usage
     for image in image_map.values():
         source_path = image.path
         target_name = image.name
-        if image.name.endswith('.avif'):
+        if image.name.endswith(".avif"):
             continue
 
         if image.count > 1:
@@ -1820,12 +2037,12 @@ def copy_images_to_output(output_dir, input_dir, replace=False):
             # Find the RST file that references this image
             rel_path = os.path.relpath(image.source, input_dir)
             component_dir = os.path.dirname(rel_path)
-                            
+
             # Create component-level images directory in content
-            component_content_dir = os.path.join(output_dir, 'content', component_dir)
-            component_images_dir = os.path.join(component_content_dir, 'images')
+            component_content_dir = os.path.join(output_dir, "content", component_dir)
+            component_images_dir = os.path.join(component_content_dir, "images")
             os.makedirs(component_images_dir, exist_ok=True)
-                            
+
             target_path = os.path.join(component_images_dir, target_name)
 
         if replace:
@@ -1836,25 +2053,31 @@ def copy_images_to_output(output_dir, input_dir, replace=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Convert Sphinx RST files to Hugo Markdown format')
-    parser.add_argument('input_dir', help='Input directory containing RST files')
-    parser.add_argument('output_dir', help='Output directory for Markdown files')
-    parser.add_argument('--single', help='Process a single file (relative to input_dir)')
-    parser.add_argument('--no-images', action='store_true', help='Skip image processing')
+    parser = argparse.ArgumentParser(
+        description="Convert Sphinx RST files to Hugo Markdown format"
+    )
+    parser.add_argument("input_dir", help="Input directory containing RST files")
+    parser.add_argument("output_dir", help="Output directory for Markdown files")
+    parser.add_argument(
+        "--single", help="Process a single file (relative to input_dir)"
+    )
+    parser.add_argument(
+        "--no-images", action="store_true", help="Skip image processing"
+    )
     args = parser.parse_args()
-    
+
     # Ensure output directory exists
     os.makedirs(args.output_dir, exist_ok=True)
-    os.makedirs(os.path.join(args.output_dir, 'content'), exist_ok=True)
-    os.makedirs(os.path.join(args.output_dir, 'static'), exist_ok=True)
-    
+    os.makedirs(os.path.join(args.output_dir, "content"), exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir, "static"), exist_ok=True)
+
     # Build the anchor map first
     get_all_included_files(args.input_dir)
     build_anchor_map(args.input_dir)
-    
+
     # Scan for image references
     image_map = scan_image_references(args.input_dir)
-    
+
     if args.single:
         # Process a single file
         rst_file = os.path.join(args.input_dir, args.single)
@@ -1865,7 +2088,7 @@ if __name__ == "__main__":
     else:
         # Process all files in the directory
         process_directory(args.input_dir, args.output_dir)
-    
+
     # Copy images to output directories
     if not args.no_images:
         copy_images_to_output(args.output_dir, args.input_dir)

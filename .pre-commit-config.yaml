@@ -9,14 +9,14 @@ repos:
         - --safe
         - --quiet
   - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
+    rev: 7.3.0
     hooks:
       - id: flake8
         additional_dependencies:
           - flake8-docstrings==1.5.0
           - pydocstyle==5.1.1
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v5.0.0
     hooks:
       - id: no-commit-to-branch
         args:

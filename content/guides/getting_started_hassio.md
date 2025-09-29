@@ -178,9 +178,8 @@ installed on your device) it can update the device {{< docref "/components/ota/i
 Once your configuration is installed on your device and it's connected to your Wi-Fi, Home Assistant will automatically
 discover it (assuming your network permits this) and offer to configure it:
 
-{{< button href="<https://my.home-assistant.io/redirect/config_flow_start/?domain=esphome>"
-  img="<https://my.home-assistant.io/badges/config_flow_start.svg>"
-  alt="Open your Home Assistant instance and start setting up a new integration." >}}
+[![Open your Home Assistant instance and show the ESPHome integration.](https://my.home-assistant.io/badges/integration.svg)](https://my.home-assistant.io/redirect/integration/?domain=esphome)
+
 Alternatively, you can manually add the device on the Home Assistant Integrations page. To do so, click on the "Add
 Integration" button (bottom right), search for "ESPHome" and enter the ESPHome device's host name. The host name is
 based on the name you've given to the device; if you named your device "living-room-lamp", its host name will be

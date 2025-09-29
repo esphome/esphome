@@ -197,8 +197,9 @@ alarm_control_panel:
 
 ### `on_ready` Trigger
 
-This trigger is activated when the logical 'and' of all the alarm sensors change state. This is useful for implementing "alarm ready" LEDs.
-Once this trigger is called, you can get the ready state by calling get_all_sensors_ready() in a lambda block.
+This trigger is activated when the logical 'and' of all the alarm sensors change state. This is useful for implementing
+"alarm ready" LEDs. Once this trigger is called, you can get the ready state by calling get_all_sensors_ready() in a
+lambda block.
 
 ```yaml
 alarm_control_panel:
@@ -213,8 +214,8 @@ alarm_control_panel:
 
 ### `on_chime` Trigger
 
-This trigger is activated when a zone sensor marked with chime:true changes from closed to open. This is useful for implementing keypad chimes when a zone
-opens.
+This trigger is activated when a zone sensor marked with chime:true changes from closed to open. This is useful for
+implementing keypad chimes when a zone opens.
 
 ```yaml
 alarm_control_panel:

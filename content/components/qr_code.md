@@ -23,7 +23,8 @@ qr_code:
   in your display code.
 
 - **value** (**Required**, string): The string which you want to encode in the QR-code.
-- **ecc** (*Optional*, string): The error correction code level you want to use. Defaults to `LOW`. You can use one of the following values:
+- **ecc** (*Optional*, string): The error correction code level you want to use. Defaults to `LOW`. You can use one of
+  the following values:
 
   - `LOW`  : The QR Code can tolerate about 7% erroneous codewords
   - `MEDIUM`  : The QR Code can tolerate about 15% erroneous codewords

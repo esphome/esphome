@@ -625,7 +625,7 @@ See [light state](#light-state_config) for more information on the various color
 
 ### Flicker Effect
 
-This effect "hovers" around the active color of the light and flickers each color channel a bit.
+This effect applies random variations to the brightness and all color channels which "hover" around the active color of the light. The default values simulate a gentle candle flicker, but with different settings it can produce subtle color shifts or chaotic sparkly noise.
 
 ```yaml
 light:
@@ -642,11 +642,9 @@ light:
 **Configuration variables:**
 
 - **name** (*Optional*, string): The name of the effect. Defaults to `Flicker`.
-- **alpha** (*Optional*, percentage): The percentage that the last color value should affect the light. More or less
-  the "forget-factor" of an exponential moving average. Defaults to `95%`.
 
-- **intensity** (*Optional*, percentage): The intensity of the flickering, basically the maximum amplitude of the
-  random offsets. Defaults to `1.5%`.
+- **alpha** (*Optional*, percentage): A smoothing factor that controls how much "memory" the flicker has. A high value makes the flicker's next step very similar to its last, which smooths out changes. A low value mixes more of the new value, resulting in rapid changes. Defaults to `95%`.
+- **intensity** (*Optional*, percentage): The magnitude of the random change applied at each step. As the changes are applied across color channels, higher values produce more visible shifts. Defaults to `1.5%`.
 
 ### Lambda Effect
 
@@ -1016,9 +1014,9 @@ light:
 
 ### E1.31 Effect
 
-This effect enables controlling addressable lights by way of the UDP-based E1.31_ protocol.
+This effect enables controlling addressable lights by way of the UDP-based E1.31 protocol.
 
-For example, when enabled, JINX_or Hyperion.NG_ could be used to control the LEDs connected to the ESPHome device.
+For example, when enabled, JINX or Hyperion.NG could be used to control the LEDs connected to the ESPHome device.
 
 ```yaml
 e131:
@@ -1063,10 +1061,10 @@ ESPHome will listen on UDP port `5568`.
 
 ### Adalight Effect
 
-This effect enables controlling addressable lights using the serial Adalight_ protocol, allowing the creation of
+This effect enables controlling addressable lights using the serial Adalight protocol, allowing the creation of
 realtime ambient lighting effects.
 
-Prismatik_can be used to control addressable lights via Adalight_ protocol on ESPHome.
+Prismatik can be used to control addressable lights via Adalight protocol on ESPHome.
 
 ```yaml
 # Example configuration entry
@@ -1096,10 +1094,10 @@ light:
 
 ### WLED Effect
 
-This effect enables controlling addressable lights using the `UDP Realtime Control`*protocol used by WLED*, allowing
+This effect enables controlling addressable lights using the `UDP Realtime Control` *protocol used by WLED*, allowing
 creation of realtime ambient lighting effects.
 
-Prismatik_and/or LedFx_ can be used to control addressable lights over the network on ESPHome. Use the connection type
+[Prismatik](https://github.com/psieg/Lightpack) and/or [LedFx](https://github.com/LedFx/LedFx) can be used to control addressable lights over the network on ESPHome. Use the connection type
 `udp` on the default port and add the data prefix `0201`.
 
 ```yaml

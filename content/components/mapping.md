@@ -89,7 +89,7 @@ display:
   - platform: ...
     # update the display drawing random text in random colors
     lambda: |-
-      auto color = color_map.get(random_uint32() % 3]); # Uses get() to index the color_map
+      auto color = color_map.get(random_uint32() % 3); # Uses get() to index the color_map
       it.printf(100, 100, id(roboto20), color, id(string_map)[random_uint32() % 3].c_str(), Color(0));
 
     on_...:

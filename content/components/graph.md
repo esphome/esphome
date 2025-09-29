@@ -142,7 +142,7 @@ display:
         lambda: |-
           // Draw graph and legend
           it.graph(10, 20, id(temperature_graph_with_legend));
-          it.graph_legend(170, 20, id(temperature_graph_with_legend), my_yellow);
+          it.legend(170, 20, id(temperature_graph_with_legend), my_yellow);
 
 color:
   - id: my_red

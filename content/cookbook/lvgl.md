@@ -1230,7 +1230,7 @@ esphome:
     - lvgl.widget.hide: boot_screen
 
 image:
-  - file: https://esphome.io/_static/favicon-512x512.png
+  - file: https://esphome.io/favicon.ico
     id: boot_logo
     resize: 200x200
     type: RGB565

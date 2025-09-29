@@ -1,15 +1,19 @@
 {
   "name": "ESPHome - docs",
-  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
   "postCreateCommand": ".devcontainer/postCreate.sh",
   "postAttachCommand": "make live-html",
-  "forwardPorts": [8000],
+  "forwardPorts": [
+    8000
+  ],
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "customizations": {
     "vscode": {
-      "extensions": ["ms-python.python"]
+      "extensions": [
+        "ms-python.python"
+      ]
     }
   }
 }

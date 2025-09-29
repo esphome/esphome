@@ -27,7 +27,9 @@ status_led:
 ```
 
 {{< note >}}
-If your device has a single LED that needs to be shared use {{< docref "/components/light/status_led" "status_led light platform" >}} instead.
+
+If your device has a single LED that needs to be shared use
+{{< docref "/components/light/status_led" "status_led light platform" >}} instead.
 
 {{< /note >}}
 
