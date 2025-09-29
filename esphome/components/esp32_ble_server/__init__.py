@@ -591,6 +591,12 @@ async def to_code_characteristic(service_var, char_conf):
             parse_properties(char_conf),
         ),
     )
+
+    # If this characteristic has notify or indicate, it will get a CCCD descriptor (0x2902)
+    # and ble_characteristic.cpp will register a listener for it
+    if char_conf.get(CONF_NOTIFY, False) or char_conf.get(CONF_INDICATE, False):
+        allocate_descriptor_event_listener(0x2902, "WRITE", "esp32_ble_server", 1)
+
     if CONF_ON_WRITE in char_conf:
         on_write_conf = char_conf[CONF_ON_WRITE]
         cg.add_define("USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE")
@@ -670,6 +676,194 @@ async def to_code(config):
             [(cg.uint16, "id")],
             config[CONF_ON_DISCONNECT],
         )
+
+    # Generate defines for BLECharacteristicSetValueActionManager
+    set_value_action_count = sum(
+        count for comp, count in _LISTENER_ALLOCATIONS["server_connect"]
+    )
+    if set_value_action_count > 0:
+        cg.add_define("BLE_SET_VALUE_ACTION_MAX_LISTENERS", str(set_value_action_count))
+
+    # Generate defines and specialized classes for server events
+    server_connect_count = sum(
+        count for comp, count in _LISTENER_ALLOCATIONS["server_connect"]
+    )
+    server_disconnect_count = sum(
+        count for comp, count in _LISTENER_ALLOCATIONS["server_disconnect"]
+    )
+
+    if server_connect_count > 0 or server_disconnect_count > 0:
+        # Generate the specialized BLEServer class with EventEmitter support
+        cg.add_define(
+            "BLE_SERVER_CONNECT_MAX_LISTENERS", str(max(server_connect_count, 1))
+        )
+        cg.add_define(
+            "BLE_SERVER_DISCONNECT_MAX_LISTENERS",
+            str(max(server_disconnect_count, 1)),
+        )
+        # TODO: Generate specialized BLEServer class with EventEmitter mixins
+
+    # Generate defines and specialized classes for characteristics
+    # Group allocations by UUID
+    char_write_by_uuid: dict[int | str, int] = {}
+    for comp, uuid, count in _LISTENER_ALLOCATIONS["characteristic_write"]:
+        char_write_by_uuid[uuid] = char_write_by_uuid.get(uuid, 0) + count
+
+    char_read_by_uuid: dict[int | str, int] = {}
+    for comp, uuid, count in _LISTENER_ALLOCATIONS["characteristic_read"]:
+        char_read_by_uuid[uuid] = char_read_by_uuid.get(uuid, 0) + count
+
+    # Generate defines for each UUID
+    for uuid, count in char_write_by_uuid.items():
+        uuid_id = sanitize_uuid_for_identifier(uuid)
+        cg.add_define(f"BLE_CHAR_{uuid_id}_WRITE_MAX_LISTENERS", str(count))
+
+    for uuid, count in char_read_by_uuid.items():
+        uuid_id = sanitize_uuid_for_identifier(uuid)
+        cg.add_define(f"BLE_CHAR_{uuid_id}_READ_MAX_LISTENERS", str(count))
+
+    # Generate defines and specialized classes for descriptors
+    descriptor_write_by_uuid: dict[int | str, int] = {}
+    for comp, uuid, count in _LISTENER_ALLOCATIONS["descriptor_write"]:
+        descriptor_write_by_uuid[uuid] = descriptor_write_by_uuid.get(uuid, 0) + count
+
+    for uuid, count in descriptor_write_by_uuid.items():
+        uuid_id = sanitize_uuid_for_identifier(uuid)
+        cg.add_define(f"BLE_DESC_{uuid_id}_WRITE_MAX_LISTENERS", str(count))
+
+    # Generate specialized characteristic classes with EventEmitter support
+    for uuid in set(list(char_write_by_uuid.keys()) + list(char_read_by_uuid.keys())):
+        uuid_id = sanitize_uuid_for_identifier(uuid)
+        write_count = char_write_by_uuid.get(uuid, 0)
+        read_count = char_read_by_uuid.get(uuid, 0)
+
+        # Generate specialized class that inherits from BLECharacteristic and adds EventEmitter support
+        class_name = f"BLECharacteristic_{uuid_id}"
+
+        # Build the class header with appropriate EventEmitter base classes
+        base_classes = ["BLECharacteristic"]
+        template_params = []
+
+        if write_count > 0:
+            base_classes.append(
+                f"EventEmitter<BLECharacteristicEvt::SpanEvt, BLE_CHAR_{uuid_id}_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>"
+            )
+            template_params.append("write")
+        if read_count > 0:
+            base_classes.append(
+                f"EventEmitter<BLECharacteristicEvt::EmptyEvt, BLE_CHAR_{uuid_id}_READ_MAX_LISTENERS, uint16_t>"
+            )
+            template_params.append("read")
+
+        cg.add_global(
+            cg.RawExpression(f"""
+class {class_name} : public {", public ".join(base_classes)} {{
+ public:
+  {class_name}(ESPBTUUID uuid, uint32_t properties, uint16_t max_len = 100)
+      : BLECharacteristic(uuid, properties, max_len) {{}}
+
+  // Override virtual methods to provide EventEmitter functionality
+  {"EventEmitterListenerID on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&listener) override {" if write_count > 0 else ""}
+  {"  return this->EventEmitter<BLECharacteristicEvt::SpanEvt, BLE_CHAR_" + uuid_id + "_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>::on(BLECharacteristicEvt::SpanEvt::ON_WRITE, std::move(listener));" if write_count > 0 else ""}
+  {"}" if write_count > 0 else ""}
+
+  {"void off_write(EventEmitterListenerID id) override {" if write_count > 0 else ""}
+  {"  this->EventEmitter<BLECharacteristicEvt::SpanEvt, BLE_CHAR_" + uuid_id + "_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>::off(BLECharacteristicEvt::SpanEvt::ON_WRITE, id);" if write_count > 0 else ""}
+  {"}" if write_count > 0 else ""}
+
+  {"EventEmitterListenerID on_read(std::function<void(uint16_t)> &&listener) override {" if read_count > 0 else ""}
+  {"  return this->EventEmitter<BLECharacteristicEvt::EmptyEvt, BLE_CHAR_" + uuid_id + "_READ_MAX_LISTENERS, uint16_t>::on(BLECharacteristicEvt::EmptyEvt::ON_READ, std::move(listener));" if read_count > 0 else ""}
+  {"}" if read_count > 0 else ""}
+
+  {"void off_read(EventEmitterListenerID id) override {" if read_count > 0 else ""}
+  {"  this->EventEmitter<BLECharacteristicEvt::EmptyEvt, BLE_CHAR_" + uuid_id + "_READ_MAX_LISTENERS, uint16_t>::off(BLECharacteristicEvt::EmptyEvt::ON_READ, id);" if read_count > 0 else ""}
+  {"}" if read_count > 0 else ""}
+
+ protected:
+  {"void emit_on_write_(std::span<const uint8_t> value, uint16_t conn_id) override {" if write_count > 0 else ""}
+  {"  this->EventEmitter<BLECharacteristicEvt::SpanEvt, BLE_CHAR_" + uuid_id + "_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>::emit_(BLECharacteristicEvt::SpanEvt::ON_WRITE, value, conn_id);" if write_count > 0 else ""}
+  {"}" if write_count > 0 else ""}
+
+  {"void emit_on_read_(uint16_t conn_id) override {" if read_count > 0 else ""}
+  {"  this->EventEmitter<BLECharacteristicEvt::EmptyEvt, BLE_CHAR_" + uuid_id + "_READ_MAX_LISTENERS, uint16_t>::emit_(BLECharacteristicEvt::EmptyEvt::ON_READ, conn_id);" if read_count > 0 else ""}
+  {"}" if read_count > 0 else ""}
+}};
+""")
+        )
+
+    # Generate specialized descriptor classes with EventEmitter support
+    for uuid, count in descriptor_write_by_uuid.items():
+        uuid_id = sanitize_uuid_for_identifier(uuid)
+        class_name = f"BLEDescriptor_{uuid_id}"
+
+        cg.add_global(
+            cg.RawExpression(f"""
+class {class_name} : public BLEDescriptor,
+                     public EventEmitter<BLEDescriptorEvt::SpanEvt, BLE_DESC_{uuid_id}_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t> {{
+ public:
+  {class_name}(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true)
+      : BLEDescriptor(uuid, max_len, read, write) {{}}
+
+  EventEmitterListenerID on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&listener) override {{
+    return this->EventEmitter<BLEDescriptorEvt::SpanEvt, BLE_DESC_{uuid_id}_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>::on(BLEDescriptorEvt::SpanEvt::ON_WRITE, std::move(listener));
+  }}
+
+  void off_write(EventEmitterListenerID id) override {{
+    this->EventEmitter<BLEDescriptorEvt::SpanEvt, BLE_DESC_{uuid_id}_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>::off(BLEDescriptorEvt::SpanEvt::ON_WRITE, id);
+  }}
+
+ protected:
+  void emit_on_write_(std::span<const uint8_t> value, uint16_t conn_id) override {{
+    this->EventEmitter<BLEDescriptorEvt::SpanEvt, BLE_DESC_{uuid_id}_WRITE_MAX_LISTENERS, std::span<const uint8_t>, uint16_t>::emit_(BLEDescriptorEvt::SpanEvt::ON_WRITE, value, conn_id);
+  }}
+}};
+""")
+        )
+
+    # Generate specialized BLEServer class if needed
+    if server_connect_count > 0 or server_disconnect_count > 0:
+        base_classes = ["BLEServer"]
+        if server_connect_count > 0:
+            base_classes.append(
+                "EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_CONNECT_MAX_LISTENERS, uint16_t>"
+            )
+        if server_disconnect_count > 0:
+            base_classes.append(
+                "EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_DISCONNECT_MAX_LISTENERS, uint16_t>"
+            )
+
+        cg.add_global(
+            cg.RawExpression(f"""
+class BLEServerWithEvents : public {", public ".join(base_classes)} {{
+ public:
+  {"EventEmitterListenerID on_connect(std::function<void(uint16_t)> &&listener) override {" if server_connect_count > 0 else ""}
+  {"  return this->EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_CONNECT_MAX_LISTENERS, uint16_t>::on(BLEServerEvt::EmptyEvt::ON_CONNECT, std::move(listener));" if server_connect_count > 0 else ""}
+  {"}" if server_connect_count > 0 else ""}
+
+  {"void off_connect(EventEmitterListenerID id) override {" if server_connect_count > 0 else ""}
+  {"  this->EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_CONNECT_MAX_LISTENERS, uint16_t>::off(BLEServerEvt::EmptyEvt::ON_CONNECT, id);" if server_connect_count > 0 else ""}
+  {"}" if server_connect_count > 0 else ""}
+
+  {"EventEmitterListenerID on_disconnect(std::function<void(uint16_t)> &&listener) override {" if server_disconnect_count > 0 else ""}
+  {"  return this->EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_DISCONNECT_MAX_LISTENERS, uint16_t>::on(BLEServerEvt::EmptyEvt::ON_DISCONNECT, std::move(listener));" if server_disconnect_count > 0 else ""}
+  {"}" if server_disconnect_count > 0 else ""}
+
+  {"void off_disconnect(EventEmitterListenerID id) override {" if server_disconnect_count > 0 else ""}
+  {"  this->EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_DISCONNECT_MAX_LISTENERS, uint16_t>::off(BLEServerEvt::EmptyEvt::ON_DISCONNECT, id);" if server_disconnect_count > 0 else ""}
+  {"}" if server_disconnect_count > 0 else ""}
+
+ protected:
+  {"void emit_on_connect_(uint16_t conn_id) override {" if server_connect_count > 0 else ""}
+  {"  this->EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_CONNECT_MAX_LISTENERS, uint16_t>::emit_(BLEServerEvt::EmptyEvt::ON_CONNECT, conn_id);" if server_connect_count > 0 else ""}
+  {"}" if server_connect_count > 0 else ""}
+
+  {"void emit_on_disconnect_(uint16_t conn_id) override {" if server_disconnect_count > 0 else ""}
+  {"  this->EventEmitter<BLEServerEvt::EmptyEvt, BLE_SERVER_DISCONNECT_MAX_LISTENERS, uint16_t>::emit_(BLEServerEvt::EmptyEvt::ON_DISCONNECT, conn_id);" if server_disconnect_count > 0 else ""}
+  {"}" if server_disconnect_count > 0 else ""}
+}};
+""")
+        )
+
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
     add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

@@ -20,7 +20,7 @@ using namespace event_emitter;
 class BLECharacteristic;
 
 namespace BLEDescriptorEvt {
-enum VectorEvt {
+enum SpanEvt {
   ON_WRITE,
 };
 }  // namespace BLEDescriptorEvt

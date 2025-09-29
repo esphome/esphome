@@ -28,7 +28,7 @@ using namespace event_emitter;
 class BLEService;
 
 namespace BLECharacteristicEvt {
-enum VectorEvt {
+enum SpanEvt {
   ON_WRITE,
 };
 
