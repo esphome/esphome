@@ -184,6 +184,13 @@ APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
     return APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
+  // Check against maximum message size to prevent OOM
+  if (msg_size > MAX_MESSAGE_SIZE) {
+    state_ = State::FAILED;
+    HELPER_LOG("Bad packet: message size %u exceeds maximum %u", msg_size, MAX_MESSAGE_SIZE);
+    return APIError::BAD_DATA_PACKET;
+  }
+
   // reserve space for body
   if (rx_buf_.size() != msg_size) {
     rx_buf_.resize(msg_size);
