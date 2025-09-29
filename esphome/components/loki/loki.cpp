@@ -189,7 +189,7 @@ void Loki::esphome_loki_task(void *params) {
   vTaskDelete(nullptr);
 }
 
-bool Loki::enqueue_(const char *json_payload, size_t len) {
+bool Loki::enqueue_(const char *json_payload, size_t len) const {
   auto *elem = this->loki_event_pool_.allocate();
 
   if (!elem) {

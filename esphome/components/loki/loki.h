@@ -122,7 +122,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   EventPool<struct QueueElement, LOKI_QUEUE_LENGTH> loki_event_pool_;
   NotifyingLockFreeQueue<struct QueueElement, LOKI_QUEUE_LENGTH> loki_queue_;
   TaskHandle_t task_handle_{nullptr};
-  bool enqueue_(const char *json_payload, size_t len);
+  bool enqueue_(const char *json_payload, size_t len) const;
 #endif
 };
 }  // namespace loki
