@@ -15,7 +15,6 @@ static const uint8_t TSL2561_REGISTER_DATA_0 = 0x0C;
 static const uint8_t TSL2561_REGISTER_DATA_1 = 0x0E;
 
 void TSL2561Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id;
   if (!this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)) {
     this->mark_failed();

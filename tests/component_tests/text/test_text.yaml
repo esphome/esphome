@@ -4,6 +4,8 @@ esphome:
 esp32:
   board: esp32dev
 
+logger:
+
 text:
   - platform: template
     name: "test 1 text"

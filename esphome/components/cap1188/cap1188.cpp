@@ -8,8 +8,6 @@ namespace cap1188 {
 static const char *const TAG = "cap1188";
 
 void CAP1188Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Reset device using the reset pin
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();

@@ -152,6 +152,7 @@ class ESP32Camera : public camera::Camera {
   /* -- frame buffer */
   void set_frame_buffer_mode(camera_grab_mode_t mode);
   void set_frame_buffer_count(uint8_t fb_count);
+  void set_frame_buffer_location(camera_fb_location_t fb_location);
 
   /* public API (derivated) */
   void setup() override;

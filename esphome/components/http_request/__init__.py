@@ -70,9 +70,8 @@ def validate_url(value):
 def validate_ssl_verification(config):
     error_message = ""
 
-    if CORE.is_esp32:
-        if not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
-            error_message = "ESPHome supports certificate verification only via ESP-IDF"
+    if CORE.is_esp32 and not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
+        error_message = "ESPHome supports certificate verification only via ESP-IDF"
 
     if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
@@ -195,7 +194,7 @@ async def to_code(config):
             cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
         elif path := config.get(CONF_CA_CERTIFICATE_PATH):
             cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
-            cg.add(var.set_ca_path(path))
+            cg.add(var.set_ca_path(str(path)))
             cg.add_build_flag("-lssl")
             cg.add_build_flag("-lcrypto")
 

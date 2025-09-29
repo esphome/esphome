@@ -82,7 +82,7 @@ async def test_entity_icon(
         # Wait for states
         try:
             await asyncio.wait_for(state_received.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("No states received within 5 seconds")
 
         # Verify we received states

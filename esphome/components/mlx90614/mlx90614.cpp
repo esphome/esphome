@@ -28,7 +28,6 @@ static const uint8_t MLX90614_ID4 = 0x3F;
 static const char *const TAG = "mlx90614";
 
 void MLX90614Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_emissivity_()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
@@ -51,28 +50,13 @@ bool MLX90614Component::write_emissivity_() {
   return true;
 }
 
-uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
-  uint8_t crc = 0;
-  for (uint8_t i = 0; i < len; i++) {
-    uint8_t in = data[i];
-    for (uint8_t j = 0; j < 8; j++) {
-      bool carry = (crc ^ in) & 0x80;
-      crc <<= 1;
-      if (carry)
-        crc ^= 0x07;
-      in <<= 1;
-    }
-  }
-  return crc;
-}
-
 bool MLX90614Component::write_bytes_(uint8_t reg, uint16_t data) {
   uint8_t buf[5];
   buf[0] = this->address_ << 1;
   buf[1] = reg;
   buf[2] = data & 0xFF;
   buf[3] = data >> 8;
-  buf[4] = this->crc8_pec_(buf, 4);
+  buf[4] = crc8(buf, 4, 0x00, 0x07, true);
   return this->write_bytes(reg, buf + 2, 3);
 }
 
@@ -91,18 +75,18 @@ float MLX90614Component::get_setup_priority() const { return setup_priority::DAT
 
 void MLX90614Component::update() {
   uint8_t emissivity[3];
-  if (this->read_register(MLX90614_EMISSIVITY, emissivity, 3, false) != i2c::ERROR_OK) {
+  if (this->read_register(MLX90614_EMISSIVITY, emissivity, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
   uint8_t raw_object[3];
-  if (this->read_register(MLX90614_TEMPERATURE_OBJECT_1, raw_object, 3, false) != i2c::ERROR_OK) {
+  if (this->read_register(MLX90614_TEMPERATURE_OBJECT_1, raw_object, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
 
   uint8_t raw_ambient[3];
-  if (this->read_register(MLX90614_TEMPERATURE_AMBIENT, raw_ambient, 3, false) != i2c::ERROR_OK) {
+  if (this->read_register(MLX90614_TEMPERATURE_AMBIENT, raw_ambient, 3) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }

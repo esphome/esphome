@@ -61,9 +61,10 @@ async def test_scheduler_rapid_cancellation(
         elif "Total executed:" in line:
             if match := re.search(r"Total executed: (\d+)", line):
                 test_stats["final_executed"] = int(match.group(1))
-        elif "Implicit cancellations (replaced):" in line:
-            if match := re.search(r"Implicit cancellations \(replaced\): (\d+)", line):
-                test_stats["final_implicit_cancellations"] = int(match.group(1))
+        elif "Implicit cancellations (replaced):" in line and (
+            match := re.search(r"Implicit cancellations \(replaced\): (\d+)", line)
+        ):
+            test_stats["final_implicit_cancellations"] = int(match.group(1))
 
         # Check for crash indicators
         if any(
@@ -112,7 +113,7 @@ async def test_scheduler_rapid_cancellation(
         # Wait for test to complete with timeout
         try:
             await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(f"Test timed out. Stats: {test_stats}")
 
         # Check for any errors

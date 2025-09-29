@@ -43,7 +43,6 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   switch (this->component_gain_) {
     case TSL2591_CGAIN_LOW:
       this->gain_ = TSL2591_GAIN_LOW;

@@ -55,3 +55,70 @@ sensor:
     lambda: return 4.0;
     update_interval: 0.1s
 
+  - platform: template
+    name: Living Room Sensor
+    device_id: ""
+    lambda: return 5.0;
+    update_interval: 0.1s
+
+# Switches with the same name on different devices to test device_id lookup
+switch:
+  # Switch with no device_id (defaults to 0)
+  - platform: template
+    name: Test Switch
+    id: test_switch_main
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Main Device (no device_id)"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Main Device (no device_id)"
+
+  - platform: template
+    name: Test Switch
+    device_id: light_controller_device
+    id: test_switch_light_controller
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Light Controller"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Light Controller"
+
+  - platform: template
+    name: Test Switch
+    device_id: temp_sensor_device
+    id: test_switch_temp_sensor
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Temperature Sensor"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Temperature Sensor"
+
+  - platform: template
+    name: Test Switch
+    device_id: motion_detector_device
+    id: test_switch_motion_detector
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Test Switch on Motion Detector"
+    turn_off_action:
+      - logger.log: "Turning off Test Switch on Motion Detector"
+
+  - platform: template
+    name: Living Room Blank Switch
+    device_id: ""
+    id: test_switch_blank_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room Blank Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room Blank Switch"
+
+  - platform: template
+    name: Living Room None Switch
+    device_id:
+    id: test_switch_none_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room None Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room None Switch"

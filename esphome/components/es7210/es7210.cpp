@@ -38,8 +38,6 @@ void ES7210::dump_config() {
 }
 
 void ES7210::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Software reset
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0xff));
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x32));

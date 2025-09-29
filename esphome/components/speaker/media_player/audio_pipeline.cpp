@@ -200,7 +200,7 @@ AudioPipelineState AudioPipeline::process_state() {
       if ((this->read_task_handle_ != nullptr) || (this->decode_task_handle_ != nullptr)) {
         this->delete_tasks_();
         if (this->hard_stop_) {
-          // Stop command was sent, so immediately end of the playback
+          // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
           this->hard_stop_ = false;
         } else {
@@ -210,11 +210,23 @@ AudioPipelineState AudioPipeline::process_state() {
       }
     }
     this->is_playing_ = false;
-    return AudioPipelineState::STOPPED;
+    if (!this->speaker_->is_running()) {
+      return AudioPipelineState::STOPPED;
+    } else {
+      this->is_finishing_ = true;
+    }
   }
 
   if (this->pause_state_) {
     return AudioPipelineState::PAUSED;
+  }
+
+  if (this->is_finishing_) {
+    if (!this->speaker_->is_running()) {
+      this->is_finishing_ = false;
+    } else {
+      return AudioPipelineState::PLAYING;
+    }
   }
 
   if ((this->read_task_handle_ == nullptr) && (this->decode_task_handle_ == nullptr)) {
@@ -247,13 +259,10 @@ esp_err_t AudioPipeline::allocate_communications_() {
 esp_err_t AudioPipeline::start_tasks_() {
   if (this->read_task_handle_ == nullptr) {
     if (this->read_task_stack_buffer_ == nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-      }
+      // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
+      // in PSRAM. As a workaround, always allocate the read task in internal memory.
+      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
+      this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
     }
 
     if (this->read_task_stack_buffer_ == nullptr) {

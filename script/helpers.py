@@ -52,10 +52,10 @@ def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     return prefix + msg + suffix
 
 
-def print_error_for_file(file: str, body: str | None) -> None:
+def print_error_for_file(file: str | Path, body: str | None) -> None:
     print(
         styled(colorama.Fore.GREEN, "### File ")
-        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
+        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), str(file))
     )
     print()
     if body is not None:
@@ -139,9 +139,24 @@ def _get_changed_files_github_actions() -> list[str] | None:
     if event_name == "pull_request":
         pr_number = _get_pr_number_from_github_env()
         if pr_number:
-            # Use GitHub CLI to get changed files directly
+            # Try gh pr diff first (faster for small PRs)
             cmd = ["gh", "pr", "diff", pr_number, "--name-only"]
-            return _get_changed_files_from_command(cmd)
+            try:
+                return _get_changed_files_from_command(cmd)
+            except Exception as e:
+                # If it fails due to the 300 file limit, use the API method
+                if "maximum" in str(e) and "files" in str(e):
+                    cmd = [
+                        "gh",
+                        "api",
+                        f"repos/esphome/esphome/pulls/{pr_number}/files",
+                        "--paginate",
+                        "--jq",
+                        ".[].filename",
+                    ]
+                    return _get_changed_files_from_command(cmd)
+                # Re-raise for other errors
+                raise
 
     # For pushes (including squash-and-merge)
     elif event_name == "push":
@@ -338,12 +353,12 @@ def filter_changed(files: list[str]) -> list[str]:
     return files
 
 
-def filter_grep(files: list[str], value: str) -> list[str]:
+def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
         with open(file, encoding="utf-8") as handle:
             contents = handle.read()
-        if value in contents:
+        if any(v in contents for v in value):
             matched.append(file)
     return matched
 
@@ -365,9 +380,11 @@ def load_idedata(environment: str) -> dict[str, Any]:
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if "idf" in environment:
@@ -496,7 +513,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
-    CORE.config_path = str(root)
+    CORE.config_path = root
     CORE.data[KEY_CORE] = {}
 
     # Keep finding dependencies until no new ones are found
@@ -530,27 +547,26 @@ def get_components_from_integration_fixtures() -> set[str]:
     Returns:
         Set of component names used in integration test fixtures
     """
-    import yaml
+    from esphome import yaml_util
 
     components: set[str] = set()
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        with open(yaml_file) as f:
-            config: dict[str, any] | None = yaml.safe_load(f)
-            if not config:
+        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
+        if not config:
+            continue
+
+        # Add all top-level component keys
+        components.update(config.keys())
+
+        # Add platform components (e.g., output.template)
+        for value in config.values():
+            if not isinstance(value, list):
                 continue
 
-            # Add all top-level component keys
-            components.update(config.keys())
-
-            # Add platform components (e.g., output.template)
-            for value in config.values():
-                if not isinstance(value, list):
-                    continue
-
-                for item in value:
-                    if isinstance(item, dict) and "platform" in item:
-                        components.add(item["platform"])
+            for item in value:
+                if isinstance(item, dict) and "platform" in item:
+                    components.add(item["platform"])
 
     return components

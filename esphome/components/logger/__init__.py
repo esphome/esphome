@@ -21,6 +21,11 @@ from esphome.components.libretiny.const import (
     COMPONENT_LN882X,
     COMPONENT_RTL87XX,
 )
+from esphome.components.zephyr import (
+    zephyr_add_cdc_acm,
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -41,11 +46,12 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -111,9 +117,9 @@ UART_SELECTION_LIBRETINY = {
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
 
-ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
-
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
+
+UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -145,13 +151,7 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
-            raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
-        if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
-            raise cv.Invalid(
-                f"{value} is not supported for variant {variant} when using ESP-IDF."
-            )
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
@@ -167,6 +167,8 @@ def uart_selection(value):
             return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
+    if CORE.is_nrf52:
+        return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
 
 
@@ -183,8 +185,9 @@ def validate_local_no_higher_than_global(value):
 Logger = logger_ns.class_("Logger", cg.Component)
 LoggerMessageTrigger = logger_ns.class_(
     "LoggerMessageTrigger",
-    automation.Trigger.template(cg.int_, cg.const_char_ptr, cg.const_char_ptr),
+    automation.Trigger.template(cg.uint8, cg.const_char_ptr, cg.const_char_ptr),
 )
+
 
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONFIG_SCHEMA = cv.All(
@@ -215,18 +218,16 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 esp32_s2=USB_CDC,
-                esp32_s3_arduino=USB_CDC,
-                esp32_s3_idf=USB_SERIAL_JTAG,
-                esp32_c3_arduino=USB_CDC,
-                esp32_c3_idf=USB_SERIAL_JTAG,
-                esp32_c5_idf=USB_SERIAL_JTAG,
-                esp32_c6_arduino=USB_CDC,
-                esp32_c6_idf=USB_SERIAL_JTAG,
-                esp32_p4_idf=USB_SERIAL_JTAG,
+                esp32_s3=USB_SERIAL_JTAG,
+                esp32_c3=USB_SERIAL_JTAG,
+                esp32_c5=USB_SERIAL_JTAG,
+                esp32_c6=USB_SERIAL_JTAG,
+                esp32_p4=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
+                nrf52=USB_CDC,
             ): cv.All(
                 cv.only_on(
                     [
@@ -236,6 +237,7 @@ CONFIG_SCHEMA = cv.All(
                         PLATFORM_BK72XX,
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
+                        PLATFORM_NRF52,
                     ]
                 ),
                 uart_selection,
@@ -262,7 +264,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(90.0)
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
@@ -333,16 +335,7 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
-    if CORE.using_arduino:
-        if config[CONF_HARDWARE_UART] == USB_CDC:
-            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
-            if CORE.is_esp32 and get_esp32_variant() in (
-                VARIANT_ESP32C3,
-                VARIANT_ESP32C6,
-            ):
-                cg.add_build_flag("-DARDUINO_USB_MODE=1")
-
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
@@ -358,6 +351,15 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
+    if CORE.using_zephyr:
+        if config[CONF_HARDWARE_UART] == UART0:
+            zephyr_add_overlay("""&uart0 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == UART1:
+            zephyr_add_overlay("""&uart1 { status = "okay";};""")
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            zephyr_add_prj_conf("UART_LINE_CTRL", True)
+            zephyr_add_cdc_acm(config, 0)
+
     # Register at end for safe mode
     await cg.register_component(log, config)
 
@@ -368,7 +370,7 @@ async def to_code(config):
         await automation.build_automation(
             trigger,
             [
-                (cg.int_, "level"),
+                (cg.uint8, "level"),
                 (cg.const_char_ptr, "tag"),
                 (cg.const_char_ptr, "message"),
             ],
@@ -388,7 +390,7 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """  # noqa
-    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
+    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
@@ -400,6 +402,7 @@ CONF_LOGGER_LOG = "logger.log"
 LOGGER_LOG_ACTION_SCHEMA = cv.All(
     cv.maybe_simple_value(
         {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
             cv.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(
@@ -462,6 +465,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "logger_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
         "task_log_buffer.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,

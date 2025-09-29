@@ -40,5 +40,29 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...> {
   FloatOutput *output_;
 };
 
+template<typename... Ts> class SetMinPowerAction : public Action<Ts...> {
+ public:
+  SetMinPowerAction(FloatOutput *output) : output_(output) {}
+
+  TEMPLATABLE_VALUE(float, min_power)
+
+  void play(Ts... x) override { this->output_->set_min_power(this->min_power_.value(x...)); }
+
+ protected:
+  FloatOutput *output_;
+};
+
+template<typename... Ts> class SetMaxPowerAction : public Action<Ts...> {
+ public:
+  SetMaxPowerAction(FloatOutput *output) : output_(output) {}
+
+  TEMPLATABLE_VALUE(float, max_power)
+
+  void play(Ts... x) override { this->output_->set_max_power(this->max_power_.value(x...)); }
+
+ protected:
+  FloatOutput *output_;
+};
+
 }  // namespace output
 }  // namespace esphome

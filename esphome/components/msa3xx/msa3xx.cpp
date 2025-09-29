@@ -118,8 +118,6 @@ const char *orientation_xy_to_string(OrientationXY orientation) {
 const char *orientation_z_to_string(bool orientation) { return orientation ? "Downwards looking" : "Upwards looking"; }
 
 void MSA3xxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   uint8_t part_id{0xff};
   if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
     ESP_LOGE(TAG, "Part ID is wrong or missing. Got 0x%02X", part_id);

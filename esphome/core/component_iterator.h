@@ -171,6 +171,21 @@ class ComponentIterator {
   } state_{IteratorState::NONE};
   uint16_t at_{0};  // Supports up to 65,535 entities per type
   bool include_internal_{false};
+
+  template<typename Container>
+  void process_platform_item_(const Container &items,
+                              bool (ComponentIterator::*on_item)(typename Container::value_type)) {
+    if (this->at_ >= items.size()) {
+      this->advance_platform_();
+    } else {
+      typename Container::value_type item = items[this->at_];
+      if ((item->is_internal() && !this->include_internal_) || (this->*on_item)(item)) {
+        this->at_++;
+      }
+    }
+  }
+
+  void advance_platform_();
 };
 
 }  // namespace esphome

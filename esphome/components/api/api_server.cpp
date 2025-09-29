@@ -16,8 +16,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api";
 
@@ -31,7 +30,6 @@ APIServer::APIServer() {
 }
 
 void APIServer::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->setup_controller();
 
 #ifdef USE_API_NOISE
@@ -39,12 +37,14 @@ void APIServer::setup() {
 
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
 
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // Only load saved PSK if not set from YAML
   SavedNoisePsk noise_pref_saved{};
   if (this->noise_pref_.load(&noise_pref_saved)) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-
     this->set_noise_psk(noise_pref_saved.psk);
   }
+#endif
 #endif
 
   // Schedule reboot if no clients connect within timeout
@@ -105,7 +105,7 @@ void APIServer::setup() {
             return;
           }
           for (auto &c : this->clients_) {
-            if (!c->flags_.remove)
+            if (!c->flags_.remove && c->get_log_subscription_level() >= level)
               c->try_send_log_message(level, tag, message, message_len);
           }
         });
@@ -185,9 +185,9 @@ void APIServer::loop() {
 
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    this->client_disconnected_trigger_->trigger(client->client_info_, client->client_peername_);
+    this->client_disconnected_trigger_->trigger(client->client_info_.name, client->client_info_.peername);
 #endif
-    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.c_str());
+    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
@@ -205,28 +205,26 @@ void APIServer::loop() {
 
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "API Server:\n"
+                "Server:\n"
                 "  Address: %s:%u",
                 network::get_use_address().c_str(), this->port_);
 #ifdef USE_API_NOISE
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
+  ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
-    ESP_LOGCONFIG(TAG, "  Supports noise encryption: YES");
+    ESP_LOGCONFIG(TAG, "  Supports encryption: YES");
   }
 #else
-  ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
+  ESP_LOGCONFIG(TAG, "  Noise encryption: NO");
 #endif
 }
 
 #ifdef USE_API_PASSWORD
-bool APIServer::uses_password() const { return !this->password_.empty(); }
-
-bool APIServer::check_password(const std::string &password) const {
+bool APIServer::check_password(const uint8_t *password_data, size_t password_len) const {
   // depend only on input password length
   const char *a = this->password_.c_str();
   uint32_t len_a = this->password_.length();
-  const char *b = password.c_str();
-  uint32_t len_b = password.length();
+  const char *b = reinterpret_cast<const char *>(password_data);
+  uint32_t len_b = password_len;
 
   // disable optimization with volatile
   volatile uint32_t length = len_b;
@@ -249,6 +247,7 @@ bool APIServer::check_password(const std::string &password) const {
 
   return result == 0;
 }
+
 #endif
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
@@ -359,6 +358,15 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+  // We could add code to manage a second subscription type, but, since this message type is
+  //  very infrequent and small, we simply send it to all clients
+  for (auto &c : this->clients_)
+    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
@@ -373,12 +381,15 @@ void APIServer::set_password(const std::string &password) { this->password_ = pa
 
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
-void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
   for (auto &client : this->clients_) {
-    client->send_homeassistant_service_call(call);
+    client->send_homeassistant_action(call);
   }
 }
+#endif
 
+#ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
@@ -402,6 +413,7 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
 const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
   return this->state_subs_;
 }
+#endif
 
 uint16_t APIServer::get_port() const { return this->port_; }
 
@@ -409,6 +421,12 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
   auto &old_psk = this->noise_ctx_->get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
@@ -428,14 +446,16 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   ESP_LOGD(TAG, "Noise PSK saved");
   if (make_active) {
     this->set_timeout(100, [this, psk]() {
-      ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
+      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       this->set_noise_psk(psk);
       for (auto &c : this->clients_) {
-        c->send_message(DisconnectRequest());
+        DisconnectRequest req;
+        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
       }
     });
   }
   return true;
+#endif
 }
 #endif
 
@@ -464,7 +484,8 @@ void APIServer::on_shutdown() {
 
   // Send disconnect requests to all connected clients
   for (auto &c : this->clients_) {
-    if (!c->send_message(DisconnectRequest())) {
+    DisconnectRequest req;
+    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
@@ -484,6 +505,5 @@ bool APIServer::teardown() {
   return this->clients_.empty();
 }
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

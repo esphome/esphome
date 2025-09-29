@@ -1,17 +1,44 @@
 #pragma once
 
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "esphome/core/component.h"
 #include <vector>
 #include "usb/usb_host.h"
-
-#include <list>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
+#include <atomic>
 
 namespace esphome {
 namespace usb_host {
 
+// THREADING MODEL:
+// This component uses a dedicated USB task for event processing to prevent data loss.
+// - USB Task (high priority): Handles USB events, executes transfer callbacks
+// - Main Loop Task: Initiates transfers, processes completion events
+//
+// Thread-safe communication:
+// - Lock-free queues for USB task -> main loop events (SPSC pattern)
+// - Lock-free TransferRequest pool using atomic bitmask (MCSP pattern)
+//
+// TransferRequest pool access pattern:
+// - get_trq_() [allocate]: Called from BOTH USB task and main loop threads
+//   * USB task: via USB UART input callbacks that restart transfers immediately
+//   * Main loop: for output transfers and flow-controlled input restarts
+// - release_trq() [deallocate]: Called from main loop thread only
+//
+// The multi-threaded allocation is intentional for performance:
+// - USB task can immediately restart input transfers without context switching
+// - Main loop controls backpressure by deciding when to restart after consuming data
+// The atomic bitmask ensures thread-safe allocation without mutex blocking.
+
 static const char *const TAG = "usb_host";
+
+// Forward declarations
+struct TransferRequest;
+class USBClient;
 
 // constants for setup packet type
 static const uint8_t USB_RECIP_DEVICE = 0;
@@ -26,6 +53,10 @@ static const uint8_t USB_DIR_OUT = 0;
 static const size_t SETUP_PACKET_SIZE = 8;
 
 static const size_t MAX_REQUESTS = 16;  // maximum number of outstanding requests possible.
+static_assert(MAX_REQUESTS <= 16, "MAX_REQUESTS must be <= 16 to fit in uint16_t bitmask");
+static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
+static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
+static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
 
 // used to report a transfer status
 struct TransferStatus {
@@ -49,6 +80,31 @@ struct TransferRequest {
   USBClient *client;
 };
 
+enum EventType : uint8_t {
+  EVENT_DEVICE_NEW,
+  EVENT_DEVICE_GONE,
+  EVENT_TRANSFER_COMPLETE,
+  EVENT_CONTROL_COMPLETE,
+};
+
+struct UsbEvent {
+  EventType type;
+  union {
+    struct {
+      uint8_t address;
+    } device_new;
+    struct {
+      usb_device_handle_t handle;
+    } device_gone;
+    struct {
+      TransferRequest *trq;
+    } transfer;
+  } data;
+
+  // Required for EventPool - no cleanup needed for POD types
+  void release() {}
+};
+
 // callback function type.
 
 enum ClientState {
@@ -63,13 +119,7 @@ class USBClient : public Component {
   friend class USBHost;
 
  public:
-  USBClient(uint16_t vid, uint16_t pid) : vid_(vid), pid_(pid) { init_pool(); }
-
-  void init_pool() {
-    this->trq_pool_.clear();
-    for (size_t i = 0; i != MAX_REQUESTS; i++)
-      this->trq_pool_.push_back(&this->requests_[i]);
-  }
+  USBClient(uint16_t vid, uint16_t pid) : vid_(vid), pid_(pid), trq_in_use_(0) {}
   void setup() override;
   void loop() override;
   // setup must happen after the host bus has been setup
@@ -84,12 +134,26 @@ class USBClient : public Component {
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
+  // Lock-free event queue and pool for USB task to main loop communication
+  // Must be public for access from static callbacks
+  LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
+  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
+
  protected:
   bool register_();
-  TransferRequest *get_trq_();
+  TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
-  virtual void on_disconnected() { this->init_pool(); }
+  virtual void on_disconnected() {
+    // Reset all requests to available (all bits to 0)
+    this->trq_in_use_.store(0);
+  }
+
+  // USB task management
+  static void usb_task_fn(void *arg);
+  void usb_task_loop();
+
+  TaskHandle_t usb_task_handle_{nullptr};
 
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
@@ -97,7 +161,12 @@ class USBClient : public Component {
   int state_{USB_CLIENT_INIT};
   uint16_t vid_{};
   uint16_t pid_{};
-  std::list<TransferRequest *> trq_pool_{};
+  // Lock-free pool management using atomic bitmask (no dynamic allocation)
+  // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
+  // Supports multiple concurrent consumers (both threads can allocate)
+  // Single producer for deallocation (main loop only)
+  // Limited to 16 slots by uint16_t size (enforced by static_assert)
+  std::atomic<uint16_t> trq_in_use_;
   TransferRequest requests_[MAX_REQUESTS]{};
 };
 class USBHost : public Component {
