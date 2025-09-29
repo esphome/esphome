@@ -61,6 +61,16 @@ struct QueueElement {
     payload_len = 0;
   }
 };
+
+struct BatchedLogEntry {
+  int level;
+  std::string tag;
+  std::string message;
+  int64_t timestamp_ns;
+
+  BatchedLogEntry(int lvl, const char *t, const char *msg, size_t msg_len, int64_t ts)
+      : level(lvl), tag(t), message(msg, msg_len), timestamp_ns(ts) {}
+};
 #endif
 
 class Loki : public Component, public Parented<http_request::HttpRequestComponent> {
@@ -117,12 +127,21 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   static const uint8_t LOKI_QUEUE_LENGTH = 20;  // 20 queue elements for log messages
   static const size_t TASK_STACK_SIZE = 3072;
   static const ssize_t TASK_PRIORITY = 5;
+  static const uint8_t BATCH_SIZE = 5;            // Batch up to 5 log messages per HTTP request
+  static const uint32_t BATCH_TIMEOUT_MS = 1000;  // Send batch after 1 second even if not full
 
   static void esphome_loki_task(void *params);
   EventPool<struct QueueElement, LOKI_QUEUE_LENGTH> loki_event_pool_;
   NotifyingLockFreeQueue<struct QueueElement, LOKI_QUEUE_LENGTH> loki_queue_;
   TaskHandle_t task_handle_{nullptr};
   bool enqueue_(const char *json_payload, size_t len);
+
+  // Batching support
+  std::vector<BatchedLogEntry> log_batch_;
+  uint32_t last_batch_time_{0};
+  void add_to_batch_(int level, const char *tag, const char *message, size_t message_len, int64_t timestamp_ns);
+  void send_batch_();
+  std::string build_batch_json_();
 #endif
 };
 }  // namespace loki

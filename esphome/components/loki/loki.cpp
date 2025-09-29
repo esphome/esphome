@@ -92,7 +92,12 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   });
 
   // Send the payload
+#ifdef USE_ESP32
+  // Add to batch instead of sending immediately
+  this->add_to_batch_(level, tag, message, len, ns);
+#else
   this->send_to_loki_(json_payload);
+#endif
 }
 
 void Loki::send_to_loki_(const std::string &json_payload) {
@@ -157,6 +162,12 @@ void Loki::loop() {
   uint16_t dropped_count = this->loki_queue_.get_and_reset_dropped_count();
   // Silently handle dropped messages - no logging to prevent recursion
   (void) dropped_count;  // Suppress unused variable warning
+
+  // Check if we need to send a batch due to timeout
+  uint32_t now = millis();
+  if (!this->log_batch_.empty() && (now - this->last_batch_time_) >= BATCH_TIMEOUT_MS) {
+    this->send_batch_();
+  }
 #else
   // No-op for non-ESP32 platforms since they use direct HTTP requests
 #endif
@@ -213,6 +224,91 @@ bool Loki::enqueue_(const char *json_payload, size_t len) {
   // Push to queue - always succeeds since we allocated from the pool
   this->loki_queue_.push(elem);
   return true;
+}
+
+void Loki::add_to_batch_(int level, const char *tag, const char *message, size_t message_len, int64_t timestamp_ns) {
+  // Remove color formatting if enabled
+  size_t len = message_len;
+  const char *msg = message;
+  if (this->strip_ && message[0] == 0x1B && len > 11) {
+    msg += 7;
+    len -= 11;
+  }
+
+  // Add to batch
+  this->log_batch_.emplace_back(level, tag, msg, len, timestamp_ns);
+  this->last_batch_time_ = millis();
+
+  // Send batch if it's full
+  if (this->log_batch_.size() >= BATCH_SIZE) {
+    this->send_batch_();
+  }
+}
+
+void Loki::send_batch_() {
+  if (this->log_batch_.empty()) {
+    return;
+  }
+
+  // Build JSON payload for the batch
+  std::string json_payload = this->build_batch_json_();
+
+  // Send via queue
+  if (!this->enqueue_(json_payload.c_str(), json_payload.length())) {
+    // Queue is full - increment counter but don't log immediately to avoid cascade effect
+    this->loki_queue_.increment_dropped_count();
+  }
+
+  // Clear the batch
+  this->log_batch_.clear();
+}
+
+std::string Loki::build_batch_json_() {
+  return json::build_json([&](JsonObject root) {
+    JsonArray streams = root["streams"].to<JsonArray>();
+
+    // Group log entries by tag and level for efficiency
+    std::map<std::string, std::vector<BatchedLogEntry *>> grouped_logs;
+    for (auto &entry : this->log_batch_) {
+      std::string key = entry.tag + ":" + this->get_log_level_name_(entry.level);
+      grouped_logs[key].push_back(&entry);
+    }
+
+    // Create one stream per tag/level combination
+    for (auto &[key, entries] : grouped_logs) {
+      JsonObject stream_entry = streams.add<JsonObject>();
+
+      // Stream labels
+      JsonObject labels = stream_entry["stream"].to<JsonObject>();
+      labels["platform"] = "esphome";
+      labels["job"] = "esphome";
+      labels["node"] = App.get_name();
+
+      // Add area if available
+      const std::string &node_area = App.get_area();
+      if (!node_area.empty()) {
+        labels["area"] = node_area;
+      }
+
+      // Add friendly_name if available
+      const std::string &node_friendly_name = App.get_friendly_name();
+      if (!node_friendly_name.empty()) {
+        labels["friendly_name"] = node_friendly_name;
+      }
+
+      // Add tag and level from first entry (all entries in this group have same tag/level)
+      labels["tag"] = entries[0]->tag;
+      labels["log_level"] = this->get_log_level_name_(entries[0]->level);
+
+      // Log values (timestamp and message pairs)
+      JsonArray values = stream_entry["values"].to<JsonArray>();
+      for (auto *entry : entries) {
+        JsonArray log_line = values.add<JsonArray>();
+        log_line.add(std::to_string(entry->timestamp_ns));
+        log_line.add(entry->message);
+      }
+    }
+  });
 }
 #endif  // USE_ESP32
 
