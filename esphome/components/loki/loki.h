@@ -127,7 +127,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   static const uint8_t LOKI_QUEUE_LENGTH = 20;  // Queue size for log messages
   static const size_t TASK_STACK_SIZE = 3072;
   static const ssize_t TASK_PRIORITY = 5;
-  static const uint8_t MAX_CONCURRENT_REQUESTS = 2;  // Limit concurrent HTTP requests
+  static const uint8_t MAX_CONCURRENT_REQUESTS = 1;  // Limit concurrent HTTP requests
   static const uint32_t HTTP_TIMEOUT_MS = 5000;      // HTTP request timeout
   static const uint32_t REQUEST_DELAY_MS = 200;      // Delay between HTTP requests
 
