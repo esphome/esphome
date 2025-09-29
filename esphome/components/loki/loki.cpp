@@ -170,9 +170,9 @@ void Loki::esphome_loki_task(void *params) {
     // Wait for notification indefinitely
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    // Process all queued items
-    struct QueueElement *elem;
-    while ((elem = this_loki->loki_queue_.pop()) != nullptr) {
+    // Process only one queued item per iteration to prevent blocking
+    struct QueueElement *elem = this_loki->loki_queue_.pop();
+    if (elem != nullptr) {
       if (this_loki->enabled_) {
         // Send HTTP POST request directly
         std::string payload(elem->json_payload, elem->payload_len);
