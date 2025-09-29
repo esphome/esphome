@@ -242,7 +242,6 @@ void VoiceAssistant::loop() {
       msg.flags = flags;
       msg.audio_settings = audio_settings;
       msg.set_wake_word_phrase(StringRef(this->wake_word_));
-      this->wake_word_ = "";
 
       // Reset media player state tracking
 #ifdef USE_MEDIA_PLAYER
@@ -256,9 +255,11 @@ void VoiceAssistant::loop() {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_->trigger("not-connected", "Could not request start");
         this->continuous_ = false;
+        this->wake_word_ = "";
         this->set_state_(State::IDLE, State::IDLE);
         break;
       }
+      this->wake_word_ = "";
       this->set_state_(State::STARTING_PIPELINE);
       this->set_timeout("reset-conversation_id", this->conversation_timeout_,
                         [this]() { this->reset_conversation_id(); });
