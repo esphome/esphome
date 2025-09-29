@@ -351,8 +351,8 @@ async def to_code(config):
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
         cg.add_define(phy_define)
 
-    if CONF_MAC_ADDRESS in config:
-        cg.add(var.set_fixed_mac(config[CONF_MAC_ADDRESS].parts))
+    if mac_address := config.get(CONF_MAC_ADDRESS):
+        cg.add(var.set_fixed_mac(mac_address.parts))
 
     cg.add_define("USE_ETHERNET")
 
