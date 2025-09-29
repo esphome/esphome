@@ -215,7 +215,7 @@ void USBUartComponent::dump_config() {
   }
 }
 
-void USBUartComponent::enum_chip_type() { return; }
+void USBUartComponent::enum_chip_type_() { return; }
 
 void USBUartComponent::start_input(USBUartChannel *channel) {
   if (!channel->initialised_.load() || channel->input_started_.load())
