@@ -25,7 +25,6 @@ namespace esp32_ble_server {
 using namespace esp32_ble;
 using namespace bytebuffer;
 
-// Base class for BLE server
 class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
