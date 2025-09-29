@@ -1,1 +1,0 @@
-CODEOWNERS = ["@rnauber", "@edge90"]

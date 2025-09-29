@@ -100,6 +100,14 @@ iwr6843aop:
     room_presence: room_presence
     bed_presence: bed_presence
 
+  sensor:
+    target1_x: target1_x_coord
+    target1_y: target1_y_coord
+    target1_z: target1_z_coord
+    target2_x: target2_x_coord
+    target2_y: target2_y_coord
+    target2_z: target2_z_coord
+
 uart:
   - id: iwr_uart1
     tx_pin: GPIO4
@@ -123,21 +131,55 @@ binary_sensor:
     id: bed_presence
     name: "Bed presence"
 
-
-i2c:
-  sda: GPIO20
-  scl: GPIO21
-  scan: false
-
 sensor:
+  - platform: template
+    id: target1_x_coord
+    name: "Target 1 X Coordinate"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    update_interval: 1s
+
+  - platform: template
+    id: target1_y_coord
+    name: "Target 1 Y Coordinate"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    update_interval: 1s
+
+  - platform: template
+    id: target1_z_coord
+    name: "Target 1 Z Coordinate"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    update_interval: 1s
+
+  - platform: template
+    id: target2_x_coord
+    name: "Target 2 X Coordinate"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    update_interval: 1s
+
+  - platform: template
+    id: target2_y_coord
+    name: "Target 2 Y Coordinate"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    update_interval: 1s
+
+  - platform: template
+    id: target2_z_coord
+    name: "Target 2 Z Coordinate"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    update_interval: 1s
+
   - platform: internal_temperature
     name: "ESP32-C6 Internal Temperature"
     id: esp32_temp
     update_interval: 60s
     unit_of_measurement: "°C"
     device_class: temperature
-    state_class: measurement
-    entity_category: diagnostic
 
   - platform: tsl2591
     name: "Ambient Light"
@@ -159,4 +201,10 @@ sensor:
     actual_gain:
       id: "actual_gain"
       name: "TSL2591 actual gain"
+
+
+i2c:
+  sda: GPIO20
+  scl: GPIO21
+  scan: false
 
