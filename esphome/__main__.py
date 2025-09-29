@@ -1155,7 +1155,9 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
-    parser_clean_all = subparsers.add_parser("clean-all", help="Clean all files.")
+    parser_clean_all = subparsers.add_parser(
+        "clean-all", help="Clean all build and platform files."
+    )
     parser_clean_all.add_argument(
         "configuration", help="Your YAML configuration directory.", nargs="*"
     )
