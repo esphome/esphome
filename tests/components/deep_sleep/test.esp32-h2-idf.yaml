@@ -1,0 +1,16 @@
+substitutions:
+  wakeup_pin: GPIO9
+
+<<: !include common.yaml
+
+deep_sleep:
+  run_duration:
+    default: 10s
+    gpio_wakeup_reason: 30s
+  sleep_duration: 50s
+  esp32_ext1_wakeup:
+    pins:
+      - number: GPIO7
+      - number: GPIO8
+      - number: GPIO9
+    mode: ANY_HIGH
