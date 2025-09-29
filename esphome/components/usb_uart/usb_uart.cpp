@@ -86,7 +86,7 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
        (device_desc->bDeviceProtocol == USB_DEVICE_PROTOCOL_IAD)) ||
       ((device_desc->bDeviceClass == USB_CLASS_PER_INTERFACE) && (device_desc->bDeviceSubClass == USB_SUBCLASS_NULL) &&
        (device_desc->bDeviceProtocol == USB_PROTOCOL_NULL))) {
-      this->enum_chip_type_();
+    this->enum_chip_type_();
     // This is a composite device, that uses Interface Association Descriptor
     const auto *this_desc = reinterpret_cast<const usb_standard_desc_t *>(config_desc);
     for (;;) {

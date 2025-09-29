@@ -35,32 +35,32 @@ struct CdcEps {
 
 #if defined(USE_UART_DEBUGGER)
 enum CH34X_CHIPTYPE {
-	CHIP_CH342F = 0x00,
-	CHIP_CH342K,
-	CHIP_CH343GP,
-	CHIP_CH343G_AUTOBAUD,
-	CHIP_CH343K,
-	CHIP_CH343J,
-	CHIP_CH344L,
-	CHIP_CH344L_V2,
-	CHIP_CH344Q,
-	CHIP_CH347TF,
-	CHIP_CH9101UH,
-	CHIP_CH9101RY,
-	CHIP_CH9102F,
-	CHIP_CH9102X,
-	CHIP_CH9103M,
-	CHIP_CH9104L,
-	CHIP_CH340B,
-	CHIP_CH339W,
-	CHIP_CH9111L_M0,
-	CHIP_CH9111L_M1,
-	CHIP_CH9114L,
-	CHIP_CH9114W,
-	CHIP_CH9114F,
-	CHIP_CH346C_M0,
-	CHIP_CH346C_M1,
-	CHIP_CH346C_M2,
+  CHIP_CH342F = 0x00,
+  CHIP_CH342K,
+  CHIP_CH343GP,
+  CHIP_CH343G_AUTOBAUD,
+  CHIP_CH343K,
+  CHIP_CH343J,
+  CHIP_CH344L,
+  CHIP_CH344L_V2,
+  CHIP_CH344Q,
+  CHIP_CH347TF,
+  CHIP_CH9101UH,
+  CHIP_CH9101RY,
+  CHIP_CH9102F,
+  CHIP_CH9102X,
+  CHIP_CH9103M,
+  CHIP_CH9104L,
+  CHIP_CH340B,
+  CHIP_CH339W,
+  CHIP_CH9111L_M0,
+  CHIP_CH9111L_M1,
+  CHIP_CH9114L,
+  CHIP_CH9114W,
+  CHIP_CH9114F,
+  CHIP_CH346C_M0,
+  CHIP_CH346C_M1,
+  CHIP_CH346C_M2,
 };
 #endif
 
@@ -158,7 +158,7 @@ class USBUartComponent : public usb_host::USBClient {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  
+
   std::vector<USBUartChannel *> get_channels() { return this->channels_; }
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
@@ -212,7 +212,6 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   void enum_chip_type_() override;
 #endif
 };
-
 
 }  // namespace usb_uart
 }  // namespace esphome
