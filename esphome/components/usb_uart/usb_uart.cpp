@@ -86,6 +86,7 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
        (device_desc->bDeviceProtocol == USB_DEVICE_PROTOCOL_IAD)) ||
       ((device_desc->bDeviceClass == USB_CLASS_PER_INTERFACE) && (device_desc->bDeviceSubClass == USB_SUBCLASS_NULL) &&
        (device_desc->bDeviceProtocol == USB_PROTOCOL_NULL))) {
+      this->enum_chip_type_();
     // This is a composite device, that uses Interface Association Descriptor
     const auto *this_desc = reinterpret_cast<const usb_standard_desc_t *>(config_desc);
     for (;;) {
@@ -180,7 +181,7 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
+      uart::UARTDebug::log_hex_with_channel(uart::UART_DIRECTION_RX, channel->index_, this->vid_, this->pid_, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
                                ',');  // NOLINT()
     }
 #endif
@@ -213,19 +214,15 @@ void USBUartComponent::dump_config() {
                   STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
   }
 }
+
+void USBUartComponent::enum_chip_type() { return; }
+
 void USBUartComponent::start_input(USBUartChannel *channel) {
   if (!channel->initialised_.load() || channel->input_started_.load())
     return;
-  // THREAD CONTEXT: Called from both USB task and main loop threads
-  // - USB task: Immediate restart after successful transfer for continuous data flow
-  // - Main loop: Controlled restart after consuming data (backpressure mechanism)
-  //
-  // This dual-thread access is intentional for performance:
-  // - USB task restarts avoid context switch delays for high-speed data
-  // - Main loop restarts provide flow control when buffers are full
-  //
-  // The underlying transfer_in() uses lock-free atomic allocation from the
-  // TransferRequest pool, making this multi-threaded access safe
+  // Note: This function is called from both USB task and main loop, so we cannot
+  // directly check ring buffer space here. Backpressure is handled by the chunk pool:
+  // when exhausted, USB input stops until chunks are freed by the main loop
   const auto *ep = channel->cdc_dev_.in_ep;
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
@@ -290,7 +287,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   this->transfer_out(ep->bEndpointAddress, callback, data, len);
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
+    uart::UARTDebug::log_hex_with_channel(uart::UART_DIRECTION_TX, channel->index_, this->vid_, this->pid_, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
   }
 #endif
   ESP_LOGV(TAG, "Output %d bytes started", len);
