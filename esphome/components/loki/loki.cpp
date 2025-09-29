@@ -162,6 +162,7 @@ void Loki::loop() {
 #endif
 }
 
+#ifdef USE_ESP32
 void Loki::esphome_loki_task(void *params) {
   Loki *this_loki = (Loki *) params;
 
@@ -213,7 +214,7 @@ bool Loki::enqueue_(const char *json_payload, size_t len) {
   this->loki_queue_.push(elem);
   return true;
 }
-#endif
+#endif  // USE_ESP32
 
 }  // namespace loki
 }  // namespace esphome
