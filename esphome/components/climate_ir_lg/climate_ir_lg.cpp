@@ -312,9 +312,11 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
     case FAN_MIN:
+    case FAN_F2:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
     case FAN_MED:
+    case FAN_F4:
       this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
       break;
     case FAN_MAX:
