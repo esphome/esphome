@@ -26,10 +26,11 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
-AUTO_LOAD = ["esp32_ble", "bytebuffer", "event_emitter"]
+AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_ble_server"
+
 
 CONF_ADVERTISE = "advertise"
 CONF_APPEARANCE = "appearance"
@@ -504,6 +505,7 @@ async def to_code_characteristic(service_var, char_conf):
             parse_properties(char_conf),
         ),
     )
+
     if CONF_ON_WRITE in char_conf:
         on_write_conf = char_conf[CONF_ON_WRITE]
         cg.add_define("USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE")
@@ -583,6 +585,7 @@ async def to_code(config):
             [(cg.uint16, "id")],
             config[CONF_ON_DISCONNECT],
         )
+
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
     add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

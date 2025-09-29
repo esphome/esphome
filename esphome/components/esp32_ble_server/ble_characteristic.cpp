@@ -73,7 +73,7 @@ void BLECharacteristic::notify() {
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
   if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
-    descriptor->on(BLEDescriptorEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &value, uint16_t conn_id) {
+    descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;
       uint16_t cccd = encode_uint16(value[1], value[0]);
@@ -208,8 +208,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (!param->read.need_rsp)
         break;  // For some reason you can request a read but not want a response
 
-      this->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::emit_(BLECharacteristicEvt::EmptyEvt::ON_READ,
-                                                                          param->read.conn_id);
+      if (this->on_read_callback_) {
+        (*this->on_read_callback_)(param->read.conn_id);
+      }
 
       uint16_t max_offset = 22;
 
@@ -277,8 +278,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       }
 
       if (!param->write.is_prep) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->write.conn_id);
+        if (this->on_write_callback_) {
+          (*this->on_write_callback_)(this->value_, param->write.conn_id);
+        }
       }
 
       break;
@@ -289,8 +291,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         break;
       this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->exec_write.conn_id);
+        if (this->on_write_callback_) {
+          (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
+        }
       }
       esp_err_t err =
           esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
