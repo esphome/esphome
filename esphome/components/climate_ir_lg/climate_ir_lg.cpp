@@ -268,8 +268,20 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     case HEADER_BASIC:
       if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == BASIC_JET) {
-        ESP_LOGD(TAG, "Got jet command! Ignoring");
-        return false;
+        switch (this->mode) {
+          // In PO mode swing is set to VERT_3, but will switch back to what is was before turning PO ON
+          // So let's just not change it at all
+          case climate::CLIMATE_MODE_COOL:
+          case climate::CLIMATE_MODE_HEAT:
+            this->target_temperature =
+                this->mode == climate::CLIMATE_MODE_COOL ? this->minimum_temperature_ : this->maximum_temperature_;
+            this->fan_mode = climate::CLIMATE_FAN_HIGH;
+            this->publish_state();
+            return true;
+          default:
+            ESP_LOGD(TAG, "Got jet command, but current mode does not support it! Ignoring.");
+            return false;
+        }
       }
 
       // Keep previous behavior
