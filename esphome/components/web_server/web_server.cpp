@@ -108,14 +108,14 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
 void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
 
-  auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
-                           [&item](const DeferredEvent &test) -> bool { return test == item; });
-
-  if (iter != this->deferred_queue_.end()) {
-    (*iter) = item;
-  } else {
-    this->deferred_queue_.push_back(item);
+  // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
+  for (auto &event : this->deferred_queue_) {
+    if (event == item) {
+      event = item;
+      return;
+    }
   }
+  this->deferred_queue_.push_back(item);
 }
 
 void DeferredUpdateEventSource::process_deferred_queue_() {

@@ -548,7 +548,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #ifdef USE_VOICE_ASSISTANT
     case VoiceAssistantConfigurationRequest::MESSAGE_TYPE: {
       VoiceAssistantConfigurationRequest msg;
-      // Empty message: no decode needed
+      msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_voice_assistant_configuration_request: %s", msg.dump().c_str());
 #endif

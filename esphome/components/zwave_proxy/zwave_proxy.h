@@ -56,6 +56,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   uint32_t get_home_id() {
     return encode_uint32(this->home_id_[0], this->home_id_[1], this->home_id_[2], this->home_id_[3]);
   }
+  bool set_home_id(const uint8_t *new_home_id);  // Store a new home ID. Returns true if it changed.
 
   void send_frame(const uint8_t *data, size_t length);
 
