@@ -52,7 +52,7 @@ void GPS::update() {
 void GPS::loop() {
   while (this->available() > 0 && !this->has_time_) {
     if (!this->tiny_gps_.encode(this->read())) {
-      return;
+      continue;
     }
     if (this->tiny_gps_.location.isUpdated()) {
       this->latitude_ = this->tiny_gps_.location.lat();

@@ -143,10 +143,13 @@ void OpenThreadComponent::ot_main() {
   esp_openthread_launch_mainloop();
 
   // Clean up
+  esp_openthread_deinit();
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(openthread_netif);
 
   esp_vfs_eventfd_unregister();
+  this->teardown_complete_ = true;
+  vTaskDelete(NULL);
 }
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {

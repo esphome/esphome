@@ -1,4 +1,5 @@
 import base64
+import logging
 
 from esphome import automation
 from esphome.automation import Condition
@@ -24,12 +25,15 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
@@ -53,6 +57,7 @@ SERVICE_ARG_NATIVE_TYPES = {
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 
 
@@ -100,6 +105,32 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
+def _validate_api_config(config: ConfigType) -> ConfigType:
+    """Validate API configuration with mutual exclusivity check and deprecation warning."""
+    # Check if both password and encryption are configured
+    has_password = CONF_PASSWORD in config and config[CONF_PASSWORD]
+    has_encryption = CONF_ENCRYPTION in config
+
+    if has_password and has_encryption:
+        raise cv.Invalid(
+            "The 'password' and 'encryption' options are mutually exclusive. "
+            "The API client only supports one authentication method at a time. "
+            "Please remove one of them. "
+            "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
+            "We strongly recommend using 'encryption' instead for better security."
+        )
+
+    # Warn about password deprecation
+    if has_password:
+        _LOGGER.warning(
+            "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
+            "Please migrate to the 'encryption' configuration. "
+            "See https://esphome.io/components/api.html#configuration-variables"
+        )
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -119,6 +150,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
             cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
             cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
@@ -129,10 +161,11 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_api_config,
 )
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -147,6 +180,9 @@ async def to_code(config):
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_SERVICES]:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
 
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
@@ -188,6 +224,7 @@ async def to_code(config):
         if key := encryption_config.get(CONF_KEY):
             decoded = base64.b64decode(key)
             cg.add(var.set_noise_psk(list(decoded)))
+            cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
             # This will allow a plaintext client to provide a noise key,
@@ -240,6 +277,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
 async def homeassistant_service_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
     templ = await cg.templatable(config[CONF_ACTION], args, None)
@@ -283,6 +321,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     templ = await cg.templatable(config[CONF_EVENT], args, None)
@@ -314,6 +353,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))

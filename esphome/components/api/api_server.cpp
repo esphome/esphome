@@ -37,12 +37,14 @@ void APIServer::setup() {
 
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
 
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // Only load saved PSK if not set from YAML
   SavedNoisePsk noise_pref_saved{};
   if (this->noise_pref_.load(&noise_pref_saved)) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-
     this->set_noise_psk(noise_pref_saved.psk);
   }
+#endif
 #endif
 
   // Schedule reboot if no clients connect within timeout
@@ -217,12 +219,12 @@ void APIServer::dump_config() {
 }
 
 #ifdef USE_API_PASSWORD
-bool APIServer::check_password(const std::string &password) const {
+bool APIServer::check_password(const uint8_t *password_data, size_t password_len) const {
   // depend only on input password length
   const char *a = this->password_.c_str();
   uint32_t len_a = this->password_.length();
-  const char *b = password.c_str();
-  uint32_t len_b = password.length();
+  const char *b = reinterpret_cast<const char *>(password_data);
+  uint32_t len_b = password_len;
 
   // disable optimization with volatile
   volatile uint32_t length = len_b;
@@ -245,6 +247,7 @@ bool APIServer::check_password(const std::string &password) const {
 
   return result == 0;
 }
+
 #endif
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
@@ -355,6 +358,15 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+  // We could add code to manage a second subscription type, but, since this message type is
+  //  very infrequent and small, we simply send it to all clients
+  for (auto &c : this->clients_)
+    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
@@ -369,11 +381,13 @@ void APIServer::set_password(const std::string &password) { this->password_ = pa
 
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
-void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
   for (auto &client : this->clients_) {
-    client->send_homeassistant_service_call(call);
+    client->send_homeassistant_action(call);
   }
 }
+#endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -407,6 +421,12 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
   auto &old_psk = this->noise_ctx_->get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
@@ -435,6 +455,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
     });
   }
   return true;
+#endif
 }
 #endif
 

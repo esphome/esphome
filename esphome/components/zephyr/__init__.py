@@ -1,5 +1,5 @@
-import os
-from typing import Final, TypedDict
+from pathlib import Path
+from typing import TypedDict
 
 import esphome.codegen as cg
 from esphome.const import CONF_BOARD
@@ -8,18 +8,19 @@ from esphome.helpers import copy_file_if_changed, write_file_if_changed
 
 from .const import (
     BOOTLOADER_MCUBOOT,
+    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
 )
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["preferences"]
-KEY_BOARD: Final = "board"
 
 PrjConfValueType = bool | str | int
 
@@ -47,8 +48,9 @@ class ZephyrData(TypedDict):
     bootloader: str
     prj_conf: dict[str, tuple[PrjConfValueType, bool]]
     overlay: str
-    extra_build_files: dict[str, str]
+    extra_build_files: dict[str, Path]
     pm_static: list[Section]
+    user: dict[str, list[str]]
 
 
 def zephyr_set_core_data(config):
@@ -59,6 +61,7 @@ def zephyr_set_core_data(config):
         overlay="",
         extra_build_files={},
         pm_static=[],
+        user={},
     )
     return config
 
@@ -90,7 +93,7 @@ def zephyr_add_overlay(content):
     zephyr_data()[KEY_OVERLAY] += content
 
 
-def add_extra_build_file(filename: str, path: str) -> bool:
+def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
     if filename not in extra_build_files:
@@ -99,7 +102,7 @@ def add_extra_build_file(filename: str, path: str) -> bool:
     return False
 
 
-def add_extra_script(stage: str, filename: str, path: str):
+def add_extra_script(stage: str, filename: str, path: Path) -> None:
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
     if add_extra_build_file(filename, path):
@@ -141,7 +144,7 @@ def zephyr_to_code(config):
     add_extra_script(
         "pre",
         "pre_build.py",
-        os.path.join(os.path.dirname(__file__), "pre_build.py.script"),
+        Path(__file__).parent / "pre_build.py.script",
     )
 
 
@@ -178,7 +181,25 @@ def zephyr_add_pm_static(section: Section):
     CORE.data[KEY_ZEPHYR][KEY_PM_STATIC].extend(section)
 
 
+def zephyr_add_user(key, value):
+    user = zephyr_data()[KEY_USER]
+    if key not in user:
+        user[key] = []
+    user[key] += [value]
+
+
 def copy_files():
+    user = zephyr_data()[KEY_USER]
+    if user:
+        zephyr_add_overlay(
+            f"""
+/ {{
+    zephyr,user {{
+        {[f"{key} = {', '.join(value)};" for key, value in user.items()][0]}
+}};
+}};"""
+        )
+
     want_opts = zephyr_data()[KEY_PRJ_CONF]
 
     prj_conf = (
