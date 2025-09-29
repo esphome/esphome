@@ -122,10 +122,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
       continue;
     }
 
-    if (msg_size_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
+    if (msg_size_varint->as_uint32() > MAX_MESSAGE_SIZE) {
       state_ = State::FAILED;
       HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint->as_uint32(),
-                 std::numeric_limits<uint16_t>::max());
+                 MAX_MESSAGE_SIZE);
       return APIError::BAD_DATA_PACKET;
     }
     rx_header_parsed_len_ = msg_size_varint->as_uint16();
