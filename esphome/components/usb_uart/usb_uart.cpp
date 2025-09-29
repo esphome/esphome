@@ -1,5 +1,5 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "usb_uart.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart_debugger.h"
@@ -297,7 +297,8 @@ static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
     if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP %u from %u to 64", ep->bEndpointAddress, ep->wMaxPacketSize);
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize);
       ep_mutable->wMaxPacketSize = 64;
     }
   }
@@ -314,7 +315,7 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning(LOG_STR("No configuration found for channel"));
+      this->status_set_warning("No configuration found for channel");
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];

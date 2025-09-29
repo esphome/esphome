@@ -126,6 +126,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_UPDATE
   void on_update(update::UpdateEntity *obj) override;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
+#endif
 
   bool is_connected() const;
 
