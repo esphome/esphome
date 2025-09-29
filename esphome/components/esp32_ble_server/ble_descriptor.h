@@ -19,14 +19,7 @@ using namespace event_emitter;
 
 class BLECharacteristic;
 
-namespace BLEDescriptorEvt {
-enum SpanEvt {
-  ON_WRITE,
-};
-}  // namespace BLEDescriptorEvt
-
 // Base class for BLE descriptors
-// Specialized classes with EventEmitter support are generated per-UUID in the build process
 class BLEDescriptor {
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
@@ -42,21 +35,19 @@ class BLEDescriptor {
   bool is_created() { return this->state_ == CREATED; }
   bool is_failed() { return this->state_ == FAILED; }
 
-  // Event listener registration - overridden by generated specialized classes if needed
-  virtual EventEmitterListenerID on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&listener) {
-    return INVALID_LISTENER_ID;
+  // Direct callback registration
+  void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
+    this->on_write_callback_ = std::move(callback);
   }
-  virtual void off_write(EventEmitterListenerID id) {}
 
  protected:
-  // Virtual method for emitting events - overridden by generated specialized classes
-  virtual void emit_on_write_(std::span<const uint8_t> value, uint16_t conn_id) {}
-
   BLECharacteristic *characteristic_{nullptr};
   ESPBTUUID uuid_;
   uint16_t handle_{0xFFFF};
 
   esp_attr_value_t value_{};
+
+  std::function<void(std::span<const uint8_t>, uint16_t)> on_write_callback_{nullptr};
 
   esp_gatt_perm_t permissions_{};
 

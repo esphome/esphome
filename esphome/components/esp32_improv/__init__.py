@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble, esp32_ble_server, output
+from esphome.components import binary_sensor, esp32_ble, output
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
@@ -97,15 +97,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
-
-    # Allocate event listeners for esp32_improv
-    # Need 1 listener for server disconnect event
-    esp32_ble_server.allocate_server_event_listener("DISCONNECT", "esp32_improv", 1)
-    # The RPC characteristic UUID comes from the Improv library (0x00467768-6228-2272-4663-277478268000 + 0x01)
-    # We need 1 listener for the RPC write event
-    esp32_ble_server.allocate_characteristic_event_listener(
-        "00467768-6228-2272-4663-277478268001", "WRITE", "esp32_improv", 1
-    )
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

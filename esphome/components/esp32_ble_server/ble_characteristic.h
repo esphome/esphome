@@ -2,11 +2,11 @@
 
 #include "ble_descriptor.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/components/event_emitter/event_emitter.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <vector>
 #include <span>
+#include <functional>
 
 #ifdef USE_ESP32
 
@@ -23,22 +23,9 @@ namespace esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
-using namespace event_emitter;
 
 class BLEService;
 
-namespace BLECharacteristicEvt {
-enum SpanEvt {
-  ON_WRITE,
-};
-
-enum EmptyEvt {
-  ON_READ,
-};
-}  // namespace BLECharacteristicEvt
-
-// Base class for BLE characteristics
-// Specialized classes with EventEmitter support are generated per-UUID in the build process
 class BLECharacteristic {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
@@ -78,19 +65,13 @@ class BLECharacteristic {
   bool is_created();
   bool is_failed();
 
-  // Event listener registration - overridden by generated specialized classes
-  virtual EventEmitterListenerID on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&listener) {
-    return INVALID_LISTENER_ID;
+  // Direct callback registration
+  void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
+    this->on_write_callback_ = std::move(callback);
   }
-  virtual EventEmitterListenerID on_read(std::function<void(uint16_t)> &&listener) { return INVALID_LISTENER_ID; }
-  virtual void off_write(EventEmitterListenerID id) {}
-  virtual void off_read(EventEmitterListenerID id) {}
+  void on_read(std::function<void(uint16_t)> &&callback) { this->on_read_callback_ = std::move(callback); }
 
  protected:
-  // Virtual methods for emitting events - overridden by generated specialized classes
-  virtual void emit_on_write_(std::span<const uint8_t> value, uint16_t conn_id) {}
-  virtual void emit_on_read_(uint16_t conn_id) {}
-
   bool write_event_{false};
   BLEService *service_{};
   ESPBTUUID uuid_;
@@ -111,6 +92,9 @@ class BLECharacteristic {
 
   void remove_client_from_notify_list_(uint16_t conn_id);
   ClientNotificationEntry *find_client_in_notify_list_(uint16_t conn_id);
+
+  std::function<void(std::span<const uint8_t>, uint16_t)> on_write_callback_{nullptr};
+  std::function<void(uint16_t)> on_read_callback_{nullptr};
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 

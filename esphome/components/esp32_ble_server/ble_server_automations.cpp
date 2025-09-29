@@ -52,29 +52,15 @@ Trigger<uint16_t> *BLETriggers::create_server_on_disconnect_trigger(BLEServer *s
 
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *characteristic,
-                                                          EventEmitterListenerID listener_id,
                                                           const std::function<void()> &pre_notify_listener) {
   // Find and remove existing listener for this characteristic
   auto *existing = this->find_listener_(characteristic);
   if (existing != nullptr) {
-    // Remove the previous listener
-    characteristic->off_read(existing->listener_id);
-    // Remove the pre-notify listener
-    this->off(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, existing->pre_notify_listener_id);
     // Remove from vector
     this->remove_listener_(characteristic);
   }
-  // Create a new listener for the pre-notify event
-  EventEmitterListenerID pre_notify_listener_id =
-      this->on(BLECharacteristicSetValueActionEvt::PRE_NOTIFY,
-               [pre_notify_listener, characteristic](const BLECharacteristic *evt_characteristic) {
-                 // Only call the pre-notify listener if the characteristic is the one we are interested in
-                 if (characteristic == evt_characteristic) {
-                   pre_notify_listener();
-                 }
-               });
   // Save the entry to the vector
-  this->listeners_.push_back({characteristic, listener_id, pre_notify_listener_id});
+  this->listeners_.push_back({characteristic, pre_notify_listener});
 }
 
 BLECharacteristicSetValueActionManager::ListenerEntry *BLECharacteristicSetValueActionManager::find_listener_(
