@@ -38,8 +38,7 @@ void ESP32ImprovComponent::setup() {
     });
   }
 #endif
-  global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
-                        [this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
+  global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 
   // Start with loop disabled - will be enabled by start() when needed
   this->disable_loop();
@@ -57,12 +56,11 @@ void ESP32ImprovComponent::setup_characteristics() {
   this->error_->add_descriptor(error_descriptor);
 
   this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::on(
-      BLECharacteristicEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &data, uint16_t id) {
-        if (!data.empty()) {
-          this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
-        }
-      });
+  this->rpc_->on_write([this](std::span<const uint8_t> data, uint16_t id) {
+    if (!data.empty()) {
+      this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
+    }
+  });
   BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->add_descriptor(rpc_descriptor);
 
