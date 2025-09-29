@@ -178,15 +178,9 @@ void Loki::esphome_loki_task(void *params) {
     }
   }
 
-  // Clean up any remaining items in the queue
-  struct QueueElement *elem;
-  while ((elem = this_loki->loki_queue_.pop()) != nullptr) {
-    this_loki->loki_event_pool_.release(elem);
-  }
-
-  // Note: EventPool destructor will clean up the pool itself
-  // Task will delete itself
-  vTaskDelete(nullptr);
+  // Note: This task runs indefinitely until the device reboots
+  // The EventPool destructor will clean up the pool when the component is destroyed
+  // No need for explicit cleanup since the task never exits
 }
 
 bool Loki::enqueue_(const char *json_payload, size_t len) {
