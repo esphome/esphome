@@ -363,7 +363,7 @@ TransferRequest *USBClient::get_trq_() {
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
   size_t i = 0;
-  while (i < MAX_REQUESTS) {
+  while (i != MAX_REQUESTS) {
     if (mask & (1U << i)) {
       // Slot is in use, move to next slot
       i++;
