@@ -224,6 +224,7 @@ async def to_code(config):
         if key := encryption_config.get(CONF_KEY):
             decoded = base64.b64decode(key)
             cg.add(var.set_noise_psk(list(decoded)))
+            cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
             # This will allow a plaintext client to provide a noise key,

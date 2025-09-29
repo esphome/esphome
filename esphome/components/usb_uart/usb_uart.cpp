@@ -216,9 +216,16 @@ void USBUartComponent::dump_config() {
 void USBUartComponent::start_input(USBUartChannel *channel) {
   if (!channel->initialised_.load() || channel->input_started_.load())
     return;
-  // Note: This function is called from both USB task and main loop, so we cannot
-  // directly check ring buffer space here. Backpressure is handled by the chunk pool:
-  // when exhausted, USB input stops until chunks are freed by the main loop
+  // THREAD CONTEXT: Called from both USB task and main loop threads
+  // - USB task: Immediate restart after successful transfer for continuous data flow
+  // - Main loop: Controlled restart after consuming data (backpressure mechanism)
+  //
+  // This dual-thread access is intentional for performance:
+  // - USB task restarts avoid context switch delays for high-speed data
+  // - Main loop restarts provide flow control when buffers are full
+  //
+  // The underlying transfer_in() uses lock-free atomic allocation from the
+  // TransferRequest pool, making this multi-threaded access safe
   const auto *ep = channel->cdc_dev_.in_ep;
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
