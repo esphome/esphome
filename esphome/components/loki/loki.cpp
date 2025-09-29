@@ -147,8 +147,8 @@ const char *Loki::get_log_level_name_(int level) const {
   }
 }
 
-#ifdef USE_ESP32
 void Loki::loop() {
+#ifdef USE_ESP32
   // Periodically check for dropped messages to avoid blocking during spikes.
   // During high load, many messages can be dropped in quick succession.
   // We don't log dropped messages here to avoid infinite recursion since
@@ -157,6 +157,9 @@ void Loki::loop() {
   uint16_t dropped_count = this->loki_queue_.get_and_reset_dropped_count();
   // Silently handle dropped messages - no logging to prevent recursion
   (void) dropped_count;  // Suppress unused variable warning
+#else
+  // No-op for non-ESP32 platforms since they use direct HTTP requests
+#endif
 }
 
 void Loki::esphome_loki_task(void *params) {
