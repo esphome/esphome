@@ -1,8 +1,8 @@
 substitutions:
   scl_pin: GPIO5
   sda_pin: GPIO4
-  reset_pin: GPIO3
+  display_reset_pin: GPIO3
   interrupt_pin: GPIO6
-  rts_pin: GPIO7
+  touch_reset_pin: GPIO7
 
 <<: !include common.yaml

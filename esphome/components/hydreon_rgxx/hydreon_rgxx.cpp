@@ -18,8 +18,10 @@ void HydreonRGxxComponent::dump_config() {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
   if (model_ == RG9) {
-    ESP_LOGCONFIG(TAG, "  Model: RG9");
-    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+    ESP_LOGCONFIG(TAG,
+                  "  Model: RG9\n"
+                  "  Disable Led: %s",
+                  TRUEFALSE(this->disable_led_));
   } else {
     ESP_LOGCONFIG(TAG, "  Model: RG15");
     if (this->resolution_ == FORCE_HIGH) {
@@ -39,7 +41,6 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up hydreon_rgxx...");
   while (this->available() != 0) {
     this->read();
   }
@@ -157,12 +158,6 @@ void HydreonRGxxComponent::schedule_reboot_() {
   });
 }
 
-bool HydreonRGxxComponent::buffer_starts_with_(const std::string &prefix) {
-  return this->buffer_starts_with_(prefix.c_str());
-}
-
-bool HydreonRGxxComponent::buffer_starts_with_(const char *prefix) { return buffer_.rfind(prefix, 0) == 0; }
-
 void HydreonRGxxComponent::process_line_() {
   ESP_LOGV(TAG, "Read from serial: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
 
@@ -189,7 +184,7 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGW(TAG, "Received EmSat!");
     this->em_sat_ = true;
   }
-  if (this->buffer_starts_with_("PwrDays")) {
+  if (buffer_.starts_with("PwrDays")) {
     if (this->boot_count_ <= 0) {
       this->boot_count_ = 1;
     } else {
@@ -218,7 +213,7 @@ void HydreonRGxxComponent::process_line_() {
     }
     return;
   }
-  if (this->buffer_starts_with_("SW")) {
+  if (buffer_.starts_with("SW")) {
     std::string::size_type majend = this->buffer_.find('.');
     std::string::size_type endversion = this->buffer_.find(' ', 3);
     if (majend == std::string::npos || endversion == std::string::npos || majend > endversion) {
@@ -280,7 +275,7 @@ void HydreonRGxxComponent::process_line_() {
     }
   } else {
     for (const auto *ignore : IGNORE_STRINGS) {
-      if (this->buffer_starts_with_(ignore)) {
+      if (buffer_.starts_with(ignore)) {
         ESP_LOGI(TAG, "Ignoring %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
         return;
       }

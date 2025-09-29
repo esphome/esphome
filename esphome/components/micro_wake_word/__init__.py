@@ -201,7 +201,7 @@ def _validate_manifest_version(manifest_data):
         else:
             raise cv.Invalid("Invalid manifest version")
     else:
-        raise cv.Invalid("Invalid manifest file, missing 'version' key.")
+        raise cv.Invalid("Invalid manifest file, missing 'version' key")
 
 
 def _process_http_source(config):
@@ -421,7 +421,7 @@ def _feature_step_size_validate(config):
         if features_step_size is None:
             features_step_size = model_step_size
         elif features_step_size != model_step_size:
-            raise cv.Invalid("Cannot load models with different features step sizes.")
+            raise cv.Invalid("Cannot load models with different features step sizes")
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -449,11 +449,7 @@ async def to_code(config):
     cg.add_define("USE_MICRO_WAKE_WORD")
     cg.add_define("USE_OTA_STATE_CALLBACK")
 
-    esp32.add_idf_component(
-        name="esp-tflite-micro",
-        repo="https://github.com/espressif/esp-tflite-micro",
-        ref="v1.3.3.1",
-    )
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")

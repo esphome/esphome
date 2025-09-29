@@ -171,7 +171,7 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
     bytes_available_before_processing = this->input_transfer_buffer_->available();
 
-    if ((this->potentially_failed_count_ > 10) && (bytes_read == 0)) {
+    if ((this->potentially_failed_count_ > 0) && (bytes_read == 0)) {
       // Failed to decode in last attempt and there is no new data
 
       if ((this->input_transfer_buffer_->free() == 0) && first_loop_iteration) {
@@ -312,7 +312,7 @@ FileDecoderState AudioDecoder::decode_mp3_() {
   if (err) {
     switch (err) {
       case esp_audio_libs::helix_decoder::ERR_MP3_OUT_OF_MEMORY:
-        // Intentional fallthrough
+        [[fallthrough]];
       case esp_audio_libs::helix_decoder::ERR_MP3_NULL_POINTER:
         return FileDecoderState::FAILED;
         break;

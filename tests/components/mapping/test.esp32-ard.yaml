@@ -4,14 +4,14 @@ spi:
     mosi_pin: 17
     miso_pin: 15
 
-display:
-  - platform: ili9xxx
-    id: main_lcd
-    model: ili9342
-    cs_pin: 12
-    dc_pin: 13
-    reset_pin: 21
-    invert_colors: false
-
 packages:
   map: !include common.yaml
+
+display:
+  platform: ili9xxx
+  id: main_lcd
+  model: ili9342
+  cs_pin: 12
+  dc_pin: 13
+  reset_pin: 21
+  invert_colors: false

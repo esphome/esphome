@@ -1,4 +1,6 @@
 #ifdef USE_ESP32
+#include "soc/soc_caps.h"
+#include "driver/gpio.h"
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 
@@ -46,10 +48,12 @@ void DeepSleepComponent::dump_config_platform_() {
     LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
   }
   if (this->wakeup_cause_to_run_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Default Wakeup Run Duration: %" PRIu32 " ms",
-                  this->wakeup_cause_to_run_duration_->default_cause);
-    ESP_LOGCONFIG(TAG, "  Touch Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->touch_cause);
-    ESP_LOGCONFIG(TAG, "  GPIO Wakeup Run Duration: %" PRIu32 " ms", this->wakeup_cause_to_run_duration_->gpio_cause);
+    ESP_LOGCONFIG(TAG,
+                  "  Default Wakeup Run Duration: %" PRIu32 " ms\n"
+                  "  Touch Wakeup Run Duration: %" PRIu32 " ms\n"
+                  "  GPIO Wakeup Run Duration: %" PRIu32 " ms",
+                  this->wakeup_cause_to_run_duration_->default_cause, this->wakeup_cause_to_run_duration_->touch_cause,
+                  this->wakeup_cause_to_run_duration_->gpio_cause);
   }
 }
 
@@ -59,7 +63,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
     // Defer deep sleep until inactive
     if (!this->next_enter_deep_sleep_) {
       this->status_set_warning();
-      ESP_LOGW(TAG, "Waiting wakeup pin state change to enter deep sleep...");
+      ESP_LOGW(TAG, "Waiting for wakeup pin state change");
     }
     this->next_enter_deep_sleep_ = true;
     return false;
@@ -72,11 +76,24 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
+    const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
+    if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLUP) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLUP_ONLY);
+    } else if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLDOWN) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLDOWN_ONLY);
+    }
+    gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
+    gpio_hold_en(gpio_pin);
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+    // Some ESP32 variants support holding a single GPIO during deep sleep without this function
+    // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
+    gpio_deep_sleep_hold_en();
+#endif
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
     }
-    esp_sleep_enable_ext0_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), level);
+    esp_sleep_enable_ext0_wakeup(gpio_pin, level);
   }
   if (this->ext1_wakeup_.has_value()) {
     esp_sleep_enable_ext1_wakeup(this->ext1_wakeup_->mask, this->ext1_wakeup_->wakeup_mode);
@@ -100,6 +117,19 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
+    const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
+    if (this->wakeup_pin_->get_flags() && gpio::FLAG_PULLUP) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLUP_ONLY);
+    } else if (this->wakeup_pin_->get_flags() && gpio::FLAG_PULLDOWN) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLDOWN_ONLY);
+    }
+    gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
+    gpio_hold_en(gpio_pin);
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+    // Some ESP32 variants support holding a single GPIO during deep sleep without this function
+    // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
+    gpio_deep_sleep_hold_en();
+#endif
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
