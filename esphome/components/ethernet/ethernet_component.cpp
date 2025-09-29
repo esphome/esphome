@@ -9,6 +9,10 @@
 #include <cinttypes>
 #include "esp_event.h"
 
+#ifdef USE_ETHERNET_LAN8670
+#include "esp_eth_phy_lan867x.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -200,6 +204,12 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
       break;
     }
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670: {
+      this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
+      break;
+    }
+#endif
 #endif
 #ifdef USE_ETHERNET_SPI
 #if CONFIG_ETH_SPI_ETHERNET_W5500
@@ -352,6 +362,12 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;
+
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670:
+      eth_type = "LAN8670";
+      break;
+#endif
 
     default:
       eth_type = "Unknown";

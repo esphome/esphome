@@ -1865,10 +1865,22 @@ message VoiceAssistantWakeWord {
   repeated string trained_languages = 3;
 }
 
+message VoiceAssistantExternalWakeWord {
+  string id = 1;
+  string wake_word = 2;
+  repeated string trained_languages = 3;
+  string model_type = 4;
+  uint32 model_size = 5;
+  string model_hash = 6;
+  string url = 7;
+}
+
 message VoiceAssistantConfigurationRequest {
   option (id) = 121;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantExternalWakeWord external_wake_words = 1;
 }
 
 message VoiceAssistantConfigurationResponse {
@@ -2298,11 +2310,13 @@ message ZWaveProxyFrame {
 enum ZWaveProxyRequestType {
   ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
   ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+  ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2;
 }
 message ZWaveProxyRequest {
   option (id) = 129;
-  option (source) = SOURCE_CLIENT;
+  option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZWAVE_PROXY";
 
   ZWaveProxyRequestType type = 1;
+  bytes data = 2 [(pointer_to_buffer) = true];
 }
