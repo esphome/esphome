@@ -18,25 +18,25 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
   std::string retval;
   switch (enum_value) {
     case 0:
-      return"CH342F";
+      return "CH342F";
     case 1:
-      retval = "CH342K";
+      return "CH342K";
     case 2:
       return "CH343GP";
     case 3:
       return "CH343G_AUTOBAUD";
     case 4:
-      retval = "CH343K";
+      return "CH343K";
     case 5:
       return "CH343J";
     case 6:
-      return"CH344L";
+      return "CH344L";
     case 7:
-     return "CH344L_V2";
+      return "CH344L_V2";
     case 8:
-      retval = "CH344Q";
+      return "CH344Q";
     case 9:
-      retval = "CH347TF";
+      return  "CH347TF";
     case 10:
       return "CH9101UH";
     case 11:
