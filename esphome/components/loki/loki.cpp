@@ -21,6 +21,17 @@ void Loki::setup() {
   if (this->logs_enabled_switch_ != nullptr) {
     this->logs_enabled_switch_->publish_state(this->enabled_);
   }
+
+#ifdef USE_ESP32
+  // Create the background task for processing Loki messages
+  xTaskCreate(esphome_loki_task, "esphome_loki", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY, &this->task_handle_);
+  if (this->task_handle_ == nullptr) {
+    // Don't log here - would cause infinite recursion since we're in the logger callback chain
+    return;
+  }
+  // Set the task handle so the queue can notify it
+  this->loki_queue_.set_task_to_notify(this->task_handle_);
+#endif
 }
 
 void Loki::log_(const int level, const char *tag, const char *message, size_t message_len) const {
@@ -80,11 +91,24 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
     log_line.add(log_message);
   });
 
-  // Prepare headers
-  std::list<http_request::Header> headers = {};
-  headers.push_back({"Content-Type", "application/json"});
+  // Send the payload
+  this->send_to_loki_(json_payload);
+}
 
-  // Construct full URL
+void Loki::send_to_loki_(const std::string &json_payload) const {
+#ifdef USE_ESP32
+  // Use queue for non-blocking operation on ESP32
+  if (!this->enqueue_(json_payload.c_str(), json_payload.length())) {
+    // Queue is full - increment counter but don't log immediately to avoid cascade effect
+    this->loki_queue_.increment_dropped_count();
+  }
+#else
+  // Direct send for non-ESP32 platforms
+  this->parent_->post(this->get_full_url_(), json_payload, this->get_headers_());
+#endif
+}
+
+std::string Loki::get_full_url_() const {
   std::string full_url = this->url_;
   if (this->port_ != 80) {
     full_url += ":" + std::to_string(this->port_);
@@ -93,9 +117,13 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
     full_url += "/";
   }
   full_url += "loki/api/v1/push";
+  return full_url;
+}
 
-  // Send HTTP POST request
-  this->parent_->post(full_url, json_payload, headers);
+std::list<http_request::Header> Loki::get_headers_() const {
+  std::list<http_request::Header> headers = {};
+  headers.push_back({"Content-Type", "application/json"});
+  return headers;
 }
 
 const char *Loki::get_log_level_name_(int level) const {
@@ -118,6 +146,77 @@ const char *Loki::get_log_level_name_(int level) const {
       return "UNKNOWN";
   }
 }
+
+#ifdef USE_ESP32
+void Loki::loop() {
+  // Periodically check for dropped messages to avoid blocking during spikes.
+  // During high load, many messages can be dropped in quick succession.
+  // We don't log dropped messages here to avoid infinite recursion since
+  // logging would trigger the Loki logger callback, which could cause more drops.
+  // Instead, we just reset the counter to prevent it from growing indefinitely.
+  uint16_t dropped_count = this->loki_queue_.get_and_reset_dropped_count();
+  // Silently handle dropped messages - no logging to prevent recursion
+  (void) dropped_count;  // Suppress unused variable warning
+}
+
+void Loki::esphome_loki_task(void *params) {
+  Loki *this_loki = (Loki *) params;
+
+  while (true) {
+    // Wait for notification indefinitely
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // Process all queued items
+    struct QueueElement *elem;
+    while ((elem = this_loki->loki_queue_.pop()) != nullptr) {
+      if (this_loki->enabled_) {
+        // Send HTTP POST request directly
+        std::string payload(elem->json_payload, elem->payload_len);
+        this_loki->parent_->post(this_loki->get_full_url_(), payload, this_loki->get_headers_());
+      }
+      this_loki->loki_event_pool_.release(elem);
+    }
+  }
+
+  // Clean up any remaining items in the queue
+  struct QueueElement *elem;
+  while ((elem = this_loki->loki_queue_.pop()) != nullptr) {
+    this_loki->loki_event_pool_.release(elem);
+  }
+
+  // Note: EventPool destructor will clean up the pool itself
+  // Task will delete itself
+  vTaskDelete(nullptr);
+}
+
+bool Loki::enqueue_(const char *json_payload, size_t len) {
+  auto *elem = this->loki_event_pool_.allocate();
+
+  if (!elem) {
+    // Queue is full - increment counter but don't log immediately.
+    // Logging here can cause a cascade effect: if Loki logging is enabled,
+    // each dropped message would generate a log message, which could itself
+    // be sent via Loki, causing more drops and more logs in a feedback loop
+    // that eventually triggers a watchdog reset. Instead, we log periodically
+    // in loop() to prevent blocking the event loop during spikes.
+    this->loki_queue_.increment_dropped_count();
+    return false;
+  }
+
+  // Use the helper to allocate and copy data
+  if (!elem->set_data(json_payload, len)) {
+    // Allocation failed, return elem to pool
+    this->loki_event_pool_.release(elem);
+    // Increment counter without logging to avoid cascade effect during memory pressure
+    this->loki_queue_.increment_dropped_count();
+    return false;
+  }
+
+  // Push to queue - always succeeds since we allocated from the pool
+  this->loki_queue_.push(elem);
+  return true;
+}
+#endif
 
 }  // namespace loki
 }  // namespace esphome
