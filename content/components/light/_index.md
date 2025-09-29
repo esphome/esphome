@@ -625,7 +625,7 @@ See [light state](#light-state_config) for more information on the various color
 
 ### Flicker Effect
 
-This effect "hovers" around the active color of the light and flickers each color channel a bit.
+This effect applies random variations to the brightness and all color channels which "hover" around the active color of the light. The default values simulate a gentle candle flicker, but with different settings it can produce subtle color shifts or chaotic sparkly noise.
 
 ```yaml
 light:
@@ -642,11 +642,9 @@ light:
 **Configuration variables:**
 
 - **name** (*Optional*, string): The name of the effect. Defaults to `Flicker`.
-- **alpha** (*Optional*, percentage): The percentage that the last color value should affect the light. More or less
-  the "forget-factor" of an exponential moving average. Defaults to `95%`.
 
-- **intensity** (*Optional*, percentage): The intensity of the flickering, basically the maximum amplitude of the
-  random offsets. Defaults to `1.5%`.
+- **alpha** (*Optional*, percentage): A smoothing factor that controls how much "memory" the flicker has. A high value makes the flicker's next step very similar to its last, which smooths out changes. A low value mixes more of the new value, resulting in rapid changes. Defaults to `95%`.
+- **intensity** (*Optional*, percentage): The magnitude of the random change applied at each step. As the changes are applied across color channels, higher values produce more visible shifts. Defaults to `1.5%`.
 
 ### Lambda Effect
 
