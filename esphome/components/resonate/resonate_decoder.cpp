@@ -22,7 +22,8 @@ void ResonateDecoder::reset_decoders() {
   this->current_codec_ = ResonateCodecFormat::UNSUPPORTED;
 }
 
-bool ResonateDecoder::process_header(AudioChunk *header_chunk, audio::AudioStreamInfo *stream_info) {
+bool ResonateDecoder::process_header(std::shared_ptr<ResonateAudioChunk> header_chunk,
+                                     audio::AudioStreamInfo *stream_info) {
   if (header_chunk == nullptr || stream_info == nullptr) {
     ESP_LOGE(TAG, "Null pointer passed to process_header");
     return false;
@@ -99,23 +100,21 @@ bool ResonateDecoder::process_header(AudioChunk *header_chunk, audio::AudioStrea
   return true;
 }
 
-bool ResonateDecoder::decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk **decoded_chunk) {
-  if (encoded_chunk == nullptr || decoded_chunk == nullptr) {
+bool ResonateDecoder::decode_audio_chunk(std::shared_ptr<ResonateAudioChunk> encoded_chunk,
+                                         std::shared_ptr<ResonateAudioChunk> &decoded_chunk) {
+  if (encoded_chunk == nullptr) {
     ESP_LOGE(TAG, "Null pointer passed to decode_audio_chunk");
     return false;
   }
 
   if (this->current_codec_ == ResonateCodecFormat::PCM) {
-    // For PCM, no decoding needed - share the chunk with proper ref counting
-    // This prevents double-free: both encoded and decoded pointers reference the same chunk
-    *decoded_chunk = encoded_chunk;
-    encoded_chunk->add_ref();  // Add reference for decoded_chunk
-    // Both pointers now safely reference the same chunk
-    // Caller will release encoded_chunk, decoded_chunk will be released separately
+    // For PCM, no decoding needed - share the same chunk
+    decoded_chunk = encoded_chunk;
+    // shared_ptr automatically handles reference counting
   } else {
     // For other codecs, allocate new chunk and decode
-    *decoded_chunk = create_audio_chunk(this->maximum_decoded_size_);
-    if (*decoded_chunk == nullptr) {
+    decoded_chunk = create_resonate_chunk(this->maximum_decoded_size_);
+    if (decoded_chunk == nullptr) {
       ESP_LOGE(TAG, "Failed to allocate space for decoded audio");
       return false;
     }
@@ -123,53 +122,52 @@ bool ResonateDecoder::decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk *
     if ((this->flac_decoder_ != nullptr) && (this->current_codec_ == ResonateCodecFormat::FLAC)) {
       uint32_t output_samples = 0;
       auto result =
-          this->flac_decoder_->decode_frame(encoded_chunk->get_data(), encoded_chunk->size,
-                                            reinterpret_cast<int16_t *>((*decoded_chunk)->get_data()), &output_samples);
+          this->flac_decoder_->decode_frame(encoded_chunk->get_data(), encoded_chunk->get_usable_size(),
+                                            reinterpret_cast<int16_t *>(decoded_chunk->get_data()), &output_samples);
 
       if (result == esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
         ESP_LOGE(TAG, "FLAC decoder ran out of data");
-        (*decoded_chunk)->release();  // Clean up allocated chunk
-        *decoded_chunk = nullptr;
+        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
         return false;
       }
 
       if (result > esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
         ESP_LOGE(TAG, "Serious error decoding FLAC file");
-        (*decoded_chunk)->release();  // Clean up allocated chunk
-        *decoded_chunk = nullptr;
+        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
         return false;
       }
 
-      (*decoded_chunk)->offset = 0;
-      (*decoded_chunk)->size = this->current_stream_info_.samples_to_bytes(output_samples);
-      reallocate_audio_chunk(decoded_chunk, (*decoded_chunk)->size);
+      decoded_chunk->offset = 0;
+      decoded_chunk->size = this->current_stream_info_.samples_to_bytes(output_samples);
+      // Try to shrink buffer to save memory (only works if we're the sole owner)
+      audio::shrink_audio_chunk_buffer(decoded_chunk);
     } else if ((this->opus_decoder_ != nullptr) && (this->current_codec_ == ResonateCodecFormat::OPUS)) {
-      int output_frames = opus_decode(this->opus_decoder_, encoded_chunk->get_data(), encoded_chunk->size,
-                                      (int16_t *) (*decoded_chunk)->get_data(),
+      int output_frames = opus_decode(this->opus_decoder_, encoded_chunk->get_data(), encoded_chunk->get_usable_size(),
+                                      (int16_t *) decoded_chunk->get_data(),
                                       this->current_stream_info_.bytes_to_frames(this->maximum_decoded_size_), 0);
       if (output_frames < 0) {
         ESP_LOGE(TAG, "Error decoding opus chunk: %d", output_frames);
-        (*decoded_chunk)->release();  // Clean up allocated chunk
-        *decoded_chunk = nullptr;
+        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
         return false;
       }
 
-      (*decoded_chunk)->offset = 0;
-      (*decoded_chunk)->size = this->current_stream_info_.frames_to_bytes(output_frames);
-      reallocate_audio_chunk(decoded_chunk, (*decoded_chunk)->size);
+      decoded_chunk->offset = 0;
+      decoded_chunk->size = this->current_stream_info_.frames_to_bytes(output_frames);
+      // Try to shrink buffer to save memory (only works if we're the sole owner)
+      audio::shrink_audio_chunk_buffer(decoded_chunk);
     } else {
-      (*decoded_chunk)->release();  // Clean up allocated chunk
-      *decoded_chunk = nullptr;
+      decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
       return false;
     }
   }
 
-  (*decoded_chunk)->chunk_type = CHUNK_TYPE_DECODED_AUDIO;
+  decoded_chunk->chunk_type = CHUNK_TYPE_DECODED_AUDIO;
 
   return true;
 }
 
-bool ResonateDecoder::decode_dummy_header_(const AudioChunk *header_chunk, audio::AudioStreamInfo *stream_info) {
+bool ResonateDecoder::decode_dummy_header_(std::shared_ptr<ResonateAudioChunk> header_chunk,
+                                           audio::AudioStreamInfo *stream_info) {
   // TODO: why doesn't this work... may have been fixed since last tested
   //   if (header_chunk->size != sizeof(DummyHeader)) {
   //     ESP_LOGE(TAG, "Invalid dummy codec header");

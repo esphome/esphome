@@ -4,10 +4,11 @@
 
 #if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER)
 
+#include "esphome/components/resonate/resonate_audio_chunk.h"
 #include "esphome/components/resonate/resonate_hub.h"
-#include "esphome/components/resonate/resonate_chunk_queue.h"
 
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/audio/audio_chunk_queue.h"
 #include "esphome/components/media_player/media_player.h"
 #if defined(USE_RESONATE_AUDIO)
 #include "esphome/components/speaker/speaker.h"
@@ -95,7 +96,7 @@ class ResonateMediaPlayer : public Component, public media_player::MediaPlayer, 
 
   QueueHandle_t playback_progress_queue_;
 
-  std::unique_ptr<ResonateChunkQueue> decoded_chunk_queue_;
+  std::unique_ptr<audio::AudioChunkQueue> decoded_chunk_queue_;
 
   uint32_t single_frames_added_{0};
   uint32_t single_frames_removed_{0};

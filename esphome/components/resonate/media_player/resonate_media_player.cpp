@@ -82,7 +82,7 @@ void ResonateMediaPlayer::setup() {
   // Apply inverse remap to get unbounded volume from speaker's bounded volume
   this->sync_speaker_volume();
 
-  this->decoded_chunk_queue_ = ResonateChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
+  this->decoded_chunk_queue_ = audio::AudioChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
   if (this->decoded_chunk_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create chunk queue.");
     this->mark_failed();
@@ -107,18 +107,20 @@ void ResonateMediaPlayer::setup() {
     }
   });
 
-  this->parent_->add_audio_chunk_callback(
-      [this](AudioChunk *audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info) {
-        if (!this->task_processing_) {
-          // Task isn't running, so don't add it to the queue
-          return false;
-        }
+  this->parent_->add_audio_chunk_callback([this](std::shared_ptr<ResonateAudioChunk> audio_chunk,
+                                                 TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info) {
+    if (!this->task_processing_) {
+      // Task isn't running, so don't add it to the queue
+      return false;
+    }
 
-        this->audio_stream_info_ = stream_info;
+    this->audio_stream_info_ = stream_info;
 
-        // add_chunk adds its own reference to the chunk
-        return this->decoded_chunk_queue_->add_chunk(audio_chunk, ticks_to_wait);
-      });
+    // AudioChunkQueue handles shared_ptr directly
+    return this->decoded_chunk_queue_->add_chunk(std::static_pointer_cast<audio::AudioChunk>(audio_chunk),
+                                                 ticks_to_wait);
+  });
+
 #endif
   this->parent_->add_controls_callback([this](const ResonateControls &control_type) {
     switch (control_type) {
@@ -381,7 +383,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
 
   xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STARTING);
   {
-    AudioChunk *decoded_chunk = nullptr;
+    std::shared_ptr<ResonateAudioChunk> decoded_chunk = nullptr;
 
     audio::AudioStreamInfo current_stream_info;
     size_t bytes_per_frame = current_stream_info.frames_to_bytes(1);
@@ -434,8 +436,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
       }
 
       if ((output_transfer_buffer->available() == 0) && (decoded_chunk != nullptr) && release_chunk) {
-        decoded_chunk->release();
-        decoded_chunk = nullptr;
+        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
         release_chunk = false;
       }
 
@@ -444,10 +445,15 @@ void ResonateMediaPlayer::sync_task(void *params) {
         continue;
       }
 
-      if ((decoded_chunk == nullptr) &&
-          !this_resonate->decoded_chunk_queue_->receive_chunk(&decoded_chunk, pdMS_TO_TICKS(15))) {
-        // No chunk available to process
-        continue;
+      if (decoded_chunk == nullptr) {
+        // auto chunk = this_resonate->decoded_chunk_queue_->pop();
+        auto chunk = this_resonate->decoded_chunk_queue_->receive_chunk(pdMS_TO_TICKS(15));
+        if (!chunk) {
+          // No chunk available to process
+          // vTaskDelay(pdMS_TO_TICKS(15));
+          continue;
+        }
+        decoded_chunk = std::static_pointer_cast<ResonateAudioChunk>(chunk);
       }
 
       // Loaded a new chunk of audio into decoded_chunk
@@ -468,13 +474,12 @@ void ResonateMediaPlayer::sync_task(void *params) {
         // Chunk was already supposed to play, skip it!
         ESP_LOGE(TAG, "Chunk was already supposed to play at %" PRId64 " and its %" PRId64 ", so skipping it",
                  decoded_chunk->timestamp, esp_timer_get_time());
-        decoded_chunk->release();
-        decoded_chunk = nullptr;
+        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
         release_chunk = false;
         continue;
       }
 
-      uint32_t chunk_frame_count = current_stream_info.bytes_to_frames(decoded_chunk->size);
+      uint32_t chunk_frame_count = current_stream_info.bytes_to_frames(decoded_chunk->get_usable_size());
       /*
        * Determine the current sync error using the playback information from the speaker.
        */
@@ -629,23 +634,24 @@ void ResonateMediaPlayer::sync_task(void *params) {
         // Removes newly decoded frames (but will always leave a minimum of 1 frame)
 
         size_t bytes_to_remove = current_stream_info.ms_to_bytes(abs(recent_error_us) / 1000);
-        if (bytes_to_remove < decoded_chunk->size - bytes_per_frame) {
+        if (bytes_to_remove < decoded_chunk->get_usable_size() - bytes_per_frame) {
           // Trimming this chunk will get us precisely in sync, so correct in microseconds
           const uint32_t frames_to_remove = (abs(recent_error_us) * current_stream_info.get_sample_rate()) / 1000000;
           bytes_to_remove = current_stream_info.frames_to_bytes(frames_to_remove);
         }
 
-        size_t actual_bytes_to_remove = std::min(bytes_to_remove, decoded_chunk->size - bytes_per_frame);
+        size_t actual_bytes_to_remove = std::min(bytes_to_remove, decoded_chunk->get_usable_size() - bytes_per_frame);
 
         output_transfer_buffer->decrease_buffer_length(actual_bytes_to_remove);
 
         // TODO: Is this right? Coudln't I just use get_buffer_start?
-        size_t bytes_to_silence = decoded_chunk->size - actual_bytes_to_remove;
+        size_t bytes_to_silence = decoded_chunk->get_usable_size() - actual_bytes_to_remove;
         std::memset((void *) (output_transfer_buffer->get_buffer_end() - bytes_to_silence), 0, bytes_to_silence);
 
         frame_corrections = -current_stream_info.bytes_to_frames(actual_bytes_to_remove);
 
-        uint32_t total_frames_kept = current_stream_info.bytes_to_frames(decoded_chunk->size) + frame_corrections;
+        uint32_t total_frames_kept =
+            current_stream_info.bytes_to_frames(decoded_chunk->get_usable_size()) + frame_corrections;
 
         ESP_LOGD(TAG,
                  "Hard sync: removing %" PRId32 " frames and keeping %" PRIu32 " frames. Current error is %" PRId64
@@ -731,8 +737,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
 
     xEventGroupSetBits(this_resonate->event_group_, EventGroupBits::TASK_STOPPING);
     if (decoded_chunk != nullptr) {
-      decoded_chunk->release();
-      decoded_chunk = nullptr;
+      decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
     }
   }
 

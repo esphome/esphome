@@ -4,6 +4,7 @@
 #ifdef USE_RESONATE_AUDIO
 #include "resonate_decoder.h"
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/audio/audio_chunk.h"
 #endif
 
 #include "esphome/components/network/ip_address.h"
@@ -71,7 +72,7 @@ void ResonateHub::setup() {
   }
 
 #ifdef USE_RESONATE_AUDIO
-  this->encoded_chunk_queue_ = ResonateChunkQueue::create(ENCODED_CHUNK_QUEUE_SIZE);
+  this->encoded_chunk_queue_ = audio::AudioChunkQueue::create(ENCODED_CHUNK_QUEUE_SIZE, 2000000, true);
   if (this->encoded_chunk_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create encoded chunk data queue.");
     this->mark_failed();
@@ -318,27 +319,34 @@ bool ResonateHub::process_binary_message_(uint8_t *payload, size_t len) {
   switch (binary_type) {
     case RESONATE_AUDIO_BINARY: {
 #ifdef USE_RESONATE_AUDIO
-      // Create a heap-allocated chunk that takes ownership of the payload
-      AudioChunk *audio_chunk = create_audio_chunk_from_buffer(payload, len);
-      if (audio_chunk == nullptr) {
-        ESP_LOGE(TAG, "Failed to allocate AudioChunk");
+      if (len < RESONATE_BINARY_CHUNK_HEADER_SIZE) {
+        // Packet too short for resonate binary audio chunk header
         return false;  // deallocate payload
-      }
-      audio_chunk->offset = RESONATE_BINARY_CHUNK_HEADER_SIZE;
-      audio_chunk->size = len - RESONATE_BINARY_CHUNK_HEADER_SIZE;
-      audio_chunk->timestamp = server_timestamp;
-      audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
+      } else {
+        // Use the big endian datatype helpers for converting to host format
+        int64_be_t server_timestamp;
 
-      if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
-        // Failed to add
-        ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
-        this->encoded_chunk_queue_->reset();
-      }
-      // Release our reference, queue has its own if successful. If unsuccessful, then this will deallocate the
-      // payload
-      audio_chunk->release();
-      return true;  // don't deallocate payload, just clear pointer
+        std::memcpy((void *) &server_timestamp, (void *) (payload + 1), sizeof(server_timestamp));
 
+        // Create a shared_ptr chunk that takes ownership of the payload
+        auto audio_chunk = create_resonate_chunk_from_buffer(payload, len);
+        if (audio_chunk == nullptr) {
+          ESP_LOGE(TAG, "Failed to allocate ResonateAudioChunk");
+          return false;  // deallocate payload
+        }
+        audio_chunk->offset = RESONATE_BINARY_CHUNK_HEADER_SIZE;
+        audio_chunk->size = len - RESONATE_BINARY_CHUNK_HEADER_SIZE;
+        audio_chunk->timestamp = server_timestamp;
+        audio_chunk->chunk_type = CHUNK_TYPE_ENCODED_AUDIO;
+
+        if (!this->encoded_chunk_queue_->add_chunk(audio_chunk, 0)) {
+          // Failed to add
+          ESP_LOGE(TAG, "Failed to send audio chunk, clearing encoded chunk queue");
+          this->encoded_chunk_queue_->reset();
+        }
+        // No need to manually release - shared_ptr handles cleanup automatically
+        return true;  // don't deallocate payload, just clear pointer
+      }
 #else
       // Not built with audio, so ownership not transferred
       return false;  // deallocate payload
@@ -379,10 +387,10 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
       ResonateCodecFormat codec_format;
       std::string codec_header;
       if (process_stream_start_message(message, &stream_audio_stream_info, &codec_format, &codec_header)) {
-        AudioChunk *header_chunk = nullptr;
+        std::shared_ptr<ResonateAudioChunk> header_chunk = nullptr;
 
         if ((codec_format == ResonateCodecFormat::PCM) || (codec_format == ResonateCodecFormat::OPUS)) {
-          header_chunk = create_audio_chunk(sizeof(DummyHeader));
+          header_chunk = create_resonate_chunk(sizeof(DummyHeader));
           if (header_chunk == nullptr) {
             ESP_LOGE(TAG, "Memory allocation failed");
             return false;
@@ -403,7 +411,7 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           }
         } else if (codec_format == ResonateCodecFormat::FLAC) {
           std::vector<uint8_t> flac_header = base64_decode(codec_header);
-          header_chunk = create_audio_chunk(flac_header.size());
+          header_chunk = create_resonate_chunk(flac_header.size());
           if (header_chunk == nullptr) {
             ESP_LOGE(TAG, "Memory allocation failed");
             return false;
@@ -420,10 +428,6 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
           ESP_LOGE(TAG, "Failed to send codec header");
         } else if (message_type == ResonateServerToClientMessageType::STREAM_START) {
           this->controls_callbacks_.call(ResonateControls::START);
-        }
-        // Always release our reference (queue has its own if successful)
-        if (header_chunk != nullptr) {
-          header_chunk->release();
         }
       }
 #else
@@ -525,7 +529,7 @@ void ResonateHub::publish_client_state() {
   this->resonate_websocket_->send_player_state_message(&state);
 }
 
-bool ResonateHub::send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to_wait,
+bool ResonateHub::send_audio_chunk_(std::shared_ptr<ResonateAudioChunk> audio_chunk, TickType_t ticks_to_wait,
                                     const audio::AudioStreamInfo &stream_info) {
   if (audio_chunk == nullptr) {
     ESP_LOGE(TAG, "Null audio chunk passed to send_audio_chunk_");
@@ -533,12 +537,12 @@ bool ResonateHub::send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to
   }
 
   if (this->audio_chunk_callbacks_.empty()) {
-    // No callbacks registered, return true so caller releases the chunk
+    // No callbacks registered, return true
     return true;
   }
 
   // Simple distribution to all consumers
-  // Each consumer gets the pointer and must call add_ref() if they keep it
+  // Each consumer gets a shared_ptr copy automatically
   for (auto &callback : this->audio_chunk_callbacks_) {
     if (!callback(audio_chunk, ticks_to_wait, stream_info)) {
       // TODO : properly handle if one consumer fails to receive and another succeeds
@@ -552,8 +556,8 @@ bool ResonateHub::send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to
 void ResonateHub::decode_task(void *params) {
   ResonateHub *this_resonate = (ResonateHub *) params;
 
-  AudioChunk *encoded_chunk = nullptr;  // timestamp is in server time domain
-  AudioChunk *decoded_chunk = nullptr;  // timestamp is in client time domain
+  std::shared_ptr<ResonateAudioChunk> encoded_chunk = nullptr;  // timestamp is in server time domain
+  std::shared_ptr<ResonateAudioChunk> decoded_chunk = nullptr;  // timestamp is in client time domain
 
   std::unique_ptr<ResonateDecoder> decoder = std::make_unique<ResonateDecoder>();
   audio::AudioStreamInfo current_stream_info;
@@ -565,14 +569,11 @@ void ResonateHub::decode_task(void *params) {
       // Processes the stop command by stopping the speaker and resetting all states
 
       decoder->reset_decoders();
-      if (encoded_chunk != nullptr) {
-        encoded_chunk->release();
-        encoded_chunk = nullptr;
-      }
-      if (decoded_chunk != nullptr) {
-        decoded_chunk->release();
-        decoded_chunk = nullptr;
-      }
+
+      // shared_ptr automatically handles cleanup
+      encoded_chunk = nullptr;
+      decoded_chunk = nullptr;
+
       this_resonate->encoded_chunk_queue_->reset();
 
       vTaskDelay(pdMS_TO_TICKS(50));
@@ -583,21 +584,25 @@ void ResonateHub::decode_task(void *params) {
     if (decoded_chunk != nullptr) {
       // Add decoded chunk to the queue
       if ((esp_timer_get_time() > decoded_chunk->timestamp) ||
-          this_resonate->send_audio_chunk_(decoded_chunk,
-                                           pdMS_TO_TICKS(current_stream_info.bytes_to_frames(decoded_chunk->size)),
-                                           current_stream_info)) {
-        // Release chunk ownership if it was already supposed to start playing (skipping it) or if successfully sent to
-        // consumers
-        decoded_chunk->release();
-        decoded_chunk = nullptr;  // chunk released, clear pointer
+          this_resonate->send_audio_chunk_(
+              decoded_chunk, pdMS_TO_TICKS(current_stream_info.bytes_to_frames(decoded_chunk->get_usable_size())),
+              current_stream_info)) {
+        // Clear chunk if it was already supposed to start playing (skipping it) or if successfully sent to consumers
+        decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
       } else {
         // Try adding again
         continue;
       }
     }
 
-    if ((encoded_chunk != nullptr) ||
-        (this_resonate->encoded_chunk_queue_->receive_chunk(&encoded_chunk, pdMS_TO_TICKS(50)))) {
+    if (encoded_chunk == nullptr) {
+      auto audio_chunk = this_resonate->encoded_chunk_queue_->receive_chunk(pdMS_TO_TICKS(50));
+      if (audio_chunk) {
+        encoded_chunk = std::static_pointer_cast<ResonateAudioChunk>(audio_chunk);
+      }
+    }
+
+    if (encoded_chunk != nullptr) {
       // Already have an encoded chunk or successfully received one from the queue
 
       if ((encoded_chunk->chunk_type != CHUNK_TYPE_ENCODED_AUDIO) &&
@@ -616,8 +621,7 @@ void ResonateHub::decode_task(void *params) {
         int64_t time_until_playback_us = client_timestamp - esp_timer_get_time();
         if (time_until_playback_us < 0) {
           // Chunk was already supposed to play, skip it!
-          encoded_chunk->release();
-          encoded_chunk = nullptr;
+          encoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
           continue;
         }
 
@@ -634,16 +638,15 @@ void ResonateHub::decode_task(void *params) {
           continue;
         }
 
-        if (!decoder->decode_audio_chunk(encoded_chunk, &decoded_chunk)) {
+        if (!decoder->decode_audio_chunk(encoded_chunk, decoded_chunk)) {
           ESP_LOGE(TAG, "Failed to decode audio chunk");
         } else {
           decoded_chunk->timestamp = client_timestamp;
         }
       }
 
-      // Release the encoded chunk. Note, for PCM, decoded_chunk is the same data as encoded_chunk but has its own
-      // reference
-      encoded_chunk->release();
+      // Clear the encoded chunk. Note, for PCM, decoded_chunk is the same data as encoded_chunk but has its own
+      // shared_ptr reference
       encoded_chunk = nullptr;
     }
 

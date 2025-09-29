@@ -9,8 +9,9 @@
 #include "resonate_websocket.h"
 
 #ifdef USE_RESONATE_AUDIO
-#include "resonate_chunk_queue.h"
+#include "resonate_audio_chunk.h"
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/audio/audio_chunk_queue.h"
 #include <vector>
 #endif
 
@@ -69,8 +70,6 @@ class ResonateHub : public Component {
    *  - resonate_websocket.h creates a websocket server that a resonate server connects to and handles the low level
    *    sending and receiving of messages
    *    - the hub's websocket_server_handler is the callback function that processes the messages at a high level
-   *  - resonate_chunk_queue.h creates a memory efficient FreeRTOS queue for passing encoded and decoded audio chunks
-   *    (TODO: generalize and move to the audio component)
    *  - resonate_decoder.h handles decoding audio chunks in a memory efficient way (TODO: generalize and move to the
    *    audio component)
    *
@@ -95,7 +94,7 @@ class ResonateHub : public Component {
 #ifdef USE_RESONATE_AUDIO
   // Simple audio chunk callback registration
   void add_audio_chunk_callback(
-      std::function<bool(AudioChunk *, TickType_t, const audio::AudioStreamInfo &)> &&callback) {
+      std::function<bool(std::shared_ptr<ResonateAudioChunk>, TickType_t, const audio::AudioStreamInfo &)> &&callback) {
     this->audio_chunk_callbacks_.push_back(std::move(callback));
   }
 
@@ -143,12 +142,14 @@ class ResonateHub : public Component {
 
  protected:
 #ifdef USE_RESONATE_AUDIO
-  bool send_audio_chunk_(AudioChunk *audio_chunk, TickType_t ticks_to_wait, const audio::AudioStreamInfo &stream_info);
+  bool send_audio_chunk_(std::shared_ptr<ResonateAudioChunk> audio_chunk, TickType_t ticks_to_wait,
+                         const audio::AudioStreamInfo &stream_info);
 
   // Simplified audio consumer management with pointer-based approach
-  std::vector<std::function<bool(AudioChunk *, TickType_t, const audio::AudioStreamInfo &)>> audio_chunk_callbacks_;
+  std::vector<std::function<bool(std::shared_ptr<ResonateAudioChunk>, TickType_t, const audio::AudioStreamInfo &)>>
+      audio_chunk_callbacks_;
 
-  std::unique_ptr<ResonateChunkQueue> encoded_chunk_queue_;
+  std::unique_ptr<audio::AudioChunkQueue> encoded_chunk_queue_;
 
   static void decode_task(void *params);
   TaskHandle_t decode_task_handle_{nullptr};

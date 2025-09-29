@@ -4,10 +4,11 @@
 
 #if defined(USE_ESP_IDF) && defined(USE_RESONATE_AUDIO)
 
-#include "resonate_chunk_queue.h"
+#include "resonate_audio_chunk.h"
 #include "resonate_protocol.h"
 
 #include "esphome/components/audio/audio.h"
+// #include "esphome/components/audio/audio_chunk_queue.h"
 
 #include <flac_decoder.h>
 #include <opus.h>
@@ -26,23 +27,24 @@ class ResonateDecoder {
   void reset_decoders();
 
   /// @brief Setups the appropriate decoder and then processs the codec header (which may be a dummy header).
-  /// @param header_chunk AudioChunk with header (caller retains ownership)
+  /// @param header_chunk ResonateAudioChunk with header
   /// @param stream_info Pointer to AudioStreamInfo that will be filled out when decoding the header
   /// @return True if successful, false otherwise
-  bool process_header(AudioChunk *header_chunk, audio::AudioStreamInfo *stream_info);
+  bool process_header(std::shared_ptr<ResonateAudioChunk> header_chunk, audio::AudioStreamInfo *stream_info);
 
   /// @brief Decodes an encoded audio chunk.
-  /// @param encoded_chunk AudioChunk pointer with encoded audio (caller retains ownership)
-  /// @param decoded_chunk Pointer to AudioChunk pointer to store decoded audio
-  ///                      For PCM: shares the same chunk with added reference
+  /// @param encoded_chunk ResonateAudioChunk pointer with encoded audio
+  /// @param decoded_chunk Reference to shared_ptr to store decoded audio
+  ///                      For PCM: shares the same data with new shared_ptr
   ///                      For other codecs: new allocation
   /// @return True if successful, false otherwise
-  bool decode_audio_chunk(AudioChunk *encoded_chunk, AudioChunk **decoded_chunk);
+  bool decode_audio_chunk(std::shared_ptr<ResonateAudioChunk> encoded_chunk,
+                          std::shared_ptr<ResonateAudioChunk> &decoded_chunk);
 
   ResonateCodecFormat get_current_codec() const { return this->current_codec_; }
 
  protected:
-  bool decode_dummy_header_(const AudioChunk *header_chunk, audio::AudioStreamInfo *stream_info);
+  bool decode_dummy_header_(std::shared_ptr<ResonateAudioChunk> header_chunk, audio::AudioStreamInfo *stream_info);
 
   std::unique_ptr<esp_audio_libs::flac::FLACDecoder> flac_decoder_;
   OpusDecoder *opus_decoder_{nullptr};
