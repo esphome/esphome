@@ -592,6 +592,7 @@ CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
 CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
+CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -653,6 +654,9 @@ FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                 }
@@ -911,6 +915,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", True)
     if advanced.get(CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, True):
         add_idf_sdkconfig_option("CONFIG_LWIP_CHECK_THREAD_SAFETY", True)
+
+    # Disable placing libc locks in IRAM to save RAM
+    # This is safe for ESPHome since no IRAM ISRs (interrupts that run while cache is disabled)
+    # use libc lock APIs. Saves approximately 1.6KB of IRAM.
+    if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
+        add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
