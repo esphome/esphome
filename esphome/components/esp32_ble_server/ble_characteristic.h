@@ -6,7 +6,6 @@
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <vector>
-#include <unordered_map>
 
 #ifdef USE_ESP32
 
@@ -89,7 +88,15 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   SemaphoreHandle_t set_value_lock_;
 
   std::vector<BLEDescriptor *> descriptors_;
-  std::unordered_map<uint16_t, bool> clients_to_notify_;
+
+  struct ClientNotificationEntry {
+    uint16_t conn_id;
+    bool indicate;  // true = indicate, false = notify
+  };
+  std::vector<ClientNotificationEntry> clients_to_notify_;
+
+  void remove_client_from_notify_list_(uint16_t conn_id);
+  ClientNotificationEntry *find_client_in_notify_list_(uint16_t conn_id);
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 
