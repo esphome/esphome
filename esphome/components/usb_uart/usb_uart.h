@@ -208,25 +208,12 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
 
  protected:
   void enable_channels() override;
-  void on_connected() override;
 
 #if defined(USE_UART_DEBUGGER)
   void enum_chip_type_() override;
 #endif
 };
 
-class USBUartTypeCH934X : public USBUartTypeCdcAcm {
- public:
-  USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
-
- protected:
-  void enable_channels() override;
-  void on_connected() override;
-
-#if defined(USE_UART_DEBUGGER)
-  void enum_chip_type_() override;
-#endif
-};
 
 }  // namespace usb_uart
 }  // namespace esphome
