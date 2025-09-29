@@ -98,7 +98,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
  protected:
   int log_level_;
   void log_(int level, const char *tag, const char *message, size_t message_len) const;
-  void send_to_loki_(const std::string &json_payload) const;
+  void send_to_loki_(const std::string &json_payload);
   std::string get_full_url_() const;
   std::list<http_request::Header> get_headers_() const;
   int num_runs_ = 0;
@@ -122,7 +122,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   EventPool<struct QueueElement, LOKI_QUEUE_LENGTH> loki_event_pool_;
   NotifyingLockFreeQueue<struct QueueElement, LOKI_QUEUE_LENGTH> loki_queue_;
   TaskHandle_t task_handle_{nullptr};
-  bool enqueue_(const char *json_payload, size_t len) const;
+  bool enqueue_(const char *json_payload, size_t len);
 #endif
 };
 }  // namespace loki

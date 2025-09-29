@@ -95,7 +95,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
   this->send_to_loki_(json_payload);
 }
 
-void Loki::send_to_loki_(const std::string &json_payload) const {
+void Loki::send_to_loki_(const std::string &json_payload) {
 #ifdef USE_ESP32
   // Use queue for non-blocking operation on ESP32
   if (!this->enqueue_(json_payload.c_str(), json_payload.length())) {
@@ -189,7 +189,7 @@ void Loki::esphome_loki_task(void *params) {
   vTaskDelete(nullptr);
 }
 
-bool Loki::enqueue_(const char *json_payload, size_t len) const {
+bool Loki::enqueue_(const char *json_payload, size_t len) {
   auto *elem = this->loki_event_pool_.allocate();
 
   if (!elem) {
