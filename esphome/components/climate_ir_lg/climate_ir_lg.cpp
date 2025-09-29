@@ -269,8 +269,8 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     case HEADER_BASIC:
       if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == BASIC_JET) {
         switch (this->mode) {
-          // In PO mode swing is set to VERT_3, but will switch back to what is was before turning PO ON
-          // So let's just not change it at all
+          // When enabling PO mode swing is set to VERT_3, but will switch back to what it was before
+          // So let's just not change here it at all
           case climate::CLIMATE_MODE_COOL:
           case climate::CLIMATE_MODE_HEAT:
             this->target_temperature =
