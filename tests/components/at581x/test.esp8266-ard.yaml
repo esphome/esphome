@@ -1,38 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - at581x.settings:
-          id: "Waveradar"
-          hw_frontend_reset: false
-          frequency: 5800MHz
-          sensing_distance: 200
-          poweron_selfcheck_time: 2s
-          protect_time: 1s
-          trigger_base: 500ms
-          trigger_keep: 10s
-          stage_gain: 3
-          power_consumption: 70uA
-      - at581x.reset:
-          id: "Waveradar"
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-at581x:
-  id: "Waveradar"
-  i2c_id: i2c_bus
-
-i2c:
-  sda: 14
-  scl: 15
-  scan: true
-  frequency: 100kHz
-  setup_priority: -100
-  id: i2c_bus
-
-binary_sensor:
-  - platform: gpio
-    pin: GPIO4
-    name: "Radar motion"
-
-switch:
-  - platform: at581x
-    at581x_id: "Waveradar"
-    name: "Enable Radar"
+<<: !include common.yaml

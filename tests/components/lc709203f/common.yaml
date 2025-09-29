@@ -1,0 +1,16 @@
+i2c:
+  - id: i2c_lc709203f
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: lc709203f
+    size: 2000
+    voltage: 3.7
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_level:
+      name: "Battery"
+    temperature:
+      name: "Pack Temperature"
+      b_constant: 0xA5A5

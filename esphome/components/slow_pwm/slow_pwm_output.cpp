@@ -1,5 +1,6 @@
 #include "slow_pwm_output.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace slow_pwm {

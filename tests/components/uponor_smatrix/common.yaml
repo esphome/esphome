@@ -36,3 +36,5 @@ sensor:
       name: Thermostat Temperature Living Room
     external_temperature:
       name: Thermostat Floor Temperature Living Room
+    target_temperature:
+      name: Thermostat Target Temperature Living Room

@@ -1,0 +1,59 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+remote_transmitter:
+  pin: ${pin}
+  carrier_duty_percent: 50%
+
+uart:
+  - id: uart_midea
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+climate:
+  - platform: midea
+    id: midea_unit
+    name: Midea Climate
+    on_control:
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
+    on_state:
+      - logger.log: State changed!
+    transmitter_id:
+    period: 1s
+    num_attempts: 5
+    timeout: 2s
+    beeper: false
+    autoconf: true
+    visual:
+      min_temperature: 17 °C
+      max_temperature: 30 °C
+      temperature_step: 0.5 °C
+    supported_modes:
+      - FAN_ONLY
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    supported_presets:
+      - ECO
+      - BOOST
+      - SLEEP
+    custom_presets:
+      - FREEZE_PROTECTION
+    supported_swing_modes:
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
+    outdoor_temperature:
+      name: Temp
+    power_usage:
+      name: Power
+    humidity_setpoint:
+      name: Humidity

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import re
 import argparse
+import re
 
 CHANNEL_DEV = "dev"
 CHANNEL_BETA = "beta"

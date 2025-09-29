@@ -275,6 +275,8 @@ class WeikaiGPIOPin : public GPIOPin {
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
   void setup() override;
   std::string dump_summary() const override;
   void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }

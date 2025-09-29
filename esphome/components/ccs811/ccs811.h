@@ -25,8 +25,6 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
  protected:
   optional<uint8_t> read_status_() { return this->read_byte(0x00); }
   bool status_has_error_() { return this->read_status_().value_or(1) & 1; }

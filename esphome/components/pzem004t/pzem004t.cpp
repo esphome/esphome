@@ -1,5 +1,6 @@
 #include "pzem004t.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cinttypes>
 
 namespace esphome {
@@ -16,7 +17,7 @@ void PZEM004T::setup() {
 }
 
 void PZEM004T::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_read_ > 500 && this->available() < 7) {
     while (this->available())
       this->read();

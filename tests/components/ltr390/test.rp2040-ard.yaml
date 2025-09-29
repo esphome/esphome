@@ -1,20 +1,5 @@
-i2c:
-  - id: i2c_ltr390
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: ltr390
-    uv:
-      name: LTR390 UV
-    uv_index:
-      name: LTR390 UVI
-    light:
-      name: LTR390 Light
-    ambient_light:
-      name: LTR390 ALS
-    gain: X3
-    resolution: 18
-    window_correction_factor: 1.0
-    address: 0x53
-    update_interval: 60s
+<<: !include common.yaml

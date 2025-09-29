@@ -117,6 +117,8 @@ class MPR121GPIOPin : public GPIOPin {
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
  protected:
   MPR121Component *parent_;
   uint8_t pin_;
