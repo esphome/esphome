@@ -24,19 +24,19 @@ namespace loki {
 struct QueueElement {
   char *json_payload;
   uint16_t payload_len;
-  
+
   QueueElement() : json_payload(nullptr), payload_len(0) {}
-  
+
   // Helper to set payload (uses RAMAllocator)
   bool set_data(const char *payload_data, size_t len) {
     // Check payload size limit
     if (len > std::numeric_limits<uint16_t>::max()) {
       return false;
     }
-    
+
     // Use RAMAllocator with default flags (tries external RAM first, falls back to internal)
     RAMAllocator<char> allocator;
-    
+
     if (payload_data && len) {
       json_payload = allocator.allocate(len);
       if (!json_payload) {
@@ -50,7 +50,7 @@ struct QueueElement {
     }
     return true;
   }
-  
+
   // Helper to release (uses RAMAllocator)
   void release() {
     RAMAllocator<char> allocator;
@@ -117,7 +117,7 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   static const uint8_t LOKI_QUEUE_LENGTH = 20;  // 20 queue elements for log messages
   static const size_t TASK_STACK_SIZE = 3072;
   static const ssize_t TASK_PRIORITY = 5;
-  
+
   static void esphome_loki_task(void *params);
   EventPool<struct QueueElement, LOKI_QUEUE_LENGTH> loki_event_pool_;
   NotifyingLockFreeQueue<struct QueueElement, LOKI_QUEUE_LENGTH> loki_queue_;
