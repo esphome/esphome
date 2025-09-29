@@ -237,10 +237,12 @@ void SX126x::configure() {
 
     // set crc params
     if (this->crc_enable_) {
-      this->write_register_(REG_CRC_INITIAL + 0, (this->crc_initial_ >> 8) & 0xFF);
-      this->write_register_(REG_CRC_INITIAL + 1, (this->crc_initial_ >> 0) & 0xFF);
-      this->write_register_(REG_CRC_POLYNOMIAL + 0, (this->crc_polynomial_ >> 8) & 0xFF);
-      this->write_register_(REG_CRC_POLYNOMIAL + 1, (this->crc_polynomial_ >> 0) & 0xFF);
+      buf[0] = this->crc_initial_ >> 8;
+      buf[1] = this->crc_initial_ & 0xFF;
+      this->write_register_(REG_CRC_INITIAL, buf, 2);
+      buf[0] = this->crc_polynomial_ >> 8;
+      buf[1] = this->crc_polynomial_ & 0xFF;
+      this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
     }
 
     // set packet params and sync word

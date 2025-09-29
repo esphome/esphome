@@ -192,7 +192,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_BUSY_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_CRC_INVERTED, default=False): cv.boolean,
+            cv.Optional(CONF_CRC_INVERTED, default=True): cv.boolean,
             cv.Optional(CONF_CRC_SIZE, default=2): cv.int_range(min=1, max=2),
             cv.Optional(CONF_CRC_POLYNOMIAL, default=0x1021): cv.All(
                 cv.hex_int, cv.Range(min=0, max=0xFFFF)
