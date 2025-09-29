@@ -58,7 +58,7 @@ enum CommandAdvSwing : uint32_t {
   HEADER_ADV_SWING = 0x13000,
 
   // Only 5 bits are relevant, I got 0x13952 once - not sure what is the 8th bit so ignoring that.
-  DATA_MASK = 0x1F0,
+  ADV_SWING_DATA_MASK = 0x1F0,
 
   // Commands for Advanced Vertical Control: Swing + 6 fixed positions
   VERT_FIX_1 = 0x040,  // Down
@@ -244,11 +244,13 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
       break;
     case CommandAdvSwing::HEADER_ADV_SWING:
-      ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32, remote_state & CommandAdvSwing::DATA_MASK);
-      switch (remote_state & CommandAdvSwing::DATA_MASK) {
+      ESP_LOGD(TAG, "Got advanced swing command! With data: 0x%02" PRIX32,
+               remote_state & CommandAdvSwing::ADV_SWING_DATA_MASK);
+      switch (remote_state & CommandAdvSwing::ADV_SWING_DATA_MASK) {
         case CommandAdvSwing::VERT_SWING_ON:
           this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
           break;
+        case CommandAdvSwing::VERT_SWING_OFF:
         case CommandAdvSwing::VERT_FIX_1:
         case CommandAdvSwing::VERT_FIX_2:
         case CommandAdvSwing::VERT_FIX_3:
