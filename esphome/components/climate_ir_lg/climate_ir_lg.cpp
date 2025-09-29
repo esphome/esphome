@@ -269,13 +269,14 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     case HEADER_BASIC:
       if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == BASIC_JET) {
         switch (this->mode) {
-          // When enabling PO mode swing is set to VERT_3, but after 30 mins it will switch back to what it was before
-          // So let's just not change here it at all
           case climate::CLIMATE_MODE_COOL:
           case climate::CLIMATE_MODE_HEAT:
+          case climate::CLIMATE_MODE_DRY:
             this->target_temperature =
-                this->mode == climate::CLIMATE_MODE_COOL ? this->minimum_temperature_ : this->maximum_temperature_;
+                this->mode == climate::CLIMATE_MODE_HEAT ? this->maximum_temperature_ : this->minimum_temperature_;
             this->fan_mode = climate::CLIMATE_FAN_HIGH;
+            // When enabling PO mode swing is set to VERT_3, but after 30 mins it will switch back to what it was before
+            // So let's just not change it here it at all
             this->publish_state();
             return true;
           default:
