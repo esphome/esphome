@@ -119,7 +119,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
-  friend class USBUartTypeCH934X;
 
  public:
   USBUartChannel(uint8_t index, uint16_t buffer_size)
