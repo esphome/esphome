@@ -253,8 +253,8 @@ void EthernetComponent::setup() {
 
   // use ESP internal eth mac
   uint8_t mac_addr[6];
-  if (!this->fixed_mac_.empty()) {
-    memcpy(mac_addr, this->fixed_mac_.data(), 6);
+  if (this->fixed_mac_.has_value()) {
+    memcpy(mac_addr, this->fixed_mac_->data(), 6);
   } else {
     esp_read_mac(mac_addr, ESP_MAC_ETH);
   }

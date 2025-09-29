@@ -368,7 +368,9 @@ async def to_code(config):
         cg.add_define(phy_define)
 
     if mac_address := config.get(CONF_MAC_ADDRESS):
-        cg.add(var.set_fixed_mac(mac_address.parts))
+        cg.add(var.set_fixed_mac(cg.RawExpression(
+            f"std::array<uint8_t, 6>{{{', '.join(map(str, mac_address.parts))}}}"
+        )))
 
     cg.add_define("USE_ETHERNET")
 
