@@ -36,7 +36,7 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
     case 8:
       return "CH344Q";
     case 9:
-      return  "CH347TF";
+      return "CH347TF";
     case 10:
       return "CH9101UH";
     case 11:
@@ -58,7 +58,7 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
     case 19:
       return "CH9111L_M1";
     case 20:
-      return"CH9114L";
+      return "CH9114L";
     case 21:
       return "CH9114W";
     case 22:
