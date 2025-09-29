@@ -33,6 +33,37 @@ struct CdcEps {
   uint8_t interrupt_interface_number;
 };
 
+#if defined(USE_UART_DEBUGGER)
+enum CH34X_CHIPTYPE {
+	CHIP_CH342F = 0x00,
+	CHIP_CH342K,
+	CHIP_CH343GP,
+	CHIP_CH343G_AUTOBAUD,
+	CHIP_CH343K,
+	CHIP_CH343J,
+	CHIP_CH344L,
+	CHIP_CH344L_V2,
+	CHIP_CH344Q,
+	CHIP_CH347TF,
+	CHIP_CH9101UH,
+	CHIP_CH9101RY,
+	CHIP_CH9102F,
+	CHIP_CH9102X,
+	CHIP_CH9103M,
+	CHIP_CH9104L,
+	CHIP_CH340B,
+	CHIP_CH339W,
+	CHIP_CH9111L_M0,
+	CHIP_CH9111L_M1,
+	CHIP_CH9114L,
+	CHIP_CH9114W,
+	CHIP_CH9114F,
+	CHIP_CH346C_M0,
+	CHIP_CH346C_M1,
+	CHIP_CH346C_M2,
+};
+#endif
+
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE = 0,
   UART_CONFIG_PARITY_ODD,
@@ -88,6 +119,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
+  friend class USBUartTypeCH934X;
 
  public:
   USBUartChannel(uint8_t index, uint16_t buffer_size)
@@ -127,6 +159,7 @@ class USBUartComponent : public usb_host::USBClient {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  
   std::vector<USBUartChannel *> get_channels() { return this->channels_; }
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
@@ -141,6 +174,12 @@ class USBUartComponent : public usb_host::USBClient {
 
  protected:
   std::vector<USBUartChannel *> channels_{};
+#if defined(USE_UART_DEBUGGER)
+  virtual void enum_chip_type_();
+
+  uint8_t chiptype_{255};
+  uint8_t num_ports_{0};
+#endif
 };
 
 class USBUartTypeCdcAcm : public USBUartComponent {
@@ -162,12 +201,31 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   void enable_channels() override;
 };
+
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
   USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
  protected:
   void enable_channels() override;
+  void on_connected() override;
+
+#if defined(USE_UART_DEBUGGER)
+  void enum_chip_type_() override;
+#endif
+};
+
+class USBUartTypeCH934X : public USBUartTypeCdcAcm {
+ public:
+  USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+ protected:
+  void enable_channels() override;
+  void on_connected() override;
+
+#if defined(USE_UART_DEBUGGER)
+  void enum_chip_type_() override;
+#endif
 };
 
 }  // namespace usb_uart
