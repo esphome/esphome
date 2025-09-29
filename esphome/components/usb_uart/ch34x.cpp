@@ -18,89 +18,61 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
   std::string retval;
   switch (enum_value) {
     case 0:
-      retval = "CH342F";
-      break;
+      return"CH342F";
     case 1:
       retval = "CH342K";
-      break;
     case 2:
-      retval = "CH343GP";
-      break;
+      return "CH343GP";
     case 3:
-      retval = "CH343G_AUTOBAUD";
-      break;
+      return "CH343G_AUTOBAUD";
     case 4:
       retval = "CH343K";
-      break;
     case 5:
-      retval = "CH343J";
-      break;
+      return "CH343J";
     case 6:
-      retval = "CH344L";
-      break;
+      return"CH344L";
     case 7:
-      retval = "CH344L_V2";
-      break;
+     return "CH344L_V2";
     case 8:
       retval = "CH344Q";
-      break;
     case 9:
       retval = "CH347TF";
-      break;
     case 10:
-      retval = "CH9101UH";
-      break;
+      return "CH9101UH";
     case 11:
-      retval = "CH9101RY";
-      break;
+      return "CH9101RY";
     case 12:
-      retval = "CH9102F";
-      break;
+      return "CH9102F";
     case 13:
       retval = "CH9102X";
-      break;
     case 14:
-      retval = "CH9103M";
-      break;
+      return "CH9103M";
     case 15:
-      retval = "CH9104L";
-      break;
+      return "CH9104L";
     case 16:
-      retval = "CH340B";
-      break;
+      return "CH340B";
     case 17:
-      retval = "CH339W";
-      break;
+      return "CH339W";
     case 18:
-      retval = "CH9111L_M0";
-      break;
+      return "CH9111L_M0";
     case 19:
-      retval = "CH9111L_M1";
-      break;
+      return "CH9111L_M1";
     case 20:
-      retval = "CH9114L";
-      break;
+      return"CH9114L";
     case 21:
-      retval = "CH9114W";
-      break;
+      return "CH9114W";
     case 22:
-      retval = "CH9114F";
-      break;
+      return "CH9114F";
     case 23:
-      retval = "CH346C_M0";
-      break;
+      return "CH346C_M0";
     case 24:
-      retval = "CH346C_M1";
-      break;
+      return "CH346C_M1";
     case 25:
-      retval = "CH346C_M2";
-      break;
+      return "CH346C_M2";
     case 255:
     default:
-      retval = "unknown";
-      break;
+      return "unknown";
   }
-  return retval;
 }
 
 void USBUartTypeCH34X::enum_chip_type_() {
