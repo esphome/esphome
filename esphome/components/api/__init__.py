@@ -59,6 +59,8 @@ CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
+CONF_LISTEN_BACKLOG = "listen_backlog"
+CONF_MAX_CONNECTIONS = "max_connections"
 
 
 def validate_encryption_key(value):
@@ -158,6 +160,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
                 single=True
             ),
+            cv.SplitDefault(CONF_LISTEN_BACKLOG, esp8266=1, default=4): cv.int_range(
+                min=1, max=10
+            ),
+            cv.SplitDefault(CONF_MAX_CONNECTIONS, esp8266=4, default=8): cv.int_range(
+                min=1, max=20
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
@@ -176,6 +184,8 @@ async def to_code(config):
         cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
+    cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
+    cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
 
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
