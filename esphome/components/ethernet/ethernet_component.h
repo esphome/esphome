@@ -28,6 +28,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
+  ETHERNET_TYPE_LAN8670,
 };
 
 struct ManualIP {
