@@ -23,14 +23,8 @@ void Loki::setup() {
   }
 
 #ifdef USE_ESP32
-  // Create the background task for processing Loki messages
-  xTaskCreate(esphome_loki_task, "esphome_loki", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY, &this->task_handle_);
-  if (this->task_handle_ == nullptr) {
-    // Don't log here - would cause infinite recursion since we're in the logger callback chain
-    return;
-  }
-  // Set the task handle so the queue can notify it
-  this->loki_queue_.set_task_to_notify(this->task_handle_);
+  // No background task needed - HTTP requests processed in main loop
+  // This prevents connection exhaustion issues
 #endif
 }
 
@@ -93,7 +87,7 @@ void Loki::log_(const int level, const char *tag, const char *message, size_t me
 
   // Send the payload
 #ifdef USE_ESP32
-  // Add to batch instead of sending immediately
+  // Add to batch for main loop processing
   this->add_to_batch_(level, tag, message, len, ns);
 #else
   this->send_to_loki_(json_payload);
@@ -154,19 +148,26 @@ const char *Loki::get_log_level_name_(int level) const {
 
 void Loki::loop() {
 #ifdef USE_ESP32
-  // Periodically check for dropped messages to avoid blocking during spikes.
-  // During high load, many messages can be dropped in quick succession.
-  // We don't log dropped messages here to avoid infinite recursion since
-  // logging would trigger the Loki logger callback, which could cause more drops.
-  // Instead, we just reset the counter to prevent it from growing indefinitely.
-  uint16_t dropped_count = this->loki_queue_.get_and_reset_dropped_count();
-  // Silently handle dropped messages - no logging to prevent recursion
-  (void) dropped_count;  // Suppress unused variable warning
+  // Process HTTP requests in main loop to prevent connection exhaustion
+  uint32_t now = millis();
 
   // Check if we need to send a batch due to timeout
-  uint32_t now = millis();
   if (!this->log_batch_.empty() && (now - this->last_batch_time_) >= BATCH_TIMEOUT_MS) {
     this->send_batch_();
+  }
+
+  // Process one queued HTTP request per loop iteration
+  struct QueueElement *elem = this->loki_queue_.pop();
+  if (elem != nullptr) {
+    if (this->enabled_) {
+      // Set HTTP timeout to prevent hanging connections
+      this->set_http_timeout_();
+
+      // Send HTTP POST request directly
+      std::string payload(elem->json_payload, elem->payload_len);
+      this->parent_->post(this->get_full_url_(), payload, this->get_headers_());
+    }
+    this->loki_event_pool_.release(elem);
   }
 #else
   // No-op for non-ESP32 platforms since they use direct HTTP requests
@@ -174,32 +175,8 @@ void Loki::loop() {
 }
 
 #ifdef USE_ESP32
-void Loki::esphome_loki_task(void *params) {
-  Loki *this_loki = (Loki *) params;
-
-  while (true) {
-    // Wait for notification indefinitely
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-    // Process only one queued item per iteration to prevent blocking
-    struct QueueElement *elem = this_loki->loki_queue_.pop();
-    if (elem != nullptr) {
-      if (this_loki->enabled_) {
-        // Set HTTP timeout to prevent hanging connections
-        this_loki->set_http_timeout_();
-
-        // Send HTTP POST request directly
-        std::string payload(elem->json_payload, elem->payload_len);
-        this_loki->parent_->post(this_loki->get_full_url_(), payload, this_loki->get_headers_());
-      }
-      this_loki->loki_event_pool_.release(elem);
-    }
-  }
-
-  // Note: This task runs indefinitely until the device reboots
-  // The EventPool destructor will clean up the pool when the component is destroyed
-  // No need for explicit cleanup since the task never exits
-}
+// Background task removed - HTTP requests now processed in main loop
+// This prevents connection exhaustion and blocking issues
 
 bool Loki::enqueue_(const char *json_payload, size_t len) {
   auto *elem = this->loki_event_pool_.allocate();
