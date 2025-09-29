@@ -7,6 +7,7 @@
 #include <vector>
 #include <span>
 #include <functional>
+#include <memory>
 
 #ifdef USE_ESP32
 
@@ -65,11 +66,14 @@ class BLECharacteristic {
   bool is_created();
   bool is_failed();
 
-  // Direct callback registration
+  // Direct callback registration - only allocates when callback is set
   void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
-    this->on_write_callback_ = std::move(callback);
+    this->on_write_callback_ =
+        std::make_unique<std::function<void(std::span<const uint8_t>, uint16_t)>>(std::move(callback));
   }
-  void on_read(std::function<void(uint16_t)> &&callback) { this->on_read_callback_ = std::move(callback); }
+  void on_read(std::function<void(uint16_t)> &&callback) {
+    this->on_read_callback_ = std::make_unique<std::function<void(uint16_t)>>(std::move(callback));
+  }
 
  protected:
   bool write_event_{false};
@@ -93,8 +97,8 @@ class BLECharacteristic {
   void remove_client_from_notify_list_(uint16_t conn_id);
   ClientNotificationEntry *find_client_in_notify_list_(uint16_t conn_id);
 
-  std::function<void(std::span<const uint8_t>, uint16_t)> on_write_callback_{nullptr};
-  std::function<void(uint16_t)> on_read_callback_{nullptr};
+  std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
+  std::unique_ptr<std::function<void(uint16_t)>> on_read_callback_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 

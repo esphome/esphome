@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/components/event_emitter/event_emitter.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #ifdef USE_ESP32
