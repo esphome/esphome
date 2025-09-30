@@ -340,10 +340,15 @@ def clean_all(configuration: list[str]):
 
     # Clean entire build dir
     for dir in configuration:
-        buid_dir = Path(dir) / ".esphome"
-        if buid_dir.is_dir():
-            _LOGGER.info("Deleting %s", buid_dir)
-            shutil.rmtree(buid_dir)
+        build_dir = Path(dir) / ".esphome"
+        if build_dir.is_dir():
+            _LOGGER.info("Cleaning %s", build_dir)
+            # Don't remove storage as it will cause the dashboard to regenerate all configs
+            for item in build_dir.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.name != "storage" and item.is_dir():
+                    shutil.rmtree(item)
 
     # Clean PlatformIO project files
     try:
