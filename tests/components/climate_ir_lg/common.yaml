@@ -5,3 +5,6 @@ remote_transmitter:
 climate:
   - platform: climate_ir_lg
     name: LG Climate
+    header_high: 3300us
+    header_low: 9840us
+    alternative_mode: true
