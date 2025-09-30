@@ -79,6 +79,9 @@ void ResonateMediaPlayer::setup() {
   });
 
 #if defined(USE_RESONATE_AUDIO)
+  // Apply inverse remap to get unbounded volume from speaker's bounded volume
+  this->sync_speaker_volume();
+
   this->decoded_chunk_queue_ = ResonateChunkQueue::create(DECODED_CHUNK_QUEUE_SIZE);
   if (this->decoded_chunk_queue_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create chunk queue.");
@@ -262,8 +265,11 @@ void ResonateMediaPlayer::loop() {
 
   if (this->volume_.has_value()) {
     // TODO: If USE_RESONATE_AUDIO isn't defined, the volume command should be sent to the server
-    this->volume = static_cast<float>(this->volume_.value()) / 100.0f;
-    this->speaker_->set_volume(this->volume);
+    float unbounded_volume = static_cast<float>(this->volume_.value()) / 100.0f;
+    // Apply forward remap to convert unbounded volume to bounded volume for the speaker
+    float bounded_volume = this->volume_min_ + unbounded_volume * (this->volume_max_ - this->volume_min_);
+    this->volume = unbounded_volume;
+    this->speaker_->set_volume(bounded_volume);
 
     this->publish_state();
     this->volume_.reset();
@@ -358,6 +364,14 @@ void ResonateMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 }
 
 #if defined(USE_RESONATE_AUDIO)
+void ResonateMediaPlayer::sync_speaker_volume() {
+  float bounded_volume = this->speaker_->get_volume();
+  float unbounded_volume = (bounded_volume - this->volume_min_) / (this->volume_max_ - this->volume_min_);
+  this->volume = unbounded_volume;
+  this->parent_->update_volume(static_cast<uint8_t>(unbounded_volume * 100.0f));
+  this->publish_state();
+}
+
 void ResonateMediaPlayer::sync_task(void *params) {
   /* This is the magic for playing synced audio. We push audio through the stack keeping careful track of the amount and
    * timing. We process the speaker callbacks to determine when audio will actually play.

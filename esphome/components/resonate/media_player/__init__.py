@@ -18,8 +18,11 @@ AUTO_LOAD = ["audio", "media_player"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["resonate"]
 
-CONF_ON_SERVER_SETTINGS = "on_server_settings"
 CONF_CONTROL_ONLY = "control_only"
+CONF_ON_SERVER_SETTINGS = "on_server_settings"
+CONF_VOLUME_MIN = "volume_min"
+CONF_VOLUME_MAX = "volume_max"
+
 
 ResonateMediaPlayer = resonate_ns.class_(
     "ResonateMediaPlayer",
@@ -50,6 +53,8 @@ def _final_validate(config):
                 cv.SplitDefault(CONF_TASK_STACK_IN_PSRAM, esp32_idf=False): cv.All(
                     cv.boolean, cv.only_with_esp_idf
                 ),
+                cv.Optional(CONF_VOLUME_MIN, default=0.0): cv.percentage,
+                cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
             }
         )
         return audio_schema(config)
@@ -75,6 +80,9 @@ async def to_code(config):
 
         spkr = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(spkr))
+
+        cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
+        cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
 
         if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
             cg.add(var.set_task_stack_in_psram(task_stack_in_psram))

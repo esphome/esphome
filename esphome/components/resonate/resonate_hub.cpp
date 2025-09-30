@@ -178,6 +178,7 @@ void ResonateHub::start() {
 
   this->resonate_websocket_->send_hello_message(&msg);
   this->last_sent_time_message_ = esp_timer_get_time();
+  this->publish_client_state();
 }
 
 #ifdef USE_MEDIA_PLAYER

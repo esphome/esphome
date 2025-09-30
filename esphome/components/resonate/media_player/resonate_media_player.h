@@ -54,7 +54,11 @@ class ResonateMediaPlayer : public Component, public media_player::MediaPlayer, 
 
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+  void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
+  void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
 #endif
+
+  void sync_speaker_volume();
 
  protected:
   // Receives commands from HA
@@ -81,6 +85,9 @@ class ResonateMediaPlayer : public Component, public media_player::MediaPlayer, 
   bool is_muted_{false};
 
   bool task_processing_{false};  // Indicates sync task is finished starting and processing audio
+
+  float volume_min_{0.0f};
+  float volume_max_{1.0f};
 
   int32_t pending_frames_;  // Number of frames sent to the speaker but not played
 
