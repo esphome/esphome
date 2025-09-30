@@ -57,13 +57,23 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   // Direct callback registration - supports multiple callbacks
   void on_connect(std::function<void(uint16_t)> &&callback) {
-    this->on_connect_callbacks_.push_back(std::move(callback));
+    this->callbacks_.push_back({CallbackType::ON_CONNECT, std::move(callback)});
   }
   void on_disconnect(std::function<void(uint16_t)> &&callback) {
-    this->on_disconnect_callbacks_.push_back(std::move(callback));
+    this->callbacks_.push_back({CallbackType::ON_DISCONNECT, std::move(callback)});
   }
 
  protected:
+  enum class CallbackType : uint8_t {
+    ON_CONNECT,
+    ON_DISCONNECT,
+  };
+
+  struct CallbackEntry {
+    CallbackType type;
+    std::function<void(uint16_t)> callback;
+  };
+
   struct ServiceEntry {
     ESPBTUUID uuid;
     uint8_t inst_id;
@@ -74,9 +84,9 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   void add_client_(uint16_t conn_id) { this->clients_.insert(conn_id); }
   void remove_client_(uint16_t conn_id) { this->clients_.erase(conn_id); }
+  void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
 
-  std::vector<std::function<void(uint16_t)>> on_connect_callbacks_;
-  std::vector<std::function<void(uint16_t)>> on_disconnect_callbacks_;
+  std::vector<CallbackEntry> callbacks_;
 
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
