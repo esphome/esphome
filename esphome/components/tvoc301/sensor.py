@@ -59,13 +59,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_interval_uart(config):
-    uart.final_validate_device_schema(
-        "tvoc301", baud_rate=9600, require_rx=True, require_tx=False
-    )(config)
-
-
-FINAL_VALIDATE_SCHEMA = validate_interval_uart
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+        "tvoc301", 
+        baud_rate=9600, 
+        require_rx=True, 
+        require_tx=False,
+)
 
 
 async def to_code(config):
