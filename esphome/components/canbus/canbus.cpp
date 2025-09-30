@@ -147,7 +147,7 @@ void Canbus::log_events_(CanEventFlags events) {
         logged_event = true;
       }
       if (this->events_to_log_ & CanEventFlags::CAN_EVENT_RX_QUEUE_FULL) {
-        ESP_LOGW(TAG, "receive buffer overrun");
+        ESP_LOGD(TAG, "receive buffer overrun");
         logged_event = true;
       }
 
@@ -158,10 +158,10 @@ void Canbus::log_events_(CanEventFlags events) {
     }
   }
 
-#ifdef ESPHOME_LOG_HAS_DEBUG
+#ifdef ESPHOME_LOG_HAS_VERBOSE
   if ((now - this->last_state_log_time_) >= STATE_LOG_INTERVAL_MS) {
     auto status = this->get_status();
-    ESP_LOGD(TAG, "Status: bus_off %d, tx_err %d, rx_err %d", status.bus_off, status.tx_error_counter,
+    ESP_LOGV(TAG, "Status: bus_off %d, tx_err %d, rx_err %d", status.bus_off, status.tx_error_counter,
              status.rx_error_counter);
     this->last_state_log_time_ = now;
   }
