@@ -39,8 +39,14 @@ void RemoteTransmitterComponent::await_target_time_() {
   const uint32_t current_time = micros();
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
-  } else if ((int32_t) (this->target_time_ - current_time) > 0) {
+  } else if (this->target_time_ > current_time) {
+#if defined(USE_ESP8266)
     delayMicroseconds(this->target_time_ - current_time);
+#elif defined(USE_LIBRETINY)
+    // busy loop for libretiny is required (see the comment inside micros() in wiring.c)
+    while (this->target_time_ > micros())
+      ;
+#endif
   }
 }
 
