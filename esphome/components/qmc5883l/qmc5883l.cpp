@@ -33,10 +33,11 @@ void QMC5883LComponent::setup() {
   }
   delay(10);
 
-  if (this->drdy_pin_ != nullptr)
+  if (this->drdy_pin_ != nullptr) {
     this->drdy_pin_->setup();
-  else
+  } else {
     this->disable_loop();
+  }
 
   uint8_t control_1 = 0;
   control_1 |= 0b01 << 0;  // MODE (Mode) -> 0b00=standby, 0b01=continuous
@@ -82,6 +83,7 @@ void QMC5883LComponent::loop() {
 }
 
 void QMC5883LComponent::dump_config() {
+
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
