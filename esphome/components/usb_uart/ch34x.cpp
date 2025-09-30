@@ -77,115 +77,117 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
 
 void USBUartTypeCH34X::enum_chip_type_() {
   std::vector<uint8_t> buffer = {0, 0, 0, 0, 0, 0, 0, 0};
-  usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
+  usb_host::transfer_cb_t chip_detect_callback = [=](const usb_host::TransferStatus &status) {
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer for chiptype enumeration failed, status=%s", esp_err_to_name(status.error_code));
       return;
+    } elseif (status.success) {
+      // chip detection cmd complete
+      uint8_t chipver_ = buffer[0];
+      uint8_t chiptype = buffer[1];
+      switch (this->pid_) {
+        case 0x55D2:
+          this->num_ports_ = 2;
+          if (chiptype == 0x41)
+            this->chiptype_ = CHIP_CH342K;
+          else
+            this->chiptype_ = CHIP_CH342F;
+          break;
+        case 0x55D3:
+          this->num_ports_ = 1;
+          if (chiptype == 0x02)
+            this->chiptype_ = CHIP_CH343J;
+          else if (chiptype_ == 0x01)
+            this->chiptype_ = CHIP_CH343K;
+          else if (chiptype_ == 0x18)
+            this->chiptype_ = CHIP_CH343G_AUTOBAUD;
+          else
+            this->chiptype_ = CHIP_CH343GP;
+          break;
+        case 0x55D4:
+          this->num_ports_ = 1;
+          if (chiptype == 0x09)
+            this->chiptype_ = CHIP_CH9102X;
+          else
+            this->chiptype_ = CHIP_CH9102F;
+          break;
+        case 0x55D5:
+          this->num_ports_ = 4;
+          if (chiptype == 0xC0) {
+            if ((chipver_ & 0xF0) == 0x40)
+              this->chiptype_ = CHIP_CH344L;
+            else
+              this->chiptype_ = CHIP_CH344L_V2;
+          } else
+            this->chiptype_ = CHIP_CH344Q;
+          break;
+        case 0x55D7:
+          this->num_ports_ = 2;
+          this->chiptype_ = CHIP_CH9103M;
+          break;
+        case 0x55D8:
+          this->num_ports_ = 1;
+          if (chiptype == 0x0A)
+            this->chiptype_ = CHIP_CH9101RY;
+          else
+            this->chiptype_ = CHIP_CH9101UH;
+          break;
+        case 0x55DB:
+        case 0x55DD:
+          this->num_ports_ = 1;
+          this->chiptype_ = CHIP_CH347TF;
+          break;
+        case 0x55DA:
+        case 0x55DE:
+          this->num_ports_ = 2;
+          this->chiptype_ = CHIP_CH347TF;
+          break;
+        case 0x55E7:
+          this->num_ports_ = 1;
+          this->chiptype_ = CHIP_CH339W;
+          break;
+        case 0x55DF:
+          this->num_ports_ = 4;
+          this->chiptype_ = CHIP_CH9104L;
+          break;
+        case 0x55E9:
+          this->num_ports_ = 1;
+          this->chiptype_ = CHIP_CH9111L_M0;
+          break;
+        case 0x55EA:
+          this->num_ports_ = 1;
+          this->chiptype_ = CHIP_CH9111L_M1;
+          break;
+        case 0x55E8:
+          this->num_ports_ = 4;
+          chiptype = buffer[2];
+          if (chiptype == 0x48)
+            this->chiptype_ = CHIP_CH9114L;
+          else if (chiptype_ == 0x49)
+            this->chiptype_ = CHIP_CH9114W;
+          else if (chiptype_ == 0x4A)
+            this->chiptype_ = CHIP_CH9114F;
+          break;
+        case 0x55EB:
+          this->num_ports_ = 1;
+          if (buffer[4] & 0x01)
+            this->chiptype_ = CHIP_CH346C_M1;
+          else
+            this->chiptype_ = CHIP_CH346C_M0;
+          break;
+        case 0x55EC:
+          this->num_ports_ = 2;
+          this->chiptype_ = CHIP_CH346C_M2;
+          break;
+        default:
+          this->num_ports_ = 0;
+          this->chiptype_ = 255;
+          break;
+      }
+      ESP_LOGD(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(), this->num_ports_);
     }
   };
-  auto res = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, callback, buffer);
-  uint8_t chipver_ = buffer[0];
-  uint8_t chiptype = buffer[1];
-  switch (this->pid_) {
-    case 0x55D2:
-      this->num_ports_ = 2;
-      if (chiptype == 0x41)
-        this->chiptype_ = CHIP_CH342K;
-      else
-        this->chiptype_ = CHIP_CH342F;
-      break;
-    case 0x55D3:
-      this->num_ports_ = 1;
-      if (chiptype == 0x02)
-        this->chiptype_ = CHIP_CH343J;
-      else if (chiptype_ == 0x01)
-        this->chiptype_ = CHIP_CH343K;
-      else if (chiptype_ == 0x18)
-        this->chiptype_ = CHIP_CH343G_AUTOBAUD;
-      else
-        this->chiptype_ = CHIP_CH343GP;
-      break;
-    case 0x55D4:
-      this->num_ports_ = 1;
-      if (chiptype == 0x09)
-        this->chiptype_ = CHIP_CH9102X;
-      else
-        this->chiptype_ = CHIP_CH9102F;
-      break;
-    case 0x55D5:
-      this->num_ports_ = 4;
-      if (chiptype == 0xC0) {
-        if ((chipver_ & 0xF0) == 0x40)
-          this->chiptype_ = CHIP_CH344L;
-        else
-          this->chiptype_ = CHIP_CH344L_V2;
-      } else
-        this->chiptype_ = CHIP_CH344Q;
-      break;
-    case 0x55D7:
-      this->num_ports_ = 2;
-      this->chiptype_ = CHIP_CH9103M;
-      break;
-    case 0x55D8:
-      this->num_ports_ = 1;
-      if (chiptype == 0x0A)
-        this->chiptype_ = CHIP_CH9101RY;
-      else
-        this->chiptype_ = CHIP_CH9101UH;
-      break;
-    case 0x55DB:
-    case 0x55DD:
-      this->num_ports_ = 1;
-      this->chiptype_ = CHIP_CH347TF;
-      break;
-    case 0x55DA:
-    case 0x55DE:
-      this->num_ports_ = 2;
-      this->chiptype_ = CHIP_CH347TF;
-      break;
-    case 0x55E7:
-      this->num_ports_ = 1;
-      this->chiptype_ = CHIP_CH339W;
-      break;
-    case 0x55DF:
-      this->num_ports_ = 4;
-      this->chiptype_ = CHIP_CH9104L;
-      break;
-    case 0x55E9:
-      this->num_ports_ = 1;
-      this->chiptype_ = CHIP_CH9111L_M0;
-      break;
-    case 0x55EA:
-      this->num_ports_ = 1;
-      this->chiptype_ = CHIP_CH9111L_M1;
-      break;
-    case 0x55E8:
-      this->num_ports_ = 4;
-      chiptype = buffer[2];
-      if (chiptype == 0x48)
-        this->chiptype_ = CHIP_CH9114L;
-      else if (chiptype_ == 0x49)
-        this->chiptype_ = CHIP_CH9114W;
-      else if (chiptype_ == 0x4A)
-        this->chiptype_ = CHIP_CH9114F;
-      break;
-    case 0x55EB:
-      this->num_ports_ = 1;
-      if (buffer[4] & 0x01)
-        this->chiptype_ = CHIP_CH346C_M1;
-      else
-        this->chiptype_ = CHIP_CH346C_M0;
-      break;
-    case 0x55EC:
-      this->num_ports_ = 2;
-      this->chiptype_ = CHIP_CH346C_M2;
-      break;
-    default:
-      this->num_ports_ = 0;
-      this->chiptype_ = 255;
-      break;
-  }
-  ESP_LOGD(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(), this->num_ports_);
+  this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, chip_detect_callback, buffer);
 }
 #endif
 
