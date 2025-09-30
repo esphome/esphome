@@ -131,7 +131,7 @@ class Canbus : public Component {
   uint32_t events_to_log_{0};
 
   static constexpr uint32_t EVENT_LOG_BUS_OFF_HOLDOFF_MS = 1000;
-  bool bus_off_{0};
+  bool bus_off_{false};
   uint32_t last_bus_off_time_{0};
   uint32_t last_event_log_time_{0};
 
