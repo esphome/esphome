@@ -77,7 +77,7 @@ static std::string get_chiptype_string_(uint8_t enum_value) {
 
 void USBUartTypeCH34X::enum_chip_type_() {
   std::vector<uint8_t> buffer = {0, 0, 0, 0, 0, 0, 0, 0};
-  usb_host::transfer_cb_t chip_detect_callback = [=](const usb_host::TransferStatus &status) {
+  usb_host::transfer_cb_t chip_detect_callback = [=, *this](const usb_host::TransferStatus &status) {
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer for chiptype enumeration failed, status=%s", esp_err_to_name(status.error_code));
       return;
