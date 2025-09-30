@@ -4,8 +4,10 @@ import asyncio
 import base64
 import binascii
 from collections.abc import Callable, Iterable
+import contextlib
 import datetime
 import functools
+from functools import partial
 import gzip
 import hashlib
 import importlib
@@ -50,9 +52,10 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from ..helpers import write_file
-from .const import DASHBOARD_COMMAND
-from .core import DASHBOARD, ESPHomeDashboard
+from .const import DASHBOARD_COMMAND, DashboardEvent
+from .core import DASHBOARD, ESPHomeDashboard, Event
 from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
+from .models import build_device_list_response
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
@@ -520,6 +523,243 @@ class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
         return [*DASHBOARD_COMMAND, "update-all", settings.config_dir]
 
 
+# Dashboard polling constants
+DASHBOARD_POLL_INTERVAL = 2  # seconds
+DASHBOARD_ENTRIES_UPDATE_INTERVAL = 10  # seconds
+DASHBOARD_ENTRIES_UPDATE_ITERATIONS = (
+    DASHBOARD_ENTRIES_UPDATE_INTERVAL // DASHBOARD_POLL_INTERVAL
+)
+
+
+class DashboardSubscriber:
+    """Manages dashboard event polling task lifecycle based on active subscribers."""
+
+    def __init__(self) -> None:
+        """Initialize the dashboard subscriber."""
+        self._subscribers: set[DashboardEventsWebSocket] = set()
+        self._event_loop_task: asyncio.Task | None = None
+        self._refresh_event: asyncio.Event = asyncio.Event()
+
+    def subscribe(self, subscriber: DashboardEventsWebSocket) -> Callable[[], None]:
+        """Subscribe to dashboard updates and start event loop if needed."""
+        self._subscribers.add(subscriber)
+        if not self._event_loop_task or self._event_loop_task.done():
+            self._event_loop_task = asyncio.create_task(self._event_loop())
+            _LOGGER.info("Started dashboard event loop")
+        return partial(self._unsubscribe, subscriber)
+
+    def _unsubscribe(self, subscriber: DashboardEventsWebSocket) -> None:
+        """Unsubscribe from dashboard updates and stop event loop if no subscribers."""
+        self._subscribers.discard(subscriber)
+        if (
+            not self._subscribers
+            and self._event_loop_task
+            and not self._event_loop_task.done()
+        ):
+            self._event_loop_task.cancel()
+            self._event_loop_task = None
+            _LOGGER.info("Stopped dashboard event loop - no subscribers")
+
+    def request_refresh(self) -> None:
+        """Signal the polling loop to refresh immediately."""
+        self._refresh_event.set()
+
+    async def _event_loop(self) -> None:
+        """Run the event polling loop while there are subscribers."""
+        dashboard = DASHBOARD
+        entries_update_counter = 0
+
+        while self._subscribers:
+            # Signal that we need ping updates (non-blocking)
+            dashboard.ping_request.set()
+            if settings.status_use_mqtt:
+                dashboard.mqtt_ping_request.set()
+
+            # Check if it's time to update entries or if refresh was requested
+            entries_update_counter += 1
+            if (
+                entries_update_counter >= DASHBOARD_ENTRIES_UPDATE_ITERATIONS
+                or self._refresh_event.is_set()
+            ):
+                entries_update_counter = 0
+                await dashboard.entries.async_request_update_entries()
+                # Clear the refresh event if it was set
+                self._refresh_event.clear()
+
+            # Wait for either timeout or refresh event
+            try:
+                async with asyncio.timeout(DASHBOARD_POLL_INTERVAL):
+                    await self._refresh_event.wait()
+                    # If we get here, refresh was requested - continue loop immediately
+            except TimeoutError:
+                # Normal timeout - continue with regular polling
+                pass
+
+
+# Global dashboard subscriber instance
+DASHBOARD_SUBSCRIBER = DashboardSubscriber()
+
+
+@websocket_class
+class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
+    """WebSocket handler for real-time dashboard events."""
+
+    _event_listeners: list[Callable[[], None]] | None = None
+    _dashboard_unsubscribe: Callable[[], None] | None = None
+
+    async def get(self, *args: str, **kwargs: str) -> None:
+        """Handle WebSocket upgrade request."""
+        if not is_authenticated(self):
+            self.set_status(401)
+            self.finish("Unauthorized")
+            return
+        await super().get(*args, **kwargs)
+
+    async def open(self, *args: str, **kwargs: str) -> None:  # pylint: disable=invalid-overridden-method
+        """Handle new WebSocket connection."""
+        # Ensure messages are sent immediately to avoid
+        # a 200-500ms delay when nodelay is not set.
+        self.set_nodelay(True)
+
+        # Update entries first
+        await DASHBOARD.entries.async_request_update_entries()
+        # Send initial state
+        self._send_initial_state()
+        # Subscribe to events
+        self._subscribe_to_events()
+        # Subscribe to dashboard updates
+        self._dashboard_unsubscribe = DASHBOARD_SUBSCRIBER.subscribe(self)
+        _LOGGER.debug("Dashboard status WebSocket opened")
+
+    def _send_initial_state(self) -> None:
+        """Send initial device list and ping status."""
+        entries = DASHBOARD.entries.async_all()
+
+        # Send initial state
+        self._safe_send_message(
+            {
+                "event": DashboardEvent.INITIAL_STATE,
+                "data": {
+                    "devices": build_device_list_response(DASHBOARD, entries),
+                    "ping": {
+                        entry.filename: entry_state_to_bool(entry.state)
+                        for entry in entries
+                    },
+                },
+            }
+        )
+
+    def _subscribe_to_events(self) -> None:
+        """Subscribe to dashboard events."""
+        async_add_listener = DASHBOARD.bus.async_add_listener
+        # Subscribe to all events
+        self._event_listeners = [
+            async_add_listener(
+                DashboardEvent.ENTRY_STATE_CHANGED, self._on_entry_state_changed
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_ADDED,
+                self._make_entry_handler(DashboardEvent.ENTRY_ADDED),
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_REMOVED,
+                self._make_entry_handler(DashboardEvent.ENTRY_REMOVED),
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_UPDATED,
+                self._make_entry_handler(DashboardEvent.ENTRY_UPDATED),
+            ),
+            async_add_listener(
+                DashboardEvent.IMPORTABLE_DEVICE_ADDED, self._on_importable_added
+            ),
+            async_add_listener(
+                DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
+                self._on_importable_removed,
+            ),
+        ]
+
+    def _on_entry_state_changed(self, event: Event) -> None:
+        """Handle entry state change event."""
+        entry = event.data["entry"]
+        state = event.data["state"]
+        self._safe_send_message(
+            {
+                "event": DashboardEvent.ENTRY_STATE_CHANGED,
+                "data": {
+                    "filename": entry.filename,
+                    "name": entry.name,
+                    "state": entry_state_to_bool(state),
+                },
+            }
+        )
+
+    def _make_entry_handler(
+        self, event_type: DashboardEvent
+    ) -> Callable[[Event], None]:
+        """Create an entry event handler."""
+
+        def handler(event: Event) -> None:
+            self._safe_send_message(
+                {"event": event_type, "data": {"device": event.data["entry"].to_dict()}}
+            )
+
+        return handler
+
+    def _on_importable_added(self, event: Event) -> None:
+        """Handle importable device added event."""
+        # Don't send if device is already configured
+        device_name = event.data.get("device", {}).get("name")
+        if device_name and DASHBOARD.entries.get_by_name(device_name):
+            return
+        self._safe_send_message(
+            {"event": DashboardEvent.IMPORTABLE_DEVICE_ADDED, "data": event.data}
+        )
+
+    def _on_importable_removed(self, event: Event) -> None:
+        """Handle importable device removed event."""
+        self._safe_send_message(
+            {"event": DashboardEvent.IMPORTABLE_DEVICE_REMOVED, "data": event.data}
+        )
+
+    def _safe_send_message(self, message: dict[str, Any]) -> None:
+        """Send a message to the WebSocket client, ignoring closed errors."""
+        with contextlib.suppress(tornado.websocket.WebSocketClosedError):
+            self.write_message(json.dumps(message))
+
+    def on_message(self, message: str) -> None:
+        """Handle incoming WebSocket messages."""
+        _LOGGER.debug("WebSocket received message: %s", message)
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError as err:
+            _LOGGER.debug("Failed to parse WebSocket message: %s", err)
+            return
+
+        event = data.get("event")
+        _LOGGER.debug("WebSocket message event: %s", event)
+        if event == DashboardEvent.PING:
+            # Send pong response for client ping
+            _LOGGER.debug("Received client ping, sending pong")
+            self._safe_send_message({"event": DashboardEvent.PONG})
+        elif event == DashboardEvent.REFRESH:
+            # Signal the polling loop to refresh immediately
+            _LOGGER.debug("Received refresh request, signaling polling loop")
+            DASHBOARD_SUBSCRIBER.request_refresh()
+
+    def on_close(self) -> None:
+        """Handle WebSocket close."""
+        # Unsubscribe from dashboard updates
+        if self._dashboard_unsubscribe:
+            self._dashboard_unsubscribe()
+            self._dashboard_unsubscribe = None
+
+        # Unsubscribe from events
+        for remove_listener in self._event_listeners or []:
+            remove_listener()
+
+        _LOGGER.debug("Dashboard status WebSocket closed")
+
+
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
     async def get(self) -> None:
@@ -874,28 +1114,7 @@ class ListDevicesHandler(BaseHandler):
         await dashboard.entries.async_request_update_entries()
         entries = dashboard.entries.async_all()
         self.set_header("content-type", "application/json")
-        configured = {entry.name for entry in entries}
-
-        self.write(
-            json.dumps(
-                {
-                    "configured": [entry.to_dict() for entry in entries],
-                    "importable": [
-                        {
-                            "name": res.device_name,
-                            "friendly_name": res.friendly_name,
-                            "package_import_url": res.package_import_url,
-                            "project_name": res.project_name,
-                            "project_version": res.project_version,
-                            "network": res.network,
-                            "ignored": res.device_name in dashboard.ignored_devices,
-                        }
-                        for res in dashboard.import_result.values()
-                        if res.device_name not in configured
-                    ],
-                }
-            )
-        )
+        self.write(json.dumps(build_device_list_response(dashboard, entries)))
 
 
 class MainRequestHandler(BaseHandler):
@@ -1351,6 +1570,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}wizard", WizardRequestHandler),
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
+            (f"{rel}events", DashboardEventsWebSocket),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
             (f"{rel}json-config", JsonConfigRequestHandler),
