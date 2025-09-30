@@ -317,8 +317,8 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto *rsp =  // NOLINT(cppcoreguidelines-owning-memory)
-      new AsyncEventSourceResponse(request, this, this->web_server_);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
+  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
@@ -392,10 +392,11 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
     // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-    message = json::build_json([group](JsonObject root) {
-      root["name"] = group.second.name;
-      root["sorting_weight"] = group.second.weight;
-    });
+    json::JsonBuilder builder;
+    JsonObject root = builder.root();
+    root["name"] = group.second.name;
+    root["sorting_weight"] = group.second.weight;
+    message = builder.serialize();
     // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
     // a (very) large number of these should be able to be queued initially without defer
