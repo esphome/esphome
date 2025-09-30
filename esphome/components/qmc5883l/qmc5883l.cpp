@@ -66,7 +66,8 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  bool high_frequency = this->get_update_interval() < App.get_loop_interval() || this->datarate_ >= QMC5883L_DATARATE_100_HZ;
+  bool high_frequency =
+      this->get_update_interval() < App.get_loop_interval() || this->datarate_ >= QMC5883L_DATARATE_100_HZ;
   if (high_frequency)
     high_freq_.start();
 }
@@ -76,7 +77,7 @@ void QMC5883LComponent::loop() {
   //
   // If DRDY Pin is Defined AND Signalled, Read Data; Otherwise, Handle in update()!
   if (this->drdy_pin_->digital_read()) {
-      this->read_data_();
+    this->read_data_();
   }
 }
 
@@ -98,9 +99,7 @@ void QMC5883LComponent::dump_config() {
 
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void QMC5883LComponent::update() {
-    this->read_data_();
-}
+void QMC5883LComponent::update() { this->read_data_(); }
 
 void QMC5883LComponent::read_data_() {
   i2c::ErrorCode err;

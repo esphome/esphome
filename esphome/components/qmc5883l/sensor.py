@@ -17,11 +17,11 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_SCREEN_ROTATION,
+    SCHEDULER_DONT_RUN,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_DEGREES,
     UNIT_MICROTESLA,
-    SCHEDULER_DONT_RUN,
 )
 
 CONF_DRDY_PIN = "drdy_pin"
@@ -125,7 +125,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HEADING): heading_schema,
             cv.Optional(CONF_TEMPERATURE): temperature_schema,
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_DATA_RATE): validate_enum(QMC5883LDatarates, units=["hz", "Hz"]),
+            cv.Optional(CONF_DATA_RATE): validate_enum(
+                QMC5883LDatarates, units=["hz", "Hz"]
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
