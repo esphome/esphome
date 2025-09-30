@@ -84,8 +84,8 @@ void USBUartTypeCH34X::enum_chip_type_() {
     }
     elseif(status.success) {
       // chip detection cmd complete
-      uint8_t chipver_ = buffer[0];
-      uint8_t chiptype = buffer[1];
+      uint8_t chipver_ = status.data[0];
+      uint8_t chiptype = status.data[1];
       switch (this->pid_) {
         case 0x55D2:
           this->num_ports_ = 2;
