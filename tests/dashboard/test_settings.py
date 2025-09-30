@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import tempfile
 
@@ -17,7 +16,7 @@ def dashboard_settings(tmp_path: Path) -> DashboardSettings:
     settings = DashboardSettings()
     # Resolve symlinks to ensure paths match
     resolved_dir = tmp_path.resolve()
-    settings.config_dir = str(resolved_dir)
+    settings.config_dir = resolved_dir
     settings.absolute_config_dir = resolved_dir
     return settings
 
@@ -26,7 +25,7 @@ def test_rel_path_simple(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path with simple relative path."""
     result = dashboard_settings.rel_path("config.yaml")
 
-    expected = str(Path(dashboard_settings.config_dir) / "config.yaml")
+    expected = dashboard_settings.config_dir / "config.yaml"
     assert result == expected
 
 
@@ -34,9 +33,7 @@ def test_rel_path_multiple_components(dashboard_settings: DashboardSettings) -> 
     """Test rel_path with multiple path components."""
     result = dashboard_settings.rel_path("subfolder", "device", "config.yaml")
 
-    expected = str(
-        Path(dashboard_settings.config_dir) / "subfolder" / "device" / "config.yaml"
-    )
+    expected = dashboard_settings.config_dir / "subfolder" / "device" / "config.yaml"
     assert result == expected
 
 
@@ -55,7 +52,7 @@ def test_rel_path_absolute_path_within_config(
 
     internal_path.touch()
     result = dashboard_settings.rel_path("internal.yaml")
-    expected = str(Path(dashboard_settings.config_dir) / "internal.yaml")
+    expected = dashboard_settings.config_dir / "internal.yaml"
     assert result == expected
 
 
@@ -80,7 +77,7 @@ def test_rel_path_with_pathlib_path(dashboard_settings: DashboardSettings) -> No
     path_obj = Path("subfolder") / "config.yaml"
     result = dashboard_settings.rel_path(path_obj)
 
-    expected = str(Path(dashboard_settings.config_dir) / "subfolder" / "config.yaml")
+    expected = dashboard_settings.config_dir / "subfolder" / "config.yaml"
     assert result == expected
 
 
@@ -93,9 +90,7 @@ def test_rel_path_normalizes_slashes(dashboard_settings: DashboardSettings) -> N
     assert result1 == result2
 
     # Also test that the result is as expected
-    expected = os.path.join(
-        dashboard_settings.config_dir, "folder", "subfolder", "file.yaml"
-    )
+    expected = dashboard_settings.config_dir / "folder" / "subfolder" / "file.yaml"
     assert result1 == expected
 
 
@@ -103,7 +98,7 @@ def test_rel_path_handles_spaces(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path handles paths with spaces."""
     result = dashboard_settings.rel_path("my folder", "my config.yaml")
 
-    expected = str(Path(dashboard_settings.config_dir) / "my folder" / "my config.yaml")
+    expected = dashboard_settings.config_dir / "my folder" / "my config.yaml"
     assert result == expected
 
 
@@ -111,15 +106,13 @@ def test_rel_path_handles_special_chars(dashboard_settings: DashboardSettings) -
     """Test rel_path handles paths with special characters."""
     result = dashboard_settings.rel_path("device-01_test", "config.yaml")
 
-    expected = str(
-        Path(dashboard_settings.config_dir) / "device-01_test" / "config.yaml"
-    )
+    expected = dashboard_settings.config_dir / "device-01_test" / "config.yaml"
     assert result == expected
 
 
 def test_config_dir_as_path_property(dashboard_settings: DashboardSettings) -> None:
     """Test that config_dir can be accessed and used with Path operations."""
-    config_path = Path(dashboard_settings.config_dir)
+    config_path = dashboard_settings.config_dir
 
     assert config_path.exists()
     assert config_path.is_dir()
@@ -141,7 +134,7 @@ def test_rel_path_symlink_inside_config(dashboard_settings: DashboardSettings) -
     symlink = dashboard_settings.absolute_config_dir / "link.yaml"
     symlink.symlink_to(target)
     result = dashboard_settings.rel_path("link.yaml")
-    expected = str(Path(dashboard_settings.config_dir) / "link.yaml")
+    expected = dashboard_settings.config_dir / "link.yaml"
     assert result == expected
 
 
@@ -157,12 +150,12 @@ def test_rel_path_symlink_outside_config(dashboard_settings: DashboardSettings) 
 def test_rel_path_with_none_arg(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path handles None arguments gracefully."""
     result = dashboard_settings.rel_path("None")
-    expected = str(Path(dashboard_settings.config_dir) / "None")
+    expected = dashboard_settings.config_dir / "None"
     assert result == expected
 
 
 def test_rel_path_with_numeric_args(dashboard_settings: DashboardSettings) -> None:
     """Test rel_path handles numeric arguments."""
     result = dashboard_settings.rel_path("123", "456.789")
-    expected = str(Path(dashboard_settings.config_dir) / "123" / "456.789")
+    expected = dashboard_settings.config_dir / "123" / "456.789"
     assert result == expected

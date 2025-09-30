@@ -1,5 +1,8 @@
 import logging
+import os
+from pathlib import Path
 import socket
+import stat
 from unittest.mock import patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
@@ -8,6 +11,7 @@ from hypothesis.strategies import ip_addresses
 import pytest
 
 from esphome import helpers
+from esphome.address_cache import AddressCache
 from esphome.core import EsphomeError
 
 
@@ -150,11 +154,11 @@ def test_walk_files(fixture_path):
     actual = list(helpers.walk_files(path))
 
     # Ensure paths start with the root
-    assert all(p.startswith(str(path)) for p in actual)
+    assert all(p.is_relative_to(path) for p in actual)
 
 
 class Test_write_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path):
+    def test_src_and_dst_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = text
         dst = tmp_path / "file-a.txt"
@@ -164,7 +168,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_src_and_dst_do_not_match(self, tmp_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = "B files are unique.\n"
         dst = tmp_path / "file-a.txt"
@@ -174,7 +178,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_dst_does_not_exist(self, tmp_path):
+    def test_dst_does_not_exist(self, tmp_path: Path):
         text = "A files are unique.\n"
         dst = tmp_path / "file-a.txt"
 
@@ -184,7 +188,7 @@ class Test_write_file_if_changed:
 
 
 class Test_copy_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
@@ -193,7 +197,7 @@ class Test_copy_file_if_changed:
 
         helpers.copy_file_if_changed(src, dst)
 
-    def test_src_and_dst_do_not_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-c.txt"
         dst = tmp_path / "file-a.txt"
@@ -204,7 +208,7 @@ class Test_copy_file_if_changed:
 
         assert src.read_text() == dst.read_text()
 
-    def test_dst_does_not_exist(self, tmp_path, fixture_path):
+    def test_dst_does_not_exist(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
 
@@ -554,6 +558,217 @@ def test_addr_preference_ipv6_link_local_with_scope() -> None:
     assert helpers.addr_preference_(addr_info) == 1  # Has scope, so it's usable
 
 
+def test_mkdir_p(tmp_path: Path) -> None:
+    """Test mkdir_p creates directories recursively."""
+    # Test creating nested directories
+    nested_path = tmp_path / "level1" / "level2" / "level3"
+    helpers.mkdir_p(nested_path)
+    assert nested_path.exists()
+    assert nested_path.is_dir()
+
+    # Test that mkdir_p is idempotent (doesn't fail if directory exists)
+    helpers.mkdir_p(nested_path)
+    assert nested_path.exists()
+
+    # Test with empty path (should do nothing)
+    helpers.mkdir_p("")
+
+    # Test with existing directory
+    existing_dir = tmp_path / "existing"
+    existing_dir.mkdir()
+    helpers.mkdir_p(existing_dir)
+    assert existing_dir.exists()
+
+
+def test_mkdir_p_file_exists_error(tmp_path: Path) -> None:
+    """Test mkdir_p raises error when path is a file."""
+    # Create a file
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text("test content")
+
+    # Try to create directory with same name as existing file
+    with pytest.raises(EsphomeError, match=r"Error creating directories"):
+        helpers.mkdir_p(file_path)
+
+
+def test_mkdir_p_with_existing_file_raises_error(tmp_path: Path) -> None:
+    """Test mkdir_p raises error when trying to create dir over existing file."""
+    # Create a file where we want to create a directory
+    file_path = tmp_path / "existing_file"
+    file_path.write_text("content")
+
+    # Try to create a directory with a path that goes through the file
+    dir_path = file_path / "subdir"
+
+    with pytest.raises(EsphomeError, match=r"Error creating directories"):
+        helpers.mkdir_p(dir_path)
+
+
+def test_read_file(tmp_path: Path) -> None:
+    """Test read_file reads file content correctly."""
+    # Test reading regular file
+    test_file = tmp_path / "test.txt"
+    expected_content = "Test content\nLine 2\n"
+    test_file.write_text(expected_content)
+
+    content = helpers.read_file(test_file)
+    assert content == expected_content
+
+    # Test reading file with UTF-8 characters
+    utf8_file = tmp_path / "utf8.txt"
+    utf8_content = "Hello 世界 🌍"
+    utf8_file.write_text(utf8_content, encoding="utf-8")
+
+    content = helpers.read_file(utf8_file)
+    assert content == utf8_content
+
+
+def test_read_file_not_found() -> None:
+    """Test read_file raises error for non-existent file."""
+    with pytest.raises(EsphomeError, match=r"Error reading file"):
+        helpers.read_file(Path("/nonexistent/file.txt"))
+
+
+def test_read_file_unicode_decode_error(tmp_path: Path) -> None:
+    """Test read_file raises error for invalid UTF-8."""
+    test_file = tmp_path / "invalid.txt"
+    # Write invalid UTF-8 bytes
+    test_file.write_bytes(b"\xff\xfe")
+
+    with pytest.raises(EsphomeError, match=r"Error reading file"):
+        helpers.read_file(test_file)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+def test_write_file_unix(tmp_path: Path) -> None:
+    """Test write_file writes content correctly on Unix."""
+    # Test writing string content
+    test_file = tmp_path / "test.txt"
+    content = "Test content\nLine 2"
+    helpers.write_file(test_file, content)
+
+    assert test_file.read_text() == content
+    # Check file permissions
+    assert oct(test_file.stat().st_mode)[-3:] == "644"
+
+    # Test overwriting existing file
+    new_content = "New content"
+    helpers.write_file(test_file, new_content)
+    assert test_file.read_text() == new_content
+
+    # Test writing to nested directories (should create them)
+    nested_file = tmp_path / "dir1" / "dir2" / "file.txt"
+    helpers.write_file(nested_file, content)
+    assert nested_file.read_text() == content
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_write_file_windows(tmp_path: Path) -> None:
+    """Test write_file writes content correctly on Windows."""
+    # Test writing string content
+    test_file = tmp_path / "test.txt"
+    content = "Test content\nLine 2"
+    helpers.write_file(test_file, content)
+
+    assert test_file.read_text() == content
+    # Windows doesn't have Unix-style 644 permissions
+
+    # Test overwriting existing file
+    new_content = "New content"
+    helpers.write_file(test_file, new_content)
+    assert test_file.read_text() == new_content
+
+    # Test writing to nested directories (should create them)
+    nested_file = tmp_path / "dir1" / "dir2" / "file.txt"
+    helpers.write_file(nested_file, content)
+    assert nested_file.read_text() == content
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_write_file_to_non_writable_directory_unix(tmp_path: Path) -> None:
+    """Test write_file raises error when directory is not writable on Unix."""
+    # Create a directory and make it read-only
+    read_only_dir = tmp_path / "readonly"
+    read_only_dir.mkdir()
+    test_file = read_only_dir / "test.txt"
+
+    # Make directory read-only (no write permission)
+    read_only_dir.chmod(0o555)
+
+    try:
+        with pytest.raises(EsphomeError, match=r"Could not write file"):
+            helpers.write_file(test_file, "content")
+    finally:
+        # Restore write permissions for cleanup
+        read_only_dir.chmod(0o755)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_write_file_to_non_writable_directory_windows(tmp_path: Path) -> None:
+    """Test write_file error handling on Windows."""
+    # Windows handles permissions differently - test a different error case
+    # Try to write to a file path that contains an existing file as a directory component
+    existing_file = tmp_path / "file.txt"
+    existing_file.write_text("content")
+
+    # Try to write to a path that treats the file as a directory
+    invalid_path = existing_file / "subdir" / "test.txt"
+
+    with pytest.raises(EsphomeError, match=r"Could not write file"):
+        helpers.write_file(invalid_path, "content")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_write_file_with_permission_bits_unix(tmp_path: Path) -> None:
+    """Test that write_file sets correct permissions on Unix."""
+    test_file = tmp_path / "test.txt"
+    helpers.write_file(test_file, "content")
+
+    # Check that file has 644 permissions
+    file_mode = test_file.stat().st_mode
+    assert stat.S_IMODE(file_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_copy_file_if_changed_permission_recovery_unix(tmp_path: Path) -> None:
+    """Test copy_file_if_changed handles permission errors correctly on Unix."""
+    # Test with read-only destination file
+    src = tmp_path / "source.txt"
+    dst = tmp_path / "dest.txt"
+    src.write_text("new content")
+    dst.write_text("old content")
+    dst.chmod(0o444)  # Make destination read-only
+
+    try:
+        # Should handle permission error by deleting and retrying
+        helpers.copy_file_if_changed(src, dst)
+        assert dst.read_text() == "new content"
+    finally:
+        # Restore write permissions for cleanup
+        if dst.exists():
+            dst.chmod(0o644)
+
+
+def test_copy_file_if_changed_creates_directories(tmp_path: Path) -> None:
+    """Test copy_file_if_changed creates missing directories."""
+    src = tmp_path / "source.txt"
+    dst = tmp_path / "subdir" / "nested" / "dest.txt"
+    src.write_text("content")
+
+    helpers.copy_file_if_changed(src, dst)
+    assert dst.exists()
+    assert dst.read_text() == "content"
+
+
+def test_copy_file_if_changed_nonexistent_source(tmp_path: Path) -> None:
+    """Test copy_file_if_changed with non-existent source."""
+    src = tmp_path / "nonexistent.txt"
+    dst = tmp_path / "dest.txt"
+
+    with pytest.raises(EsphomeError, match=r"Error copying file"):
+        helpers.copy_file_if_changed(src, dst)
+
+
 def test_resolve_ip_address_sorting() -> None:
     """Test that results are sorted by preference."""
     # Create multiple address infos with different preferences
@@ -594,3 +809,84 @@ def test_resolve_ip_address_sorting() -> None:
         assert result[0][4][0] == "2001:db8::1"  # IPv6 (preference 1)
         assert result[1][4][0] == "192.168.1.100"  # IPv4 (preference 2)
         assert result[2][4][0] == "fe80::1"  # Link-local no scope (preference 3)
+
+
+def test_resolve_ip_address_with_cache() -> None:
+    """Test that the cache is used when provided."""
+    cache = AddressCache(
+        mdns_cache={"test.local": ["192.168.1.100", "192.168.1.101"]},
+        dns_cache={
+            "example.com": ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]
+        },
+    )
+
+    # Test mDNS cache hit
+    result = helpers.resolve_ip_address("test.local", 6053, address_cache=cache)
+
+    # Should return cached addresses without calling resolver
+    assert len(result) == 2
+    assert result[0][4][0] == "192.168.1.100"
+    assert result[1][4][0] == "192.168.1.101"
+
+    # Test DNS cache hit
+    result = helpers.resolve_ip_address("example.com", 6053, address_cache=cache)
+
+    # Should return cached addresses with IPv6 first due to preference
+    assert len(result) == 2
+    assert result[0][4][0] == "2606:2800:220:1:248:1893:25c8:1946"  # IPv6 first
+    assert result[1][4][0] == "93.184.216.34"  # IPv4 second
+
+
+def test_resolve_ip_address_cache_miss() -> None:
+    """Test that resolver is called when not in cache."""
+    cache = AddressCache(mdns_cache={"other.local": ["192.168.1.200"]})
+
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address("test.local", 6053, address_cache=cache)
+
+        # Should call resolver since test.local is not in cache
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        assert len(result) == 1
+        assert result[0][4][0] == "192.168.1.100"
+
+
+def test_resolve_ip_address_mixed_cached_uncached() -> None:
+    """Test resolution with mix of cached and uncached hosts."""
+    cache = AddressCache(mdns_cache={"cached.local": ["192.168.1.50"]})
+
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.return_value = [mock_addr_info]
+
+        # Pass a list with cached IP, cached hostname, and uncached hostname
+        result = helpers.resolve_ip_address(
+            ["192.168.1.10", "cached.local", "uncached.local"],
+            6053,
+            address_cache=cache,
+        )
+
+        # Should only resolve uncached.local
+        MockResolver.assert_called_once_with(["uncached.local"], 6053)
+
+        # Results should include all addresses
+        addresses = [r[4][0] for r in result]
+        assert "192.168.1.10" in addresses  # Direct IP
+        assert "192.168.1.50" in addresses  # From cache
+        assert "192.168.1.100" in addresses  # From resolver
