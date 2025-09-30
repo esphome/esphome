@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Generator
+from contextlib import asynccontextmanager
 import gzip
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 import pytest_asyncio
@@ -14,9 +15,19 @@ from tornado.httpclient import AsyncHTTPClient, HTTPClientError, HTTPResponse
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.testing import bind_unused_port
+from tornado.websocket import WebSocketClientConnection, websocket_connect
 
 from esphome.dashboard import web_server
+from esphome.dashboard.const import DashboardEvent
 from esphome.dashboard.core import DASHBOARD
+from esphome.dashboard.entries import (
+    DashboardEntry,
+    EntryStateSource,
+    bool_to_entry_state,
+)
+from esphome.dashboard.models import build_importable_device_dict
+from esphome.dashboard.web_server import DashboardSubscriber
+from esphome.zeroconf import DiscoveredImport
 
 from .common import get_fixture_path
 
@@ -124,6 +135,33 @@ async def dashboard() -> DashboardTestHelper:
     sock.close()
     client.close()
     io_loop.close()
+
+
+@asynccontextmanager
+async def websocket_connection(dashboard: DashboardTestHelper):
+    """Async context manager for WebSocket connections."""
+    url = f"ws://127.0.0.1:{dashboard.port}/events"
+    ws = await websocket_connect(url)
+    try:
+        yield ws
+    finally:
+        if ws:
+            ws.close()
+
+
+@pytest_asyncio.fixture
+async def websocket_client(dashboard: DashboardTestHelper) -> WebSocketClientConnection:
+    """Create a WebSocket connection for testing."""
+    url = f"ws://127.0.0.1:{dashboard.port}/events"
+    ws = await websocket_connect(url)
+
+    # Read and discard initial state message
+    await ws.read_message()
+
+    yield ws
+
+    if ws:
+        ws.close()
 
 
 @pytest.mark.asyncio
@@ -810,3 +848,457 @@ def test_build_cache_arguments_name_without_address(mock_dashboard: Mock) -> Non
     mock_dashboard.mdns_status.get_cached_addresses.assert_called_once_with(
         "my-device.local"
     )
+
+
+@pytest.mark.asyncio
+async def test_websocket_connection_initial_state(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket connection and initial state."""
+    async with websocket_connection(dashboard) as ws:
+        # Should receive initial state with configured and importable devices
+        msg = await ws.read_message()
+        assert msg is not None
+        data = json.loads(msg)
+        assert data["event"] == "initial_state"
+        assert "devices" in data["data"]
+        assert "configured" in data["data"]["devices"]
+        assert "importable" in data["data"]["devices"]
+
+        # Check configured devices
+        configured = data["data"]["devices"]["configured"]
+        assert len(configured) > 0
+        assert configured[0]["name"] == "pico"  # From test fixtures
+
+
+@pytest.mark.asyncio
+async def test_websocket_ping_pong(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket ping/pong mechanism."""
+    # Send ping
+    await websocket_client.write_message(json.dumps({"event": "ping"}))
+
+    # Should receive pong
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "pong"
+
+
+@pytest.mark.asyncio
+async def test_websocket_invalid_json(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket handling of invalid JSON."""
+    # Send invalid JSON
+    await websocket_client.write_message("not valid json {]")
+
+    # Send a valid ping to verify connection is still alive
+    await websocket_client.write_message(json.dumps({"event": "ping"}))
+
+    # Should receive pong, confirming the connection wasn't closed by invalid JSON
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "pong"
+
+
+@pytest.mark.asyncio
+async def test_websocket_authentication_required(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket authentication when auth is required."""
+    with patch(
+        "esphome.dashboard.web_server.is_authenticated"
+    ) as mock_is_authenticated:
+        mock_is_authenticated.return_value = False
+
+        # Try to connect - should be rejected with 401
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        with pytest.raises(HTTPClientError) as exc_info:
+            await websocket_connect(url)
+        # Should get HTTP 401 Unauthorized
+        assert exc_info.value.code == 401
+
+
+@pytest.mark.asyncio
+async def test_websocket_authentication_not_required(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket connection when no auth is required."""
+    with patch(
+        "esphome.dashboard.web_server.is_authenticated"
+    ) as mock_is_authenticated:
+        mock_is_authenticated.return_value = True
+
+        # Should be able to connect successfully
+        async with websocket_connection(dashboard) as ws:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+
+
+@pytest.mark.asyncio
+async def test_websocket_entry_state_changed(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket entry state changed event."""
+    # Simulate entry state change
+    entry = DASHBOARD.entries.async_all()[0]
+    state = bool_to_entry_state(True, EntryStateSource.MDNS)
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.ENTRY_STATE_CHANGED, {"entry": entry, "state": state}
+    )
+
+    # Should receive state change event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "entry_state_changed"
+    assert data["data"]["filename"] == entry.filename
+    assert data["data"]["name"] == entry.name
+    assert data["data"]["state"] is True
+
+
+@pytest.mark.asyncio
+async def test_websocket_entry_added(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket entry added event."""
+    # Create a mock entry
+    mock_entry = Mock(spec=DashboardEntry)
+    mock_entry.filename = "test.yaml"
+    mock_entry.name = "test_device"
+    mock_entry.to_dict.return_value = {
+        "name": "test_device",
+        "filename": "test.yaml",
+        "configuration": "test.yaml",
+    }
+
+    # Simulate entry added
+    DASHBOARD.bus.async_fire(DashboardEvent.ENTRY_ADDED, {"entry": mock_entry})
+
+    # Should receive entry added event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "entry_added"
+    assert data["data"]["device"]["name"] == "test_device"
+    assert data["data"]["device"]["filename"] == "test.yaml"
+
+
+@pytest.mark.asyncio
+async def test_websocket_entry_removed(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket entry removed event."""
+    # Create a mock entry
+    mock_entry = Mock(spec=DashboardEntry)
+    mock_entry.filename = "removed.yaml"
+    mock_entry.name = "removed_device"
+    mock_entry.to_dict.return_value = {
+        "name": "removed_device",
+        "filename": "removed.yaml",
+        "configuration": "removed.yaml",
+    }
+
+    # Simulate entry removed
+    DASHBOARD.bus.async_fire(DashboardEvent.ENTRY_REMOVED, {"entry": mock_entry})
+
+    # Should receive entry removed event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "entry_removed"
+    assert data["data"]["device"]["name"] == "removed_device"
+    assert data["data"]["device"]["filename"] == "removed.yaml"
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_added(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket importable device added event with real DiscoveredImport."""
+    # Create a real DiscoveredImport object
+    discovered = DiscoveredImport(
+        device_name="new_import_device",
+        friendly_name="New Import Device",
+        package_import_url="https://example.com/package",
+        project_name="test_project",
+        project_version="1.0.0",
+        network="wifi",
+    )
+
+    # Directly fire the event as the mDNS system would
+    device_dict = build_importable_device_dict(DASHBOARD, discovered)
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_ADDED, {"device": device_dict}
+    )
+
+    # Should receive importable device added event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "importable_device_added"
+    assert data["data"]["device"]["name"] == "new_import_device"
+    assert data["data"]["device"]["friendly_name"] == "New Import Device"
+    assert data["data"]["device"]["project_name"] == "test_project"
+    assert data["data"]["device"]["network"] == "wifi"
+    assert data["data"]["device"]["ignored"] is False
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_added_ignored(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket importable device added event for ignored device."""
+    # Add device to ignored list
+    DASHBOARD.ignored_devices.add("ignored_device")
+
+    # Create a real DiscoveredImport object
+    discovered = DiscoveredImport(
+        device_name="ignored_device",
+        friendly_name="Ignored Device",
+        package_import_url="https://example.com/package",
+        project_name="test_project",
+        project_version="1.0.0",
+        network="ethernet",
+    )
+
+    # Directly fire the event as the mDNS system would
+    device_dict = build_importable_device_dict(DASHBOARD, discovered)
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_ADDED, {"device": device_dict}
+    )
+
+    # Should receive importable device added event with ignored=True
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "importable_device_added"
+    assert data["data"]["device"]["name"] == "ignored_device"
+    assert data["data"]["device"]["friendly_name"] == "Ignored Device"
+    assert data["data"]["device"]["network"] == "ethernet"
+    assert data["data"]["device"]["ignored"] is True
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_removed(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket importable device removed event."""
+    # Simulate importable device removed
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
+        {"name": "removed_import_device"},
+    )
+
+    # Should receive importable device removed event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "importable_device_removed"
+    assert data["data"]["name"] == "removed_import_device"
+
+
+@pytest.mark.asyncio
+async def test_websocket_importable_device_already_configured(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test that importable device event is not sent if device is already configured."""
+    # Get an existing configured device name
+    existing_entry = DASHBOARD.entries.async_all()[0]
+
+    # Simulate importable device added with same name as configured device
+    DASHBOARD.bus.async_fire(
+        DashboardEvent.IMPORTABLE_DEVICE_ADDED,
+        {
+            "device": {
+                "name": existing_entry.name,
+                "friendly_name": "Should Not Be Sent",
+                "package_import_url": "https://example.com/package",
+                "project_name": "test_project",
+                "project_version": "1.0.0",
+                "network": "wifi",
+            }
+        },
+    )
+
+    # Send a ping to ensure connection is still alive
+    await websocket_client.write_message(json.dumps({"event": "ping"}))
+
+    # Should only receive pong, not the importable device event
+    msg = await websocket_client.read_message()
+    assert msg is not None
+    data = json.loads(msg)
+    assert data["event"] == "pong"
+
+
+@pytest.mark.asyncio
+async def test_websocket_multiple_connections(dashboard: DashboardTestHelper) -> None:
+    """Test multiple WebSocket connections."""
+    async with (
+        websocket_connection(dashboard) as ws1,
+        websocket_connection(dashboard) as ws2,
+    ):
+        # Both should receive initial state
+        msg1 = await ws1.read_message()
+        assert msg1 is not None
+        data1 = json.loads(msg1)
+        assert data1["event"] == "initial_state"
+
+        msg2 = await ws2.read_message()
+        assert msg2 is not None
+        data2 = json.loads(msg2)
+        assert data2["event"] == "initial_state"
+
+        # Fire an event - both should receive it
+        entry = DASHBOARD.entries.async_all()[0]
+        state = bool_to_entry_state(False, EntryStateSource.MDNS)
+        DASHBOARD.bus.async_fire(
+            DashboardEvent.ENTRY_STATE_CHANGED, {"entry": entry, "state": state}
+        )
+
+        msg1 = await ws1.read_message()
+        assert msg1 is not None
+        data1 = json.loads(msg1)
+        assert data1["event"] == "entry_state_changed"
+
+        msg2 = await ws2.read_message()
+        assert msg2 is not None
+        data2 = json.loads(msg2)
+        assert data2["event"] == "entry_state_changed"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_subscriber_lifecycle(dashboard: DashboardTestHelper) -> None:
+    """Test DashboardSubscriber lifecycle."""
+    subscriber = DashboardSubscriber()
+
+    # Initially no subscribers
+    assert len(subscriber._subscribers) == 0
+    assert subscriber._event_loop_task is None
+
+    # Add a subscriber
+    mock_websocket = Mock()
+    unsubscribe = subscriber.subscribe(mock_websocket)
+
+    # Should have started the event loop task
+    assert len(subscriber._subscribers) == 1
+    assert subscriber._event_loop_task is not None
+
+    # Unsubscribe
+    unsubscribe()
+
+    # Should have stopped the task
+    assert len(subscriber._subscribers) == 0
+
+
+@pytest.mark.asyncio
+async def test_dashboard_subscriber_entries_update_interval(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test DashboardSubscriber entries update interval."""
+    # Patch the constants to make the test run faster
+    with (
+        patch("esphome.dashboard.web_server.DASHBOARD_POLL_INTERVAL", 0.01),
+        patch("esphome.dashboard.web_server.DASHBOARD_ENTRIES_UPDATE_ITERATIONS", 2),
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.status_use_mqtt = False
+
+        # Mock dashboard dependencies
+        mock_dashboard.ping_request = Mock()
+        mock_dashboard.ping_request.set = Mock()
+        mock_dashboard.entries = Mock()
+        mock_dashboard.entries.async_request_update_entries = Mock()
+
+        subscriber = DashboardSubscriber()
+        mock_websocket = Mock()
+
+        # Subscribe to start the event loop
+        unsubscribe = subscriber.subscribe(mock_websocket)
+
+        # Wait for a few iterations to ensure entries update is called
+        await asyncio.sleep(0.05)  # Should be enough for 2+ iterations
+
+        # Unsubscribe to stop the task
+        unsubscribe()
+
+        # Verify entries update was called
+        assert mock_dashboard.entries.async_request_update_entries.call_count >= 1
+        # Verify ping request was set multiple times
+        assert mock_dashboard.ping_request.set.call_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_websocket_refresh_command(
+    dashboard: DashboardTestHelper, websocket_client: WebSocketClientConnection
+) -> None:
+    """Test WebSocket refresh command triggers dashboard update."""
+    with patch("esphome.dashboard.web_server.DASHBOARD_SUBSCRIBER") as mock_subscriber:
+        mock_subscriber.request_refresh = Mock()
+
+        # Send refresh command
+        await websocket_client.write_message(json.dumps({"event": "refresh"}))
+
+        # Give it a moment to process
+        await asyncio.sleep(0.01)
+
+        # Verify request_refresh was called
+        mock_subscriber.request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_subscriber_refresh_event(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test DashboardSubscriber refresh event triggers immediate update."""
+    # Patch the constants to make the test run faster
+    with (
+        patch(
+            "esphome.dashboard.web_server.DASHBOARD_POLL_INTERVAL", 1.0
+        ),  # Long timeout
+        patch(
+            "esphome.dashboard.web_server.DASHBOARD_ENTRIES_UPDATE_ITERATIONS", 100
+        ),  # Won't reach naturally
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.status_use_mqtt = False
+
+        # Mock dashboard dependencies
+        mock_dashboard.ping_request = Mock()
+        mock_dashboard.ping_request.set = Mock()
+        mock_dashboard.entries = Mock()
+        mock_dashboard.entries.async_request_update_entries = AsyncMock()
+
+        subscriber = DashboardSubscriber()
+        mock_websocket = Mock()
+
+        # Subscribe to start the event loop
+        unsubscribe = subscriber.subscribe(mock_websocket)
+
+        # Wait a bit to ensure loop is running
+        await asyncio.sleep(0.01)
+
+        # Verify entries update hasn't been called yet (iterations not reached)
+        assert mock_dashboard.entries.async_request_update_entries.call_count == 0
+
+        # Request refresh
+        subscriber.request_refresh()
+
+        # Wait for the refresh to be processed
+        await asyncio.sleep(0.01)
+
+        # Now entries update should have been called
+        assert mock_dashboard.entries.async_request_update_entries.call_count == 1
+
+        # Unsubscribe to stop the task
+        unsubscribe()
+
+        # Give it a moment to clean up
+        await asyncio.sleep(0.01)
