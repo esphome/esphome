@@ -731,6 +731,16 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
+def command_clean_all(args: ArgsProtocol) -> int | None:
+    try:
+        writer.clean_all(args.configuration)
+    except OSError as err:
+        _LOGGER.error("Error cleaning all files: %s", err)
+        return 1
+    _LOGGER.info("Done!")
+    return 0
+
+
 def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import mqtt
 
@@ -772,7 +782,7 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, f)}")
+        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
         if CORE.dashboard:
@@ -784,10 +794,10 @@ def command_update_all(args: ArgsProtocol) -> int | None:
                 "esphome", "run", f, "--no-logs", "--device", "OTA"
             )
         if rc == 0:
-            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
         else:
-            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {str(f)}")
             success[f] = False
 
         safe_print()
@@ -798,9 +808,9 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     failed = 0
     for f in files:
         if success[f]:
-            safe_print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
+            safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
-            safe_print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
+            safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 
@@ -921,6 +931,7 @@ PRE_CONFIG_ACTIONS = {
     "dashboard": command_dashboard,
     "vscode": command_vscode,
     "update-all": command_update_all,
+    "clean-all": command_clean_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -929,9 +940,9 @@ POST_CONFIG_ACTIONS = {
     "upload": command_upload,
     "logs": command_logs,
     "run": command_run,
+    "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
-    "clean": command_clean,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -1144,6 +1155,13 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_clean_all = subparsers.add_parser(
+        "clean-all", help="Clean all build and platform files."
+    )
+    parser_clean_all.add_argument(
+        "configuration", help="Your YAML configuration directory.", nargs="*"
+    )
+
     parser_dashboard = subparsers.add_parser(
         "dashboard", help="Create a simple web server for a dashboard."
     )
@@ -1190,7 +1208,7 @@ def parse_args(argv):
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directories.", nargs="+"
+        "configuration", help="Your YAML configuration file or directory.", nargs="+"
     )
 
     parser_idedata = subparsers.add_parser("idedata")
@@ -1273,7 +1291,12 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config(dict(args.substitution) if args.substitution else {})
+        # For logs command, skip updating external components
+        skip_external = args.command == "logs"
+        config = read_config(
+            dict(args.substitution) if args.substitution else {},
+            skip_external_update=skip_external,
+        )
         if config is None:
             return 2
         CORE.config = config
