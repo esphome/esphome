@@ -21,6 +21,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_DEGREES,
     UNIT_MICROTESLA,
+    SCHEDULER_DONT_RUN,
 )
 
 CONF_DRDY_PIN = "drdy_pin"
@@ -59,8 +60,7 @@ QMC5883LOversamplings = {
 def validate_config(config):
     valErrors = []
 
-    # "never" is Translated to uint32_t MAX (4294967295)
-    if config[CONF_UPDATE_INTERVAL] in [4294967295, "never"]:
+    if config[CONF_UPDATE_INTERVAL] in [SCHEDULER_DONT_RUN, "never"]:
         if CONF_DRDY_PIN not in config:
             valErrors.append('"drdy_pin" REQUIRED for update_interval of "never"')
         if config[CONF_DATA_RATE] is None:
@@ -125,10 +125,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HEADING): heading_schema,
             cv.Optional(CONF_TEMPERATURE): temperature_schema,
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_DATA_RATE, default=None): cv.Any(
-                validate_enum(QMC5883LDatarates, units=["hz", "Hz"]),
-                None,
-            ),
+            cv.Optional(CONF_DATA_RATE): validate_enum(QMC5883LDatarates, units=["hz", "Hz"]),
         }
     )
     .extend(cv.polling_component_schema("60s"))

@@ -35,6 +35,8 @@ void QMC5883LComponent::setup() {
 
   if (this->drdy_pin_ != nullptr)
     this->drdy_pin_->setup();
+  else
+    this->disable_loop();
 
   uint8_t control_1 = 0;
   control_1 |= 0b01 << 0;  // MODE (Mode) -> 0b00=standby, 0b01=continuous
@@ -64,24 +66,17 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  uint32_t update_ms = this->get_update_ms_();
-  uint32_t loop_interval = App.get_loop_interval();
-  bool high_frequency = update_ms < loop_interval;
+  bool high_frequency = this->get_update_interval() < App.get_loop_interval() || this->datarate_ >= QMC5883L_DATARATE_100_HZ;
   if (high_frequency)
     high_freq_.start();
-
-  ESP_LOGW(TAG, "interval = %u | loop_interval = %u | hf = %s", update_ms, loop_interval,
-           (high_frequency ? "true" : "false"));
 }
 
 void QMC5883LComponent::loop() {
   // Changed ORIGINAL update() to read_data_().
   //
   // If DRDY Pin is Defined AND Signalled, Read Data; Otherwise, Handle in update()!
-  if (this->drdy_pin_ != nullptr) {
-    if (this->drdy_pin_->digital_read()) {
+  if (this->drdy_pin_->digital_read()) {
       this->read_data_();
-    }
   }
 }
 
@@ -99,18 +94,12 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
-  ESP_LOGCONFIG(TAG, "  Datarate (Hz): %d", this->get_datarate_hz());
 }
 
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void QMC5883LComponent::update() {
-  // Changed ORIGINAL update() to read_data_().
-  //
-  // If NO DRDY Pin is Defined, Read Data on update() Call; Otherwise, Handle in loop()!
-  if (this->drdy_pin_ == nullptr) {
     this->read_data_();
-  }
 }
 
 void QMC5883LComponent::read_data_() {
@@ -202,33 +191,6 @@ i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t
   for (size_t i = 0; i < len; i++)
     data[i] = convert_little_endian(data[i]);
   return err;
-}
-
-uint8_t QMC5883LComponent::get_datarate_hz() {
-  switch (this->datarate_) {
-    case 0b00:
-      return (10);
-    case 0b01:
-      return (50);
-    case 0b10:
-      return (100);
-    case 0b11:
-      return (200);
-  }
-
-  return (0);
-}
-
-uint32_t QMC5883LComponent::get_update_ms_() {
-  uint32_t result = 0;
-
-  if (this->drdy_pin_ == nullptr) {
-    result = this->get_update_interval();
-  } else {
-    result = static_cast<uint32_t>(1000.0f * (1.0f / static_cast<float>(this->get_datarate_hz())));
-  }
-
-  return (result);
 }
 
 }  // namespace qmc5883l
