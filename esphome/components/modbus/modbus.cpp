@@ -199,14 +199,11 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       if (this->role == ModbusRole::SERVER) {
         if (function_code == FunctionCode::READ_HOLDING_REGISTERS ||
             function_code == FunctionCode::READ_INPUT_REGISTERS) {
-          this->defer("on_modbus_read_registers", [device, data, function_code]() {
-            device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
-                                             uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-          });
+          device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
+                                           uint16_t(data[3]) | (uint16_t(data[2]) << 8));
         } else if (function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
                    function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
-          this->defer("on_modbus_write_registers",
-                      [device, data, function_code]() { device->on_modbus_write_registers(function_code, data); });
+          device->on_modbus_write_registers(function_code, data);
         }
       } else {  // We're a client
         // Is it an error response?
@@ -215,16 +212,14 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
           ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                    exception, address, millis() - this->last_send_);
           if (waiting_for_response_ == address) {
-            this->defer("on_modbus_error", [device, function_code, exception]() {
-              device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
-            });
+            device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
           } else {
             // Ignore modbus exception not related to a pending command
             ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d", address);
           }
         } else {  // Not an error response
           if (waiting_for_response_ == address) {
-            this->defer("on_modbus_data", [device, data]() { device->on_modbus_data(data); });
+            device->on_modbus_data(data);
           } else {
             // Ignore modbus response not related to a pending command
             ESP_LOGW(TAG, "Ignoring response - not expecting a response from %d, %dms after last send", address,
