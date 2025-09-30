@@ -4,7 +4,6 @@ from typing import Any
 
 import pytest
 
-import esphome.config_validation as cv
 from esphome.components.esp32.const import (
     KEY_VARIANT,
     VARIANT_ESP32,
@@ -17,9 +16,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
-
 
 UNSUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32C2,
@@ -57,7 +56,7 @@ def test_psram_configuration_errors_unsupported_variants(
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_VARIANT: variant},
-        full_config={CONF_ESPHOME: {}}
+        full_config={CONF_ESPHOME: {}},
     )
     """Test detection of invalid PSRAM configuration on unsupported variants."""
     from esphome.components.psram import CONFIG_SCHEMA
@@ -81,7 +80,7 @@ def test_psram_configuration_valid_supported_variants(
                 "cpu_frequency": "160MHz",
                 "framework": {"type": "esp-idf"},
             },
-        }
+        },
     )
     """Test that PSRAM configuration is valid on supported variants."""
     from esphome.components.psram import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
@@ -105,17 +104,17 @@ def _setup_psram_final_validation_test(
         "cpu_frequency": esp32_config.get("cpu_frequency", "240MHz"),
         "framework": {"type": "esp-idf"},
     }
-    
+
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_VARIANT: schema_variant},
         full_config={
             CONF_ESPHOME: {},
             "esp32": full_esp32_config,
-        }
+        },
     )
     set_component_config("esp32", full_esp32_config)
-    
+
     return final_variant
 
 
@@ -183,10 +182,10 @@ def test_psram_final_validation(
     )
 
     validated_config = CONFIG_SCHEMA(config)
-    
+
     # Update CORE variant for final validation
     CORE.data["esp32"][KEY_VARIANT] = final_variant
-    
+
     if expect_error:
         with pytest.raises(cv.Invalid, match=error_match):
             FINAL_VALIDATE_SCHEMA(validated_config)
