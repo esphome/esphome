@@ -10,7 +10,7 @@ from esphome.core import CORE
 
 
 def load_config_from_yaml(
-    yaml_file: Callable[[str], str], yaml_content: str
+    yaml_file: Callable[[str], Path], yaml_content: str
 ) -> Config | None:
     """Load configuration from YAML content."""
     yaml_path = yaml_file(yaml_content)
@@ -25,7 +25,7 @@ def load_config_from_yaml(
 
 
 def load_config_from_fixture(
-    yaml_file: Callable[[str], str], fixture_name: str, fixtures_dir: Path
+    yaml_file: Callable[[str], Path], fixture_name: str, fixtures_dir: Path
 ) -> Config | None:
     """Load configuration from a fixture file."""
     fixture_path = fixtures_dir / fixture_name
