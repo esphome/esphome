@@ -48,19 +48,10 @@ static constexpr const char *const LOG_LEVEL_COLORS[] = {
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
 };
 
-// Single character log level letters (E, W, I, C, D, V)
 static constexpr char LOG_LEVEL_LETTER_CHARS[] = {'\0', 'E', 'W', 'I', 'C', 'D', 'V'};
-
-// ANSI color codes are always 7 characters ("\033[0;32m")
 static constexpr uint8_t ANSI_COLOR_LEN = 7;
-
-// Maximum header size (conservative estimate)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
-
-// Compile-time string length calculation
 static constexpr size_t constexpr_strlen(const char *str) { return *str ? 1 + constexpr_strlen(str + 1) : 0; }
-
-// Compile-time validation of log level string lengths
 static_assert(constexpr_strlen(LOG_LEVEL_COLORS[0]) == 0, "Level 0 color must be empty");
 static_assert(constexpr_strlen(LOG_LEVEL_COLORS[1]) == 7, "Color codes must be 7 chars");
 
