@@ -55,12 +55,12 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   void ble_before_disabled_event_handler() override;
 
-  // Direct callback registration - only allocates when callback is set
+  // Direct callback registration - supports multiple callbacks
   void on_connect(std::function<void(uint16_t)> &&callback) {
-    this->on_connect_callback_ = std::make_unique<std::function<void(uint16_t)>>(std::move(callback));
+    this->on_connect_callbacks_.push_back(std::move(callback));
   }
   void on_disconnect(std::function<void(uint16_t)> &&callback) {
-    this->on_disconnect_callback_ = std::make_unique<std::function<void(uint16_t)>>(std::move(callback));
+    this->on_disconnect_callbacks_.push_back(std::move(callback));
   }
 
  protected:
@@ -75,8 +75,8 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   void add_client_(uint16_t conn_id) { this->clients_.insert(conn_id); }
   void remove_client_(uint16_t conn_id) { this->clients_.erase(conn_id); }
 
-  std::unique_ptr<std::function<void(uint16_t)>> on_connect_callback_;
-  std::unique_ptr<std::function<void(uint16_t)>> on_disconnect_callback_;
+  std::vector<std::function<void(uint16_t)>> on_connect_callbacks_;
+  std::vector<std::function<void(uint16_t)>> on_disconnect_callbacks_;
 
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
