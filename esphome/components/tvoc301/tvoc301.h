@@ -15,7 +15,6 @@ class TVOC301Component : public PollingComponent, public uart::UARTDevice {
   void set_eco2_sensor(sensor::Sensor *eco2_sensor) { this->eco2_sensor_ = eco2_sensor; }
   void set_tvoc_sensor(sensor::Sensor *tvoc_sensor) { this->tvoc_sensor_ = tvoc_sensor; }
   void set_ch2o_sensor(sensor::Sensor *ch2o_sensor) { this->ch2o_sensor_ = ch2o_sensor; }
-  void setup() override;
   void dump_config() override;
   void loop() override;
   void update() override;

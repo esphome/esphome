@@ -9,10 +9,6 @@ static const char *const TAG = "TVOC-301";
 static const uint8_t TVOC301_RESPONSE_HEADER[] = {0x2c, 0xe4};
 static const size_t TVOC301_RESPONSE_LENGTH = 9;
 
-void TVOC301Component::setup() {
-  // because this implementation is currently rx-only, there is nothing to setup
-}
-
 void TVOC301Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TVOC301:");
   LOG_SENSOR("  ", "eCO2", this->eco2_sensor_);
