@@ -48,8 +48,8 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_FLASK,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
                 device_class=DEVICE_CLASS_GAS,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
