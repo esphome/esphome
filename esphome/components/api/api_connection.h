@@ -137,6 +137,7 @@ class APIConnection final : public APIServerConnection {
       return;
     this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
   }
+  void on_homeassistant_action_response(const HomeassistantActionResponse &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;

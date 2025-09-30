@@ -1122,6 +1122,15 @@ void HomeassistantActionRequest::dump_to(std::string &out) const {
     out.append("\n");
   }
   dump_field(out, "is_event", this->is_event);
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "response_template", this->response_template);
+}
+void HomeassistantActionResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "HomeassistantActionResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message);
+  dump_field(out, "response_data", this->response_data);
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES

@@ -780,6 +780,21 @@ message HomeassistantActionRequest {
   repeated HomeassistantServiceMap data_template = 3;
   repeated HomeassistantServiceMap variables = 4;
   bool is_event = 5;
+  uint32 call_id = 6; // Call ID for response tracking
+  string response_template = 7 [(no_zero_copy) = true]; // Optional Jinja template for response processing
+}
+
+// Message sent by Home Assistant to ESPHome with service call response data
+message HomeassistantActionResponse {
+  option (id) = 130;
+  option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
+
+  uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
+  bool success = 2; // Whether the service call succeeded
+  string error_message = 3; // Error message if success = false
+  string response_data = 4; // Service response data
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================

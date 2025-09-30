@@ -16,29 +16,36 @@ from esphome.const import (
     CONF_KEY,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_RESPONSE,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
+    CONF_RESPONSE_TEMPLATE,
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["socket", "json"]
 CODEOWNERS = ["@esphome/core"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
+)
+ActionResponse = api_ns.class_("ActionResponse")
+HomeAssistantActionResponseTrigger = api_ns.class_(
+    "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 
@@ -244,6 +251,14 @@ async def to_code(config):
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
 
+def _validate_response_config(config):
+    if CONF_RESPONSE_TEMPLATE in config and not config.get(CONF_ON_RESPONSE):
+        raise cv.Invalid(
+            "`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_ON_RESPONSE}` to be set."
+        )
+    return config
+
+
 HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -259,10 +274,20 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
                 {cv.string: cv.returning_lambda}
             ),
+            cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
+            cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        HomeAssistantActionResponseTrigger
+                    ),
+                },
+                single=True,
+            ),
         }
     ),
     cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    _validate_response_config,
 )
 
 
@@ -276,7 +301,12 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
-async def homeassistant_service_to_code(config, action_id, template_arg, args):
+async def homeassistant_service_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
@@ -291,6 +321,23 @@ async def homeassistant_service_to_code(config, action_id, template_arg, args):
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
+
+    if response_template := config.get(CONF_RESPONSE_TEMPLATE):
+        templ = await cg.templatable(response_template, args, cg.std_string)
+        cg.add(var.set_response_template(templ))
+
+    if on_response := config.get(CONF_ON_RESPONSE):
+        trigger = cg.new_Pvariable(
+            on_response[CONF_TRIGGER_ID],
+            template_arg,
+            var,
+        )
+        await automation.build_automation(
+            trigger,
+            [(cg.std_shared_ptr.template(ActionResponse), "response"), *args],
+            on_response,
+        )
+
     return var
 
 

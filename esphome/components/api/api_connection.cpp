@@ -1549,6 +1549,12 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   }
 }
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
+  this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data);
+};
+#endif
 #ifdef USE_API_NOISE
 bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;

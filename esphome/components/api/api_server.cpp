@@ -9,6 +9,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+#include "homeassistant_service.h"
+#endif
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -385,6 +388,26 @@ void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = bat
 void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
   for (auto &client : this->clients_) {
     client->send_homeassistant_action(call);
+  }
+}
+
+void APIServer::register_action_response_callback(uint32_t call_id, ActionResponseCallback callback) {
+  this->action_response_callbacks_[call_id] = callback;
+}
+
+void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+                                       const std::string &response_data) {
+  auto it = this->action_response_callbacks_.find(call_id);
+  if (it != this->action_response_callbacks_.end()) {
+    // Create the response object
+    auto response = std::make_shared<class ActionResponse>(success, error_message);
+    response->set_data(response_data);
+
+    // Call the callback
+    it->second(response);
+
+    // Remove the callback as it's one-time use
+    this->action_response_callbacks_.erase(it);
   }
 }
 #endif

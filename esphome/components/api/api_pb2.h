@@ -1104,7 +1104,7 @@ class HomeassistantServiceMap final : public ProtoMessage {
 class HomeassistantActionRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 35;
-  static constexpr uint8_t ESTIMATED_SIZE = 113;
+  static constexpr uint8_t ESTIMATED_SIZE = 126;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
@@ -1114,6 +1114,8 @@ class HomeassistantActionRequest final : public ProtoMessage {
   std::vector<HomeassistantServiceMap> data_template{};
   std::vector<HomeassistantServiceMap> variables{};
   bool is_event{false};
+  uint32_t call_id{0};
+  std::string response_template{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1121,6 +1123,25 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #endif
 
  protected:
+};
+class HomeassistantActionResponse final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 130;
+  static constexpr uint8_t ESTIMATED_SIZE = 24;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "homeassistant_action_response"; }
+#endif
+  uint32_t call_id{0};
+  bool success{false};
+  std::string error_message{};
+  std::string response_data{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
