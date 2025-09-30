@@ -124,7 +124,7 @@ async def to_code(config):
         template, func_args = parameters_to_template(conf[CONF_PARAMETERS])
         trigger = cg.new_Pvariable(conf[CONF_ID], template)
         # Add a human-readable name to the script
-        cg.add(trigger.set_name(conf[CONF_ID].id))
+        cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
 
         if CONF_MAX_RUNS in conf:
             cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
