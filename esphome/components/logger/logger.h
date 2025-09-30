@@ -315,13 +315,11 @@ class Logger : public Component {
   }
 #endif
 
-  // Helper: copy fixed-length data to buffer and advance position
   static inline void copy_and_advance(char *buffer, uint16_t &pos, const char *data, uint8_t len) {
     memcpy(buffer + pos, data, len);
     pos += len;
   }
 
-  // Helper: copy string to buffer and advance position (calculates length with strlen)
   static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
     copy_and_advance(buffer, pos, str, strlen(str));
   }
