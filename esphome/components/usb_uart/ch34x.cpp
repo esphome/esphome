@@ -81,8 +81,7 @@ void USBUartTypeCH34X::enum_chip_type_() {
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer for chiptype enumeration failed, status=%s", esp_err_to_name(status.error_code));
       return;
-    }
-    elseif(status.success) {
+    } else if(status.success) {
       // chip detection cmd complete
       uint8_t chipver_ = status.data[0];
       uint8_t chiptype = status.data[1];
