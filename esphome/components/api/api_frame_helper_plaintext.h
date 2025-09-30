@@ -3,10 +3,9 @@
 #ifdef USE_API
 #ifdef USE_API_PLAINTEXT
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
-class APIPlaintextFrameHelper : public APIFrameHelper {
+class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
   APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
       : APIFrameHelper(std::move(socket), client_info) {
@@ -23,9 +22,6 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
-  uint8_t frame_header_padding() override { return frame_header_padding_; }
-  // Get the frame footer size required by this protocol
-  uint8_t frame_footer_size() override { return frame_footer_size_; }
 
  protected:
   APIError try_read_frame_(std::vector<uint8_t> *frame);
@@ -49,7 +45,6 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   // 8 bytes total, no padding needed
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_PLAINTEXT
 #endif  // USE_API

@@ -1062,12 +1062,11 @@ def validate_raw_alternating(value):
     last_negative = None
     for i, val in enumerate(value):
         this_negative = val < 0
-        if i != 0:
-            if this_negative == last_negative:
-                raise cv.Invalid(
-                    f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
-                    [i],
-                )
+        if i != 0 and this_negative == last_negative:
+            raise cv.Invalid(
+                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                [i],
+            )
         last_negative = this_negative
     return value
 
@@ -1783,14 +1782,12 @@ def nexa_dumper(var, config):
 
 
 @register_action("nexa", NexaAction, NEXA_SCHEMA)
-def nexa_action(var, config, args):
-    cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint32))))
-    cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint8))))
-    cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, cg.uint8))))
-    cg.add(
-        var.set_channel((yield cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    )
-    cg.add(var.set_level((yield cg.templatable(config[CONF_LEVEL], args, cg.uint8))))
+async def nexa_action(var, config, args):
+    cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint32)))
+    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.uint8)))
+    cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
+    cg.add(var.set_level(await cg.templatable(config[CONF_LEVEL], args, cg.uint8)))
 
 
 # Midea

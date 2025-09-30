@@ -183,7 +183,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     fw_hex = get_firmware(config[CONF_FIRMWARE])
     fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
 
@@ -193,17 +193,17 @@ def to_code(config):
     cg.add_define("USE_SHD_FIRMWARE_MINOR_VERSION", fw_minor)
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     config.pop(
         CONF_UPDATE_INTERVAL
     )  # drop UPDATE_INTERVAL as it does not apply to the light component
 
-    yield light.register_light(var, config)
-    yield uart.register_uart_device(var, config)
+    await light.register_light(var, config)
+    await uart.register_uart_device(var, config)
 
-    nrst_pin = yield cg.gpio_pin_expression(config[CONF_NRST_PIN])
+    nrst_pin = await cg.gpio_pin_expression(config[CONF_NRST_PIN])
     cg.add(var.set_nrst_pin(nrst_pin))
-    boot0_pin = yield cg.gpio_pin_expression(config[CONF_BOOT0_PIN])
+    boot0_pin = await cg.gpio_pin_expression(config[CONF_BOOT0_PIN])
     cg.add(var.set_boot0_pin(boot0_pin))
 
     cg.add(var.set_leading_edge(config[CONF_LEADING_EDGE]))
@@ -217,5 +217,5 @@ def to_code(config):
             continue
 
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))

@@ -8,8 +8,7 @@
 #include "api_pb2.h"
 
 #ifdef USE_API_SERVICES
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class UserServiceDescriptor {
  public:
@@ -33,14 +32,14 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
 
   ListEntitiesServicesResponse encode_list_service_response() override {
     ListEntitiesServicesResponse msg;
-    msg.name = this->name_;
+    msg.set_name(StringRef(this->name_));
     msg.key = this->key_;
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
     for (int i = 0; i < sizeof...(Ts); i++) {
-      ListEntitiesServicesArgument arg;
+      msg.args.emplace_back();
+      auto &arg = msg.args.back();
       arg.type = arg_types[i];
-      arg.name = this->arg_names_[i];
-      msg.args.push_back(arg);
+      arg.set_name(StringRef(this->arg_names_[i]));
     }
     return msg;
   }
@@ -74,6 +73,5 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
   void execute(Ts... x) override { this->trigger(x...); }  // NOLINT
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif  // USE_API_SERVICES

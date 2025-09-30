@@ -18,8 +18,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
@@ -38,13 +37,15 @@ class APIServer : public Component, public Controller {
   void on_shutdown() override;
   bool teardown() override;
 #ifdef USE_API_PASSWORD
-  bool check_password(const std::string &password) const;
+  bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
 #endif
   void set_port(uint16_t port);
   void set_reboot_timeout(uint32_t reboot_timeout);
   void set_batch_delay(uint16_t batch_delay);
   uint16_t get_batch_delay() const { return batch_delay_; }
+  void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
+  void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -107,7 +108,10 @@ class APIServer : public Component, public Controller {
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
-  void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+  void send_homeassistant_action(const HomeassistantActionRequest &call);
+
+#endif
 #ifdef USE_API_SERVICES
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
@@ -124,9 +128,13 @@ class APIServer : public Component, public Controller {
 #ifdef USE_UPDATE
   void on_update(update::UpdateEntity *obj) override;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
+#endif
 
   bool is_connected() const;
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
     std::string entity_id;
     optional<std::string> attribute;
@@ -139,6 +147,7 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+#endif
 #ifdef USE_API_SERVICES
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
@@ -172,7 +181,9 @@ class APIServer : public Component, public Controller {
   std::string password_;
 #endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+#ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
+#endif
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
@@ -180,8 +191,12 @@ class APIServer : public Component, public Controller {
   // Group smaller types together
   uint16_t port_{6053};
   uint16_t batch_delay_{100};
+  // Connection limits - these defaults will be overridden by config values
+  // from cv.SplitDefault in __init__.py which sets platform-specific defaults
+  uint8_t listen_backlog_{4};
+  uint8_t max_connections_{8};
   bool shutting_down_ = false;
-  // 5 bytes used, 3 bytes padding
+  // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
@@ -196,6 +211,5 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   bool check(Ts... x) override { return global_api_server->is_connected(); }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

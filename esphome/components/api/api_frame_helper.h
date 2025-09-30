@@ -12,8 +12,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
@@ -67,7 +66,7 @@ enum class APIError : uint16_t {
 #endif
 };
 
-const char *api_error_to_str(APIError err);
+const LogString *api_error_to_logstr(APIError err);
 
 class APIFrameHelper {
  public:
@@ -105,9 +104,9 @@ class APIFrameHelper {
   // The buffer contains all messages with appropriate padding before each
   virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
   // Get the frame header padding required by this protocol
-  virtual uint8_t frame_header_padding() = 0;
+  uint8_t frame_header_padding() const { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
-  virtual uint8_t frame_footer_size() = 0;
+  uint8_t frame_footer_size() const { return frame_footer_size_; }
   // Check if socket has data ready to read
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
 
@@ -184,7 +183,6 @@ class APIFrameHelper {
   APIError handle_socket_read_result_(ssize_t received);
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 
 #endif  // USE_API
