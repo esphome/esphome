@@ -242,7 +242,6 @@ void VoiceAssistant::loop() {
       msg.flags = flags;
       msg.audio_settings = audio_settings;
       msg.set_wake_word_phrase(StringRef(this->wake_word_));
-      this->wake_word_ = "";
 
       // Reset media player state tracking
 #ifdef USE_MEDIA_PLAYER
