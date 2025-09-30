@@ -37,12 +37,14 @@ void APIServer::setup() {
 
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
 
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // Only load saved PSK if not set from YAML
   SavedNoisePsk noise_pref_saved{};
   if (this->noise_pref_.load(&noise_pref_saved)) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-
     this->set_noise_psk(noise_pref_saved.psk);
   }
+#endif
 #endif
 
   // Schedule reboot if no clients connect within timeout
@@ -85,7 +87,7 @@ void APIServer::setup() {
     return;
   }
 
-  err = this->socket_->listen(4);
+  err = this->socket_->listen(this->listen_backlog_);
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
     this->mark_failed();
@@ -138,9 +140,19 @@ void APIServer::loop() {
     while (true) {
       struct sockaddr_storage source_addr;
       socklen_t addr_len = sizeof(source_addr);
+
       auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
       if (!sock)
         break;
+
+      // Check if we're at the connection limit
+      if (this->clients_.size() >= this->max_connections_) {
+        ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, sock->getpeername().c_str());
+        // Immediately close - socket destructor will handle cleanup
+        sock.reset();
+        continue;
+      }
+
       ESP_LOGD(TAG, "Accept %s", sock->getpeername().c_str());
 
       auto *conn = new APIConnection(std::move(sock), this);
@@ -204,8 +216,10 @@ void APIServer::loop() {
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Server:\n"
-                "  Address: %s:%u",
-                network::get_use_address().c_str(), this->port_);
+                "  Address: %s:%u\n"
+                "  Listen backlog: %u\n"
+                "  Max connections: %u",
+                network::get_use_address().c_str(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
@@ -356,6 +370,15 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+  // We could add code to manage a second subscription type, but, since this message type is
+  //  very infrequent and small, we simply send it to all clients
+  for (auto &c : this->clients_)
+    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
@@ -410,6 +433,12 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
   auto &old_psk = this->noise_ctx_->get_psk();
   if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
     ESP_LOGW(TAG, "New PSK matches old");
@@ -438,6 +467,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
     });
   }
   return true;
+#endif
 }
 #endif
 
