@@ -81,7 +81,8 @@ void USBUartTypeCH34X::enum_chip_type_() {
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer for chiptype enumeration failed, status=%s", esp_err_to_name(status.error_code));
       return;
-    } elseif (status.success) {
+    }
+    elseif(status.success) {
       // chip detection cmd complete
       uint8_t chipver_ = buffer[0];
       uint8_t chiptype = buffer[1];
@@ -184,7 +185,8 @@ void USBUartTypeCH34X::enum_chip_type_() {
           this->chiptype_ = 255;
           break;
       }
-      ESP_LOGD(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(), this->num_ports_);
+      ESP_LOGD(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(),
+               this->num_ports_);
     }
   };
   this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, chip_detect_callback, buffer);
