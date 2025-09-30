@@ -49,7 +49,7 @@ canbus::CanEventFlags MCP2515::get_events() {
   }
 
   // The receive flowchart in the datasheet says that if rollover is set (BUKT), RX1OVR flag will be set
-  // once both both buffers are full. However, the RX0OVR flag is actually set instead.
+  // once both buffers are full. However, the RX0OVR flag is actually set instead.
   // We can just check for both though because it doesn't break anything.
   if (error_flags & (EFLG_RX0OVR | EFLG_RX1OVR)) {
     events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
