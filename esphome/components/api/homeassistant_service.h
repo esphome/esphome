@@ -4,6 +4,7 @@
 #ifdef USE_API
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 #include <functional>
+#include <utility>
 #include <vector>
 #include "api_pb2.h"
 #include "esphome/components/json/json_util.h"
@@ -49,8 +50,8 @@ template<typename... Ts> class TemplatableKeyValuePair {
 // Represents the response data from a Home Assistant action
 class ActionResponse {
  public:
-  ActionResponse(bool success, const std::string &error_message = "")
-      : success_(success), error_message_(error_message) {}
+  ActionResponse(bool success, std::string error_message = "")
+      : success_(success), error_message_(std::move(error_message)) {}
 
   bool is_success() const { return this->success_; }
   const std::string &get_error_message() const { return this->error_message_; }
