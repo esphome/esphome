@@ -54,36 +54,36 @@ CONF_VOLUME_MAX = "volume_max"
 def _get_auto_load():
     """Conditionally load PSRAM only when needed for speaker media player."""
     # Check if PSRAM is needed based on configuration
-    raw_config = getattr(CORE, 'raw_config', {})
-    
+    raw_config = getattr(CORE, "raw_config", {})
+
     # Look for media_player configurations
-    media_players = raw_config.get('media_player', [])
+    media_players = raw_config.get("media_player", [])
     if not isinstance(media_players, list):
         media_players = [media_players] if media_players else []
-    
+
     needs_psram = False
     for mp_config in media_players:
         if not isinstance(mp_config, dict):
             continue
         # Check if this is a speaker platform
-        platform = mp_config.get('platform')
-        if platform != 'speaker':
+        platform = mp_config.get("platform")
+        if platform != "speaker":
             continue
-            
+
         # Check if codec support is enabled (uses PSRAM for WiFi buffers)
         if mp_config.get(CONF_CODEC_SUPPORT_ENABLED, True):
             needs_psram = True
             break
-            
+
         # Check if task stack in PSRAM is enabled
         if mp_config.get(CONF_TASK_STACK_IN_PSRAM, False):
             needs_psram = True
             break
-    
+
     auto_load = ["audio"]
     if needs_psram:
         auto_load.append("psram")
-    
+
     return auto_load
 
 
