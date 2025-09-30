@@ -84,6 +84,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
 
   void add_client_(uint16_t conn_id) { this->clients_.insert(conn_id); }
   void remove_client_(uint16_t conn_id) { this->clients_.erase(conn_id); }
+  void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
 
   std::vector<CallbackEntry> callbacks_;
 
