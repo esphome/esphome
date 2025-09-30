@@ -139,6 +139,8 @@ If you are using a framework that does not support SPI-based ethernet modules wi
   For example, if it's set to `.local`, all uploads will be sent to `<HOSTNAME>.local`.
   Defaults to `.local`.
 
+- **mac_address** (*Optional*, MAC Address): Set the MAC address of the ethernet interface.
+
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
 {{< note >}}
