@@ -84,6 +84,7 @@ class EthernetComponent : public Component {
 #endif
   void set_type(EthernetType type);
   void set_manual_ip(const ManualIP &manual_ip);
+  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
@@ -155,6 +156,7 @@ class EthernetComponent : public Component {
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
+  optional<std::array<uint8_t, 6>> fixed_mac_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
