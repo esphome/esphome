@@ -37,7 +37,7 @@ struct device;
 namespace esphome::logger {
 
 // Color and letter constants for log levels
-static constexpr const char *const LOG_LEVEL_COLORS[] = {
+static const char *const LOG_LEVEL_COLORS[] = {
     "",                                            // NONE
     ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
