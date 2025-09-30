@@ -138,7 +138,8 @@ Because of this, `ping-pong` is only recommended to be used for state transmissi
 at `update_interval`.
 
 {{< /note >}}
-**Security considerations**
+
+### Security considerations
 
 The encryption used is [XXTEA](https://en.wikipedia.org/wiki/XXTEA) which is fast and compact. Although XXTEA is known
 to be susceptible to a chosen-plaintext attack, such an attack is not possible with this application, and it otherwise
