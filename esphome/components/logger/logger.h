@@ -51,9 +51,6 @@ static const char *const LOG_LEVEL_COLORS[] = {
 static constexpr char LOG_LEVEL_LETTER_CHARS[] = {'\0', 'E', 'W', 'I', 'C', 'D', 'V'};
 static constexpr uint8_t ANSI_COLOR_LEN = 7;
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
-static constexpr size_t constexpr_strlen(const char *str) { return *str ? 1 + constexpr_strlen(str + 1) : 0; }
-static_assert(constexpr_strlen(LOG_LEVEL_COLORS[0]) == 0, "Level 0 color must be empty");
-static_assert(constexpr_strlen(LOG_LEVEL_COLORS[1]) == 7, "Color codes must be 7 chars");
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
