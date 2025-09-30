@@ -254,7 +254,7 @@ KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 def _validate_response_config(config):
     if CONF_RESPONSE_TEMPLATE in config and not config.get(CONF_ON_RESPONSE):
         raise cv.Invalid(
-            "`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_ON_RESPONSE}` to be set."
+            f"`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_ON_RESPONSE}` to be set."
         )
     return config
 
