@@ -144,7 +144,7 @@ void OpenThreadSrpComponent::setup() {
   }
 
   // Get mdns services and copy their data (strings are copied with strdup below)
-  auto mdns_services = this->mdns_->get_services();
+  const auto &mdns_services = this->mdns_->get_services();
   ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
   for (const auto &service : mdns_services) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);

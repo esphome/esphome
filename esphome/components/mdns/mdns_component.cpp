@@ -200,8 +200,6 @@ void MDNSComponent::dump_config() {
 #endif
 }
 
-StaticVector<MDNSService, MDNS_SERVICE_COUNT> MDNSComponent::get_services() { return this->services_; }
-
 }  // namespace mdns
 }  // namespace esphome
 #endif

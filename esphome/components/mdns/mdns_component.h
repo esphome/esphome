@@ -39,10 +39,10 @@ class MDNSComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
 #ifdef USE_MDNS_EXTRA_SERVICES
-  void add_extra_service(MDNSService service) { services_.push_back(std::move(service)); }
+  void add_extra_service(MDNSService service) { this->services_.push_back(std::move(service)); }
 #endif
 
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> get_services();
+  const StaticVector<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return this->services_; }
 
   void on_shutdown() override;
 
