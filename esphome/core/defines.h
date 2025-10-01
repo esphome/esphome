@@ -115,6 +115,7 @@
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
 #define USE_API_SERVICES
+#define API_MAX_SEND_QUEUE 8
 #define USE_MD5
 #define USE_SHA256
 #define USE_MQTT
