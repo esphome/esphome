@@ -26,7 +26,7 @@ static const uint32_t INTER_FRAME_GAP_US = 34760;
 
 void SymphonyProtocol::encode(RemoteTransmitData *dst, const SymphonyData &data) {
   dst->set_carrier_frequency(CARRIER_FREQUENCY);
-  ESP_LOGD(TAG, "Sending Symphony: data=0x%0*X nbits=%u repeats=%u", (data.nbits + 3) / 4, (unsigned int) data.data,
+  ESP_LOGD(TAG, "Sending Symphony: data=0x%0*X nbits=%u repeats=%u", (data.nbits + 3) / 4, (uint32_t) data.data,
            data.nbits, data.repeats);
   // Each bit produces a mark+space (2 entries). We fold the inter-frame/footer gap
   // into the last bit's space of each frame to avoid over-length gaps.
@@ -63,9 +63,7 @@ optional<SymphonyData> SymphonyProtocol::decode(RemoteReceiveData src) {
   SymphonyData out{0, 0, 1};
 
   for (; out.nbits < 32; out.nbits++) {
-    uint32_t bit;
     if (s.expect_mark(BIT_ONE_HIGH_US)) {
-      bit = 1;
       if (!s.expect_space(BIT_ONE_LOW_US)) {
         // Allow footer gap immediately after the last mark
         if (s.peek_space_at_least(FOOTER_GAP_US)) {
@@ -78,8 +76,10 @@ optional<SymphonyData> SymphonyProtocol::decode(RemoteReceiveData src) {
         }
         return {};
       }
+      // Successfully consumed a '1' bit (mark + space)
+      out.data = (out.data << 1UL) | 1UL;
+      continue;
     } else if (s.expect_mark(BIT_ZERO_HIGH_US)) {
-      bit = 0;
       if (!s.expect_space(BIT_ZERO_LOW_US)) {
         // Allow footer gap immediately after the last mark
         if (s.peek_space_at_least(FOOTER_GAP_US)) {
@@ -92,6 +92,9 @@ optional<SymphonyData> SymphonyProtocol::decode(RemoteReceiveData src) {
         }
         return {};
       }
+      // Successfully consumed a '0' bit (mark + space)
+      out.data = (out.data << 1UL) | 0UL;
+      continue;
     } else {
       // Completed a valid-length frame followed by a footer gap
       if (is_valid_len(out.nbits) && s.peek_space_at_least(FOOTER_GAP_US)) {
@@ -99,7 +102,6 @@ optional<SymphonyData> SymphonyProtocol::decode(RemoteReceiveData src) {
       }
       return {};
     }
-    out.data = (out.data << 1UL) | bit;
   }
 
   if (is_valid_len(out.nbits) && s.peek_space_at_least(FOOTER_GAP_US)) {
@@ -110,8 +112,8 @@ optional<SymphonyData> SymphonyProtocol::decode(RemoteReceiveData src) {
 }
 
 void SymphonyProtocol::dump(const SymphonyData &data) {
-  const int hex_width = (data.nbits + 3) / 4;  // pad to nibble width
-  ESP_LOGI(TAG, "Received Symphony: data=0x%0*X, nbits=%d", hex_width, (unsigned int) data.data, data.nbits);
+  const int32_t hex_width = (data.nbits + 3) / 4;  // pad to nibble width
+  ESP_LOGI(TAG, "Received Symphony: data=0x%0*X, nbits=%d", hex_width, (uint32_t) data.data, data.nbits);
 }
 
 }  // namespace remote_base
