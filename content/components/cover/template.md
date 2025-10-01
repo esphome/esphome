@@ -123,16 +123,14 @@ Configuration options:
 - **current_operation** (*Optional*, [templatable](#config-templatable), string):
   The current operation mode to publish. One of `IDLE`, `OPENING` and `CLOSING`. If using a lambda, use `COVER_OPERATION_IDLE`, `COVER_OPERATION_OPENING`, and `COVER_OPERATION_CLOSING`.
 
-{{< note >}}
-This action can also be written in lambdas:
-
-```cpp
-id(template_cov).position = COVER_OPEN;
-id(template_cov).tilt = 0.5;
-id(template_cov).publish_state();
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas:
+>
+> ```cpp
+> id(template_cov).position = COVER_OPEN;
+> id(template_cov).tilt = 0.5;
+> id(template_cov).publish_state();
+> ```
 
 ## See Also
 

@@ -35,11 +35,10 @@ To upload the binary, navigate to the ESPEasy web interface and enter the
 Press "Load" under Firmware, then select the binary you previously downloaded and upload
 the binary. If everything succeeds, you should now have ESPHome on your node 🎉.
 
-{{< note >}}
-with ESPHome, you in most cases won't need to worry about the available flash size, as
-the binary only ever includes the code that you are actually using.
+> [!NOTE]
+> with ESPHome, you in most cases won't need to worry about the available flash size, as
+> the binary only ever includes the code that you are actually using.
 
-{{< /note >}}
 Happy Hacking!
 
 ## See Also

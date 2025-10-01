@@ -28,18 +28,16 @@ for properly understanding the functionality of your flasher devboard.
 
 You need to make the following electrical connections:
 
-{{< note >}}
-
-- Most ESP32 S and C series devboards do *not* have a separate USB-UART chip - they have it built into the ESP. See
-  below for instructions regarding ESP32-S series.
-
-- The 5V connection on either board may be labelled either `5V` or `VIN`. Some boards may not have a 5V connection
-  and will require 3.3V only.
-
-- Rather than powering the target board from the flasher board, it is also possible to use a separate power supply,
-  just make sure all the ground pins are connected together.
-
-{{< /note >}}
+> [!NOTE]
+>
+> - Most ESP32 S and C series devboards do *not* have a separate USB-UART chip - they have it built into the ESP. See
+>   below for instructions regarding ESP32-S series.
+>
+> - The 5V connection on either board may be labelled either `5V` or `VIN`. Some boards may not have a 5V connection
+>   and will require 3.3V only.
+>
+> - Rather than powering the target board from the flasher board, it is also possible to use a separate power supply,
+>   just make sure all the ground pins are connected together.
 
 - connect both `EN` and `GND` together in the flasher devboard
 - `+5.0V` or `3V3` on the flasher devboard to `VIN` or `3V3` respectively of the target device
@@ -50,15 +48,14 @@ You need to make the following electrical connections:
 Pulling down `EN` by connecting it to `GND` on the flasher board prevents
 the ESP chip on flasher module from booting and polluting the serial lines.
 
-{{< note >}}
+> [!NOTE]
+>
+> - If the board has not previously had ESPHome loaded, you may need to pull the `IO0` pin low (i.e. connected to `GND`)
+>   to force the board into flash mode.
+>   This must be done before power is applied.
+>
+> - Do not connect 3V3 to VIN of the target devices with a 3V3 LDO as it may lead to brownouts.
 
-- If the board has not previously had ESPHome loaded, you may need to pull the `IO0` pin low (i.e. connected to `GND`)
-  to force the board into flash mode.
-  This must be done before power is applied.
-
-- Do not connect 3V3 to VIN of the target devices with a 3V3 LDO as it may lead to brownouts.
-
-{{< /note >}}
 Once the connections are made, plug the flasher board into your computer via USB and proceed with flashing the target
 board via whichever means you intend to use.
 
@@ -80,13 +77,11 @@ The connections needed to flash a target device using an ESP32-S devboard are:
 Because we are using the internal UART of the ESP the TX and RX lines should be crossed.
 This is in contrast to the aforementioned devboards with external USB_UART bridge chip.
 
-{{< note >}}
-Because we have made our ESP32-S Series board act like a USB_UART bridge,
-flashing another binary on it won't work because the exposed COM port corresponds to the USB_UART bridge.
-For that, you need to first manually put it into DOWNLOAD mode.
-(by holding RESET and tapping BOOT button)
-
-{{< /note >}}
+> [!NOTE]
+> Because we have made our ESP32-S Series board act like a USB_UART bridge,
+> flashing another binary on it won't work because the exposed COM port corresponds to the USB_UART bridge.
+> For that, you need to first manually put it into DOWNLOAD mode.
+> (by holding RESET and tapping BOOT button)
 
 ## See Also
 

@@ -56,13 +56,11 @@ An electrically isolated version using an opto-coupler:
 
 Another approach, with PCB design ready to be manufactured [can be found here](https://github.com/FatBeard/vbus-arduino-library/tree/master/pcb).
 
-{{< warning >}}
-Do not connect the GND pin of your module with the ground of Resol unit as that may damage the output port of it.
-The output of the device is symmetric, meaning that the signal is not referenced to the ground, but rather it's a
-differential signal between the two wires. However, the MCU references the signal against the ground, so the two
-grounds are not supposed to be connected to each other as can be seen in the circuit depicted above.
-
-{{< /warning >}}
+> [!WARNING]
+> Do not connect the GND pin of your module with the ground of Resol unit as that may damage the output port of it.
+> The output of the device is symmetric, meaning that the signal is not referenced to the ground, but rather it's a
+> differential signal between the two wires. However, the MCU references the signal against the ground, so the two
+> grounds are not supposed to be connected to each other as can be seen in the circuit depicted above.
 
 ## Component
 
@@ -72,23 +70,19 @@ vbus:
   uart_id: resol
 ```
 
-{{< warning >}}
-If you are using the {{< docref "logger/" >}} make sure you are not using the same pins for it or otherwise disable the UART
-logging with the `baud_rate: 0` option.
-
-{{< /warning >}}
+> [!WARNING]
+> If you are using the {{< docref "logger/" >}} make sure you are not using the same pins for it or otherwise disable the UART
+> logging with the `baud_rate: 0` option.
 
 ### Configuration variables
 
 - **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub used to connect to the device.
 
-{{< note >}}
-Functionality of the sensors depends on the type of the device and the scheme arrangement of the hydraulic
-system it controls. The actual arrangement number set up can be determined from the settings of the device. Please
-check the user manual and assess your arrangement to determine the functionality of each sensor and name them
-accordingly.
-
-{{< /note >}}
+> [!NOTE]
+> Functionality of the sensors depends on the type of the device and the scheme arrangement of the hydraulic
+> system it controls. The actual arrangement number set up can be determined from the settings of the device. Please
+> check the user manual and assess your arrangement to determine the functionality of each sensor and name them
+> accordingly.
 
 ## Sensor
 
@@ -134,11 +128,9 @@ Supported sensors:
 
 All sensors are *Optional* and support all other options from [Sensor](#config-sensor).
 
-{{< note >}}
-Sensors are updated every time a data packet is sent by the device. Some models send data very often, possibly every second. If you are
-concerned about the load on the receiving database, you can add a `throttle` filter to the sensors.
-
-{{< /note >}}
+> [!NOTE]
+> Sensors are updated every time a data packet is sent by the device. Some models send data very often, possibly every second. If you are
+> concerned about the load on the receiving database, you can add a `throttle` filter to the sensors.
 
 ## Binary Sensor
 

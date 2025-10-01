@@ -94,10 +94,9 @@ Configuration variables:
 - **send_to_nextion** (*Optional*, bool, [templatable](#config-templatable)): Publish new state to Nextion
   display which will update component. Default is true.
 
-{{< note >}}
-This action can also be written in lambdas. See [Lambda Calls](#nextion_text_sensor_lambda_calls)
+> [!NOTE]
+> This action can also be written in lambdas. See [Lambda Calls](#nextion_text_sensor_lambda_calls)
 
-{{< /note >}}
 {{< anchor "nextion_text_sensor_lambda_calls" >}}
 
 ### Lambda Calls
@@ -129,21 +128,19 @@ component or function you want to trigger the send. Typically this is in *Touch 
 set in the *Touch Release Event* to capture all the changes. Since this is a custom protocol it can be sent from anywhere (timers/functions/components)
 in the Nextion.
 
-{{< note >}}
-There is no need to check the *Send Component ID* for the *Touch Press Event* or *Touch Release Event*
-since this will be sending the real value to esphome.
+> [!NOTE]
+> There is no need to check the *Send Component ID* for the *Touch Press Event* or *Touch Release Event*
+> since this will be sending the real value to esphome.
 
-{{< /note >}}
 Using the above yaml example:
 
 - "text0" will poll the Nextion for `text0.txt` value and set the state accordingly.
 
 - [Lambda Calls](#nextion_text_sensor_lambda_calls).
 
-{{< note >}}
-No updates will be sent to the Nextion if it is sleeping. Once it wakes, the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.
+> [!NOTE]
+> No updates will be sent to the Nextion if it is sleeping. Once it wakes, the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.
 
-{{< /note >}}
 {{< anchor "nextion_custom_text_sensor_protocol" >}}
 
 ## Nextion Custom Text Sensor Protocol

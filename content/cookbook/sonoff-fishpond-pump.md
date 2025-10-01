@@ -33,11 +33,9 @@ As many of the details on here a predicated on existing installations and knowle
 * You will look at the documentation on this website (we may have missed something in this example).
 * This serves only as a guide and errors and outlets are excluded.
 
-{{< warning >}}
-Do NOT connect your device to electricity when programming it.
-Take care working with electricity at all times
-
-{{< /warning >}}
+> [!WARNING]
+> Do NOT connect your device to electricity when programming it.
+> Take care working with electricity at all times
 
 ## 1. Configuration
 

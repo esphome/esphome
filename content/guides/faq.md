@@ -139,16 +139,14 @@ If you prefer the more manual way:
 `esptool` is a command-line/terminal application which can be used to perform a variety of tasks on Espressif
 microcontrollers. It's not the most user-friendly approach, but it's quite powerful and can be useful if you get stuck.
 
-{{< note >}}
-Before using `esptool`, make sure you know which serial port your board/serial adapter is connected to!
-
-- In Linux, you can use the `dmesg` command after you plug the device into the USB port to see the name of the
-  (new) serial port.
-
-- In Windows, look in the Device Manager to see if a new serial port appears when you plug it in and note the (new)
-  port's COM number.
-
-{{< /note >}}
+> [!NOTE]
+> Before using `esptool`, make sure you know which serial port your board/serial adapter is connected to!
+>
+> - In Linux, you can use the `dmesg` command after you plug the device into the USB port to see the name of the
+>   (new) serial port.
+>
+> - In Windows, look in the Device Manager to see if a new serial port appears when you plug it in and note the (new)
+>   port's COM number.
 
 ### Erase flash
 
@@ -531,30 +529,29 @@ services:
 
 {{< anchor "docker-reference-notes" >}}
 
-{{< note >}}
-By default, ESPHome uses mDNS to resolve device IPs on the network; this is used to determine online/offline state
-in the [ESPHome Device Builder](#installing-esphome-device-builder). In order for this feature to work, you
-must use Docker's host networking mode.
+> [!NOTE]
+> By default, ESPHome uses mDNS to resolve device IPs on the network; this is used to determine online/offline state
+> in the [ESPHome Device Builder](#installing-esphome-device-builder). In order for this feature to work, you
+> must use Docker's host networking mode.
+>
+> The [host networking driver](https://docs.docker.com/network/drivers/host/) only works on Linux hosts; it is
+> available on Docker Desktop version 4.29 and later.
+>
+> If you don't want to use the host networking driver, you have to use an alternate method as described below.
+>
+> Note that mDNS might not work if your Home Assistant server and your ESPHome nodes are on different subnets
+> and/or VLANs. If your router supports Avahi, you can configure mDNS to work across different subnets.
+> For example, in OpenWRT or pfSense:
+>
+> 1. Enable Avahi on both subnets (install Avahi modules on OpenWRT or pfSense).
+> 1. Enable UDP traffic from your ESPHome device's subnet to 224.0.0.251/32 on port 5353.
+>
+> Alternatively, you can configure the [ESPHome Device Builder](#installing-esphome-device-builder) to use ICMP
+> pings to check the status of devices by setting `"status_use_ping": true` or, with Docker:
+> `-e ESPHOME_DASHBOARD_USE_PING=true`
+>
+> See also <https://github.com/esphome/issues/issues/641#issuecomment-534156628>.
 
-The [host networking driver](https://docs.docker.com/network/drivers/host/) only works on Linux hosts; it is
-available on Docker Desktop version 4.29 and later.
-
-If you don't want to use the host networking driver, you have to use an alternate method as described below.
-
-Note that mDNS might not work if your Home Assistant server and your ESPHome nodes are on different subnets
-and/or VLANs. If your router supports Avahi, you can configure mDNS to work across different subnets.
-For example, in OpenWRT or pfSense:
-
-1. Enable Avahi on both subnets (install Avahi modules on OpenWRT or pfSense).
-1. Enable UDP traffic from your ESPHome device's subnet to 224.0.0.251/32 on port 5353.
-
-Alternatively, you can configure the [ESPHome Device Builder](#installing-esphome-device-builder) to use ICMP
-pings to check the status of devices by setting `"status_use_ping": true` or, with Docker:
-`-e ESPHOME_DASHBOARD_USE_PING=true`
-
-See also <https://github.com/esphome/issues/issues/641#issuecomment-534156628>.
-
-{{< /note >}}
 {{< anchor "faq-notes_on_disabling_mdns" >}}
 
 ## Notes on disabling mDNS

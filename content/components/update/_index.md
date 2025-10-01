@@ -25,11 +25,9 @@ update:
   **name** must be specified.
 - **name** (*Optional*, string): The name of the update entity. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the light to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the light to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the update entity. See
   <https://www.home-assistant.io/integrations/binary_sensor/#device-class> for a list of available options.

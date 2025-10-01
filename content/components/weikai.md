@@ -134,15 +134,14 @@ positions of two switches, A0 and A1, on the board.
 | 0x50 - 0x57 | 1 | 0 |
 | 0x70 - 0x77 | 1 | 1 |
 
-{{< important >}}
-Note that the address is given as a **range** a not a number as you usually find on other I²C component.
-Indeed due to a peculiar way of addressing the different internal registers each component actually occupy
-8 consecutive addresses. For example if the component base address is 0x10, it will occupy the addresses ranging from
-0x10 to 0x17 on the I²C bus.
+> [!IMPORTANT]
+> Note that the address is given as a **range** a not a number as you usually find on other I²C component.
+> Indeed due to a peculiar way of addressing the different internal registers each component actually occupy
+> 8 consecutive addresses. For example if the component base address is 0x10, it will occupy the addresses ranging from
+> 0x10 to 0x17 on the I²C bus.
+>
+> This is important to know if you want to connect other devices on the same I²C bus.
 
-This is important to know if you want to connect other devices on the same I²C bus.
-
-{{< /important >}}
 Here is an example of configuration entry for a `wk2168_i2c` component. For the other components
 just replace the name of the component and do not use more channels that the chip can
 support (an error message will be generated in this case).

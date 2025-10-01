@@ -7,12 +7,10 @@ The preferred way to get time in ESPHome is using Home Assistant.
 With the `homeassistant` time platform, the {{< docref "/components/api" "native API" >}} connection
 to Home Assistant will be used to periodically synchronize the current time.
 
-{{< note >}}
-Although you might not plan to *export* states from the node and you do not need an entity of the node
-in Home Assistant, this component still requires you to register the node under Home Assistant. See:
-[Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
-
-{{< /note >}}
+> [!NOTE]
+> Although you might not plan to *export* states from the node and you do not need an entity of the node
+> in Home Assistant, this component still requires you to register the node under Home Assistant. See:
+> [Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
 
 ```yaml
 # Example configuration entry

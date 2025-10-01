@@ -51,12 +51,10 @@ sensor:
 - **update_interval** (*Optional*, [Time](#config-time)): The interval to check the
   sensor. Defaults to `60s`.
 
-{{< note >}}
-ZGm05 monitor (and maybe others) needs some initial time to get correct data when powered
-on. Only after this timespan will the sensor report correct values. It's not recommended to set
-`update_interval` lower than `20s`.
-
-{{< /note >}}
+> [!NOTE]
+> ZGm05 monitor (and maybe others) needs some initial time to get correct data when powered
+> on. Only after this timespan will the sensor report correct values. It's not recommended to set
+> `update_interval` lower than `20s`.
 
 ## See Also
 

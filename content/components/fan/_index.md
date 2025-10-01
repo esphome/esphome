@@ -29,11 +29,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name of the fan. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the fan to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the fan to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the fan in the frontend.
 - **restore_mode** (*Optional*): Control how the fan attempts to restore state on boot.

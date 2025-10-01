@@ -13,14 +13,12 @@ If the audio stream doesn't require resampling, it is automatically sent directl
 
 This platform only works on ESP32 based chips.
 
-{{< warning >}}
-Audio and voice components consume a significant amount of resources (RAM and CPU) on the device.
-
-**Crashes are likely to occur** if you include too many additional components in your device's
-configuration. In particular, Bluetooth/BLE components are known to cause issues when used in
-combination with Voice Assistant and/or other audio components.
-
-{{< /warning >}}
+> [!WARNING]
+> Audio and voice components consume a significant amount of resources (RAM and CPU) on the device.
+>
+> **Crashes are likely to occur** if you include too many additional components in your device's
+> configuration. In particular, Bluetooth/BLE components are known to cause issues when used in
+> combination with Voice Assistant and/or other audio components.
 
 ```yaml
 # Example configuration entry

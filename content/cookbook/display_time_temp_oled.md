@@ -23,10 +23,8 @@ Hardware is easy! Only four connections are needed:
 - `SDA` - Serial Data
 - `SCL` - Serial Clock
 
-{{< warning >}}
-Ensure your display handles 5V if you use that.
-
-{{< /warning >}}
+> [!WARNING]
+> Ensure your display handles 5V if you use that.
 
 ## Software configuration
 

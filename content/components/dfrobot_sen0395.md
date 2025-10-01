@@ -159,12 +159,11 @@ switch:
 
 ### `dfrobot_sen0395.settings` Action
 
-{{< warning >}}
-Each change to the configuration of the mmWave radar triggers a write to its internal flash/EEPROM.
-Write cycles to this memory are limited, so avoid the practice of changing settings frequently.
-Determine the appropriate settings for your device and avoid changing them unless absolutely necessary.
+> [!WARNING]
+> Each change to the configuration of the mmWave radar triggers a write to its internal flash/EEPROM.
+> Write cycles to this memory are limited, so avoid the practice of changing settings frequently.
+> Determine the appropriate settings for your device and avoid changing them unless absolutely necessary.
 
-{{< /warning >}}
 The DFRobot mmWave Radar has several settings which can be changed. These settings are saved in non-volatile memory
 and do not need to be set on each boot.
 

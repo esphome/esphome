@@ -12,11 +12,10 @@ Currently only the A4988 stepper driver
 ([datasheet](https://www.pololu.com/file/0J450/a4988_DMOS_microstepping_driver_with_translator.pdf))
 and ULN2003 ([datasheet](http://www.ti.com/lit/ds/symlink/uln2003a.pdf)) are supported.
 
-{{< note >}}
-This component will not show up in the Home Assistant front-end automatically because
-Home Assistant doesn't have support for steppers. Please see [Home Assistant Configuration](#stepper-ha-config).
+> [!NOTE]
+> This component will not show up in the Home Assistant front-end automatically because
+> Home Assistant doesn't have support for steppers. Please see [Home Assistant Configuration](#stepper-ha-config).
 
-{{< /note >}}
 {{< anchor "base_stepper_config" >}}
 
 ## Base Stepper Configuration
@@ -70,33 +69,30 @@ Configuration variables:
 
 - All other from [Base Stepper Configuration](#base_stepper_config).
 
-{{< note >}}
-If the stepper is driving in the wrong direction, you can invert the `dir_pin`  :
+> [!NOTE]
+> If the stepper is driving in the wrong direction, you can invert the `dir_pin`  :
+>
+> ```yaml
+> stepper:
+>   - platform: a4988
+>     # ...
+>     dir_pin:
+>       number: GPIOXX
+>       inverted: true
+> ```
 
-```yaml
-stepper:
-  - platform: a4988
-    # ...
-    dir_pin:
-      number: GPIOXX
-      inverted: true
-```
-
-{{< /note >}}
-{{< note >}}
-TMC drivers are pin-compatible with the A4988, but instead of a `SLEEP` pin they expose an `ENABLE` pin.
-When using a TMC driver with the `a4988` platform you therefore need to invert the `sleep_pin`  :
-
-```yaml
-stepper:
-  - platform: a4988
-    # ...
-    sleep_pin:
-      number: GPIOXX
-      inverted: true
-```
-
-{{< /note >}}
+> [!NOTE]
+> TMC drivers are pin-compatible with the A4988, but instead of a `SLEEP` pin they expose an `ENABLE` pin.
+> When using a TMC driver with the `a4988` platform you therefore need to invert the `sleep_pin`  :
+>
+> ```yaml
+> stepper:
+>   - platform: a4988
+>     # ...
+>     sleep_pin:
+>       number: GPIOXX
+>       inverted: true
+> ```
 
 ## ULN2003 Component
 
@@ -166,23 +162,22 @@ Configuration options:
 - **id** (**Required**, [ID](#config-id)): The ID of the stepper.
 - **target** (**Required**, int, [templatable](#config-templatable)): The target position in steps.
 
-{{< warning >}}
-This turns the stepper to an absolute position! To have the stepper motor move *relative* to the current
-position, first reset the current position and then set the target to the relative value.
+> [!WARNING]
+> This turns the stepper to an absolute position! To have the stepper motor move *relative* to the current
+> position, first reset the current position and then set the target to the relative value.
+>
+> ```yaml
+> on_...:
+>   then:
+>     # Move 150 steps forward
+>     - stepper.report_position:
+>         id: my_stepper
+>         position: 0
+>     - stepper.set_target:
+>         id: my_stepper
+>         target: 150
+> ```
 
-```yaml
-on_...:
-  then:
-    # Move 150 steps forward
-    - stepper.report_position:
-        id: my_stepper
-        position: 0
-    - stepper.set_target:
-        id: my_stepper
-        target: 150
-```
-
-{{< /warning >}}
 {{< anchor "stepper-report_position_action" >}}
 
 ## `stepper.report_position` Action

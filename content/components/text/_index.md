@@ -11,10 +11,9 @@ ESPHome has support for components to create a text entity. A text entity is
 like a `text_sensor` that can read a value from a device, but is useful when that value
 can be set by the user/frontend.
 
-{{< note >}}
-Home Assistant Core 2023.11 or higher is required for ESPHome text entities to work.
+> [!NOTE]
+> Home Assistant Core 2023.11 or higher is required for ESPHome text entities to work.
 
-{{< /note >}}
 {{< anchor "config-text" >}}
 
 ## Base Text Configuration
@@ -34,11 +33,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (**Required**, string): The name for the text.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the text to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the text to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the text in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will

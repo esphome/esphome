@@ -13,10 +13,8 @@ Thread uses the same RF technology as Zigbee (IEEE 802.15.4) but provides IP con
 
 The purpose of this component is to allow ESPHome nodes to communicate over a Thread network. It permits the state of sensors and binary sensors to be send to Home Assistant via 6LoWPAN packets. This OpenThread component relies on [OpenThread](https://openthread.io) which is an open-source implementation of Thread.
 
-{{< note >}}
-You will need a [Thread border router](https://www.home-assistant.io/integrations/thread#about-thread-border-routers) to connect your node to a Thread network.
-
-{{< /note >}}
+> [!NOTE]
+> You will need a [Thread border router](https://www.home-assistant.io/integrations/thread#about-thread-border-routers) to connect your node to a Thread network.
 
 ## Usage
 

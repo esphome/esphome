@@ -17,12 +17,10 @@ When enabled, an "OTA Update" section appears on the device's web interface wher
 firmware file. This is particularly useful for devices that are deployed in the field or when you want to allow
 non-technical users to perform updates.
 
-{{< warning >}}
-Enabling OTA updates through the web interface without authentication allows anyone with network access to your
-device to upload new firmware. It is **strongly recommended** to enable authentication on the web server when
-using this feature.
-
-{{< /warning >}}
+> [!WARNING]
+> Enabling OTA updates through the web interface without authentication allows anyone with network access to your
+> device to upload new firmware. It is **strongly recommended** to enable authentication on the web server when
+> using this feature.
 
 ```yaml
 # Example configuration entry
@@ -41,10 +39,8 @@ ota:
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 - All [automations](#automation) supported by {{< docref "/components/ota" >}}.
 
-{{< note >}}
-This platform requires the {{< docref "/components/web_server" >}} component to be configured in your device.
-
-{{< /note >}}
+> [!NOTE]
+> This platform requires the {{< docref "/components/web_server" >}} component to be configured in your device.
 
 ## Migration from Legacy Configuration
 
@@ -108,13 +104,11 @@ ota:
 1. Click "Update" to start the upload
 1. Wait for the upload to complete - the device will automatically reboot with the new firmware
 
-{{< warning >}}
-
-- Always use `firmware.bin` or `firmware.ota.bin` files for OTA updates, not `firmware.factory.bin` files
-- The web interface may become unresponsive during the update process - this is normal
-- Do not power off the device during an update
-
-{{< /warning >}}
+> [!WARNING]
+>
+> - Always use `firmware.bin` or `firmware.ota.bin` files for OTA updates, not `firmware.factory.bin` files
+> - The web interface may become unresponsive during the update process - this is normal
+> - Do not power off the device during an update
 
 ## See Also
 

@@ -36,14 +36,13 @@ light:
 
 - All other options from [Output](#config-output).
 
-{{< note >}}
-If you previously had Tasmota installed on your device and have just flashed ESPHome onto it,
-you may encounter an issue where the PWM output is only fully on or off.
+> [!NOTE]
+> If you previously had Tasmota installed on your device and have just flashed ESPHome onto it,
+> you may encounter an issue where the PWM output is only fully on or off.
+>
+> A hard reset fixes the problem - if you have this issue please power cycle the device, that
+> should fix it.
 
-A hard reset fixes the problem - if you have this issue please power cycle the device, that
-should fix it.
-
-{{< /note >}}
 {{< anchor "output-esp8266_pwm-set_frequency_action" >}}
 
 ## `output.esp8266_pwm.set_frequency` Action

@@ -34,9 +34,8 @@ deep_sleep:
   sleep_duration: 10min
 ```
 
-{{< note >}}
-Some ESP8266s have an onboard USB chip (e.g. D1 mini) on the chips' control line that is connected to the RST pin. This enables the flasher to reboot the ESP when required. This may interfere with deep sleep on some devices and prevent the ESP from waking when it's powered through its USB connector. Powering the ESP from a separate 3.3V source connected to the 3.3V pin and GND will solve this issue. In these cases, using a USB to TTL adapter will allow you to log ESP activity.
-{{< /note >}}
+> [!NOTE]
+> Some ESP8266s have an onboard USB chip (e.g. D1 mini) on the chips' control line that is connected to the RST pin. This enables the flasher to reboot the ESP when required. This may interfere with deep sleep on some devices and prevent the ESP from waking when it's powered through its USB connector. Powering the ESP from a separate 3.3V source connected to the 3.3V pin and GND will solve this issue. In these cases, using a USB to TTL adapter will allow you to log ESP activity.
 
 ## Configuration variables
 
@@ -72,10 +71,9 @@ Advanced features:
     - `ALL_LOW`: wake up when all selected pins are LOW (ESP32 only)
     - `ANY_HIGH`: wake up when any selected pin is HIGH
 
-{{< note >}}
-Only one deep sleep component may be configured.
+> [!NOTE]
+> Only one deep sleep component may be configured.
 
-{{< /note >}}
 {{< anchor "deep_sleep-esp32_wakeup_pin_mode" >}}
 
 ## ESP32 Wakeup Pin Mode
@@ -171,38 +169,37 @@ on_...:
     - deep_sleep.prevent: deep_sleep_1
 ```
 
-{{< note >}}
-For example, if you want to upload a binary via OTA with deep sleep mode it can be difficult to
-catch the ESP being active.
+> [!NOTE]
+> For example, if you want to upload a binary via OTA with deep sleep mode it can be difficult to
+> catch the ESP being active.
+>
+> You can use this automation to automatically prevent deep sleep when a MQTT message on the topic
+> `livingroom/ota_mode` is received. Then, to do the OTA update, just
+> use a MQTT client to publish a retained MQTT message described below. When the node wakes up again
+> it will no longer enter deep sleep mode and you can upload your OTA update.
+>
+> Remember to turn "OTA mode" off again after the OTA update by sending a MQTT message with the payload
+> `OFF`. To enter the deep sleep again after the OTA update send a message on the topic `livingroom/sleep_mode`
+> with payload `ON`. Deep sleep will start immediately. Don't forget to delete the payload before the node
+> wakes up again.
+>
+> ```yaml
+> deep_sleep:
+>   # ...
+>   id: deep_sleep_1
+> mqtt:
+>   # ...
+>   on_message:
+>     - topic: livingroom/ota_mode
+>       payload: 'ON'
+>       then:
+>         - deep_sleep.prevent: deep_sleep_1
+>     - topic: livingroom/sleep_mode
+>       payload: 'ON'
+>       then:
+>         - deep_sleep.enter: deep_sleep_1
+> ```
 
-You can use this automation to automatically prevent deep sleep when a MQTT message on the topic
-`livingroom/ota_mode` is received. Then, to do the OTA update, just
-use a MQTT client to publish a retained MQTT message described below. When the node wakes up again
-it will no longer enter deep sleep mode and you can upload your OTA update.
-
-Remember to turn "OTA mode" off again after the OTA update by sending a MQTT message with the payload
-`OFF`. To enter the deep sleep again after the OTA update send a message on the topic `livingroom/sleep_mode`
-with payload `ON`. Deep sleep will start immediately. Don't forget to delete the payload before the node
-wakes up again.
-
-```yaml
-deep_sleep:
-  # ...
-  id: deep_sleep_1
-mqtt:
-  # ...
-  on_message:
-    - topic: livingroom/ota_mode
-      payload: 'ON'
-      then:
-        - deep_sleep.prevent: deep_sleep_1
-    - topic: livingroom/sleep_mode
-      payload: 'ON'
-      then:
-        - deep_sleep.enter: deep_sleep_1
-```
-
-{{< /note >}}
 {{< anchor "deep_sleep-allow_action" >}}
 
 ## `deep_sleep.allow` Action

@@ -12,12 +12,11 @@ Both the EZO-PMP ([datasheet](https://files.atlas-scientific.com/EZO_PMP_Datashe
 and EZO-PMP-L ([datasheet](https://files.atlas-scientific.com/EZO_PMP_L_Datasheet.pdf)) are supported.
 The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
 
-{{< note >}}
-This component will not be directly controllable in the Home Assistant front-end automatically because
-Home Assistant doesn't have support for pumps. In order to control the pump from the frontend you will need to use
-templates to offer access to the actions you need. Please see [Home Assistant Configuration](#ezo-pmp-ha-config).
+> [!NOTE]
+> This component will not be directly controllable in the Home Assistant front-end automatically because
+> Home Assistant doesn't have support for pumps. In order to control the pump from the frontend you will need to use
+> templates to offer access to the actions you need. Please see [Home Assistant Configuration](#ezo-pmp-ha-config).
 
-{{< /note >}}
 {{< img src="ezo-pmp.jpg" alt="Image" width="80.0%" class="align-center" >}}
 
 ## Component/Hub

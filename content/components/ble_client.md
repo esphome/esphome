@@ -11,25 +11,23 @@ The `ble_client` component enables connections to Bluetooth Low Energy devices i
 control them. This component does not expose any sensors or output components itself, but merely manages
 connections to them for use by other components.
 
-{{< warning >}}
-The BLE software stack on the ESP32 consumes a significant amount of RAM on the device.
+> [!WARNING]
+> The BLE software stack on the ESP32 consumes a significant amount of RAM on the device.
+>
+> **Crashes are likely to occur** if you include too many additional components in your device's
+> configuration. Memory-intensive components such as {{< docref "/components/voice_assistant" >}} and other
+> audio components are most likely to cause issues.
 
-**Crashes are likely to occur** if you include too many additional components in your device's
-configuration. Memory-intensive components such as {{< docref "/components/voice_assistant" >}} and other
-audio components are most likely to cause issues.
+> [!NOTE]
+> A maximum of three devices is supported due to limitations in the ESP32 BLE stack. If you wish to
+> connect more devices, use additional ESP32 boards.
+>
+> This component supports devices that require a 6 digit PIN code for authentication.
+>
+> Currently, devices connected with the client cannot be supported by other components based on
+> {{< docref "/components/esp32_ble_tracker" >}} as they listen to advertisements which are only sent by devices
+> without an active connection.
 
-{{< /warning >}}
-{{< note >}}
-A maximum of three devices is supported due to limitations in the ESP32 BLE stack. If you wish to
-connect more devices, use additional ESP32 boards.
-
-This component supports devices that require a 6 digit PIN code for authentication.
-
-Currently, devices connected with the client cannot be supported by other components based on
-{{< docref "/components/esp32_ble_tracker" >}} as they listen to advertisements which are only sent by devices
-without an active connection.
-
-{{< /note >}}
 Despite the last point above, the `ble_client` component requires the `esp32_ble_tracker` component in order
 to discover available client devices.
 

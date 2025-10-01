@@ -9,21 +9,20 @@ params:
 
 The `midea` component creates a Midea air conditioner climate device.
 
-{{< note >}}
-This protocol also used by some vendors:
+> [!NOTE]
+> This protocol also used by some vendors:
+>
+> - [Electrolux](https://www.electrolux.ru/)
+> - [Qlima](https://www.qlima.com/)
+> - [Artel](https://www.artelgroup.com/)
+> - [Carrier](https://www.carrier.com/)
+> - [Comfee](http://www.comfee-russia.ru/)
+> - [Inventor](https://www.inventorairconditioner.com/)
+> - [Senville](https://senville.com/)
+> - and maybe others
+>
+> Control is possible with a custom dongle. Example of hardware implementation is [IoT Uni Dongle](https://github.com/dudanov/iot-uni-dongle) or [Midea SLWF-01pro](https://smartlight.me/smart-home-devices/wifi-devices/wifi-dongle-air-conditioners-midea-idea-electrolux-for-home-assistant) ([CloudFree](https://cloudfree.shop/product/ductless-hvac-wi-fi-module/), [Tindie](https://www.tindie.com/products/smartlightme/wifi-dongle-for-air-conditioners-midea-electrolux)).
 
-- [Electrolux](https://www.electrolux.ru/)
-- [Qlima](https://www.qlima.com/)
-- [Artel](https://www.artelgroup.com/)
-- [Carrier](https://www.carrier.com/)
-- [Comfee](http://www.comfee-russia.ru/)
-- [Inventor](https://www.inventorairconditioner.com/)
-- [Senville](https://senville.com/)
-- and maybe others
-
-Control is possible with a custom dongle. Example of hardware implementation is [IoT Uni Dongle](https://github.com/dudanov/iot-uni-dongle) or [Midea SLWF-01pro](https://smartlight.me/smart-home-devices/wifi-devices/wifi-dongle-air-conditioners-midea-idea-electrolux-for-home-assistant) ([CloudFree](https://cloudfree.shop/product/ductless-hvac-wi-fi-module/), [Tindie](https://www.tindie.com/products/smartlightme/wifi-dongle-for-air-conditioners-midea-electrolux)).
-
-{{< /note >}}
 The Midea air conditioner requires the UART to be configured with `baud_rate: 9600`. The hardware requires **5V logic levels** and does not appear to work with 3.3V logic levels. Use a logic level shifter if building your own dongle.
 
 ```yaml

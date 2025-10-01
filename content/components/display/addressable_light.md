@@ -57,17 +57,15 @@ display:
 
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
-{{< note >}}
-When enabled (the default, but also via `it.set_enabled(true)`  ), any effect currently running on the
-addressable light will be disabled. When disabled (`it.set_enabled(false)`  ), the last configured effect will
-be restored.
-
-While the display is enabled, it is still possible to control the parent addressable light component in some
-limited capacity. Changing the brightness will still work, but changing the color will have no affect. It is not
-adivsable to enable any effects (ex: rainbow, color wipe, etc) while the display is enabled, as this will cause a
-great deal of flickering while the effect competes with the display for rendering.
-
-{{< /note >}}
+> [!NOTE]
+> When enabled (the default, but also via `it.set_enabled(true)`  ), any effect currently running on the
+> addressable light will be disabled. When disabled (`it.set_enabled(false)`  ), the last configured effect will
+> be restored.
+>
+> While the display is enabled, it is still possible to control the parent addressable light component in some
+> limited capacity. Changing the brightness will still work, but changing the color will have no affect. It is not
+> adivsable to enable any effects (ex: rainbow, color wipe, etc) while the display is enabled, as this will cause a
+> great deal of flickering while the effect competes with the display for rendering.
 
 ## pixel_mapper
 

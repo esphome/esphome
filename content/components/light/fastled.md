@@ -7,27 +7,25 @@ params:
     image: color_lens.svg
 ---
 
-{{< warning >}}
-FastLED does **not** work as expected with Arduino 3 or newer for ESP8266. For now, you can either downgrade the arduino version or use {{< docref "neopixelbus/" >}}.
+> [!WARNING]
+> FastLED does **not** work as expected with Arduino 3 or newer for ESP8266. For now, you can either downgrade the arduino version or use {{< docref "neopixelbus/" >}}.
+>
+> ```yaml
+> esp8266:
+>   framework:
+>     version: 2.7.4
+> ```
+>
+> See these related issues:
+>
+> - <https://github.com/FastLED/FastLED/issues/1322>
+> - <https://github.com/FastLED/FastLED/issues/1264>
 
-```yaml
-esp8266:
-  framework:
-    version: 2.7.4
-```
+> [!WARNING]
+> FastLED does **not** work with ESP-IDF.
+>
+> For addressable lights, you can use {{< docref "esp32_rmt_led_strip/" >}} or for SPI LEDs see {{< docref "spi_led_strip/" >}}..
 
-See these related issues:
-
-- <https://github.com/FastLED/FastLED/issues/1322>
-- <https://github.com/FastLED/FastLED/issues/1264>
-
-{{< /warning >}}
-{{< warning >}}
-FastLED does **not** work with ESP-IDF.
-
-For addressable lights, you can use {{< docref "esp32_rmt_led_strip/" >}} or for SPI LEDs see {{< docref "spi_led_strip/" >}}..
-
-{{< /warning >}}
 {{< anchor "fastled-clockless" >}}
 
 ## Clockless

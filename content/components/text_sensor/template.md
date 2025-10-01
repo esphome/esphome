@@ -69,14 +69,12 @@ Configuration options:
 - **state** (**Required**, string, [templatable](#config-templatable)):
   The state to publish.
 
-{{< note >}}
-This action can also be written in lambdas:
-
-```cpp
-id(template_text).publish_state("Hello World");
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas:
+>
+> ```cpp
+> id(template_text).publish_state("Hello World");
+> ```
 
 ## Useful Template Sensors
 

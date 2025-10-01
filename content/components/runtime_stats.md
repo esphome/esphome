@@ -9,16 +9,14 @@ params:
 
 The `runtime_stats` component allows you to collect and analyze runtime performance statistics for all components in your ESPHome device. This is a powerful debugging and optimization tool that helps identify components that may be blocking the event loop or consuming excessive processing time.
 
-{{< warning >}}
-This component is intended for **debugging and troubleshooting**. While it can be temporarily enabled in production to diagnose issues, it should not be left enabled long-term because:
-
-- The statistics collection adds overhead to every component execution
-- It increases memory usage to store statistics
-- The periodic logging can clutter your logs
-
-Enable it when needed to find problems, then disable it once your investigation is complete.
-
-{{< /warning >}}
+> [!WARNING]
+> This component is intended for **debugging and troubleshooting**. While it can be temporarily enabled in production to diagnose issues, it should not be left enabled long-term because:
+>
+> - The statistics collection adds overhead to every component execution
+> - It increases memory usage to store statistics
+> - The periodic logging can clutter your logs
+>
+> Enable it when needed to find problems, then disable it once your investigation is complete.
 
 ```yaml
 # Example configuration entry
@@ -35,14 +33,13 @@ runtime_stats:
 
 ## Understanding the Output
 
-{{< note >}}
-Runtime statistics use `millis()` for time measurement, which provides millisecond resolution. This means:
+> [!NOTE]
+> Runtime statistics use `millis()` for time measurement, which provides millisecond resolution. This means:
+>
+> - Components that execute in less than 1ms will show as 0ms
+> - Very fast operations cannot be accurately measured
+> - The statistics are best suited for finding components that take multiple milliseconds
 
-- Components that execute in less than 1ms will show as 0ms
-- Very fast operations cannot be accurately measured
-- The statistics are best suited for finding components that take multiple milliseconds
-
-{{< /note >}}
 The component logs two types of statistics:
 
 **Period Statistics**

@@ -10,10 +10,9 @@ params:
 ESPHome has support for components to create a select entity. A select entity is
 basically an option list that can be set by either yaml, hardware or the user/frontend.
 
-{{< note >}}
-Home Assistant Core 2021.8 or higher is required for ESPHome select entities to work.
+> [!NOTE]
+> Home Assistant Core 2021.8 or higher is required for ESPHome select entities to work.
 
-{{< /note >}}
 {{< anchor "config-select" >}}
 
 ## Base Select Configuration
@@ -34,11 +33,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the select. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the select to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the select to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the select in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will

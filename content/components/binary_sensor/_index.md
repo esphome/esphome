@@ -30,11 +30,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the binary sensor. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the binary sensor to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the binary sensor to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the
   sensor. See <https://www.home-assistant.io/integrations/binary_sensor/#device-class>
@@ -357,26 +355,25 @@ Configuration variables:
 - **max_length** (*Optional*, [Time](#config-time)): The maximum duration the click should last. Defaults to `350ms`.
 - See [Automation](#automation).
 
-{{< note >}}
-Multiple `on_click` entries can be defined like this (see also [`on_multi_click`](#binary_sensor-on_multi_click)
-for more complex matching):
+> [!NOTE]
+> Multiple `on_click` entries can be defined like this (see also [`on_multi_click`](#binary_sensor-on_multi_click)
+> for more complex matching):
+>
+> ```yaml
+> binary_sensor:
+>   - platform: gpio
+>     # ...
+>     on_click:
+>     - min_length: 50ms
+>       max_length: 350ms
+>       then:
+>         - switch.turn_off: relay_1
+>     - min_length: 500ms
+>       max_length: 1000ms
+>       then:
+>         - switch.turn_on: relay_1
+> ```
 
-```yaml
-binary_sensor:
-  - platform: gpio
-    # ...
-    on_click:
-    - min_length: 50ms
-      max_length: 350ms
-      then:
-        - switch.turn_off: relay_1
-    - min_length: 500ms
-      max_length: 1000ms
-      then:
-        - switch.turn_on: relay_1
-```
-
-{{< /note >}}
 {{< anchor "binary_sensor-on_double_click" >}}
 
 ### `on_double_click`
@@ -437,12 +434,11 @@ Configuration variables:
 
 - See [Automation](#automation).
 
-{{< note >}}
-Getting the timing right for your use-case can sometimes be a bit difficult. If you set the
-[global log level](#logger-log_levels) to `VERBOSE`, the multi click trigger shows logs
-about what stopped the trigger from happening.
+> [!NOTE]
+> Getting the timing right for your use-case can sometimes be a bit difficult. If you set the
+> [global log level](#logger-log_levels) to `VERBOSE`, the multi click trigger shows logs
+> about what stopped the trigger from happening.
 
-{{< /note >}}
 You can use an `OFF` timing at the end of the timing sequence to differentiate between different
 kinds of presses. For example the configuration below will differentiate between double, long and short
 presses.

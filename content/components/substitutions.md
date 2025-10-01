@@ -254,13 +254,11 @@ substitutions:
 <<: !include common.yaml
 ```
 
-{{< tip >}}
-To hide these base files from the dashboard, you can
-
-- Place them in a subdirectory (dashboard only shows files in top-level directory)
-- Prepend a dot to the filename, like `.base.yaml`
-
-{{< /tip >}}
+> [!TIP]
+> To hide these base files from the dashboard, you can
+>
+> - Place them in a subdirectory (dashboard only shows files in top-level directory)
+> - Prepend a dot to the filename, like `.base.yaml`
 
 ## See Also
 

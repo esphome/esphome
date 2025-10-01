@@ -56,11 +56,9 @@ to Grove G33.
 
 {{< img src="leak-detector-m5stickC_overview2.jpg" alt="Image" class="align-center" >}}
 
-{{< note >}}
-Even though the M5StickC has a battery inside (which might be enough to cover short power outages), you'll need to keep
-the unit on USB power 24/7.
-
-{{< /note >}}
+> [!NOTE]
+> Even though the M5StickC has a battery inside (which might be enough to cover short power outages), you'll need to keep
+> the unit on USB power 24/7.
 
 ## Display Font
 

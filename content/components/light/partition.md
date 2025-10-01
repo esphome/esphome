@@ -107,14 +107,12 @@ light:
 
 - All other options from [Light](#config-light).
 
-{{< note >}}
-Do *not* use this platform to control each LED on your addressable light - the light
-objects have a moderate overhead and if you try to create many lights you will run out
-of memory quickly.
-
-See [`light.addressable_set` Action](#light-addressable_set_action) for that.
-
-{{< /note >}}
+> [!NOTE]
+> Do *not* use this platform to control each LED on your addressable light - the light
+> objects have a moderate overhead and if you try to create many lights you will run out
+> of memory quickly.
+>
+> See [`light.addressable_set` Action](#light-addressable_set_action) for that.
 
 ## See Also
 

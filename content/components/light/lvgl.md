@@ -26,10 +26,8 @@ light:
     name: LVGL light
 ```
 
-{{< note >}}
-To have linear brightness control, `gamma_correct` of the light is set by default to `0`.
-
-{{< /note >}}
+> [!NOTE]
+> To have linear brightness control, `gamma_correct` of the light is set by default to `0`.
 
 ## See Also
 

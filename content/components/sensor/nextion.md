@@ -13,11 +13,10 @@ The `nextion` sensor platform supports integers or floats (Xfloat). It can be a 
 It is best to set the component's vscope to global in the Nextion Editor. This way the component will be available
 if the page is shown or not.
 
-{{< note >}}
-The Nextion can receive an integer but it can only send 3 bytes for a negative integer. The range if using the [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol) is:
-    -16777215 to 4294967295
+> [!NOTE]
+> The Nextion can receive an integer but it can only send 3 bytes for a negative integer. The range if using the [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol) is:
+> -16777215 to 4294967295
 
-{{< /note >}}
 See {{< docref "/components/display/nextion" >}} for setting up the display
 
 ```yaml
@@ -80,11 +79,10 @@ sensor:
 
 **Only one** *component_name* **or** *variable_name* **can be set**
 
-{{< note >}}
-`background_color`, `foreground_color` and `visible` do not retain their state on page change. [Sensor Settings](#nextion_sensor_settings).
-A [Nextion Sensor](#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](#update_components_by_prefix) to update all the components for that page
+> [!NOTE]
+> `background_color`, `foreground_color` and `visible` do not retain their state on page change. [Sensor Settings](#nextion_sensor_settings).
+> A [Nextion Sensor](#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](#update_components_by_prefix) to update all the components for that page
 
-{{< /note >}}
 See [How things Update](#nextion_sensor_how_things_update) for additional information
 
 ### Globals
@@ -135,10 +133,9 @@ Configuration variables:
 - **send_to_nextion** (*Optional*, bool, [templatable](#config-templatable)): Publish new state to Nextion
   display which will update component. Default is true.
 
-{{< note >}}
-This action can also be written in lambdas. See [Lambda Calls](#nextion_sensor_lambda_calls)
+> [!NOTE]
+> This action can also be written in lambdas. See [Lambda Calls](#nextion_sensor_lambda_calls)
 
-{{< /note >}}
 {{< anchor "nextion_sensor_lambda_calls" >}}
 
 ### Lambda Calls
@@ -170,11 +167,10 @@ component or function you want to trigger the send. Typically this is in *Touch 
 set in the *Touch Release Event* to capture all the changes. Since this is a custom protocol it can be sent from anywhere (timers/functions/components)
 in the Nextion.
 
-{{< note >}}
-There is no need to check the *Send Component ID* for the *Touch Press Event* or *Touch Release Event*
-since this will be sending the real value to esphome.
+> [!NOTE]
+> There is no need to check the *Send Component ID* for the *Touch Press Event* or *Touch Release Event*
+> since this will be sending the real value to esphome.
 
-{{< /note >}}
 Using the above yaml example:
 
 - "Current Humidity" will poll the Nextion for the `humidity.val` value and set the sensor accordingly.
@@ -182,10 +178,9 @@ Using the above yaml example:
 
 - [Lambda Calls](#nextion_sensor_lambda_calls).
 
-{{< note >}}
-No updates will be sent to the Nextion if it is sleeping. Once it wakes, the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.
+> [!NOTE]
+> No updates will be sent to the Nextion if it is sleeping. Once it wakes, the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.
 
-{{< /note >}}
 {{< anchor "nextion_custom_sensor_protocol" >}}
 
 ## Nextion Custom Sensor Protocol

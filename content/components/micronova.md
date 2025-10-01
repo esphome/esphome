@@ -11,17 +11,15 @@ It uses [UART](#uart) for communication.
 
 The [UART](#uart) must be configured with a baud rate 1200, 8 data bits, 2 stop bits, no parity, no flow control.
 
-{{< warning >}}
-MicroNova bords come in various flavours. This code is only tested on an ExtraFlame Ketty Evo 2.0 stove. The protocol is not
-documented but has been reverse engineerd by others. See the links below for all the info that helped me.
-The different sensors, buttons and stove switch may require specific **memory_location** and **memory_address** parameters that
-match your MicroNova specific board.
-
-Also, switching your stove on or off can behave different on the various MicroNova flavours.
-
-Use this component at your own risk.
-
-{{< /warning >}}
+> [!WARNING]
+> MicroNova bords come in various flavours. This code is only tested on an ExtraFlame Ketty Evo 2.0 stove. The protocol is not
+> documented but has been reverse engineerd by others. See the links below for all the info that helped me.
+> The different sensors, buttons and stove switch may require specific **memory_location** and **memory_address** parameters that
+> match your MicroNova specific board.
+>
+> Also, switching your stove on or off can behave different on the various MicroNova flavours.
+>
+> Use this component at your own risk.
 
 ## Connecting your stove
 
@@ -54,17 +52,15 @@ micronova:
 - **update_interval** (*Optional*, [Time](#config-time)): The interval that the sensors should be checked.
   Defaults to 60 seconds.
 
-{{< note >}}
-For all text sensors, sensors, numbers, buttons and switches hereafter most of the the default **memory_location** and **memory_address** parameters will work so you should
-not specify them. However your Micronova boad may require you to specify alternate values. So every text sensor, button,
-switch or number accepts these parameters:
-
-- **memory_location** (*Optional*): The memory location where the parameter must be read. For most stoves this is 0x00 for RAM
-  or 0x20 for EPROM.
-
-- **memory_address** (*Optional*): The address where the parameter is stored.
-
-{{< /note >}}
+> [!NOTE]
+> For all text sensors, sensors, numbers, buttons and switches hereafter most of the the default **memory_location** and **memory_address** parameters will work so you should
+> not specify them. However your Micronova boad may require you to specify alternate values. So every text sensor, button,
+> switch or number accepts these parameters:
+>
+> - **memory_location** (*Optional*): The memory location where the parameter must be read. For most stoves this is 0x00 for RAM
+>   or 0x20 for EPROM.
+>
+> - **memory_address** (*Optional*): The address where the parameter is stored.
 
 ## Text Sensors
 
@@ -149,13 +145,11 @@ number:
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.
   All options from [Number](#config-number).
 
-{{< note >}}
-Besides **memory_location** and **memory_address** you can specify a specific **memory_write_location** parameter.
-This parameter is a hex value for the **memory_location** where the new thermostat value must be written.
-
-- **memory_write_location** (*Optional*): The **memory_location** where to write the new thermostat value.
-
-{{< /note >}}
+> [!NOTE]
+> Besides **memory_location** and **memory_address** you can specify a specific **memory_write_location** parameter.
+> This parameter is a hex value for the **memory_location** where the new thermostat value must be written.
+>
+> - **memory_write_location** (*Optional*): The **memory_location** where to write the new thermostat value.
 
 ## Buttons
 
@@ -174,12 +168,10 @@ button:
 - **custom_button** (*Optional*): Write the hex value **memory_data** to a **memory_location** and **memory_address**
   All options from [Button](#config-button).
 
-{{< note >}}
-Besides **memory_location** and **memory_address** you must specify a specific **memory_data** parameter.
-
-- **memory_data** (**Required**): The hex value to be written to the **memory_location** and **memory_address**.
-
-{{< /note >}}
+> [!NOTE]
+> Besides **memory_location** and **memory_address** you must specify a specific **memory_data** parameter.
+>
+> - **memory_data** (**Required**): The hex value to be written to the **memory_location** and **memory_address**.
 
 ## Switches
 
@@ -196,15 +188,13 @@ switch:
   If the **stove_state** is "Off" the switch will be off, in all other states, the switch wil be on.
   All options from [Switch](#config-switch).
 
-{{< note >}}
-Besides **memory_location** and **memory_address** you can specify specific **memory_data_on** and **memory_data_off** parameters.
-These parameters contain the hex value to be written to the **memory_location** and **memory_address** when the switch
-turns on or off.
-
-- **memory_data_on** (*Optional*): The data to write when turning the switch on.
-- **memory_data_off** (*Optional*): The data to write when turning the switch off.
-
-{{< /note >}}
+> [!NOTE]
+> Besides **memory_location** and **memory_address** you can specify specific **memory_data_on** and **memory_data_off** parameters.
+> These parameters contain the hex value to be written to the **memory_location** and **memory_address** when the switch
+> turns on or off.
+>
+> - **memory_data_on** (*Optional*): The data to write when turning the switch on.
+> - **memory_data_off** (*Optional*): The data to write when turning the switch off.
 
 ## See Also
 

@@ -10,12 +10,10 @@ params:
 The `homeassistant` sensor platform allows you to create sensors that import
 states from your Home Assistant instance using the {{< docref "/components/api" "native API" >}}.
 
-{{< note >}}
-Although you might not plan to *export* states from the node and you do not need an entity of the node
-in Home Assistant, this component still requires you to register the node under Home Assistant. See:
-[Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
-
-{{< /note >}}
+> [!NOTE]
+> Although you might not plan to *export* states from the node and you do not need an entity of the node
+> in Home Assistant, this component still requires you to register the node under Home Assistant. See:
+> [Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
 
 ```yaml
 # Example configuration entry
@@ -36,11 +34,9 @@ sensor:
     attribute: current_temperature
 ```
 
-{{< note >}}
-This component is only for numeral states. If you want to import arbitrary text states
-from Home Assistant, use the {{< docref "/components/text_sensor/homeassistant" "Home Assistant Text Sensor" >}}.
-
-{{< /note >}}
+> [!NOTE]
+> This component is only for numeral states. If you want to import arbitrary text states
+> from Home Assistant, use the {{< docref "/components/text_sensor/homeassistant" "Home Assistant Text Sensor" >}}.
 
 ## Configuration variables
 
@@ -50,13 +46,11 @@ from Home Assistant, use the {{< docref "/components/text_sensor/homeassistant" 
 
 - All other options from [Sensor](#config-sensor).
 
-{{< note >}}
-The sensors implemented by this component are by default `internal`, to avoid exporting them back to
-Home Assistant. Should you still want to do that (eg. because you use ESPHome's very efficient filters
-on them) you need to specifically configure `internal: false`. Also, `state_class`, `unit_of_measurement`
-are not inherited from the imported sensor so you need to set them manually.
-
-{{< /note >}}
+> [!NOTE]
+> The sensors implemented by this component are by default `internal`, to avoid exporting them back to
+> Home Assistant. Should you still want to do that (eg. because you use ESPHome's very efficient filters
+> on them) you need to specifically configure `internal: false`. Also, `state_class`, `unit_of_measurement`
+> are not inherited from the imported sensor so you need to set them manually.
 
 ## See Also
 

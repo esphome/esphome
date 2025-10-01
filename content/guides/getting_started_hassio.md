@@ -47,24 +47,22 @@ This should open the ESPHome add-on page; once you're there, just click the INST
 
 Installation of the add-on may take a moment or two. Once done, click "Start" and then click "Open Web UI".
 
-{{< note >}}
-If you're running Home Assistant in a way that does not provide access to add-ons, you may
-[run the ESPHome Device Builder independently in Docker](#esphome-device-builder-docker).
+> [!NOTE]
+> If you're running Home Assistant in a way that does not provide access to add-ons, you may
+> [run the ESPHome Device Builder independently in Docker](#esphome-device-builder-docker).
 
-{{< /note >}}
 The web UI will present a wizard which will walk you through creating your first configuration:
 
 {{< img src="dashboard_empty.png" alt="Image" width="95.0%" class="align-center" >}}
 
 After creating your first configuration, you'll need to install it on your device.
 
-{{< note >}}
-The initial installation of ESPHome onto a new device is often the most difficult and/or intimidating part -- at
-least until you've done it a few times.
+> [!NOTE]
+> The initial installation of ESPHome onto a new device is often the most difficult and/or intimidating part -- at
+> least until you've done it a few times.
+>
+> If you haven't done this before, please see {{< docref "physical_device_connection/" >}}.
 
-If you haven't done this before, please see {{< docref "physical_device_connection/" >}}.
-
-{{< /note >}}
 If you didn't do so when prompted upon creating your first device, you'll need to enter your Wi-Fi network credentials
 immediately following installation so that your device can connect to your Wi-Fi network and subsequently communicate
 with Home Assistant.
@@ -101,18 +99,16 @@ actions you can perform:
 The configuration files for ESPHome are stored in the `<HOME_ASSISTANT_CONFIG>/esphome/` directory. For example, the
 configuration for the "Bedroom Light" node in the picture above can be found in `/config/esphome/bedroom-light.yaml`.
 
-{{< note >}}
-Home Assistant add-ons run as individual containers; this can make accessing your configuration files/logs a bit
-challenging. If you wish to do so, you'll need to install Home Assistant's
-[SSH add-on](https://www.home-assistant.io/common-tasks/os/#installing-and-using-the-ssh-add-on), configure it
-with a username and password and also disable "Protection Mode" (please assess the risks associated with doing so).
-
-Finally, to access the logs from a device through an SSH client, you can log in and use a command like
-`docker exec -it addon_15ef4d2f_esphome esphome logs /config/esphome/bedroom-light.yaml`.
-
-See {{< docref "getting_started_command_line/" >}} for more detail.
-
-{{< /note >}}
+> [!NOTE]
+> Home Assistant add-ons run as individual containers; this can make accessing your configuration files/logs a bit
+> challenging. If you wish to do so, you'll need to install Home Assistant's
+> [SSH add-on](https://www.home-assistant.io/common-tasks/os/#installing-and-using-the-ssh-add-on), configure it
+> with a username and password and also disable "Protection Mode" (please assess the risks associated with doing so).
+>
+> Finally, to access the logs from a device through an SSH client, you can log in and use a command like
+> `docker exec -it addon_15ef4d2f_esphome esphome logs /config/esphome/bedroom-light.yaml`.
+>
+> See {{< docref "getting_started_command_line/" >}} for more detail.
 
 ## Adding Features
 

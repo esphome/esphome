@@ -32,10 +32,8 @@ sensor:
 
 - All other options from [Sensor](#config-sensor).
 
-{{< note >}}
-[PWM and RS485](https://www.dypcn.com/uploads/A02-Datasheet.pdf) versions of the A02YYUW are not supported by this component.
-
-{{< /note >}}
+> [!NOTE]
+> [PWM and RS485](https://www.dypcn.com/uploads/A02-Datasheet.pdf) versions of the A02YYUW are not supported by this component.
 
 ## See Also
 

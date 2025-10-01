@@ -96,10 +96,8 @@ api:
             value: !lambda 'return new_total;'
 ```
 
-{{< note >}}
-This value is the raw count of pulses, and not the value you see after the filters
-
-{{< /note >}}
+> [!NOTE]
+> This value is the raw count of pulses, and not the value you see after the filters
 
 ## See Also
 

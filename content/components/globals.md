@@ -74,14 +74,12 @@ on_...:
 - **value** (**Required**, [templatable](#config-templatable)): The value to set the global
   variable to.
 
-{{< note >}}
-This action can also be written in lambdas:
-
-```cpp
-id(my_global_var) = 10;
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas:
+>
+> ```cpp
+> id(my_global_var) = 10;
+> ```
 
 ## See Also
 

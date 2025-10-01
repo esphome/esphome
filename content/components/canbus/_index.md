@@ -105,10 +105,8 @@ This automation will be triggered when a CAN frame is received. The variables `x
 received CAN ID and `remote_transmission_request` (of type `bool`  ) containing the corresponding field
 from the CAN frame are passed to the automation for use in lambdas.
 
-{{< note >}}
-Messages this node sends to the same ID will not show up as received messages.
-
-{{< /note >}}
+> [!NOTE]
+> Messages this node sends to the same ID will not show up as received messages.
 
 ```yaml
 canbus:
@@ -194,11 +192,10 @@ on_...:
 
 Standard IDs and Extended IDs can coexist on the same segment.
 
-{{< note >}}
-It is important to know that "standard" and "extended" addresses denote different addresses. For example,
-Standard `0x123` and Extended `0x123` are, in fact, different addresses.
+> [!NOTE]
+> It is important to know that "standard" and "extended" addresses denote different addresses. For example,
+> Standard `0x123` and Extended `0x123` are, in fact, different addresses.
 
-{{< /note >}}
 Decimal or hexadecimal notation may be used for IDs:
 
 - Standard IDs use `0x000` to `0x7ff` (hexadecimal) or `0` to `2047` (decimal)

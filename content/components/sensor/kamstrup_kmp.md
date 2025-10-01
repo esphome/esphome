@@ -75,27 +75,25 @@ Configuration variables:
 
 - **update_interval** (*Optional*): The polling interval. Defaults to `60s`.
 
-{{< note >}}
-
-- The uart baudrate has to be set to 1200 baud and the stop bits to 2.
-  It is recommended to use pins associated with a hardware UART.
-  For more information regarding uart configuration, refer to [UART](#uart).
-
-- Only the provided sensors will appear as sensor, and only those are read from
-  the meter.
-
-- Custom sensors can be used to receive measurements from the Kampstrup meter,
-  other than the ones provided natively with this component. To request extra
-  measurements, add one or multiple sensors to the `custom` setting and provide the
-  KMP command. This command is a 2 byte integer value. For example `0x003C` is
-  the command code for heat energy. In the example above, two custom sensors were
-  added. These request the Heat Energy and Heat Power respectively. This will be the
-  same as the native `heat_energy` and `power` sensors.
-
-- Keep in mind that the meter is battery operated. The more sensors read and the
-  lower the update interval, the faster the battery will drain.
-
-{{< /note >}}
+> [!NOTE]
+>
+> - The uart baudrate has to be set to 1200 baud and the stop bits to 2.
+>   It is recommended to use pins associated with a hardware UART.
+>   For more information regarding uart configuration, refer to [UART](#uart).
+>
+> - Only the provided sensors will appear as sensor, and only those are read from
+>   the meter.
+>
+> - Custom sensors can be used to receive measurements from the Kampstrup meter,
+>   other than the ones provided natively with this component. To request extra
+>   measurements, add one or multiple sensors to the `custom` setting and provide the
+>   KMP command. This command is a 2 byte integer value. For example `0x003C` is
+>   the command code for heat energy. In the example above, two custom sensors were
+>   added. These request the Heat Energy and Heat Power respectively. This will be the
+>   same as the native `heat_energy` and `power` sensors.
+>
+> - Keep in mind that the meter is battery operated. The more sensors read and the
+>   lower the update interval, the faster the battery will drain.
 
 ## Hardware
 

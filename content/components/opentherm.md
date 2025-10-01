@@ -20,11 +20,9 @@ ready-made adapters or roll your own:
 
 {{< img src="opentherm-shield.png" alt="Image" caption="DIYLESS Master OpenTherm Shield." width="50.0%" class="align-center" >}}
 
-{{< note >}}
-This component acts only as an OpenTherm master (for example, a thermostat or controller) and not as a slave or
-gateway. Your existing thermostat is not usable while you use ESPHome with this component to control your boiler.
-
-{{< /note >}}
+> [!NOTE]
+> This component acts only as an OpenTherm master (for example, a thermostat or controller) and not as a slave or
+> gateway. Your existing thermostat is not usable while you use ESPHome with this component to control your boiler.
 
 ## Quick glossary
 

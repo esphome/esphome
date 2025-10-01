@@ -134,11 +134,9 @@ Battery Voltage: 3.223V
 Then just copy the address (`XX:XX:XX:XX:XX:XX`  ) into a new
 `sensor.ruuvitag` platform entry like in the configuration example at the top.
 
-{{< note >}}
-The ESPHome Ruuvi BLE component listens passively to packets the RuuviTag device sends by itself.
-ESPHome therefore has no impact on the battery life of the device.
-
-{{< /note >}}
+> [!NOTE]
+> The ESPHome Ruuvi BLE component listens passively to packets the RuuviTag device sends by itself.
+> ESPHome therefore has no impact on the battery life of the device.
 
 ## See Also
 

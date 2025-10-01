@@ -28,16 +28,14 @@ bkcmd=0       // Tells the Nextion to not send responses on commands. This is th
 This permits faster communication with the Nextion display and it is highly recommended when using
 [Hardware UARTs](#uart-hardware_uarts).
 
-{{< warning >}}
-**We highly recommend using only** [Hardware UARTs](#uart-hardware_uarts) **with Nextion displays.**
-
-*Use of software UARTs is known to result in unpredictable/inconsistent behavior.*
-
-If you **must** use a software UART, note that baud rates greater than 9600 are extremely likely to cause problems.
-
-In short, avoid using software UARTs with Nextion displays.
-
-{{< /warning >}}
+> [!WARNING]
+> **We highly recommend using only** [Hardware UARTs](#uart-hardware_uarts) **with Nextion displays.**
+>
+> *Use of software UARTs is known to result in unpredictable/inconsistent behavior.*
+>
+> If you **must** use a software UART, note that baud rates greater than 9600 are extremely likely to cause problems.
+>
+> In short, avoid using software UARTs with Nextion displays.
 
 ```yaml
 # Example configuration entry
@@ -133,11 +131,10 @@ display:
       it.set_component_text_printf("textview", "The uptime is: %.1f", id(uptime_sensor).state);
 ```
 
-{{< note >}}
-Although you can use the rendering lambda, most, if not all, updates to the Nextion can be handled by the
-individual Nextion components/platforms. **See Below**
+> [!NOTE]
+> Although you can use the rendering lambda, most, if not all, updates to the Nextion can be handled by the
+> individual Nextion components/platforms. **See Below**
 
-{{< /note >}}
 See [Formatted Text](#display-printf) for a quick introduction to the `printf` formatting rules and [Displaying Time](#display-strftime) for
 an introduction to `strftime` time formatting.
 
@@ -177,31 +174,29 @@ The list below calls out a few commonly-used methods:
   - `set_nextion_sensor_state(int queue_type, std::string name, float state);`
   - `set_nextion_text_state(std::string name, std::string state);`
 
-{{< note >}}
-The example below demonstrates how to define a user-API so Home Assistant can send updates to the Nextion by code.
-
-```yaml
-# Enable Home Assistant API
-api:
-  actions:
-    - action: set_nextion_sensor
-      variables:
-        nextion_type: int
-        name: string
-        state: float
-      then:
-        - lambda: |-
-            id(nextion1).set_nextion_sensor_state(nextion_type,name,state);
-    - action: set_nextion_text
-      variables:
-        name: string
-        state: string
-      then:
-        - lambda: |-
-            id(nextion1).set_nextion_text_state(name,state);
-```
-
-{{< /note >}}
+> [!NOTE]
+> The example below demonstrates how to define a user-API so Home Assistant can send updates to the Nextion by code.
+>
+> ```yaml
+> # Enable Home Assistant API
+> api:
+>   actions:
+>     - action: set_nextion_sensor
+>       variables:
+>         nextion_type: int
+>         name: string
+>         state: float
+>       then:
+>         - lambda: |-
+>             id(nextion1).set_nextion_sensor_state(nextion_type,name,state);
+>     - action: set_nextion_text
+>       variables:
+>         name: string
+>         state: string
+>       then:
+>         - lambda: |-
+>             id(nextion1).set_nextion_text_state(name,state);
+> ```
 
 ### Queue Types
 
@@ -375,14 +370,13 @@ Once completed, both ESPHome and the Nextion will reboot. ESPHome will be unresp
 logging or other {{< docref "/automations/index" "automations" >}} will occur. This process uses the same protocol as the
 [Nextion Editor](https://nextion.tech/nextion-editor/) and only transfers required portions of the TFT file.
 
-{{< warning >}}
-*Use of software UARTs is known to result in unpredictable/inconsistent behavior and will likely result in the
-update process failing.*
+> [!WARNING]
+> *Use of software UARTs is known to result in unpredictable/inconsistent behavior and will likely result in the
+> update process failing.*
+>
+> If you experience problems with the update process and are using a software UART (for example, on the ESP8266), you
+> should switch to an ESP32 or supported variant which has more available [Hardware UARTs](#uart-hardware_uarts).
 
-If you experience problems with the update process and are using a software UART (for example, on the ESP8266), you
-should switch to an ESP32 or supported variant which has more available [Hardware UARTs](#uart-hardware_uarts).
-
-{{< /warning >}}
 You can use Home Assistant itself or any other web server to host the TFT file. When using HTTPS (generally
 recommended), you may notice reduced upload speeds as the encryption consumes more resources on the microcontroller.
 
@@ -411,12 +405,11 @@ be `http(s)://your_home_assistant_url:port/local/tft/default.tft`
 
 This library supports a few different components allowing communication between Home Assistant, ESPHome and Nextion.
 
-{{< note >}}
-If the Nextion is sleeping or if the component was set to be hidden, it will not update its components even if
-updates are sent. To work around this, after the Nextion wakes up, all components will send their states to the
-Nextion.
+> [!NOTE]
+> If the Nextion is sleeping or if the component was set to be hidden, it will not update its components even if
+> updates are sent. To work around this, after the Nextion wakes up, all components will send their states to the
+> Nextion.
 
-{{< /note >}}
 With the exception of the {{< docref "../binary_sensor/nextion" >}} that has the `page_id`  /`component_id` options configured,
 the example below illustrates:
 

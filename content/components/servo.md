@@ -19,11 +19,9 @@ servo is connected to. Then connect that output to the servo component by assign
 Please note the frequency of the output should be around 50Hz, as most servo controllers
 only operate in this frequency range.
 
-{{< note >}}
-This component will not show up in the Home Assistant front-end automatically because
-Home Assistant doesn't have support for servos. Please see [Home Assistant Configuration](#servo-ha-config).
-
-{{< /note >}}
+> [!NOTE]
+> This component will not show up in the Home Assistant front-end automatically because
+> Home Assistant doesn't have support for servos. Please see [Home Assistant Configuration](#servo-ha-config).
 
 ```yaml
 # Example configuration entry
@@ -66,13 +64,12 @@ Advanced Options:
 - **transition_length** (*Optional*, [Time](#config-time)): The time needed for a full movement (-1.0 to 1.0). This will effectively limit the speed of the servo, the larger the value, the slowest the servo will move. Defaults to `0s`.
   This can slow down the servo to avoid loud noises or just make the movement not jerking.
 
-{{< note >}}
-Some servos support a larger range for the level. For continuous rotation servos
-this can speed them up a bit and for absolute servos this can extend their angle range.
-You can configure the `min_level` and `max_level` options to adjust the level range
-to match your servo (Experiment with these values).
+> [!NOTE]
+> Some servos support a larger range for the level. For continuous rotation servos
+> this can speed them up a bit and for absolute servos this can extend their angle range.
+> You can configure the `min_level` and `max_level` options to adjust the level range
+> to match your servo (Experiment with these values).
 
-{{< /note >}}
 {{< anchor "servo-write_action" >}}
 
 ## `servo.write` Action
@@ -114,14 +111,13 @@ Configuration options:
 - **level** (*Optional*, percentage, [templatable](#config-templatable)): The target level.
   Range is from -100% to 100% (-1.0 to 1.0).
 
-{{< note >}}
-This action can also be expressed as a [lambda](#config-lambda):
+> [!NOTE]
+> This action can also be expressed as a [lambda](#config-lambda):
+>
+> ```cpp
+> id(my_servo).write(1.0);
+> ```
 
-```cpp
-id(my_servo).write(1.0);
-```
-
-{{< /note >}}
 {{< anchor "servo-detach_action" >}}
 
 ## `servo.detach` Action
@@ -135,14 +131,13 @@ on_...:
   - servo.detach: my_servo
 ```
 
-{{< note >}}
-This action can also be expressed as a [lambda](#config-lambda):
+> [!NOTE]
+> This action can also be expressed as a [lambda](#config-lambda):
+>
+> ```cpp
+> id(my_servo).detach();
+> ```
 
-```cpp
-id(my_servo).detach();
-```
-
-{{< /note >}}
 {{< anchor "servo-ha-config" >}}
 
 ## Home Assistant Configuration

@@ -10,12 +10,10 @@ params:
 Starting with ESPHome 2026.1.0, the default framework for ESP32 will change from Arduino to ESP-IDF. This guide will
 help you migrate your existing configurations or make an informed choice about which framework to use.
 
-{{< note >}}
-This change only affects ESP32, ESP32-S2, ESP32-S3, and ESP32-C3 variants.
-Newer variants (ESP32-C6, ESP32-H2, ESP32-P4, etc.) already default to ESP-IDF
-as they have limited or no Arduino support.
-
-{{< /note >}}
+> [!NOTE]
+> This change only affects ESP32, ESP32-S2, ESP32-S3, and ESP32-C3 variants.
+> Newer variants (ESP32-C6, ESP32-H2, ESP32-P4, etc.) already default to ESP-IDF
+> as they have limited or no Arduino support.
 
 ## Why the Change?
 
@@ -123,11 +121,9 @@ The following components currently require Arduino framework and don't have ESP-
 
 If you need these components, you should continue using the Arduino framework.
 
-{{< note >}}
-Component compatibility is constantly improving. Check the component documentation
-or try compiling with ESP-IDF to see if alternatives have become available.
-
-{{< /note >}}
+> [!NOTE]
+> Component compatibility is constantly improving. Check the component documentation
+> or try compiling with ESP-IDF to see if alternatives have become available.
 
 ## Troubleshooting
 

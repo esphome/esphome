@@ -86,10 +86,8 @@ light:
       - strobe:
 ```
 
-{{< warning >}}
-Consider the warning in {{< docref "/components/light/partition" >}} regarging the increased memory usage.
-
-{{< /warning >}}
+> [!WARNING]
+> Consider the warning in {{< docref "/components/light/partition" >}} regarging the increased memory usage.
 
 ## Home Assistant configuration
 

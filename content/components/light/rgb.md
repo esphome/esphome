@@ -47,10 +47,8 @@ output:
   # Repeat for green and blue output
 ```
 
-{{< note >}}
-Remember that `gamma_correct` is enabled by default (`γ=2.8`  ), and you may want take it into account for the calibration. For instance if you command a light to *50%* brightness and want it to be the new maximum: `max_PWM_power = max_light_power^2.8 = 0.5^2.8 = 0.144`, then you would set `max_power` to *14.4%*.
-
-{{< /note >}}
+> [!NOTE]
+> Remember that `gamma_correct` is enabled by default (`γ=2.8`  ), and you may want take it into account for the calibration. For instance if you command a light to *50%* brightness and want it to be the new maximum: `max_PWM_power = max_light_power^2.8 = 0.5^2.8 = 0.144`, then you would set `max_power` to *14.4%*.
 
 ## Configuration variables
 

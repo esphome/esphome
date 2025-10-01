@@ -50,12 +50,10 @@ display:
   - **skip_taskbar** (*Optional*, boolean): Whether to skip adding a taskbar icon for the display window or not
   - **resizable** (*Optional*, boolean): Whether the display window can be manually resized
 
-{{< note >}}
-To build with this display you must have the
-[SDL2](https://wiki.libsdl.org/SDL2/Installation) package installed. The Sodium encryption library will
-also be required for any API calls. See below for installation hints.
-
-{{< /note >}}
+> [!NOTE]
+> To build with this display you must have the
+> [SDL2](https://wiki.libsdl.org/SDL2/Installation) package installed. The Sodium encryption library will
+> also be required for any API calls. See below for installation hints.
 
 ## MacOS SDL2 Installation
 

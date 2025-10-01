@@ -192,36 +192,34 @@ In the `seconds:`, `minutes:`, ... fields you can use the following operators:
   Lastly, the `*` operator matches every number. In the example above, `*` could for example be substituted
   with  `0-59`  .
 
-{{< warning >}}
-Please note the following automation would trigger for each second in the minutes 0,5,10,15 and not
-once per 5 minutes as the seconds variable is not set:
+> [!WARNING]
+> Please note the following automation would trigger for each second in the minutes 0,5,10,15 and not
+> once per 5 minutes as the seconds variable is not set:
+>
+> ```yaml
+> time:
+>
+>   - platform: sntp
+>
+>     # ...
+>
+>     on_time:
+>
+>       - minutes: /5
+>         then:
+>
+>           - switch.toggle: my_switch
+>
+> ```
 
-```yaml
-time:
+> [!NOTE]
+> `on_time` does not re-schedule events for times that are skipped or duplicated due to local Daylight
+> Saving Time or other local time-adjustments like leap seconds. In regions with Daylight Saving Time, this
+> means that events located between 01:00 - 02:00 may trigger twice, and events scheduled between 02:00 - 03:00 may
+> be skipped once a year. This differs from [cron](https://man7.org/linux/man-pages/man8/cron.8.html) behavior
+> despite allowing the use of similar `crontab` syntax. Similarly, triggers on days of the month that do not exist
+> ("every 31st of the month") will be skipped when those dates do not exist.
 
-  - platform: sntp
-
-    # ...
-
-    on_time:
-
-      - minutes: /5
-        then:
-
-          - switch.toggle: my_switch
-
-```
-
-{{< /warning >}}
-{{< note >}}
-`on_time` does not re-schedule events for times that are skipped or duplicated due to local Daylight
-Saving Time or other local time-adjustments like leap seconds. In regions with Daylight Saving Time, this
-means that events located between 01:00 - 02:00 may trigger twice, and events scheduled between 02:00 - 03:00 may
-be skipped once a year. This differs from [cron](https://man7.org/linux/man-pages/man8/cron.8.html) behavior
-despite allowing the use of similar `crontab` syntax. Similarly, triggers on days of the month that do not exist
-("every 31st of the month") will be skipped when those dates do not exist.
-
-{{< /note >}}
 {{< anchor "time-on_time_sync" >}}
 
 ### `on_time_sync` Trigger
@@ -239,14 +237,12 @@ to an external hardware real time clock chip.
 
 ```
 
-{{< note >}}
-Components should trigger `on_time_sync` when they update the system clock. However, not all real time components
-behave exactly the same. Components could e.g. decide to trigger only when a significant time change has been
-observed, others could trigger whenever their time sync mechanism runs - even if that didn't effectively change
-the system time. Some (such as SNTP in some cases) could even trigger when another real time component is
-responsible for the change in time.
-
-{{< /note >}}
+> [!NOTE]
+> Components should trigger `on_time_sync` when they update the system clock. However, not all real time components
+> behave exactly the same. Components could e.g. decide to trigger only when a significant time change has been
+> observed, others could trigger whenever their time sync mechanism runs - even if that didn't effectively change
+> the system time. Some (such as SNTP in some cases) could even trigger when another real time component is
+> responsible for the change in time.
 
 ## Use In Lambdas
 
@@ -276,11 +272,9 @@ created based on a given format. If you want to get the current time attributes,
 | `.timestamp`    | Unix epoch time (seconds since UTC  Midnight January 1, 1970) | [-2147483648 - 2147483647] (negative  values for time past January 19th 2038) | 1534606002   |
 | `.is_valid()`   | Basic check if the time is valid  (i.e. not January 1st 1970) | false, true                                                                   | true         |
 
-{{< note >}}
-Before the ESP has connected to the internet and can get the current time the date will be January 1st 1970. So
-make sure to check if `.is_valid()` evaluates to `true` before triggering any action.
-
-{{< /note >}}
+> [!NOTE]
+> Before the ESP has connected to the internet and can get the current time the date will be January 1st 1970. So
+> make sure to check if `.is_valid()` evaluates to `true` before triggering any action.
 
 ### strftime
 

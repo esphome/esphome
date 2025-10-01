@@ -69,9 +69,8 @@ Configuration variables:
 
 ## Sensor
 
-{{< note >}}
-Not all sensors are available on all devices.
-{{< /note >}}
+> [!NOTE]
+> Not all sensors are available on all devices.
 
 Country specific sensors are listed last.
 

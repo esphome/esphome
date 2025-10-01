@@ -141,18 +141,15 @@ If you are using a framework that does not support SPI-based ethernet modules wi
 
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
-{{< note >}}
-If your Ethernet board is not designed with an ESP32 built in, it's common to attempt
-to use flying leads, dupont wires, etc. to connect the Ethernet controller to the ESP32.
-This approach is likely to fail, however, as the Ethernet interface uses a high frequency
-clock signal that will not travel reliably over these types of connections. For more
-information and wiring details refer to the link in the *See also* section.
+> [!NOTE]
+> If your Ethernet board is not designed with an ESP32 built in, it's common to attempt
+> to use flying leads, dupont wires, etc. to connect the Ethernet controller to the ESP32.
+> This approach is likely to fail, however, as the Ethernet interface uses a high frequency
+> clock signal that will not travel reliably over these types of connections. For more
+> information and wiring details refer to the link in the *See also* section.
 
-{{< /note >}}
-{{< note >}}
-SPI based chips do *not* use {{< docref "spi/" >}}. This means that SPI pins can't be shared with other devices.
-
-{{< /note >}}
+> [!NOTE]
+> SPI based chips do *not* use {{< docref "spi/" >}}. This means that SPI pins can't be shared with other devices.
 
 ## Configuration examples
 
@@ -170,10 +167,9 @@ ethernet:
   power_pin: GPIO12
 ```
 
-{{< note >}}
-WROVER version of Olimex POE cards change CLK to pin GPIO0.
+> [!NOTE]
+> WROVER version of Olimex POE cards change CLK to pin GPIO0.
 
-{{< /note >}}
 **Olimex ESP32-EVB**:
 
 ```yaml
@@ -284,10 +280,9 @@ ethernet:
       page_id: 0x07
 ```
 
-{{< note >}}
-Revision 5 and below of the wESP32 board use the LAN8720 Ethernet PHY. Revision 7 and newer of it use the RTL8201 Ethernet PHY.
+> [!NOTE]
+> Revision 5 and below of the wESP32 board use the LAN8720 Ethernet PHY. Revision 7 and newer of it use the RTL8201 Ethernet PHY.
 
-{{< /note >}}
 **OpenHacks LAN8720**:
 
 ```yaml
@@ -298,12 +293,11 @@ ethernet:
   phy_addr: 1
 ```
 
-{{< note >}}
-This board has an issue that might cause the ESP32 to boot in program mode. When testing, make sure
-you are monitoring the serial output and reboot the device several times to see if it boots into the
-program properly.
+> [!NOTE]
+> This board has an issue that might cause the ESP32 to boot in program mode. When testing, make sure
+> you are monitoring the serial output and reboot the device several times to see if it boots into the
+> program properly.
 
-{{< /note >}}
 **Esp32-Stick-Eth** and **Esp32-Stick-PoE-P** and **Esp32-Stick-PoE-A**:
 
 ```yaml
@@ -365,10 +359,8 @@ ethernet:
   clock_speed: 8MHz
 ```
 
-{{< note >}}
-Using a higher clock_speed, including default, might cause rx errors and dropped packets.
-
-{{< /note >}}
+> [!NOTE]
+> Using a higher clock_speed, including default, might cause rx errors and dropped packets.
 
 ## See Also
 

@@ -31,10 +31,9 @@ C++'s naming conventions. [C++ Variablenames](https://venus.cs.qc.cuny.edu/~kris
 - … can not have special characters except the underscore (“_“).
 - … must not be a keyword.
 
-{{< note >}}
-These IDs are used only within ESPHome and are not translated to Home Assistant's Entity ID.
+> [!NOTE]
+> These IDs are used only within ESPHome and are not translated to Home Assistant's Entity ID.
 
-{{< /note >}}
 {{< anchor "config-pin" >}}
 
 ## Pin

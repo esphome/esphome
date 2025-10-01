@@ -15,11 +15,10 @@ It supports different encoder implementations, such as a ESP32 Camera software J
 options like image quality and incremental encoding. These settings make it possible to balance image
 quality and performance depending on the use case.
 
-{{< note >}}
-The default software JPEG encoder enables devices like the ESP32-S3 to stream images.
-It is primarily intended for smallar images due to limited processing power and memory,
-and supports only devices from the ESP32 family.
-{{< /note >}}
+> [!NOTE]
+> The default software JPEG encoder enables devices like the ESP32-S3 to stream images.
+> It is primarily intended for smallar images due to limited processing power and memory,
+> and supports only devices from the ESP32 family.
 
 ```yaml
 # Example configuration entry

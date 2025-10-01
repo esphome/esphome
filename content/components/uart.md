@@ -30,23 +30,19 @@ The UART component may be used as a platform for the [Packet Transport Component
 sensor data to be sent directly from one ESPHome node to another over a UART bus. When using RS485 this can operate in
 a multi-drop configuration.
 
-{{< note >}}
-On the ESP32, this component uses the hardware UART units and is thus very accurate. On the ESP8266 however,
-ESPHome has to use a software implementation as there are no other hardware UART units available other than the
-ones used for logging. Therefore the UART data on the ESP8266 can have occasional data glitches especially with
-higher baud rates.
+> [!NOTE]
+> On the ESP32, this component uses the hardware UART units and is thus very accurate. On the ESP8266 however,
+> ESPHome has to use a software implementation as there are no other hardware UART units available other than the
+> ones used for logging. Therefore the UART data on the ESP8266 can have occasional data glitches especially with
+> higher baud rates.
 
-{{< /note >}}
-{{< note >}}
-From ESPHome 2021.8 the `ESP8266SoftwareSerial` UART `write_byte` function had the parity bit fixed to be correct
-for the data being sent. This could cause unexpected issues if you are using the Software UART and have devices that
-explicity check the parity. Most likely you will need to flip the `parity` flag in YAML.
+> [!NOTE]
+> From ESPHome 2021.8 the `ESP8266SoftwareSerial` UART `write_byte` function had the parity bit fixed to be correct
+> for the data being sent. This could cause unexpected issues if you are using the Software UART and have devices that
+> explicity check the parity. Most likely you will need to flip the `parity` flag in YAML.
 
-{{< /note >}}
-{{< note >}}
-UART implementation for the host platform does not use TX and RX pins but port names.
-
-{{< /note >}}
+> [!NOTE]
+> UART implementation for the host platform does not use TX and RX pins but port names.
 
 ```yaml
 # Example configuration entry
@@ -95,10 +91,9 @@ The ESP8266 has two UARTs; the second of which is TX-only. Only a limited set of
 use either `tx_pin: GPIO1` and `rx_pin: GPIO3`, or `tx_pin: GPIO15` and `rx_pin: GPIO13`. `UART1` must
 use `tx_pin: GPIO2`. Any other combination of pins will result in use of a software UART.
 
-{{< note >}}
-The Software UART is only available on the ESP8266. It is not available on ESP32 and variants.
+> [!NOTE]
+> The Software UART is only available on the ESP8266. It is not available on ESP32 and variants.
 
-{{< /note >}}
 {{< anchor "uart-write_action" >}}
 
 ## `uart.write` Action

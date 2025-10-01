@@ -28,11 +28,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the sensor. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the text sensor to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the text sensor to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the sensor in the frontend.
 - **device_class** (*Optional*, string): The device class for the
@@ -253,16 +251,15 @@ Configuration variables:
 - **state** (**Required**, [templatable](#config-templatable), string): The state to compare
   to.
 
-{{< note >}}
-This condition can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This condition can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> if (id(my_text_sensor).state == "Hello World") {
+>   // do something
+> }
+> ```
 
-```cpp
-if (id(my_text_sensor).state == "Hello World") {
-  // do something
-}
-```
-
-{{< /note >}}
 {{< anchor "text_sensor-lambda_calls" >}}
 
 ### lambda calls

@@ -11,12 +11,10 @@ The MQTT Client Component sets up the MQTT connection to your broker.
 If you are connecting to Home Assistant, you may prefer to use the native API,
 in which case this is not needed.
 
-{{< warning >}}
-If you enable MQTT and you do *not* use the {{< docref "/components/api" >}}, you must
-remove the `api:` configuration or set `reboot_timeout: 0s`, otherwise the ESP will
-reboot every 15 minutes because no client connected to the native API.
-
-{{< /warning >}}
+> [!WARNING]
+> If you enable MQTT and you do *not* use the {{< docref "/components/api" >}}, you must
+> remove the `api:` configuration or set `reboot_timeout: 0s`, otherwise the ESP will
+> reboot every 15 minutes because no client connected to the native API.
 
 ```yaml
 # Example configuration entry
@@ -26,10 +24,8 @@ mqtt:
   password: !secret mqtt_password
 ```
 
-{{< note >}}
-Support for esp-idf is still experimental. Please report issues you have with MQTT using the ESP-IDF framework.
-
-{{< /note >}}
+> [!NOTE]
+> Support for esp-idf is still experimental. Please report issues you have with MQTT using the ESP-IDF framework.
 
 ## Configuration variables
 
@@ -397,21 +393,19 @@ You have to download the server CA certificate in PEM format and add it to `cert
 Usually these are .crt files and you can open them with any text editor.
 Also make sure to change the `port` of the MQTT broker. Most brokers use port 8883 for TLS connections.
 
-{{< warning >}}
-MbedTLS, the library that handles TLS for the esp-idf, doesn't validate wildcard certificates.
-
-The Common Name check only works if the CN is explicitly reported in the certificate.
-
-- \*.example.com -> Fail
-- mqtt.example.com -> Success
-
-If a secure connection is necessary for your device, you really want to set:
-
-```yaml
-skip_cert_cn_check: false
-```
-
-{{< /warning >}}
+> [!WARNING]
+> MbedTLS, the library that handles TLS for the esp-idf, doesn't validate wildcard certificates.
+>
+> The Common Name check only works if the CN is explicitly reported in the certificate.
+>
+> - \*.example.com -> Fail
+> - mqtt.example.com -> Success
+>
+> If a secure connection is necessary for your device, you really want to set:
+>
+> ```yaml
+> skip_cert_cn_check: false
+> ```
 
 ```yaml
 mqtt:
@@ -510,11 +504,9 @@ command_retain: false
 - **command_retain** (*Optional*, boolean): Whether MQTT command messages
    sent to the device should be retained or not. Default to `false`.
 
-{{< warning >}}
-When changing these options and you're using MQTT discovery, you will need to restart Home Assistant.
-This is because Home Assistant only discovers a device once in every Home Assistant start.
-
-{{< /warning >}}
+> [!WARNING]
+> When changing these options and you're using MQTT discovery, you will need to restart Home Assistant.
+> This is because Home Assistant only discovers a device once in every Home Assistant start.
 
 ## Triggers
 
@@ -562,38 +554,34 @@ mqtt:
 - **payload** (*Optional*, string): Optionally set a payload to match. Only if exactly the payload
   you specify with this option is received, the automation will be executed.
 
-{{< note >}}
-You can even specify multiple `on_message` triggers by using a YAML list:
+> [!NOTE]
+> You can even specify multiple `on_message` triggers by using a YAML list:
+>
+> ```yaml
+> mqtt:
+>   on_message:
+>      - topic: some/topic
+>        then:
+>          - # ...
+>      - topic: some/other/topic
+>        then:
+>          - # ...
+> ```
 
-```yaml
-mqtt:
-  on_message:
-     - topic: some/topic
-       then:
-         - # ...
-     - topic: some/other/topic
-       then:
-         - # ...
-```
-
-{{< /note >}}
-
-{{< note >}}
-This action can also be used in [lambdas](#config-lambda):
-
-```yaml
-mqtt:
-  # Give the MQTT component an ID
-  id: mqtt_client
-```
-
-```cpp
-id(mqtt_client).subscribe("the/topic", [=](const std::string &topic, const std::string &payload) {
-    // do something with payload
-});
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be used in [lambdas](#config-lambda):
+>
+> ```yaml
+> mqtt:
+>   # Give the MQTT component an ID
+>   id: mqtt_client
+> ```
+>
+> ```cpp
+> id(mqtt_client).subscribe("the/topic", [=](const std::string &topic, const std::string &payload) {
+>     // do something with payload
+> });
+> ```
 
 {{< anchor "mqtt-on_json_message" >}}
 
@@ -642,27 +630,24 @@ mqtt:
 - **qos** (*Optional*, int): The MQTT Quality of Service to subscribe to the topic with. Defaults
   to 0.
 
-{{< note >}}
-Due to the way this trigger works internally it is incompatible with certain actions and will
-trigger a compile failure. For example with the `delay` action.
+> [!NOTE]
+> Due to the way this trigger works internally it is incompatible with certain actions and will
+> trigger a compile failure. For example with the `delay` action.
 
-{{< /note >}}
-{{< note >}}
-This action can also be used in [lambdas](#config-lambda):
-
-```yaml
-mqtt:
-  # Give the MQTT component an ID
-  id: mqtt_client
-```
-
-```cpp
-id(mqtt_client).subscribe_json("the/topic", [=](const std::string &topic, JsonObject root) {
-    // do something with JSON-decoded value root
-});
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be used in [lambdas](#config-lambda):
+>
+> ```yaml
+> mqtt:
+>   # Give the MQTT component an ID
+>   id: mqtt_client
+> ```
+>
+> ```cpp
+> id(mqtt_client).subscribe_json("the/topic", [=](const std::string &topic, JsonObject root) {
+>     // do something with JSON-decoded value root
+> });
+> ```
 
 ## Actions
 
@@ -701,20 +686,18 @@ on_...:
 - **retain** (*Optional*, boolean, [templatable](#config-templatable)): If the published message should
    have a retain flag on or not. Defaults to `false`.
 
-{{< note >}}
-This action can also be written in [lambdas](#config-lambda):
-
-```yaml
-mqtt:
-  # Give the MQTT component an ID
-  id: mqtt_client
-```
-
-```cpp
-id(mqtt_client).publish("the/topic", "The Payload");
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in [lambdas](#config-lambda):
+>
+> ```yaml
+> mqtt:
+>   # Give the MQTT component an ID
+>   id: mqtt_client
+> ```
+>
+> ```cpp
+> id(mqtt_client).publish("the/topic", "The Payload");
+> ```
 
 {{< anchor "mqtt-publish_json_action" >}}
 
@@ -752,22 +735,20 @@ on_...:
 - **retain** (*Optional*, boolean): If the published message should
    have a retain flag on or not. Defaults to `false`.
 
-{{< note >}}
-This action can also be written in [lambdas](#config-lambda):
-
-```yaml
-mqtt:
-  # Give the MQTT component an ID
-  id: mqtt_client
-```
-
-```cpp
-id(mqtt_client).publish_json("the/topic", [=](JsonObject root) {
-  root["something"] = id(my_sensor).state;
-});
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in [lambdas](#config-lambda):
+>
+> ```yaml
+> mqtt:
+>   # Give the MQTT component an ID
+>   id: mqtt_client
+> ```
+>
+> ```cpp
+> id(mqtt_client).publish_json("the/topic", [=](JsonObject root) {
+>   root["something"] = id(my_sensor).state;
+> });
+> ```
 
 ### `mqtt.disable` Action
 
@@ -779,10 +760,8 @@ on_...:
     - mqtt.disable:
 ```
 
-{{< note >}}
-The configuration option `enable_on_boot` can be set to `false` if you do not want MQTT to be enabled on boot.
-
-{{< /note >}}
+> [!NOTE]
+> The configuration option `enable_on_boot` can be set to `false` if you do not want MQTT to be enabled on boot.
 
 ### `mqtt.enable` Action
 
@@ -794,12 +773,10 @@ on_...:
     - mqtt.enable:
 ```
 
-{{< note >}}
-The configuration option `enable_on_boot` can be set to `false` if you do not want MQTT to be enabled on boot.
-`mqtt.enable` can be useful for custom setups. For example, if the broker name is negotiated dynamically and
-saved in a global variable.
-
-{{< /note >}}
+> [!NOTE]
+> The configuration option `enable_on_boot` can be set to `false` if you do not want MQTT to be enabled on boot.
+> `mqtt.enable` can be useful for custom setups. For example, if the broker name is negotiated dynamically and
+> saved in a global variable.
 
 ```yaml
 mqtt:
@@ -838,22 +815,20 @@ on_...:
       - logger.log: MQTT is connected!
 ```
 
-{{< note >}}
-This action can also be written in [lambdas](#config-lambda):
-
-```yaml
-mqtt:
-  # Give the MQTT component an ID
-  id: mqtt_client
-```
-
-```cpp
-if (id(mqtt_client)->is_connected()) {
-  // do something if MQTT is connected
-}
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in [lambdas](#config-lambda):
+>
+> ```yaml
+> mqtt:
+>   # Give the MQTT component an ID
+>   id: mqtt_client
+> ```
+>
+> ```cpp
+> if (id(mqtt_client)->is_connected()) {
+>   // do something if MQTT is connected
+> }
+> ```
 
 ## See Also
 

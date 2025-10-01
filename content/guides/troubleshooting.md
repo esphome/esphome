@@ -11,11 +11,9 @@ This guide helps you diagnose and debug ESPHome device issues, particularly cras
 experiencing random resets, watchdog timeouts, or need to analyze stack traces, this guide provides step-by-step
 instructions for capturing and understanding crash data.
 
-{{< note >}}
-This guide assumes you have ESPHome installed and basic familiarity with the command line. For installation
-instructions, see {{< docref "/guides/installing_esphome" >}}.
-
-{{< /note >}}
+> [!NOTE]
+> This guide assumes you have ESPHome installed and basic familiarity with the command line. For installation
+> instructions, see {{< docref "/guides/installing_esphome" >}}.
 
 ## Getting a Stack Trace from Crashes
 
@@ -42,11 +40,9 @@ When your ESPHome device crashes, you can obtain a decoded stack trace to help i
    esphome upload your-device.yaml
    ```
 
-{{< note >}}
-While you can use OTA for the upload, you'll need a USB connection anyway to capture the crash output in the next
-steps, so uploading via USB is usually more convenient.
-
-{{< /note >}}
+> [!NOTE]
+> While you can use OTA for the upload, you'll need a USB connection anyway to capture the crash output in the next
+> steps, so uploading via USB is usually more convenient.
 
 1. **Connect via USB**: Connect your device to your computer using a USB cable. The device must be connected via
    serial console (not over WiFi/OTA) to capture the crash output.
@@ -85,11 +81,9 @@ steps, so uploading via USB is usually more convenient.
    - Line numbers in the source code
    - The call stack leading to the crash
 
-   {{< note >}}
-   **Important**: You must compile locally and upload the firmware before capturing the crash. The debug symbols must
-   match the running firmware for the stack trace to be decoded correctly.
-
-   {{< /note >}}
+   > [!NOTE]
+   > **Important**: You must compile locally and upload the firmware before capturing the crash. The debug symbols must
+   > match the running firmware for the stack trace to be decoded correctly.
 
 ### Common Issues
 
@@ -104,11 +98,9 @@ If you already have a stack trace but need to decode it, you can use the
 1. **Download the .elf file**: From the ESPHome dashboard, click the overflow menu (three dots) on your device card
    and select "Download .elf file"
 
-   {{< note >}}
-   The .elf file must be from the same compilation that produced the firmware currently running on your device.
-   If you've recompiled since flashing, the debug symbols won't match.
-
-   {{< /note >}}
+   > [!NOTE]
+   > The .elf file must be from the same compilation that produced the firmware currently running on your device.
+   > If you've recompiled since flashing, the debug symbols won't match.
 
 1. **Open the decoder**: Navigate to <https://esphome.github.io/esp-stacktrace-decoder/>
 
@@ -120,11 +112,9 @@ If you already have a stack trace but need to decode it, you can use the
 
 1. **View results**: The tool will decode the addresses and show you the function names, file paths, and line numbers
 
-   {{< note >}}
-   This tool runs entirely in your browser - no data is sent to any server, ensuring your firmware and
-   debug information remain private.
-
-   {{< /note >}}
+   > [!NOTE]
+   > This tool runs entirely in your browser - no data is sent to any server, ensuring your firmware and
+   > debug information remain private.
 
 ## Adjusting Log Levels for Debugging
 
@@ -151,10 +141,9 @@ Available log levels from least to most verbose:
 - `VERBOSE` - Detailed debug messages and above
 - `VERY_VERBOSE` - All internal messages including data bus traffic
 
-{{< warning >}}
-Using `VERY_VERBOSE` can significantly slow down your device and may cause connectivity issues due to the volume of
-log messages generated. Use it only for short debugging sessions.
-{{< /warning >}}
+> [!WARNING]
+> Using `VERY_VERBOSE` can significantly slow down your device and may cause connectivity issues due to the volume of
+> log messages generated. Use it only for short debugging sessions.
 
 ### ESP-IDF Framework Log Level
 
@@ -176,11 +165,10 @@ You can also configure log levels for specific components to reduce noise or get
 See the {{< docref "/components/logger#manual-tag-specific-log-levels" "logger manual tag-specific log levels" >}}
 documentation for detailed information and examples.
 
-{{< important >}}
-The global log level determines which messages are compiled into the binary. Component-specific log levels can only
-reduce verbosity, not increase it beyond the global level. For example, if the global level is `INFO`, setting a
-component to `DEBUG` will have no effect.
-{{< /important >}}
+> [!IMPORTANT]
+> The global log level determines which messages are compiled into the binary. Component-specific log levels can only
+> reduce verbosity, not increase it beyond the global level. For example, if the global level is `INFO`, setting a
+> component to `DEBUG` will have no effect.
 
 ## Performance Troubleshooting
 

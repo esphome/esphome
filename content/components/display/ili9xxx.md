@@ -44,22 +44,19 @@ ILI9341 ([datasheet](https://cdn-shop.adafruit.com/datasheets/ILI9341.pdf)) and 
 displays from the same chip family with ESPHome. As this is a somewhat higher resolution display and requires additional pins
 beyond the basic SPI connections, and a reasonable amount of RAM, it is not well suited for the ESP8266.
 
-{{< warning >}}
-This component has been made redundant since this class of displays is now supported by the [MIPI SPI Display Driver](#mipi_spi).
-This component may be removed in a future release.
-{{< /warning >}}
+> [!WARNING]
+> This component has been made redundant since this class of displays is now supported by the [MIPI SPI Display Driver](#mipi_spi).
+> This component may be removed in a future release.
 
-{{< note >}}
-PSRAM is not automatically enabled on the ESP32 (this changed with the 2025.2 release.) If PSRAM is available, you
-should enable it with the {{< docref "/components/psram" "PSRAM configuration" >}}.
-Use of 16 bit colors requires twice the amount of RAM as 8 bit, and may not be usable unless PSRAM is available.
+> [!NOTE]
+> PSRAM is not automatically enabled on the ESP32 (this changed with the 2025.2 release.) If PSRAM is available, you
+> should enable it with the {{< docref "/components/psram" "PSRAM configuration" >}}.
+> Use of 16 bit colors requires twice the amount of RAM as 8 bit, and may not be usable unless PSRAM is available.
 
-{{< /note >}}
-{{< note >}}
-The default color depth is 16 bit (RGB565). 8 bit color is also supported, but the color palette must be set to one of the available options.
-Use of 16 bit colors requires twice the amount of RAM as 8 bit, and may not be usable unless PSRAM is available.
+> [!NOTE]
+> The default color depth is 16 bit (RGB565). 8 bit color is also supported, but the color palette must be set to one of the available options.
+> Use of 16 bit colors requires twice the amount of RAM as 8 bit, and may not be usable unless PSRAM is available.
 
-{{< /note >}}
 {{< img src="ili9341-full.jpg" alt="Image" caption="ILI9341 display" width="75.0%" class="align-center" >}}
 
 ```yaml
@@ -89,11 +86,9 @@ All [graphical display configuration](#display-configuration) options are availa
 - **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
 - **cs_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The CS pin.
 
-{{< note >}}
-A DC pin is always required, the CS pin and RESET pin will only be needed if the specific board has those
-pins wired to GPIOs.
-
-{{< /note >}}
+> [!NOTE]
+> A DC pin is always required, the CS pin and RESET pin will only be needed if the specific board has those
+> pins wired to GPIOs.
 
 - **color_palette** (*Optional*): When using 8 bit colors, this controls the type of color palette that will be used in the ESP's internal 8-bits-per-pixel buffer. This can be used to improve color depth quality of the image. For example if you know that the display will only be showing grayscale images, the clarity of the display can be improved by targeting the available colors to monochrome only. Options are:
 
@@ -120,17 +115,15 @@ pins wired to GPIOs.
   - **mirror_x** (*Optional*, boolean): If true, mirror the x axis.
   - **mirror_y** (*Optional*, boolean): If true, mirror the y axis.
 
-{{< note >}}
-The `rotation` variable will do a software based rotation.
-It is better to use the `transform` option to rotate the display in hardware. Use one of the following combinations:
-
-- 90 degrees - use `swap_xy` with `mirror_x`
-- 180 degrees - use `mirror_x` with `mirror_y`
-- 270 degrees - use `swap_xy` with `mirror_y`
-
-With 90 and 270 rotations you will also need to swap the `height` and `width` in `dimensions` (see example below.
-
-{{< /note >}}
+> [!NOTE]
+> The `rotation` variable will do a software based rotation.
+> It is better to use the `transform` option to rotate the display in hardware. Use one of the following combinations:
+>
+> - 90 degrees - use `swap_xy` with `mirror_x`
+> - 180 degrees - use `mirror_x` with `mirror_y`
+> - 270 degrees - use `swap_xy` with `mirror_y`
+>
+> With 90 and 270 rotations you will also need to swap the `height` and `width` in `dimensions` (see example below.
 
 - **init_sequence** (*Optional*): Allows custom initialisation sequences to be added. See below for more information.
 

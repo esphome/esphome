@@ -83,34 +83,32 @@ To conserve flash size, the CSS and JS files used on the root page to show a sim
 interface are hosted by esphome.io. If you want to use your own service, use the
 `css_url` and `js_url` options in your configuration.
 
-{{< note >}}
-**OTA Updates via Web Interface**
-
-The `ota` option has been moved from the `web_server` component to its own OTA platform.
-
-To enable OTA updates through the web interface, use the new `web_server` OTA platform:
-
-```yaml
-# Enable OTA updates via web interface
-ota:
-  - platform: web_server
-```
-
-To explicitly disable OTA updates for the web server while keeping them enabled for captive portal
-(useful when captive portal is configured since it automatically enables web server OTA):
-
-```yaml
-# Disable OTA updates for web_server only
-# Captive portal will still have OTA access since it auto-loads the web server OTA platform
-web_server:
-  ota: false
-
-captive_portal:  # This component automatically enables OTA
-```
-
-See {{< docref "/components/ota/web_server" >}} for more information.
-
-{{< /note >}}
+> [!NOTE]
+> **OTA Updates via Web Interface**
+>
+> The `ota` option has been moved from the `web_server` component to its own OTA platform.
+>
+> To enable OTA updates through the web interface, use the new `web_server` OTA platform:
+>
+> ```yaml
+> # Enable OTA updates via web interface
+> ota:
+>   - platform: web_server
+> ```
+>
+> To explicitly disable OTA updates for the web server while keeping them enabled for captive portal
+> (useful when captive portal is configured since it automatically enables web server OTA):
+>
+> ```yaml
+> # Disable OTA updates for web_server only
+> # Captive portal will still have OTA access since it auto-loads the web server OTA platform
+> web_server:
+>   ota: false
+>
+> captive_portal:  # This component automatically enables OTA
+> ```
+>
+> See {{< docref "/components/ota/web_server" >}} for more information.
 
 ## Example configurations
 

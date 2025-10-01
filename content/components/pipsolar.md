@@ -12,12 +12,11 @@ It uses [UART](#uart) for communication.
 
 Once configured, you can use sensors, binary sensors, switches and outputs as described below for your projects.
 
-{{< warning >}}
-All functionality is working fine on esp8266 and esp32 chips.
-If you configure a lot of the possible sensors etc. from below it could be that you run out of memory (on esp8266).
-If you configure more than one if this devices with nearly all sensors etc. you run in a stack-size issue. In this case you have to increase stack size.
+> [!WARNING]
+> All functionality is working fine on esp8266 and esp32 chips.
+> If you configure a lot of the possible sensors etc. from below it could be that you run out of memory (on esp8266).
+> If you configure more than one if this devices with nearly all sensors etc. you run in a stack-size issue. In this case you have to increase stack size.
 
-{{< /warning >}}
 {{< img src="pipsolar.jpg" alt="Image" caption="pip4048 compatible PV Inverter." width="50.0%" class="align-center" >}}
 
 ## Overview

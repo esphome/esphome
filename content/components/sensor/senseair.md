@@ -41,10 +41,9 @@ sensor:
 
 {{< img src="senseair_s8-pins.jpg" alt="Image" caption="Pins on the SenseAir S8. Only the ones marked with a red circle need to be connected." width="80.0%" class="align-center" >}}
 
-{{< note >}}
-`G+` should be connected to power supply (supported voltage is 4.5 V to 5.25 V), `G0` to `GND` pin
+> [!NOTE]
+> `G+` should be connected to power supply (supported voltage is 4.5 V to 5.25 V), `G0` to `GND` pin
 
-{{< /note >}}
 {{< anchor "senseair-background_calibration_action" >}}
 
 ## `senseair.background_calibration` Action
