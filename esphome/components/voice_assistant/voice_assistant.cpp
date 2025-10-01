@@ -429,8 +429,8 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
 
   if (this->api_client_ != nullptr) {
     ESP_LOGE(TAG, "Multiple API Clients attempting to connect to Voice Assistant");
-    ESP_LOGE(TAG, "Current client: %s", this->api_client_->get_client_combined_info().c_str());
-    ESP_LOGE(TAG, "New client: %s", client->get_client_combined_info().c_str());
+    ESP_LOGE(TAG, "Current client: %s (%s)", this->api_client_->get_name(), this->api_client_->get_peername());
+    ESP_LOGE(TAG, "New client: %s (%s)", client->get_name(), client->get_peername());
     return;
   }
 
