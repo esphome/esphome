@@ -33,10 +33,8 @@ void QMC5883LComponent::setup() {
   }
   delay(10);
 
-  if (this->drdy_pin_ != nullptr) {
+  if (this->drdy_pin_) {
     this->drdy_pin_->setup();
-  } else {
-    this->disable_loop();
   }
 
   uint8_t control_1 = 0;
@@ -67,18 +65,8 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  bool high_frequency =
-      this->get_update_interval() < App.get_loop_interval() || this->datarate_ >= QMC5883L_DATARATE_100_HZ;
-  if (high_frequency)
+  if (this->get_update_interval() < App.get_loop_interval()) {
     high_freq_.start();
-}
-
-void QMC5883LComponent::loop() {
-  // Changed ORIGINAL update() to read_data_().
-  //
-  // If DRDY Pin is Defined AND Signalled, Read Data; Otherwise, Handle in update()!
-  if (this->drdy_pin_->digital_read()) {
-    this->read_data_();
   }
 }
 
@@ -100,11 +88,15 @@ void QMC5883LComponent::dump_config() {
 
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void QMC5883LComponent::update() { this->read_data_(); }
-
-void QMC5883LComponent::read_data_() {
+void QMC5883LComponent::update() {
   i2c::ErrorCode err;
   uint8_t status = false;
+
+  // If DRDY pin is configured and the data is not ready return.
+  if (this->drdy_pin_ && !this->drdy_pin_->digital_read()) {
+    return;
+  }
+
   // Status byte gets cleared when data is read, so we have to read this first.
   // If status and two axes are desired, it's possible to save one byte of traffic by enabling
   // ROL_PNT in setup and reading 7 bytes starting at the status register.

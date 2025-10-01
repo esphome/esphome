@@ -1,10 +1,11 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_DATA_RATE,
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
@@ -17,12 +18,13 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_SCREEN_ROTATION,
-    SCHEDULER_DONT_RUN,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_DRDY_PIN = "drdy_pin"
 
@@ -58,17 +60,13 @@ QMC5883LOversamplings = {
 
 
 def validate_config(config):
-    valErrors = []
-
-    if config[CONF_UPDATE_INTERVAL] in [SCHEDULER_DONT_RUN, "never"]:
-        if CONF_DRDY_PIN not in config:
-            valErrors.append('"drdy_pin" REQUIRED for update_interval of "never"')
-        if config[CONF_DATA_RATE] is None:
-            valErrors.append('"data_rate" REQUIRED for update_interval of "never"')
-
-    if len(valErrors) > 0:
-        raise cv.Invalid("\n".join(valErrors))
-
+    if (
+        config[CONF_UPDATE_INTERVAL].total_milliseconds < 15
+        and CONF_DRDY_PIN not in config
+    ):
+        _LOGGER.warning(
+            "'update_interval' is less than 15ms and 'drdy_pin' is not configured, this may result in I2C errors"
+        )
     return config
 
 
@@ -125,9 +123,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HEADING): heading_schema,
             cv.Optional(CONF_TEMPERATURE): temperature_schema,
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_DATA_RATE): validate_enum(
-                QMC5883LDatarates, units=["hz", "Hz"]
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -138,10 +133,11 @@ CONFIG_SCHEMA = cv.All(
 
 def auto_data_rate(config):
     interval_sec = config[CONF_UPDATE_INTERVAL].total_milliseconds / 1000
-    interval_hz = 1.0 / interval_sec
-    for datarate in sorted(QMC5883LDatarates.keys()):
-        if float(datarate) >= interval_hz:
-            return QMC5883LDatarates[datarate]
+    if interval_sec > 0:
+        interval_hz = 1.0 / interval_sec
+        for datarate in sorted(QMC5883LDatarates.keys()):
+            if float(datarate) >= interval_hz:
+                return QMC5883LDatarates[datarate]
     return QMC5883LDatarates[200]
 
 
@@ -150,10 +146,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
-    if CONF_DRDY_PIN in config:
-        cg.add(var.set_datarate(config[CONF_DATA_RATE]))
-    else:
-        cg.add(var.set_datarate(auto_data_rate(config)))
+    cg.add(var.set_datarate(auto_data_rate(config)))
     cg.add(var.set_range(config[CONF_RANGE]))
     if CONF_FIELD_STRENGTH_X in config:
         sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])

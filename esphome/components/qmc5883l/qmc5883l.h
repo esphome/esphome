@@ -33,7 +33,6 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-  void loop() override;
 
   void set_drdy_pin(GPIOPin *pin) { drdy_pin_ = pin; }
 
@@ -47,7 +46,6 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
 
  protected:
-  void read_data_();
   QMC5883LDatarate datarate_{QMC5883L_DATARATE_10_HZ};
   QMC5883LRange range_{QMC5883L_RANGE_200_UT};
   QMC5883LOversampling oversampling_{QMC5883L_SAMPLING_512};
