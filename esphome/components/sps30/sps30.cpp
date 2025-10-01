@@ -52,7 +52,7 @@ void SPS30Component::setup() {
     } else {
       result = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
     }
-    
+
     this->set_timeout(20, [this]() {
       if (result) {
         uint16_t secs[2];
