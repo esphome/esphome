@@ -314,7 +314,8 @@ class Logger : public Component {
 
   static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
     const size_t len = strlen(str);
-    memcpy(buffer + pos, str, len);
+    // Intentionally no null terminator, building larger string
+    memcpy(buffer + pos, str, len);  // NOLINT(bugprone-not-null-terminated-result)
     pos += len;
   }
 
