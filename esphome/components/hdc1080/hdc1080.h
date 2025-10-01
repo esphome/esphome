@@ -19,10 +19,6 @@ class HDC1080Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  void begin_measurement_();
-  void get_temperature_();
-  void get_humidity_();
-
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
 };
