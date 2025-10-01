@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     KEY_PAST_SAFE_MODE,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import RawExpression
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
@@ -53,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(50.0)
+@coroutine_with_priority(CoroPriority.APPLICATION)
 async def to_code(config):
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])

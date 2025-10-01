@@ -12,12 +12,12 @@ sensor:
     frequency: 60Hz
     phase_a:
       name: Channel A
-      voltage: Channel A Voltage
-      current: Channel A Current
-      active_power: Channel A Active Power
-      power_factor: Channel A Power Factor
-      forward_active_energy: Channel A Forward Active Energy
-      reverse_active_energy: Channel A Reverse Active Energy
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
       calibration:
         current_gain: 3116628
         voltage_gain: -757178
@@ -25,12 +25,12 @@ sensor:
         phase_angle: 188
     phase_b:
       name: Channel B
-      voltage: Channel B Voltage
-      current: Channel B Current
-      active_power: Channel B Active Power
-      power_factor: Channel B Power Factor
-      forward_active_energy: Channel B Forward Active Energy
-      reverse_active_energy: Channel B Reverse Active Energy
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
       calibration:
         current_gain: 3133655
         voltage_gain: -755235
@@ -38,12 +38,12 @@ sensor:
         phase_angle: 188
     phase_c:
       name: Channel C
-      voltage: Channel C Voltage
-      current: Channel C Current
-      active_power: Channel C Active Power
-      power_factor: Channel C Power Factor
-      forward_active_energy: Channel C Forward Active Energy
-      reverse_active_energy: Channel C Reverse Active Energy
+      voltage: Voltage
+      current: Current
+      active_power: Active Power
+      power_factor: Power Factor
+      forward_active_energy: Forward Active Energy
+      reverse_active_energy: Reverse Active Energy
       calibration:
         current_gain: 3111158
         voltage_gain: -743813
@@ -51,6 +51,6 @@ sensor:
         phase_angle: 180
     neutral:
       name: Neutral
-      current: Neutral Current
+      current: Current
       calibration:
         current_gain: 3189

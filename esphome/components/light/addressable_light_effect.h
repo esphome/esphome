@@ -44,6 +44,13 @@ class AddressableLightEffect : public LightEffect {
     this->apply(*this->get_addressable_(), current_color);
   }
 
+  /// Get effect index specifically for addressable effects.
+  /// Can be used by effects to modify behavior based on their position in the list.
+  uint32_t get_effect_index() const { return this->get_index(); }
+
+  /// Check if this is the currently running addressable effect.
+  bool is_current_effect() const { return this->is_active() && this->get_addressable_()->is_effect_active(); }
+
  protected:
   AddressableLight *get_addressable_() const { return (AddressableLight *) this->state_->get_output(); }
 };

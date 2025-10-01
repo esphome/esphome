@@ -279,20 +279,18 @@ ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Ga
 }
 
 ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
-  auto als_err =
-      this->read_register((uint8_t) CommandRegisters::ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE, false);
+  auto als_err = this->read_register((uint8_t) CommandRegisters::ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE);
   if (als_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS register, err = %d", als_err);
   }
   auto white_err =
-      this->read_register((uint8_t) CommandRegisters::WHITE, (uint8_t *) &data.white_counts, VEML_REG_SIZE, false);
+      this->read_register((uint8_t) CommandRegisters::WHITE, (uint8_t *) &data.white_counts, VEML_REG_SIZE);
   if (white_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading WHITE register, err = %d", white_err);
   }
 
   ConfigurationRegister conf{0};
-  auto err =
-      this->read_register((uint8_t) CommandRegisters::ALS_CONF_0, (uint8_t *) conf.raw_bytes, VEML_REG_SIZE, false);
+  auto err = this->read_register((uint8_t) CommandRegisters::ALS_CONF_0, (uint8_t *) conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS_CONF_0 register, err = %d", white_err);
   }
