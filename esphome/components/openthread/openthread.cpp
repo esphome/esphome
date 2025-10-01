@@ -143,7 +143,7 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Use mdns services directly - they remain valid for the lifetime of the mdns component
+  // Get mdns services and copy their data (strings are copied with strdup below)
   const auto &mdns_services = this->mdns_->get_services();
   uint8_t mdns_count = this->mdns_->get_services_count();
   ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_count);
