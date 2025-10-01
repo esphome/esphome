@@ -13,7 +13,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE
-from esphome.loader import get_component, get_platform
+from esphome.loader import ComponentManifest, get_component, get_platform
 
 
 def filter_component_files(str):
@@ -63,7 +63,7 @@ def create_components_graph():
 
     components_graph = {}
     platforms = []
-    components = []
+    components: list[tuple[ComponentManifest, str, Path]] = []
 
     for path in components_dir.iterdir():
         if not path.is_dir():
@@ -97,7 +97,7 @@ def create_components_graph():
                 import inspect
 
                 if inspect.signature(auto_load).parameters:
-                    auto_load = auto_load({})
+                    auto_load = auto_load(None)
                 else:
                     auto_load = auto_load()
             for item in auto_load:
