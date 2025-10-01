@@ -192,7 +192,7 @@ def install_custom_components_meta_finder():
     install_meta_finder(custom_components_dir)
 
 
-def _lookup_module(domain: str, exception: bool):
+def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
@@ -219,12 +219,12 @@ def _lookup_module(domain: str, exception: bool):
     return manif
 
 
-def get_component(domain: str, exception=False):
+def get_component(domain: str, exception: bool = False) -> ComponentManifest | None:
     assert "." not in domain
     return _lookup_module(domain, exception)
 
 
-def get_platform(domain: str, platform: str):
+def get_platform(domain: str, platform: str) -> ComponentManifest | None:
     full = f"{platform}.{domain}"
     return _lookup_module(full, False)
 
