@@ -19,13 +19,11 @@ device's configuration.
 In addition, the `zwave_proxy` expects to proxy messages via ESPHome's {{< docref "/components/api" >}}; this is also
 required in your configuration.
 
-{{< note >}}
-Number of connections
-
-While ESPHome supports multiple API connections/clients, only a single client may subscribe to and receive proxied
-Z-Wave data frames at any given time.
-
-{{< /note >}}
+> [!NOTE]
+> Number of connections
+>
+> While ESPHome supports multiple API connections/clients, only a single client may subscribe to and receive proxied
+> Z-Wave data frames at any given time.
 
 ## Configuration
 
