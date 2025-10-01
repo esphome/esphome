@@ -9,6 +9,10 @@
 #include <cinttypes>
 #include "esp_event.h"
 
+#ifdef USE_ETHERNET_LAN8670
+#include "esp_eth_phy_lan867x.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -200,6 +204,12 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
       break;
     }
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670: {
+      this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
+      break;
+    }
+#endif
 #endif
 #ifdef USE_ETHERNET_SPI
 #if CONFIG_ETH_SPI_ETHERNET_W5500
@@ -229,10 +239,12 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
 
 #ifndef USE_ETHERNET_SPI
+#ifdef USE_ETHERNET_KSZ8081
   if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
     // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
     this->ksz8081_set_clock_reference_(mac);
   }
+#endif  // USE_ETHERNET_KSZ8081
 
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
@@ -241,7 +253,11 @@ void EthernetComponent::setup() {
 
   // use ESP internal eth mac
   uint8_t mac_addr[6];
-  esp_read_mac(mac_addr, ESP_MAC_ETH);
+  if (this->fixed_mac_.has_value()) {
+    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+  } else {
+    esp_read_mac(mac_addr, ESP_MAC_ETH);
+  }
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_MAC_ADDR, mac_addr);
   ESPHL_ERROR_CHECK(err, "set mac address error");
 
@@ -350,6 +366,12 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;
+
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670:
+      eth_type = "LAN8670";
+      break;
+#endif
 
     default:
       eth_type = "Unknown";
@@ -721,6 +743,7 @@ bool EthernetComponent::powerdown() {
 
 #ifndef USE_ETHERNET_SPI
 
+#ifdef USE_ETHERNET_KSZ8081
 constexpr uint8_t KSZ80XX_PC2R_REG_ADDR = 0x1F;
 
 void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
@@ -749,6 +772,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
     ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
   }
 }
+#endif  // USE_ETHERNET_KSZ8081
 
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
