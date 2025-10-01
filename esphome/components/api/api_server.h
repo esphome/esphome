@@ -44,6 +44,8 @@ class APIServer : public Component, public Controller {
   void set_reboot_timeout(uint32_t reboot_timeout);
   void set_batch_delay(uint16_t batch_delay);
   uint16_t get_batch_delay() const { return batch_delay_; }
+  void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
+  void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -189,8 +191,12 @@ class APIServer : public Component, public Controller {
   // Group smaller types together
   uint16_t port_{6053};
   uint16_t batch_delay_{100};
+  // Connection limits - these defaults will be overridden by config values
+  // from cv.SplitDefault in __init__.py which sets platform-specific defaults
+  uint8_t listen_backlog_{4};
+  uint8_t max_connections_{8};
   bool shutting_down_ = false;
-  // 5 bytes used, 3 bytes padding
+  // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
