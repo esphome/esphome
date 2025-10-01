@@ -219,7 +219,7 @@ async def to_code(config):
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
     if CONF_MAX_CONNECTIONS in config:
         cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
-    cg.add_define("API_MAX_SEND_QUEUE", config.get(CONF_MAX_SEND_QUEUE, 5))
+    cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
