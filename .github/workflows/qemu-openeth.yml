@@ -1,0 +1,136 @@
+name: QEMU MQTT Topic Test
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - esphome/components/mqtt/**
+      - esphome/core/helpers.cpp
+      - esphome/core/helpers.h
+      - esphome/helpers.py
+      - test_mqtt_openeth.yaml
+      - .github/workflows/qemu-openeth.yml
+  pull_request:
+    paths:
+      - esphome/components/mqtt/**
+      - esphome/core/helpers.cpp
+      - esphome/core/helpers.h
+      - esphome/helpers.py
+      - test_mqtt_openeth.yaml
+      - .github/workflows/qemu-openeth.yml
+
+permissions:
+  contents: read
+
+jobs:
+  qemu-openeth:
+    name: QEMU OpenETH MQTT topics
+    runs-on: ubuntu-24.04
+    env:
+      LANG: C.UTF-8
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c  # v6.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-xtensa mosquitto mosquitto-clients esptool
+
+      - name: Start local Mosquitto broker
+        run: |
+          cat <<'CONF' > mosquitto.conf
+          allow_anonymous true
+          listener 1883 127.0.0.1
+          CONF
+          mosquitto -c mosquitto.conf -d
+
+      - name: Prepare CI configuration
+        run: |
+          python - <<'PY'
+          import yaml
+
+          with open('test_mqtt_openeth.yaml', encoding='utf-8') as source:
+              data = yaml.safe_load(source)
+
+          data.setdefault('api', {})['password'] = 'local-key'
+
+          mqtt = data.setdefault('mqtt', {})
+          mqtt.update({
+              'broker': '127.0.0.1',
+              'port': 1883,
+              'username': 'local',
+              'password': 'local123',
+              'discovery': False,
+              'discover_ip': False,
+          })
+          mqtt.pop('certificate_authority', None)
+
+          with open('test_mqtt_openeth_ci.yaml', 'w', encoding='utf-8') as target:
+              yaml.safe_dump(data, target, sort_keys=False, allow_unicode=True)
+          PY
+
+      - name: Compile ESPHome configuration
+        run: |
+          . venv/bin/activate
+          esphome compile test_mqtt_openeth_ci.yaml
+
+      - name: Run QEMU and verify MQTT topics
+        run: |
+          set -euo pipefail
+          BUILD_DIR=".esphome/build/qemu-test/.pioenvs/qemu-test"
+          pushd "$BUILD_DIR"
+          esptool.py --chip esp32 merge_bin -o qemu_flash_4mb.bin \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB --fill-flash-size 4MB \
+            0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 firmware.bin >/dev/null
+          python -c "open('qemu_efuse_zero.bin','wb').write(b'\\x00'*1024)"
+          /root/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin/qemu-system-xtensa \
+            -nographic -M esp32 -m 4 \
+            -drive file=qemu_flash_4mb.bin,if=mtd,format=raw \
+            -drive file=qemu_efuse_zero.bin,format=raw,if=none,id=efuse \
+            -global driver=nvram.esp32.efuse,property=drive,value=efuse \
+            -global driver=timer.esp32.timg,property=wdt_disable,value=true \
+            -nic user,model=open_eth \
+            -serial mon:stdio \
+            > qemu.log 2>&1 &
+          QEMU_PID=$!
+          popd
+          sleep 12
+          mosquitto_sub -h 127.0.0.1 -p 1883 -u local -P local123 -t 'qemu-test/#' -C 12 -v > mqtt.log
+          kill $QEMU_PID || true
+          wait $QEMU_PID 2>/dev/null || true
+          grep -F "qemu-test/sensor/Тестовый_сенсор_температуры/state" mqtt.log
+          grep -F "qemu-test/sensor/Тестовый_сенсор_влажности/state" mqtt.log
+          grep -F "qemu-test/switch/Тестовый_переключатель_1/state" mqtt.log
+
+      - name: Show QEMU log (on failure)
+        if: failure()
+        run: |
+          tail -n 200 .esphome/build/qemu-test/.pioenvs/qemu-test/qemu.log || true
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: qemu-openeth-logs
+          path: |
+            .esphome/build/qemu-test/.pioenvs/qemu-test/qemu.log
+            mqtt.log
+
+      - name: Stop Mosquitto
+        if: always()
+        run: pkill mosquitto || true

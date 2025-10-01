@@ -182,27 +182,122 @@ std::string str_until(const std::string &str, char ch) { return str.substr(0, st
 // see https://en.cppreference.com/w/cpp/string/byte/toupper#Notes
 template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str) {
   std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
+  result.reserve(str.length());
+
+  for (size_t i = 0; i < str.length(); ++i) {
+    const unsigned char byte = static_cast<unsigned char>(str[i]);
+    if (byte < 0x80u) {
+      result.push_back(static_cast<char>(fn(static_cast<int>(byte))));
+    } else {
+      result.push_back(static_cast<char>(byte));
+    }
+  }
+
   return result;
 }
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
 std::string str_snake_case(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
+  std::string result = str_ctype_transform<std::tolower>(str);
   std::replace(result.begin(), result.end(), ' ', '_');
   return result;
 }
 std::string str_sanitize(const std::string &str) {
   std::string out = str;
-  std::replace_if(
-      out.begin(), out.end(),
-      [](const char &c) {
-        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z');
-      },
-      '_');
+  std::replace_if(out.begin(), out.end(),
+                  [](const char &c) {
+                    return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') &&
+                           (c < 'A' || c > 'Z');
+                  },
+                  '_');
+  return out;
+}
+
+namespace {
+
+bool is_utf8_continuation_byte_(unsigned char byte) { return (byte & 0b11000000u) == 0b10000000u; }
+
+size_t utf8_sequence_length_(unsigned char lead) {
+  if ((lead & 0b11110000u) == 0b11110000u)
+    return 4;
+  if ((lead & 0b11100000u) == 0b11100000u)
+    return 3;
+  if ((lead & 0b11100000u) == 0b11000000u)
+    return 2;
+  return 1;
+}
+
+}  // namespace
+
+std::string str_sanitize_topic_fragment(const std::string &str) {
+  std::string out;
+  out.reserve(str.size());
+
+  for (size_t i = 0; i < str.size();) {
+    unsigned char byte = static_cast<unsigned char>(str[i]);
+    if (byte < 0x80u) {
+      char normalized = static_cast<char>(byte);
+      if (normalized >= 'A' && normalized <= 'Z')
+        normalized = static_cast<char>(normalized - 'A' + 'a');
+      if (normalized == ' ')
+        normalized = '_';
+      if ((normalized >= '0' && normalized <= '9') || (normalized >= 'a' && normalized <= 'z') || normalized == '-' ||
+          normalized == '_') {
+        out.push_back(normalized);
+      } else {
+        out.push_back('_');
+      }
+      ++i;
+      continue;
+    }
+
+    size_t seq_len = utf8_sequence_length_(byte);
+    if (seq_len == 1 || i + seq_len > str.size()) {
+      out.push_back('_');
+      ++i;
+      continue;
+    }
+
+    char32_t code_point = 0;
+    switch (seq_len) {
+      case 2:
+        code_point = byte & 0x1Fu;
+        break;
+      case 3:
+        code_point = byte & 0x0Fu;
+        break;
+      case 4:
+        code_point = byte & 0x07u;
+        break;
+      default:
+        break;
+    }
+
+    bool valid = true;
+    for (size_t j = 1; j < seq_len; j++) {
+      unsigned char continuation = static_cast<unsigned char>(str[i + j]);
+      if (!is_utf8_continuation_byte_(continuation)) {
+        valid = false;
+        break;
+      }
+      code_point = (code_point << 6) | (continuation & 0x3Fu);
+    }
+
+    if (!valid) {
+      out.push_back('_');
+      ++i;
+      continue;
+    }
+
+    if (code_point >= 0x00C0) {
+      out.append(str, i, seq_len);
+    } else {
+      out.push_back('_');
+    }
+
+    i += seq_len;
+  }
+
   return out;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {

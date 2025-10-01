@@ -21,7 +21,7 @@ void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos;
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = str_sanitize(App.get_name());
+  std::string sanitized_name = str_sanitize_topic_fragment(App.get_name());
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
          this->get_default_object_id_() + "/config";
 }
@@ -33,7 +33,31 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
     return "";
   }
 
-  return topic_prefix + "/" + this->component_type() + "/" + this->get_default_object_id_() + "/" + suffix;
+  std::string topic_fragment;
+  const auto source = global_mqtt_client->get_topic_name_source();
+  const auto *entity = this->get_entity();
+
+  if (source == MQTT_TOPIC_NAME_SOURCE_ID && entity != nullptr) {
+    topic_fragment = entity->get_object_id();
+  }
+
+  if (topic_fragment.empty()) {
+    std::string fallback_name = this->friendly_name();
+    if (fallback_name.empty()) {
+      fallback_name = App.get_friendly_name();
+    }
+    topic_fragment = str_sanitize_topic_fragment(fallback_name);
+  }
+
+  if (topic_fragment.empty() && entity != nullptr) {
+    topic_fragment = entity->get_object_id();
+  }
+
+  if (topic_fragment.empty()) {
+    topic_fragment = str_sanitize_topic_fragment(App.get_name());
+  }
+
+  return topic_prefix + "/" + this->component_type() + "/" + topic_fragment + "/" + suffix;
 }
 
 std::string MQTTComponent::get_state_topic_() const {
@@ -200,6 +224,13 @@ bool MQTTComponent::is_discovery_enabled() const {
 }
 
 std::string MQTTComponent::get_default_object_id_() const {
+  const auto *entity = this->get_entity();
+  if (entity != nullptr) {
+    auto object_id = entity->get_object_id();
+    if (!object_id.empty()) {
+      return object_id;
+    }
+  }
   return str_sanitize(str_snake_case(this->friendly_name()));
 }
 
