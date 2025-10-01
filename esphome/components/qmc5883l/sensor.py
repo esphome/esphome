@@ -65,7 +65,8 @@ def validate_config(config):
         and CONF_DRDY_PIN not in config
     ):
         _LOGGER.warning(
-            "'update_interval' is less than 15ms and 'drdy_pin' is not configured, this may result in I2C errors"
+            "[qmc5883l] 'update_interval' is less than 15ms and 'drdy_pin' is "
+            "not configured, this may result in I2C errors"
         )
     return config
 
