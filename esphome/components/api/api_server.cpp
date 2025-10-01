@@ -18,6 +18,7 @@
 #endif
 
 #include <algorithm>
+#include <utility>
 
 namespace esphome::api {
 
@@ -404,7 +405,7 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
 }
 
 void APIServer::register_action_response_callback(uint32_t call_id, ActionResponseCallback callback) {
-  this->action_response_callbacks_[call_id] = callback;
+  this->action_response_callbacks_[call_id] = std::move(callback);
 }
 
 void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
