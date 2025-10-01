@@ -48,6 +48,11 @@ from esphome.const import (
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
+    CONF_TOPIC_NAME_SOURCE,
+    TOPIC_NAME_SOURCE_NAME,
+    TOPIC_NAME_SOURCE_OPTIONS,
+    TOPIC_NAME_SOURCE_ID,
+    CONF_MQTT,
     CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
@@ -154,6 +159,12 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
+MQTTTopicNameSourceEnum = mqtt_ns.enum("MQTTTopicNameSource")
+MQTT_TOPIC_NAME_SOURCE_ENUM = {
+    TOPIC_NAME_SOURCE_NAME: MQTTTopicNameSourceEnum.MQTT_TOPIC_NAME_SOURCE_NAME,
+    TOPIC_NAME_SOURCE_ID: MQTTTopicNameSourceEnum.MQTT_TOPIC_NAME_SOURCE_ID,
+}
+
 
 def validate_config(value):
     # Populate default fields
@@ -255,6 +266,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(
+                CONF_TOPIC_NAME_SOURCE, default=TOPIC_NAME_SOURCE_NAME
+            ): cv.enum(TOPIC_NAME_SOURCE_OPTIONS),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(
@@ -377,6 +391,7 @@ async def to_code(config):
         )
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
+    cg.add(var.set_topic_name_source(MQTT_TOPIC_NAME_SOURCE_ENUM[config[CONF_TOPIC_NAME_SOURCE]]))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
@@ -518,12 +533,40 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     return var
 
 
+def _sanitize_topic_fragment(value):
+    if not value:
+        return ""
+
+    normalized = value.lower().replace(" ", "_")
+
+    def _allowed(ch: str) -> bool:
+        if ch in "-_":
+            return True
+        if ch.isascii():
+            return ch.isalnum()
+        return ord(ch) >= 0x00C0
+
+    return "".join(ch if _allowed(ch) else "_" for ch in normalized)
+
+
 def get_default_topic_for(data, component_type, name, suffix):
-    allowlist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-    sanitized_name = "".join(
-        x for x in name.lower().replace(" ", "_") if x in allowlist
-    )
-    return f"{data.topic_prefix}/{component_type}/{sanitized_name}/{suffix}"
+    topic_name_source = TOPIC_NAME_SOURCE_NAME
+    if CORE.config is not None and CONF_MQTT in CORE.config:
+        topic_name_source = CORE.config[CONF_MQTT].get(
+            CONF_TOPIC_NAME_SOURCE, TOPIC_NAME_SOURCE_NAME
+        )
+
+    topic_fragment = ""
+    if topic_name_source == TOPIC_NAME_SOURCE_ID:
+        object_id = getattr(data, "object_id", None)
+        if object_id:
+            topic_fragment = _sanitize_topic_fragment(str(object_id))
+
+    if not topic_fragment:
+        fallback_name = name or getattr(CORE, "friendly_name", "")
+        topic_fragment = _sanitize_topic_fragment(fallback_name)
+
+    return f"{data.topic_prefix}/{component_type}/{topic_fragment}/{suffix}"
 
 
 async def register_mqtt_component(var, config):

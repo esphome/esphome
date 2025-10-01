@@ -626,7 +626,7 @@ void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
   if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    this->topic_prefix_ = str_sanitize(App.get_name());
+    this->topic_prefix_ = str_sanitize_topic_fragment(App.get_name());
   } else {
     this->topic_prefix_ = topic_prefix;
   }

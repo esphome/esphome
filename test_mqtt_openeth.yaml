@@ -1,0 +1,131 @@
+esphome:
+  name: qemu-test
+  friendly_name: QEMU MQTT Test
+  min_version: 2024.11.0
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+
+ethernet:
+  type: OPENETH
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+  port: 6053
+  password: !secret api_encryption_key
+
+mqtt:
+  broker: mqtt.kolkhoz.io
+  username: !secret wifi_ssid
+  password: !secret wifi_password
+  discovery: true
+  port: 8883
+  reboot_timeout: 0s
+  certificate_authority: !secret mqtt_ca_cert
+  enable_on_boot: true
+  clean_session: false
+  discovery_retain: true
+  discover_ip: true
+  discovery_prefix: homeassistant
+  discovery_unique_id_generator: legacy
+  discovery_object_id_generator: none
+  use_abbreviations: true
+  topic_prefix: qemu-test
+  keepalive: 15s
+  publish_nan_as_none: false
+
+web_server:
+  local: true
+  version: 2
+  port: 80
+
+ota:
+  - platform: esphome
+    version: 2
+    port: 3232
+
+sensor:
+  - platform: template
+    name: "Тестовый сенсор температуры"
+    id: test_temp
+    device_class: temperature
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    lambda: |-
+      return 25.5 + (millis() % 1000) / 100.0;
+    update_interval: 5s
+
+  - platform: template
+    name: "Тестовый сенсор влажности"
+    id: test_humidity
+    device_class: humidity
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    lambda: |-
+      return 60 + (millis() % 500) / 10.0;
+    update_interval: 5s
+
+  - platform: template
+    name: "Счетчик времени работы"
+    id: uptime_counter
+    unit_of_measurement: "s"
+    lambda: |-
+      return millis() / 1000;
+    update_interval: 1s
+
+switch:
+  - platform: template
+    name: "Тестовый переключатель 1"
+    id: test_switch_1
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    lambda: |-
+      return id(test_switch_1).state;
+
+  - platform: template
+    name: "Тестовый переключатель 2"
+    id: test_switch_2
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    lambda: |-
+      return id(test_switch_2).state;
+
+number:
+  - platform: template
+    name: "Тестовое число"
+    id: test_number
+    min_value: 0.0
+    max_value: 100.0
+    step: 0.1
+    mode: BOX
+    initial_value: 50.0
+    optimistic: true
+    restore_value: true
+    update_interval: 60s
+
+button:
+  - platform: template
+    name: "Тестовая кнопка"
+    id: test_button
+    icon: "mdi:test-tube"
+    on_press:
+      - logger.log:
+          format: "Тестовая кнопка нажата!"
+          level: INFO
+
+interval:
+  - interval: 10s
+    then:
+      - logger.log:
+          format: "MQTT тест: публикуем данные каждые 10 секунд"
+          level: DEBUG
+      - mqtt.publish:
+          topic: qemu-test/test/heartbeat
+          payload: !lambda |-
+            return "Uptime: " + std::to_string(millis() / 1000) + "s";

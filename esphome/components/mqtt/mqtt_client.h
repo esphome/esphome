@@ -74,6 +74,12 @@ enum MQTTDiscoveryObjectIdGenerator {
   MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 };
 
+/// Determines how default MQTT topics derive their name fragment.
+enum MQTTTopicNameSource {
+  MQTT_TOPIC_NAME_SOURCE_NAME = 0,
+  MQTT_TOPIC_NAME_SOURCE_ID,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -169,6 +175,8 @@ class MQTTClientComponent : public Component {
   void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
+  void set_topic_name_source(MQTTTopicNameSource source) { this->topic_name_source_ = source; }
+  MQTTTopicNameSource get_topic_name_source() const { return this->topic_name_source_; }
 
   /// Manually set the topic used for logging.
   void set_log_message_template(MQTTMessage &&message);
@@ -339,6 +347,7 @@ class MQTTClientComponent : public Component {
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
+  MQTTTopicNameSource topic_name_source_{MQTT_TOPIC_NAME_SOURCE_NAME};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

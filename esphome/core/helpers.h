@@ -287,6 +287,9 @@ std::string str_snake_case(const std::string &str);
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
 
+/// Sanitizes a topic fragment, preserving valid multi-byte UTF-8 sequences at U+00C0 and above.
+std::string str_sanitize_topic_fragment(const std::string &str);
+
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
