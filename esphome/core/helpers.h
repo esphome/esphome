@@ -130,6 +130,9 @@ template<typename T, size_t N> class StaticVector {
   size_t size() const { return count_; }
   bool empty() const { return count_ == 0; }
 
+  // Direct access to size counter for efficient in-place construction
+  size_t &count() { return count_; }
+
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 
