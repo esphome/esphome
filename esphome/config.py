@@ -639,8 +639,8 @@ class MetadataValidationStep(ConfigValidationStep):
 class AddDynamicAutoLoadsValidationStep(ConfigValidationStep):
     """Add dynamic auto loads step.
 
-    This step is used to auto-load components where one component can alter it's
-    AUTO_LOAD based on it's configuration.
+    This step is used to auto-load components where one component can alter its
+    AUTO_LOAD based on its configuration.
     """
 
     # Has to happen after normal schema is validated and before final schema validation
