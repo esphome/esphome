@@ -92,8 +92,16 @@ def create_components_graph():
 
         for target_config in TARGET_CONFIGURATIONS:
             CORE.data[KEY_CORE] = target_config
-            for auto_load in comp.auto_load:
-                add_item_to_components_graph(components_graph, auto_load, name)
+            auto_load = comp.auto_load
+            if callable(auto_load):
+                import inspect
+
+                if inspect.signature(auto_load).parameters:
+                    auto_load = auto_load({})
+                else:
+                    auto_load = auto_load()
+            for item in auto_load:
+                add_item_to_components_graph(components_graph, item, name)
         # restore config
         CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
@@ -114,8 +122,16 @@ def create_components_graph():
 
             for target_config in TARGET_CONFIGURATIONS:
                 CORE.data[KEY_CORE] = target_config
-                for auto_load in platform.auto_load:
-                    add_item_to_components_graph(components_graph, auto_load, name)
+                auto_load = platform.auto_load
+                if callable(auto_load):
+                    import inspect
+
+                    if inspect.signature(auto_load).parameters:
+                        auto_load = auto_load({})
+                    else:
+                        auto_load = auto_load()
+                    for item in auto_load:
+                        add_item_to_components_graph(components_graph, item, name)
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
