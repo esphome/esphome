@@ -45,16 +45,15 @@ void SPS30Component::setup() {
     }
     ESP_LOGV(TAG, "  Serial number: %s", this->serial_number_);
 
-    bool result;
     if (this->fan_interval_.has_value()) {
       // override default value
-      result = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
+      this->result_ = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
     } else {
-      result = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
+      this->result_ = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
     }
-
+    
     this->set_timeout(20, [this]() {
-      if (result) {
+      if (this->result_) {
         uint16_t secs[2];
         if (this->read_data(secs, 2)) {
           this->fan_interval_ = secs[0] << 16 | secs[1];
