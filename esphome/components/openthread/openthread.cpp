@@ -143,11 +143,12 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Copy the mdns services to our local instance so that the c_str pointers remain valid for the lifetime of this
-  // component
-  this->mdns_services_ = this->mdns_->get_services();
-  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", this->mdns_services_.size());
-  for (const auto &service : this->mdns_services_) {
+  // Use mdns services directly - they remain valid for the lifetime of the mdns component
+  const auto &mdns_services = this->mdns_->get_services();
+  uint8_t mdns_count = this->mdns_->get_services_count();
+  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_count);
+  for (uint8_t i = 0; i < mdns_count; i++) {
+    const auto &service = mdns_services[i];
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
       ESP_LOGW(TAG, "Failed to allocate service entry");

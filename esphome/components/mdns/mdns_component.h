@@ -1,13 +1,16 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
+#include <array>
 #include <string>
-#include <vector>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome {
 namespace mdns {
+
+// Service count is calculated at compile time by Python codegen
+// MDNS_SERVICE_COUNT will always be defined
 
 struct MDNSTXTRecord {
   std::string key;
@@ -36,18 +39,17 @@ class MDNSComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
 #ifdef USE_MDNS_EXTRA_SERVICES
-  void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
+  void add_extra_service(MDNSService service);
 #endif
 
-  std::vector<MDNSService> get_services();
+  const std::array<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return services_; }
+  uint8_t get_services_count() const { return services_count_; }
 
   void on_shutdown() override;
 
  protected:
-#ifdef USE_MDNS_EXTRA_SERVICES
-  std::vector<MDNSService> services_extra_{};
-#endif
-  std::vector<MDNSService> services_{};
+  std::array<MDNSService, MDNS_SERVICE_COUNT> services_{};
+  uint8_t services_count_{0};
   std::string hostname_;
   void compile_records_();
 };
