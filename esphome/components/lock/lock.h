@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#include <span>
 
 namespace esphome {
 namespace lock {
@@ -44,6 +45,12 @@ class LockTraits {
   void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
   bool supports_state(LockState state) const { return supported_states_mask_ & (1 << state); }
+  void set_supported_states(std::span<const LockState> states) {
+    supported_states_mask_ = 0;
+    for (auto state : states) {
+      supported_states_mask_ |= (1 << state);
+    }
+  }
   uint8_t get_supported_states_mask() const { return supported_states_mask_; }
   void set_supported_states_mask(uint8_t mask) { supported_states_mask_ = mask; }
   void add_supported_state(LockState state) { supported_states_mask_ |= (1 << state); }
