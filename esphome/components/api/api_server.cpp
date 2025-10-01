@@ -87,7 +87,7 @@ void APIServer::setup() {
     return;
   }
 
-  err = this->socket_->listen(4);
+  err = this->socket_->listen(this->listen_backlog_);
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
     this->mark_failed();
@@ -140,9 +140,19 @@ void APIServer::loop() {
     while (true) {
       struct sockaddr_storage source_addr;
       socklen_t addr_len = sizeof(source_addr);
+
       auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
       if (!sock)
         break;
+
+      // Check if we're at the connection limit
+      if (this->clients_.size() >= this->max_connections_) {
+        ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, sock->getpeername().c_str());
+        // Immediately close - socket destructor will handle cleanup
+        sock.reset();
+        continue;
+      }
+
       ESP_LOGD(TAG, "Accept %s", sock->getpeername().c_str());
 
       auto *conn = new APIConnection(std::move(sock), this);
@@ -206,8 +216,10 @@ void APIServer::loop() {
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Server:\n"
-                "  Address: %s:%u",
-                network::get_use_address().c_str(), this->port_);
+                "  Address: %s:%u\n"
+                "  Listen backlog: %u\n"
+                "  Max connections: %u",
+                network::get_use_address().c_str(), this->port_, this->listen_backlog_, this->max_connections_);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_->has_psk()));
   if (!this->noise_ctx_->has_psk()) {
