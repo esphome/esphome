@@ -75,6 +75,9 @@ void MDNSComponent::compile_records_() {
   this->hostname_ = App.get_name();
   this->services_count_ = 0;
 
+  // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
+  // in mdns/__init__.py. If you add a new service here, update both locations.
+
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
     auto &service = this->services_[this->services_count_++];
