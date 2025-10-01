@@ -197,7 +197,7 @@ void MDNSComponent::dump_config() {
                 "mDNS:\n"
                 "  Hostname: %s",
                 this->hostname_.c_str());
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "  Services:");
   for (uint8_t i = 0; i < this->services_count_; i++) {
     const auto &service = this->services_[i];
