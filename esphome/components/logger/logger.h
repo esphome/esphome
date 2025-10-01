@@ -312,13 +312,10 @@ class Logger : public Component {
   }
 #endif
 
-  static inline void copy_and_advance(char *buffer, uint16_t &pos, const char *data, uint8_t len) {
-    memcpy(buffer + pos, data, len);
-    pos += len;
-  }
-
   static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
-    copy_and_advance(buffer, pos, str, strlen(str));
+    const size_t len = strlen(str);
+    memcpy(buffer + pos, str, len);
+    pos += len;
   }
 
   static inline void write_ansi_color_for_level(char *buffer, uint16_t &pos, uint8_t level) {
