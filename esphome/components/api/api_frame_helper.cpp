@@ -110,9 +110,13 @@ void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, 
     return;
   }
 
-  auto buffer = std::make_unique<SendBuffer>();
-  buffer->size = total_write_len - offset;
-  buffer->data = std::make_unique<uint8_t[]>(buffer->size);
+  uint16_t buffer_size = total_write_len - offset;
+  auto &buffer = this->tx_buf_[this->tx_buf_tail_];
+  buffer = std::make_unique<SendBuffer>(SendBuffer{
+      .data = std::make_unique<uint8_t[]>(buffer_size),
+      .size = buffer_size,
+      .offset = 0,
+  });
 
   uint16_t to_skip = offset;
   uint16_t write_pos = 0;
@@ -131,8 +135,7 @@ void APIFrameHelper::buffer_data_from_iov_(const struct iovec *iov, int iovcnt, 
     }
   }
 
-  // Add to circular buffer
-  this->tx_buf_[this->tx_buf_tail_] = std::move(buffer);
+  // Update circular buffer tracking
   this->tx_buf_tail_ = (this->tx_buf_tail_ + 1) % API_MAX_SEND_QUEUE;
   this->tx_buf_count_++;
 }
