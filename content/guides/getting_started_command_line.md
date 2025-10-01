@@ -45,12 +45,11 @@ services:
       - PASSWORD=ChangeMe
 ```
 
-{{< note >}}
-If you are using NFS share to back your container's config volume, you may
-need to mount the volume with the `nolock` option, otherwise platformio may
-freeze on container startup as per [platformIO-core Issue 3089](https://github.com/platformio/platformio-core/issues/3089)
+> [!NOTE]
+> If you are using NFS share to back your container's config volume, you may
+> need to mount the volume with the `nolock` option, otherwise platformio may
+> freeze on container startup as per [platformIO-core Issue 3089](https://github.com/platformio/platformio-core/issues/3089)
 
-{{< /note >}}
 The project provides multiple docker tags; please pick the one that suits you
 better:
 
@@ -74,12 +73,10 @@ better:
 Follow the instructions in {{< docref "physical_device_connection/" >}} to connect to your
 ESP device.
 
-{{< note >}}
-The most difficult part of setting up a new ESPHome device is the initial
-installation. Installation requires that your ESP device is connected with
-a cable to a computer. Later updates can be installed wirelessly.
-
-{{< /note >}}
+> [!NOTE]
+> The most difficult part of setting up a new ESPHome device is the initial
+> installation. Installation requires that your ESP device is connected with
+> a cable to a computer. Later updates can be installed wirelessly.
 
 ## Creating a Project
 
@@ -145,10 +142,9 @@ to your docker command to map a local USB device. Docker on Mac will not be able
 docker run --rm --privileged -v "${PWD}":/config --device=/dev/ttyUSB0 -it ghcr.io/esphome/esphome run livingroom.yaml
 ```
 
-{{< note >}}
-Alternatively, you can flash the binary using [ESPHome Web or esptool](#esphome-esptool).
+> [!NOTE]
+> Alternatively, you can flash the binary using [ESPHome Web or esptool](#esphome-esptool).
 
-{{< /note >}}
 Now when you go to the Home Assistant **Integrations** screen (under **Configuration** panel), you
 should see the ESPHome device show up in the discovered section (although this can take up to 5 minutes).
 Alternatively, you can manually add the device by clicking **CONFIGURE** on the ESPHome integration

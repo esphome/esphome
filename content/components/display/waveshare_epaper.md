@@ -128,10 +128,8 @@ lambda: |-
   - `1.54in-m5coreink-m09` - GoodDisplay gdew0154m09, as used in the M5Stack Core Ink
   - `13.3in-k` - 13.3in, with the K model, 960x680, B/W rendering only
 
-{{< warning >}}
-The BUSY pin on the `gdew0154m09`, the `Waveshare 7.30in-f` and the `Waveshare 7.50in V2` models must be inverted to prevent permanent display damage. Set the busy pin to `inverted: true` in the config.
-
-{{< /warning >}}
+> [!WARNING]
+> The BUSY pin on the `gdew0154m09`, the `Waveshare 7.30in-f` and the `Waveshare 7.50in V2` models must be inverted to prevent permanent display damage. Set the busy pin to `inverted: true` in the config.
 
 - **busy_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The BUSY pin. Defaults to not connected.
 - **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin. Defaults to not connected.

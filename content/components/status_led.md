@@ -26,12 +26,9 @@ status_led:
   pin: GPIOXX
 ```
 
-{{< note >}}
-
-If your device has a single LED that needs to be shared use
-{{< docref "/components/light/status_led" "status_led light platform" >}} instead.
-
-{{< /note >}}
+> [!NOTE]
+> If your device has a single LED that needs to be shared use
+> {{< docref "/components/light/status_led" "status_led light platform" >}} instead.
 
 ## Configuration variables
 
@@ -40,18 +37,16 @@ If your device has a single LED that needs to be shared use
 
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
-{{< note >}}
-If your LED is in an active-LOW mode (when it's on if the output is enabled), use the
-`inverted` option of the [Pin Schema](#config-pin_schema):
-
-```yaml
-status_led:
-  pin:
-    number: GPIOXX
-    inverted: true
-```
-
-{{< /note >}}
+> [!NOTE]
+> If your LED is in an active-LOW mode (when it's on if the output is enabled), use the
+> `inverted` option of the [Pin Schema](#config-pin_schema):
+>
+> ```yaml
+> status_led:
+>   pin:
+>     number: GPIOXX
+>     inverted: true
+> ```
 
 ## See Also
 

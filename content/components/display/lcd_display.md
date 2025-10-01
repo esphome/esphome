@@ -13,16 +13,15 @@ with ESPHome. This component is only for LCDs that display individual characters
 
 {{< img src="lcd-hello_world.jpg" alt="Image" width="60.0%" class="align-center" >}}
 
-{{< note >}}
-Multiple versions of the display exist, supporting different character sets:
+> [!NOTE]
+> Multiple versions of the display exist, supporting different character sets:
+>
+> - HD44780UA00 English-Japanese which includes katakana characters, some Greek letters and mathematical symbols
+> - HD44780UA02 English-European which includes Greek, Cyrillic and Western European characters (with some diacritics)
+> - HD44780UBxx custom, manufacturer-specific character sets
+>
+> It is also possible to add eight user-defined characters.
 
-- HD44780UA00 English-Japanese which includes katakana characters, some Greek letters and mathematical symbols
-- HD44780UA02 English-European which includes Greek, Cyrillic and Western European characters (with some diacritics)
-- HD44780UBxx custom, manufacturer-specific character sets
-
-It is also possible to add eight user-defined characters.
-
-{{< /note >}}
 {{< anchor "lcd-pcf8574" >}}
 
 ## lcd_pcf8574 Component
@@ -59,11 +58,10 @@ display:
 - **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`.
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
-{{< note >}}
-If you're not seeing anything on the display, try turning the contrast potentiometer around on the
-PCF8574 board.
+> [!NOTE]
+> If you're not seeing anything on the display, try turning the contrast potentiometer around on the
+> PCF8574 board.
 
-{{< /note >}}
 {{< anchor "lcd-gpio" >}}
 
 ## lcd_gpio Component
@@ -109,11 +107,10 @@ display:
 - **update_interval** (*Optional*, [Time](#config-time)): The interval to re-draw the screen. Defaults to `1s`.
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
-{{< note >}}
-If you're not seeing anything on the display, make sure you apply `3.3V` to the `VEE` (`03`  ) contrast control
-pin of the board. You can use a potentiometer to make it adjustable.
+> [!NOTE]
+> If you're not seeing anything on the display, make sure you apply `3.3V` to the `VEE` (`03`  ) contrast control
+> pin of the board. You can use a potentiometer to make it adjustable.
 
-{{< /note >}}
 {{< anchor "display-lcd_lambda" >}}
 
 ## Rendering Lambda

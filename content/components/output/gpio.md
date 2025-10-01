@@ -25,12 +25,10 @@ output:
 - **id** (**Required**, [ID](#config-id)): The id to use for this output component.
 - All other options from [Output](#config-output).
 
-{{< warning >}}
-This is an **output component** and will not be visible from the frontend. Output components are intermediary
-components that can be attached to for example lights. To have a GPIO pin in the Home Assistant frontend, please
-see the {{< docref "/components/switch/gpio" >}}.
-
-{{< /warning >}}
+> [!WARNING]
+> This is an **output component** and will not be visible from the frontend. Output components are intermediary
+> components that can be attached to for example lights. To have a GPIO pin in the Home Assistant frontend, please
+> see the {{< docref "/components/switch/gpio" >}}.
 
 ## See Also
 

@@ -41,12 +41,10 @@ ota:
 
 - All [automations](#automation) supported by {{< docref "/components/ota" >}}.
 
-{{< note >}}
-After a serial upload, ESP8266 modules must be reset before OTA updates will work. If you attempt to perform an OTA
-update and receive the error message `Bad Answer: ERR: ERROR[11]: Invalid bootstrapping`, the ESP module/board
-must be power-cycled.
-
-{{< /note >}}
+> [!NOTE]
+> After a serial upload, ESP8266 modules must be reset before OTA updates will work. If you attempt to perform an OTA
+> update and receive the error message `Bad Answer: ERR: ERROR[11]: Invalid bootstrapping`, the ESP module/board
+> must be power-cycled.
 
 ## Updating the Password
 

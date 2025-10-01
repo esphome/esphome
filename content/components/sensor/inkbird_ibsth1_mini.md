@@ -13,15 +13,13 @@ temperature, external temperature (non mini only), humidity and the battery leve
 sensor sends out a BLE broadcast. Note that contrary to other implementations, ESPHome can track as
 many IBS-TH1/TH2 devices at once as you want.
 
-{{< note >}}
-If an external temperature sensor is connected to the IBS-TH1, measurement from the internal sensor is not sent.
-Only one sensor will work at a time.
+> [!NOTE]
+> If an external temperature sensor is connected to the IBS-TH1, measurement from the internal sensor is not sent.
+> Only one sensor will work at a time.
 
-{{< /note >}}
-{{< note >}}
-The external temperature sensor is not supported on the IBS-TH1 Mini or IBS-TH2
+> [!NOTE]
+> The external temperature sensor is not supported on the IBS-TH1 Mini or IBS-TH2
 
-{{< /note >}}
 {{< img src="inkbird_isbth1_mini-full.jpg" alt="Image" caption="Inkbird IBS-TH1 Mini Temperature and Humidity Sensor over BLE." width="80.0%" class="align-center" >}}
 
 {{< img src="inkbird_isbth1_mini-ui.png" alt="Image" width="80.0%" class="align-center" >}}
@@ -89,11 +87,9 @@ other devices.
 Then just copy the address (`XX:XX:XX:XX:XX:XX`  ) into a new `sensor.inkbird_ibsth1_mini` platform
 entry like in the configuration example at the top.
 
-{{< note >}}
-The ESPHome Inkbird IBS-TH1/TH2 component listens passively to packets the device sends by itself.
-ESPHome therefore has no impact on the battery life of the device.
-
-{{< /note >}}
+> [!NOTE]
+> The ESPHome Inkbird IBS-TH1/TH2 component listens passively to packets the device sends by itself.
+> ESPHome therefore has no impact on the battery life of the device.
 
 ## See Also
 

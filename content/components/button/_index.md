@@ -7,19 +7,17 @@ params:
     image: folder-open.svg
 ---
 
-{{< note >}}
-To attach a physical button to ESPHome, see
-{{< docref "/components/binary_sensor/gpio" "GPIO Binary Sensor" >}}.
+> [!NOTE]
+> To attach a physical button to ESPHome, see
+> {{< docref "/components/binary_sensor/gpio" "GPIO Binary Sensor" >}}.
 
-{{< /note >}}
 ESPHome has support for components to create button entities in Home Assistant. A button entity is
 represented in ESPHome as a momentary switch with no state and can be triggered in Home Assistant
 via the UI or automations.
 
-{{< note >}}
-Home Assistant Core 2021.12 or higher is required for ESPHome button entities to work.
+> [!NOTE]
+> Home Assistant Core 2021.12 or higher is required for ESPHome button entities to work.
 
-{{< /note >}}
 {{< anchor "config-button" >}}
 
 ## Base Button Configuration
@@ -44,11 +42,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the button. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the button to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the button to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the button in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
@@ -110,13 +106,12 @@ Configuration variables:
 
 - **id** (**Required**, [ID](#config-id)): The ID of the button to set.
 
-{{< note >}}
-Buttons are designed to trigger an action on a device from Home Assistant, and have an unidirectional flow from
-Home Assistant to ESPHome. If you press a button using this action, no button press event will be triggered in Home
-Assistant. If you want to trigger an automation in Home Assistant, you should use a
-[Home Assistant event](#api-homeassistant_event_action) instead.
+> [!NOTE]
+> Buttons are designed to trigger an action on a device from Home Assistant, and have an unidirectional flow from
+> Home Assistant to ESPHome. If you press a button using this action, no button press event will be triggered in Home
+> Assistant. If you want to trigger an automation in Home Assistant, you should use a
+> [Home Assistant event](#api-homeassistant_event_action) instead.
 
-{{< /note >}}
 {{< anchor "button-lambda_calls" >}}
 
 ### lambda calls

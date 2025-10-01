@@ -113,16 +113,15 @@ switch:
     interlock: *interlock_group
 ```
 
-{{< warning >}}
-These are software interlocks. As such, a software bug (which can *always* happen) can still
-activate both switches at the same time. Similarly, at reset time (before any of ESPHome's code runs)
-the relay GPIO pins may have pull-ups active, so the relay may be active before ESPHome can manually
-deactivate them.
+> [!WARNING]
+> These are software interlocks. As such, a software bug (which can *always* happen) can still
+> activate both switches at the same time. Similarly, at reset time (before any of ESPHome's code runs)
+> the relay GPIO pins may have pull-ups active, so the relay may be active before ESPHome can manually
+> deactivate them.
+>
+> So it is **highly** recommended to use hardware interlocks (like SPDT-type relays) that ensure
+> that two GPIOs are never active at the same time.
 
-So it is **highly** recommended to use hardware interlocks (like SPDT-type relays) that ensure
-that two GPIOs are never active at the same time.
-
-{{< /warning >}}
 See also `interlock_wait_time` to make interlocks group wait some amount of time before activating
 a switch.
 

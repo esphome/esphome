@@ -56,11 +56,10 @@ alarm_control_panel:
 
 - All other options from [Alarm Control Panel](#config-alarm_control_panel)
 
-{{< note >}}
-If `binary_sensors` is omitted then you're expected to trigger the alarm using
-[`pending` Action](#alarm_control_panel_pending_action) or [`triggered` Action](#alarm_control_panel_triggered_action).
+> [!NOTE]
+> If `binary_sensors` is omitted then you're expected to trigger the alarm using
+> [`pending` Action](#alarm_control_panel_pending_action) or [`triggered` Action](#alarm_control_panel_triggered_action).
 
-{{< /note >}}
 {{< anchor "template_alarm_control_panel-trigger_modes" >}}
 
 ## Trigger Modes
@@ -129,13 +128,11 @@ or the pending timer expires.
 1. If `trigger_time` greater than 0 and no sensors are `on` after `trigger_time` delay
    the state returns to `ARM_...`
 
-{{< note >}}
-Although the interface supports all arming modes only `away`, `home` and `night` have been implemented for now.
-`arm_...` is for either `arm_away` or `arm_home`
-`arming_..._time` is for either `arming_away_time`, `arming_home_time`, or `arming_night_time`
-`ARMED_...` is for either `ARMED_AWAY`, `ARMED_HOME`, or `ARMED_NIGHT`
-
-{{< /note >}}
+> [!NOTE]
+> Although the interface supports all arming modes only `away`, `home` and `night` have been implemented for now.
+> `arm_...` is for either `arm_away` or `arm_home`
+> `arming_..._time` is for either `arming_away_time`, `arming_home_time`, or `arming_night_time`
+> `ARMED_...` is for either `ARMED_AWAY`, `ARMED_HOME`, or `ARMED_NIGHT`
 
 ## Example
 

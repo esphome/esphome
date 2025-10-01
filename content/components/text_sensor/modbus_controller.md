@@ -29,10 +29,8 @@ and requires {{< docref "/components/modbus_controller" >}} to be configured.
   - `COMMA`  : Byte values as integers, delimited by a coma. 0x2011 will be sent as "32,17".
   - `ANSI`  : Each byte is treated as an `ANSI` character. All control characters are ignored.
 
-{{< note >}}
-From version 2024.7, default encoding is `ANSI`. Thus, all control characters are now ignored. If you need to receive all characters, use `NONE` encoding.
-
-{{< /note >}}
+> [!NOTE]
+> From version 2024.7, default encoding is `ANSI`. Thus, all control characters are now ignored. If you need to receive all characters, use `NONE` encoding.
 
 - **force_new_range** (*Optional*, boolean): If possible sensors with sequential addresses are grouped together and requested in one range. Setting `force_new_range: true` enforces the start of a new range at that address.
 - **custom_command** (*Optional*, list of bytes): raw bytes for modbus command. This allows using non-standard commands. If `custom_command` is used `address` and `register_type` can't be used.

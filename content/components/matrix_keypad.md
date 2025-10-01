@@ -87,11 +87,9 @@ Either the `row` and `col` parameters, or the `key` parameter has to be provided
 - **on_key** (*Optional*, [Automation](#automation)): An automation to perform
   when a key has been pressed. The key is in a variable called `x`.
 
-  {{< note >}}
-  Automatic handling of multiple keys (e.g. PIN code entry) is possible with the
-  the [Key Collector](#key_collector) component.
-
-  {{< /note >}}
+  > [!NOTE]
+  > Automatic handling of multiple keys (e.g. PIN code entry) is possible with the
+  > the [Key Collector](#key_collector) component.
 
 ## See Also
 

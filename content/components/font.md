@@ -115,12 +115,11 @@ The Component provides some useful font metrics. Those include:
 
 - **height** (`get_height()`  ): The lineheight of the font measured from baseline to baseline.
 
-{{< note >}}
-The `capheight` and `xheight` values are typically calculated using glyphs with flat tops.
-Rounded characters however might overshoot this value slightly to make them visually appear as the same size.
-For special fonts like the Material Design Icons font, which do not contain any letters, these two metrics will be set to 0.
+> [!NOTE]
+> The `capheight` and `xheight` values are typically calculated using glyphs with flat tops.
+> Rounded characters however might overshoot this value slightly to make them visually appear as the same size.
+> For special fonts like the Material Design Icons font, which do not contain any letters, these two metrics will be set to 0.
 
-{{< /note >}}
 The following code snipped produces the image below. Note that the lines in the code are ordered as they appear in the image from top to bottom.
 For this font the `descender` and `height` are only one pixel apart.
 
@@ -215,24 +214,21 @@ it.horizontal_line(0, height, it.get_width());
   - **file** (**Required**, string): The path of the font file with the extra glyphs.
   - **glyphs** (**Required**, list): A list of glyphs you want to include. Can't repeat the same glyph codepoint if it was declared in the level above.
 
-{{< note >}}
-OpenType/TrueType font files offer icons at codepoints far from what's reachable on a standard keyboard, for these it's needed
-to specify the unicode codepoint of the glyph as a hex address escaped with `\u` or `\U`.
+> [!NOTE]
+> OpenType/TrueType font files offer icons at codepoints far from what's reachable on a standard keyboard, for these it's needed
+> to specify the unicode codepoint of the glyph as a hex address escaped with `\u` or `\U`.
+>
+> - Code points up to `0xFFFF` are encoded like `\uE6E8`. Lowercase `\u` and exactly 4 hexadecimal digits.
+> - Code points above `0xFFFF` are encoded like `\U0001F5E9`. Capital `\U` and exactly 8 hexadecimal digits.
+>
+> The `extras` section only supports OpenType/TrueType files, `size` and `bpp` will be the same as the above level. This will allow printing icons alongside the characters in the same string, like `I \uF004 You \uF001`.
+>
+> Many font sizes with multiple glyphs at high bit depths will increase the binary size considerably. Make your choices carefully.
 
-- Code points up to `0xFFFF` are encoded like `\uE6E8`. Lowercase `\u` and exactly 4 hexadecimal digits.
-- Code points above `0xFFFF` are encoded like `\U0001F5E9`. Capital `\U` and exactly 8 hexadecimal digits.
-
-The `extras` section only supports OpenType/TrueType files, `size` and `bpp` will be the same as the above level. This will allow printing icons alongside the characters in the same string, like `I \uF004 You \uF001`.
-
-Many font sizes with multiple glyphs at high bit depths will increase the binary size considerably. Make your choices carefully.
-
-{{< /note >}}
-{{< note >}}
-To use fonts you will need to have the python `pillow` package installed, as ESPHome uses that package
-to translate the OpenType/TrueType and bitmap font files into an internal format. If you're running this as a Home Assistant add-on or with the official ESPHome docker image, it should already be installed. Otherwise you need
-to install it using `pip install "pillow==10.4.0"`.
-
-{{< /note >}}
+> [!NOTE]
+> To use fonts you will need to have the python `pillow` package installed, as ESPHome uses that package
+> to translate the OpenType/TrueType and bitmap font files into an internal format. If you're running this as a Home Assistant add-on or with the official ESPHome docker image, it should already be installed. Otherwise you need
+> to install it using `pip install "pillow==10.4.0"`.
 
 ## See Also
 

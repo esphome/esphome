@@ -26,12 +26,10 @@ esp32:
   to the name can be used to copy the board ID). *This only affects pin aliases and some internal settings*;
   This setting is no longer recommended, `variant` should be used instead.
 
-{{< note >}}
-At least one of `board` or `variant` must be specified. If `variant` alone is specified (the recommended practice),
-the board configuration will be automatically filled using a standard Espressif devkit board
-suitable for that variant. Both may be specified (for backwards compatibility) but they must define the same variant.
-
-{{< /note >}}
+> [!NOTE]
+> At least one of `board` or `variant` must be specified. If `variant` alone is specified (the recommended practice),
+> the board configuration will be automatically filled using a standard Espressif devkit board
+> suitable for that variant. Both may be specified (for backwards compatibility) but they must define the same variant.
 
 - **flash_size** (*Optional*, string): The amount of flash memory available on the ESP32 board/module. One of `2MB`,
   `4MB`, `8MB`, `16MB` or `32MB`. Defaults to `4MB`. **Warning: specifying a size larger than that available

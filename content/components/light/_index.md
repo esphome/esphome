@@ -31,10 +31,9 @@ light:
 
 - **name** (*Optional*, string): The name of the light. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and you want the light
-to use that name, you can set `name: None`.
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and you want the light
+> to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the light in the frontend.
 - **effects** (*Optional*, list): A list of [light effects](#light-effects) to use for this light.
@@ -177,16 +176,15 @@ on_...:
 - **transition_length** (*Optional*, [Time](#config-time), [templatable](#config-templatable)): The length of the
   transition if the light supports it.
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(light_1).toggle();
+> // perform action:
+> call.perform();
+> ```
 
-```cpp
-auto call = id(light_1).toggle();
-// perform action:
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "light-turn_on_action" >}}
 
 ### `light.turn_on` Action
@@ -226,50 +224,47 @@ on_...:
 
 - All other options from [light state](#light-state_config).
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(light_1).turn_on();
+> // set parameters (optional)
+> call.set_transition_length(1000); // in ms
+> call.set_brightness(1.0); // 1.0 is full brightness
+> call.set_color_mode(ColorMode::RGB_COLD_WARM_WHITE);
+> call.set_rgb(0.5, 0.25, 1.0); // color in RGB order, this example is purple
+> call.set_cold_white(0.5);
+> call.set_warm_white(0.75);
+> call.set_effect("The Effect");
+> // perform action:
+> call.perform();
+> ```
+>
+> Shorter example using auto call, call.set_brightness and call.perform.
+>
+> ```cpp
+> id(light_1).turn_on().set_brightness(1.0).perform();
+> ```
 
-```cpp
-auto call = id(light_1).turn_on();
-// set parameters (optional)
-call.set_transition_length(1000); // in ms
-call.set_brightness(1.0); // 1.0 is full brightness
-call.set_color_mode(ColorMode::RGB_COLD_WARM_WHITE);
-call.set_rgb(0.5, 0.25, 1.0); // color in RGB order, this example is purple
-call.set_cold_white(0.5);
-call.set_warm_white(0.75);
-call.set_effect("The Effect");
-// perform action:
-call.perform();
-```
+> [!NOTE]
+> The `red`, `green` and `blue` values only control the color of the light, not its brightness! If you assign
+> `50%` to all RGB channels it will be interpreted as 100% on. Only use `brightness` or `color_brightness` to
+> control the brightness of the light.
 
-Shorter example using auto call, call.set_brightness and call.perform.
+> [!NOTE]
+> The master brightness (`brightness`  ) and separate brightness controls for the color and white channels
+> (`color_brightness`, `white`, `cold_white` and `warm_white`  ) are multiplied together. Thus, this will
+> result in color at 40% brightness and white at 60% brightness:
+>
+> ```yaml
+> - light.turn_on:
+>     id: light_1
+>     brightness: 80%
+>     color_brightness: 50%
+>     white: 75%
+> ```
 
-```cpp
-id(light_1).turn_on().set_brightness(1.0).perform();
-```
-
-{{< /note >}}
-{{< note >}}
-The `red`, `green` and `blue` values only control the color of the light, not its brightness! If you assign
-`50%` to all RGB channels it will be interpreted as 100% on. Only use `brightness` or `color_brightness` to
-control the brightness of the light.
-
-{{< /note >}}
-{{< note >}}
-The master brightness (`brightness`  ) and separate brightness controls for the color and white channels
-(`color_brightness`, `white`, `cold_white` and `warm_white`  ) are multiplied together. Thus, this will
-result in color at 40% brightness and white at 60% brightness:
-
-```yaml
-- light.turn_on:
-    id: light_1
-    brightness: 80%
-    color_brightness: 50%
-    white: 75%
-```
-
-{{< /note >}}
 {{< anchor "light-turn_off_action" >}}
 
 ### `light.turn_off` Action
@@ -291,18 +286,17 @@ on_...:
 - **transition_length** (*Optional*, [Time](#config-time), [templatable](#config-templatable)): The length of the
   transition if the light supports it.
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(light_1).turn_off();
+> // set parameters (optional)
+> call.set_transition_length(1000); // in ms
+> // perform action:
+> call.perform();
+> ```
 
-```cpp
-auto call = id(light_1).turn_off();
-// set parameters (optional)
-call.set_transition_length(1000); // in ms
-// perform action:
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "light-control_action" >}}
 
 ### `light.control` Action
@@ -358,29 +352,28 @@ on_...:
     - `CLAMP`  : Clamp the brightness to the limit range.
     - `DO_NOTHING`  : No dimming if the brightness is outside the limit range.
 
-{{< note >}}
-Example: dimming a light with a button press
+> [!NOTE]
+> Example: dimming a light with a button press
+>
+> ```yaml
+> binary_sensor:
+>   - platform: gpio
+>     # ...
+>     id: my_binary_sensor
+>     on_press:
+>       - while:
+>           condition:
+>             binary_sensor.is_on: my_binary_sensor
+>           then:
+>             - light.dim_relative:
+>                 id: light_1
+>                 relative_brightness: 5%
+>                 transition_length: 0.1s
+>                 brightness_limits:
+>                     max_brightness: 90%
+>             - delay: 0.1s
+> ```
 
-```yaml
-binary_sensor:
-  - platform: gpio
-    # ...
-    id: my_binary_sensor
-    on_press:
-      - while:
-          condition:
-            binary_sensor.is_on: my_binary_sensor
-          then:
-            - light.dim_relative:
-                id: light_1
-                relative_brightness: 5%
-                transition_length: 0.1s
-                brightness_limits:
-                    max_brightness: 90%
-            - delay: 0.1s
-```
-
-{{< /note >}}
 {{< anchor "light-addressable_set_action" >}}
 
 ### `light.addressable_set` Action
@@ -496,11 +489,9 @@ light:
           update_interval: 5s
 ```
 
-{{< note >}}
-After setting a light effect, it is possible to reset the in-use effect back to a static light by setting the
-`effect` to `none` when it is being called through Home Assistant or directly on the device.
-
-{{< /note >}}
+> [!NOTE]
+> After setting a light effect, it is possible to reset the in-use effect back to a static light by setting the
+> `effect` to `none` when it is being called through Home Assistant or directly on the device.
 
 ### Pulse Effect
 
@@ -913,10 +904,8 @@ Available variables in the lambda:
 - **initial_run** - A bool which is true on the first execution of the lambda. Useful to reset static variables when
   restarting an effect.
 
-{{< note >}}
-ESPColor has been migrated to Color. See {{< apistruct "Color" "Color" >}} for more information.
-
-{{< /note >}}
+> [!NOTE]
+> ESPColor has been migrated to Color. See {{< apistruct "Color" "Color" >}} for more information.
 
 ```yaml
 light:
@@ -1121,10 +1110,9 @@ light:
   Sync Groups to listen to. Defaults to `0` (All Sync Groups). Sync Groups 1, 2, 3, 4, 5, 6, 7, 8 use masks 1, 2, 4,
   8, 16, 32, 64, 128. Combine mask values to listen to multiple Sync Groups.
 
-{{< note >}}
-You can also set the `port` to `19446` for compatibility with Hyperion Classic using a UDP device with protocol 0.
+> [!NOTE]
+> You can also set the `port` to `19446` for compatibility with Hyperion Classic using a UDP device with protocol 0.
 
-{{< /note >}}
 The following realtime protocols are supported:
 
 - WARLS

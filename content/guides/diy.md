@@ -16,12 +16,10 @@ This page purposefully has little moderation. Found something great or have some
 The usual rules of don't be an asshole apply - don't put your link at the top of the list
 unless it's truly exceptional, etc.
 
-{{< warning >}}
-These configurations and external components are *not officially maintained* by the
-ESPHome team. If an API changes or there's a breaking change, it's up to the author to update
-the post.
-
-{{< /warning >}}
+> [!WARNING]
+> These configurations and external components are *not officially maintained* by the
+> ESPHome team. If an API changes or there's a breaking change, it's up to the author to update
+> the post.
 
 ## Blog Posts & Videos
 

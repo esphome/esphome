@@ -178,11 +178,10 @@ on_...:
     - delay: !lambda "if (id(reed_switch).state) return 1000; else return 0;"
 ```
 
-{{< note >}}
-This is a "smart" asynchronous delay - other code will still run in the background while
-the delay is happening. When using a lambda call, you should return the delay value in milliseconds.
+> [!NOTE]
+> This is a "smart" asynchronous delay - other code will still run in the background while
+> the delay is happening. When using a lambda call, you should return the delay value in milliseconds.
 
-{{< /note >}}
 {{< anchor "if_action" >}}
 
 ### `if` Action

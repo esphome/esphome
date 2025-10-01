@@ -10,11 +10,9 @@ params:
 The `camera` component is the base abstraction layer for camera implementations in ESPHome. It provides a
 standardized interface between camera hardware/software implementations and the ESPHome API layer.
 
-{{< note >}}
-This component cannot be used directly. It serves as the base platform that specific camera
-implementations (like {{< docref "/components/esp32_camera" >}}) build upon.
-
-{{< /note >}}
+> [!NOTE]
+> This component cannot be used directly. It serves as the base platform that specific camera
+> implementations (like {{< docref "/components/esp32_camera" >}}) build upon.
 
 ## Overview
 

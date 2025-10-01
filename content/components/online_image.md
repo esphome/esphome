@@ -11,23 +11,21 @@ params:
 
 With this component you can define images that will be downloaded, decoded and drawn at runtime.
 
-{{< note >}}
-Current supported formats:
+> [!NOTE]
+> Current supported formats:
+>
+> - BMP images
+>
+>   - 1-bit / binary / black and white
+>   - 24-bit / RGB
+>
+> - JPEG images, currently only baseline images (no progressive support)
+>
+> - PNG images
 
-- BMP images
+> [!WARNING]
+> This component requires a fair amount of RAM; both for downloading the image, and for storing the decoded image. It might work on devices without PSRAM, but there is no guarantee.
 
-  - 1-bit / binary / black and white
-  - 24-bit / RGB
-
-- JPEG images, currently only baseline images (no progressive support)
-
-- PNG images
-
-{{< /note >}}
-{{< warning >}}
-This component requires a fair amount of RAM; both for downloading the image, and for storing the decoded image. It might work on devices without PSRAM, but there is no guarantee.
-
-{{< /warning >}}
 This component has a dependency to {{< docref "/components/http_request" >}}; the configuration options you set to the `http_request` component will also apply here.
 
 ```yaml

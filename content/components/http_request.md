@@ -53,31 +53,28 @@ http_request:
   - HTTPS connections will not be possible
   - `verify_ssl: false` is implied
 
-{{< warning >}}
-Setting `verify_ssl` to `false` **reduces security** when using HTTPS connections!
+> [!WARNING]
+> Setting `verify_ssl` to `false` **reduces security** when using HTTPS connections!
+>
+> Without the root certificate bundle, certificates used by the remote HTTPS server cannot be verified, opening the
+> HTTPS connection up to person-in-the-middle attacks.
+>
+> To maximize security, do not set `verify_ssl` to `false` *unless:*
+>
+> - a custom CA/self-signed certificate is used,
+> - the Arduino framework is used, or
+> - the device does not have sufficient memory to store the certificate bundle
+>
+> **We strongly recommend using hardware which properly supports TLS/SSL.**
 
-Without the root certificate bundle, certificates used by the remote HTTPS server cannot be verified, opening the
-HTTPS connection up to person-in-the-middle attacks.
-
-To maximize security, do not set `verify_ssl` to `false` *unless:*
-
-- a custom CA/self-signed certificate is used,
-- the Arduino framework is used, or
-- the device does not have sufficient memory to store the certificate bundle
-
-**We strongly recommend using hardware which properly supports TLS/SSL.**
-
-{{< /warning >}}
 **For the host platform:**
 
 - **ca_certificate_path** (*Optional*, file path): Path to a CA certificate bundle. Not required on MacOS (the inbuilt CA bundle is used and SSL enabled by default).
    On Linux this is required to enable SSL.
 
-{{< note >}}
-To use SSL on Linux you must have the `libssl-dev` package installed (e.g. `sudo apt install libssl-dev`  ).
-A typical value on Linux for `ca_certificate_path` would be `/etc/ssl/certs/ca-certificates.crt`.
-
-{{< /note >}}
+> [!NOTE]
+> To use SSL on Linux you must have the `libssl-dev` package installed (e.g. `sudo apt install libssl-dev`  ).
+> A typical value on Linux for `ca_certificate_path` would be `/etc/ssl/certs/ca-certificates.crt`.
 
 ## Actions
 
@@ -181,11 +178,9 @@ The following variables are available for use in [lambdas](#config-lambda):
 - `body` as `std::string` which contains the response body when `capture_response`
   (see [`http_request.get` Action](#http_request-get_action)) is set to `true`.
 
-{{< note >}}
-The `status_code` should be checked before using the `body` variable. A successful response will usually have
-a status code of `200`. Server errors such as "not found" (404) or "internal server error" (500) will have an appropriate status code, and may contain an error message in the `body` variable.
-
-{{< /note >}}
+> [!NOTE]
+> The `status_code` should be checked before using the `body` variable. A successful response will usually have
+> a status code of `200`. Server errors such as "not found" (404) or "internal server error" (500) will have an appropriate status code, and may contain an error message in the `body` variable.
 
 ```yaml
 on_...

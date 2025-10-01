@@ -10,10 +10,9 @@ params:
 ESPHome has support for components to create a datetime entity. A datetime entity
 currently represents a date that can be set by the user/frontend.
 
-{{< note >}}
-Requires Home Assistant 2024.4 or newer.
+> [!NOTE]
+> Requires Home Assistant 2024.4 or newer.
 
-{{< /note >}}
 {{< anchor "config-datetime" >}}
 
 ## Base Datetime Configuration
@@ -33,11 +32,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the datetime. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the datetime to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the datetime to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the datetime in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will

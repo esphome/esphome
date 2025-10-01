@@ -16,23 +16,21 @@ available for ESP32, ESP8266 and BK72xx microcontrollers *only*.
   ["WireGuard" Trademark Usage Policy](https://www.wireguard.com/trademark-policy/)
   for additional information.
 
-{{< warning >}}
-To successfully use this component you must have WireGuard® also
-on your remote host (already installed and ready to accept connections).
-If you don't have it please read the section [Remote peer setup](#wireguard-installation).
+> [!WARNING]
+> To successfully use this component you must have WireGuard® also
+> on your remote host (already installed and ready to accept connections).
+> If you don't have it please read the section [Remote peer setup](#wireguard-installation).
 
-{{< /warning >}}
-{{< warning >}}
-This component requires the system clock to be synchronized.
+> [!WARNING]
+> This component requires the system clock to be synchronized.
+>
+> See {{< docref "time/" >}} to setup a time source
+> and **do not use** `homeassistant` time-platform if
+> Home Assistant is on the remote peer because the time
+> synchronization is a prerequisite to establish the VPN link.
+>
+> The {{< docref "time/sntp" >}} is a valid time-platform choice.
 
-See {{< docref "time/" >}} to setup a time source
-and **do not use** `homeassistant` time-platform if
-Home Assistant is on the remote peer because the time
-synchronization is a prerequisite to establish the VPN link.
-
-The {{< docref "time/sntp" >}} is a valid time-platform choice.
-
-{{< /warning >}}
 A VPN tunnel can be created to a **single** remote peer
 adding the following to your configuration:
 
@@ -162,19 +160,18 @@ Let's explain with some examples:
 | ------------ | ---------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | 172.16.0.100 | *omitted* or 255.255.255.255 | *omitted* or any other value                   | **none**, no routes are created                                                                                                            |
 |              | 255.255.255.0                | *omitted*                                      | only to `172.16.0.0/24`                                                                                                                    |
-| | | - 172.16.0.0/24 - 192.168.0.0/24 - *any other* | and any other network will be outside `172.16.0.0/24`                                                                                      |
-| | | - 192.168.0.0/24 | **none** because `192.168.0.0/24` is not part of `172.16.0.0/24`                                                                           |
-| 10.44.0.100 | 255.0.0.0 | *omitted* | to `10.0.0.0/8` network |
-| | | - 10.44.0.0/16 - 10.10.0.0/16 | only to the networks in the allowed list because the netmask will route the whole `10.0.0.0/8` but wireguard allows only those two subnets |
-| any | 0.0.0.0 | *omitted* | **any** |
-| | | - 172.16.0.0/24 - 10.44.0.0/16 - 10.10.0.0/16 | to any network that is in the list of allowed IPs because the netmask will route any traffic but wireguard allows only its own list |
+|              |                              | - 172.16.0.0/24 - 192.168.0.0/24 - *any other* | and any other network will be outside `172.16.0.0/24`                                                                                      |
+|              |                              | - 192.168.0.0/24                               | **none** because `192.168.0.0/24` is not part of `172.16.0.0/24`                                                                           |
+| 10.44.0.100  | 255.0.0.0                    | *omitted*                                      | to `10.0.0.0/8` network                                                                                                                    |
+|              |                              | - 10.44.0.0/16 - 10.10.0.0/16                  | only to the networks in the allowed list because the netmask will route the whole `10.0.0.0/8` but wireguard allows only those two subnets |
+| any          | 0.0.0.0                      | *omitted*                                      | **any**                                                                                                                                    |
+|              |                              | - 172.16.0.0/24 - 10.44.0.0/16 - 10.10.0.0/16  | to any network that is in the list of allowed IPs because the netmask will route any traffic but wireguard allows only its own list        |
 
-{{< note >}}
-Setting the `netmask` to `0.0.0.0` has the effect of routing
-through the VPN link any traffic. It is like having set the wireguard
-interface as the system default.
+> [!NOTE]
+> Setting the `netmask` to `0.0.0.0` has the effect of routing
+> through the VPN link any traffic. It is like having set the wireguard
+> interface as the system default.
 
-{{< /note >}}
 {{< anchor "wireguard-sensors" >}}
 
 ## Sensors
@@ -259,11 +256,9 @@ on_...:
 
 The lambda equivalent is `id(wireguard_id).disable()`.
 
-{{< note >}}
-To disable WireGuard® since device boot you can execute this action
-in the [`on_boot`](#esphome-on_boot) step.
-
-{{< /note >}}
+> [!NOTE]
+> To disable WireGuard® since device boot you can execute this action
+> in the [`on_boot`](#esphome-on_boot) step.
 
 ### `wireguard.enable`
 
@@ -349,12 +344,10 @@ These are the steps:
 
 The device should now be linked to your remote Home Assistant.
 
-{{< note >}}
-If you have issues linking the ESP device try setting
-the `use_address` parameter of the {{< docref "wifi/" >}} to the value
-of the [address](#wireguard-address) configured here.
-
-{{< /note >}}
+> [!NOTE]
+> If you have issues linking the ESP device try setting
+> the `use_address` parameter of the {{< docref "wifi/" >}} to the value
+> of the [address](#wireguard-address) configured here.
 
 ## See Also
 

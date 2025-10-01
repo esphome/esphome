@@ -10,12 +10,10 @@ params:
 The `homeassistant` Switch platform allows you to create Switch that **import**
 states and allow **control** via your Home Assistant instance using the {{< docref "/components/api" "native API" >}}.
 
-{{< note >}}
-Although you might not plan to *export* states from the node and you do not need an entity of the node
-in Home Assistant, this component still requires you to register the node under Home Assistant. See:
-[Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
-
-{{< /note >}}
+> [!NOTE]
+> Although you might not plan to *export* states from the node and you do not need an entity of the node
+> in Home Assistant, this component still requires you to register the node under Home Assistant. See:
+> [Connecting your device to Home Assistant](#connecting-your-device-to-home-assistant).
 
 ```yaml
 # Example configuration entry

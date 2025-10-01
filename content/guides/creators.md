@@ -81,10 +81,8 @@ improv_serial:
 
 - `dashboard_import`
 
-  {{< note >}}
-  The [Project information](#esphome-creators_project) above is required for adoption to work in the Dashboard.
-
-  {{< /note >}}
+  > [!NOTE]
+  > The [Project information](#esphome-creators_project) above is required for adoption to work in the Dashboard.
 
   - `package_import_url` - This should point to the public repository containing
     the configuration for the device so that the user's ESPHome dashboard can autodetect this device and

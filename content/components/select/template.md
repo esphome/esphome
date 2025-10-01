@@ -49,10 +49,8 @@ select:
 
 - All other options from [Select](#config-select).
 
-{{< note >}}
-If you don't set a `lambda` and `optimistic` is `false` (default), updates to the select component state will need to be taken care of as part of your `set_action` using `id(my_select).publish_state(x);` (in a lambda). Do not use [`select.set` Action](#select-set_action) here, as this would generate a loop. Also, don't use `id(my_select).state = x` as this won't have the desired effect (e.g. HA won't update with the change).
-
-{{< /note >}}
+> [!NOTE]
+> If you don't set a `lambda` and `optimistic` is `false` (default), updates to the select component state will need to be taken care of as part of your `set_action` using `id(my_select).publish_state(x);` (in a lambda). Do not use [`select.set` Action](#select-set_action) here, as this would generate a loop. Also, don't use `id(my_select).state = x` as this won't have the desired effect (e.g. HA won't update with the change).
 
 ## `select.set` Action
 

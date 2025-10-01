@@ -75,11 +75,9 @@ uponor_smatrix:
 - **time_device_address** (*Optional*, int): The 16 bit device address of the thermostat that keeps the system time. This will be automatically detected from the bus if not specified.
   It needs to be the device address of the first thermostat that was paired to the controller, and the one where you can manually change the date and time via the buttons on the thermostat.
 
-{{< note >}}
-The system address and the address of the thermostat keeping the time will be automatically detected from the bus if not specified in the configuration!
-You can safely leave out those parameters in almost all cases.
-
-{{< /note >}}
+> [!NOTE]
+> The system address and the address of the thermostat keeping the time will be automatically detected from the bus if not specified in the configuration!
+> You can safely leave out those parameters in almost all cases.
 
 ## Climate
 

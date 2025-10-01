@@ -106,12 +106,10 @@ most of the configuration will be set by default, but can be overridden if neede
 - **reset_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The RESET pin.
 - **cs_pin** (*Optional*, [Pin Schema](#config-pin_schema)): The CS pin.
 
-{{< note >}}
-A DC pin is required for single SPI and 8 bit parallel, the CS pin and RESET pin will only be needed if the specific board has those
-pins wired to GPIOs. When using a board with integrated display, the pins will be set to the correct values by
-default, but can be overridden in the config if needed.
-
-{{< /note >}}
+> [!NOTE]
+> A DC pin is required for single SPI and 8 bit parallel, the CS pin and RESET pin will only be needed if the specific board has those
+> pins wired to GPIOs. When using a board with integrated display, the pins will be set to the correct values by
+> default, but can be overridden in the config if needed.
 
 - **enable_pin** (*Optional*, [Pin Schema](#config-pin_schema)): An optional pin to enable the display, if required. A list of pins can be provided for displays that require multiple enable pins. A full pin configuration may be provided
   to set the pin mode and inverted property. By default the pin will be driven high to enable the display.

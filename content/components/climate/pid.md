@@ -14,20 +14,19 @@ PID controllers are good at modulating an output signal to get a sensor reading 
 setpoint. For example, it can be used to modulate the power of a heating unit to get the
 temperature to a user-specified setpoint.
 
-{{< note >}}
-PID is like cruise control in the cars: it keeps the car's speed constant by continuously
-adjusting the fuel quantity, based on load measurements. Eg when the car has to go up on a hill,
-the system notices the load increase thus immediately gives more fuel to the engine; and when it
-goes down on the other side of the hill, it notices the load decrease thus reduces or cuts off fuel
-completely so that car speed remains as constant as possible. The calculation takes in consideration
-constants like car weight, wind resistance etc.
+> [!NOTE]
+> PID is like cruise control in the cars: it keeps the car's speed constant by continuously
+> adjusting the fuel quantity, based on load measurements. Eg when the car has to go up on a hill,
+> the system notices the load increase thus immediately gives more fuel to the engine; and when it
+> goes down on the other side of the hill, it notices the load decrease thus reduces or cuts off fuel
+> completely so that car speed remains as constant as possible. The calculation takes in consideration
+> constants like car weight, wind resistance etc.
+>
+> This kind of math can be used for a heating or cooling system too, and an auto-tuning algorithm can help
+> determining such constants, which mainly describe the heat loss of the room or building. Goal is to
+> keep the temperature as constant as possible, and smooth out oscillations otherwise produced by
+> classic thermostats.
 
-This kind of math can be used for a heating or cooling system too, and an auto-tuning algorithm can help
-determining such constants, which mainly describe the heat loss of the room or building. Goal is to
-keep the temperature as constant as possible, and smooth out oscillations otherwise produced by
-classic thermostats.
-
-{{< /note >}}
 Explaining how PID controllers work in detail is out of scope of this documentation entry,
 but there's a nice article explaining the function principle at <https://blog.opticontrols.com/archives/344>.
 
@@ -131,14 +130,12 @@ To set up a PID climate controller, you need a couple of components:
   Please note the output *must* be controllable with continuous value (not only ON/OFF, but any state
   in between for example 50% heating power).
 
-{{< note >}}
-The sensor should have a short update interval. The PID update frequency is tied to the update
-interval of the sensor. Set a short `update_interval` like `5s` on the sensor.
-
-We recommend putting a filter on the sensor (see filters in {{< docref "/components/sensor" >}}) and
-using `output_averaging_samples` to calm the PID sensor from a noisy input sensor.
-
-{{< /note >}}
+> [!NOTE]
+> The sensor should have a short update interval. The PID update frequency is tied to the update
+> interval of the sensor. Set a short `update_interval` like `5s` on the sensor.
+>
+> We recommend putting a filter on the sensor (see filters in {{< docref "/components/sensor" >}}) and
+> using `output_averaging_samples` to calm the PID sensor from a noisy input sensor.
 
 ## Deadband Setup
 
@@ -252,17 +249,15 @@ To autotune the control parameters:
     This induces an oscillation of the observed temperature and the measured period and amplitude
     is automatically calculated. To do this, it needs to observe at least 3 oscillation cycles.
 
-    {{< note >}}
-    You **have to set the setpoint** of the climate controller to a value the
-    device can reach. For example if the temperature of a room is to be controlled, the setpoint needs
-    to be above the ambient temperature. If the ambient temperature is 20°C, the setpoint of the
-    climate device should be set to at least ~24°C so that an oscillation can be induced.
-
-    Also take care of external influences, like for example when room temperature is severely affected by
-    outdoor weather like sun, if it starts to warm up the room in parallel with the heating
-    autotune will likely fail or give false results.
-
-    {{< /note >}}
+    > [!NOTE]
+    > You **have to set the setpoint** of the climate controller to a value the
+    > device can reach. For example if the temperature of a room is to be controlled, the setpoint needs
+    > to be above the ambient temperature. If the ambient temperature is 20°C, the setpoint of the
+    > climate device should be set to at least ~24°C so that an oscillation can be induced.
+    >
+    > Also take care of external influences, like for example when room temperature is severely affected by
+    > outdoor weather like sun, if it starts to warm up the room in parallel with the heating
+    > autotune will likely fail or give false results.
 
 1. Set an appropriate setpoint (see note above) and turn on the climate controller (Heat, Cool or Auto).
 
@@ -281,16 +276,14 @@ To autotune the control parameters:
 
     ```
 
-    {{< note >}}
-    In the output above, the autotuner is driving the heating output at 100% and trying to reach 24.25 °C.
-
-    This will continue for some time until data for 3 phases (6 crossings of the setpoint; or a bit more, depending on
-    the data quality) have been acquired.
-
-    The autotune algorithm may take a long time to complete, it depends on the time needed to reproduce the
-    heating up and cooling down oscillations the required number of times.
-
-    {{< /note >}}
+    > [!NOTE]
+    > In the output above, the autotuner is driving the heating output at 100% and trying to reach 24.25 °C.
+    >
+    > This will continue for some time until data for 3 phases (6 crossings of the setpoint; or a bit more, depending on
+    > the data quality) have been acquired.
+    >
+    > The autotune algorithm may take a long time to complete, it depends on the time needed to reproduce the
+    > heating up and cooling down oscillations the required number of times.
 
 1. When the PID autotuner has succeeded, output like the one below can be seen:
 

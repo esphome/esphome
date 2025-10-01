@@ -56,16 +56,13 @@ display:
     number: 5
 ```
 
-{{< warning >}}
-When using the Inkplate epaper module, the GPIO pin numbers above *cannot be changed* as they are
-hardwired within the module/PCB.
+> [!WARNING]
+> When using the Inkplate epaper module, the GPIO pin numbers above *cannot be changed* as they are
+> hardwired within the module/PCB.
 
-{{< /warning >}}
-{{< warning >}}
-Inkplate module cannot perform partial update if 3 bit mode is on.
-It just ignores the function call in that case.
-
-{{< /warning >}}
+> [!WARNING]
+> Inkplate module cannot perform partial update if 3 bit mode is on.
+> It just ignores the function call in that case.
 
 ## Configuration variables
 

@@ -14,15 +14,13 @@ ESPHome's command line interface always has the following format
 esphome [OPTIONS] <COMMAND> <CONFIGURATION...> [ARGUMENTS]
 ```
 
-{{< note >}}
-You can specify multiple configuration files in the command line interface for some commands,
-just list all files after the `<COMMAND>` like so:
-
-```shell
-esphome run livingroom.yaml kitchen.yaml
-```
-
-{{< /note >}}
+> [!NOTE]
+> You can specify multiple configuration files in the command line interface for some commands,
+> just list all files after the `<COMMAND>` like so:
+>
+> ```shell
+> esphome run livingroom.yaml kitchen.yaml
+> ```
 
 ## Options
 

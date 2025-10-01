@@ -25,10 +25,8 @@ text:
     name: "Textarea 1 text"
 ```
 
-{{< note >}}
-Widget-specific actions (`lvgl.label.update`, `lvgl.textarea.update`  ) will trigger correspponding component updates to be sent to Home Assistant.
-
-{{< /note >}}
+> [!NOTE]
+> Widget-specific actions (`lvgl.label.update`, `lvgl.textarea.update`  ) will trigger correspponding component updates to be sent to Home Assistant.
 
 ## See Also
 

@@ -87,14 +87,12 @@ Configuration options:
 - **state** (**Required**, boolean, [templatable](#config-templatable)):
   The state to publish.
 
-{{< note >}}
-This action can also be written in lambdas:
-
-```cpp
-id(template_bin).publish_state(true);
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas:
+>
+> ```cpp
+> id(template_bin).publish_state(true);
+> ```
 
 ## See Also
 

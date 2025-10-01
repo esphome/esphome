@@ -32,17 +32,15 @@ prometheus:
 
 - **relabel** (*Optional*): Override metric labels. See [`relabel`](#prometheus-relabel)
 
-{{< note >}}
-Example integration into the configuration of your prometheus:
-
-```yaml
-scrape_configs:
-  - job_name: esphome
-    static_configs:
-      - targets: [<ip or node_name.local>]
-```
-
-{{< /note >}}
+> [!NOTE]
+> Example integration into the configuration of your prometheus:
+>
+> ```yaml
+> scrape_configs:
+>   - job_name: esphome
+>     static_configs:
+>       - targets: [<ip or node_name.local>]
+> ```
 
 ## Supported ESPHome Components
 

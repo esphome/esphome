@@ -70,14 +70,12 @@ converts the currently measured pressure to the altitudes in meters including te
 The second block uses the {{< docref "/components/sensor/absolute_humidity" >}} component which
 converts the currently measured temperature and relative humidity to absolute humidity (grams/m^3).
 
-{{< note >}}
-Calculating the altitude with the BME280 sensor accurately requires this value to be known at sea level for your
-location and day.
-
-This can be achieved by replacing the global constant `STANDARD_SEA_LEVEL_PRESSURE` by for example
-pulling this value live from the internet or a stationary sensor via MQTT.
-
-{{< /note >}}
+> [!NOTE]
+> Calculating the altitude with the BME280 sensor accurately requires this value to be known at sea level for your
+> location and day.
+>
+> This can be achieved by replacing the global constant `STANDARD_SEA_LEVEL_PRESSURE` by for example
+> pulling this value live from the internet or a stationary sensor via MQTT.
 
 ## Equivalent sea level pressure
 
@@ -108,11 +106,9 @@ sensor:
     unit_of_measurement: 'hPa'
 ```
 
-{{< note >}}
-For calculating the equivalent sea level pressure, the sensor needs to be mounted at a fixed altitude.
-Therefore it is not possible to calculate altitude at the same time, and vice versa!
-
-{{< /note >}}
+> [!NOTE]
+> For calculating the equivalent sea level pressure, the sensor needs to be mounted at a fixed altitude.
+> Therefore it is not possible to calculate altitude at the same time, and vice versa!
 
 ## Formula explanation
 

@@ -10,12 +10,11 @@ params:
 The `bang_bang` climate platform allows you to regulate a value with a
 [bang-bang controller](https://en.wikipedia.org/wiki/Bang%E2%80%93bang_control) (also called hysteresis controller).
 
-{{< note >}}
-The {{< docref "thermostat" "thermostat" >}} component behaves more like a common thermostat; it is
-essentially two bang-bang controllers in one. Please see the `Bang-bang vs. Thermostat`_ section below
-if you are not sure which is appropriate for your application.
+> [!NOTE]
+> The {{< docref "thermostat" "thermostat" >}} component behaves more like a common thermostat; it is
+> essentially two bang-bang controllers in one. Please see the `Bang-bang vs. Thermostat`_ section below
+> if you are not sure which is appropriate for your application.
 
-{{< /note >}}
 The bang-bang controller's principle of operation is quite simple. First, you specify an observable
 value (for example the temperature of a room). The controller will try to keep this observed value
 in a defined range. To do this, the controller can activate objects like a heating unit to change
@@ -101,11 +100,9 @@ Advanced options:
   - **default_target_temperature_high** (**Required**, float): The default high target temperature for
     the control algorithm during away mode.
 
-{{< note >}}
-While this platform uses the term temperature everywhere, it can also be used for other values.
-For example, controlling humidity is also possible with this platform.
-
-{{< /note >}}
+> [!NOTE]
+> While this platform uses the term temperature everywhere, it can also be used for other values.
+> For example, controlling humidity is also possible with this platform.
 
 ## Bang-bang vs. Thermostat
 

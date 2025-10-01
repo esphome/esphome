@@ -31,10 +31,8 @@ You need to specify unit_of_measurement as 'c' or 'f'. This ensures the stick's 
 uses the unit you intend. All values within ESPHome are converted to Celsius so you may
 need to do conversion again within the frontend if you use Fahrenheit.
 
-{{< warning >}}
-The Anova Nano is not currently supported as it uses a different BLE protocol.
-
-{{< /warning >}}
+> [!WARNING]
+> The Anova Nano is not currently supported as it uses a different BLE protocol.
 
 ```yaml
 ble_client:

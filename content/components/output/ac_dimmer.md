@@ -7,14 +7,13 @@ params:
     image: ac_dimmer.svg
 ---
 
-{{< warning >}}
-This component has not been fully tested yet, if you are testing this component
-please share your experience with the dimmer hardware and light model and
-configuration here <https://github.com/esphome/feature-requests/issues/278>
+> [!WARNING]
+> This component has not been fully tested yet, if you are testing this component
+> please share your experience with the dimmer hardware and light model and
+> configuration here <https://github.com/esphome/feature-requests/issues/278>
+>
+> Thanks!
 
-Thanks!
-
-{{< /warning >}}
 The `ac_dimmer` component allows you to connect a dimmable light or other load
 which supports phase control dimming to your ESPHome project.
 

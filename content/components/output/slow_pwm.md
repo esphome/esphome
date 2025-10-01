@@ -11,14 +11,12 @@ Similar to PWM, the Slow PWM Output platform allows you to control GPIO pins by
 pulsing them on/off over a longer time period. It could be used to control a
 heating element through a relay where a fast PWM update cycle would not be appropriate.
 
-{{< note >}}
-This is for **slow** PWM output. For fast-switching PWM outputs (for example,
-lights), see these outputs:
-
-- ESP32: {{< docref "ledc/" >}}
-- ESP8266: {{< docref "esp8266_pwm/" >}}
-
-{{< /note >}}
+> [!NOTE]
+> This is for **slow** PWM output. For fast-switching PWM outputs (for example,
+> lights), see these outputs:
+>
+> - ESP32: {{< docref "ledc/" >}}
+> - ESP8266: {{< docref "esp8266_pwm/" >}}
 
 ```yaml
 # Example configuration entry
@@ -44,12 +42,10 @@ output:
 
 - All other options from [Output](#config-output).
 
-{{< note >}}
-
-- If `pin` is defined the GPIO pin state is writen before any action is executed.
-- `state_change_action` and `turn_on_action`  /`turn_off_action` can be used togther. `state_change_action` is called before `turn_on_action`  /`turn_off_action`. It's recommended to use either `state_change_action` or `turn_on_action`  /`turn_off_action` to change the state of an output. Using both automations together is only recommended for monitoring.
-
-{{< /note >}}
+> [!NOTE]
+>
+> - If `pin` is defined the GPIO pin state is writen before any action is executed.
+> - `state_change_action` and `turn_on_action`  /`turn_off_action` can be used togther. `state_change_action` is called before `turn_on_action`  /`turn_off_action`. It's recommended to use either `state_change_action` or `turn_on_action`  /`turn_off_action` to change the state of an output. Using both automations together is only recommended for monitoring.
 
 ## Example
 
@@ -66,14 +62,12 @@ output:
       - output.turn_off: output1
 ```
 
-{{< note >}}
-If the duty cycle is not constrained to a maximum value, the
-{{< docref "/components/output/sigma_delta_output" >}} component offers faster updates and
-greater control over the switching frequency. This is better for loads that
-need some time to fully change between on and off, like eletric thermal
-actuator heads or fans.
-
-{{< /note >}}
+> [!NOTE]
+> If the duty cycle is not constrained to a maximum value, the
+> {{< docref "/components/output/sigma_delta_output" >}} component offers faster updates and
+> greater control over the switching frequency. This is better for loads that
+> need some time to fully change between on and off, like eletric thermal
+> actuator heads or fans.
 
 ## See Also
 

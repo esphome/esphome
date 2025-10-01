@@ -15,17 +15,15 @@ supporting both receiving and transmitting line. The UART bus must be configured
 of the module which is by default 9600bps. The required connection wires are `+VCC`, `GND`,
 `RX` and `TX`.
 
-{{< warning >}}
-If you are using the {{< docref "logger/" >}} make sure you are not using the same pins for `TX` and `RX` or
-otherwise disable the UART logging with the `baud_rate: 0` option.
+> [!WARNING]
+> If you are using the {{< docref "logger/" >}} make sure you are not using the same pins for `TX` and `RX` or
+> otherwise disable the UART logging with the `baud_rate: 0` option.
 
-{{< /warning >}}
-{{< note >}}
-This module requires a power supply between 3.8V and 4.2V that can handle current spikes up
-to 2 amps, it will not work by powering from the same 3.3V power source of the ESP. However you can
-connect `TX` and `RX` lines directly without any level shifter.
+> [!NOTE]
+> This module requires a power supply between 3.8V and 4.2V that can handle current spikes up
+> to 2 amps, it will not work by powering from the same 3.3V power source of the ESP. However you can
+> connect `TX` and `RX` lines directly without any level shifter.
 
-{{< /note >}}
 {{< img src="sim800l-full.jpg" alt="Image" width="60.0%" class="align-center" >}}
 
 ```yaml

@@ -16,15 +16,14 @@ software library. The use of Bosch's proprietary algorithms provide an Index for
 gas resistance sensor's response to specific Volatile Organic Compounds (VOC). The BSEC software also provides estimated values
 for CO₂ and Breath Volatile Organic Compounds (b-VOC) using a correlation between VOC and CO₂ in a human's exhaled breath.
 
-{{< note >}}
+> [!NOTE]
+>
+> - The BSEC library is only available for use after accepting its software license agreement. By enabling this component,
+>   you are explicitly agreeing to the terms of the `BSEC license agreement`_. You must not distribute any compiled firmware
+>   binaries that include this component.
+>
+> - We recommend using the newer {{< docref "bme68x_bsec2" "bme68x_bsec2" >}} component whenever possible.
 
-- The BSEC library is only available for use after accepting its software license agreement. By enabling this component,
-  you are explicitly agreeing to the terms of the `BSEC license agreement`_. You must not distribute any compiled firmware
-  binaries that include this component.
-
-- We recommend using the newer {{< docref "bme68x_bsec2" "bme68x_bsec2" >}} component whenever possible.
-
-{{< /note >}}
 The [I²C](#i2c) is required to be set up in your configuration for this sensor to work.
 
 {{< img src="bme680-full.jpg" alt="Image" caption="BME680 Temperature, Pressure, Humidity & Gas Sensor." width="50.0%" class="align-center" >}}

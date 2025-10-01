@@ -125,10 +125,9 @@ fingerprint_grow:
 
 ## Setting a New Password
 
-{{< warning >}}
-Forgetting the password will render your fingerprint reader unusable!
+> [!WARNING]
+> Forgetting the password will render your fingerprint reader unusable!
 
-{{< /warning >}}
 You can set a new password for your fingerprint reader using the `new_password:` configuration option. The password is defined as a 32-bit unsigned integer.
 
 ```yaml

@@ -81,10 +81,8 @@ binary_sensor:
 The MCP23016 component ([datasheet](http://ww1.microchip.com/downloads/en/devicedoc/20090c.pdf))
 has 16 GPIOs and can be configured the same way than the other variants.
 
-{{< note >}}
-The 'INPUT_PULLUP' mode is not supported on this device.
-
-{{< /note >}}
+> [!NOTE]
+> The 'INPUT_PULLUP' mode is not supported on this device.
 
 ```yaml
 # Example configuration entry

@@ -35,17 +35,15 @@ display:
 
 Additionally, you can use the `animation.next_frame`, `animation.prev_frame` or `animation.set_frame` actions.
 
-{{< note >}}
-To draw the next animation independent of Display draw cycle use an interval:
-
-```yaml
-interval:
-  - interval: 5s
-      then:
-        animation.next_frame: my_animation
-```
-
-{{< /note >}}
+> [!NOTE]
+> To draw the next animation independent of Display draw cycle use an interval:
+>
+> ```yaml
+> interval:
+>   - interval: 5s
+>       then:
+>         animation.next_frame: my_animation
+> ```
 
 ## Configuration variables
 

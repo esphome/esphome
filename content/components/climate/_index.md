@@ -13,10 +13,9 @@ and can be put in different modes like `HEAT`, `COOL`, `HEAT_COOL` or `OFF`.
 
 {{< img src="climate-ui.png" alt="Image" caption="Climate Device UI in Home Assistant." width="60.0%" class="align-center" >}}
 
-{{< note >}}
-Not all climate components support all possible features. Check the corresponding documentation page for details on what is supported.
+> [!NOTE]
+> Not all climate components support all possible features. Check the corresponding documentation page for details on what is supported.
 
-{{< /note >}}
 {{< anchor "config-climate" >}}
 
 ## Base Climate Configuration
@@ -46,11 +45,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name of the climate device. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the climate to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the climate to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the climate device in the frontend.
 - **visual** (*Optional*): Visual settings for the climate device - these do not

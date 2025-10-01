@@ -11,10 +11,9 @@ ESPHome has support for components to create a number entity. A number entity is
 like a sensor that can read a value from a device, but is useful when that value
 can be set by the user/frontend.
 
-{{< note >}}
-Home Assistant Core 2021.7 or higher is required for ESPHome number entities to work.
+> [!NOTE]
+> Home Assistant Core 2021.7 or higher is required for ESPHome number entities to work.
 
-{{< /note >}}
 {{< anchor "config-number" >}}
 
 ## Base Number Configuration
@@ -34,11 +33,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the number. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the number to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the number to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the number in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will

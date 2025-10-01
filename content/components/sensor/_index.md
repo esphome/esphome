@@ -42,11 +42,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the sensor. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the sensor to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the sensor to use that name, you can set `name: None`.
 
 - **unit_of_measurement** (*Optional*, string): Manually set the unit
   of measurement the sensor should advertise its values with. This does
@@ -112,23 +110,22 @@ MQTT Options:
 
 - All other options from [MQTT Component](#config-mqtt-component).
 
-{{< note >}}
-If you're trying to setup filters for a sensor that has multiple outputs - for example a DHT22 which
-reports temperature *and* humidity - put the `filters` option into each sensor output like this:
+> [!NOTE]
+> If you're trying to setup filters for a sensor that has multiple outputs - for example a DHT22 which
+> reports temperature *and* humidity - put the `filters` option into each sensor output like this:
+>
+> ```yaml
+> sensor:
+>   - platform: dht
+>     # ...
+>     temperature:
+>       filters:
+>         # ...
+>     humidity:
+>       filters:
+>         # ...
+> ```
 
-```yaml
-sensor:
-  - platform: dht
-    # ...
-    temperature:
-      filters:
-        # ...
-    humidity:
-      filters:
-        # ...
-```
-
-{{< /note >}}
 {{< anchor "sensor-filters" >}}
 
 ## Sensor Filters

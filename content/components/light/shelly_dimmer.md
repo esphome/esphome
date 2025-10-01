@@ -46,17 +46,15 @@ light:
 
 - **uart_id** (*Optional*, [ID](#config-id)): Manually specify the ID of the UART hub.
 
-{{< note >}}
-Currently, only the first hardware UART of the ESP is supported, which has to be configured like this:
-
-```yaml
-uart:
-    tx_pin: 1
-    rx_pin: 3
-    baud_rate: 115200
-```
-
-{{< /note >}}
+> [!NOTE]
+> Currently, only the first hardware UART of the ESP is supported, which has to be configured like this:
+>
+> ```yaml
+> uart:
+>     tx_pin: 1
+>     rx_pin: 3
+>     baud_rate: 115200
+> ```
 
 - **leading_edge** (*Optional*, boolean): [Dimming mode](https://en.wikipedia.org/wiki/Dimmer#Solid-state_dimmer): `true` means leading edge, `false` is trailing edge. Defaults to `false`.
 - **min_brightness** (*Optional*, int): Minimum brightness value on a scale from 0..1000, the default is 0.
@@ -76,18 +74,16 @@ uart:
   - **sha256** (*Optional*): A hash to compare the downloaded firmware against. Defaults a proper hash of known firmware versions.
   - **update** (*Optional*): Should the firmware of the STM be updated if necessary? The default is false.
 
-{{< note >}}
-When flashing Shelly Dimmer with esphome for the first time, automatic flashing the STM firmware is necessary too for the dimmer to work and enabled by the following configuration.:
-
-```yaml
-firmware:
-  version: "51.6" #<-- set version here
-  update: true
-```
-
-There is no action required by the user to flash the STM32. There is no way to revert to stock firmware on the STM32 at the time of writing.
-
-{{< /note >}}
+> [!NOTE]
+> When flashing Shelly Dimmer with esphome for the first time, automatic flashing the STM firmware is necessary too for the dimmer to work and enabled by the following configuration.:
+>
+> ```yaml
+> firmware:
+>   version: "51.6" #<-- set version here
+>   update: true
+> ```
+>
+> There is no action required by the user to flash the STM32. There is no way to revert to stock firmware on the STM32 at the time of writing.
 
 - All other options from [Light](#config-light).
 

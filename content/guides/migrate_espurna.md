@@ -36,11 +36,10 @@ To upload the binary, navigate to the ESPurna web interface and enter the
 In the "Upgrade" section, choose the binary you previously downloaded and press "Upgrade".
 If everything succeeds, you should now have ESPHome on your node 🎉
 
-{{< note >}}
-with ESPHome, you in most cases won't need to worry about the available flash size, as
-the binary only ever includes the code that you are actually using.
+> [!NOTE]
+> with ESPHome, you in most cases won't need to worry about the available flash size, as
+> the binary only ever includes the code that you are actually using.
 
-{{< /note >}}
 {{< img src="espurna_upload.png" alt="Image" width="90.0%" class="align-center" >}}
 
 Happy Hacking!

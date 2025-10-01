@@ -10,14 +10,13 @@ params:
 The `tuya` light platform creates a simple brightness-only light from a
 tuya serial component.
 
-{{< warning >}}
-Some of these dimmers have no way of serial flashing without destroying them.
-Make sure you have some way to OTA upload configured before flashing. This means you need
-to have working wifi, ota, and maybe api sections in the config.
-The dimmer switch I got would hang if the logger was configured to use the serial port
-which meant it was bricked until I cut it open.
+> [!WARNING]
+> Some of these dimmers have no way of serial flashing without destroying them.
+> Make sure you have some way to OTA upload configured before flashing. This means you need
+> to have working wifi, ota, and maybe api sections in the config.
+> The dimmer switch I got would hang if the logger was configured to use the serial port
+> which meant it was bricked until I cut it open.
 
-{{< /warning >}}
 This requires the {{< docref "/components/tuya" >}} component to be set up before you can use this platform.
 
 Here is an example output for a Tuya dimmer:
@@ -88,12 +87,10 @@ light:
 - At least one of *dimmer_datapoint*, *switch_datapoint*, *rgb_datapoint*, or *hsv_datapoint* must be provided.
 - Only one of *rgb_datapoint* or *hsv_datapoint* can be provided for one light.
 
-{{< note >}}
-The MCU on the Tuya dimmer handles transitions and gamma correction on its own.
-Therefore the `gamma_correct` setting default is `1.0` and the
-`default_transition_length` parameter is `0s` by default.
-
-{{< /note >}}
+> [!NOTE]
+> The MCU on the Tuya dimmer handles transitions and gamma correction on its own.
+> Therefore the `gamma_correct` setting default is `1.0` and the
+> `default_transition_length` parameter is `0s` by default.
 
 ## See Also
 

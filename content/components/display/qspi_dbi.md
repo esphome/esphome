@@ -13,10 +13,9 @@ params:
 
 This display driver supports AMOLED and LCD displays with quad SPI interfaces, using the MIPI DBI interface.
 
-{{< warning >}}
-This component has been made redundant since this class of displays is now supported by the {{< docref "mipi_spi" >}}
-This component will be removed in a future release.
-{{< /warning >}}
+> [!WARNING]
+> This component has been made redundant since this class of displays is now supported by the {{< docref "mipi_spi" >}}
+> This component will be removed in a future release.
 
 This driver has been tested with the following displays:
 

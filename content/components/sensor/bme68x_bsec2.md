@@ -20,12 +20,11 @@ a correlation between VOC and CO₂ in a human's exhaled breath.
 
 The [I²C](#i2c) is required to be set up in your configuration for this sensor to work.
 
-{{< note >}}
-The BSEC2 library is only available for use after accepting its software license agreement. By enabling this
-component in your configuration, you are explicitly agreeing to the terms of the `BSEC license agreement`_. Note
-that the license forbids distribution of any compiled firmware binaries that include this component.
+> [!NOTE]
+> The BSEC2 library is only available for use after accepting its software license agreement. By enabling this
+> component in your configuration, you are explicitly agreeing to the terms of the `BSEC license agreement`_. Note
+> that the license forbids distribution of any compiled firmware binaries that include this component.
 
-{{< /note >}}
 {{< img src="bme680-full.jpg" alt="Image" caption="BME680 Temperature, Pressure, Humidity & Gas Sensor." width="50.0%" class="align-center" >}}
 
 {{< img src="bme680-bsec-ui.png" alt="Image" caption="Example UI" width="80.0%" class="align-center" >}}

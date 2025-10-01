@@ -17,11 +17,9 @@ The component is split into two parts:
 
 **See** [Setting up IR Devices](#remote-setting-up-infrared) **and** [Setting up RF Devices](#remote-setting-up-rf) **for details.**
 
-{{< note >}}
-This component performs best with an ESP32 or variant; they have a dedicated hardware peripheral which ensures
-accurate signal timing.
-
-{{< /note >}}
+> [!NOTE]
+> This component performs best with an ESP32 or variant; they have a dedicated hardware peripheral which ensures
+> accurate signal timing.
 
 ```yaml
 # Example configuration entry
@@ -165,12 +163,11 @@ on_...:
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
-{{< note >}}
-ABB-Welcome messages are sent over the two-wire bus of your intercom system.
-A custom receiver and transmitter circuit is required.
-[More info](https://github.com/Mat931/esp32-doorbell-bus-interface)
+> [!NOTE]
+> ABB-Welcome messages are sent over the two-wire bus of your intercom system.
+> A custom receiver and transmitter circuit is required.
+> [More info](https://github.com/Mat931/esp32-doorbell-bus-interface)
 
-{{< /note >}}
 {{< anchor "remote_transmitter-transmit_aeha" >}}
 
 ### `remote_transmitter.transmit_aeha` **Action**
@@ -240,11 +237,9 @@ on_...:
 
 This [action](#config-action) sends a CanalSat infrared remote code to a remote transmitter.
 
-{{< note >}}
-The CanalSat and CanalSatLD protocols use a higher carrier frequency (56kHz) and are very similar.
-Depending on the hardware used they may interfere with each other when enabled simultaneously.
-
-{{< /note >}}
+> [!NOTE]
+> The CanalSat and CanalSatLD protocols use a higher carrier frequency (56kHz) and are very similar.
+> Depending on the hardware used they may interfere with each other when enabled simultaneously.
 
 ```yaml
 on_...:
@@ -269,11 +264,9 @@ on_...:
 
 This [action](#config-action) sends a CanalSatLD infrared remote code to a remote transmitter.
 
-{{< note >}}
-The CanalSat and CanalSatLD protocols use a higher carrier frequency (56kHz) and are very similar.
-Depending on the hardware used they may interfere with each other when enabled simultaneously.
-
-{{< /note >}}
+> [!NOTE]
+> The CanalSat and CanalSatLD protocols use a higher carrier frequency (56kHz) and are very similar.
+> Depending on the hardware used they may interfere with each other when enabled simultaneously.
 
 ```yaml
 on_...:
@@ -545,15 +538,13 @@ on_...:
 
 This [action](#config-action) sends an NEC infrared remote code to a remote transmitter.
 
-{{< note >}}
-In version 2021.12, the order of transferring bits was corrected from MSB to LSB in accordance with the NEC
-standard. Therefore, if the configuration file has come from an earlier version of ESPhome, it is necessary to
-reverse the order of the address and command bits when moving to 2021.12 or above. For example,
-`address: 0x84ED`, `command: 0x13EC` becomes `0xB721` and `0x37C8`, respectively. In additional, ESPHome
-does not automatically generate parity bits or pad values to 2 bytes. For example, to send command `0x0`, you
-need to use `0xFF00` (`0x00` being the command and `0xFF` being the logical inverse).
-
-{{< /note >}}
+> [!NOTE]
+> In version 2021.12, the order of transferring bits was corrected from MSB to LSB in accordance with the NEC
+> standard. Therefore, if the configuration file has come from an earlier version of ESPhome, it is necessary to
+> reverse the order of the address and command bits when moving to 2021.12 or above. For example,
+> `address: 0x84ED`, `command: 0x13EC` becomes `0xB721` and `0x37C8`, respectively. In additional, ESPHome
+> does not automatically generate parity bits or pad values to 2 bytes. For example, to send command `0x0`, you
+> need to use `0xFF00` (`0x00` being the command and `0xFF` being the logical inverse).
 
 ```yaml
 on_...:
@@ -957,10 +948,8 @@ on_...:
 
 This [action](#config-action) sends a Toshiba AC infrared remote code to a remote transmitter.
 
-{{< note >}}
-This action transmits codes using the new(er) Toshiba AC protocol and likely will not work with older units.
-
-{{< /note >}}
+> [!NOTE]
+> This action transmits codes using the new(er) Toshiba AC protocol and likely will not work with older units.
 
 ```yaml
 on_...:
@@ -1017,10 +1006,9 @@ on_...:
 - **rc_code_2** (*Optional*, int): The second 4-bit Toto code (usually a command parameter) to send. Range is 0 to 0xF.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
-{{< note >}}
-Toto remotes repeat all codes three times at a 36ms interval. This behavior will occur by default, but may be overridden by specifying `repeat` and `wait time` configuration variables.
+> [!NOTE]
+> Toto remotes repeat all codes three times at a 36ms interval. This behavior will occur by default, but may be overridden by specifying `repeat` and `wait time` configuration variables.
 
-{{< /note >}}
 {{< anchor "remote_transmitter-digital_write" >}}
 
 ### `remote_transmitter.digital_write` **Action**

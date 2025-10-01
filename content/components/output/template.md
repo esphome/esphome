@@ -40,11 +40,10 @@ output:
 
 See {{< apiclass "output::BinaryOutput" "output::BinaryOutput" >}} and {{< apiclass "output::FloatOutput" "output::FloatOutput" >}}.
 
-{{< warning >}}
-This is an **output component** and will not be visible from the frontend. Output components are intermediary
-components that can be attached to for example lights.
+> [!WARNING]
+> This is an **output component** and will not be visible from the frontend. Output components are intermediary
+> components that can be attached to for example lights.
 
-{{< /warning >}}
 {{< anchor "output-template-on_write_action" >}}
 
 ## `write_action` Trigger

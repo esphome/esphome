@@ -12,13 +12,11 @@ input and card or tag reader panels in Home Assistant.
 
 {{< img src="wiegand.jpg" alt="Image" caption="S20-ID keypad and tag reader" class="align-center" >}}
 
-{{< note >}}
-Some keypads are preconfigured by the factory to act as Wiegand input
-devices. In order to work with this component, they may need to
-be reconfigured to act as *Wiegand 26 output* or *Wiegand 34 output*
-devices.
-
-{{< /note >}}
+> [!NOTE]
+> Some keypads are preconfigured by the factory to act as Wiegand input
+> devices. In order to work with this component, they may need to
+> be reconfigured to act as *Wiegand 26 output* or *Wiegand 34 output*
+> devices.
 
 ```yaml
 # Example configuration entry
@@ -57,14 +55,12 @@ wiegand:
   bits is in a variable called `bits`. Note that this will include parity bits as well and
   no parity checking is done.
 
-{{< note >}}
-Automatic handling of multiple keys (e.g. PIN code entry) is possible with the
-the [Key Collector](#key_collector) component.
-
-Keys 10 and 11 are `*` and `#`. They might be labelled as `ENT` or `ESC`,
-but check the logs to see which key code you get and use the corresponding character.
-
-{{< /note >}}
+> [!NOTE]
+> Automatic handling of multiple keys (e.g. PIN code entry) is possible with the
+> the [Key Collector](#key_collector) component.
+>
+> Keys 10 and 11 are `*` and `#`. They might be labelled as `ENT` or `ESC`,
+> but check the logs to see which key code you get and use the corresponding character.
 
 ## See Also
 

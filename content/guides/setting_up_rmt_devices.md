@@ -123,19 +123,18 @@ You should see log output like below:
 [D][remote.raw]   1020, -1019, 510, -511, 1020, -510, 512, -508, 510, -1020, 1022
 ```
 
-{{< note >}}
-If the log output is flooded with "Received Raw" messages, you can also disable raw
-remote code reporting and rely on rc_switch to decode the values.
+> [!NOTE]
+> If the log output is flooded with "Received Raw" messages, you can also disable raw
+> remote code reporting and rely on rc_switch to decode the values.
+>
+> ```yaml
+> remote_receiver:
+>   pin: GPIOXX
+>   dump:
+>     - rc_switch
+>   ...
+> ```
 
-```yaml
-remote_receiver:
-  pin: GPIOXX
-  dump:
-    - rc_switch
-  ...
-```
-
-{{< /note >}}
 If the codec is already implemented in ESPHome, you will see the decoded value directly -
 otherwise you will see the raw data dump (which you can use just as well). You have
 just successfully captured your first RF code.
@@ -180,13 +179,11 @@ button:
 Recompile again, when you power up the device the next time you will see a new button
 in the frontend. Click on it and you should see the remote signal being transmitted. Done!
 
-{{< note >}}
-Some devices require that the transmitted code be repeated for the signal to be picked up
-as valid. Also the interval between repetitions can be important. Check that the pace of
-repetition logs are consistent between the remote controller and the transmitter node.
-You can adjust the `repeat:` settings accordingly.
-
-{{< /note >}}
+> [!NOTE]
+> Some devices require that the transmitted code be repeated for the signal to be picked up
+> as valid. Also the interval between repetitions can be important. Check that the pace of
+> repetition logs are consistent between the remote controller and the transmitter node.
+> You can adjust the `repeat:` settings accordingly.
 
 ## See Also
 

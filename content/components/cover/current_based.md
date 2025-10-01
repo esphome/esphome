@@ -23,12 +23,10 @@ This type of cover also provides safety features like current-based obstacle det
 rollback as well as relay malfunction detection: operation cancels if there's a current flowing in the opposite
 operation circuit (typically caused by welded relays).
 
-{{< warning >}}
-Depending on the cover and motor type, obstacles can physically damage the cover before being detectable.
-Verify your setup to ensure the current consumption will increase enough to be detectable before causing
-any physical damage. Use it at your own risk.
-
-{{< /warning >}}
+> [!WARNING]
+> Depending on the cover and motor type, obstacles can physically damage the cover before being detectable.
+> Verify your setup to ensure the current consumption will increase enough to be detectable before causing
+> any physical damage. Use it at your own risk.
 
 ```yaml
 # Example configuration entry
@@ -119,11 +117,10 @@ These devices typically run hot (~55Cº at 20ºC room temperature). Long-term he
 It is strongly recommended to monitor the device temperature using the NTC temperature sensor, shutting down the device if it exceeds 90ºC.
 This safety feature is also present in the original firmware.
 
-{{< warning >}}
-The ADE7953 IRQ line is connected to the GPIO16. The `irq_pin` parameter for the {{< docref "/components/sensor/ade7953" "ADE7953" >}} MUST be
-set to GPIO16 to prevent device overheat (>70ºC idling).
+> [!WARNING]
+> The ADE7953 IRQ line is connected to the GPIO16. The `irq_pin` parameter for the {{< docref "/components/sensor/ade7953" "ADE7953" >}} MUST be
+> set to GPIO16 to prevent device overheat (>70ºC idling).
 
-{{< /warning >}}
 Configuration example:
 
 ```yaml

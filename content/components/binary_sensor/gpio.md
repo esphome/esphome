@@ -84,22 +84,19 @@ The GPIO binary sensor supports two modes of operation:
 - Transitions shorter than the loop interval are ignored
 - Use only when interrupts are not supported or for compatibility
 
-{{< note >}}
-Interrupt mode is only available on internal GPIO pins. External GPIO
-expanders (like PCF8574) will automatically fall back to polling mode.
+> [!NOTE]
+> Interrupt mode is only available on internal GPIO pins. External GPIO
+> expanders (like PCF8574) will automatically fall back to polling mode.
+>
+> LibreTiny-based platforms (BK72xx, RTL87xx, LN882x) default to polling mode
+> due to hardware limitations with edge interrupts. You can explicitly enable
+> interrupt mode if needed, but it may not work reliably on all pins.
 
-LibreTiny-based platforms (BK72xx, RTL87xx, LN882x) default to polling mode
-due to hardware limitations with edge interrupts. You can explicitly enable
-interrupt mode if needed, but it may not work reliably on all pins.
-
-{{< /note >}}
-{{< note >}}
-When a pin is configured with `allow_other_uses: true` (for sharing with
-other components), interrupts are automatically disabled to prevent conflicts.
-This ensures compatibility with components like `duty_cycle` sensors that
-need to monitor pin state changes. The sensor will use polling mode instead.
-
-{{< /note >}}
+> [!NOTE]
+> When a pin is configured with `allow_other_uses: true` (for sharing with
+> other components), interrupts are automatically disabled to prevent conflicts.
+> This ensures compatibility with components like `duty_cycle` sensors that
+> need to monitor pin state changes. The sensor will use polling mode instead.
 
 ## Activating internal pullups
 

@@ -32,11 +32,9 @@ receive data, for example:
 The controller connects to the UART of the MCU. For ESP32 GPIO `16` to `TXD` and `17`
 to RXD are the default ones but any other pins can be used as well. 3.3V to VCC and GND to GND.
 
-{{< warning >}}
-If you are using the [Logger Component](#logger) make sure you are not using the same pins for it or otherwise disable the UART
-logging with the `baud_rate: 0` option.
-
-{{< /warning >}}
+> [!WARNING]
+> If you are using the [Logger Component](#logger) make sure you are not using the same pins for it or otherwise disable the UART
+> logging with the `baud_rate: 0` option.
 
 ## Component
 

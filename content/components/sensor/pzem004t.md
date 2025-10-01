@@ -7,24 +7,22 @@ params:
     image: pzem004t.svg
 ---
 
-{{< note >}}
-This page is incomplete and could use some work. If you want to contribute, please see our
-[developer site](https://developers.esphome.io). This page is missing:
+> [!NOTE]
+> This page is incomplete and could use some work. If you want to contribute, please see our
+> [developer site](https://developers.esphome.io). This page is missing:
+>
+> - An image for the front page.
+> - Images/screenshots/example configs of this device being used in action.
 
-- An image for the front page.
-- Images/screenshots/example configs of this device being used in action.
-
-{{< /note >}}
 The `pzem004t` sensor platform allows you to use PZEM-004 (version with 8-segment screens, [website](https://www.instructables.com/Power-Peacefair-PZEM-004-ESP8266-Arduino-Nano/)) and PZEM-004T V1 energy monitors
 ([website](https://innovatorsguru.com/ac-digital-multifunction-meter-using-pzem-004t/)) sensors with
 ESPHome.
 
-{{< warning >}}
-This page refers to version V1 of the PZEM-004T, which has been out of stock for a while.
-The PZEM-004, however, is still working (and selling) with this protocol and does not use modbus.
-For using the newer V3 variant of this sensor please see {{< docref "pzemac" "pzemac" >}}.
+> [!WARNING]
+> This page refers to version V1 of the PZEM-004T, which has been out of stock for a while.
+> The PZEM-004, however, is still working (and selling) with this protocol and does not use modbus.
+> For using the newer V3 variant of this sensor please see {{< docref "pzemac" "pzemac" >}}.
 
-{{< /warning >}}
 The communication with this component is done via a [UART](#uart).
 You must therefore have a `uart:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
@@ -71,11 +69,10 @@ sensor:
 These devices have optocouplers on the UART port and the resistors mounted on the board have been designed to work with 5V devices.
 ESPs need a [Level Shifter](https://www.adafruit.com/product/1875) to be compatible with TTL levels.
 
-{{< note >}}
-You need a IC level shifter and not a [Mosfet-based](https://www.sparkfun.com/products/12009) level shifter, because you need
-to power the optocoupler's LEDs without an additional resistor in the path.
+> [!NOTE]
+> You need a IC level shifter and not a [Mosfet-based](https://www.sparkfun.com/products/12009) level shifter, because you need
+> to power the optocoupler's LEDs without an additional resistor in the path.
 
-{{< /note >}}
 If prefer, you could change the value of the optocoupler's resistors by following [this](https://gregwareblog.wordpress.com/2020/12/13/home-power-monitoring-pzem-004/) or [this](https://www.instructables.com/Power-Peacefair-PZEM-004-ESP8266-Arduino-Nano/) guide.
 
 Your ESP shall be powered by an external power supply and cannot be connected to the PZEM for power.

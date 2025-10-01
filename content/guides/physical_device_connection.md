@@ -45,16 +45,15 @@ by your computer. The firmware programming tools use a serial interface to commu
 On Windows these interfaces are named `COM1`, `COM2`, etc. and on Linux they are named `/dev/ttyUSB0`,
 `/dev/ttyACM1`, etc.
 
-{{< note >}}
-If it's not showing up as a serial port, you might not have the required drivers
-installed. The model number you need is engraved on the chip connected to the USB port.
-ESPs and programmers usually ship with one of these UART chips:
+> [!NOTE]
+> If it's not showing up as a serial port, you might not have the required drivers
+> installed. The model number you need is engraved on the chip connected to the USB port.
+> ESPs and programmers usually ship with one of these UART chips:
+>
+> * CH34x: [driver](https://github.com/nodemcu/nodemcu-devkit/tree/master/Drivers)
+> * CP2102: [driver](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers)
+> * PL2303: [driver](https://www.prolific.com.tw/US/ShowProduct.aspx?p_id=225&pcid=41)
 
-* CH34x: [driver](https://github.com/nodemcu/nodemcu-devkit/tree/master/Drivers)
-* CP2102: [driver](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers)
-* PL2303: [driver](https://www.prolific.com.tw/US/ShowProduct.aspx?p_id=225&pcid=41)
-
-{{< /note >}}
 With the exception of the situation where you have a USB port, you need to make
 five electrical connections to program an ESP-based board:
 
@@ -71,12 +70,11 @@ power (current AND appropriate voltage level) to properly flash the firmware on 
 When using an external `3.3V` supply, ensure the ground (`GND`  ) of both are connected together,
 this ensures a common ground. A PC power supply can be a good source for `3.3V` DC power.
 
-{{< note >}}
-Some adapters can be switched between `3.3V` and `5V` for the data pins, but still provide 5V on the power pin which
-will irreparably destroy your device. You **MUST** make sure the data (`RX` and `TX`  ) and `VCC` pins are
-set for `3.3V`.
+> [!NOTE]
+> Some adapters can be switched between `3.3V` and `5V` for the data pins, but still provide 5V on the power pin which
+> will irreparably destroy your device. You **MUST** make sure the data (`RX` and `TX`  ) and `VCC` pins are
+> set for `3.3V`.
 
-{{< /note >}}
 ESP needs to be put into programming mode or flash mode before the firmware can be uploaded. This is
 done by connecting `GPIO0` pin to `GND` while the chip is booting.
 
@@ -99,20 +97,17 @@ reconnecting, of course with `GPIO0` and `GND` still connected to each other.
 first time, try flipping the wires connected to those pins before trying again.
 
 {{< img src="/images/high-voltage-warning.svg" alt="High voltage warning symbol" height="50" >}}
-{{< warning >}}
-
-**Do not connect your device to mains electricity while following this
-guide.** If your device is open and plugged directly into the wall, you'll
-be a single touch away from being electrocuted.
-
-Note that this does not apply if your device uses a separate "wall wart" or
-a power brick. Using an external power supply while flashing is an advanced
-topic not covered here, but does not pose any safety risk.
-
-**You are solely responsible for your own safety.** If you feel something
-is wrong or are uncomfortable with continuing, stop immediately.
-
-{{< /warning >}}
+> [!WARNING]
+> **Do not connect your device to mains electricity while following this
+> guide.** If your device is open and plugged directly into the wall, you'll
+> be a single touch away from being electrocuted.
+>
+> Note that this does not apply if your device uses a separate "wall wart" or
+> a power brick. Using an external power supply while flashing is an advanced
+> topic not covered here, but does not pose any safety risk.
+>
+> **You are solely responsible for your own safety.** If you feel something
+> is wrong or are uncomfortable with continuing, stop immediately.
 
 ### USB Port on Device
 

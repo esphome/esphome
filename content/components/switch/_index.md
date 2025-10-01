@@ -26,11 +26,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name of the switch. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the switch to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the switch to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the
   sensor in the frontend.
@@ -176,17 +174,15 @@ advanced stuff (see the full API Reference for more info).
     id(my_switch).publish_state(true);
 ```
 
-{{< note >}}
-Keep in mind that this does not change the actual state of the switch. It only
-changes the state in the frontend and the internal state. If you want to
-change the actual state of the switch, you need to call `turn_on()`,
-`turn_off()` or `toggle()`.
-
-For example, if you are using a {{< docref "/components/switch/gpio" >}}, calling `publish_state()` will
-not change the GPIO pin level. To do that, you need to call `turn_on()`,
-`turn_off()` or `toggle()`. The same applies to other switch platforms.
-
-{{< /note >}}
+> [!NOTE]
+> Keep in mind that this does not change the actual state of the switch. It only
+> changes the state in the frontend and the internal state. If you want to
+> change the actual state of the switch, you need to call `turn_on()`,
+> `turn_off()` or `toggle()`.
+>
+> For example, if you are using a {{< docref "/components/switch/gpio" >}}, calling `publish_state()` will
+> not change the GPIO pin level. To do that, you need to call `turn_on()`,
+> `turn_off()` or `toggle()`. The same applies to other switch platforms.
 
 - `state`  : Retrieve the current state of the switch.
 

@@ -39,10 +39,8 @@ Possible return values for the optional lambda:
 - `return LOCK_STATE_UNLOCKING;` if the lock should be reported as UNLOCKING.
 - `return {};` if the last state should be repeated.
 
-{{< note >}}
-Only `LOCK_STATE_LOCKED` and `LOCK_STATE_UNLOCKED` are supported by the MQTT component in Home Assistant
-
-{{< /note >}}
+> [!NOTE]
+> Only `LOCK_STATE_LOCKED` and `LOCK_STATE_UNLOCKED` are supported by the MQTT component in Home Assistant
 
 ## Configuration variables
 
@@ -97,15 +95,13 @@ Configuration options:
 - **state** (**Required**, boolean, [templatable](#config-templatable)):
   The state to publish.
 
-{{< note >}}
-This action can also be written in lambdas, the parameter of the `publish_state` method denotes the state the
-lock should become:
-
-```cpp
-id(template_lock1).publish_state(lock::LOCK_STATE_LOCKED);
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas, the parameter of the `publish_state` method denotes the state the
+> lock should become:
+>
+> ```cpp
+> id(template_lock1).publish_state(lock::LOCK_STATE_LOCKED);
+> ```
 
 ## See Also
 

@@ -47,21 +47,20 @@ sensor:
 
 - All other options from [Sensor](#config-sensor).
 
-{{< note >}}
-This component prints the voltage as seen by the chip pin. On the ESP8266, this is always 0.0V to 1.0V
-Some development boards like the Wemos D1 mini include external voltage divider circuitry to scale down
-a 3.3V input signal to the chip-internal 1.0V. If your board has this circuitry, add a multiply filter to
-get correct values:
+> [!NOTE]
+> This component prints the voltage as seen by the chip pin. On the ESP8266, this is always 0.0V to 1.0V
+> Some development boards like the Wemos D1 mini include external voltage divider circuitry to scale down
+> a 3.3V input signal to the chip-internal 1.0V. If your board has this circuitry, add a multiply filter to
+> get correct values:
+>
+> ```yaml
+> sensor:
+>   - platform: adc
+>     # ...
+>     filters:
+>       - multiply: 3.3
+> ```
 
-```yaml
-sensor:
-  - platform: adc
-    # ...
-    filters:
-      - multiply: 3.3
-```
-
-{{< /note >}}
 {{< anchor "adc-esp32_attenuation" >}}
 
 ## ESP32 Attenuation
@@ -72,11 +71,10 @@ There's more information [at the manufacturer's website](https://docs.espressif.
 
 To simplify this, we provide the setting `attenuation: auto` for an automatic/seamless transition among scales. [Our implementation](https://github.com/esphome/esphome/blob/dev/esphome/components/adc/adc_sensor_esp32.cpp) combines all available ranges to allow the best resolution without having to compromise on a specific attenuation.
 
-{{< note >}}
-In our tests, the usable ADC range was from ~0.075V to ~3.12V (with the `attenuation: auto` setting), and anything outside that range capped out at either end.
-Even though the measurements are calibrated, the range *limits* are variable among chips due to differences in the internal voltage reference.
+> [!NOTE]
+> In our tests, the usable ADC range was from ~0.075V to ~3.12V (with the `attenuation: auto` setting), and anything outside that range capped out at either end.
+> Even though the measurements are calibrated, the range *limits* are variable among chips due to differences in the internal voltage reference.
 
-{{< /note >}}
 {{< anchor "adc-esp32_pins" >}}
 
 ## ESP32 pins and Hardware Details
@@ -100,10 +98,9 @@ Different ESP32 variants use different ADC calibration methods:
 
 This is handled automatically by the code, but it's worth noting if you're debugging ADC readings or need to understand the calibration process.
 
-{{< warning >}}
-On ESP32-C5, GPIO2 is a strapping pin used during boot. While it can be used as an ADC input, avoid connecting circuits that might interfere with the boot process.
+> [!WARNING]
+> On ESP32-C5, GPIO2 is a strapping pin used during boot. While it can be used as an ADC input, avoid connecting circuits that might interfere with the boot process.
 
-{{< /warning >}}
 {{< anchor "adc-raw" >}}
 
 ## Different ESP32-ADC behavior since 2021.11
@@ -145,10 +142,8 @@ where you want to shut down the chip if the voltage is low when using a battery.
 
 To measure the VCC voltage, set `pin:` to `VCC` and make sure nothing is connected to the `A0` pin.
 
-{{< note >}}
-To avoid confusion: It measures the voltage at the chip, and not at the VCC pin of the board. It should usually be around 3.3V.
-
-{{< /note >}}
+> [!NOTE]
+> To avoid confusion: It measures the voltage at the chip, and not at the VCC pin of the board. It should usually be around 3.3V.
 
 ### On Raspberry Pi Pico
 
@@ -161,11 +156,9 @@ The reading will reflect either:
 
 Our experiments indicate the diode drop being ~0.1V for Pico and ~0.25V for Pico W; you can use sensor filters to adjust the final value.
 
-{{< note >}}
-On Raspberry Pi Pico W the ADC GPIO29 pin for VSYS is shared with WiFi chip, so attempting to use it explicitly will likely hang the WiFi connection.
-It is recommended to use `VCC` as ADC pin in that case.
-
-{{< /note >}}
+> [!NOTE]
+> On Raspberry Pi Pico W the ADC GPIO29 pin for VSYS is shared with WiFi chip, so attempting to use it explicitly will likely hang the WiFi connection.
+> It is recommended to use `VCC` as ADC pin in that case.
 
 ## RP2040 Internal Core Temperature
 

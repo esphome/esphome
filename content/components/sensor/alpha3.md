@@ -71,22 +71,18 @@ sensor:
 
 ## Notes
 
-{{< warning >}}
-Older pumps like the Alpha2 and Alpha3 Model A are not compatible, as they don't have Bluetooth integrated.
-The Alpha Reader is using a different protocol, so it won't work to connect your Alpha2 with this component.
+> [!WARNING]
+> Older pumps like the Alpha2 and Alpha3 Model A are not compatible, as they don't have Bluetooth integrated.
+> The Alpha Reader is using a different protocol, so it won't work to connect your Alpha2 with this component.
 
-{{< /warning >}}
-{{< note >}}
-The ESP needs to be paired with the pump to read the sensors. If the devices are not paried the wireless indicator on the pump will turn on and off again.
+> [!NOTE]
+> The ESP needs to be paired with the pump to read the sensors. If the devices are not paried the wireless indicator on the pump will turn on and off again.
+>
+> For the initial pairing you have to press the 'Connectivity button' (Wireless symbol) on the pump.
+> After the initial pairing the ESP should connect automatically when the pump turns on. When the ESP is conected the blue wireless indicator should be constantly lit.
 
-For the initial pairing you have to press the 'Connectivity button' (Wireless symbol) on the pump.
-After the initial pairing the ESP should connect automatically when the pump turns on. When the ESP is conected the blue wireless indicator should be constantly lit.
-
-{{< /note >}}
-{{< note >}}
-The pump can only be connected to one device at a time. If you want to use the GO Remote App, you have to first turn the ESP off.
-
-{{< /note >}}
+> [!NOTE]
+> The pump can only be connected to one device at a time. If you want to use the GO Remote App, you have to first turn the ESP off.
 
 ## See Also
 

@@ -11,11 +11,9 @@ This component allows ESPHome to communicate with esp32 devices in a simple and 
 It enables the option to interact with other esp32 devices over the Espressif's ESP-NOW protocol, see
 [documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html)
 
-{{< note >}}
-Broadcasting data is not recommended, this will also reach devices not controlled by you that use the esp-now protocol.
-The best solution is to minimize the broadcasting as much as possible and use it only for identification purposes.
-
-{{< /note >}}
+> [!NOTE]
+> Broadcasting data is not recommended, this will also reach devices not controlled by you that use the esp-now protocol.
+> The best solution is to minimize the broadcasting as much as possible and use it only for identification purposes.
 
 ```yaml
 # Example configuration entry

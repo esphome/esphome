@@ -61,11 +61,10 @@ In this section we will be discussing how to use ESPHome's display rendering eng
 and some basic commands. Please note that this only applies to displays that can control each pixel
 individually.
 
-{{< note >}}
-Display hardware is complex and sometimes doesn't behave as expected. If you're having trouble with your display,
-please see [Troubleshooting](#troubleshooting) below.
+> [!NOTE]
+> Display hardware is complex and sometimes doesn't behave as expected. If you're having trouble with your display,
+> please see [Troubleshooting](#troubleshooting) below.
 
-{{< /note >}}
 So, first a few basics: When setting up a display platform in ESPHome there will be a configuration
 option called `lambda:` which will be called every time ESPHome wants to re-render the display.
 In each cycle, the display is automatically cleared before the lambda is executed. You can disable
@@ -86,11 +85,10 @@ display:
       it.line(0, 0, 50, 50);
 ```
 
-{{< note >}}
-Lambdas are essentially just a lightly modified version of C++. So don't forget to end each line
-with a semicolon (`;`  ). Otherwise you will be greeted by a long error message at the compilation stage.
+> [!NOTE]
+> Lambdas are essentially just a lightly modified version of C++. So don't forget to end each line
+> with a semicolon (`;`  ). Otherwise you will be greeted by a long error message at the compilation stage.
 
-{{< /note >}}
 If you compile and upload the configuration above, you should see a black (or white, depending on the display)
 line which starts at the top left and goes a few pixels down at a 45° angle. (If it's in another corner, use the
 `rotation:` option to rotate the display to your liking)
@@ -369,11 +367,10 @@ display:
       it.printf(0, 0, id(my_font), "State: %s", id(my_binary_sensor).state ? "ON" : "OFF");
 ```
 
-{{< note >}}
-For displaying external data on the display, for example data from your Home Assistant instance,
-you can use the {{< docref "/components/text_sensor/mqtt_subscribe" >}} (see the example there for more information).
+> [!NOTE]
+> For displaying external data on the display, for example data from your Home Assistant instance,
+> you can use the {{< docref "/components/text_sensor/mqtt_subscribe" >}} (see the example there for more information).
 
-{{< /note >}}
 {{< anchor "display-strftime" >}}
 
 ### Displaying Time
@@ -536,20 +533,19 @@ on_...:
       }
 ```
 
-{{< note >}}
-To trigger a redraw right after the page show use a [component.update](#component-update_action)
-action:
+> [!NOTE]
+> To trigger a redraw right after the page show use a [component.update](#component-update_action)
+> action:
+>
+> ```yaml
+> # For example cycle through pages on a timer
+> interval:
+>   - interval: 5s
+>     then:
+>       - display.page.show_next: my_display
+>       - component.update: my_display
+> ```
 
-```yaml
-# For example cycle through pages on a timer
-interval:
-  - interval: 5s
-    then:
-      - display.page.show_next: my_display
-      - component.update: my_display
-```
-
-{{< /note >}}
 {{< anchor "display-is_displaying_page-condition" >}}
 
 **display.is_displaying_page**: This condition returns true while the specified page is being shown.
@@ -610,14 +606,11 @@ To help the graphics display team determine the best way to help you, **a pictur
 Should you [create an issue](https://github.com/esphome/esphome/issues) in GitHub regarding your display, please
 be sure to **include a link to where you purchased the display** so that we can validate the configuration you've used.
 
-{{< note >}}
-If you set `update_interval: never` in your config you will not see the test card because the `display:` component will not update the display with the test card. If you want to see a test card, set `update_interval:` to something other than `never`.
+> [!NOTE]
+> If you set `update_interval: never` in your config you will not see the test card because the `display:` component will not update the display with the test card. If you want to see a test card, set `update_interval:` to something other than `never`.
 
-{{< /note >}}
-{{< note >}}
-For displays in 8 bit mode you will see distinct color blocks rather than a smooth gradient.
-
-{{< /note >}}
+> [!NOTE]
+> For displays in 8 bit mode you will see distinct color blocks rather than a smooth gradient.
 
 ### See Also
 

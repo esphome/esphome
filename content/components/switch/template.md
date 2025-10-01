@@ -87,15 +87,13 @@ Configuration options:
 - **state** (**Required**, boolean, [templatable](#config-templatable)):
   The state to publish.
 
-{{< note >}}
-This action can also be written in lambdas, the parameter of the `publish_state` method denotes if
-the switch is currently on or off:
-
-```cpp
-id(template_swi).publish_state(false);
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas, the parameter of the `publish_state` method denotes if
+> the switch is currently on or off:
+>
+> ```cpp
+> id(template_swi).publish_state(false);
+> ```
 
 ## See Also
 

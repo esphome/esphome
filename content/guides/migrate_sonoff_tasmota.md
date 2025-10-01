@@ -66,12 +66,10 @@ will connect to the WiFi network configured in your .yaml file. 🎉
 
 Happy Hacking!
 
-{{< note >}}
-When using the {{< docref "/components/output/esp8266_pwm" "esp8266_pwm output" >}} platform and
-switching from Tasmota, you need to power-cycle the device once. After that
-the dimming functionality will work as usual and no more power cycles are required.
-
-{{< /note >}}
+> [!NOTE]
+> When using the {{< docref "/components/output/esp8266_pwm" "esp8266_pwm output" >}} platform and
+> switching from Tasmota, you need to power-cycle the device once. After that
+> the dimming functionality will work as usual and no more power cycles are required.
 
 ## About image size and ESP8266
 

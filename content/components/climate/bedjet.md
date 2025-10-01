@@ -174,38 +174,34 @@ sensor:
 
 ## Known issues
 
-{{< warning >}}
-BedJet V2 and other devices are not currently supported. Only BedJet V3 is supported.
+> [!WARNING]
+> BedJet V2 and other devices are not currently supported. Only BedJet V3 is supported.
 
-{{< /warning >}}
-{{< note >}}
-Only one client can be connected to the BedJet BLE service at a time, so you cannot
-use the BedJet mobile app to monitor or control the BedJet device while this component
-is connected. To use the mobile app, you should disconnect the ESP client first.
+> [!NOTE]
+> Only one client can be connected to the BedJet BLE service at a time, so you cannot
+> use the BedJet mobile app to monitor or control the BedJet device while this component
+> is connected. To use the mobile app, you should disconnect the ESP client first.
+>
+> To set up a (dis-)connect switch, see {{< docref "/components/switch/ble_client" >}}.
 
-To set up a (dis-)connect switch, see {{< docref "/components/switch/ble_client" >}}.
-
-{{< /note >}}
-{{< note >}}
-When more than one device is configured and connected, the ESP device may become
-overwhelmed and lead to timeouts while trying to install an updated version of the
-configuration. If this occurs, see the previous note about adding disconnect switches,
-and toggle those off while performing the installation. This will free up resources
-on the ESP and allow the installation to complete.
-
-Additionally, you may use an [ota.on_begin](#ota-on_begin) [Automation](#automation)
-to do this automatically:
-
-```yaml
-ota:
-  on_begin:
-    then:
-      - logger.log: "Disconnecting clients for OTA update..."
-      - switch.turn_off: bedjet_1_monitor
-      - switch.turn_off: bedjet_2_monitor
-```
-
-{{< /note >}}
+> [!NOTE]
+> When more than one device is configured and connected, the ESP device may become
+> overwhelmed and lead to timeouts while trying to install an updated version of the
+> configuration. If this occurs, see the previous note about adding disconnect switches,
+> and toggle those off while performing the installation. This will free up resources
+> on the ESP and allow the installation to complete.
+>
+> Additionally, you may use an [ota.on_begin](#ota-on_begin) [Automation](#automation)
+> to do this automatically:
+>
+> ```yaml
+> ota:
+>   on_begin:
+>     then:
+>       - logger.log: "Disconnecting clients for OTA update..."
+>       - switch.turn_off: bedjet_1_monitor
+>       - switch.turn_off: bedjet_2_monitor
+> ```
 
 ## See Also
 

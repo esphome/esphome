@@ -30,11 +30,9 @@ Configuration variables:
 - **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the cover. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the cover to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the cover to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the
   sensor. See <https://www.home-assistant.io/integrations/cover/#device-class> for a list of available options.
@@ -86,16 +84,15 @@ on_...:
     - cover.open: cover_1
 ```
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(cover_1).make_call();
+> call.set_command_open();
+> call.perform();
+> ```
 
-```cpp
-auto call = id(cover_1).make_call();
-call.set_command_open();
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "cover-close_action" >}}
 
 ## `cover.close` Action
@@ -108,16 +105,15 @@ on_...:
     - cover.close: cover_1
 ```
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(cover_1).make_call();
+> call.set_command_close();
+> call.perform();
+> ```
 
-```cpp
-auto call = id(cover_1).make_call();
-call.set_command_close();
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "cover-stop_action" >}}
 
 ## `cover.stop` Action
@@ -130,16 +126,15 @@ on_...:
     - cover.stop: cover_1
 ```
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(cover_1).make_call();
+> call.set_command_stop();
+> call.perform();
+> ```
 
-```cpp
-auto call = id(cover_1).make_call();
-call.set_command_stop();
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "cover-toggle_action" >}}
 
 ## `cover.toggle` Action
@@ -154,16 +149,15 @@ on_...:
     - cover.toggle: cover_1
 ```
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(cover_1).make_call();
+> call.set_command_toggle();
+> call.perform();
+> ```
 
-```cpp
-auto call = id(cover_1).make_call();
-call.set_command_toggle();
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "cover-control_action" >}}
 
 ## `cover.control` Action
@@ -192,17 +186,16 @@ Configuration variables:
 
 - **tilt** (*Optional*, float): The tilt position to set. In range 0% - 100%.
 
-{{< note >}}
-This action can also be expressed in [lambdas](#config-lambda):
+> [!NOTE]
+> This action can also be expressed in [lambdas](#config-lambda):
+>
+> ```cpp
+> auto call = id(cover_1).make_call();
+> // set attributes
+> call.set_position(0.5);
+> call.perform();
+> ```
 
-```cpp
-auto call = id(cover_1).make_call();
-// set attributes
-call.set_position(0.5);
-call.perform();
-```
-
-{{< /note >}}
 {{< anchor "cover-lambda_calls" >}}
 
 ## Lambdas

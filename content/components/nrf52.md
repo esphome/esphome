@@ -9,10 +9,8 @@ params:
 
 This component contains platform-specific options for the NRF52 platform.
 
-{{< note >}}
-Support for all aspects of ESPHome on the NRF52 is still in development.
-
-{{< /note >}}
+> [!NOTE]
+> Support for all aspects of ESPHome on the NRF52 is still in development.
 
 ```yaml
 # Example configuration entry

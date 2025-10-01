@@ -47,11 +47,9 @@ sensor:
 - **total** (*Optional*): Report the total number of pulses.
 - All other options from [Sensor](#config-sensor).
 
-{{< note >}}
-See {{< docref "/components/sensor/integration" "integration sensor" >}} for summing up pulse counter
-values over time.
-
-{{< /note >}}
+> [!NOTE]
+> See {{< docref "/components/sensor/integration" "integration sensor" >}} for summing up pulse counter
+> values over time.
 
 ## Converting units
 
@@ -113,11 +111,9 @@ api:
             value: !lambda 'return new_pulse_total;'
 ```
 
-{{< note >}}
-This value is the raw count of pulses, and not the value you see after the filters
-are applied.
-
-{{< /note >}}
+> [!NOTE]
+> This value is the raw count of pulses, and not the value you see after the filters
+> are applied.
 
 ## Wiring
 

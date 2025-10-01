@@ -11,14 +11,12 @@ The `i2s_audio` microphone platform allows you to receive audio via the the {{< 
 
 This platform only works on ESP32 based chips.
 
-{{< warning >}}
-Audio and voice components consume a significant amount of resources (RAM, CPU) on the device.
-
-**Crashes are likely to occur** if you include too many additional components in your device's
-configuration. In particular, Bluetooth/BLE components are known to cause issues when used in
-combination with Voice Assistant and/or other audio components.
-
-{{< /warning >}}
+> [!WARNING]
+> Audio and voice components consume a significant amount of resources (RAM, CPU) on the device.
+>
+> **Crashes are likely to occur** if you include too many additional components in your device's
+> configuration. In particular, Bluetooth/BLE components are known to cause issues when used in
+> combination with Voice Assistant and/or other audio components.
 
 ```yaml
 # Example configuration entry
@@ -59,17 +57,13 @@ microphone:
 - **i2s_din_pin** (**Required**, [Pin Schema](#config-pin_schema)): The GPIO pin to use for the I²S `DIN/SDIN` *(Data In)* signal, also referred to as `SD/SDATA` *(Serial Data)* or `ADCDAT` *(Analog to Digital Converter Data)*.
 - **pdm** (*Optional*, boolean): Set this to `true` if your external ADC uses PDM (Pulse Density Modulation) instead of I²S. Defaults to `false`.
 
-{{< note >}}
-PDM microphones are only supported on ESP32 and ESP32-S3.
-
-{{< /note >}}
+> [!NOTE]
+> PDM microphones are only supported on ESP32 and ESP32-S3.
 
 ## Internal ADC
 
-{{< note >}}
-Internal ADC microphones are only supported by the legacy I²S driver on a regular ESP32, not the variants.
-
-{{< /note >}}
+> [!NOTE]
+> Internal ADC microphones are only supported by the legacy I²S driver on a regular ESP32, not the variants.
 
 - **adc_pin** (**Required**, [Pin Schema](#config-pin_schema)): The GPIO pin to use for the ADC input.
 
@@ -93,6 +87,20 @@ microphone:
     i2s_din_pin: GPIOXX
     adc_type: external
     pdm: false
+```
+
+### ICS-43434
+
+```yaml
+microphone:
+  - platform: i2s_audio
+    i2s_din_pin: GPIOXX
+    adc_type: external
+    pdm: false
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    channel: left
+    use_apll: true
 ```
 
 ## See also

@@ -14,10 +14,8 @@ serial port and through MQTT topics (if there is an MQTT client in the
 configuration). By default, all logs with a severity `DEBUG` or higher will be shown.
 Increasing the log level severity (to e.g `INFO` or `WARN`  ) can help with the performance of the application and memory size.
 
-{{< note >}}
-The "severity" of a log message represents the importance of the message, i.e. how critical it is. The severity levels are defined in the [log levels](#logger-log_levels) section.
-
-{{< /note >}}
+> [!NOTE]
+> The "severity" of a log message represents the importance of the message, i.e. how critical it is. The severity levels are defined in the [log levels](#logger-log_levels) section.
 
 ```yaml
 # Example configuration entry
@@ -262,11 +260,9 @@ logger:
             return "Triggered on_message with level " + to_string(level) + ", tag " + tag + " and message " + message;
 ```
 
-{{< note >}}
-Logging will not work in the `on_message` trigger. You can't use the [logger.log](#logger-log_action) action
-and the `ESP_LOGx` logging macros in this automation.
-
-{{< /note >}}
+> [!NOTE]
+> Logging will not work in the `on_message` trigger. You can't use the [logger.log](#logger-log_action) action
+> and the `ESP_LOGx` logging macros in this automation.
 
 ## See Also
 

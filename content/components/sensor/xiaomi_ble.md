@@ -9,10 +9,8 @@ params:
 
 The `xiaomi_ble` sensor platform lets you track the output of Xiaomi Bluetooth Low Energy devices using the {{< docref "/components/esp32_ble_tracker" >}}. This component will track, for example, the temperature, humidity, moisture, conductivity, illuminance, formaldehyde, mosquito tablet and battery level of the device every time the sensor sends out a BLE broadcast. Contrary to other implementations, `xiaomi_ble` listens passively to advertisement packets and does not pair with the device. Hence ESPHome has no impact on battery life. Thus, if you only use such sensors, you can safely set `scan_parameters.active: false` in `esp32_ble_tracker` configuration, to save from spamming your RF environment with useless scan requests.
 
-{{< note >}}
-You may alternatively use ESPHome's {{< docref "/components/bluetooth_proxy" >}} component to forward sensor data to Home Assistant and have Mija devices configured using its own Mija BLE component. This should work for the devices flashed with [PVVX MiThermometer](https://github.com/pvvx/ATC_MiThermometer) custom firmware, as well as the regular, stock firmware.
-
-{{< /note >}}
+> [!NOTE]
+> You may alternatively use ESPHome's {{< docref "/components/bluetooth_proxy" >}} component to forward sensor data to Home Assistant and have Mija devices configured using its own Mija BLE component. This should work for the devices flashed with [PVVX MiThermometer](https://github.com/pvvx/ATC_MiThermometer) custom firmware, as well as the regular, stock firmware.
 
 ## Supported Devices
 
@@ -40,11 +38,9 @@ sensor:
       name: "Xiaomi HHCCJCY01 Battery Level"
 ```
 
-{{< note >}}
-Newer versions of HHCCJCY01 ship with firmware 3.2.1, and they
-[don't send the battery level data anymore](https://github.com/esphome/esphome/pull/1288#issuecomment-695809481).
-
-{{< /note >}}
+> [!NOTE]
+> Newer versions of HHCCJCY01 ship with firmware 3.2.1, and they
+> [don't send the battery level data anymore](https://github.com/esphome/esphome/pull/1288#issuecomment-695809481).
 
 ### GCLS002
 
@@ -568,10 +564,8 @@ If the LYWSD03MMC or MHO-C401 sensor is operated with the Xiaomi stock firmware,
 
 {{< img src="telink_flasher.jpg" alt="Image" caption="Telink flasher application." width="100.0%" class="align-center" >}}
 
-{{< warning >}}
-The new bind key will work with ESPHome, but the Mi Home app will not recognise the sensor anymore once the device has been activated by the TeLink flasher application. To use the sensor again with the Xiaomi Mi Home app, the device needs to be removed and then re-added inside the Mi Home app.
-
-{{< /warning >}}
+> [!WARNING]
+> The new bind key will work with ESPHome, but the Mi Home app will not recognise the sensor anymore once the device has been activated by the TeLink flasher application. To use the sensor again with the Xiaomi Mi Home app, the device needs to be removed and then re-added inside the Mi Home app.
 
 ### CGDK2
 

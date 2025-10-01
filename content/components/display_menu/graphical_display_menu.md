@@ -70,11 +70,9 @@ When a **display** is specified the menu will create a [page](#display-pages) as
 of the display when invoked. This is useful when you may want to use the display for other purposes but show a menu in response to user
 interaction.
 
-{{< note >}}
-Pop Up Mode requires that your display makes use of [pages](#display-pages). If you are using a drawing lambda, without pages, it will not
-behave as expected. Instead you will have to use Advanced Mode
-
-{{< /note >}}
+> [!NOTE]
+> Pop Up Mode requires that your display makes use of [pages](#display-pages). If you are using a drawing lambda, without pages, it will not
+> behave as expected. Instead you will have to use Advanced Mode
 
 ### Advanced Drawing Mode
 
@@ -161,10 +159,8 @@ graphical_display_menu:
     return label;
 ```
 
-{{< note >}}
-Ensure that all characters you use in the menu_item_value are available glyphs for your [font](#display-fonts)
-
-{{< /note >}}
+> [!NOTE]
+> Ensure that all characters you use in the menu_item_value are available glyphs for your [font](#display-fonts)
 
 ## User Interaction Example
 

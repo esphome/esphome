@@ -276,10 +276,9 @@ The `!secret` tag allows you to reference sensitive values (like passwords or AP
 `secrets.yaml` file. This is especially helpful when you want to be able to distribute your configuration files
 without revealing your secrets.
 
-{{< important >}}
-In order to keep your secrets safe, the `secrets.yaml` file should NOT be checked into git or any other version
-control system.
-{{< /important >}}
+> [!IMPORTANT]
+> In order to keep your secrets safe, the `secrets.yaml` file should NOT be checked into git or any other version
+> control system.
 
 Example:
 

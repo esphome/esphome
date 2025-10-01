@@ -106,12 +106,11 @@ guaranteed to monotonically increase, so the consumer will reject any data which
 already seen. The rolling code also ensures that the data in every packet is different, which makes brute-force
 attacks on the encryption much more difficult. This is enabled in the provider configuration and adds minor overhead.
 
-{{< note >}}
-The rolling code's upper 32 bit field is incremented and written to flash *once* at reboot on the provider node.
-It's also incremented and written to flash when the lower 32 bit field overflows, which can only happen after
-a very long time. The consumer side does not store the d rolling codes in flash.
+> [!NOTE]
+> The rolling code's upper 32 bit field is incremented and written to flash *once* at reboot on the provider node.
+> It's also incremented and written to flash when the lower 32 bit field overflows, which can only happen after
+> a very long time. The consumer side does not store the d rolling codes in flash.
 
-{{< /note >}}
 For further protection a `ping-pong` (or challenge-response) facility is available, which can be enabled in the
 consumer configuration. The consumer periodically generates a 32 bit random number (a *nonce* aka "Number used Once")
 and broadcasts it as a *ping*. Any provider receiving this nonce will include it in any future encrypted broadcasts as
@@ -128,17 +127,16 @@ In addition when using ping-pong, a connection status binary sensor can be creat
 received, it will report `disconnected`. This can be used to detect when a provider is no longer available, or when
 the encryption key has changed.
 
-{{< note >}}
-Occasionally a `Ping key not seen` warning message may appear in the device log. This is expected, because it may
-happen that while the consumer has regenerated the *ping* key, it subsequently received a *pong* with the previous key,
-most likely because the messages crossed in transit. In such a case, the message will be rejected, but the next message
-will contain the correct *pong*.
+> [!NOTE]
+> Occasionally a `Ping key not seen` warning message may appear in the device log. This is expected, because it may
+> happen that while the consumer has regenerated the *ping* key, it subsequently received a *pong* with the previous key,
+> most likely because the messages crossed in transit. In such a case, the message will be rejected, but the next message
+> will contain the correct *pong*.
+>
+> Because of this, `ping-pong` is only recommended to be used for state transmissions, which are updated periodically
+> at `update_interval`.
 
-Because of this, `ping-pong` is only recommended to be used for state transmissions, which are updated periodically
-at `update_interval`.
-
-{{< /note >}}
-**Security considerations**
+### Security considerations
 
 The encryption used is [XXTEA](https://en.wikipedia.org/wiki/XXTEA) which is fast and compact. Although XXTEA is known
 to be susceptible to a chosen-plaintext attack, such an attack is not possible with this application, and it otherwise

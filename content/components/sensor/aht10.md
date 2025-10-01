@@ -16,10 +16,8 @@ The DHT20 ([datasheet](https://cdn.sparkfun.com/assets/8/a/1/5/0/DHT20.pdf)) sen
 
 {{< img src="temperature-humidity.png" alt="Image" width="80.0%" class="align-center" >}}
 
-{{< note >}}
-When configured for humidity, the log *'Components should block for at most 20-30ms in loop().'* will be generated in verbose mode. This is due to technical specs of the sensor and can not be avoided.
-
-{{< /note >}}
+> [!NOTE]
+> When configured for humidity, the log *'Components should block for at most 20-30ms in loop().'* will be generated in verbose mode. This is due to technical specs of the sensor and can not be avoided.
 
 ```yaml
 # Example configuration entry

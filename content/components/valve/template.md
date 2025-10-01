@@ -111,15 +111,13 @@ Configuration options:
   The current operation mode to publish. One of `IDLE`, `OPENING` and `CLOSING`. If using a lambda, use
   `VALVE_OPERATION_IDLE`, `VALVE_OPERATION_OPENING`, and `VALVE_OPERATION_CLOSING`.
 
-{{< note >}}
-This action can also be written in lambdas:
-
-```cpp
-id(my_template_valve).position = VALVE_OPEN;
-id(my_template_valve).publish_state();
-```
-
-{{< /note >}}
+> [!NOTE]
+> This action can also be written in lambdas:
+>
+> ```cpp
+> id(my_template_valve).position = VALVE_OPEN;
+> id(my_template_valve).publish_state();
+> ```
 
 ## See Also
 

@@ -7,13 +7,12 @@ params:
     image: pzem-ac.jpg
 ---
 
-{{< note >}}
-This page is incomplete and could use some work. If you want to contribute, please see our
-[developer site](https://developers.esphome.io). This page is missing:
+> [!NOTE]
+> This page is incomplete and could use some work. If you want to contribute, please see our
+> [developer site](https://developers.esphome.io). This page is missing:
+>
+> - Images/screenshots/example configs of this device being used in action.
 
-- Images/screenshots/example configs of this device being used in action.
-
-{{< /note >}}
 The `pzemac` sensor platform allows you to use PZEM-004T V3 energy monitors
 ([website](https://innovatorsguru.com/pzem-004t-v3/),
 [datasheet](https://innovatorsguru.com/wp-content/uploads/2019/06/PZEM-004T-V3.0-Datasheet-User-Manual.pdf))
@@ -22,17 +21,15 @@ with ESPHome.
 The sensor can be connected in various configurations - please see the [manufacturer's website](https://innovatorsguru.com/pzem-004t-v3/)
 for more information.
 
-{{< warning >}}
-Please note that metering chip inside of PZEM module is powered from AC side and it has to be on during startup of ESPHome device, othervise measure results won't be visible.
+> [!WARNING]
+> Please note that metering chip inside of PZEM module is powered from AC side and it has to be on during startup of ESPHome device, othervise measure results won't be visible.
 
-{{< /warning >}}
 {{< img src="pzem-ac.png" alt="Image" caption="PZEM-004T Version 3." width="80.0%" class="align-center" >}}
 
-{{< warning >}}
-This page refers to version V3 of the PZEM004T.
-For using the older V1 variant of this sensor please see {{< docref "pzem004t" "pzem004t" >}}.
+> [!WARNING]
+> This page refers to version V3 of the PZEM004T.
+> For using the older V1 variant of this sensor please see {{< docref "pzem004t" "pzem004t" >}}.
 
-{{< /warning >}}
 The communication with this component is done via a [UART](#uart) using [Modbus](#modbus).
 You must therefore have a `uart:` entry in your configuration with both the TX and RX pins set
 to some pins on your board and the baud rate set to 9600.
@@ -108,10 +105,8 @@ on_...:
 You can use the following configuration to change the address of a sensor.
 You must set the `address` of the `modbus_controller` to the current address, and `new_address` of the `on_boot` lambda to the new one.
 
-{{< warning >}}
-This should be used only once! After changing the address, this code should be removed from the ESP before using the actual sensor code.
-
-{{< /warning >}}
+> [!WARNING]
+> This should be used only once! After changing the address, this code should be removed from the ESP before using the actual sensor code.
 
 ```yaml
 esphome:

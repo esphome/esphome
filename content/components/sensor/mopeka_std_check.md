@@ -13,11 +13,10 @@ Standard Check LP Bluetooth Low Energy devices using the
 distance, temperature, and battery percentage of a Mopeka Standard Check LP BLE
 device every time the sensor sends out a BLE broadcast.
 
-{{< warning >}}
-This sensor component only supports the Mopeka Standard Check devices.
-See {{< docref "/components/sensor/mopeka_pro_check" >}} for Mopeka Pro Check sensors support.
+> [!WARNING]
+> This sensor component only supports the Mopeka Standard Check devices.
+> See {{< docref "/components/sensor/mopeka_pro_check" >}} for Mopeka Pro Check sensors support.
 
-{{< /warning >}}
 {{< img src="mopeka_std_check.jpg" alt="Image" caption="Mopeka Std Check LP over BLE." class="align-center" >}}
 
 ```yaml
@@ -130,11 +129,9 @@ For all sensors found the `mopeka_ble` component will print a message like this 
 Then just copy the address (`XX:XX:XX:XX:XX:XX`  ) into a new
 `sensor.mopeka_std_check` platform entry like in the configuration example at the top.
 
-{{< note >}}
-The ESPHome Mopeka Standard Check BLE component listens passively to packets the Mopeka device sends by itself.
-ESPHome therefore has no impact on the battery life of the device.
-
-{{< /note >}}
+> [!NOTE]
+> The ESPHome Mopeka Standard Check BLE component listens passively to packets the Mopeka device sends by itself.
+> ESPHome therefore has no impact on the battery life of the device.
 
 ## See Also
 

@@ -7,13 +7,12 @@ params:
     image: pzem-dc.jpg
 ---
 
-{{< note >}}
-This page is incomplete and could use some work. If you want to contribute, please see our
-[developer site](https://developers.esphome.io). This page is missing:
+> [!NOTE]
+> This page is incomplete and could use some work. If you want to contribute, please see our
+> [developer site](https://developers.esphome.io). This page is missing:
+>
+> - Images/screenshots/example configs of this device being used in action.
 
-- Images/screenshots/example configs of this device being used in action.
-
-{{< /note >}}
 The `pzemdc` sensor platform allows you to use various DC Peacefair PZEM energy monitors
 with ESPHome. The supported models are: PZEM-003, PZEM-014, PZEM-016 and PZEM-017.
 

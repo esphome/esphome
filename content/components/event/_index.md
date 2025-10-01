@@ -13,16 +13,14 @@ enabling complex automations and integrations. An event entity is represented as
 entity associated with a device that has a pre-defined set of event types which can be
 triggered in Home Assistant via automations.
 
-{{< note >}}
-Events in ESPHome are designed to trigger an action in Home Assistant, and have a unidirectional flow from ESPHome to Home Assistant.
-Home Assistant event entities are different from events on event bus. If you just want to trigger an event on the
-Home Assistant event bus, you should use a [Home Assistant event](#api-homeassistant_event_action) instead.
+> [!NOTE]
+> Events in ESPHome are designed to trigger an action in Home Assistant, and have a unidirectional flow from ESPHome to Home Assistant.
+> Home Assistant event entities are different from events on event bus. If you just want to trigger an event on the
+> Home Assistant event bus, you should use a [Home Assistant event](#api-homeassistant_event_action) instead.
 
-{{< /note >}}
-{{< note >}}
-Home Assistant Core 2024.5 or higher is required for ESPHome event entities to work.
+> [!NOTE]
+> Home Assistant Core 2024.5 or higher is required for ESPHome event entities to work.
 
-{{< /note >}}
 {{< anchor "config-event" >}}
 
 ## Base Event Configuration
@@ -51,11 +49,9 @@ One of `id` or `name` is required.
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation. At least one of **id** and **name** must be specified.
 - **name** (*Optional*, string): The name for the event. At least one of **id** and **name** must be specified.
 
-{{< note >}}
-If you have a [friendly_name](#esphome-configuration_variables) set for your device and
-you want the event to use that name, you can set `name: None`.
-
-{{< /note >}}
+> [!NOTE]
+> If you have a [friendly_name](#esphome-configuration_variables) set for your device and
+> you want the event to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the event in the frontend.
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will

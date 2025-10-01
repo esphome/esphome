@@ -42,13 +42,12 @@ It reaches even further, however, offering several more advanced features, as we
   - Adjustable "valve overlap" to help minimize banging of pipes due to water hammer
   - Adjustable delay intervals to coordinate pump starting and stopping relative to distribution valve opening and closing
 
-{{< note >}}
-While the term "pump" is used throughout this document, the device controlled need not be a
-physical pump. Instead, it may simply be another electric valve located upstream of distribution
-valves (often known in the industry as a "main" or "master" valve). The pump or upstream valve
-simply controls the water supply to other downstream valves.
+> [!NOTE]
+> While the term "pump" is used throughout this document, the device controlled need not be a
+> physical pump. Instead, it may simply be another electric valve located upstream of distribution
+> valves (often known in the industry as a "main" or "master" valve). The pump or upstream valve
+> simply controls the water supply to other downstream valves.
 
-{{< /note >}}
 {{< img src="sprinkler-ui.jpg" alt="Image" caption="Example Sprinkler Controller UI -- Note that this example leverages {{< docref \"/components/number/index\" \"number\" >}} components for setting run durations, repeat and multiplier values. [More details below.](#sprinkler-controller-sprinkler_controller_numbers)" width="60.0%" class="align-center" >}}
 
 ```yaml
@@ -543,19 +542,18 @@ on_...:
         run_duration: 600s
 ```
 
-{{< note >}}
+> [!NOTE]
+>
+> - The `start_single_valve` action ignores whether a valve is enabled via its enable switch.
+> - The `next_valve` and `previous_valve` actions may not appear to respond immediately if either
+>   `manual_selection_delay` or any of the various delay mechanisms described in the
+>   [Pump and Distribution Valve Coordination](#sprinkler-controller-pump_and_distribution_valve_coordination) section below are configured.
+>   If you are using any of these configuration options, be sure to allow the delay intervals to elapse
+>   before assuming something isn't working!
+>
+> - If a valve is active when its `run_duration` or the multiplier value is changed, the active
+>   valve's run duration will remain unaffected until the next time it is started.
 
-- The `start_single_valve` action ignores whether a valve is enabled via its enable switch.
-- The `next_valve` and `previous_valve` actions may not appear to respond immediately if either
-  `manual_selection_delay` or any of the various delay mechanisms described in the
-  [Pump and Distribution Valve Coordination](#sprinkler-controller-pump_and_distribution_valve_coordination) section below are configured.
-  If you are using any of these configuration options, be sure to allow the delay intervals to elapse
-  before assuming something isn't working!
-
-- If a valve is active when its `run_duration` or the multiplier value is changed, the active
-  valve's run duration will remain unaffected until the next time it is started.
-
-{{< /note >}}
 {{< anchor "sprinkler-controller-pump_and_distribution_valve_coordination" >}}
 
 ## Pump and Distribution Valve Coordination
@@ -603,13 +601,11 @@ required distribution valve is opened and the cycle starts. When the cycle is co
 valve would be switched off three seconds prior to the upstream valve. (In these configurations, it might also
 be desirable to enable `valve_open_delay`, as well.)
 
-{{< note >}}
-Using `pump_stop_valve_delay` or `pump_stop_pump_delay` with `valve_open_delay` and
-`pump_switch_off_during_valve_open_delay` may increase the off-time inserted between the operation
-of each zone, as the controller must wait for a given zone (pump *and* valve) to fully shut down before
-it can be started again.
-
-{{< /note >}}
+> [!NOTE]
+> Using `pump_stop_valve_delay` or `pump_stop_pump_delay` with `valve_open_delay` and
+> `pump_switch_off_during_valve_open_delay` may increase the off-time inserted between the operation
+> of each zone, as the controller must wait for a given zone (pump *and* valve) to fully shut down before
+> it can be started again.
 
 ### Banging Pipes or Valves That Don't Consistently Close
 
@@ -952,13 +948,12 @@ switch:
     pin: GPIOXX
 ```
 
-{{< note >}}
-In this final complete configuration example, pump control is split among the two sprinkler
-controller instances. This will behave as expected; multiple instances of the controller will
-communicate to ensure any given pump is activated and deactivated only as necessary, even when
-the controllers are operating simultaneously.
+> [!NOTE]
+> In this final complete configuration example, pump control is split among the two sprinkler
+> controller instances. This will behave as expected; multiple instances of the controller will
+> communicate to ensure any given pump is activated and deactivated only as necessary, even when
+> the controllers are operating simultaneously.
 
-{{< /note >}}
 {{< anchor "sprinkler-controller-sprinkler_controller_numbers" >}}
 
 ### Using the Sprinkler Controller's Numbers

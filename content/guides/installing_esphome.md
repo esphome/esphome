@@ -50,11 +50,9 @@ It should show something like:
 Version: 2025.8.0
 ```
 
-{{< note >}}
-You may additionally need to install git for the external components feature.
-Download git from [the official link](https://git-scm.com/downloads)
-
-{{< /note >}}
+> [!NOTE]
+> You may additionally need to install git for the external components feature.
+> Download git from [the official link](https://git-scm.com/downloads)
 
 ## Mac
 
@@ -84,17 +82,15 @@ It should show something like:
 Version: 2025.8.0
 ```
 
-{{< note >}}
-
-- If you encounter any issues with Homebrew installation, please check the
-  [ESPHome Homebrew Formula](https://formulae.brew.sh/formula/esphome) page
-  for additional information.
-
-- Homebrew may not always provide the latest version immediately. Updating Homebrew will
-  automatically update ESPHome. If this is ok for you, Homebrew is the easiest way to
-  install ESPHome.
-
-{{< /note >}}
+> [!NOTE]
+>
+> - If you encounter any issues with Homebrew installation, please check the
+>   [ESPHome Homebrew Formula](https://formulae.brew.sh/formula/esphome) page
+>   for additional information.
+>
+> - Homebrew may not always provide the latest version immediately. Updating Homebrew will
+>   automatically update ESPHome. If this is ok for you, Homebrew is the easiest way to
+>   install ESPHome.
 
 ### pip
 
@@ -153,17 +149,16 @@ You can go ahead and install ESPHome:
 pip3 install esphome
 ```
 
-{{< caution >}}
-Don't use `sudo` with pip. If you do, you'll run into trouble updating
-your Distro down the road.
-
-For details, see [DontBreakDebian](https://wiki.debian.org/DontBreakDebian#A.27make_install.27_can_conflict_with_packages).
-`pip install` is equivalent to `make install` in this context. The
-advice in the article applies to all Linux distributions, not just Debian.
-
-Some people install ESPHome without the virtual environment, which can lead to issues with PATHs etc.
-Installations without `venv` are considered not "supported" as people end up having to know your exact system setup.
-{{< /caution >}}
+> [!CAUTION]
+> Don't use `sudo` with pip. If you do, you'll run into trouble updating
+> your Distro down the road.
+>
+> For details, see [DontBreakDebian](https://wiki.debian.org/DontBreakDebian#A.27make_install.27_can_conflict_with_packages).
+> `pip install` is equivalent to `make install` in this context. The
+> advice in the article applies to all Linux distributions, not just Debian.
+>
+> Some people install ESPHome without the virtual environment, which can lead to issues with PATHs etc.
+> Installations without `venv` are considered not "supported" as people end up having to know your exact system setup.
 
 At this point, you should be able to confirm that ESPHome has been successfully installed:
 

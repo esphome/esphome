@@ -180,10 +180,9 @@ Additionally, this can help with {{< docref "/components/ota" >}} if for example
 network doesn't allow for `.local` addresses. When a manual IP is in your configuration,
 the OTA process will automatically choose that as the target for the upload.
 
-{{< note >}}
-See also [Changing ESPHome Node Name](#esphome-changing_node_name).
+> [!NOTE]
+> See also [Changing ESPHome Node Name](#esphome-changing_node_name).
 
-{{< /note >}}
 {{< anchor "wifi-power_save_mode" >}}
 
 ## Power Save Mode
@@ -327,10 +326,9 @@ on_...:
     - wifi.disable:
 ```
 
-{{< note >}}
-Be aware that if you disable WiFi, the API timeout will need to be disabled otherwise the device will reboot.
+> [!NOTE]
+> Be aware that if you disable WiFi, the API timeout will need to be disabled otherwise the device will reboot.
 
-{{< /note >}}
 {{< anchor "wifi-on_enable" >}}
 
 ### `wifi.enable` Action
@@ -343,10 +341,9 @@ on_...:
     - wifi.enable:
 ```
 
-{{< note >}}
-The configuration option `enable_on_boot` can be set to `false` if you do not want wifi to be enabled on boot.
+> [!NOTE]
+> The configuration option `enable_on_boot` can be set to `false` if you do not want wifi to be enabled on boot.
 
-{{< /note >}}
 {{< anchor "wifi-configure" >}}
 
 ### `wifi.configure` Action

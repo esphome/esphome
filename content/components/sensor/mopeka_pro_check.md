@@ -14,19 +14,18 @@ will track the tank level, distance, temperature, battery percentage, and sensor
 device every time the sensor sends out a BLE broadcast. There are additional configuration options
 to control handling of poor quality readings and reporting reading quality issues.
 
-{{< warning >}}
-This sensor component only supports the following sensors:
+> [!WARNING]
+> This sensor component only supports the following sensors:
+>
+> + Mopeka Pro Check devices
+> + Mopeka Pro Plus devices
+> + Mopeka Pro Check Universal Sensor
+> + Lippert Propane Tank Sensor, part number 2021130655
+>
+> Sensors are calibrated for propane only.
+>
+> See {{< docref "/components/sensor/mopeka_std_check" >}} for original Mopeka Check sensors support.
 
-+ Mopeka Pro Check devices
-+ Mopeka Pro Plus devices
-+ Mopeka Pro Check Universal Sensor
-+ Lippert Propane Tank Sensor, part number 2021130655
-
-Sensors are calibrated for propane only.
-
-See {{< docref "/components/sensor/mopeka_std_check" >}} for original Mopeka Check sensors support.
-
-{{< /warning >}}
 {{< img src="mopeka_pro_check.jpg" alt="Image" caption="Mopeka Pro Check LP over BLE." class="align-center" >}}
 
 {{< img src="mopeka_pro_check_lippert.jpg" alt="Image" caption="Lippert™ Propane Tank Sensor" class="align-center" >}}
@@ -167,11 +166,9 @@ For all sensors found the `mopeka_ble` component will print a message like this 
 Then just copy the address (`XX:XX:XX:XX:XX:XX`  ) into a new
 `sensor.mopeka_pro_check` platform entry like in the configuration example at the top.
 
-{{< note >}}
-The ESPHome Mopeka Pro Check BLE component listens passively to packets the Mopeka/Lippert device sends by itself.
-ESPHome therefore has no impact on the battery life of the device.
-
-{{< /note >}}
+> [!NOTE]
+> The ESPHome Mopeka Pro Check BLE component listens passively to packets the Mopeka/Lippert device sends by itself.
+> ESPHome therefore has no impact on the battery life of the device.
 
 ## See Also
 

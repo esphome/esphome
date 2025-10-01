@@ -9,10 +9,8 @@ params:
 
 This is a component using the Beken SPI DMA interface to drive addressable LED strips.
 
-{{< warning >}}
-Only works on pin P16, which is not available on many tuya modules.
-
-{{< /warning >}}
+> [!WARNING]
+> Only works on pin P16, which is not available on many tuya modules.
 
 ```yaml
 light:
