@@ -95,12 +95,9 @@ async def to_code(config):
     # Each of these components may create a service at runtime
     service_count = sum(
         1 for key in ("api", "prometheus", "web_server") if key in CORE.config
-    )
+    ) + len(config[CONF_SERVICES])
 
-    # Count extra services from config
-    extra_services_count = len(config[CONF_SERVICES])
-    if extra_services_count > 0:
-        service_count += extra_services_count
+    if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
 
     # Ensure at least 1 service (fallback service)
