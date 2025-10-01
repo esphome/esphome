@@ -1934,6 +1934,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Stijn Tintel (@stintel)](https://github.com/stintel)
 - [Mathias Stock (@Stock-M)](https://github.com/Stock-M)
 - [Strixx76 (@Strixx76)](https://github.com/Strixx76)
+- [Stuart Parmenter (@stuartparmenter)](https://github.com/stuartparmenter)
 - [stubs12 (@stubs12)](https://github.com/stubs12)
 - [Felix Bühler (@Stunkymonkey)](https://github.com/Stunkymonkey)
 - [Jordan Vohwinkel (@sublime93)](https://github.com/sublime93)
@@ -2236,4 +2237,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated September 29, 2025.*
+*This page was last updated October 1, 2025.*
