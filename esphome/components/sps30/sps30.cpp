@@ -47,11 +47,12 @@ void SPS30Component::setup() {
 
     if (this->fan_interval_.has_value()) {
       // override default value
-      this->result_ = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
+      this->result_ =
+          this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
     } else {
       this->result_ = this->write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
     }
-    
+
     this->set_timeout(20, [this]() {
       if (this->result_) {
         uint16_t secs[2];
