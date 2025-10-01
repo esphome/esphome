@@ -95,15 +95,15 @@ async def to_code(config):
     service_count = 0
 
     # Check if API component is enabled (it may create a service at runtime)
-    if cg.is_defined("USE_API"):
+    if "api" in CORE.config:
         service_count += 1
 
     # Check for prometheus
-    if cg.is_defined("USE_PROMETHEUS"):
+    if "prometheus" in CORE.config:
         service_count += 1
 
     # Check for web_server
-    if cg.is_defined("USE_WEBSERVER"):
+    if "web_server" in CORE.config:
         service_count += 1
 
     # Count extra services from config
