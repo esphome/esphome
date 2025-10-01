@@ -43,7 +43,7 @@ void RemoteTransmitterComponent::await_target_time_() {
 #if defined(USE_LIBRETINY)
     // busy loop for libretiny is required (see the comment inside micros() in wiring.c)
     while ((int32_t) (this->target_time_ - micros()) > 0)
-    ;
+      ;
 #else
     delayMicroseconds(this->target_time_ - current_time);
 #endif
