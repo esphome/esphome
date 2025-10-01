@@ -17,6 +17,9 @@ from esphome.coroutine import CoroPriority
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
+# Components that create mDNS services at runtime
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
+
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
 MDNSTXTRecord = mdns_ns.struct("MDNSTXTRecord")
@@ -92,9 +95,8 @@ async def to_code(config):
     cg.add_define("USE_MDNS")
 
     # Calculate compile-time service count
-    # Each of these components may create a service at runtime
     service_count = sum(
-        1 for key in ("api", "prometheus", "web_server") if key in CORE.config
+        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
     ) + len(config[CONF_SERVICES])
 
     if config[CONF_SERVICES]:
