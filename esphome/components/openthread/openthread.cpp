@@ -144,11 +144,9 @@ void OpenThreadSrpComponent::setup() {
   }
 
   // Get mdns services and copy their data (strings are copied with strdup below)
-  const auto &mdns_services = this->mdns_->get_services();
-  uint8_t mdns_count = this->mdns_->get_services_count();
-  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_count);
-  for (uint8_t i = 0; i < mdns_count; i++) {
-    const auto &service = mdns_services[i];
+  auto mdns_services = this->mdns_->get_services();
+  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
+  for (const auto &service : mdns_services) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
       ESP_LOGW(TAG, "Failed to allocate service entry");

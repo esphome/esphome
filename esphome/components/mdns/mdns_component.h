@@ -1,10 +1,10 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
-#include <array>
 #include <string>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mdns {
@@ -39,17 +39,15 @@ class MDNSComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
 #ifdef USE_MDNS_EXTRA_SERVICES
-  void add_extra_service(MDNSService service);
+  void add_extra_service(MDNSService service) { services_.push_back(std::move(service)); }
 #endif
 
-  const std::array<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return services_; }
-  uint8_t get_services_count() const { return services_count_; }
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> get_services();
 
   void on_shutdown() override;
 
  protected:
-  std::array<MDNSService, MDNS_SERVICE_COUNT> services_{};
-  uint8_t services_count_{0};
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
   std::string hostname_;
   void compile_records_();
 };

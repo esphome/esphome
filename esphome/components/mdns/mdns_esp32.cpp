@@ -25,8 +25,7 @@ void MDNSComponent::setup() {
   mdns_hostname_set(this->hostname_.c_str());
   mdns_instance_name_set(this->hostname_.c_str());
 
-  for (uint8_t i = 0; i < this->services_count_; i++) {
-    const auto &service = this->services_[i];
+  for (const auto &service : this->services_) {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
