@@ -270,8 +270,8 @@ class APIConnection final : public APIServerConnection {
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
-  const char *get_name() const { return this->client_info_.name.c_str(); }
-  const char *get_peername() const { return this->client_info_.peername.c_str(); }
+  const std::string &get_name() const { return this->client_info_.name; }
+  const std::string &get_peername() const { return this->client_info_.peername; }
 
  protected:
   // Helper function to handle authentication completion
