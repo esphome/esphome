@@ -4,7 +4,7 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import CONF_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
-from esphome.core import CORE, TimePeriod
+from esphome.core import TimePeriod
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
@@ -86,6 +86,5 @@ async def to_code(config):
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
