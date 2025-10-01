@@ -36,16 +36,16 @@ struct device;
 
 namespace esphome::logger {
 
-// Color and letter constants for log levels
-static const char *const LOG_LEVEL_COLORS[] = {
-    "",                                            // NONE
-    ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN),    // INFO
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_MAGENTA),  // CONFIG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN),     // DEBUG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
+// ANSI color code last digit (30-38 range, store only last digit to save RAM)
+static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
+    '\0',  // NONE
+    '1',   // ERROR (31 = red)
+    '3',   // WARNING (33 = yellow)
+    '2',   // INFO (32 = green)
+    '5',   // CONFIG (35 = magenta)
+    '6',   // DEBUG (36 = cyan)
+    '7',   // VERBOSE (37 = gray)
+    '8',   // VERY_VERBOSE (38 = white)
 };
 
 static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
@@ -57,7 +57,7 @@ static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
     'D',   // DEBUG
     'V',   // VERBOSE (VERY_VERBOSE uses two 'V's)
 };
-static constexpr uint8_t ANSI_COLOR_LEN = 7;
+
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
 
@@ -312,13 +312,25 @@ class Logger : public Component {
   }
 #endif
 
-  static inline void copy_and_advance(char *buffer, uint16_t &pos, const char *data, uint8_t len) {
-    memcpy(buffer + pos, data, len);
+  static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
+    const size_t len = strlen(str);
+    // Intentionally no null terminator, building larger string
+    memcpy(buffer + pos, str, len);  // NOLINT(bugprone-not-null-terminated-result)
     pos += len;
   }
 
-  static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
-    copy_and_advance(buffer, pos, str, strlen(str));
+  static inline void write_ansi_color_for_level(char *buffer, uint16_t &pos, uint8_t level) {
+    if (level == 0)
+      return;
+    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
+    // Example: "\033[1;31m" for ERROR (bold red)
+    buffer[pos++] = '\033';
+    buffer[pos++] = '[';
+    buffer[pos++] = (level == 1) ? '1' : '0';  // Only ERROR is bold
+    buffer[pos++] = ';';
+    buffer[pos++] = '3';
+    buffer[pos++] = LOG_LEVEL_COLOR_DIGIT[level];
+    buffer[pos++] = 'm';
   }
 
   inline void HOT write_header_to_buffer_(uint8_t level, const char *tag, int line, const char *thread_name,
@@ -328,11 +340,8 @@ class Logger : public Component {
     if (pos + MAX_HEADER_SIZE > buffer_size)
       return;
 
-    const char *color = LOG_LEVEL_COLORS[level];
-    const uint8_t color_len = (level == 0) ? 0 : ANSI_COLOR_LEN;
-
     // Construct: <color>[LEVEL][tag:line]:
-    copy_and_advance(buffer, pos, color, color_len);
+    write_ansi_color_for_level(buffer, pos, level);
     buffer[pos++] = '[';
     if (level != 0) {
       if (level >= 7) {
@@ -353,11 +362,11 @@ class Logger : public Component {
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
     if (thread_name != nullptr) {
-      copy_and_advance(buffer, pos, LOG_LEVEL_COLORS[1], ANSI_COLOR_LEN);  // Bold red (error color)
+      write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
       buffer[pos++] = '[';
       copy_string(buffer, pos, thread_name);
       buffer[pos++] = ']';
-      copy_and_advance(buffer, pos, color, color_len);
+      write_ansi_color_for_level(buffer, pos, level);  // Restore original color
     }
 #endif
 
