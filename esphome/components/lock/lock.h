@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
-#include <span>
+#include <initializer_list>
 
 namespace esphome {
 namespace lock {
@@ -45,7 +45,7 @@ class LockTraits {
   void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
   bool supports_state(LockState state) const { return supported_states_mask_ & (1 << state); }
-  void set_supported_states(std::span<const LockState> states) {
+  void set_supported_states(std::initializer_list<LockState> states) {
     supported_states_mask_ = 0;
     for (auto state : states) {
       supported_states_mask_ |= (1 << state);
