@@ -374,7 +374,7 @@ void Rtttl::loop() {
   this->last_note_ = millis();
 }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const LogString *state_to_string(State state) {
   switch (state) {
     case STATE_STOPPED:
