@@ -92,19 +92,10 @@ async def to_code(config):
     cg.add_define("USE_MDNS")
 
     # Calculate compile-time service count
-    service_count = 0
-
-    # Check if API component is enabled (it may create a service at runtime)
-    if "api" in CORE.config:
-        service_count += 1
-
-    # Check for prometheus
-    if "prometheus" in CORE.config:
-        service_count += 1
-
-    # Check for web_server
-    if "web_server" in CORE.config:
-        service_count += 1
+    # Each of these components may create a service at runtime
+    service_count = sum(
+        1 for key in ("api", "prometheus", "web_server") if key in CORE.config
+    )
 
     # Count extra services from config
     extra_services_count = len(config[CONF_SERVICES])
