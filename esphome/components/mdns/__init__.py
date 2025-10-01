@@ -113,10 +113,7 @@ async def to_code(config):
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
 
     # Ensure at least 1 service (fallback service)
-    if service_count == 0:
-        service_count = 1
-
-    cg.add_define("MDNS_SERVICE_COUNT", service_count)
+    cg.add_define("MDNS_SERVICE_COUNT", max(1, service_count))
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
