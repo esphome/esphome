@@ -16,7 +16,8 @@ void MDNSComponent::setup() {
 
   MDNS.begin(this->hostname_.c_str());
 
-  for (const auto &service : this->services_) {
+  for (uint8_t i = 0; i < this->services_count_; i++) {
+    const auto &service = this->services_[i];
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
