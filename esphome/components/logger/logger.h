@@ -48,8 +48,17 @@ static const char *const LOG_LEVEL_COLORS[] = {
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
 };
 
-static constexpr char LOG_LEVEL_LETTER_CHARS[] = {'\0', 'E', 'W', 'I', 'C', 'D', 'V'};
+static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
+    '\0',  // NONE
+    'E',   // ERROR
+    'W',   // WARNING
+    'I',   // INFO
+    'C',   // CONFIG
+    'D',   // DEBUG
+    'V',   // VERBOSE (VERY_VERBOSE uses two 'V's)
+};
 static constexpr uint8_t ANSI_COLOR_LEN = 7;
+// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
