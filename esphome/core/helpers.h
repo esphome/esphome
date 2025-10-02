@@ -14,6 +14,10 @@
 
 #include "esphome/core/optional.h"
 
+namespace esphome {
+class StringRef;
+}
+
 #ifdef USE_ESP8266
 #include <Esp.h>
 #endif
@@ -603,6 +607,8 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+/// Create a string from a value, an accuracy in decimals, and a unit of measurement.
+std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
