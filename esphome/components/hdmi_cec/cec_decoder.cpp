@@ -185,9 +185,9 @@ template<> bool Decoder::do_operand<Decoder::AudioStatus>() {
 }
 
 template<> bool Decoder::do_operand<Decoder::DeviceType>() {
-  const static std::array<const char *, 9> names = {"TV]",           "Recording Device]", "Reserved",
-                                                    "Tuner",       "Playback Device", "Audio System",
-                                                    "Pure CEC Switch", "Video Processor"};
+  const static std::array<const char *, 9> names = {"TV",         "Recording Device", "Reserved",
+                                                    "Tuner",      "Playback Device",  "Audio System",
+                                                    "CEC Switch", "Video Processor"};
   return append_operand<names.size()>(names);
 }
 

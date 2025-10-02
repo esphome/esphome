@@ -149,16 +149,15 @@ void HDMICEC::handle_received_message(const Frame *frame) {
   }
 }
 
-uint8_t logical_address_to_device_type(uint8_t logical_address) {
-  switch (logical_address) {
+// Derive CEC device type from 'logical address'
+uint8_t HDMICEC::get_device_type() const {
+  switch (address_) {
     // "TV"
     case 0x0:
       return 0x00;  // "TV"
-
     // "Audio System"
     case 0x5:
       return 0x05;  // "Audio System"
-
     // "Recording 1"
     case 0x1:
     // "Recording 2"
@@ -166,7 +165,6 @@ uint8_t logical_address_to_device_type(uint8_t logical_address) {
     // "Recording 3"
     case 0x9:
       return 0x01;  // "Recording Device"
-
     // "Tuner 1"
     case 0x3:
     // "Tuner 2"
@@ -176,7 +174,6 @@ uint8_t logical_address_to_device_type(uint8_t logical_address) {
     // "Tuner 4"
     case 0xA:
       return 0x03;  // "Tuner"
-
     default:
       return 0x04;  // "Playback Device"
   }
@@ -191,8 +188,8 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
   switch (opcode) {
     // "Get CEC Version" request
     case 0x9F: {
-      // reply with "CEC Version" (0x9E)
-      send(address_, source, {0x9E, 0x04});
+      // reply with "CEC Version" (0x9E), "1.4" (0x5)
+      send(address_, source, {0x9E, 0x05});
       break;
     }
 
@@ -219,7 +216,7 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       std::vector<uint8_t> data = {0x84};
       data.insert(data.end(), physical_address_bytes.begin(), physical_address_bytes.end());
       // Device Type
-      data.push_back(logical_address_to_device_type(address_));
+      data.push_back(get_device_type());
       // Broadcast Physical Address
       send(address_, 0xF, data);
       break;
@@ -672,7 +669,9 @@ void IRAM_ATTR CECReceive::gpio_isr() {
     case ReceiverState::WAITING_FOR_EOM: {
       // check if we need to acknowledge this byte on the next 'ack' bit (10th bit of block)
       if (recv_frame_buffer_ && !recv_frame_buffer_->is_broadcast() &&
-          recv_frame_buffer_->destination_addr() == address_) {
+          recv_frame_buffer_->destination_addr() == address_ && recv_frame_buffer_->initiator_addr() != address_) {
+        // Note: Do NOT acknowledge a message initiated by myself,
+        // to support dynamic 'Logical Address' allocation by sending 'polling' messages
         recv_ack_queued_ = true;
       }
       bool isEOM = (value == 1);

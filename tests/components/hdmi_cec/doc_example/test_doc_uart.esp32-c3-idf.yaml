@@ -6,6 +6,7 @@ substitutions:
   cec_pin: GPIO10
   hpd_pin: GPIO9
   uart_pin: GPIO8
-  has_hw_uart: id(cec_uart)->get_hw_serial() != nullptr
+  # GPIO8 and 9 are strapping pins on C3: at least the 'hpd' pull-down seems to NOT work
+  has_hw_uart: (!id(cec_uart)->is_failed())
 
 <<: !include test_doc_uart_common.yaml

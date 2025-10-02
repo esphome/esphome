@@ -29,11 +29,22 @@ esphome:
   on_boot:
     priority: -100
     then:
+      - lambda: !lambda |-
+          id(hdmi_hpd).setup();
       - delay: 200ms
       - lambda: !lambda |-
           bool is_hw_uart = ${has_hw_uart};
-          ESP_LOGD("UART", "UART is HW: %s", (is_hw_uart ? "yes" : "NO!"));
-          id(cec).send(id(cec).address(), 0xf, {0x90, 0x00});  // Power status On
+          ESP_LOGD("UART", "UART is OK: %s", (is_hw_uart ? "yes" : "NO!"));
+          // As example, not required: Check if hdmi is connected, then broadcast my presence
+          if (id(hdmi_hpd).state) {
+            // broadcast my physical address to announce my presence
+            const uint8_t opcode_report_pa = 0x84;
+            const uint8_t dev_type = id(cec).get_device_type();
+            const uint16_t phys_addr = id(cec).get_physical_address();
+            const std::vector<uint8_t> message = {opcode_report_pa, (uint8_t)(phys_addr >> 8),
+                                                  (uint8_t)(phys_addr & 0xff), dev_type };
+            id(cec).send(0xf, message);
+          }
 
 esp32:
   board: ${board}
@@ -62,7 +73,7 @@ button:
     on_press:
       - hdmi_cec.send:
           destination: 0x0  # to TV
-          data: [0x44, 0x6D]  # UI (RC) command, "Power On"
+          data: [0x04]  # "Image View On"
   - platform: template
     name: "TV Volume Up"
     on_press:
@@ -91,6 +102,10 @@ binary_sensor:
         - logger.log: "HDMI Power Detect On"
 
 text_sensor:
+  - platform: template
+    name: "HDMI CEC Message"
+    id: cec_message
+    update_interval: never
   - platform: wifi_info
     ip_address:
       id: my_ip_address
@@ -103,3 +118,8 @@ hdmi_cec:
   address: 0xE
   physical_address: 0x2000
   uart_id: cec_uart
+  on_message:
+    then:
+      - lambda: |-
+          hdmi_cec::Frame frame = hdmi_cec::Frame(source, destination, data);
+          id(cec_message).publish_state(frame.to_string());

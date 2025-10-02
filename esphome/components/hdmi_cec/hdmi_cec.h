@@ -193,14 +193,16 @@ class HDMICEC : public Component {
  public:
   void set_pin(InternalGPIOPin *pin);
   void set_address(uint8_t address) { address_ = address & 0xf; }
-  uint8_t address() { return address_; }
+  uint8_t address() const { return address_; }
   void set_physical_address(uint16_t physical_address) { physical_address_ = physical_address; }
+  uint16_t get_physical_address() const { return physical_address_; }
   void set_promiscuous_mode(bool promiscuous) { recv_.set_promiscuous_mode(promiscuous); }
   void set_monitor_mode(bool monitor_mode) { recv_.set_monitor_mode(monitor_mode); }
   void set_osd_name_bytes(const std::vector<uint8_t> &osd_name_bytes) { osd_name_bytes_ = osd_name_bytes; }
   void set_uart(uart::UARTComponent *uart) { xmit_.set_uart(uart); }
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
   std::string get_state() const;  // merely for debugging
+  uint8_t get_device_type() const;
 
   bool send(uint8_t destination, const std::vector<uint8_t> &data_bytes);
   bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
@@ -217,7 +219,7 @@ class HDMICEC : public Component {
 
   HighFrequencyLoopRequester fast_loop_;
   InternalGPIOPin *pin_{nullptr};
-  uint8_t address_;
+  uint8_t address_;  // logical address, relates to device type
   uint16_t physical_address_;
   std::vector<uint8_t> osd_name_bytes_;
   std::vector<MessageTrigger *> message_triggers_;
