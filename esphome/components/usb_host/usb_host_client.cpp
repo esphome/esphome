@@ -7,6 +7,7 @@
 
 #include <cinttypes>
 #include <cstring>
+#include <atomic>
 namespace esphome {
 namespace usb_host {
 
@@ -185,9 +186,11 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  for (auto *trq : this->trq_pool_) {
-    usb_host_transfer_alloc(64, 0, &trq->transfer);
-    trq->client = this;
+  // Pre-allocate USB transfer buffers for all slots at startup
+  // This avoids any dynamic allocation during runtime
+  for (size_t i = 0; i < MAX_REQUESTS; i++) {
+    usb_host_transfer_alloc(64, 0, &this->requests_[i].transfer);
+    this->requests_[i].client = this;  // Set once, never changes
   }
 
   // Create and start USB task
@@ -347,17 +350,44 @@ static void control_callback(const usb_transfer_t *xfer) {
   queue_transfer_cleanup(trq, EVENT_CONTROL_COMPLETE);
 }
 
+// THREAD CONTEXT: Called from both USB task and main loop threads (multi-consumer)
+// - USB task: USB UART input callbacks restart transfers for immediate data reception
+// - Main loop: Output transfers and flow-controlled input restarts after consuming data
+//
+// THREAD SAFETY: Lock-free using atomic compare-and-swap on bitmask
+// This multi-threaded access is intentional for performance - USB task can
+// immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
-  if (this->trq_pool_.empty()) {
-    ESP_LOGE(TAG, "Too many requests queued");
-    return nullptr;
+  uint16_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
+
+  // Find first available slot (bit = 0) and try to claim it atomically
+  // We use a while loop to allow retrying the same slot after CAS failure
+  size_t i = 0;
+  while (i != MAX_REQUESTS) {
+    if (mask & (1U << i)) {
+      // Slot is in use, move to next slot
+      i++;
+      continue;
+    }
+
+    // Slot i appears available, try to claim it atomically
+    uint16_t desired = mask | (1U << i);  // Set bit i to mark as in-use
+
+    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order_acquire, std::memory_order_relaxed)) {
+      // Successfully claimed slot i - prepare the TransferRequest
+      auto *trq = &this->requests_[i];
+      trq->transfer->context = trq;
+      trq->transfer->device_handle = this->device_handle_;
+      return trq;
+    }
+    // CAS failed - another thread modified the bitmask
+    // mask was already updated by compare_exchange_weak with the current value
+    // No need to reload - the CAS already did that for us
+    i = 0;
   }
-  auto *trq = this->trq_pool_.front();
-  this->trq_pool_.pop_front();
-  trq->client = this;
-  trq->transfer->context = trq;
-  trq->transfer->device_handle = this->device_handle_;
-  return trq;
+
+  ESP_LOGE(TAG, "All %d transfer slots in use", MAX_REQUESTS);
+  return nullptr;
 }
 void USBClient::disconnect() {
   this->on_disconnected();
@@ -370,6 +400,8 @@ void USBClient::disconnect() {
   this->device_addr_ = -1;
 }
 
+// THREAD CONTEXT: Called from main loop thread only
+// - Used for device configuration and control operations
 bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
                                  const transfer_cb_t &callback, const std::vector<uint8_t> &data) {
   auto *trq = this->get_trq_();
@@ -425,6 +457,9 @@ static void transfer_callback(usb_transfer_t *xfer) {
 }
 /**
  * Performs a transfer input operation.
+ * THREAD CONTEXT: Called from both USB task and main loop threads!
+ * - USB task: USB UART input callbacks call start_input() which calls this
+ * - Main loop: Initial setup and other components
  *
  * @param ep_address The endpoint address.
  * @param callback The callback function to be called when the transfer is complete.
@@ -451,6 +486,9 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
 
 /**
  * Performs an output transfer operation.
+ * THREAD CONTEXT: Called from main loop thread only
+ * - USB UART output uses defer() to ensure main loop context
+ * - Modbus and other components call from loop()
  *
  * @param ep_address The endpoint address.
  * @param callback The callback function to be called when the transfer is complete.
@@ -483,7 +521,28 @@ void USBClient::dump_config() {
                 "  Product id %04X",
                 this->vid_, this->pid_);
 }
-void USBClient::release_trq(TransferRequest *trq) { this->trq_pool_.push_back(trq); }
+// THREAD CONTEXT: Only called from main loop thread (single producer for deallocation)
+// - Via event processing when handling EVENT_TRANSFER_COMPLETE/EVENT_CONTROL_COMPLETE
+// - Directly when transfer submission fails
+//
+// THREAD SAFETY: Lock-free using atomic AND to clear bit
+// Single-producer pattern makes this simpler than allocation
+void USBClient::release_trq(TransferRequest *trq) {
+  if (trq == nullptr)
+    return;
+
+  // Calculate index from pointer arithmetic
+  size_t index = trq - this->requests_;
+  if (index >= MAX_REQUESTS) {
+    ESP_LOGE(TAG, "Invalid TransferRequest pointer");
+    return;
+  }
+
+  // Atomically clear bit i to mark slot as available
+  // fetch_and with inverted bitmask clears the bit atomically
+  uint16_t bit = 1U << index;
+  this->trq_in_use_.fetch_and(static_cast<uint16_t>(~bit), std::memory_order_release);
+}
 
 }  // namespace usb_host
 }  // namespace esphome
