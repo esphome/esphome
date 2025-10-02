@@ -631,7 +631,7 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   resp.action = static_cast<enums::ClimateAction>(climate->action);
   if (traits.get_supports_current_temperature())
     resp.current_temperature = climate->current_temperature;
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
     resp.target_temperature_low = climate->target_temperature_low;
     resp.target_temperature_high = climate->target_temperature_high;
   } else {
@@ -665,6 +665,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_current_humidity = traits.get_supports_current_humidity();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
+  msg.requires_two_point_target_temperature = traits.get_requires_two_point_target_temperature();
   msg.supports_target_humidity = traits.get_supports_target_humidity();
   msg.supported_modes = &traits.get_supported_modes_for_api_();
   msg.visual_min_temperature = traits.get_visual_min_temperature();

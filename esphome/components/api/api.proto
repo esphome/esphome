@@ -996,6 +996,7 @@ message ListEntitiesClimateResponse {
   float visual_min_humidity = 24;
   float visual_max_humidity = 25;
   uint32 device_id = 26 [(field_ifdef) = "USE_DEVICES"];
+  bool requires_two_point_target_temperature = 27;
 }
 message ClimateStateResponse {
   option (id) = 47;

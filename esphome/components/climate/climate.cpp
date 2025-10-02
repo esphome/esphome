@@ -96,7 +96,7 @@ void ClimateCall::validate_() {
   }
   if (this->target_temperature_.has_value()) {
     auto target = *this->target_temperature_;
-    if (traits.get_supports_two_point_target_temperature()) {
+    if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
       ESP_LOGW(TAG, "  Cannot set target temperature for climate device "
                     "with two-point target temperature!");
       this->target_temperature_.reset();
@@ -106,7 +106,7 @@ void ClimateCall::validate_() {
     }
   }
   if (this->target_temperature_low_.has_value() || this->target_temperature_high_.has_value()) {
-    if (!traits.get_supports_two_point_target_temperature()) {
+    if (!(traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature())) {
       ESP_LOGW(TAG, "  Cannot set low/high target temperature for this device!");
       this->target_temperature_low_.reset();
       this->target_temperature_high_.reset();
@@ -350,7 +350,7 @@ void Climate::save_state_() {
 
   state.mode = this->mode;
   auto traits = this->get_traits();
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
     state.target_temperature_low = this->target_temperature_low;
     state.target_temperature_high = this->target_temperature_high;
   } else {
@@ -421,7 +421,7 @@ void Climate::publish_state() {
   if (traits.get_supports_current_temperature()) {
     ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
   }
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
     ESP_LOGD(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low,
              this->target_temperature_high);
   } else {
@@ -485,7 +485,7 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   auto call = climate->make_call();
   auto traits = climate->get_traits();
   call.set_mode(this->mode);
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
     call.set_target_temperature_low(this->target_temperature_low);
     call.set_target_temperature_high(this->target_temperature_high);
   } else {
@@ -508,7 +508,7 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
 void ClimateDeviceRestoreState::apply(Climate *climate) {
   auto traits = climate->get_traits();
   climate->mode = this->mode;
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
     climate->target_temperature_low = this->target_temperature_low;
     climate->target_temperature_high = this->target_temperature_high;
   } else {
@@ -589,7 +589,7 @@ void Climate::dump_traits_(const char *tag) {
                   "      - Max humidity: %.0f",
                   traits.get_visual_min_humidity(), traits.get_visual_max_humidity());
   }
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
   }
   if (traits.get_supports_current_temperature()) {

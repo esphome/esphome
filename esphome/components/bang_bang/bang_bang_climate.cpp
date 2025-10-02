@@ -68,7 +68,7 @@ climate::ClimateTraits BangBangClimate::traits() {
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   if (supports_cool_ && supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
-  traits.set_supports_two_point_target_temperature(true);
+  traits.set_requires_two_point_target_temperature(true);
   if (supports_away_) {
     traits.set_supported_presets({
         climate::CLIMATE_PRESET_HOME,

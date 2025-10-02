@@ -59,6 +59,10 @@ class ClimateTraits {
   void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature) {
     this->supports_two_point_target_temperature_ = supports_two_point_target_temperature;
   }
+  bool get_requires_two_point_target_temperature() const { return this->requires_two_point_target_temperature_; }
+  void set_requires_two_point_target_temperature(bool requires_two_point_target_temperature) {
+    this->requires_two_point_target_temperature_ = requires_two_point_target_temperature;
+  }
   bool get_supports_target_humidity() const { return this->supports_target_humidity_; }
   void set_supports_target_humidity(bool supports_target_humidity) {
     this->supports_target_humidity_ = supports_target_humidity;
@@ -219,12 +223,13 @@ class ClimateTraits {
     }
   }
 
+  bool requires_two_point_target_temperature_{false};
   bool supports_current_temperature_{false};
   bool supports_current_humidity_{false};
   bool supports_two_point_target_temperature_{false};
   bool supports_target_humidity_{false};
-  std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
   bool supports_action_{false};
+  std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
   std::set<climate::ClimateFanMode> supported_fan_modes_;
   std::set<climate::ClimateSwingMode> supported_swing_modes_;
   std::set<climate::ClimatePreset> supported_presets_;
