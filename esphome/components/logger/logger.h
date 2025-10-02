@@ -356,11 +356,11 @@ class Logger : public Component {
     copy_string(buffer, pos, tag);
     buffer[pos++] = ':';
     int hundreds = line / 100;
-    line -= hundreds * 100;
-    int tens = line / 10;
+    int remainder = line - hundreds * 100;
+    int tens = remainder / 10;
     buffer[pos++] = '0' + hundreds;
     buffer[pos++] = '0' + tens;
-    buffer[pos++] = '0' + (line - tens * 10);
+    buffer[pos++] = '0' + (remainder - tens * 10);
     buffer[pos++] = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
