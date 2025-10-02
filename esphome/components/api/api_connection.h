@@ -19,14 +19,6 @@ namespace esphome::api {
 struct ClientInfo {
   std::string name;      // Client name from Hello message
   std::string peername;  // IP:port from socket
-
-  std::string get_combined_info() const {
-    if (name == peername) {
-      // Before Hello message, both are the same
-      return name;
-    }
-    return name + " (" + peername + ")";
-  }
 };
 
 // Keepalive timeout in milliseconds
@@ -278,7 +270,8 @@ class APIConnection final : public APIServerConnection {
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
-  std::string get_client_combined_info() const { return this->client_info_.get_combined_info(); }
+  const std::string &get_name() const { return this->client_info_.name; }
+  const std::string &get_peername() const { return this->client_info_.peername; }
 
  protected:
   // Helper function to handle authentication completion
