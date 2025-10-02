@@ -127,11 +127,18 @@ template<typename T, size_t N> class StaticVector {
     }
   }
 
+  // Return reference to next element and increment count (with bounds checking)
+  T &emplace_next() {
+    if (count_ >= N) {
+      // Should never happen with proper size calculation
+      // Return reference to last element to avoid crash
+      return data_[N - 1];
+    }
+    return data_[count_++];
+  }
+
   size_t size() const { return count_; }
   bool empty() const { return count_ == 0; }
-
-  // Direct access to size counter for efficient in-place construction
-  size_t &count() { return count_; }
 
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
