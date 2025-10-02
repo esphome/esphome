@@ -165,4 +165,4 @@ def final_validate_audio_schema(
 
 
 async def to_code(config):
-    cg.add_library("esphome/esp-audio-libs", "2.0.0")
+    cg.add_library("esphome/esp-audio-libs", "2.0.1")
