@@ -355,9 +355,12 @@ class Logger : public Component {
     buffer[pos++] = '[';
     copy_string(buffer, pos, tag);
     buffer[pos++] = ':';
-    buffer[pos++] = '0' + (line / 100) % 10;
-    buffer[pos++] = '0' + (line / 10) % 10;
-    buffer[pos++] = '0' + line % 10;
+    int hundreds = line / 100;
+    line -= hundreds * 100;
+    int tens = line / 10;
+    buffer[pos++] = '0' + hundreds;
+    buffer[pos++] = '0' + tens;
+    buffer[pos++] = '0' + (line - tens * 10);
     buffer[pos++] = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
