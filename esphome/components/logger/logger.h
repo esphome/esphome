@@ -356,12 +356,11 @@ class Logger : public Component {
     copy_string(buffer, pos, tag);
     buffer[pos++] = ':';
     // Format line number without modulo operations (passed by value, safe to mutate)
-    if [[unlikely]]
-      (line > 999) {
-        int thousands = line / 1000;
-        buffer[pos++] = '0' + thousands;
-        line -= thousands * 1000;
-      }
+    if (line > 999) [[unlikely]] {
+      int thousands = line / 1000;
+      buffer[pos++] = '0' + thousands;
+      line -= thousands * 1000;
+    }
     int hundreds = line / 100;
     int remainder = line - hundreds * 100;
     int tens = remainder / 10;
