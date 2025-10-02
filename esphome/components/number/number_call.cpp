@@ -74,20 +74,20 @@ void NumberCall::perform() {
     target_value = this->value_.value();
   } else if (this->operation_ == NUMBER_OP_TO_MIN) {
     if (std::isnan(min_value)) {
-      this->log_perform_warning_two_strings_(LOG_STR("min"), LOG_STR("value undefined"));
+      this->log_perform_warning_two_strings_(LOG_STR("min"), LOG_STR("undefined"));
     } else {
       target_value = min_value;
     }
   } else if (this->operation_ == NUMBER_OP_TO_MAX) {
     if (std::isnan(max_value)) {
-      this->log_perform_warning_two_strings_(LOG_STR("max"), LOG_STR("value undefined"));
+      this->log_perform_warning_two_strings_(LOG_STR("max"), LOG_STR("undefined"));
     } else {
       target_value = max_value;
     }
   } else if (this->operation_ == NUMBER_OP_INCREMENT) {
-    ESP_LOGD(TAG, "'%s': Increment, with%s cycling", name, this->cycle_ ? "" : "out");
+    ESP_LOGD(TAG, "'%s': Increment with%s cycling", name, this->cycle_ ? "" : "out");
     if (!parent->has_state()) {
-      this->log_perform_warning_two_strings_(LOG_STR("Can't increment,"), LOG_STR("no state"));
+      this->log_perform_warning_two_strings_(LOG_STR("Can't increment"), LOG_STR("no state"));
       return;
     }
     auto step = traits.get_step();
@@ -100,9 +100,9 @@ void NumberCall::perform() {
       }
     }
   } else if (this->operation_ == NUMBER_OP_DECREMENT) {
-    ESP_LOGD(TAG, "'%s': Decrement, with%s cycling", name, this->cycle_ ? "" : "out");
+    ESP_LOGD(TAG, "'%s': Decrement with%s cycling", name, this->cycle_ ? "" : "out");
     if (!parent->has_state()) {
-      this->log_perform_warning_two_strings_(LOG_STR("Can't decrement,"), LOG_STR("no state"));
+      this->log_perform_warning_two_strings_(LOG_STR("Can't decrement"), LOG_STR("no state"));
       return;
     }
     auto step = traits.get_step();
