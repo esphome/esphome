@@ -1,4 +1,5 @@
 import base64
+import logging
 
 from esphome import automation
 from esphome.automation import Condition
@@ -24,12 +25,15 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
-CODEOWNERS = ["@OttoWinter"]
+CODEOWNERS = ["@esphome/core"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
@@ -53,6 +57,11 @@ SERVICE_ARG_NATIVE_TYPES = {
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
+CONF_HOMEASSISTANT_STATES = "homeassistant_states"
+CONF_LISTEN_BACKLOG = "listen_backlog"
+CONF_MAX_CONNECTIONS = "max_connections"
+CONF_MAX_SEND_QUEUE = "max_send_queue"
 
 
 def validate_encryption_key(value):
@@ -99,6 +108,32 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
+def _validate_api_config(config: ConfigType) -> ConfigType:
+    """Validate API configuration with mutual exclusivity check and deprecation warning."""
+    # Check if both password and encryption are configured
+    has_password = CONF_PASSWORD in config and config[CONF_PASSWORD]
+    has_encryption = CONF_ENCRYPTION in config
+
+    if has_password and has_encryption:
+        raise cv.Invalid(
+            "The 'password' and 'encryption' options are mutually exclusive. "
+            "The API client only supports one authentication method at a time. "
+            "Please remove one of them. "
+            "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
+            "We strongly recommend using 'encryption' instead for better security."
+        )
+
+    # Warn about password deprecation
+    if has_password:
+        _LOGGER.warning(
+            "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
+            "Please migrate to the 'encryption' configuration. "
+            "See https://esphome.io/components/api.html#configuration-variables"
+        )
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -118,19 +153,60 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
             cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
+            cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
                 single=True
             ),
+            # Connection limits to prevent memory exhaustion on resource-constrained devices
+            # Each connection uses ~500-1000 bytes of RAM plus system resources
+            # Platform defaults based on available RAM and network stack implementation:
+            cv.SplitDefault(
+                CONF_LISTEN_BACKLOG,
+                esp8266=1,  # Limited RAM (~40KB free), LWIP raw sockets
+                esp32=4,  # More RAM (520KB), BSD sockets
+                rp2040=1,  # Limited RAM (264KB), LWIP raw sockets like ESP8266
+                bk72xx=4,  # Moderate RAM, BSD-style sockets
+                rtl87xx=4,  # Moderate RAM, BSD-style sockets
+                host=4,  # Abundant resources
+                ln882x=4,  # Moderate RAM
+            ): cv.int_range(min=1, max=10),
+            cv.SplitDefault(
+                CONF_MAX_CONNECTIONS,
+                esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
+                esp32=8,  # 520KB RAM available
+                rp2040=4,  # 264KB RAM but LWIP constraints
+                bk72xx=8,  # Moderate RAM
+                rtl87xx=8,  # Moderate RAM
+                host=8,  # Abundant resources
+                ln882x=8,  # Moderate RAM
+            ): cv.int_range(min=1, max=20),
+            # Maximum queued send buffers per connection before dropping connection
+            # Each buffer uses ~8-12 bytes overhead plus actual message size
+            # Platform defaults based on available RAM and typical message rates:
+            cv.SplitDefault(
+                CONF_MAX_SEND_QUEUE,
+                esp8266=5,  # Limited RAM, need to fail fast
+                esp32=8,  # More RAM, can buffer more
+                rp2040=5,  # Limited RAM
+                bk72xx=8,  # Moderate RAM
+                rtl87xx=8,  # Moderate RAM
+                host=16,  # Abundant resources
+                ln882x=8,  # Moderate RAM
+            ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_api_config,
 )
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -141,10 +217,21 @@ async def to_code(config):
         cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
+    if CONF_LISTEN_BACKLOG in config:
+        cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
+    if CONF_MAX_CONNECTIONS in config:
+        cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
+    cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
         cg.add_define("USE_API_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_SERVICES]:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
+
+    if config[CONF_HOMEASSISTANT_STATES]:
+        cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
         for conf in actions:
@@ -183,6 +270,7 @@ async def to_code(config):
         if key := encryption_config.get(CONF_KEY):
             decoded = base64.b64decode(key)
             cg.add(var.set_noise_psk(list(decoded)))
+            cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
             # This will allow a plaintext client to provide a noise key,
@@ -235,6 +323,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
 )
 async def homeassistant_service_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
     templ = await cg.templatable(config[CONF_ACTION], args, None)
@@ -278,6 +367,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     templ = await cg.templatable(config[CONF_EVENT], args, None)
@@ -309,6 +399,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))

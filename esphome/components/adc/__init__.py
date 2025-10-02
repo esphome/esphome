@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -11,15 +11,8 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
-from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ANALOG,
-    CONF_INPUT,
-    CONF_NUMBER,
-    PLATFORM_ESP8266,
-    PlatformFramework,
-)
+from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
@@ -140,6 +133,16 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         9: adc_channel_t.ADC_CHANNEL_8,
         10: adc_channel_t.ADC_CHANNEL_9,
     },
+    VARIANT_ESP32P4: {
+        16: adc_channel_t.ADC_CHANNEL_0,
+        17: adc_channel_t.ADC_CHANNEL_1,
+        18: adc_channel_t.ADC_CHANNEL_2,
+        19: adc_channel_t.ADC_CHANNEL_3,
+        20: adc_channel_t.ADC_CHANNEL_4,
+        21: adc_channel_t.ADC_CHANNEL_5,
+        22: adc_channel_t.ADC_CHANNEL_6,
+        23: adc_channel_t.ADC_CHANNEL_7,
+    },
 }
 
 # pin to adc2 channel mapping
@@ -198,6 +201,14 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
         19: adc_channel_t.ADC_CHANNEL_8,
         20: adc_channel_t.ADC_CHANNEL_9,
     },
+    VARIANT_ESP32P4: {
+        49: adc_channel_t.ADC_CHANNEL_0,
+        50: adc_channel_t.ADC_CHANNEL_1,
+        51: adc_channel_t.ADC_CHANNEL_2,
+        52: adc_channel_t.ADC_CHANNEL_3,
+        53: adc_channel_t.ADC_CHANNEL_4,
+        54: adc_channel_t.ADC_CHANNEL_5,
+    },
 }
 
 
@@ -249,21 +260,9 @@ def validate_adc_pin(value):
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
 
+    if CORE.is_nrf52:
+        return pins.gpio_pin_schema(
+            {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
+        )(value)
+
     raise NotImplementedError
-
-
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "adc_sensor_esp32.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-        "adc_sensor_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "adc_sensor_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
-        "adc_sensor_libretiny.cpp": {
-            PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
-        },
-    }
-)

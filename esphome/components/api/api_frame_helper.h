@@ -1,7 +1,8 @@
 #pragma once
+#include <array>
 #include <cstdint>
-#include <deque>
 #include <limits>
+#include <memory>
 #include <span>
 #include <utility>
 #include <vector>
@@ -16,6 +17,16 @@ namespace esphome::api {
 
 // uncomment to log raw packets
 //#define HELPER_LOG_PACKETS
+
+// Maximum message size limits to prevent OOM on constrained devices
+// Voice Assistant is our largest user at 1024 bytes per audio chunk
+// Using 2048 + 256 bytes overhead = 2304 bytes total to support voice and future needs
+// ESP8266 has very limited RAM and cannot support voice assistant
+#ifdef USE_ESP8266
+static constexpr uint16_t MAX_MESSAGE_SIZE = 512;  // Keep small for memory constrained ESP8266
+#else
+static constexpr uint16_t MAX_MESSAGE_SIZE = 2304;  // Support voice (1024) + headroom for larger messages
+#endif
 
 // Forward declaration
 struct ClientInfo;
@@ -66,7 +77,7 @@ enum class APIError : uint16_t {
 #endif
 };
 
-const char *api_error_to_str(APIError err);
+const LogString *api_error_to_logstr(APIError err);
 
 class APIFrameHelper {
  public:
@@ -79,7 +90,7 @@ class APIFrameHelper {
   virtual APIError init() = 0;
   virtual APIError loop();
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
-  bool can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
+  bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
   std::string getpeername() { return socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
@@ -104,9 +115,9 @@ class APIFrameHelper {
   // The buffer contains all messages with appropriate padding before each
   virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
   // Get the frame header padding required by this protocol
-  virtual uint8_t frame_header_padding() = 0;
+  uint8_t frame_header_padding() const { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
-  virtual uint8_t frame_footer_size() = 0;
+  uint8_t frame_footer_size() const { return frame_footer_size_; }
   // Check if socket has data ready to read
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
 
@@ -161,7 +172,7 @@ class APIFrameHelper {
   };
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
-  std::deque<SendBuffer> tx_buf_;
+  std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
   std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
@@ -174,7 +185,10 @@ class APIFrameHelper {
   State state_{State::INITIALIZE};
   uint8_t frame_header_padding_{0};
   uint8_t frame_footer_size_{0};
-  // 5 bytes total, 3 bytes padding
+  uint8_t tx_buf_head_{0};
+  uint8_t tx_buf_tail_{0};
+  uint8_t tx_buf_count_{0};
+  // 8 bytes total, 0 bytes padding
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();

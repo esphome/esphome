@@ -10,11 +10,16 @@
 #include <cstring>
 #include <cinttypes>
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+
 namespace esphome::api {
 
 static const char *const TAG = "api.plaintext";
 
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->client_info_->get_combined_info().c_str(), ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())
@@ -118,10 +123,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
       continue;
     }
 
-    if (msg_size_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
+    if (msg_size_varint->as_uint32() > MAX_MESSAGE_SIZE) {
       state_ = State::FAILED;
       HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint->as_uint32(),
-                 std::numeric_limits<uint16_t>::max());
+                 MAX_MESSAGE_SIZE);
       return APIError::BAD_DATA_PACKET;
     }
     rx_header_parsed_len_ = msg_size_varint->as_uint16();
@@ -197,11 +202,20 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // We must send at least 3 bytes to be read, so we add
       // a message after the indicator byte to ensures its long
       // enough and can aid in debugging.
-      const char msg[] = "\x00"
-                         "Bad indicator byte";
+      static constexpr uint8_t INDICATOR_MSG_SIZE = 19;
+#ifdef USE_ESP8266
+      static const char MSG_PROGMEM[] PROGMEM = "\x00"
+                                                "Bad indicator byte";
+      char msg[INDICATOR_MSG_SIZE];
+      memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
       iov[0].iov_base = (void *) msg;
-      iov[0].iov_len = 19;
-      this->write_raw_(iov, 1, 19);
+#else
+      static const char MSG[] = "\x00"
+                                "Bad indicator byte";
+      iov[0].iov_base = (void *) MSG;
+#endif
+      iov[0].iov_len = INDICATOR_MSG_SIZE;
+      this->write_raw_(iov, 1, INDICATOR_MSG_SIZE);
     }
     return aerr;
   }

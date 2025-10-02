@@ -12,6 +12,8 @@ display:
   #- platform: mipi_dsi
     #id: backlight_id
 
+psram:
+
 i2c:
   sda: GPIO7
   scl: GPIO8

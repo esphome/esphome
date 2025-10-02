@@ -51,7 +51,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -117,8 +117,6 @@ UART_SELECTION_LIBRETINY = {
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
 
-ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
-
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
@@ -153,13 +151,7 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
-            raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
-        if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
-            raise cv.Invalid(
-                f"{value} is not supported for variant {variant} when using ESP-IDF."
-            )
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
@@ -226,14 +218,11 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 esp32_s2=USB_CDC,
-                esp32_s3_arduino=USB_CDC,
-                esp32_s3_idf=USB_SERIAL_JTAG,
-                esp32_c3_arduino=USB_CDC,
-                esp32_c3_idf=USB_SERIAL_JTAG,
-                esp32_c5_idf=USB_SERIAL_JTAG,
-                esp32_c6_arduino=USB_CDC,
-                esp32_c6_idf=USB_SERIAL_JTAG,
-                esp32_p4_idf=USB_SERIAL_JTAG,
+                esp32_s3=USB_SERIAL_JTAG,
+                esp32_c3=USB_SERIAL_JTAG,
+                esp32_c5=USB_SERIAL_JTAG,
+                esp32_c6=USB_SERIAL_JTAG,
+                esp32_p4=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
@@ -275,7 +264,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(90.0)
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
@@ -346,15 +335,7 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
-    if CORE.using_arduino and config[CONF_HARDWARE_UART] == USB_CDC:
-        cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
-        if CORE.is_esp32 and get_esp32_variant() in (
-            VARIANT_ESP32C3,
-            VARIANT_ESP32C6,
-        ):
-            cg.add_build_flag("-DARDUINO_USB_MODE=1")
-
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
@@ -409,7 +390,7 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """  # noqa
-    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
+    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
             f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
@@ -421,6 +402,7 @@ CONF_LOGGER_LOG = "logger.log"
 LOGGER_LOG_ACTION_SCHEMA = cv.All(
     cv.maybe_simple_value(
         {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
             cv.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(

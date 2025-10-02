@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
@@ -106,8 +107,8 @@ class BSSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
     wifi::bssid_t bssid = wifi::global_wifi_component->wifi_bssid();
     if (memcmp(bssid.data(), last_bssid_.data(), 6) != 0) {
       std::copy(bssid.begin(), bssid.end(), last_bssid_.begin());
-      char buf[30];
-      sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+      char buf[18];
+      format_mac_addr_upper(bssid.data(), buf);
       this->publish_state(buf);
     }
   }

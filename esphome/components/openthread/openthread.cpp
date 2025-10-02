@@ -1,6 +1,9 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#include "esp_openthread.h"
+#endif
 
 #include <freertos/portmacro.h>
 
@@ -8,8 +11,6 @@
 #include <openthread/instance.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
-#include <openthread/srp_client.h>
-#include <openthread/srp_client_buffers.h>
 #include <openthread/tasklet.h>
 
 #include <cstring>
@@ -27,18 +28,6 @@ OpenThreadComponent *global_openthread_component =  // NOLINT(cppcoreguidelines-
     nullptr;                                        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
-
-OpenThreadComponent::~OpenThreadComponent() {
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in destructor, leaking memory");
-    return;
-  }
-  otInstance *instance = lock->get_instance();
-  otSrpClientClearHostAndServices(instance);
-  otSrpClientBuffersFreeAllServices(instance);
-  global_openthread_component = nullptr;
-}
 
 bool OpenThreadComponent::is_connected() {
   auto lock = InstanceLock::try_acquire(100);
@@ -86,8 +75,14 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(InstanceLock &
   return {};
 }
 
-void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrpClientService *services,
-                  const otSrpClientService *removed_services, void *context) {
+void OpenThreadComponent::defer_factory_reset_external_callback() {
+  ESP_LOGD(TAG, "Defer factory_reset_external_callback_");
+  this->defer([this]() { this->factory_reset_external_callback_(); });
+}
+
+void OpenThreadSrpComponent::srp_callback(otError err, const otSrpClientHostInfo *host_info,
+                                          const otSrpClientService *services,
+                                          const otSrpClientService *removed_services, void *context) {
   if (err != 0) {
     ESP_LOGW(TAG, "SRP client reported an error: %s", otThreadErrorToString(err));
     for (const otSrpClientHostInfo *host = host_info; host; host = nullptr) {
@@ -99,8 +94,22 @@ void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrp
   }
 }
 
-void srp_start_callback(const otSockAddr *server_socket_address, void *context) {
+void OpenThreadSrpComponent::srp_start_callback(const otSockAddr *server_socket_address, void *context) {
   ESP_LOGI(TAG, "SRP client has started");
+}
+
+void OpenThreadSrpComponent::srp_factory_reset_callback(otError err, const otSrpClientHostInfo *host_info,
+                                                        const otSrpClientService *services,
+                                                        const otSrpClientService *removed_services, void *context) {
+  OpenThreadComponent *obj = (OpenThreadComponent *) context;
+  if (err == OT_ERROR_NONE && removed_services != NULL && host_info != NULL &&
+      host_info->mState == OT_SRP_CLIENT_ITEM_STATE_REMOVED) {
+    ESP_LOGD(TAG, "Successful Removal SRP Host and Services");
+  } else if (err != OT_ERROR_NONE) {
+    // Handle other SRP client events or errors
+    ESP_LOGW(TAG, "SRP client event/error: %s", otThreadErrorToString(err));
+  }
+  obj->defer_factory_reset_external_callback();
 }
 
 void OpenThreadSrpComponent::setup() {
@@ -108,7 +117,7 @@ void OpenThreadSrpComponent::setup() {
   InstanceLock lock = InstanceLock::acquire();
   otInstance *instance = lock.get_instance();
 
-  otSrpClientSetCallback(instance, srp_callback, nullptr);
+  otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_callback, nullptr);
 
   // set the host name
   uint16_t size;
@@ -134,11 +143,10 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Copy the mdns services to our local instance so that the c_str pointers remain valid for the lifetime of this
-  // component
-  this->mdns_services_ = this->mdns_->get_services();
-  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", this->mdns_services_.size());
-  for (const auto &service : this->mdns_services_) {
+  // Get mdns services and copy their data (strings are copied with strdup below)
+  const auto &mdns_services = this->mdns_->get_services();
+  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
+  for (const auto &service : mdns_services) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
       ESP_LOGW(TAG, "Failed to allocate service entry");
@@ -188,7 +196,8 @@ void OpenThreadSrpComponent::setup() {
     ESP_LOGD(TAG, "Added service: %s", full_service.c_str());
   }
 
-  otSrpClientEnableAutoStartMode(instance, srp_start_callback, nullptr);
+  otSrpClientEnableAutoStartMode(instance, OpenThreadSrpComponent::srp_start_callback, nullptr);
+  ESP_LOGD(TAG, "Finished SRP setup");
 }
 
 void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
@@ -198,6 +207,48 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 }
 
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+
+bool OpenThreadComponent::teardown() {
+  if (!this->teardown_started_) {
+    this->teardown_started_ = true;
+    ESP_LOGD(TAG, "Clear Srp");
+    auto lock = InstanceLock::try_acquire(100);
+    if (!lock) {
+      ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
+      return true;
+    }
+    otInstance *instance = lock->get_instance();
+    otSrpClientClearHostAndServices(instance);
+    otSrpClientBuffersFreeAllServices(instance);
+    global_openthread_component = nullptr;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+    ESP_LOGD(TAG, "Exit main loop ");
+    int error = esp_openthread_mainloop_exit();
+    if (error != ESP_OK) {
+      ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
+      this->teardown_complete_ = true;
+    }
+#else
+    this->teardown_complete_ = true;
+#endif
+  }
+  return this->teardown_complete_;
+}
+
+void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
+  factory_reset_external_callback_ = callback;
+  ESP_LOGD(TAG, "Start Removal SRP Host and Services");
+  otError error;
+  InstanceLock lock = InstanceLock::acquire();
+  otInstance *instance = lock.get_instance();
+  otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_factory_reset_callback, this);
+  error = otSrpClientRemoveHostAndServices(instance, true, true);
+  if (error != OT_ERROR_NONE) {
+    ESP_LOGW(TAG, "Failed to Remove SRP Host and Services");
+    return;
+  }
+  ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
+}
 
 }  // namespace openthread
 }  // namespace esphome
