@@ -366,7 +366,9 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
 
 std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement) {
   normalize_accuracy_decimals(value, accuracy_decimals);
-  char tmp[64];  // Increased to accommodate unit of measurement
+  // Buffer sized for float (up to ~15 chars) + space + typical UOM (usually <20 chars like "μS/cm")
+  // snprintf truncates safely if exceeded, though ESPHome UOMs are typically short
+  char tmp[64];
   if (unit_of_measurement.empty()) {
     snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   } else {
