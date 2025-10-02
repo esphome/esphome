@@ -18,10 +18,6 @@ void NumberCall::log_perform_warning_value_range_(const LogString *comparison, c
            LOG_STR_ARG(limit_type), limit);
 }
 
-void NumberCall::log_perform_warning_two_strings_(const LogString *prefix, const LogString *suffix) {
-  ESP_LOGW(TAG, "'%s': %s %s", this->parent_->get_name().c_str(), LOG_STR_ARG(prefix), LOG_STR_ARG(suffix));
-}
-
 NumberCall &NumberCall::set_value(float value) { return this->with_operation(NUMBER_OP_SET).with_value(value); }
 
 NumberCall &NumberCall::number_increment(bool cycle) {
@@ -74,20 +70,20 @@ void NumberCall::perform() {
     target_value = this->value_.value();
   } else if (this->operation_ == NUMBER_OP_TO_MIN) {
     if (std::isnan(min_value)) {
-      this->log_perform_warning_two_strings_(LOG_STR("min"), LOG_STR("undefined"));
+      this->log_perform_warning_(LOG_STR("min undefined"));
     } else {
       target_value = min_value;
     }
   } else if (this->operation_ == NUMBER_OP_TO_MAX) {
     if (std::isnan(max_value)) {
-      this->log_perform_warning_two_strings_(LOG_STR("max"), LOG_STR("undefined"));
+      this->log_perform_warning_(LOG_STR("max undefined"));
     } else {
       target_value = max_value;
     }
   } else if (this->operation_ == NUMBER_OP_INCREMENT) {
     ESP_LOGD(TAG, "'%s': Increment with%s cycling", name, this->cycle_ ? "" : "out");
     if (!parent->has_state()) {
-      this->log_perform_warning_two_strings_(LOG_STR("Can't increment"), LOG_STR("no state"));
+      this->log_perform_warning_(LOG_STR("Can't increment, no state"));
       return;
     }
     auto step = traits.get_step();
@@ -102,7 +98,7 @@ void NumberCall::perform() {
   } else if (this->operation_ == NUMBER_OP_DECREMENT) {
     ESP_LOGD(TAG, "'%s': Decrement with%s cycling", name, this->cycle_ ? "" : "out");
     if (!parent->has_state()) {
-      this->log_perform_warning_two_strings_(LOG_STR("Can't decrement"), LOG_STR("no state"));
+      this->log_perform_warning_(LOG_STR("Can't decrement, no state"));
       return;
     }
     auto step = traits.get_step();

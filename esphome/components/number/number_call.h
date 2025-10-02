@@ -37,7 +37,6 @@ class NumberCall {
   void log_perform_warning_(const LogString *message);
   void log_perform_warning_value_range_(const LogString *comparison, const LogString *limit_type, float val,
                                         float limit);
-  void log_perform_warning_two_strings_(const LogString *prefix, const LogString *suffix);
 
   Number *const parent_;
   NumberOperation operation_{NUMBER_OP_NONE};
