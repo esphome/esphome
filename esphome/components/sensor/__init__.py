@@ -28,6 +28,8 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_OPTIMISTIC,
+    CONF_PERIOD,
     CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
@@ -621,10 +623,60 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
 
 
+def validate_heartbeat(config):
+    has_exact = CONF_VALUE in config
+    has_range = (CONF_MIN_VALUE in config) or (CONF_MAX_VALUE in config)
+    if (has_exact or has_range) and not config.get(CONF_OPTIMISTIC, False):
+        raise cv.Invalid(
+            "'value', 'min_value' or 'max_value' require 'optimistic: true' to be set in heartbeat filter."
+        )
+    return config
+
+
+HEARTBEAT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_VALUE): cv.float_,
+            cv.Optional(CONF_MIN_VALUE): cv.float_,
+            cv.Optional(CONF_MAX_VALUE): cv.float_,
+        }
+    ),
+    validate_heartbeat,
+)
+
+
 @FILTER_REGISTRY.register(
-    "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
+    "heartbeat",
+    HeartbeatFilter,
+    cv.Any(
+        cv.positive_time_period_milliseconds,
+        HEARTBEAT_SCHEMA,
+    ),
 )
 async def heartbeat_filter_to_code(config, filter_id):
+    if isinstance(config, dict):
+        var = cg.new_Pvariable(filter_id, config[CONF_PERIOD])
+        await cg.register_component(var, {})
+
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+
+        if CONF_VALUE in config:
+            cg.add(var.set_exact(config[CONF_VALUE]))
+        else:
+            cg.add(var.clear_exact())
+            if CONF_MIN_VALUE in config:
+                cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
+            else:
+                cg.add(var.clear_min_value())
+            if CONF_MAX_VALUE in config:
+                cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+            else:
+                cg.add(var.clear_max_value())
+
+        return var
+
     var = cg.new_Pvariable(filter_id, config)
     await cg.register_component(var, {})
     return var
