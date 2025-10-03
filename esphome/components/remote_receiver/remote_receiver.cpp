@@ -138,7 +138,7 @@ void RemoteReceiverComponent::loop() {
   uint32_t read_at = (s.buffer_read_at + 1) % s.buffer_size;
   while (read_at != idle_at) {
     const int32_t delta = s.buffer[read_at] - s.buffer[s.buffer_read_at];
-    if (delta < this->idle_us_ && delta > s.filter_us)
+    if (delta < int32_t(this->idle_us_) && delta > int32_t(s.filter_us))
       break;
 
     s.buffer_read_at = read_at;
