@@ -42,7 +42,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(ESPHOME_F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
   if (strlen(this->css_url_) > 0) {
-    stream->print(F(R"(<link rel="stylesheet" href=")"));
+    stream->print(ESPHOME_F(R"(<link rel="stylesheet" href=")"));
     stream->print(this->css_url_);
     stream->print(ESPHOME_F("\">"));
   }
