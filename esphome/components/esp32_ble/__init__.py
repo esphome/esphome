@@ -294,21 +294,21 @@ def validate_connection_slots(max_connections: int) -> None:
 
     slot_users = ", ".join(used_slots)
 
-    if num_used <= IDF_MAX_CONNECTIONS:
-        _LOGGER.warning(
-            "BLE components require %d connection slot(s) but only %d configured. "
-            "Please set 'max_connections: %d' in the 'esp32_ble' component. "
-            "Components: %s",
-            num_used,
-            max_connections,
-            num_used,
-            slot_users,
-        )
-    else:
+    if num_used > IDF_MAX_CONNECTIONS:
         raise cv.Invalid(
             f"BLE components require {num_used} connection slots but maximum is {IDF_MAX_CONNECTIONS}. "
             f"Reduce the number of BLE clients. Components: {slot_users}"
         )
+
+    _LOGGER.warning(
+        "BLE components require %d connection slot(s) but only %d configured. "
+        "Please set 'max_connections: %d' in the 'esp32_ble' component. "
+        "Components: %s",
+        num_used,
+        max_connections,
+        num_used,
+        slot_users,
+    )
 
 
 def final_validation(config):
