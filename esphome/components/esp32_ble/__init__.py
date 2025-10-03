@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ESPHOME,
     CONF_ID,
+    CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
@@ -131,7 +132,6 @@ CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
-CONF_MAX_CONNECTIONS = "max_connections"
 
 # BLE connection limits
 # ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
