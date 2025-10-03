@@ -63,6 +63,7 @@ void SPS30Component::setup() {
       this->status_clear_warning();
       this->skipped_data_read_cycles_ = 0;
       this->start_continuous_measurement_();
+      this->setup_complete_ = true;
     });
   });
 }
@@ -112,6 +113,8 @@ void SPS30Component::dump_config() {
 }
 
 void SPS30Component::update() {
+  if (!this->setup_complete_)
+    return;
   /// Check if warning flag active (sensor reconnected?)
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Reconnecting");
