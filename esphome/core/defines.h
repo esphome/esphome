@@ -48,6 +48,7 @@
 #define USE_LIGHT
 #define USE_LOCK
 #define USE_LOGGER
+#define USE_LOGGER_RUNTIME_TAG_LEVELS
 #define USE_LVGL
 #define USE_LVGL_ANIMIMG
 #define USE_LVGL_ARC
