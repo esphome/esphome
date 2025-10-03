@@ -64,7 +64,7 @@ TEMPERATURE_CONFIG = {
     CONF_ACCURACY_DECIMALS: 2,
 }
 
-RELAY_CONFIG = {
+RELAY_STATE_CONFIG = {
     CONF_UNIT_OF_MEASUREMENT: UNIT_EMPTY,
     CONF_DEVICE_CLASS: DEVICE_CLASS_SWITCH,
     CONF_STATE_CLASS: STATE_CLASS_NONE,
@@ -80,17 +80,19 @@ DIVERSION_RATE_CONFIG = {
 SENSOR_CONFIGS = {
     # Pattern configs for tags with numbers (e.g., P1, P2, V1, V2)
     "patterns": {
-        "P": POWER_CONFIG,  # Power readings (P1, P2, P3, etc.)
+        "P": POWER_CONFIG,  # Power readings (P1, P2, P3)
         "D": DIVERSION_RATE_CONFIG,  # Diversion rate (D1, D2, etc.)
-        "V": VOLTAGE_CONFIG,  # Voltage readings (V1, V2, etc.)
-        "E": ENERGY_CONFIG,  # Energy readings (E1, E2, etc.)
+        "V": VOLTAGE_CONFIG,  # Voltage readings (V1, V2, V3)
         "T": TEMPERATURE_CONFIG,  # Temperature readings (T1, T2, etc.)
-        "R": RELAY_CONFIG,  # Relay states (R1, R2, etc.)
+        "R": RELAY_STATE_CONFIG,  # Relay states (R1, R2, etc.)
     },
     # Exact tag configs for single-letter or special tags
     "exact": {
+        "P": POWER_CONFIG,  # Power readings
         "D": POWER_CONFIG,  # Diverter power
         "R": POWER_CONFIG,  # Power reading for single R tag
+        "V": VOLTAGE_CONFIG,  # Voltage readings
+        "E": ENERGY_CONFIG,  # Energy readings
     },
 }
 
