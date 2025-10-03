@@ -127,6 +127,10 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
       deferred_queue_.erase(deferred_queue_.begin());
       this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
     } else {
+      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::process_buffer_()
+      // The implementations differ due to platform-specific APIs (DISCARDED vs HTTPD_SOCK_ERR_TIMEOUT, close() vs
+      // fd_.store(0)), but the failure counting and timeout logic should be kept in sync. If you change this logic,
+      // also update the ESP-IDF implementation.
       this->consecutive_send_failures_++;
       if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
         // Too many failures, connection is likely dead
