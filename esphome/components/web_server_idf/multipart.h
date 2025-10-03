@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_ESP_IDF) && defined(USE_WEBSERVER_OTA)
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)
 
 #include <cctype>
 #include <cstring>
@@ -35,7 +35,7 @@ class MultipartReader {
 
   // Set callbacks for handling data
   void set_data_callback(DataCallback callback) { data_callback_ = std::move(callback); }
-  void set_part_complete_callback(PartCompleteCallback callback) { part_complete_callback_ = std::move(callback); }
+  void set_part_complete_callback(const PartCompleteCallback &callback) { part_complete_callback_ = callback; }
 
   // Parse incoming data
   size_t parse(const char *data, size_t len);
@@ -83,4 +83,4 @@ std::string str_trim(const std::string &str);
 
 }  // namespace web_server_idf
 }  // namespace esphome
-#endif  // defined(USE_ESP_IDF) && defined(USE_WEBSERVER_OTA)
+#endif  // defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)

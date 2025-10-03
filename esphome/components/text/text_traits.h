@@ -22,7 +22,7 @@ class TextTraits {
   int get_max_length() const { return this->max_length_; }
 
   // Set/get the pattern.
-  void set_pattern(std::string pattern) { this->pattern_ = std::move(pattern); }
+  void set_pattern(const std::string &pattern) { this->pattern_ = pattern; }
   std::string get_pattern() const { return this->pattern_; }
   StringRef get_pattern_ref() const { return StringRef(this->pattern_); }
 
