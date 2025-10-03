@@ -14,9 +14,11 @@ from typing import Protocol
 
 import argcomplete
 
+# Note: Do not import modules from esphome.components here, as this would
+# cause them to be loaded before external components are processed, resulting
+# in the built-in version being used instead of the external component one.
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
@@ -240,6 +242,8 @@ def has_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
+    from esphome.components.mqtt import CONF_DISCOVER_IP
+
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
