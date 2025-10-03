@@ -283,6 +283,8 @@ class AsyncEventSourceResponse {
   std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
   std::string event_buffer_{""};
   size_t event_bytes_sent_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
