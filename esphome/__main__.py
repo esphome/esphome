@@ -14,6 +14,9 @@ from typing import Protocol
 
 import argcomplete
 
+# Note: Do not import modules from esphome.components here, as this would
+# cause them to be loaded before external components are processed, resulting
+# in the built-in versions being used instead of the external component ones.
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
