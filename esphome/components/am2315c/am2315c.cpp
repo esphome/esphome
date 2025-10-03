@@ -29,22 +29,6 @@ namespace am2315c {
 
 static const char *const TAG = "am2315c";
 
-uint8_t AM2315C::crc8_(uint8_t *data, uint8_t len) {
-  uint8_t crc = 0xFF;
-  while (len--) {
-    crc ^= *data++;
-    for (uint8_t i = 0; i < 8; i++) {
-      if (crc & 0x80) {
-        crc <<= 1;
-        crc ^= 0x31;
-      } else {
-        crc <<= 1;
-      }
-    }
-  }
-  return crc;
-}
-
 bool AM2315C::reset_register_(uint8_t reg) {
   //  code based on demo code sent by www.aosong.com
   //  no further documentation.
@@ -86,7 +70,7 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
   humidity = raw * 9.5367431640625e-5;
   raw = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   temperature = raw * 1.9073486328125e-4 - 50;
-  return this->crc8_(data, 6) == data[6];
+  return crc8(data, 6, 0xFF, 0x31, true) == data[6];
 }
 
 void AM2315C::setup() {

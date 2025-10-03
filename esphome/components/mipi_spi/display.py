@@ -25,6 +25,7 @@ from esphome.components.mipi import (
     power_of_two,
     requires_buffer,
 )
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.spi import TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
 import esphome.config_validation as cv
 from esphome.config_validation import ALLOW_EXTRA
@@ -292,7 +293,7 @@ def _final_validate(config):
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
 
-    if "psram" not in global_config and CONF_BUFFER_SIZE not in config:
+    if PSRAM_DOMAIN not in global_config and CONF_BUFFER_SIZE not in config:
         if not requires_buffer(config):
             return config  # No buffer needed, so no need to set a buffer size
         # If PSRAM is not enabled, choose a small buffer size by default

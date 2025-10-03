@@ -1,6 +1,6 @@
-#ifdef USE_ESP32
-
 #include "ble.h"
+
+#ifdef USE_ESP32
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -53,6 +53,7 @@ void ESP32BLE::disable() {
 
 bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
   if (!this->is_active())
@@ -72,6 +73,28 @@ void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &dat
   this->advertising_start();
 }
 
+void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name) {
+  // This method atomically updates both service data and device name inclusion in BLE advertising.
+  // When include_name is true, the device name is included in the advertising packet making it
+  // visible to passive BLE scanners. When false, the name is only visible in scan response
+  // (requires active scanning). This atomic operation ensures we only restart advertising once
+  // when changing both properties, avoiding the brief gap that would occur with separate calls.
+
+  this->advertising_init_();
+
+  if (include_name) {
+    // When including name, clear service data first to avoid packet overflow
+    this->advertising_->set_service_data(std::span<const uint8_t>{});
+    this->advertising_->set_include_name(true);
+  } else {
+    // When including service data, clear name first to avoid packet overflow
+    this->advertising_->set_include_name(false);
+    this->advertising_->set_service_data(data);
+  }
+
+  this->advertising_start();
+}
+
 void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
   this->advertising_init_();
   this->advertising_->register_raw_advertisement_callback(std::move(callback));
@@ -88,6 +111,7 @@ void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_->remove_service_uuid(uuid);
   this->advertising_start();
 }
+#endif
 
 bool ESP32BLE::ble_pre_setup_() {
   esp_err_t err = nvs_flash_init();
@@ -98,6 +122,7 @@ bool ESP32BLE::ble_pre_setup_() {
   return true;
 }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_init_() {
   if (this->advertising_ != nullptr)
     return;
@@ -107,6 +132,7 @@ void ESP32BLE::advertising_init_() {
   this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->set_appearance(this->appearance_);
 }
+#endif
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
@@ -163,6 +189,7 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
+#ifdef USE_ESP32_BLE_SERVER
   if (!this->gatts_event_handlers_.empty()) {
     err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
     if (err != ESP_OK) {
@@ -170,7 +197,9 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#endif
 
+#ifdef USE_ESP32_BLE_CLIENT
   if (!this->gattc_event_handlers_.empty()) {
     err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
     if (err != ESP_OK) {
@@ -178,6 +207,7 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#endif
 
   std::string name;
   if (this->name_.has_value()) {
@@ -299,26 +329,30 @@ void ESP32BLE::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {
+#ifdef USE_ESP32_BLE_SERVER
       case BLEEvent::GATTS: {
         esp_gatts_cb_event_t event = ble_event->event_.gatts.gatts_event;
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
-        esp_ble_gatts_cb_param_t *param = ble_event->event_.gatts.gatts_param;
+        esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
         for (auto *gatts_handler : this->gatts_event_handlers_) {
           gatts_handler->gatts_event_handler(event, gatts_if, param);
         }
         break;
       }
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
       case BLEEvent::GATTC: {
         esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
-        esp_ble_gattc_cb_param_t *param = ble_event->event_.gattc.gattc_param;
+        esp_ble_gattc_cb_param_t *param = &ble_event->event_.gattc.gattc_param;
         ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
         for (auto *gattc_handler : this->gattc_event_handlers_) {
           gattc_handler->gattc_event_handler(event, gattc_if, param);
         }
         break;
       }
+#endif
       case BLEEvent::GAP: {
         esp_gap_ble_cb_event_t gap_event = ble_event->event_.gap.gap_event;
         switch (gap_event) {
@@ -394,9 +428,11 @@ void ESP32BLE::loop() {
     this->ble_event_pool_.release(ble_event);
     ble_event = this->ble_events_.pop();
   }
+#ifdef USE_ESP32_BLE_ADVERTISING
   if (this->advertising_ != nullptr) {
     this->advertising_->loop();
   }
+#endif
 
   // Log dropped events periodically
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
@@ -410,13 +446,17 @@ void load_ble_event(BLEEvent *event, esp_gap_ble_cb_event_t e, esp_ble_gap_cb_pa
   event->load_gap_event(e, p);
 }
 
+#ifdef USE_ESP32_BLE_CLIENT
 void load_ble_event(BLEEvent *event, esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
   event->load_gattc_event(e, i, p);
 }
+#endif
 
+#ifdef USE_ESP32_BLE_SERVER
 void load_ble_event(BLEEvent *event, esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
   event->load_gatts_event(e, i, p);
 }
+#endif
 
 template<typename... Args> void enqueue_ble_event(Args... args) {
   // Allocate an event from the pool
@@ -437,8 +477,12 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
 
 // Explicit template instantiations for the friend function
 template void enqueue_ble_event(esp_gap_ble_cb_event_t, esp_ble_gap_cb_param_t *);
+#ifdef USE_ESP32_BLE_SERVER
 template void enqueue_ble_event(esp_gatts_cb_event_t, esp_gatt_if_t, esp_ble_gatts_cb_param_t *);
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
 template void enqueue_ble_event(esp_gattc_cb_event_t, esp_gatt_if_t, esp_ble_gattc_cb_param_t *);
+#endif
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
@@ -478,15 +522,19 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
   ESP_LOGW(TAG, "Ignoring unexpected GAP event type: %d", event);
 }
 
+#ifdef USE_ESP32_BLE_SERVER
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
 }
+#endif
 
+#ifdef USE_ESP32_BLE_CLIENT
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
 }
+#endif
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 

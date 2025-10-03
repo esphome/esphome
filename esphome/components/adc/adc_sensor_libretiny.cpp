@@ -30,7 +30,7 @@ void ADCSensor::dump_config() {
 
 float ADCSensor::sample() {
   uint32_t raw = 0;
-  auto aggr = Aggregator(this->sampling_mode_);
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
   if (this->output_raw_) {
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {

@@ -74,6 +74,7 @@ from esphome.const import (
     DEVICE_CLASS_OZONE,
     DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_POWER,
@@ -101,7 +102,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
@@ -143,6 +144,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
+    DEVICE_CLASS_PM4,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRECIPITATION,
@@ -596,10 +598,12 @@ async def throttle_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-TIMEOUT_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
+THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
     {
         cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_VALUE, default="nan"): cv.ensure_list(cv.float_),
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            cv.templatable(cv.float_), [cv.templatable(cv.float_)]
+        ),
     },
     key=CONF_TIMEOUT,
 )
@@ -608,9 +612,11 @@ TIMEOUT_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
 @FILTER_REGISTRY.register(
     "throttle_with_priority",
     ThrottleWithPriorityFilter,
-    TIMEOUT_WITH_PRIORITY_SCHEMA,
+    THROTTLE_WITH_PRIORITY_SCHEMA,
 )
 async def throttle_with_priority_filter_to_code(config, filter_id):
+    if not isinstance(config[CONF_VALUE], list):
+        config[CONF_VALUE] = [config[CONF_VALUE]]
     template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
     return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
 
@@ -627,7 +633,9 @@ async def heartbeat_filter_to_code(config, filter_id):
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
     {
         cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_VALUE, default="nan"): cv.templatable(cv.float_),
+        cv.Optional(CONF_VALUE, default="nan"): cv.Any(
+            "last", cv.templatable(cv.float_)
+        ),
     },
     key=CONF_TIMEOUT,
 )
@@ -635,8 +643,11 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 
 @FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config[CONF_VALUE], [], float)
-    var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+    if config[CONF_VALUE] == "last":
+        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    else:
+        template_ = await cg.templatable(config[CONF_VALUE], [], float)
+        var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
     return var
 
@@ -1133,7 +1144,6 @@ def _lstsq(a, b):
     return _mat_dot(_mat_dot(x, a_t), b)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)
