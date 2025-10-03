@@ -13,10 +13,6 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_ARDUINO
-#include <WString.h>
-#endif
-
 namespace esphome {
 #ifdef USE_WEBSERVER
 namespace web_server {
