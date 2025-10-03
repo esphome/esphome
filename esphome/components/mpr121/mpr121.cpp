@@ -80,7 +80,8 @@ void MPR121Component::dump_config() {
   }
 }
 void MPR121Component::loop() {
-  if (!this->setup_complete_) return;
+  if (!this->setup_complete_)
+    return;
 
   uint16_t val = 0;
   this->read_byte_16(MPR121_TOUCHSTATUS_L, &val);
