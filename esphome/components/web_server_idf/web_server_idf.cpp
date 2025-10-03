@@ -4,8 +4,6 @@
 #include <memory>
 #include <cstring>
 #include <cctype>
-#include <sys/socket.h>
-#include <errno.h>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -26,6 +24,10 @@
 #include "esphome/components/web_server/web_server.h"
 #include "esphome/components/web_server/list_entities.h"
 #endif  // USE_WEBSERVER
+
+// Include socket headers after Arduino headers to avoid IPADDR_NONE/INADDR_NONE macro conflicts
+#include <sys/socket.h>
+#include <errno.h>
 
 namespace esphome {
 namespace web_server_idf {
