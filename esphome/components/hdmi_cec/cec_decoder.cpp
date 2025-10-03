@@ -155,8 +155,7 @@ template<> bool Decoder::do_operand_<Decoder::NONE>() { return false; }
 
 template<> bool Decoder::do_operand_<Decoder::ABORT_REASON>() {
   const static std::array<const char *, 7> NAMES = {
-      "Unrecognized opcode", "Not in correct mode to respond", "Cannot provide source",
-                                                    "Invalid operand", "Refused",
+      "Unrecognized opcode", "Not in correct mode to respond", "Cannot provide source", "Invalid operand", "Refused",
       "Unable to determine"};
   return append_operand_<NAMES.size()>(NAMES);
 }
