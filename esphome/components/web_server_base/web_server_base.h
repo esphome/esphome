@@ -131,8 +131,8 @@ class WebServerBase : public Component {
   float get_setup_priority() const override;
 
 #ifdef USE_WEBSERVER_AUTH
-  void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
-  void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
+  void set_auth_username(const std::string &auth_username) { credentials_.username = std::move(auth_username); }
+  void set_auth_password(const std::string &auth_password) { credentials_.password = std::move(auth_password); }
 #endif
 
   void add_handler(AsyncWebHandler *handler);
