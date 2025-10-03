@@ -35,9 +35,7 @@ class MultipartReader {
 
   // Set callbacks for handling data
   void set_data_callback(DataCallback callback) { data_callback_ = std::move(callback); }
-  void set_part_complete_callback(const PartCompleteCallback &callback) {
-    part_complete_callback_ = std::move(callback);
-  }
+  void set_part_complete_callback(const PartCompleteCallback &callback) { part_complete_callback_ = callback; }
 
   // Parse incoming data
   size_t parse(const char *data, size_t len);
