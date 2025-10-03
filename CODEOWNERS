@@ -223,6 +223,7 @@ esphome/components/hdc2080/* @G-Pereira @jesserockz
 esphome/components/hdc302x/* @joshuasing
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
+esphome/components/hdmi_cec/* @JosVanEijndhoven
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hlk_fm22x/* @OnFreund
 esphome/components/hlw8032/* @rici4kubicek

@@ -55,12 +55,12 @@ template<unsigned int SIZE> class FrameRingBuffer {
   }
   // 'front' is used to access data, use that, and recycle its memory space for later use.
   Frame *front() const { return is_empty() ? nullptr : store_[front_inx_]; }
-  void push_front() { cyclic_incr(front_inx_); }
+  void push_front() { cyclic_incr_(front_inx_); }
   // 'back' is used to fetch a free Frame, fill with data, and queue for later pick-up
   Frame *back() const { return is_full() ? nullptr : (store_[back_inx_]->clear(), store_[back_inx_]); }
-  void push_back() { cyclic_incr(back_inx_); }
-  bool is_empty() const { return count() == 0; }
-  bool is_full() const { return count() == SIZE; }  // using safe wrap-around of unsignd int
+  void push_back() { cyclic_incr_(back_inx_); }
+  bool is_empty() const { return count_() == 0; }
+  bool is_full() const { return count_() == SIZE; }  // using safe wrap-around of unsignd int
   void reset() {
     front_inx_ = 0;
     back_inx_ = 0;
@@ -70,13 +70,13 @@ template<unsigned int SIZE> class FrameRingBuffer {
   using Index = std::atomic<unsigned int>;
   // this simple increment scheme is sufficiently 'atomic' if the front and back are each used by
   // one thread only. (So, at most one reader thread and one writer thread in the application.)
-  int count() const {
+  int count_() const {
     int n = (int) (back_inx_ - front_inx_);
     if (n < 0)
       n += SIZE + 1;
     return n;
   }
-  void cyclic_incr(Index &inx) { inx = (inx == SIZE) ? 0 : (inx + 1); }
+  void cyclic_incr_(Index &inx) { inx = (inx == SIZE) ? 0 : (inx + 1); }
   Index front_inx_;  // ranging 0 .. SIZE
   Index back_inx_;   // ranging 0 .. SIZE
   // if front_inx_ == back_inx_ the store is considered empty, so it can hold at most SIZE elements
@@ -93,7 +93,7 @@ class CECTransmit {
  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  void queue_for_send(const Frame &&frame);
+  void queue_for_send(Frame &&frame);
   bool is_idle() const { return send_queue_.empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
@@ -108,7 +108,7 @@ class CECTransmit {
 
   /**
    * This method is called from within the receiver isr method after receiving each byte.
-   * So, the fields that it updates need to be declared 'volatile'.
+   * So, the fields that it updates need to be 'atomic'.
    * @param eom the value of the received 'eom' bit
    * @param ack the value of the received 'ack' bit
    */
@@ -134,21 +134,21 @@ class CECTransmit {
    * While doing so, check if another initiator tries to do the same, and if so, abort.
    * @return true: start bit was successful, false: bus collision is detected and abort
    */
-  bool send_start_bit();
-  void send_bit(bool bit_value);
-  bool send_high_and_test();
-  void transmit_message_on_gpio(const Frame &frame);
-  void transmit_message_on_uart(const Frame &frame);
-  void convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom);
-  bool transmit_my_address(const uint8_t address);  // send 4 bits with my address and check for bus collision
+  bool send_start_bit_();
+  void send_bit_(bool bit_value);
+  bool send_high_and_test_();
+  void transmit_message_on_gpio_(const Frame &frame);
+  void transmit_message_on_uart_(const Frame &frame);
+  void convert_byte_to_uart_(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom);
+  bool transmit_my_address_(uint8_t initiator_addr);  // send 4 bits with my address and check for bus collision
 
   std::queue<Frame> send_queue_;
   uint8_t transmit_attempts_{0};
-  volatile bool receiver_is_busy_{false};
-  volatile TransmitState transmit_state_{TransmitState::IDLE};
-  volatile uint8_t n_bytes_received_{0};
-  volatile uint8_t n_acks_received_{0};
-  volatile uint32_t confirm_received_us_{0};
+  std::atomic<bool> receiver_is_busy_{false};
+  std::atomic<TransmitState> transmit_state_{TransmitState::IDLE};
+  std::atomic<uint8_t> n_bytes_received_{0};
+  std::atomic<uint8_t> n_acks_received_{0};
+  std::atomic<uint32_t> confirm_received_us_{0};
   uint32_t allow_xmit_message_us_;
   uart::UARTComponent *uart_{nullptr};
   InternalGPIOPin *pin_{nullptr};
@@ -171,8 +171,8 @@ class CECReceive {
 
  protected:
   static void gpio_isr_s(CECReceive *self);
-  void gpio_isr();
-  void reset_state_variables();
+  void gpio_isr_();
+  void reset_state_variables_();
 
   CECTransmit &xmit_;
   ISRInternalGPIOPin isr_pin_;
@@ -180,8 +180,8 @@ class CECReceive {
   bool monitor_mode_{false};
   bool recv_ack_queued_{false};
   bool prev_pin_level_{true};
-  volatile uint8_t recv_bit_counter_{0};
-  volatile uint8_t recv_byte_buffer_{0};
+  std::atomic<uint8_t> recv_bit_counter_{0};
+  std::atomic<uint8_t> recv_byte_buffer_{0};
   uint8_t num_acks_{0};  // numer of 'low' acknowledge bits received in the current message
   uint8_t address_{0};
   uint32_t last_falling_edge_us_{0};
@@ -208,14 +208,14 @@ class HDMICEC : public Component {
   bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
 
   // Component overrides
-  float get_setup_priority() { return esphome::setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return esphome::setup_priority::HARDWARE; }
   void setup() override;
   void dump_config() override;
   void loop() override;
 
  protected:
   void try_builtin_handler_(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data);
-  void handle_received_message(const Frame *frame);
+  void handle_received_message_(const Frame *frame);
 
   HighFrequencyLoopRequester fast_loop_;
   InternalGPIOPin *pin_{nullptr};

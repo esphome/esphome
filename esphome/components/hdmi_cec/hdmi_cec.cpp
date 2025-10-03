@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #include <array>
+#include <atomic>
 
 #ifdef HAVE_UART
 #include "esphome/components/uart/uart_component.h"
@@ -95,7 +96,7 @@ void HDMICEC::dump_config() {
 void HDMICEC::loop() {
   if (const Frame *msg = recv_.frames_queue_.front()) {
     // handle 1 inbound message per loop(), to avoid taking too much time
-    handle_received_message(msg);
+    handle_received_message_(msg);
     recv_.frames_queue_.push_front();
   }
   if (!xmit_.is_idle()) {
@@ -111,7 +112,7 @@ void HDMICEC::loop() {
 
 std::string HDMICEC::get_state() const { return recv_.get_state() + "; " + xmit_.get_state(); }
 
-void HDMICEC::handle_received_message(const Frame *frame) {
+void HDMICEC::handle_received_message_(const Frame *frame) {
   const uint8_t src_addr = frame->initiator_addr();
   const uint8_t dest_addr = frame->destination_addr();
   const uint8_t opcode = frame->opcode();
@@ -129,7 +130,7 @@ void HDMICEC::handle_received_message(const Frame *frame) {
 
   // Process on_message triggers
   bool handled_by_trigger = false;
-  for (auto trigger : message_triggers_) {
+  for (auto *trigger : message_triggers_) {
     bool can_trigger =
         ((!trigger->source_.has_value() || (trigger->source_ == src_addr)) &&
          (!trigger->destination_.has_value() || (trigger->destination_ == dest_addr)) &&
@@ -284,15 +285,16 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
-void CECTransmit::queue_for_send(const Frame &&frame) {
+void CECTransmit::queue_for_send(Frame &&frame) {
   LockGuard send_lock(send_mutex_);  // prevent simultaneous modifications to the queue
   send_queue_.push(std::move(frame));
 }
 
 std::string CECTransmit::get_state() const {
   char line[64];
-  const static std::array<const char *, 3> names = {"IDLE", "BUSY", "EOM_CONFIRMED"};
-  sprintf(line, "Tx State=%s", names[(int) (transmit_state_)]);
+  const static std::array<const char *, 3> NAMES = {"IDLE", "BUSY", "EOM_CONFIRMED"};
+  const TransmitState s = transmit_state_;  // take atomic value
+  sprintf(line, "Tx State=%s", NAMES[static_cast<int>(s)]);
   return std::string(line);
 }
 
@@ -333,7 +335,7 @@ void CECTransmit::transmit_message() {
       // last transmit had a byte count error, or ended without appropriate Acknowledge from recipient
       if (n_bytes_received_ != frame.size()) {
         ESP_LOGD(TAG, "Send frame incorrect on attempt %d, saw %d bytes but expected %d bytes", transmit_attempts_,
-                 n_bytes_received_, frame.size());
+                 static_cast<int>(n_bytes_received_), frame.size());
       } else {
         ESP_LOGD(TAG, "Send frame NOT acknowledged on attempt %d", transmit_attempts_);
       }
@@ -379,7 +381,7 @@ void CECTransmit::transmit_message() {
   }
   // the 'start_bit' and the first 4 bits of the 'header block' are always sent by software on the GPIO
   // pin to detect a bus collision and allow early termination of the frame transmit
-  if (!send_start_bit() || !transmit_my_address(frame.initiator_addr())) {
+  if (!send_start_bit_() || !transmit_my_address_(frame.initiator_addr())) {
     // sending these first bits caused a bus-collision with another initiator.
     // further transmission is stopped immediatly, as the other initiator might not see the collision,
     allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
@@ -388,24 +390,23 @@ void CECTransmit::transmit_message() {
   }
   confirm_received_us_ = micros();  // initialize timing guard
   if (uart_) {
-    transmit_message_on_uart(frame);
+    transmit_message_on_uart_(frame);
   } else {
-    transmit_message_on_gpio(frame);
+    transmit_message_on_gpio_(frame);
   }
   // don't wait here on the transmision result (Acknowledge from destination)
   // because (at least) the uart proceeds in the background
-  return;
 }
 
-bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
+bool CECTransmit::transmit_my_address_(const uint8_t initiator_addr) {
   // My (initiator) address is in the 4 MSB bits of the header byte (CEC transfers MSB first)
   bool ok = true;
   for (int i = 3; i >= 0; i--) {
     bool bit_value = ((initiator_addr >> i) & 0x1);
     if (bit_value) {
-      ok &= send_high_and_test();
+      ok &= send_high_and_test_();
     } else {
-      send_bit(false);
+      send_bit_(false);
     }
   }
   // Check for bus collisions, which would make the received bus address different from the sent address
@@ -415,7 +416,7 @@ bool CECTransmit::transmit_my_address(const uint8_t initiator_addr) {
   return ok;
 }
 
-void CECTransmit::transmit_message_on_gpio(const Frame &frame) {
+void CECTransmit::transmit_message_on_gpio_(const Frame &frame) {
   // for each byte of the frame:
   for (auto it = frame.begin(); it != frame.end(); ++it) {
     uint8_t current_byte = *it;
@@ -425,19 +426,19 @@ void CECTransmit::transmit_message_on_gpio(const Frame &frame) {
     for (int8_t i = (partial_first_byte ? 3 : 7); i >= 0; i--) {
       // send MSB (Most Significant Bit) first
       bool bit_value = ((current_byte >> i) & 0b1);
-      send_bit(bit_value);
+      send_bit_(bit_value);
     }
 
     // 2. send EOM (End Of Frame) bit (logic 1 if this is the last byte of the frame)
     bool is_eom = (it == (frame.end() - 1));
-    send_bit(is_eom);
+    send_bit_(is_eom);
 
     // 3. send ACK (Acknowledge) bit
-    send_bit(true);  // always send a 1, check elsewhere if our receiver sees a 1 or 0
+    send_bit_(true);  // always send a 1, check elsewhere if our receiver sees a 1 or 0
   }
 }
 
-bool CECTransmit::send_start_bit() {
+bool CECTransmit::send_start_bit_() {
   set_pin_input_high();
   bool value = pin_->digital_read();
   if (!value) {
@@ -462,7 +463,7 @@ bool CECTransmit::send_start_bit() {
   return value;
 }
 
-void IRAM_ATTR CECTransmit::send_bit(bool bit_value) {
+void IRAM_ATTR CECTransmit::send_bit_(bool bit_value) {
   // total bit duration:
   // logic 1: pull low for 600 us, then pull high for 1800 us
   // logic 0: pull low for 1500 us, then pull high for 900 us
@@ -476,7 +477,7 @@ void IRAM_ATTR CECTransmit::send_bit(bool bit_value) {
   delay_microseconds_safe(high_duration_us);
 }
 
-bool IRAM_ATTR CECTransmit::send_high_and_test() {
+bool IRAM_ATTR CECTransmit::send_high_and_test_() {
   uint32_t start_us = micros();
 
   // send a Logical 1
@@ -497,18 +498,18 @@ bool IRAM_ATTR CECTransmit::send_high_and_test() {
   return value;
 }
 
-void CECTransmit::transmit_message_on_uart(const Frame &frame) {
+void CECTransmit::transmit_message_on_uart_(const Frame &frame) {
   std::vector<uint8_t> uart_data;
   uart_data.reserve(5 * frame.size());  // the UART is used with 5x oversampling (5 uart bytes per cec byte)
-  for (int i = 0; i < frame.size(); i++) {
-    convert_byte_to_uart(uart_data, frame[i], i == 0, i == (frame.size() - 1));
+  for (unsigned int i = 0; i < frame.size(); i++) {
+    convert_byte_to_uart_(uart_data, frame[i], i == 0, i == (frame.size() - 1));
   }
 #ifdef HAVE_UART
   uart_->write_array(uart_data);  // if not 'HAVE_UART', the include file is missing and this cannot be compiled
 #endif
 }
 
-void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom) {
+void CECTransmit::convert_byte_to_uart_(std::vector<uint8_t> &uart_data, uint8_t byte, bool is_header, bool is_eom) {
   // 5 uart-bits create the nominal 2.4ms cec bit period, with our baudrate of 2083 bits/sec.
   // 10 uart-bits are made with an (always 0) uart start bit, then 8 data bit, and an (always 1) uart stop bit.
   // transmitting a '0' data bit gets translated to a uart 3xlow, 2xhigh on the cec line
@@ -520,7 +521,7 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
   //        01                    0001101111                           11101100 = ec
   //        10                    0111100011                           10001111 = 8f
   //        11                    0111101111                           11101111 = ef
-  static const std::array<uint8_t, 4> cec2bit_to_uartbyte = {0x8c, 0xec, 0x8f, 0xef};
+  static const std::array<uint8_t, 4> CEC2BIT_TO_UARTBYTE = {0x8c, 0xec, 0x8f, 0xef};
   uint16_t cec_block = ((uint16_t) byte) << 2;  // expand byte to 10 bits
   cec_block |= (is_eom ? 0x2 : 0);              // insert eom (end-of-message) bit
   cec_block |= 0x1;                             // insert ack bit, is always written as 1
@@ -528,7 +529,7 @@ void CECTransmit::convert_byte_to_uart(std::vector<uint8_t> &uart_data, uint8_t 
   const uint8_t nbytes = is_header ? 3 : 5;
   for (int i = nbytes - 1; i >= 0; i--) {
     uint8_t twobits = (cec_block >> (2 * i)) & 0x3;  // get most-signifiant bits first
-    uart_data.push_back(cec2bit_to_uartbyte[twobits]);
+    uart_data.push_back(CEC2BIT_TO_UARTBYTE[twobits]);
   }
 }
 
@@ -582,7 +583,7 @@ void CECReceive::setup(InternalGPIOPin *pin, uint8_t address) {
   pin->attach_interrupt(CECReceive::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
   isr_pin_ = pin->to_isr();
   frames_queue_.reset();
-  reset_state_variables();
+  reset_state_variables_();
 }
 
 void CECReceive::dump_config() {
@@ -592,16 +593,17 @@ void CECReceive::dump_config() {
 
 std::string CECReceive::get_state() const {
   char line[128];
-  const static std::array<const char *, 5> names = {"IDLE", "RECEIVING_BYTE", "WAITING_FOR_EOM", "WAITING_FOR_ACK",
+  const static std::array<const char *, 5> NAMES = {"IDLE", "RECEIVING_BYTE", "WAITING_FOR_EOM", "WAITING_FOR_ACK",
                                                     "WAITING_FOR_EOM_ACK"};
-  sprintf(line, "Rx State=%s, bytecnt=%d + bitcnt=%d", names[(int) (receiver_state_)], recv_frame_buffer_->size(),
-          recv_bit_counter_);
+  const int rcv_state = static_cast<int>(receiver_state_);
+  const int rcv_cnt = static_cast<int>(recv_bit_counter_);
+  sprintf(line, "Rx State=%s, bytecnt=%d + bitcnt=%d", NAMES[rcv_state], recv_frame_buffer_->size(), rcv_cnt);
   return std::string(line);
 }
 
-void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr(); }
+void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr_(); }
 
-void IRAM_ATTR CECReceive::gpio_isr() {
+void IRAM_ATTR CECReceive::gpio_isr_() {
   const uint32_t now = micros();
   const bool level = isr_pin_.digital_read();
 
@@ -612,10 +614,10 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   prev_pin_level_ = level;
 
   // on falling edge, store current time as the start of the low pulse
-  if (level == false) {
+  if (!level) {
     if (now - last_falling_edge_us_ > START_BIT_NOM_US + TOTAL_BIT_US) {
       // there was a very long period of silence on the bus: reset state
-      reset_state_variables();
+      reset_state_variables_();
     }
 
     last_falling_edge_us_ = now;
@@ -638,7 +640,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   const uint32_t pulse_duration = (now - last_falling_edge_us_);
   if (pulse_duration > START_BIT_MIN_US) {
     // start bit detected. reset everything and start receiving
-    reset_state_variables();  // abort any previously gathered (unfinished) state
+    reset_state_variables_();  // abort any previously gathered (unfinished) state
     receiver_state_ = ReceiverState::RECEIVING_BYTE;
     recv_frame_buffer_ = frames_queue_.back();
     return;
@@ -674,8 +676,8 @@ void IRAM_ATTR CECReceive::gpio_isr() {
         // to support dynamic 'Logical Address' allocation by sending 'polling' messages
         recv_ack_queued_ = true;
       }
-      bool isEOM = (value == 1);
-      receiver_state_ = isEOM ? ReceiverState::WAITING_FOR_EOM_ACK : ReceiverState::WAITING_FOR_ACK;
+      bool is_eom = (value == 1);
+      receiver_state_ = is_eom ? ReceiverState::WAITING_FOR_EOM_ACK : ReceiverState::WAITING_FOR_ACK;
       break;
     }
 
@@ -694,7 +696,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
            (recv_frame_buffer_->destination_addr() == address_))) {
         frames_queue_.push_back();  // commit the received frame for later pick-up by 'front()'
       }
-      reset_state_variables();
+      reset_state_variables_();
       break;
     }
 
@@ -704,7 +706,7 @@ void IRAM_ATTR CECReceive::gpio_isr() {
   }
 }
 
-void IRAM_ATTR CECReceive::reset_state_variables() {
+void IRAM_ATTR CECReceive::reset_state_variables_() {
   receiver_state_ = ReceiverState::IDLE;
   num_acks_ = 0;
   recv_bit_counter_ = 0;

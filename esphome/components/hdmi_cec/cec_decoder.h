@@ -26,14 +26,14 @@ class Decoder {
   std::string decode();
 
  protected:
-  const char *find_opcode_name(uint32_t opcode) const;
-  std::string address_decode() const;
+  const char *find_opcode_name_(uint32_t opcode) const;
+  std::string address_decode_() const;
 
   /**
    * Generic operand decode method, later specialised with operand-type-specific methods
    * @return true if further conversions can continue, false when to stop.
    */
-  template<uint32_t OPERANDS> bool do_operand();
+  template<uint32_t OPERANDS> bool do_operand_();
 
   /**
    * The CecOpcodeTable is extracted from the HDMI CEC standard (1.4):
@@ -42,10 +42,10 @@ class Decoder {
   using OperandDecode_f = bool (Decoder::*)();
   struct FrameType {
     const char *name;                // name of the operation (of the op_code)
-    const OperandDecode_f decode_f;  // a pointer to the corresponding 'do_operand()' method
+    const OperandDecode_f decode_f;  // a pointer to the corresponding 'do_operand_()' method
   };
   using CecOpcodeTable = const std::map<uint8_t, FrameType>;
-  const static CecOpcodeTable cec_opcode_table;
+  const static CecOpcodeTable CEC_OPCODE_TABLE;
 
   const Frame &frame_;
   std::array<char, 256> line_;  // to hold the text of the decoded frame
@@ -58,93 +58,93 @@ class Decoder {
    * These specified operand types are enumerated here for later type-specific decoding to text
    */
   enum Operand : uint8_t {
-    None,
-    AbortReason,
-    AnalogBroadcastType,
-    AnalogFrequency,
-    AsciiDigit,
-    Ascii,
-    AudioFormat,
-    AudioRate,
-    AudioStatus,
-    Boolean,
-    BroadcastSystem,
-    CecVersion,
-    ChannelIdentifier,
+    NONE,
+    ABORT_REASON,
+    ANALOG_BROADCAST_TYPE,
+    ANALOG_FREQUENCY,
+    ASCII_DIGIT,
+    ASCII,
+    AUDIO_FORMAT,
+    AUDIO_RATE,
+    AUDIO_STATUS,
+    BOOLEAN,
+    BROADCAST_SYSTEM,
+    CEC_VERSION,
+    CHANNEL_IDENTIFIER,
     // DayOfMonth, integrated in StartDateTime
-    DeckControlMode,
-    DeckInfo,
-    DeviceType,
-    DigitalServiceIdentification,
-    DisplayControl,
-    Duration,
-    ExternalPhysicalAddress,
-    ExternalPlug,
-    ExternalSourceSpecifier,
-    Hour,
-    FeatureOpcode,
-    Language,
-    MenuRequestType,
-    MenuState,
-    Minute,
+    DECK_CONTROL_MODE,
+    DECK_INFO,
+    DEVICE_TYPE,
+    DIGITAL_SERVICE_IDENTIFICATION,
+    DISPLAY_CONTROL,
+    DURATION,
+    EXTERNAL_PHYSICAL_ADDRESS,
+    EXTERNAL_PLUG,
+    EXTERNAL_SOURCE_SPECIFIER,
+    HOUR,
+    FEATURE_OPCODE,
+    LANGUAGE,
+    MENU_REQUEST_TYPE,
+    MENU_STATE,
+    MINUTE,
     // MonthOfYear, integrated in StartDateTime
-    NewAddress,
-    OriginalAddress,
-    OsdName,
-    OsdString = OsdName,
-    PhysicalAddress,
-    PlayMode,
-    PowerStatus,
-    ProgramTitleString,
-    RecordSource,
-    RecordStatusInfo,
-    RecordingSequence,
-    ShortAudioDescriptor,
-    StatusRequest,
-    StartDateTime,
-    SystemAudioStatus,
-    Time,
-    TimerClearedStatusData,
-    TimerStatusData,
-    TunerDeviceInfo,
-    UIBroadcastType,
-    UICommand,
-    UIFunctionMedia,
-    UIFunctionSelectAVInput,
-    UIFunctionSelectAudioInput,
-    UISoundPresentationControl,
-    VendorId,
-    VendorSpecificData,
-    VendorSpecificRCCode,
+    NEW_ADDRESS,
+    ORIGINAL_ADDRESS,
+    OSD_NAME,
+    OSD_STRING = OSD_NAME,
+    PHYSICAL_ADDRESS,
+    PLAY_MODE,
+    POWER_STATUS,
+    PROGRAM_TITLE_STRING,
+    RECORD_SOURCE,
+    RECORD_STATUS_INFO,
+    RECORDING_SEQUENCE,
+    SHORT_AUDIO_DESCRIPTOR,
+    STATUS_REQUEST,
+    START_DATE_TIME,
+    SYSTEM_AUDIO_STATUS,
+    TIME,
+    TIMER_CLEARED_STATUS_DATA,
+    TIMER_STATUS_DATA,
+    TUNER_DEVICE_INFO,
+    UI_BROADCAST_TYPE,
+    UI_COMMAND,
+    UI_FUNCTION_MEDIA,
+    UI_FUNCTION_SELECT_AV_INPUT,
+    UI_FUNCTION_SELECT_AUDIO_INPUT,
+    UI_SOUND_PRESENTATION_CONTROL,
+    VENDOR_ID,
+    VENDOR_SPECIFIC_DATA,
+    VENDOR_SPECIFIC_RC_CODE,
   };
   /**
    * The plain 'operand types' are uint8.
    * Further uint32 'operand type' values are used to encode a sequence of upto 4 (potentially different) operands
    * in the MSB bytes of an uint32 value.
    */
-  constexpr static uint32_t Two(uint32_t first, uint32_t secnd) { return first | (secnd << 8); }
-  constexpr static uint32_t Three(uint32_t first, uint32_t secnd, uint32_t third) {
+  constexpr static uint32_t two(uint32_t first, uint32_t secnd) { return first | (secnd << 8); }
+  constexpr static uint32_t three(uint32_t first, uint32_t secnd, uint32_t third) {
     return first | (secnd << 8) | (third << 16);
   }
 
   /**
    * Helper function to implement the 'do_operand' methods
    */
-  bool append_operand(const char *word, uint8_t offset_incr = 1);
+  bool append_operand_(const char *word, uint8_t offset_incr = 1);
 
-  template<uint32_t N_STRINGS> bool append_operand(const std::array<const char *, N_STRINGS> &strings) {
+  template<uint32_t N_STRINGS> bool append_operand_(const std::array<const char *, N_STRINGS> &strings) {
     uint32_t operand_value = frame_[offset_];
     const char *s = (operand_value < N_STRINGS) ? strings[operand_value] : "?";
-    return append_operand(s);
+    return append_operand_(s);
   }
 
   /**
    * String tables used in the subsequent 'do_operand' decode functions
    */
-  const static std::array<const char *, 0x77> UI_Commands;
-  const static std::array<const char *, 0x11> audio_formats;
-  const static std::array<const char *, 8> audio_samplerates;
-  const static std::map<uint32_t, const char *> vendor_ids;
+  const static std::array<const char *, 0x77> UI_COMMANDS;
+  const static std::array<const char *, 0x11> AUDIO_FORMATS;
+  const static std::array<const char *, 8> AUDIO_SAMPLERATES;
+  const static std::map<uint32_t, const char *> VENDOR_IDS;
 };  // class Decoder
 }  // namespace hdmi_cec
 }  // namespace esphome
