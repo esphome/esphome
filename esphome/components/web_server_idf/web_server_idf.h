@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
 #include <esp_http_server.h>
@@ -22,11 +22,12 @@ class ListEntitiesIterator;
 #endif
 namespace web_server_idf {
 
+#ifndef USE_ARDUINO
+using String = std::string;
 #define F(string_literal) (string_literal)
 #define PGM_P const char *
 #define strncpy_P strncpy
-
-using String = std::string;
+#endif
 
 class AsyncWebParameter {
  public:
@@ -341,4 +342,4 @@ class DefaultHeaders {
 
 using namespace esphome::web_server_idf;  // NOLINT(google-global-names-in-headers)
 
-#endif  // !defined(USE_ESP_IDF)
+#endif  // !defined(USE_ESP32)
