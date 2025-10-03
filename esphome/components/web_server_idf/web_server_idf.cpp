@@ -26,8 +26,8 @@
 #endif  // USE_WEBSERVER
 
 // Include socket headers after Arduino headers to avoid IPADDR_NONE/INADDR_NONE macro conflicts
+#include <cerrno>
 #include <sys/socket.h>
-#include <errno.h>
 
 namespace esphome {
 namespace web_server_idf {
