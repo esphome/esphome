@@ -150,4 +150,3 @@ INFO Starting log output from /dev/ttyACM0 with baud rate 115200
 [19:47:27][D][hdmi_cec:382]: Send message from queue: E0:90:00 => SpecificUse to TV: <Report Power Status>[On]
 [19:47:27][D][hdmi_cec:346]: Send frame success in 1 attempt
 [19:47:43][D][binary_sensor:036]: 'Hdmi TV Detect': Sending state OFF
-

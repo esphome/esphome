@@ -69,4 +69,3 @@ hdmi_cec:
     - data: [0x44, 0x41]
       then:
         - logger.log: "HDMI-CEC Volume Up"
-
