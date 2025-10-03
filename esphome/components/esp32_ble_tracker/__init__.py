@@ -7,7 +7,6 @@ import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import (
-    DEFAULT_MAX_CONNECTIONS,
     IDF_MAX_CONNECTIONS,
     BTLoggers,
     bt_uuid,
@@ -158,7 +157,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ESP32BLETracker),
             cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
-            cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
+            cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
                 cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
             cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(
