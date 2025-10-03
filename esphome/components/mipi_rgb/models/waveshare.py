@@ -7,6 +7,7 @@ wave_4_3 = DriverChip(
     "ESP32-S3-TOUCH-LCD-4.3",
     swap_xy=UNDEFINED,
     initsequence=(),
+    color_order="RGB",
     width=800,
     height=480,
     pclk_frequency="16MHz",
