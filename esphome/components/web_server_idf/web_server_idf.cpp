@@ -232,7 +232,7 @@ void AsyncWebServerRequest::redirect(const std::string &url) {
 
 void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
   // Set status code - use constants for common codes to avoid string allocation
-  const char *status;
+  const char *status = nullptr;
   switch (code) {
     case 200:
       status = HTTPD_200;
@@ -244,10 +244,9 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       status = HTTPD_409;
       break;
     default:
-      status = to_string(code).c_str();
       break;
   }
-  httpd_resp_set_status(*this, status);
+  httpd_resp_set_status(*this, status == nullptr ? to_string(code).c_str() : status);
 
   if (content_type && *content_type) {
     httpd_resp_set_type(*this, content_type);
