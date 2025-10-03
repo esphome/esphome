@@ -51,6 +51,7 @@ void MPR121Component::setup() {
     this->write_byte(MPR121_ECR, 0x80 | (this->max_touch_channel_ + 1));
 
     this->flush_gpio_();
+    this->setup_complete_ = true;
   });
 }
 
@@ -79,6 +80,8 @@ void MPR121Component::dump_config() {
   }
 }
 void MPR121Component::loop() {
+  if (!this->setup_complete_) return;
+
   uint16_t val = 0;
   this->read_byte_16(MPR121_TOUCHSTATUS_L, &val);
 
