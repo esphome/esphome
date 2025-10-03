@@ -200,13 +200,16 @@ void BLEServer::add_client_(uint16_t conn_id) {
   // Add if there's space
   if (this->client_count_ < USE_ESP32_BLE_MAX_CONNECTIONS) {
     this->clients_[this->client_count_++] = conn_id;
+  } else {
+    // This should never happen since max clients is known at compile time
+    ESP_LOGE(TAG, "Client array full");
   }
 }
 
 void BLEServer::remove_client_(uint16_t conn_id) {
   int8_t index = this->find_client_index_(conn_id);
   if (index >= 0) {
-    // Replace with last element and decrement count
+    // Replace with last element and decrement count (client order not preserved)
     this->clients_[index] = this->clients_[--this->client_count_];
   }
 }
