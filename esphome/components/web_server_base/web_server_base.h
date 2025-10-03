@@ -7,10 +7,24 @@
 
 #include "esphome/core/component.h"
 
+// Platform-agnostic macros for web server components
+// On ESP32 (both Arduino and IDF): Use plain strings (no PROGMEM)
+// On ESP8266: Use Arduino's F() macro for PROGMEM strings
+#ifdef USE_ESP32
+#define ESPHOME_F(string_literal) (string_literal)
+#define ESPHOME_PGM_P const char *
+#define ESPHOME_strncpy_P strncpy
+#else
+// ESP8266 uses Arduino macros
+#define ESPHOME_F(string_literal) F(string_literal)
+#define ESPHOME_PGM_P PGM_P
+#define ESPHOME_strncpy_P strncpy_P
+#endif
+
 #if USE_ESP32
 #include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
-#elif USE_ARDUINO
+#else
 #include <ESPAsyncWebServer.h>
 #endif
 

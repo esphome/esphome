@@ -26,13 +26,6 @@ class ListEntitiesIterator;
 #endif
 namespace web_server_idf {
 
-#ifndef USE_ARDUINO
-using String = std::string;
-#define F(string_literal) (string_literal)
-#define PGM_P const char *
-#define strncpy_P strncpy
-#endif
-
 class AsyncWebParameter {
  public:
   AsyncWebParameter(std::string value) : value_(std::move(value)) {}
@@ -89,9 +82,6 @@ class AsyncResponseStream : public AsyncWebServerResponse {
   void print(const char *str) { this->content_.append(str); }
   void print(const std::string &str) { this->content_.append(str); }
   void print(float value);
-#ifdef USE_ARDUINO
-  void print(const __FlashStringHelper *str) { this->content_.append(reinterpret_cast<PGM_P>(str)); }
-#endif
   void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
  protected:
