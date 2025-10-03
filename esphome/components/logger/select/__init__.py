@@ -25,14 +25,6 @@ async def to_code(config):
     levels = list(LOG_LEVELS)
     index = levels.index(CORE.data[CONF_LOGGER][CONF_LEVEL])
     levels = levels[: index + 1]
-
-    values = list(LOG_LEVELS.values())
-    values = values[: index + 1]
-
-    var = await select.new_select(
-        config,
-        values,
-        options=levels,
-    )
+    var = await select.new_select(config, options=levels)
     await register_parented(var, parent)
     await register_component(var, config)
