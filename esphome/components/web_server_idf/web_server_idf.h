@@ -13,6 +13,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef USE_ARDUINO
+#include <WString.h>
+#endif
+
 namespace esphome {
 #ifdef USE_WEBSERVER
 namespace web_server {
@@ -85,6 +89,9 @@ class AsyncResponseStream : public AsyncWebServerResponse {
   void print(const char *str) { this->content_.append(str); }
   void print(const std::string &str) { this->content_.append(str); }
   void print(float value);
+#ifdef USE_ARDUINO
+  void print(const __FlashStringHelper *str) { this->content_.append(reinterpret_cast<PGM_P>(str)); }
+#endif
   void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
  protected:
