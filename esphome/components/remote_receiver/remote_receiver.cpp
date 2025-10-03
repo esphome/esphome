@@ -137,7 +137,8 @@ void RemoteReceiverComponent::loop() {
   // Skip all consecutive idle pulses
   uint32_t read_at = (s.buffer_read_at + 1) % s.buffer_size;
   while (read_at != idle_at) {
-    if ((s.buffer[read_at] - s.buffer[s.buffer_read_at]) < this->idle_us_)
+    const int32_t delta = s.buffer[read_at] - s.buffer[s.buffer_read_at];
+    if (delta < this->idle_us_ && delta > s.filter_us)
       break;
 
     s.buffer_read_at = read_at;
@@ -153,7 +154,7 @@ void RemoteReceiverComponent::loop() {
   int32_t multiplier = read_at % 2 == 0 ? 1 : -1;
 
   for (uint32_t i = 0; read_at != idle_at; i++) {
-    int32_t delta = s.buffer[read_at] - s.buffer[s.buffer_read_at];
+    const int32_t delta = s.buffer[read_at] - s.buffer[s.buffer_read_at];
     if (uint32_t(delta) >= this->idle_us_) {
       // already found a space longer than idle. There must have been more than one pulse
       break;
