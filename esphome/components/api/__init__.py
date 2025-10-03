@@ -155,8 +155,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CUSTOM_SERVICES, default=False): cv.boolean,
             cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
             cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
-            cv.Optional(CONF_HOMEASSISTANT_SERVICES, default=False): cv.boolean,
-            cv.Optional(CONF_HOMEASSISTANT_STATES, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
                 single=True
             ),
