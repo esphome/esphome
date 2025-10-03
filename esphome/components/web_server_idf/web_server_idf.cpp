@@ -293,8 +293,8 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
     }
   }
 
-  // Don't cache misses to prevent memory exhaustion from malicious requests
-  // with thousands of non-existent parameter lookups
+  // Don't cache misses to avoid wasting memory when handlers check for
+  // optional parameters that don't exist in the request
   if (!val.has_value()) {
     return nullptr;
   }
