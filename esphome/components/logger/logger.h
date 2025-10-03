@@ -355,9 +355,18 @@ class Logger : public Component {
     buffer[pos++] = '[';
     copy_string(buffer, pos, tag);
     buffer[pos++] = ':';
-    buffer[pos++] = '0' + (line / 100) % 10;
-    buffer[pos++] = '0' + (line / 10) % 10;
-    buffer[pos++] = '0' + line % 10;
+    // Format line number without modulo operations (passed by value, safe to mutate)
+    if (line > 999) [[unlikely]] {
+      int thousands = line / 1000;
+      buffer[pos++] = '0' + thousands;
+      line -= thousands * 1000;
+    }
+    int hundreds = line / 100;
+    int remainder = line - hundreds * 100;
+    int tens = remainder / 10;
+    buffer[pos++] = '0' + hundreds;
+    buffer[pos++] = '0' + tens;
+    buffer[pos++] = '0' + (remainder - tens * 10);
     buffer[pos++] = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
