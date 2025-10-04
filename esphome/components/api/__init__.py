@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_EVENT,
     CONF_ID,
     CONF_KEY,
+    CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
     CONF_PASSWORD,
@@ -60,7 +61,6 @@ CONF_CUSTOM_SERVICES = "custom_services"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
-CONF_MAX_CONNECTIONS = "max_connections"
 
 
 def validate_encryption_key(value):

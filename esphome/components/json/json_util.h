@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #define ARDUINOJSON_ENABLE_STD_STRING 1  // NOLINT
