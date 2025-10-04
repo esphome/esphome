@@ -7,7 +7,7 @@ display:
   - platform: ssd1306_i2c
     id: ssd1306_display
     model: SSD1306_128X64
-    reset_pin: ${reset_pin}
+    reset_pin: ${display_reset_pin}
     pages:
       - id: page1
         lambda: |-
@@ -16,7 +16,7 @@ display:
 touchscreen:
   - platform: ektf2232
     interrupt_pin: ${interrupt_pin}
-    rts_pin: ${rts_pin}
+    reset_pin: ${touch_reset_pin}
     display: ssd1306_display
     on_touch:
       - logger.log:

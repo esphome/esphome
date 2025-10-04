@@ -32,7 +32,7 @@ from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -198,10 +198,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.output_paths.remove((path, domain))
 
     def is_in_error_path(self, path: ConfigPath) -> bool:
-        for err in self.errors:
-            if _path_begins_with(err.path, path):
-                return True
-        return False
+        return any(_path_begins_with(err.path, path) for err in self.errors)
 
     def set_by_path(self, path, value):
         conf = self
@@ -224,7 +221,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         for index, path_item in enumerate(path):
             try:
                 if path_item in data:
-                    key_data = [x for x in data.keys() if x == path_item][0]
+                    key_data = [x for x in data if x == path_item][0]
                     if isinstance(key_data, ESPHomeDataBase):
                         doc_range = key_data.esp_range
                         if get_key and index == len(path) - 1:
@@ -309,7 +306,7 @@ def recursive_check_replaceme(value):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPForceValue):
+    if isinstance(value, ESPLiteralValue):
         pass
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
@@ -317,7 +314,7 @@ def recursive_check_replaceme(value):
             "Please make sure you have replaced all fields from the sample "
             "configuration.\n"
             "If you want to use the literal REPLACEME string, "
-            'please use "!force REPLACEME"'
+            'please use "!literal REPLACEME"'
         )
     return value
 
@@ -330,6 +327,28 @@ class ConfigValidationStep(abc.ABC):
 
     @abc.abstractmethod
     def run(self, result: Config) -> None: ...  # noqa: E704
+
+
+class LoadTargetPlatformValidationStep(ConfigValidationStep):
+    """Load target platform step."""
+
+    def __init__(self, domain: str, conf: ConfigType):
+        self.domain = domain
+        self.conf = conf
+
+    def run(self, result: Config) -> None:
+        if self.conf is None:
+            result[self.domain] = self.conf = {}
+        result.add_output_path([self.domain], self.domain)
+        component = get_component(self.domain)
+
+        result[self.domain] = self.conf
+        path = [self.domain]
+        CORE.loaded_integrations.add(self.domain)
+
+        result.add_validation_step(
+            SchemaValidationStep(self.domain, path, self.conf, component)
+        )
 
 
 class LoadValidationStep(ConfigValidationStep):
@@ -363,6 +382,12 @@ class LoadValidationStep(ConfigValidationStep):
             result.add_str_error(f"Component not found: {self.domain}", path)
             return
         CORE.loaded_integrations.add(self.domain)
+        # For platform components, normalize conf before creating MetadataValidationStep
+        if component.is_platform_component:
+            if not self.conf:
+                result[self.domain] = self.conf = []
+            elif not isinstance(self.conf, list):
+                result[self.domain] = self.conf = [self.conf]
 
         # Process AUTO_LOAD
         for load in component.auto_load:
@@ -379,12 +404,6 @@ class LoadValidationStep(ConfigValidationStep):
         # This is a platform component, proceed to reading platform entries
         # Remove this is as an output path
         result.remove_output_path([self.domain], self.domain)
-
-        # Ensure conf is a list
-        if not self.conf:
-            result[self.domain] = self.conf = []
-        elif not isinstance(self.conf, list):
-            result[self.domain] = self.conf = [self.conf]
 
         for i, p_config in enumerate(self.conf):
             path = [self.domain, i]
@@ -585,16 +604,18 @@ class MetadataValidationStep(ConfigValidationStep):
                 )
                 return
             for i, part_conf in enumerate(self.conf):
+                path = self.path + [i]
                 result.add_validation_step(
-                    SchemaValidationStep(
-                        self.domain, self.path + [i], part_conf, self.comp
-                    )
+                    SchemaValidationStep(self.domain, path, part_conf, self.comp)
                 )
+                result.add_validation_step(FinalValidateValidationStep(path, self.comp))
+
             return
 
         result.add_validation_step(
             SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
         )
+        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class SchemaValidationStep(ConfigValidationStep):
@@ -606,13 +627,15 @@ class SchemaValidationStep(ConfigValidationStep):
     def __init__(
         self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
     ):
+        self.domain = domain
         self.path = path
         self.conf = conf
         self.comp = comp
 
     def run(self, result: Config) -> None:
         token = path_context.set(self.path)
-        with result.catch_error(self.path):
+        # The domain already contains the full component path (e.g., "sensor.template", "sensor.uptime")
+        with CORE.component_context(self.domain), result.catch_error(self.path):
             if self.comp.is_platform:
                 # Remove 'platform' key for validation
                 input_conf = OrderedDict(self.conf)
@@ -631,7 +654,6 @@ class SchemaValidationStep(ConfigValidationStep):
                 result.set_by_path(self.path, validated)
 
         path_context.reset(token)
-        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class IDPassValidationStep(ConfigValidationStep):
@@ -824,7 +846,9 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 
 def validate_config(
-    config: dict[str, Any], command_line_substitutions: dict[str, Any]
+    config: dict[str, Any],
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
 ) -> Config:
     result = Config()
 
@@ -837,7 +861,7 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config)
+            config = do_packages_pass(config, skip_update=skip_external_update)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -874,7 +898,7 @@ def validate_config(
 
         result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
         try:
-            do_external_components_pass(config)
+            do_external_components_pass(config, skip_update=skip_external_update)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -912,13 +936,16 @@ def validate_config(
 
     # First run platform validation steps
     result.add_validation_step(
-        LoadValidationStep(target_platform, config[target_platform])
+        LoadTargetPlatformValidationStep(target_platform, config[target_platform])
     )
     result.run_validation_steps()
 
     if result.errors:
         # do not try to validate further as we don't know what the target is
         return result
+
+    # Reset the pin registry so that any target platforms with pin validations do not get the duplicate pin warning.
+    pins.PIN_SCHEMA_REGISTRY.reset()
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
@@ -995,7 +1022,9 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
+def _load_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config:
     """Load the configuration file."""
     try:
         config = yaml_util.load_yaml(CORE.config_path)
@@ -1003,7 +1032,7 @@ def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
         raise InvalidYAMLError(e) from e
 
     try:
-        return validate_config(config, command_line_substitutions)
+        return validate_config(config, command_line_substitutions, skip_external_update)
     except EsphomeError:
         raise
     except Exception:
@@ -1011,9 +1040,11 @@ def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
         raise
 
 
-def load_config(command_line_substitutions: dict[str, Any]) -> Config:
+def load_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config:
     try:
-        return _load_config(command_line_substitutions)
+        return _load_config(command_line_substitutions, skip_external_update)
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
@@ -1081,7 +1112,7 @@ def dump_dict(
             ret += "{}"
             multiline = False
 
-        for k in conf.keys():
+        for k in conf:
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
@@ -1097,10 +1128,7 @@ def dump_dict(
                 msg = f"\n{indent(msg)}"
 
             if inf is not None:
-                if m:
-                    msg = f" {inf}{msg}"
-                else:
-                    msg = f"{msg} {inf}"
+                msg = f" {inf}{msg}" if m else f"{msg} {inf}"
             ret += f"{st + msg}\n"
     elif isinstance(conf, str):
         if is_secret(conf):
@@ -1156,10 +1184,10 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(command_line_substitutions):
+def read_config(command_line_substitutions, skip_external_update=False):
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
-        res = load_config(command_line_substitutions)
+        res = load_config(command_line_substitutions, skip_external_update)
     except EsphomeError as err:
         _LOGGER.error("Error while reading config: %s", err)
         return None

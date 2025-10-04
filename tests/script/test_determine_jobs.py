@@ -146,9 +146,11 @@ def test_main_list_components_fails(
     mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd")
 
     # Run main function with mocked argv - should raise
-    with patch("sys.argv", ["determine-jobs.py"]):
-        with pytest.raises(subprocess.CalledProcessError):
-            determine_jobs.main()
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        determine_jobs.main()
 
 
 def test_main_with_branch_argument(
@@ -243,17 +245,21 @@ def test_should_run_integration_tests_with_branch() -> None:
 
 def test_should_run_integration_tests_component_dependency() -> None:
     """Test that integration tests run when components used in fixtures change."""
-    with patch.object(
-        determine_jobs, "changed_files", return_value=["esphome/components/api/api.cpp"]
-    ):
-        with patch.object(
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/api/api.cpp"],
+        ),
+        patch.object(
             determine_jobs, "get_components_from_integration_fixtures"
-        ) as mock_fixtures:
-            mock_fixtures.return_value = {"api", "sensor"}
-            with patch.object(determine_jobs, "get_all_dependencies") as mock_deps:
-                mock_deps.return_value = {"api", "sensor", "network"}
-                result = determine_jobs.should_run_integration_tests()
-                assert result is True
+        ) as mock_fixtures,
+    ):
+        mock_fixtures.return_value = {"api", "sensor"}
+        with patch.object(determine_jobs, "get_all_dependencies") as mock_deps:
+            mock_deps.return_value = {"api", "sensor", "network"}
+            result = determine_jobs.should_run_integration_tests()
+            assert result is True
 
 
 @pytest.mark.parametrize(
@@ -272,12 +278,14 @@ def test_should_run_clang_tidy(
     expected_result: bool,
 ) -> None:
     """Test should_run_clang_tidy function."""
-    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch("subprocess.run") as mock_run,
+    ):
         # Test with hash check returning specific code
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(returncode=check_returncode)
-            result = determine_jobs.should_run_clang_tidy()
-            assert result == expected_result
+        mock_run.return_value = Mock(returncode=check_returncode)
+        result = determine_jobs.should_run_clang_tidy()
+        assert result == expected_result
 
 
 def test_should_run_clang_tidy_hash_check_exception() -> None:

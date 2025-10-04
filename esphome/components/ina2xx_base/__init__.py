@@ -18,6 +18,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_VOLT,
@@ -78,11 +79,8 @@ def validate_model_config(config):
     model = config[CONF_MODEL]
 
     for key in config:
-        if key in SENSOR_MODEL_OPTIONS:
-            if model not in SENSOR_MODEL_OPTIONS[key]:
-                raise cv.Invalid(
-                    f"Device model '{model}' does not support '{key}' sensor"
-                )
+        if key in SENSOR_MODEL_OPTIONS and model not in SENSOR_MODEL_OPTIONS[key]:
+            raise cv.Invalid(f"Device model '{model}' does not support '{key}' sensor")
 
     tempco = config[CONF_TEMPERATURE_COEFFICIENT]
     if tempco > 0 and model not in ["INA228", "INA229"]:
@@ -165,7 +163,7 @@ INA2XX_SCHEMA = cv.Schema(
                 unit_of_measurement=UNIT_WATT_HOURS,
                 accuracy_decimals=8,
                 device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             key=CONF_NAME,
         ),
@@ -173,7 +171,8 @@ INA2XX_SCHEMA = cv.Schema(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_JOULE,
                 accuracy_decimals=8,
-                state_class=STATE_CLASS_MEASUREMENT,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             key=CONF_NAME,
         ),

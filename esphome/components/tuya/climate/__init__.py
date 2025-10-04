@@ -46,16 +46,15 @@ TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
 
 def validate_temperature_multipliers(value):
-    if CONF_TEMPERATURE_MULTIPLIER in value:
-        if (
-            CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
-            or CONF_TARGET_TEMPERATURE_MULTIPLIER in value
-        ):
-            raise cv.Invalid(
-                f"Cannot have {CONF_TEMPERATURE_MULTIPLIER} at the same time as "
-                f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} and "
-                f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
-            )
+    if CONF_TEMPERATURE_MULTIPLIER in value and (
+        CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
+        or CONF_TARGET_TEMPERATURE_MULTIPLIER in value
+    ):
+        raise cv.Invalid(
+            f"Cannot have {CONF_TEMPERATURE_MULTIPLIER} at the same time as "
+            f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} and "
+            f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
+        )
     if (
         CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
         and CONF_TARGET_TEMPERATURE_MULTIPLIER not in value

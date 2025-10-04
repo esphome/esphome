@@ -148,8 +148,6 @@ void LTR390Component::read_mode_(int mode_index) {
 }
 
 void LTR390Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // reset
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
   ctrl[LTR390_CTRL_RST] = true;

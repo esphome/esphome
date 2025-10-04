@@ -16,15 +16,29 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "socket"]
 DEPENDENCIES = ["network"]
+
+
+def supports_sha256() -> bool:
+    """Check if the current platform supports SHA256 for OTA authentication."""
+    return bool(CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny)
+
+
+def AUTO_LOAD() -> list[str]:
+    """Conditionally auto-load sha256 only on platforms that support it."""
+    base_components = ["md5", "socket"]
+    if supports_sha256():
+        return base_components + ["sha256"]
+    return base_components
+
 
 esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
@@ -73,8 +87,7 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
-    for port_conf in merged_ota_esphome_configs_by_port.values():
-        new_ota_conf.append(port_conf)
+    new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
     fv.full_config.set(full_conf)
@@ -122,13 +135,19 @@ CONFIG_SCHEMA = (
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
-@coroutine_with_priority(52.0)
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
+
     if CONF_PASSWORD in config:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
+        # Only include hash algorithms when password is configured
+        cg.add_define("USE_OTA_MD5")
+        # Only include SHA256 support on platforms that have it
+        if supports_sha256():
+            cg.add_define("USE_OTA_SHA256")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
     await cg.register_component(var, config)

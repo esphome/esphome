@@ -1,0 +1,11 @@
+esphome:
+  name: oversized-noise
+
+host:
+
+api:
+  encryption:
+    key: N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU=
+
+logger:
+  level: VERY_VERBOSE

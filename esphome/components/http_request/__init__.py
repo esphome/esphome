@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_METHOD,
     CONF_ON_ERROR,
+    CONF_ON_RESPONSE,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_URL,
@@ -52,7 +53,6 @@ CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
-CONF_ON_RESPONSE = "on_response"
 CONF_HEADERS = "headers"
 CONF_COLLECT_HEADERS = "collect_headers"
 CONF_BODY = "body"
@@ -70,9 +70,8 @@ def validate_url(value):
 def validate_ssl_verification(config):
     error_message = ""
 
-    if CORE.is_esp32:
-        if not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
-            error_message = "ESPHome supports certificate verification only via ESP-IDF"
+    if CORE.is_esp32 and not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
+        error_message = "ESPHome supports certificate verification only via ESP-IDF"
 
     if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
@@ -195,7 +194,7 @@ async def to_code(config):
             cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
         elif path := config.get(CONF_CA_CERTIFICATE_PATH):
             cg.add_define("CPPHTTPLIB_OPENSSL_SUPPORT")
-            cg.add(var.set_ca_path(path))
+            cg.add(var.set_ca_path(str(path)))
             cg.add_build_flag("-lssl")
             cg.add_build_flag("-lcrypto")
 

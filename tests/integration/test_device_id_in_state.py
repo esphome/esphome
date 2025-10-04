@@ -47,9 +47,7 @@ async def test_device_id_in_state(
                 entity_device_mapping[entity.key] = device_ids["Humidity Monitor"]
             elif entity.name == "Motion Detected":
                 entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
-            elif entity.name == "Temperature Monitor Power":
-                entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
-            elif entity.name == "Temperature Status":
+            elif entity.name in {"Temperature Monitor Power", "Temperature Status"}:
                 entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
             elif entity.name == "Motion Light":
                 entity_device_mapping[entity.key] = device_ids["Motion Sensor"]

@@ -20,7 +20,7 @@
 #include <WiFi.h>
 #endif
 
-#if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
+#if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
 #include <esp_eap_client.h>
 #else
@@ -60,6 +60,7 @@ struct SavedWifiSettings {
 struct SavedWifiFastConnectSettings {
   uint8_t bssid[6];
   uint8_t channel;
+  int8_t ap_index;
 } PACKED;  // NOLINT
 
 enum WiFiComponentState : uint8_t {
@@ -112,7 +113,7 @@ struct EAPAuth {
   const char *client_cert;
   const char *client_key;
 // used for EAP-TTLS
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   esp_eap_ttls_phase2_types ttls_phase_2;
 #endif
 };
@@ -198,7 +199,7 @@ enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_HIGH,
 };
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
 
@@ -256,6 +257,7 @@ class WiFiComponent : public Component {
   void setup() override;
   void start();
   void dump_config() override;
+  void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
   float get_loop_priority() const override;
@@ -353,7 +355,7 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  void load_fast_connect_settings_();
+  bool load_fast_connect_settings_();
   void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
@@ -366,7 +368,7 @@ class WiFiComponent : public Component {
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
   void wifi_scan_done_callback_();
 #endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
@@ -400,12 +402,14 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
+  uint8_t ap_index_{0};
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
 
   // Group all boolean values together
   bool fast_connect_{false};
+  bool trying_loaded_ap_{false};
   bool retry_hidden_{false};
   bool has_ap_{false};
   bool handled_connected_state_{false};
