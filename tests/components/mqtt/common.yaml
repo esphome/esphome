@@ -60,6 +60,7 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+  publish_nan_as_none: false
 
 binary_sensor:
   - platform: template
@@ -292,6 +293,8 @@ fan:
   - platform: template
     name: Template Fan
     state_topic: some/topic/fan
+    direction_state_topic: some/topic/direction/state
+    direction_command_topic: some/topic/direction/command
     qos: 2
     on_state:
       - logger.log: on_state

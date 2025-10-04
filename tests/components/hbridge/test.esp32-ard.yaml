@@ -1,33 +1,17 @@
-output:
-  - platform: ledc
-    pin: 14
-    id: gpio_output1
-  - platform: ledc
-    pin: 15
-    id: gpio_output2
-  - platform: ledc
-    pin: 12
-    id: gpio_output3
-  - platform: ledc
-    pin: 13
-    id: gpio_output4
+substitutions:
+  pwm_platform: ledc
+  output1_pin: "14"
+  output2_pin: "15"
+  output3_pin: "12"
+  output4_pin: "13"
+  hbridge_on_pin: "4"
+  hbridge_off_pin: "5"
 
-light:
-  - platform: hbridge
-    name: Icicle Lights
-    pin_a: gpio_output3
-    pin_b: gpio_output4
+packages:
+  common: !include common.yaml
 
-fan:
-  - platform: hbridge
-    id: fan_hbridge
-    speed_count: 4
-    name: H-bridge Fan with Presets
-    pin_a: gpio_output1
-    pin_b: gpio_output2
-    preset_modes:
-      - Preset 1
-      - Preset 2
-    on_preset_set:
-      then:
-        - logger.log: Preset mode was changed!
+switch:
+  - id: !extend switch_hbridge
+    pulse_length: 60ms
+    wait_time: 10ms
+    optimistic: false

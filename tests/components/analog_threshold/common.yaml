@@ -26,3 +26,17 @@ binary_sensor:
     threshold: 100
     filters:
       - invert:
+  - platform: analog_threshold
+    name: Analog Threshold 3
+    sensor_id: template_sensor
+    threshold: !lambda return 100;
+    filters:
+      - invert:
+  - platform: analog_threshold
+    name: Analog Threshold 4
+    sensor_id: template_sensor
+    threshold:
+      upper: !lambda return 110;
+      lower: !lambda return 90;
+    filters:
+      - invert:

@@ -83,7 +83,7 @@ void SunGTIL2::handle_char_(uint8_t c) {
   memcpy(&msg, this->rx_message_.data(), MESSAGE_SIZE);
   this->rx_message_.clear();
 
-  if (!((msg.end[0] == 0) && (msg.end[38] == 0x08)))
+  if ((msg.end[0] != 0) || (msg.end[38] != 0x08))
     return;
 
   ESP_LOGVV(TAG, "Frequency raw value: %02x", msg.frequency);

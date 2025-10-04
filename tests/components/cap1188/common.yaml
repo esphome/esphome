@@ -1,0 +1,11 @@
+i2c:
+  - id: i2c_cap1188
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+cap1188:
+  id: cap1188_component
+  address: 0x29
+  reset_pin: ${reset_pin}
+  touch_threshold: 0x20
+  allow_multiple_touches: true

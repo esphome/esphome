@@ -14,6 +14,7 @@ static const char *const TAG = "mqtt.climate";
 using namespace esphome::climate;
 
 void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   auto traits = this->device_->get_traits();
   // current_temperature_topic
   if (traits.get_supports_current_temperature()) {
@@ -28,7 +29,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // mode_state_topic
   root[MQTT_MODE_STATE_TOPIC] = this->get_mode_state_topic();
   // modes
-  JsonArray modes = root.createNestedArray(MQTT_MODES);
+  JsonArray modes = root[MQTT_MODES].to<JsonArray>();
   // sort array for nice UI in HA
   if (traits.supports_mode(CLIMATE_MODE_AUTO))
     modes.add("auto");
@@ -72,9 +73,9 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // max_temp
   root[MQTT_MAX_TEMP] = traits.get_visual_max_temperature();
   // target_temp_step
-  root[MQTT_TARGET_TEMPERATURE_STEP] = traits.get_visual_target_temperature_step();
+  root[MQTT_TARGET_TEMPERATURE_STEP] = roundf(traits.get_visual_target_temperature_step() * 10) * 0.1;
   // current_temp_step
-  root[MQTT_CURRENT_TEMPERATURE_STEP] = traits.get_visual_current_temperature_step();
+  root[MQTT_CURRENT_TEMPERATURE_STEP] = roundf(traits.get_visual_current_temperature_step() * 10) * 0.1;
   // temperature units are always coerced to Celsius internally
   root[MQTT_TEMPERATURE_UNIT] = "C";
 
@@ -89,7 +90,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // preset_mode_state_topic
     root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
     // presets
-    JsonArray presets = root.createNestedArray("preset_modes");
+    JsonArray presets = root["preset_modes"].to<JsonArray>();
     if (traits.supports_preset(CLIMATE_PRESET_HOME))
       presets.add("home");
     if (traits.supports_preset(CLIMATE_PRESET_AWAY))
@@ -119,7 +120,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // fan_mode_state_topic
     root[MQTT_FAN_MODE_STATE_TOPIC] = this->get_fan_mode_state_topic();
     // fan_modes
-    JsonArray fan_modes = root.createNestedArray("fan_modes");
+    JsonArray fan_modes = root["fan_modes"].to<JsonArray>();
     if (traits.supports_fan_mode(CLIMATE_FAN_ON))
       fan_modes.add("on");
     if (traits.supports_fan_mode(CLIMATE_FAN_OFF))
@@ -150,7 +151,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // swing_mode_state_topic
     root[MQTT_SWING_MODE_STATE_TOPIC] = this->get_swing_mode_state_topic();
     // swing_modes
-    JsonArray swing_modes = root.createNestedArray("swing_modes");
+    JsonArray swing_modes = root["swing_modes"].to<JsonArray>();
     if (traits.supports_swing_mode(CLIMATE_SWING_OFF))
       swing_modes.add("off");
     if (traits.supports_swing_mode(CLIMATE_SWING_BOTH))
@@ -163,6 +164,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
 
   config.state_topic = false;
   config.command_topic = false;
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 void MQTTClimateComponent::setup() {
   auto traits = this->device_->get_traits();
@@ -257,7 +259,7 @@ const EntityBase *MQTTClimateComponent::get_entity() const { return this->device
 bool MQTTClimateComponent::publish_state_() {
   auto traits = this->device_->get_traits();
   // mode
-  const char *mode_s = "";
+  const char *mode_s;
   switch (this->device_->mode) {
     case CLIMATE_MODE_OFF:
       mode_s = "off";
@@ -280,6 +282,8 @@ bool MQTTClimateComponent::publish_state_() {
     case CLIMATE_MODE_HEAT_COOL:
       mode_s = "heat_cool";
       break;
+    default:
+      mode_s = "unknown";
   }
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
@@ -343,6 +347,8 @@ bool MQTTClimateComponent::publish_state_() {
         case CLIMATE_PRESET_ACTIVITY:
           payload = "activity";
           break;
+        default:
+          payload = "unknown";
       }
     }
     if (this->device_->custom_preset.has_value())
@@ -352,7 +358,7 @@ bool MQTTClimateComponent::publish_state_() {
   }
 
   if (traits.get_supports_action()) {
-    const char *payload = "unknown";
+    const char *payload;
     switch (this->device_->action) {
       case CLIMATE_ACTION_OFF:
         payload = "off";
@@ -372,6 +378,8 @@ bool MQTTClimateComponent::publish_state_() {
       case CLIMATE_ACTION_FAN:
         payload = "fan";
         break;
+      default:
+        payload = "unknown";
     }
     if (!this->publish(this->get_action_state_topic(), payload))
       success = false;
@@ -411,6 +419,8 @@ bool MQTTClimateComponent::publish_state_() {
         case CLIMATE_FAN_QUIET:
           payload = "quiet";
           break;
+        default:
+          payload = "unknown";
       }
     }
     if (this->device_->custom_fan_mode.has_value())
@@ -420,7 +430,7 @@ bool MQTTClimateComponent::publish_state_() {
   }
 
   if (traits.get_supports_swing_modes()) {
-    const char *payload = "";
+    const char *payload;
     switch (this->device_->swing_mode) {
       case CLIMATE_SWING_OFF:
         payload = "off";
@@ -434,6 +444,8 @@ bool MQTTClimateComponent::publish_state_() {
       case CLIMATE_SWING_HORIZONTAL:
         payload = "horizontal";
         break;
+      default:
+        payload = "unknown";
     }
     if (!this->publish(this->get_swing_mode_state_topic(), payload))
       success = false;

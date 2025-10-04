@@ -18,7 +18,6 @@ class XiaomiLYWSD02MMC : public Component, public esp32_ble_tracker::ESPBTDevice
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }

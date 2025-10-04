@@ -29,7 +29,7 @@ from ..lvcode import (
 )
 from ..schemas import STYLE_SCHEMA, STYLED_TEXT_SCHEMA, container_schema, part_schema
 from ..types import LV_EVENT, char_ptr, lv_obj_t
-from . import Widget, set_obj_properties
+from . import Widget, add_widgets, set_obj_properties
 from .button import button_spec
 from .buttonmatrix import (
     BUTTONMATRIX_BUTTON_SCHEMA,
@@ -51,7 +51,7 @@ MSGBOX_SCHEMA = container_schema(
             cv.Required(CONF_TITLE): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BODY, default=""): STYLED_TEXT_SCHEMA,
             cv.Optional(CONF_BUTTONS): cv.ensure_list(BUTTONMATRIX_BUTTON_SCHEMA),
-            cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec),
+            cv.Optional(CONF_BUTTON_STYLE): part_schema(buttonmatrix_spec.parts),
             cv.Optional(CONF_CLOSE_BUTTON, default=True): lv_bool,
             cv.GenerateID(CONF_BUTTON_TEXT_LIST_ID): cv.declare_id(char_ptr),
         }
@@ -119,6 +119,7 @@ async def msgbox_to_code(top_layer, conf):
         button_style = {CONF_ITEMS: button_style}
         await set_obj_properties(buttonmatrix_widget, button_style)
     await set_obj_properties(msgbox_widget, conf)
+    await add_widgets(msgbox_widget, conf)
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
         outer_widget.add_flag("LV_OBJ_FLAG_HIDDEN")
     if close_button:

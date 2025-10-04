@@ -14,4 +14,3 @@ sensor:
       name: "ENS160 Total Volatile Organic Compounds"
     aqi:
       name: "ENS160 Air Quality Index"
-

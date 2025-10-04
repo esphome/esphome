@@ -1,1 +1,6 @@
 <<: !include common_v2.yaml
+
+web_server:
+  auth:
+    username: admin
+    password: password

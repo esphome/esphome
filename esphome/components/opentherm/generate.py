@@ -1,13 +1,15 @@
-from collections.abc import Awaitable
-from typing import Any, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
+
 from . import const
-from .schema import TSchema
+from .schema import SettingSchema, TSchema
 
 opentherm_ns = cg.esphome_ns.namespace("opentherm")
 OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
+OpenthermData = opentherm_ns.class_("OpenthermData")
 
 
 def define_has_component(component_type: str, keys: list[str]) -> None:
@@ -19,6 +21,24 @@ def define_has_component(component_type: str, keys: list[str]) -> None:
     )
     for key in keys:
         cg.add_define(f"OPENTHERM_HAS_{component_type.upper()}_{key}")
+
+
+# We need a separate set of macros for settings because there are different backing field types we need to take
+# into account
+def define_has_settings(keys: list[str], schemas: dict[str, SettingSchema]) -> None:
+    cg.add_define(
+        "OPENTHERM_SETTING_LIST(F, sep)",
+        cg.RawExpression(
+            " sep ".join(
+                map(
+                    lambda key: f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})",
+                    keys,
+                )
+            )
+        ),
+    )
+    for key in keys:
+        cg.add_define(f"OPENTHERM_HAS_SETTING_{key}")
 
 
 def define_message_handler(
@@ -74,14 +94,27 @@ def define_readers(component_type: str, keys: list[str]) -> None:
         )
 
 
-def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
-    messages: set[tuple[str, bool]] = set()
+def define_setting_readers(component_type: str, keys: list[str]) -> None:
     for key in keys:
-        messages.add((schemas[key].message, schemas[key].keep_updated))
-    for msg, keep_updated in messages:
+        cg.add_define(
+            f"OPENTHERM_READ_{key}",
+            cg.RawExpression(f"this->{key}_{component_type.lower()}"),
+        )
+
+
+def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
+    messages: dict[str, tuple[bool, int | None]] = {}
+    for key in keys:
+        messages[schemas[key].message] = (
+            schemas[key].keep_updated,
+            schemas[key].order if hasattr(schemas[key], "order") else None,
+        )
+    for msg, (keep_updated, order) in messages.items():
         msg_expr = cg.RawExpression(f"esphome::opentherm::MessageId::{msg}")
         if keep_updated:
             cg.add(hub.add_repeating_message(msg_expr))
+        elif order is not None:
+            cg.add(hub.add_initial_message(msg_expr, order))
         else:
             cg.add(hub.add_initial_message(msg_expr))
 
@@ -95,7 +128,7 @@ Create = Callable[[dict[str, Any], str, cg.MockObj], Awaitable[cg.Pvariable]]
 
 
 def create_only_conf(
-    create: Callable[[dict[str, Any]], Awaitable[cg.Pvariable]]
+    create: Callable[[dict[str, Any]], Awaitable[cg.Pvariable]],
 ) -> Create:
     return lambda conf, _key, _hub: create(conf)
 
@@ -130,6 +163,8 @@ async def component_to_code(
         id = conf[CONF_ID]
         if id and id.type == type:
             entity = await create(conf, key, hub)
+            if const.CONF_DATA_TYPE in conf:
+                schemas[key].message_data = conf[const.CONF_DATA_TYPE]
             cg.add(getattr(hub, f"set_{key}_{component_type.lower()}")(entity))
             keys.append(key)
 

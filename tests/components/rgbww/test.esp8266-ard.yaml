@@ -1,28 +1,9 @@
-output:
-  - platform: esp8266_pwm
-    id: light_output_1
-    pin: 12
-  - platform: esp8266_pwm
-    id: light_output_2
-    pin: 13
-  - platform: esp8266_pwm
-    id: light_output_3
-    pin: 14
-  - platform: esp8266_pwm
-    id: light_output_4
-    pin: 15
-  - platform: esp8266_pwm
-    id: light_output_5
-    pin: 16
+substitutions:
+  light_platform: esp8266_pwm
+  pin1: GPIO12
+  pin2: GPIO13
+  pin3: GPIO14
+  pin4: GPIO15
+  pin5: GPIO16
 
-light:
-  - platform: rgbww
-    name: RGBWW Light
-    red: light_output_1
-    green: light_output_2
-    blue: light_output_3
-    cold_white: light_output_4
-    warm_white: light_output_5
-    cold_white_color_temperature: 153 mireds
-    warm_white_color_temperature: 500 mireds
-    color_interlock: true
+<<: !include common.yaml

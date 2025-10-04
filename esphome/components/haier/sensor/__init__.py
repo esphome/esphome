@@ -1,10 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_HUMIDITY,
     CONF_OUTDOOR_TEMPERATURE,
     CONF_POWER,
-    CONF_HUMIDITY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_HUMIDITY,
@@ -26,10 +26,8 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from ..climate import (
-    CONF_HAIER_ID,
-    HonClimate,
-)
+
+from ..climate import CONF_HAIER_ID, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 SensorTypeEnum = HonClimate.enum("SubSensorType", True)

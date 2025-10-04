@@ -164,13 +164,6 @@ class MQTTComponent : public Component {
    */
   virtual const EntityBase *get_entity() const = 0;
 
-  /** A unique ID for this MQTT component, empty for no unique id. See unique ID requirements:
-   * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
-   *
-   * @return The unique id as a string.
-   */
-  virtual std::string unique_id();
-
   /// Get the friendly name of this MQTT component.
   virtual std::string friendly_name() const;
 

@@ -8,27 +8,6 @@ namespace remote_base {
 
 static const char *const TAG = "remote_base";
 
-#ifdef USE_ESP32
-RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_block_num) {
-  static rmt_channel_t next_rmt_channel = RMT_CHANNEL_0;
-  this->channel_ = next_rmt_channel;
-  next_rmt_channel = rmt_channel_t(int(next_rmt_channel) + mem_block_num);
-}
-
-RemoteRMTChannel::RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num)
-    : channel_(channel), mem_block_num_(mem_block_num) {}
-
-void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
-  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) > RMT_CHANNEL_MAX) {
-    this->mem_block_num_ = int(RMT_CHANNEL_MAX) - int(this->channel_);
-    ESP_LOGW(TAG, "Not enough RMT memory blocks available, reduced to %i blocks.", this->mem_block_num_);
-  }
-  rmt.channel = this->channel_;
-  rmt.clk_div = this->clock_divider_;
-  rmt.mem_block_num = this->mem_block_num_;
-}
-#endif
-
 /* RemoteReceiveData */
 
 bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
@@ -38,6 +17,22 @@ bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
   const int32_t lo = this->lower_bound_(length);
   const int32_t hi = this->upper_bound_(length);
   return value >= 0 && lo <= value && value <= hi;
+}
+
+bool RemoteReceiveData::peek_mark_at_least(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t lo = this->lower_bound_(length);
+  return value >= 0 && lo <= value;
+}
+
+bool RemoteReceiveData::peek_mark_at_most(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t hi = this->upper_bound_(length);
+  return value >= 0 && value <= hi;
 }
 
 bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset) const {
@@ -55,6 +50,14 @@ bool RemoteReceiveData::peek_space_at_least(uint32_t length, uint32_t offset) co
   const int32_t value = this->peek(offset);
   const int32_t lo = this->lower_bound_(length);
   return value <= 0 && lo <= -value;
+}
+
+bool RemoteReceiveData::peek_space_at_most(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t hi = this->upper_bound_(length);
+  return value <= 0 && -value <= hi;
 }
 
 bool RemoteReceiveData::expect_mark(uint32_t length) {

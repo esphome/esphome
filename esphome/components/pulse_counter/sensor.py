@@ -1,22 +1,22 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
     CONF_ID,
     CONF_INTERNAL_FILTER,
+    CONF_NUMBER,
     CONF_PIN,
     CONF_RISING_EDGE,
-    CONF_NUMBER,
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
+    UNIT_PULSES_PER_MINUTE,
 )
 from esphome.core import CORE
 
@@ -49,12 +49,15 @@ def validate_internal_filter(value):
             [CONF_USE_PCNT],
         )
 
-    if CORE.is_esp32 and use_pcnt:
-        if value.get(CONF_INTERNAL_FILTER).total_microseconds > 13:
-            raise cv.Invalid(
-                "Maximum internal filter value when using ESP32 hardware PCNT is 13us",
-                [CONF_INTERNAL_FILTER],
-            )
+    if (
+        CORE.is_esp32
+        and use_pcnt
+        and value.get(CONF_INTERNAL_FILTER).total_microseconds > 13
+    ):
+        raise cv.Invalid(
+            "Maximum internal filter value when using ESP32 hardware PCNT is 13us",
+            [CONF_INTERNAL_FILTER],
+        )
 
     return value
 

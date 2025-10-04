@@ -1,13 +1,5 @@
-uart:
-  - id: uart_he60r
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 1200
-    parity: EVEN
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-cover:
-  - platform: he60r
-    id: garage_door
-    name: Garage Door
-    open_duration: 14s
-    close_duration: 14s
+<<: !include common.yaml

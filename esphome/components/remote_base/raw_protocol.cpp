@@ -28,7 +28,7 @@ bool RawDumper::dump(RemoteReceiveData src) {
       ESP_LOGI(TAG, "%s", buffer);
       buffer_offset = 0;
       written = sprintf(buffer, "  ");
-      if (i + 1 < src.size()) {
+      if (i + 1 < src.size() - 1) {
         written += sprintf(buffer + written, "%" PRId32 ", ", value);
       } else {
         written += sprintf(buffer + written, "%" PRId32, value);

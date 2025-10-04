@@ -38,7 +38,6 @@ class MAX9611Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
   void set_voltage_sensor(sensor::Sensor *vs) { voltage_sensor_ = vs; }
   void set_current_sensor(sensor::Sensor *cs) { current_sensor_ = cs; }

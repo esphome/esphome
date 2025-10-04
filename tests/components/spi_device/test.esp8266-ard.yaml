@@ -1,11 +1,6 @@
-spi:
-  - id: spi_device1
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+substitutions:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
 
-spi_device:
-  id: spi_device_test
-  data_rate: 2MHz
-  spi_mode: 3
-  bit_order: lsb_first
+<<: !include common.yaml
