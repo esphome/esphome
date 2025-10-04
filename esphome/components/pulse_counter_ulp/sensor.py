@@ -18,8 +18,8 @@ from esphome.const import (
     ICON_PULSE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
+    UNIT_PULSES_PER_MINUTE,
 )
 
 pulse_counter_ulp_ns = cg.esphome_ns.namespace("pulse_counter_ulp")
@@ -42,8 +42,7 @@ SetTotalPulsesAction = pulse_counter_ulp_ns.class_(
 
 
 def validate_pulse_counter_pin(value):
-    value = pins.internal_gpio_input_pin_schema(value)
-    return value
+    return pins.internal_gpio_input_pin_schema(value)
 
 
 def validate_count_mode(value):
