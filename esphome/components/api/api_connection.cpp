@@ -27,6 +27,9 @@
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate_mode.h"
+#endif
 #ifdef USE_VOICE_ASSISTANT
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
@@ -629,9 +632,12 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   auto traits = climate->get_traits();
   resp.mode = static_cast<enums::ClimateMode>(climate->mode);
   resp.action = static_cast<enums::ClimateAction>(climate->action);
-  if (traits.get_supports_current_temperature())
+  if (traits.get_supports_current_temperature() ||
+      traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE))
     resp.current_temperature = climate->current_temperature;
-  if (traits.get_supports_two_point_target_temperature() || traits.get_requires_two_point_target_temperature()) {
+  if (traits.get_supports_two_point_target_temperature() ||
+      traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     resp.target_temperature_low = climate->target_temperature_low;
     resp.target_temperature_high = climate->target_temperature_high;
   } else {
@@ -650,9 +656,9 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
-  if (traits.get_supports_current_humidity())
+  if (traits.get_supports_current_humidity() || traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY))
     resp.current_humidity = climate->current_humidity;
-  if (traits.get_supports_target_humidity())
+  if (traits.get_supports_target_humidity() || traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY))
     resp.target_humidity = climate->target_humidity;
   return fill_and_encode_entity_state(climate, resp, ClimateStateResponse::MESSAGE_TYPE, conn, remaining_size,
                                       is_single);
@@ -664,8 +670,8 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   auto traits = climate->get_traits();
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_current_humidity = traits.get_supports_current_humidity();
+  msg.feature_flags = traits.get_feature_flags();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
-  msg.requires_two_point_target_temperature = traits.get_requires_two_point_target_temperature();
   msg.supports_target_humidity = traits.get_supports_target_humidity();
   msg.supported_modes = &traits.get_supported_modes_for_api_();
   msg.visual_min_temperature = traits.get_visual_min_temperature();

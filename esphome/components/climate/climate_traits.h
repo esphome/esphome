@@ -55,13 +55,13 @@ class ClimateTraits {
   void set_supports_current_humidity(bool supports_current_humidity) {
     this->supports_current_humidity_ = supports_current_humidity;
   }
+  uint32_t get_feature_flags() const { return this->feature_flags_; }
+  void add_feature_flags(uint32_t flags) { this->feature_flags_ |= flags; }
+  bool has_feature_flags(uint32_t flags) { return this->feature_flags_ & flags; }
+  void set_feature_flags(uint32_t feature_flags) { this->feature_flags_ = feature_flags; }
   bool get_supports_two_point_target_temperature() const { return this->supports_two_point_target_temperature_; }
   void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature) {
     this->supports_two_point_target_temperature_ = supports_two_point_target_temperature;
-  }
-  bool get_requires_two_point_target_temperature() const { return this->requires_two_point_target_temperature_; }
-  void set_requires_two_point_target_temperature(bool requires_two_point_target_temperature) {
-    this->requires_two_point_target_temperature_ = requires_two_point_target_temperature;
   }
   bool get_supports_target_humidity() const { return this->supports_target_humidity_; }
   void set_supports_target_humidity(bool supports_target_humidity) {
@@ -223,7 +223,6 @@ class ClimateTraits {
     }
   }
 
-  bool requires_two_point_target_temperature_{false};
   bool supports_current_temperature_{false};
   bool supports_current_humidity_{false};
   bool supports_two_point_target_temperature_{false};
@@ -242,6 +241,7 @@ class ClimateTraits {
   float visual_current_temperature_step_{0.1};
   float visual_min_humidity_{30};
   float visual_max_humidity_{99};
+  uint32_t feature_flags_{0};
 };
 
 }  // namespace climate
