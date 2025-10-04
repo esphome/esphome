@@ -1259,7 +1259,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 #endif
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(buf, (PGM_P) ((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
