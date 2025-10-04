@@ -80,6 +80,7 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t ionum, gpio::Flags flags);
 
  protected:
+  bool setup_complete_{false};
   std::vector<MPR121Channel *> channels_{};
   uint8_t debounce_{0};
   uint8_t touch_threshold_{};
@@ -88,7 +89,6 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
-    WRONG_CHIP_STATE,
   } error_code_{NONE};
 
   bool flush_gpio_();
