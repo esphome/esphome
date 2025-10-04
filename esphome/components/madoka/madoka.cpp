@@ -224,7 +224,7 @@ void Madoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
     return;
   }
   if (this->pending_chunks_.count(chunk_id)) {
-    ESP_LOGE(TAG, "Another packet with the same std::vector<uint8_t> ID is already in the buffer.");
+    ESP_LOGE(TAG, "Another packet with the same chunk ID is already in the buffer.");
     ESP_LOGD(TAG, "Chunk ID: %d.", chunk_id);
     return;
   }
