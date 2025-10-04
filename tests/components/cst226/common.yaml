@@ -23,3 +23,9 @@ touchscreen:
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
 
+binary_sensor:
+  - id: cst226_touch
+    platform: cst226
+    on_press:
+      then:
+        - component.update: ts_cst226

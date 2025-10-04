@@ -1,13 +1,8 @@
 from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import (
-    CONF_ID,
-    CONF_PIN,
-    CONF_TURN_ON_ACTION,
-    CONF_TURN_OFF_ACTION,
-)
+from esphome.const import CONF_ID, CONF_PIN, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
 
 DEPENDENCIES = []
 

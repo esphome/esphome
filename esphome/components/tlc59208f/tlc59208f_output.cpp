@@ -1,7 +1,7 @@
 #include "tlc59208f_output.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tlc59208f {
@@ -71,12 +71,11 @@ static const uint8_t LDR_PWM = 0x02;
 static const uint8_t LDR_GRPPWM = 0x03;
 
 void TLC59208FOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TLC59208FOutputComponent...");
-
-  ESP_LOGV(TAG, "  Resetting all devices on the bus...");
+  ESP_LOGV(TAG, "  Resetting all devices on the bus");
 
   // Reset all devices on the bus
-  if (this->bus_->write(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ, 2) != i2c::ERROR_OK) {
+  if (this->bus_->write_readv(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ, sizeof TLC59208F_SWRST_SEQ, nullptr, 0) !=
+      i2c::ERROR_OK) {
     ESP_LOGE(TAG, "RESET failed");
     this->mark_failed();
     return;
@@ -111,8 +110,10 @@ void TLC59208FOutput::setup() {
 }
 
 void TLC59208FOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "TLC59208F:");
-  ESP_LOGCONFIG(TAG, "  Mode: 0x%02X", this->mode_);
+  ESP_LOGCONFIG(TAG,
+                "TLC59208F:\n"
+                "  Mode: 0x%02X",
+                this->mode_);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up TLC59208F failed!");

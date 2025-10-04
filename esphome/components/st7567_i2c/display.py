@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import i2c, st7567_base
 import esphome.config_validation as cv
-from esphome.components import st7567_base, i2c
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 CODEOWNERS = ["@latonita"]

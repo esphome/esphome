@@ -1,0 +1,38 @@
+esphome:
+  debug_scheduler: true
+  platformio_options:
+    board_build.flash_mode: dio
+  area:
+    id: testing_area
+    name: Testing Area
+  on_boot:
+    logger.log: on_boot
+  on_shutdown:
+    logger.log: on_shutdown
+  on_loop:
+    logger.log: on_loop
+  compile_process_limit: 1
+  min_version: "2025.1"
+  name_add_mac_suffix: true
+  project:
+    name: esphome.test
+    version: "1.1"
+    on_update:
+      logger.log: on_update
+  areas:
+    - id: another_area
+      name: Another area
+  devices:
+    - id: other_device
+      name: Another device
+      area_id: another_area
+    - id: test_device
+      name: Test device in main area
+      area_id: testing_area  # Reference the main area (not in areas)
+    - id: no_area_device
+      name: Device without area  # This device has no area_id
+
+binary_sensor:
+  - platform: template
+    name: Other device sensor
+    device_id: other_device

@@ -29,10 +29,14 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
-def literal(arg):
+def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
+
+
+def static_cast(type, value):
+    return literal(f"static_cast<{type}>({value})")
 
 
 def call_lambda(lamb: LambdaExpression):
@@ -414,14 +418,11 @@ CONF_BUTTONS = "buttons"
 CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
-CONF_COLOR_DEPTH = "color_depth"
 CONF_CONTROL = "control"
-CONF_DEFAULT = "default"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
 CONF_DISPLAYS = "displays"
-CONF_DRAW_ROUNDING = "draw_rounding"
 CONF_EDITING = "editing"
 CONF_ENCODERS = "encoders"
 CONF_END_ANGLE = "end_angle"
@@ -450,12 +451,12 @@ CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
 CONF_INITIAL_FOCUS = "initial_focus"
+CONF_SELECTED_DIGIT = "selected_digit"
 CONF_KEY_CODE = "key_code"
 CONF_KEYPADS = "keypads"
 CONF_LAYOUT = "layout"
 CONF_LEFT_BUTTON = "left_button"
 CONF_LINE_WIDTH = "line_width"
-CONF_LOG_LEVEL = "log_level"
 CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
@@ -517,8 +518,6 @@ CONF_UPDATE_ON_RELEASE = "update_on_release"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
-CONF_X = "x"
-CONF_Y = "y"
 CONF_ZOOM = "zoom"
 
 # Keypad keys

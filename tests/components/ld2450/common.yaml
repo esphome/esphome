@@ -9,7 +9,6 @@ uart:
 ld2450:
   - id: ld2450_radar
     uart_id: ld2450_uart
-    throttle: 1000ms
 
 button:
   - platform: ld2450

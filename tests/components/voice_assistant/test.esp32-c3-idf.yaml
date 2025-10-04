@@ -5,4 +5,4 @@ substitutions:
   i2s_din_pin: GPIO3
   i2s_dout_pin: GPIO2
 
-<<: !include common.yaml
+<<: !include common-idf.yaml

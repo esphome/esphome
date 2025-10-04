@@ -5,7 +5,7 @@ from esphome.const import CONF_LEVEL, CONF_LOGGER, ENTITY_CATEGORY_CONFIG, ICON_
 from esphome.core import CORE
 from esphome.cpp_helpers import register_component, register_parented
 
-from .. import CONF_LOGGER_ID, LOG_LEVEL_SEVERITY, Logger, logger_ns
+from .. import CONF_LOGGER_ID, LOG_LEVELS, Logger, logger_ns
 
 CODEOWNERS = ["@clydebarrow"]
 
@@ -21,9 +21,10 @@ CONFIG_SCHEMA = select.select_schema(
 
 
 async def to_code(config):
-    levels = LOG_LEVEL_SEVERITY
-    index = levels.index(CORE.config[CONF_LOGGER][CONF_LEVEL])
+    parent = await cg.get_variable(config[CONF_LOGGER_ID])
+    levels = list(LOG_LEVELS)
+    index = levels.index(CORE.data[CONF_LOGGER][CONF_LEVEL])
     levels = levels[: index + 1]
     var = await select.new_select(config, options=levels)
-    await register_parented(var, config[CONF_LOGGER_ID])
+    await register_parented(var, parent)
     await register_component(var, config)

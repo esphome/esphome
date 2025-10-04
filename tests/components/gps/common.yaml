@@ -6,6 +6,20 @@ uart:
     parity: EVEN
 
 gps:
+  latitude:
+    name: "Latitude"
+  longitude:
+    name: "Longitude"
+  altitude:
+    name: "Altitude"
+  speed:
+    name: "Speed"
+  course:
+    name: "Course"
+  satellites:
+    name: "Satellites"
+  hdop:
+    name: "HDOP"
 
 time:
   - platform: gps

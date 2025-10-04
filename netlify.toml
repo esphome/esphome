@@ -1,0 +1,3 @@
+[build]
+  command = "script/build-api-docs"
+  publish = "api-docs"

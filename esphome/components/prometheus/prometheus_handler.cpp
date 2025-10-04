@@ -89,6 +89,12 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->valve_row_(stream, obj, area, node, friendly_name);
 #endif
 
+#ifdef USE_CLIMATE
+  this->climate_type_(stream);
+  for (auto *obj : App.get_climates())
+    this->climate_row_(stream, obj, area, node, friendly_name);
+#endif
+
   req->send(stream);
 }
 
@@ -821,6 +827,174 @@ void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *ob
     stream->print(obj->position);
     stream->print(F("\n"));
   }
+}
+#endif
+
+#ifdef USE_CLIMATE
+void PrometheusHandler::climate_type_(AsyncResponseStream *stream) {
+  stream->print(F("#TYPE esphome_climate_setting gauge\n"));
+  stream->print(F("#TYPE esphome_climate_value gauge\n"));
+  stream->print(F("#TYPE esphome_climate_failed gauge\n"));
+}
+
+void PrometheusHandler::climate_setting_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area,
+                                             std::string &node, std::string &friendly_name, std::string &setting,
+                                             const LogString *setting_value) {
+  stream->print(F("esphome_climate_setting{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(F("\",category=\""));
+  stream->print(setting.c_str());
+  stream->print(F("\",setting_value=\""));
+  stream->print(LOG_STR_ARG(setting_value));
+  stream->print(F("\"} "));
+  stream->print(F("1.0"));
+  stream->print(F("\n"));
+}
+
+void PrometheusHandler::climate_value_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area,
+                                           std::string &node, std::string &friendly_name, std::string &category,
+                                           std::string &climate_value) {
+  stream->print(F("esphome_climate_value{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(F("\",category=\""));
+  stream->print(category.c_str());
+  stream->print(F("\"} "));
+  stream->print(climate_value.c_str());
+  stream->print(F("\n"));
+}
+
+void PrometheusHandler::climate_failed_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area,
+                                            std::string &node, std::string &friendly_name, std::string &category,
+                                            bool is_failed_value) {
+  stream->print(F("esphome_climate_failed{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(F("\",category=\""));
+  stream->print(category.c_str());
+  stream->print(F("\"} "));
+  if (is_failed_value) {
+    stream->print(F("1.0"));
+  } else {
+    stream->print(F("0.0"));
+  }
+  stream->print(F("\n"));
+}
+
+void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area,
+                                     std::string &node, std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  // Data itself
+  bool any_failures = false;
+  std::string climate_mode_category = "mode";
+  const auto *climate_mode_value = climate::climate_mode_to_string(obj->mode);
+  climate_setting_row_(stream, obj, area, node, friendly_name, climate_mode_category, climate_mode_value);
+  const auto traits = obj->get_traits();
+  // Now see if traits is supported
+  int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
+  int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
+  // max temp
+  std::string max_temp = "maximum_temperature";
+  auto max_temp_value = value_accuracy_to_string(traits.get_visual_max_temperature(), target_accuracy);
+  climate_value_row_(stream, obj, area, node, friendly_name, max_temp, max_temp_value);
+  // max temp
+  std::string min_temp = "mininum_temperature";
+  auto min_temp_value = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
+  climate_value_row_(stream, obj, area, node, friendly_name, min_temp, min_temp_value);
+  // now check optional traits
+  if (traits.get_supports_current_temperature()) {
+    std::string current_temp = "current_temperature";
+    if (std::isnan(obj->current_temperature)) {
+      climate_failed_row_(stream, obj, area, node, friendly_name, current_temp, true);
+      any_failures = true;
+    } else {
+      auto current_temp_value = value_accuracy_to_string(obj->current_temperature, current_accuracy);
+      climate_value_row_(stream, obj, area, node, friendly_name, current_temp, current_temp_value);
+      climate_failed_row_(stream, obj, area, node, friendly_name, current_temp, false);
+    }
+  }
+  if (traits.get_supports_current_humidity()) {
+    std::string current_humidity = "current_humidity";
+    if (std::isnan(obj->current_humidity)) {
+      climate_failed_row_(stream, obj, area, node, friendly_name, current_humidity, true);
+      any_failures = true;
+    } else {
+      auto current_humidity_value = value_accuracy_to_string(obj->current_humidity, 0);
+      climate_value_row_(stream, obj, area, node, friendly_name, current_humidity, current_humidity_value);
+      climate_failed_row_(stream, obj, area, node, friendly_name, current_humidity, false);
+    }
+  }
+  if (traits.get_supports_target_humidity()) {
+    std::string target_humidity = "target_humidity";
+    if (std::isnan(obj->target_humidity)) {
+      climate_failed_row_(stream, obj, area, node, friendly_name, target_humidity, true);
+      any_failures = true;
+    } else {
+      auto target_humidity_value = value_accuracy_to_string(obj->target_humidity, 0);
+      climate_value_row_(stream, obj, area, node, friendly_name, target_humidity, target_humidity_value);
+      climate_failed_row_(stream, obj, area, node, friendly_name, target_humidity, false);
+    }
+  }
+  if (traits.get_supports_two_point_target_temperature()) {
+    std::string target_temp_low = "target_temperature_low";
+    auto target_temp_low_value = value_accuracy_to_string(obj->target_temperature_low, target_accuracy);
+    climate_value_row_(stream, obj, area, node, friendly_name, target_temp_low, target_temp_low_value);
+    std::string target_temp_high = "target_temperature_high";
+    auto target_temp_high_value = value_accuracy_to_string(obj->target_temperature_high, target_accuracy);
+    climate_value_row_(stream, obj, area, node, friendly_name, target_temp_high, target_temp_high_value);
+  } else {
+    std::string target_temp = "target_temperature";
+    auto target_temp_value = value_accuracy_to_string(obj->target_temperature, target_accuracy);
+    climate_value_row_(stream, obj, area, node, friendly_name, target_temp, target_temp_value);
+  }
+  if (traits.get_supports_action()) {
+    std::string climate_trait_category = "action";
+    const auto *climate_trait_value = climate::climate_action_to_string(obj->action);
+    climate_setting_row_(stream, obj, area, node, friendly_name, climate_trait_category, climate_trait_value);
+  }
+  if (traits.get_supports_fan_modes()) {
+    std::string climate_trait_category = "fan_mode";
+    if (obj->fan_mode.has_value()) {
+      const auto *climate_trait_value = climate::climate_fan_mode_to_string(obj->fan_mode.value());
+      climate_setting_row_(stream, obj, area, node, friendly_name, climate_trait_category, climate_trait_value);
+      climate_failed_row_(stream, obj, area, node, friendly_name, climate_trait_category, false);
+    } else {
+      climate_failed_row_(stream, obj, area, node, friendly_name, climate_trait_category, true);
+      any_failures = true;
+    }
+  }
+  if (traits.get_supports_presets()) {
+    std::string climate_trait_category = "preset";
+    if (obj->preset.has_value()) {
+      const auto *climate_trait_value = climate::climate_preset_to_string(obj->preset.value());
+      climate_setting_row_(stream, obj, area, node, friendly_name, climate_trait_category, climate_trait_value);
+      climate_failed_row_(stream, obj, area, node, friendly_name, climate_trait_category, false);
+    } else {
+      climate_failed_row_(stream, obj, area, node, friendly_name, climate_trait_category, true);
+      any_failures = true;
+    }
+  }
+  if (traits.get_supports_swing_modes()) {
+    std::string climate_trait_category = "swing_mode";
+    const auto *climate_trait_value = climate::climate_swing_mode_to_string(obj->swing_mode);
+    climate_setting_row_(stream, obj, area, node, friendly_name, climate_trait_category, climate_trait_value);
+  }
+  std::string all_climate_category = "all";
+  climate_failed_row_(stream, obj, area, node, friendly_name, all_climate_category, any_failures);
 }
 #endif
 

@@ -2,7 +2,9 @@ ethernet:
   type: KSZ8081
   mdc_pin: 23
   mdio_pin: 25
-  clk_mode: GPIO0_IN
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
   phy_addr: 0
   power_pin: 26
   manual_ip:
@@ -10,3 +12,4 @@ ethernet:
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+  mac_address: "02:AA:BB:CC:DD:01"

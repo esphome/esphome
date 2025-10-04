@@ -43,6 +43,9 @@ font:
     id: default_font
   - file: $component_dir/x11.pcf
     id: pcf_font
+  - file: $component_dir/Tamzen5x9b.bdf
+    id: bdf_font
+    size: 7
 
 i2c:
   scl: ${i2c_scl}

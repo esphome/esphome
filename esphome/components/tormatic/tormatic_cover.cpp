@@ -34,8 +34,10 @@ void Tormatic::dump_config() {
   LOG_COVER("", "Tormatic Cover", this);
   this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
 
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
 
   auto restore = this->restore_state_();
   if (restore.has_value()) {

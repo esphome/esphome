@@ -52,6 +52,11 @@ template<typename T> class optional {  // NOLINT
     reset();
     return *this;
   }
+  bool operator==(optional<T> const &rhs) const {
+    if (has_value() && rhs.has_value())
+      return value() == rhs.value();
+    return !has_value() && !rhs.has_value();
+  }
 
   template<class U> optional &operator=(optional<U> const &other) {
     has_value_ = other.has_value();

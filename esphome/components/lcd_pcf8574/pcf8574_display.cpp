@@ -11,7 +11,6 @@ static const uint8_t LCD_DISPLAY_BACKLIGHT_ON = 0x08;
 static const uint8_t LCD_DISPLAY_BACKLIGHT_OFF = 0x00;
 
 void PCF8574LCDDisplay::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCF8574 LCD Display...");
   this->backlight_value_ = LCD_DISPLAY_BACKLIGHT_ON;
   if (!this->write_bytes(this->backlight_value_, nullptr, 0)) {
     this->mark_failed();
@@ -21,12 +20,14 @@ void PCF8574LCDDisplay::setup() {
   LCDDisplay::setup();
 }
 void PCF8574LCDDisplay::dump_config() {
-  ESP_LOGCONFIG(TAG, "PCF8574 LCD Display:");
-  ESP_LOGCONFIG(TAG, "  Columns: %u, Rows: %u", this->columns_, this->rows_);
+  ESP_LOGCONFIG(TAG,
+                "PCF8574 LCD Display:\n"
+                "  Columns: %u, Rows: %u",
+                this->columns_, this->rows_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with LCD Display failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 void PCF8574LCDDisplay::write_n_bits(uint8_t value, uint8_t n) {
