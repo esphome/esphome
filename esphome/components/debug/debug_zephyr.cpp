@@ -34,7 +34,7 @@ static inline uint8_t read_mem_u8(uintptr_t addr) {
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
-const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
+constexpr uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
 constexpr uintptr_t MBR_SIZE = 0x1000;
 constexpr uintptr_t SOFTDEVICE_INFO_STRUCT_OFFSET = 0x2000;
 constexpr uintptr_t SD_ID_OFFSET = SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10;
