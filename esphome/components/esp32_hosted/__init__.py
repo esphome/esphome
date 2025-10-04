@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
@@ -97,5 +98,5 @@ async def to_code(config):
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
-        os.path.join(os.path.dirname(__file__), "esp32_hosted.py.script"),
+        Path(__file__).parent / "esp32_hosted.py.script",
     )
