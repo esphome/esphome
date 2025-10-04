@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_INTERVAL,
     CONF_MAC_ADDRESS,
     CONF_MANUFACTURER_ID,
+    CONF_MAX_CONNECTIONS,
     CONF_ON_BLE_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
@@ -41,7 +42,6 @@ CODEOWNERS = ["@bdraco"]
 KEY_ESP32_BLE_TRACKER = "esp32_ble_tracker"
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
 
-CONF_MAX_CONNECTIONS = "max_connections"
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
