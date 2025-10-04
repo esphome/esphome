@@ -12,13 +12,7 @@ from esphome import const, util
 from esphome.enum import StrEnum
 from esphome.storage_json import StorageJSON, ext_storage_path
 
-from .const import (
-    DASHBOARD_COMMAND,
-    EVENT_ENTRY_ADDED,
-    EVENT_ENTRY_REMOVED,
-    EVENT_ENTRY_STATE_CHANGED,
-    EVENT_ENTRY_UPDATED,
-)
+from .const import DASHBOARD_COMMAND, DashboardEvent
 from .util.subprocess import async_run_system_command
 
 if TYPE_CHECKING:
@@ -102,12 +96,12 @@ class DashboardEntries:
         #   "path/to/file.yaml": DashboardEntry,
         #   ...
         # }
-        self._entries: dict[str, DashboardEntry] = {}
+        self._entries: dict[Path, DashboardEntry] = {}
         self._loaded_entries = False
         self._update_lock = asyncio.Lock()
         self._name_to_entry: dict[str, set[DashboardEntry]] = defaultdict(set)
 
-    def get(self, path: str) -> DashboardEntry | None:
+    def get(self, path: Path) -> DashboardEntry | None:
         """Get an entry by path."""
         return self._entries.get(path)
 
@@ -192,7 +186,7 @@ class DashboardEntries:
             return
         entry.state = state
         self._dashboard.bus.async_fire(
-            EVENT_ENTRY_STATE_CHANGED, {"entry": entry, "state": state}
+            DashboardEvent.ENTRY_STATE_CHANGED, {"entry": entry, "state": state}
         )
 
     async def async_request_update_entries(self) -> None:
@@ -260,22 +254,22 @@ class DashboardEntries:
         for entry in added:
             entries[entry.path] = entry
             name_to_entry[entry.name].add(entry)
-            bus.async_fire(EVENT_ENTRY_ADDED, {"entry": entry})
+            bus.async_fire(DashboardEvent.ENTRY_ADDED, {"entry": entry})
 
         for entry in removed:
             del entries[entry.path]
             name_to_entry[entry.name].discard(entry)
-            bus.async_fire(EVENT_ENTRY_REMOVED, {"entry": entry})
+            bus.async_fire(DashboardEvent.ENTRY_REMOVED, {"entry": entry})
 
         for entry in updated:
             if (original_name := original_names[entry]) != (current_name := entry.name):
                 name_to_entry[original_name].discard(entry)
                 name_to_entry[current_name].add(entry)
-            bus.async_fire(EVENT_ENTRY_UPDATED, {"entry": entry})
+            bus.async_fire(DashboardEvent.ENTRY_UPDATED, {"entry": entry})
 
-    def _get_path_to_cache_key(self) -> dict[str, DashboardCacheKeyType]:
+    def _get_path_to_cache_key(self) -> dict[Path, DashboardCacheKeyType]:
         """Return a dict of path to cache key."""
-        path_to_cache_key: dict[str, DashboardCacheKeyType] = {}
+        path_to_cache_key: dict[Path, DashboardCacheKeyType] = {}
         #
         # The cache key is (inode, device, mtime, size)
         # which allows us to avoid locking since it ensures

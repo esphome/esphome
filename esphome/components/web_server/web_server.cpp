@@ -829,15 +829,28 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     auto call = obj->make_call();
-    if (match.method_equals("open")) {
-      call.set_command_open();
-    } else if (match.method_equals("close")) {
-      call.set_command_close();
-    } else if (match.method_equals("stop")) {
-      call.set_command_stop();
-    } else if (match.method_equals("toggle")) {
-      call.set_command_toggle();
-    } else if (!match.method_equals("set")) {
+
+    // Lookup table for cover methods
+    static const struct {
+      const char *name;
+      cover::CoverCall &(cover::CoverCall::*action)();
+    } METHODS[] = {
+        {"open", &cover::CoverCall::set_command_open},
+        {"close", &cover::CoverCall::set_command_close},
+        {"stop", &cover::CoverCall::set_command_stop},
+        {"toggle", &cover::CoverCall::set_command_toggle},
+    };
+
+    bool found = false;
+    for (const auto &method : METHODS) {
+      if (match.method_equals(method.name)) {
+        (call.*method.action)();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found && !match.method_equals("set")) {
       request->send(404);
       return;
     }
@@ -1483,15 +1496,28 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     auto call = obj->make_call();
-    if (match.method_equals("open")) {
-      call.set_command_open();
-    } else if (match.method_equals("close")) {
-      call.set_command_close();
-    } else if (match.method_equals("stop")) {
-      call.set_command_stop();
-    } else if (match.method_equals("toggle")) {
-      call.set_command_toggle();
-    } else if (!match.method_equals("set")) {
+
+    // Lookup table for valve methods
+    static const struct {
+      const char *name;
+      valve::ValveCall &(valve::ValveCall::*action)();
+    } METHODS[] = {
+        {"open", &valve::ValveCall::set_command_open},
+        {"close", &valve::ValveCall::set_command_close},
+        {"stop", &valve::ValveCall::set_command_stop},
+        {"toggle", &valve::ValveCall::set_command_toggle},
+    };
+
+    bool found = false;
+    for (const auto &method : METHODS) {
+      if (match.method_equals(method.name)) {
+        (call.*method.action)();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found && !match.method_equals("set")) {
       request->send(404);
       return;
     }
@@ -1555,17 +1581,28 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     auto call = obj->make_call();
     parse_string_param_(request, "code", call, &decltype(call)::set_code);
 
-    if (match.method_equals("disarm")) {
-      call.disarm();
-    } else if (match.method_equals("arm_away")) {
-      call.arm_away();
-    } else if (match.method_equals("arm_home")) {
-      call.arm_home();
-    } else if (match.method_equals("arm_night")) {
-      call.arm_night();
-    } else if (match.method_equals("arm_vacation")) {
-      call.arm_vacation();
-    } else {
+    // Lookup table for alarm control panel methods
+    static const struct {
+      const char *name;
+      alarm_control_panel::AlarmControlPanelCall &(alarm_control_panel::AlarmControlPanelCall::*action)();
+    } METHODS[] = {
+        {"disarm", &alarm_control_panel::AlarmControlPanelCall::disarm},
+        {"arm_away", &alarm_control_panel::AlarmControlPanelCall::arm_away},
+        {"arm_home", &alarm_control_panel::AlarmControlPanelCall::arm_home},
+        {"arm_night", &alarm_control_panel::AlarmControlPanelCall::arm_night},
+        {"arm_vacation", &alarm_control_panel::AlarmControlPanelCall::arm_vacation},
+    };
+
+    bool found = false;
+    for (const auto &method : METHODS) {
+      if (match.method_equals(method.name)) {
+        (call.*method.action)();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
       request->send(404);
       return;
     }
@@ -1731,24 +1768,24 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   const auto &url = request->url();
   const auto method = request->method();
 
-  // Simple URL checks
-  if (url == "/")
-    return true;
-
+  // Static URL checks
+  static const char *const STATIC_URLS[] = {
+      "/",
 #ifdef USE_ARDUINO
-  if (url == "/events")
-    return true;
+      "/events",
 #endif
-
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css")
-    return true;
+      "/0.css",
 #endif
-
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js")
-    return true;
+      "/0.js",
 #endif
+  };
+
+  for (const auto &static_url : STATIC_URLS) {
+    if (url == static_url)
+      return true;
+  }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (method == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA))
@@ -1768,92 +1805,87 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (!is_get_or_post)
     return false;
 
-  // GET-only components
-  if (is_get) {
+  // Use lookup tables for domain checks
+  static const char *const GET_ONLY_DOMAINS[] = {
 #ifdef USE_SENSOR
-    if (match.domain_equals("sensor"))
-      return true;
+      "sensor",
 #endif
 #ifdef USE_BINARY_SENSOR
-    if (match.domain_equals("binary_sensor"))
-      return true;
+      "binary_sensor",
 #endif
 #ifdef USE_TEXT_SENSOR
-    if (match.domain_equals("text_sensor"))
-      return true;
+      "text_sensor",
 #endif
 #ifdef USE_EVENT
-    if (match.domain_equals("event"))
-      return true;
+      "event",
 #endif
-  }
+  };
 
-  // GET+POST components
-  if (is_get_or_post) {
+  static const char *const GET_POST_DOMAINS[] = {
 #ifdef USE_SWITCH
-    if (match.domain_equals("switch"))
-      return true;
+      "switch",
 #endif
 #ifdef USE_BUTTON
-    if (match.domain_equals("button"))
-      return true;
+      "button",
 #endif
 #ifdef USE_FAN
-    if (match.domain_equals("fan"))
-      return true;
+      "fan",
 #endif
 #ifdef USE_LIGHT
-    if (match.domain_equals("light"))
-      return true;
+      "light",
 #endif
 #ifdef USE_COVER
-    if (match.domain_equals("cover"))
-      return true;
+      "cover",
 #endif
 #ifdef USE_NUMBER
-    if (match.domain_equals("number"))
-      return true;
+      "number",
 #endif
 #ifdef USE_DATETIME_DATE
-    if (match.domain_equals("date"))
-      return true;
+      "date",
 #endif
 #ifdef USE_DATETIME_TIME
-    if (match.domain_equals("time"))
-      return true;
+      "time",
 #endif
 #ifdef USE_DATETIME_DATETIME
-    if (match.domain_equals("datetime"))
-      return true;
+      "datetime",
 #endif
 #ifdef USE_TEXT
-    if (match.domain_equals("text"))
-      return true;
+      "text",
 #endif
 #ifdef USE_SELECT
-    if (match.domain_equals("select"))
-      return true;
+      "select",
 #endif
 #ifdef USE_CLIMATE
-    if (match.domain_equals("climate"))
-      return true;
+      "climate",
 #endif
 #ifdef USE_LOCK
-    if (match.domain_equals("lock"))
-      return true;
+      "lock",
 #endif
 #ifdef USE_VALVE
-    if (match.domain_equals("valve"))
-      return true;
+      "valve",
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-    if (match.domain_equals("alarm_control_panel"))
-      return true;
+      "alarm_control_panel",
 #endif
 #ifdef USE_UPDATE
-    if (match.domain_equals("update"))
-      return true;
+      "update",
 #endif
+  };
+
+  // Check GET-only domains
+  if (is_get) {
+    for (const auto &domain : GET_ONLY_DOMAINS) {
+      if (match.domain_equals(domain))
+        return true;
+    }
+  }
+
+  // Check GET+POST domains
+  if (is_get_or_post) {
+    for (const auto &domain : GET_POST_DOMAINS) {
+      if (match.domain_equals(domain))
+        return true;
+    }
   }
 
   return false;
