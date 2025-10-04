@@ -25,22 +25,22 @@ static void show_reset_reason(std::string &reset_reason, bool set, const char *r
   reset_reason += reason;
 }
 
-inline uint32_t read_mem_u32(uintptr_t addr) {
+static inline uint32_t read_mem_u32(uintptr_t addr) {
   return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
 }
 
-inline uint8_t read_mem_u8(uintptr_t addr) {
+static inline uint8_t read_mem_u8(uintptr_t addr) {
   return *reinterpret_cast<volatile uint8_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
 const uint32_t SD_MAGIC_NUMBER = 0x51B1E5DB;
-#define MBR_SIZE (0x1000)
-#define SOFTDEVICE_INFO_STRUCT_OFFSET (0x2000)
-#define SD_ID_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10)
-#define SD_VERSION_OFFSET (SOFTDEVICE_INFO_STRUCT_OFFSET + 0x14)
+constexpr uintptr_t MBR_SIZE = 0x1000;
+constexpr uintptr_t SOFTDEVICE_INFO_STRUCT_OFFSET = 0x2000;
+constexpr uintptr_t SD_ID_OFFSET = SOFTDEVICE_INFO_STRUCT_OFFSET + 0x10;
+constexpr uintptr_t SD_VERSION_OFFSET = SOFTDEVICE_INFO_STRUCT_OFFSET + 0x14;
 
-static inline bool is_sd_existed() {
+static inline bool is_sd_present() {
   return read_mem_u32(SOFTDEVICE_INFO_STRUCT_OFFSET + MBR_SIZE + 4) == SD_MAGIC_NUMBER;
 }
 static inline uint32_t sd_id_get() {
@@ -298,7 +298,7 @@ void DebugComponent::get_device_info_(std::string &device_info) {
            NRF_UICR->NRFFW[0]);
   ESP_LOGD(TAG, "MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
-  if (is_sd_existed()) {
+  if (is_sd_present()) {
     uint32_t const sd_id = sd_id_get();
     uint32_t const sd_version = sd_version_get();
 
