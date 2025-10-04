@@ -35,7 +35,6 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
   void set_drdy_pin(GPIOPin *pin) { drdy_pin_ = pin; }
-
   void set_datarate(QMC5883LDatarate datarate) { datarate_ = datarate; }
   void set_range(QMC5883LRange range) { range_ = range; }
   void set_oversampling(QMC5883LOversampling oversampling) { oversampling_ = oversampling; }
