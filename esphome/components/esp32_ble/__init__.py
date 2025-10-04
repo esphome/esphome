@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import TimePeriod
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
@@ -174,16 +174,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
-        cv.SplitDefault(CONF_DISABLE_BT_LOGS, esp32_idf=True): cv.All(
-            cv.only_with_esp_idf, cv.boolean
-        ),
-        cv.SplitDefault(CONF_CONNECTION_TIMEOUT, esp32_idf="20s"): cv.All(
-            cv.only_with_esp_idf,
+        cv.Optional(CONF_DISABLE_BT_LOGS, default=True): cv.boolean,
+        cv.Optional(CONF_CONNECTION_TIMEOUT, default="20s"): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(min=TimePeriod(seconds=10), max=TimePeriod(seconds=180)),
         ),
-        cv.SplitDefault(CONF_MAX_NOTIFICATIONS, esp32_idf=12): cv.All(
-            cv.only_with_esp_idf,
+        cv.Optional(CONF_MAX_NOTIFICATIONS, default=12): cv.All(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
@@ -246,6 +242,19 @@ def final_validation(config):
                 f"Name '{name}' is too long, maximum length is {max_length} characters"
             )
 
+    # Set GATT Client/Server sdkconfig options based on which components are loaded
+    full_config = fv.full_config.get()
+
+    # Check if BLE Server is needed
+    has_ble_server = "esp32_ble_server" in full_config
+    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server)
+
+    # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
+    has_ble_client = (
+        "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
+    )
+    add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
+
     return config
 
 
@@ -261,43 +270,40 @@ async def to_code(config):
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
 
-        # Register the core BLE loggers that are always needed
-        register_bt_logger(BTLoggers.GAP, BTLoggers.BTM, BTLoggers.HCI)
+    # Register the core BLE loggers that are always needed
+    register_bt_logger(BTLoggers.GAP, BTLoggers.BTM, BTLoggers.HCI)
 
-        # Apply logger settings if log disabling is enabled
-        if config.get(CONF_DISABLE_BT_LOGS, False):
-            # Disable all Bluetooth loggers that are not required
-            for logger in BTLoggers:
-                if logger not in _required_loggers:
-                    add_idf_sdkconfig_option(f"{logger.value}_NONE", True)
+    # Apply logger settings if log disabling is enabled
+    if config.get(CONF_DISABLE_BT_LOGS, False):
+        # Disable all Bluetooth loggers that are not required
+        for logger in BTLoggers:
+            if logger not in _required_loggers:
+                add_idf_sdkconfig_option(f"{logger.value}_NONE", True)
 
-        # Set BLE connection establishment timeout to match aioesphomeapi/bleak-retry-connector
-        # Default is 20 seconds instead of ESP-IDF's 30 seconds. Because there is no way to
-        # cancel a BLE connection in progress, when aioesphomeapi times out at 20 seconds,
-        # the connection slot remains occupied for the remaining time, preventing new connection
-        # attempts and wasting valuable connection slots.
-        if CONF_CONNECTION_TIMEOUT in config:
-            timeout_seconds = int(config[CONF_CONNECTION_TIMEOUT].total_seconds)
-            add_idf_sdkconfig_option(
-                "CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds
-            )
-            # Increase GATT client connection retry count for problematic devices
-            # Default in ESP-IDF is 3, we increase to 10 for better reliability with
-            # low-power/timing-sensitive devices
-            add_idf_sdkconfig_option("CONFIG_BT_GATTC_CONNECT_RETRY_COUNT", 10)
+    # Set BLE connection establishment timeout to match aioesphomeapi/bleak-retry-connector
+    # Default is 20 seconds instead of ESP-IDF's 30 seconds. Because there is no way to
+    # cancel a BLE connection in progress, when aioesphomeapi times out at 20 seconds,
+    # the connection slot remains occupied for the remaining time, preventing new connection
+    # attempts and wasting valuable connection slots.
+    if CONF_CONNECTION_TIMEOUT in config:
+        timeout_seconds = int(config[CONF_CONNECTION_TIMEOUT].total_seconds)
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_ESTAB_LINK_CONN_TOUT", timeout_seconds)
+        # Increase GATT client connection retry count for problematic devices
+        # Default in ESP-IDF is 3, we increase to 10 for better reliability with
+        # low-power/timing-sensitive devices
+        add_idf_sdkconfig_option("CONFIG_BT_GATTC_CONNECT_RETRY_COUNT", 10)
 
-        # Set the maximum number of notification registrations
-        # This controls how many BLE characteristics can have notifications enabled
-        # across all connections for a single GATT client interface
-        # https://github.com/esphome/issues/issues/6808
-        if CONF_MAX_NOTIFICATIONS in config:
-            add_idf_sdkconfig_option(
-                "CONFIG_BT_GATTC_NOTIF_REG_MAX", config[CONF_MAX_NOTIFICATIONS]
-            )
+    # Set the maximum number of notification registrations
+    # This controls how many BLE characteristics can have notifications enabled
+    # across all connections for a single GATT client interface
+    # https://github.com/esphome/issues/issues/6808
+    if CONF_MAX_NOTIFICATIONS in config:
+        add_idf_sdkconfig_option(
+            "CONFIG_BT_GATTC_NOTIF_REG_MAX", config[CONF_MAX_NOTIFICATIONS]
+        )
 
     cg.add_define("USE_ESP32_BLE")
 

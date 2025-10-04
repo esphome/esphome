@@ -30,9 +30,12 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   bool start_fan_cleaning();
 
  protected:
+  bool result_{false};
+  bool setup_complete_{false};
   uint16_t raw_firmware_version_;
   char serial_number_[17] = {0};  /// Terminating NULL character
   uint8_t skipped_data_read_cycles_ = 0;
+
   bool start_continuous_measurement_();
 
   enum ErrorCode : uint8_t {

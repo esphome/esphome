@@ -13,6 +13,9 @@ from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
+# Special value to indicate never refresh
+NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
+
 
 def run_git_command(cmd, cwd=None) -> str:
     _LOGGER.debug("Running git command: %s", " ".join(cmd))
@@ -85,6 +88,11 @@ def clone_or_update(
 
     else:
         # Check refresh needed
+        # Skip refresh if NEVER_REFRESH is specified
+        if refresh == NEVER_REFRESH:
+            _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
+            return repo_dir, None
+
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
         # On first clone, FETCH_HEAD does not exists
         if not file_timestamp.exists():

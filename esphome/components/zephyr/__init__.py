@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import TypedDict
 
 import esphome.codegen as cg
@@ -48,7 +48,7 @@ class ZephyrData(TypedDict):
     bootloader: str
     prj_conf: dict[str, tuple[PrjConfValueType, bool]]
     overlay: str
-    extra_build_files: dict[str, str]
+    extra_build_files: dict[str, Path]
     pm_static: list[Section]
     user: dict[str, list[str]]
 
@@ -93,7 +93,7 @@ def zephyr_add_overlay(content):
     zephyr_data()[KEY_OVERLAY] += content
 
 
-def add_extra_build_file(filename: str, path: str) -> bool:
+def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
     if filename not in extra_build_files:
@@ -102,7 +102,7 @@ def add_extra_build_file(filename: str, path: str) -> bool:
     return False
 
 
-def add_extra_script(stage: str, filename: str, path: str):
+def add_extra_script(stage: str, filename: str, path: Path) -> None:
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
     if add_extra_build_file(filename, path):
@@ -144,7 +144,7 @@ def zephyr_to_code(config):
     add_extra_script(
         "pre",
         "pre_build.py",
-        os.path.join(os.path.dirname(__file__), "pre_build.py.script"),
+        Path(__file__).parent / "pre_build.py.script",
     )
 
 
