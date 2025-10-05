@@ -316,15 +316,15 @@ class Jinja(jinja.Environment):
         for name, macro in macros.items():
             # parameters contains a dict of parameter names to default values
             parameters = macro["parameters"] or {}
-            macro["upvalues"] = upvalues = {
+            macro["vars"] = macro_vars = {
                 **self.context_vars,
-                **macro.get("upvalues", {}),
+                **macro.get("vars", {}),
             }
             body = macro["body"]
             local_env = self
-            if len(upvalues) > 0:
+            if len(macro_vars) > 0:
                 local_env = self.overlay()
-                local_env.globals = ChainMap(upvalues, self.globals)
+                local_env.globals = ChainMap(macro_vars, self.globals)
             template = local_env.from_string(body)
 
             def make_macro_func(template=template, parameters=parameters, name=name):

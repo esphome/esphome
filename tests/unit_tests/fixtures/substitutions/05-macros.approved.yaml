@@ -11,7 +11,7 @@ jinja:
         a: 3
         b: 4
       body: ${a*b}
-      upvalues:
+      vars:
         display_scale: 1.5
         a: 10
         b: 4
@@ -27,7 +27,7 @@ jinja:
           x: 0
           y: 0
       body: ${math.sqrt(vec.x*vec.x+vec.y*vec.y)}
-      upvalues:
+      vars:
         display_scale: 1.5
         a: 10
         b: 4
@@ -40,7 +40,7 @@ jinja:
         x: 0
         factor: null
       body: ${(x * (display_scale if factor is none else factor)) | round | int}
-      upvalues:
+      vars:
         display_scale: 1.5
         a: 10
         b: 4
@@ -52,7 +52,7 @@ jinja:
       parameters:
         x: 0
       body: ${x*x}
-      upvalues:
+      vars:
         display_scale: 1.5
         a: 10
         b: 4
@@ -64,7 +64,7 @@ jinja:
       parameters:
         x: 0
       body: ${x*2}
-      upvalues:
+      vars:
         display_scale: 1.5
         a: 10
         b: 4
@@ -79,7 +79,7 @@ jinja:
       body: "#if number > 20\n${\n  {\n      \"number\": number,\n      \"inverted\"\
         \ : inverted,\n      \"pullup\": true\n  }\n}\n#else\n${\n  {\n      \"number\"\
         : number,\n      \"inverted\" : inverted,\n  }\n}\n#endif\n"
-      upvalues:
+      vars:
         display_scale: 1.5
         a: 10
         b: 4

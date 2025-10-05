@@ -6,7 +6,7 @@ jinja:
       parameters:
         x: 1
       body: ${factor * x}
-      upvalues:
+      vars:
         multiplier: 5
         factor: 7
         size: 9

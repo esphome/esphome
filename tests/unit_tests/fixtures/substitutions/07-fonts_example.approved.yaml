@@ -8,7 +8,7 @@ jinja:
       body: "#set ns = namespace(glyphs=[])\n#for code in range(start, end + 1)\n\
         \  #set ns.glyphs = ns.glyphs + [\"%c\" | format(code)]\n#endfor\n${ ns.glyphs\
         \ }\n"
-      upvalues: {}
+      vars: {}
 fonts:
   - file: fonts/myfont.ttf
     glyphs:
