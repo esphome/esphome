@@ -1485,7 +1485,7 @@ class MemoryAnalyzer:
         ]
         top_esphome_components = sorted(
             esphome_components, key=lambda x: x[1].flash_total, reverse=True
-        )[:25]
+        )[:30]
 
         # Check if API component exists and ensure it's included
         api_component = None
@@ -1524,9 +1524,9 @@ class MemoryAnalyzer:
                         for i, (symbol, demangled, size) in enumerate(sorted_symbols):
                             lines.append(f"{i + 1}. {demangled} ({size:,} B)")
                     else:
-                        lines.append(f"Top 10 Largest {comp_name} Symbols:")
+                        lines.append(f"Top 12 Largest {comp_name} Symbols:")
                         for i, (symbol, demangled, size) in enumerate(
-                            sorted_symbols[:10]
+                            sorted_symbols[:12]
                         ):
                             lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
