@@ -4,6 +4,14 @@ substitutions:
   b: 4
   c: 79
   func: double
+  template: &id001
+    x: ${s*10}
+    y: ${s*20}
+  switch_template: &id002
+    platform: gpio
+    id: switch${id}
+    pin: ${pin}
+    name: GPIO Switch on pin ${pin}
 jinja:
   macros:
     multiply:
@@ -17,8 +25,10 @@ jinja:
         b: 4
         c: 79
         func: double
+        template: *id001
+        switch_template: *id002
         d: 82
-        position: &id001
+        position: &id003
           x: 4
           y: 3
     modulus:
@@ -33,8 +43,10 @@ jinja:
         b: 4
         c: 79
         func: double
+        template: *id001
+        switch_template: *id002
         d: 82
-        position: *id001
+        position: *id003
     scale:
       parameters:
         x: 0
@@ -46,8 +58,10 @@ jinja:
         b: 4
         c: 79
         func: double
+        template: *id001
+        switch_template: *id002
         d: 82
-        position: *id001
+        position: *id003
     square:
       parameters:
         x: 0
@@ -58,8 +72,10 @@ jinja:
         b: 4
         c: 79
         func: double
+        template: *id001
+        switch_template: *id002
         d: 82
-        position: *id001
+        position: *id003
     double:
       parameters:
         x: 0
@@ -70,8 +86,10 @@ jinja:
         b: 4
         c: 79
         func: double
+        template: *id001
+        switch_template: *id002
         d: 82
-        position: *id001
+        position: *id003
     pin:
       parameters:
         number: 10
@@ -85,14 +103,55 @@ jinja:
         b: 4
         c: 79
         func: double
+        template: *id001
+        switch_template: *id002
         d: 82
-        position: *id001
+        position: *id003
+    testeval:
+      parameters:
+        s: 5
+      body: '${eval(template, {"s": s})}'
+      vars:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        template: *id001
+        switch_template: *id002
+        d: 82
+        position: *id003
+    generate_switches:
+      parameters:
+        pins: []
+      body: '# set ns = namespace(switches=[], id=0)
+
+        # for pin in pins
+
+        #   set ns.id = ns.id + 1
+
+        #   set ns.switches = ns.switches + [ eval(switch_template, {"pin" : pin,
+        "id": ns.id}) ]
+
+        # endfor
+
+        ${ ns.switches }'
+      vars:
+        display_scale: 1.5
+        a: 10
+        b: 4
+        c: 79
+        func: double
+        template: *id001
+        switch_template: *id002
+        d: 82
+        position: *id003
   vars:
     a: 7
     b: 0
     c: 3
     d: 82
-    position: *id001
+    position: *id003
 testlist:
   - The value of c is 79, not 3. Substitution is evaluated first
   - Even if I do this, c is still 79.
@@ -114,3 +173,22 @@ testlist:
   - number: 22
     inverted: false
     pullup: true
+  - x: 790
+    y: 1580
+switch:
+  - platform: gpio
+    id: switch1
+    pin: 12
+    name: GPIO Switch on pin 12
+  - platform: gpio
+    id: switch2
+    pin: 21
+    name: GPIO Switch on pin 21
+  - platform: gpio
+    id: switch3
+    pin: 22
+    name: GPIO Switch on pin 22
+  - platform: gpio
+    id: switch4
+    pin: 34
+    name: GPIO Switch on pin 34

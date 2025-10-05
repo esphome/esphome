@@ -9,6 +9,7 @@ substitutions:
   numberOne: 1
   var1: 79
   double_width: 14
+  template_expression: ${ width * 3 }
 test_list:
   - The area is 56
   - 56
@@ -27,3 +28,5 @@ test_list:
   - chr(97) = a
   - len([1,2,3]) = 3
   - width = 7, double_width = 14
+  - ${ width * 3 } is literal
+  - 21 == 21

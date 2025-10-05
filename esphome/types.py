@@ -56,3 +56,41 @@ class EntityMetadata(TypedDict):
     platform: str
     entity_id: str
     component: str
+
+
+class Extend:
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return f"!extend {self.value}"
+
+    def __repr__(self):
+        return f"Extend({self.value})"
+
+    def __eq__(self, b):
+        """
+        Check if two Extend objects contain the same ID.
+
+        Only used in unit tests.
+        """
+        return isinstance(b, Extend) and self.value == b.value
+
+
+class Remove:
+    def __init__(self, value=None):
+        self.value = value
+
+    def __str__(self):
+        return f"!remove {self.value}"
+
+    def __repr__(self):
+        return f"Remove({self.value})"
+
+    def __eq__(self, b):
+        """
+        Check if two Remove objects contain the same ID.
+
+        Only used in unit tests.
+        """
+        return isinstance(b, Remove) and self.value == b.value

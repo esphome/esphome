@@ -22,7 +22,6 @@ except ImportError:
     FastestAvailableSafeLoader = PurePythonLoader
 
 from esphome import core
-from esphome.config_helpers import Extend, Remove
 from esphome.core import (
     CORE,
     DocumentRange,
@@ -32,6 +31,7 @@ from esphome.core import (
     TimePeriod,
 )
 from esphome.helpers import add_class_to_obj
+from esphome.types import Extend, Remove
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)

@@ -1,0 +1,31 @@
+packages:
+  - switch: ${ generate_switches([10,20,30]) }
+    wifi: "${ {'password': 'random' } }"
+
+wifi:
+  ssid: MyNetwork
+
+switch:
+  - platform: gpio
+    id: main_switch
+    pin: 34
+    name: Main switch
+
+jinja:
+  macros:
+    generate_switches:
+      parameters:
+        pins: []
+      vars:
+        switch_template: !literal
+          platform: gpio
+          id: switch${id}
+          pin: ${pin}
+          name: GPIO Switch on pin ${pin}
+      body: |-
+        # set ns = namespace(switches=[], id=0)
+        # for pin in pins
+        #   set ns.id = ns.id + 1
+        #   set ns.switches = ns.switches + [ eval(switch_template, {"pin" : pin, "id": ns.id}) ]
+        # endfor
+        ${ ns.switches }

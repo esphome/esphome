@@ -2,10 +2,8 @@ from ast import literal_eval
 from collections import ChainMap
 from collections.abc import Iterator
 from itertools import chain, islice
-import json
 import logging
 import math
-import re
 from types import GeneratorType
 from typing import Any
 
@@ -17,6 +15,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_JINJA, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPLiteralValue
 
+from .helpers import JinjaStr, has_jinja
+
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
 TemplateRuntimeError = jinja.TemplateRuntimeError
@@ -25,18 +25,6 @@ Undefined = jinja.Undefined
 
 CODEOWNERS = ["@jpeletier"]
 _LOGGER = logging.getLogger(__name__)
-
-DETECT_JINJA = r"(\$\{)"
-detect_jinja_re = re.compile(
-    r"<%.+?%>"  # Block form expression: <% ... %>
-    r"|\$\{[^}]+\}",  # Braced form expression: ${ ... }
-    flags=re.MULTILINE,
-)
-
-
-def has_jinja(st: str) -> bool:
-    return detect_jinja_re.search(st) is not None
-
 
 # SAFE_GLOBALS defines a allowlist of built-in functions or modules that are considered safe to expose
 # in Jinja templates or other sandboxed evaluation contexts. Only functions that do not allow
@@ -80,7 +68,8 @@ def _merge_return_into_body(obj):
     """
     Combines the value of "return" into the macro body
     """
-    params = obj["parameters"]
+    params = obj.get("parameters", {})
+    vars = obj.get("vars", {})
     body = obj.get("body", "")
     ret = obj.get("return")
 
@@ -89,7 +78,7 @@ def _merge_return_into_body(obj):
         ret_stmt = f"${{{ret}}}"
         body = f"{body}\n{ret_stmt}" if body else ret_stmt
 
-    return {"parameters": params, "body": body, "upvalues": obj.get("upvalues", {})}
+    return {"parameters": params, "body": body, "vars": vars}
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -101,7 +90,7 @@ CONFIG_SCHEMA = cv.Schema(
                         cv.Optional("parameters"): cv.ensure_schema(
                             cv.Schema({validate_identifier: object})
                         ),
-                        cv.Optional("upvalues"): dict,
+                        cv.Optional("vars"): dict,
                         cv.Optional("body"): cv.string,
                         cv.Optional("return"): cv.string,
                     },
@@ -113,45 +102,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("vars"): cv.ensure_schema({validate_identifier: object}),
     }
 )
-
-
-class PythonLiteralEncoder(json.JSONEncoder):
-    """
-    JSON encoder that translates `null` to None
-    """
-
-    def iterencode(self, o, _one_shot=False):
-        # stream through the default encoder
-        for chunk in super().iterencode(o, _one_shot=_one_shot):
-            # swap out any standalone "null"
-            yield chunk.replace("null", "None")
-
-
-class JinjaStr(str):
-    """
-    Wraps a string containing an unresolved Jinja expression,
-    storing the variables visible to it when it failed to resolve.
-    For example, an expression inside a package, `${ A * B }` may fail
-    to resolve at package parsing time if `A` is a local package var
-    but `B` is a substitution defined in the root yaml.
-    Therefore, we store the value of `A` as an upvalue bound
-    to the original string so we may be able to resolve `${ A * B }`
-    later in the main substitutions pass.
-    """
-
-    Undefined = object()
-
-    def __new__(cls, value: str, upvalues=None):
-        if isinstance(value, JinjaStr):
-            base = str(value)
-            merged = {**value.upvalues, **(upvalues or {})}
-        else:
-            base = value
-            merged = dict(upvalues or {})
-        obj = super().__new__(cls, base)
-        obj.upvalues = merged
-        obj.result = JinjaStr.Undefined
-        return obj
 
 
 class JinjaError(Exception):
@@ -244,6 +194,8 @@ class Jinja(jinja.Environment):
     concat = staticmethod(_concat_nodes_override)
 
     def __init__(self, config: dict, context_vars: dict):
+        from esphome.config_helpers import merge_config
+
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -265,9 +217,29 @@ class Jinja(jinja.Environment):
             if isinstance(v, str) and not isinstance(v, JinjaStr) and has_jinja(v):
                 self.context_vars[k] = JinjaStr(v, self.context_vars)
 
+        def jinja_eval(expr, ctx=None):
+            if isinstance(expr, dict):
+                expr = dict(expr)
+                for k, v in expr.items():
+                    new_k = jinja_eval(k, ctx)
+                    v = jinja_eval(v, ctx)
+                    if new_k != k:
+                        expr.pop(k)
+                        k = new_k
+                    expr[k] = jinja_eval(v, ctx)
+                return expr
+            if isinstance(expr, list):
+                return [jinja_eval(v, ctx) for v in expr]
+            if not isinstance(expr, str):
+                return expr
+            result, _ = self.expand(JinjaStr(expr, ctx))
+            return result
+
         self.globals = {
             **self.globals,
             **self.context_vars,
+            "eval": jinja_eval,
+            "merge": merge_config,
             **SAFE_GLOBALS,
         }
         if CONF_JINJA in config:

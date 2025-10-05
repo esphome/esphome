@@ -1,0 +1,44 @@
+substitutions: {}
+switch:
+  - platform: gpio
+    id: switch1
+    pin: 10
+    name: GPIO Switch on pin 10
+  - platform: gpio
+    id: switch2
+    pin: 20
+    name: GPIO Switch on pin 20
+  - platform: gpio
+    id: switch3
+    pin: 30
+    name: GPIO Switch on pin 30
+  - platform: gpio
+    id: main_switch
+    pin: 34
+    name: Main switch
+wifi:
+  password: random
+  ssid: MyNetwork
+jinja:
+  macros:
+    generate_switches:
+      parameters:
+        pins: []
+      body: '# set ns = namespace(switches=[], id=0)
+
+        # for pin in pins
+
+        #   set ns.id = ns.id + 1
+
+        #   set ns.switches = ns.switches + [ eval(switch_template, {"pin" : pin,
+        "id": ns.id}) ]
+
+        # endfor
+
+        ${ ns.switches }'
+      vars:
+        switch_template:
+          platform: gpio
+          id: switch${id}
+          pin: ${pin}
+          name: GPIO Switch on pin ${pin}

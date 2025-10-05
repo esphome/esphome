@@ -12,7 +12,7 @@ from typing import Any
 import voluptuous as vol
 
 from esphome import core, loader, pins, yaml_util
-from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
+from esphome.config_helpers import merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -29,7 +29,7 @@ import esphome.final_validate as fv
 from esphome.helpers import indent
 from esphome.loader import ComponentManifest, get_component, get_platform
 from esphome.log import AnsiFore, color
-from esphome.types import ConfigFragmentType, ConfigType
+from esphome.types import ConfigFragmentType, ConfigType, Extend, Remove
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret

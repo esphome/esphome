@@ -4,9 +4,10 @@ from typing import Any
 
 from esphome import core
 from esphome.components.jinja import Jinja, JinjaError, JinjaStr, has_jinja
-from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
+from esphome.config_helpers import merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_JINJA, CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.types import Extend, Remove
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
 
 CODEOWNERS = ["@esphome/core"]

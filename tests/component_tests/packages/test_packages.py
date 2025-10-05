@@ -7,7 +7,6 @@ import pytest
 
 from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass
 from esphome.config import resolve_extend_remove
-from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
@@ -32,6 +31,7 @@ from esphome.const import (
     CONF_VARS,
     CONF_WIFI,
 )
+from esphome.types import Extend, Remove
 from esphome.util import OrderedDict
 
 # Test strings

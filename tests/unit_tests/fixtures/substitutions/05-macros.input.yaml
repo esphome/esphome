@@ -4,6 +4,14 @@ substitutions:
   b: 4
   c: 79
   func: double
+  template: !literal
+    x: ${s*10}
+    y: ${s*20}
+  switch_template: !literal
+    platform: gpio
+    id: switch${id}
+    pin: ${pin}
+    name: GPIO Switch on pin ${pin}
 
 jinja:
   macros:
@@ -52,6 +60,21 @@ jinja:
           }
         }
         #endif
+    testeval:
+      parameters:
+        s: 5
+      return: 'eval(template, {"s": s})'
+    generate_switches:
+      parameters:
+        pins: []
+      body: |-
+        # set ns = namespace(switches=[], id=0)
+        # for pin in pins
+        #   set ns.id = ns.id + 1
+        #   set ns.switches = ns.switches + [ eval(switch_template, {"pin" : pin, "id": ns.id}) ]
+        # endfor
+        ${ ns.switches }
+
   vars:
     a: 7
     b: 0
@@ -78,3 +101,6 @@ testlist:
   - ${pin(inverted=True)}
   - ${pin()}
   - ${pin(22)}
+  - ${ testeval(79) }
+
+switch: ${ generate_switches( [12, 21, 22, 34] ) }

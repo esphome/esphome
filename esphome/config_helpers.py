@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from esphome.components.jinja.helpers import JinjaStr, has_jinja
 from esphome.const import (
     CONF_LEVEL,
     CONF_LOGGER,
@@ -9,6 +10,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import Remove
 from esphome.util import OrderedDict
 
 # Pre-build lookup map from (platform, framework) tuples to PlatformFramework enum
@@ -36,48 +38,15 @@ def merge_dicts_ordered(*dicts: dict) -> OrderedDict:
     return result
 
 
-class Extend:
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return f"!extend {self.value}"
-
-    def __repr__(self):
-        return f"Extend({self.value})"
-
-    def __eq__(self, b):
-        """
-        Check if two Extend objects contain the same ID.
-
-        Only used in unit tests.
-        """
-        return isinstance(b, Extend) and self.value == b.value
-
-
-class Remove:
-    def __init__(self, value=None):
-        self.value = value
-
-    def __str__(self):
-        return f"!remove {self.value}"
-
-    def __repr__(self):
-        return f"Remove({self.value})"
-
-    def __eq__(self, b):
-        """
-        Check if two Remove objects contain the same ID.
-
-        Only used in unit tests.
-        """
-        return isinstance(b, Remove) and self.value == b.value
-
-
 def merge_config(old, new):
     if isinstance(new, Remove):
         return new
     if isinstance(new, dict):
+        if has_jinja(old):
+            # Postpone merging until jinja expression is resolved
+            return JinjaStr(
+                r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
+            )
         if not isinstance(old, dict):
             return new
         # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
@@ -89,9 +58,19 @@ def merge_config(old, new):
             res[k] = merge_config(old.get(k), v)
         return res
     if isinstance(new, list):
+        if has_jinja(old):
+            # Postpone merging until jinja expression is resolved
+            return JinjaStr(
+                r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
+            )
         if not isinstance(old, list):
             return new
         return old + new
+    if has_jinja(new):
+        # Postpone merging until jinja expression is resolved
+        return JinjaStr(
+            r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
+        )
     if new is None:
         return old
 
