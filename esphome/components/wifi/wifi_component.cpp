@@ -334,9 +334,9 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 }
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
-  SavedWifiSettings save{};  // zero-initialized
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);
-  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);
+  SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
+  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();
