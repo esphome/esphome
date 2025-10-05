@@ -1,3 +1,4 @@
+import math
 import re
 
 from esphome import automation, pins
@@ -14,6 +15,7 @@ from esphome.const import (
     CONF_DIRECTION,
     CONF_DUMMY_RECEIVER,
     CONF_DUMMY_RECEIVER_ID,
+    CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_INVERT,
     CONF_LAMBDA,
@@ -152,6 +154,8 @@ UART_PARITY_OPTIONS = {
 CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
+CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
+CONF_RX_TIMEOUT = "rx_timeout"
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -219,8 +223,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
+            cv.Optional(CONF_FLOW_CONTROL_PIN): cv.All(
+                cv.only_on_esp32, pins.internal_gpio_output_pin_schema
+            ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
+            ),
+            cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -275,9 +288,27 @@ async def to_code(config):
     if CONF_RX_PIN in config:
         rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
         cg.add(var.set_rx_pin(rx_pin))
+    if CONF_FLOW_CONTROL_PIN in config:
+        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
+        cg.add(var.set_flow_control_pin(flow_control_pin))
     if CONF_PORT in config:
         cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
+    if CORE.is_esp32:
+        if CONF_RX_FULL_THRESHOLD not in config:
+            # Calculate rx_full_threshold to be 10ms
+            bytelength = config[CONF_DATA_BITS] + config[CONF_STOP_BITS] + 1
+            if config[CONF_PARITY] != "NONE":
+                bytelength += 1
+            config[CONF_RX_FULL_THRESHOLD] = max(
+                1,
+                min(
+                    120,
+                    math.floor((config[CONF_BAUD_RATE] / (bytelength * 1000 / 10)) - 1),
+                ),
+            )
+        cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
+        cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))

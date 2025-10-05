@@ -32,7 +32,7 @@ from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ def recursive_check_replaceme(value):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPForceValue):
+    if isinstance(value, ESPLiteralValue):
         pass
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
@@ -314,7 +314,7 @@ def recursive_check_replaceme(value):
             "Please make sure you have replaced all fields from the sample "
             "configuration.\n"
             "If you want to use the literal REPLACEME string, "
-            'please use "!force REPLACEME"'
+            'please use "!literal REPLACEME"'
         )
     return value
 
@@ -382,6 +382,12 @@ class LoadValidationStep(ConfigValidationStep):
             result.add_str_error(f"Component not found: {self.domain}", path)
             return
         CORE.loaded_integrations.add(self.domain)
+        # For platform components, normalize conf before creating MetadataValidationStep
+        if component.is_platform_component:
+            if not self.conf:
+                result[self.domain] = self.conf = []
+            elif not isinstance(self.conf, list):
+                result[self.domain] = self.conf = [self.conf]
 
         # Process AUTO_LOAD
         for load in component.auto_load:
@@ -398,12 +404,6 @@ class LoadValidationStep(ConfigValidationStep):
         # This is a platform component, proceed to reading platform entries
         # Remove this is as an output path
         result.remove_output_path([self.domain], self.domain)
-
-        # Ensure conf is a list
-        if not self.conf:
-            result[self.domain] = self.conf = []
-        elif not isinstance(self.conf, list):
-            result[self.domain] = self.conf = [self.conf]
 
         for i, p_config in enumerate(self.conf):
             path = [self.domain, i]

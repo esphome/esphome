@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #define ARDUINOJSON_ENABLE_STD_STRING 1  // NOLINT
@@ -49,6 +50,8 @@ std::string build_json(const json_build_t &f);
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
+/// Parse a JSON string and return the root JsonDocument (or an unbound object on error)
+JsonDocument parse_json(const std::string &data);
 
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {

@@ -323,17 +323,46 @@ def clean_build():
     # Clean PlatformIO cache to resolve CMake compiler detection issues
     # This helps when toolchain paths change or get corrupted
     try:
-        from platformio.project.helpers import get_project_cache_dir
+        from platformio.project.config import ProjectConfig
     except ImportError:
         # PlatformIO is not available, skip cache cleaning
         pass
     else:
-        cache_dir = get_project_cache_dir()
-        if cache_dir and cache_dir.strip():
-            cache_path = Path(cache_dir)
-            if cache_path.is_dir():
-                _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-                shutil.rmtree(cache_dir)
+        config = ProjectConfig.get_instance()
+        cache_dir = Path(config.get("platformio", "cache_dir"))
+        if cache_dir.is_dir():
+            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
+            shutil.rmtree(cache_dir)
+
+
+def clean_all(configuration: list[str]):
+    import shutil
+
+    # Clean entire build dir
+    for dir in configuration:
+        build_dir = Path(dir) / ".esphome"
+        if build_dir.is_dir():
+            _LOGGER.info("Cleaning %s", build_dir)
+            # Don't remove storage as it will cause the dashboard to regenerate all configs
+            for item in build_dir.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.name != "storage" and item.is_dir():
+                    shutil.rmtree(item)
+
+    # Clean PlatformIO project files
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
+            path = Path(config.get("platformio", pio_dir))
+            if path.is_dir():
+                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+                shutil.rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

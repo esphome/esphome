@@ -1,9 +1,10 @@
+from ast import literal_eval
 import logging
 import math
 import re
 
 import jinja2 as jinja
-from jinja2.nativetypes import NativeEnvironment
+from jinja2.sandbox import SandboxedEnvironment
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
@@ -70,7 +71,7 @@ class Jinja:
     """
 
     def __init__(self, context_vars):
-        self.env = NativeEnvironment(
+        self.env = SandboxedEnvironment(
             trim_blocks=True,
             lstrip_blocks=True,
             block_start_string="<%",
@@ -90,6 +91,15 @@ class Jinja:
             **SAFE_GLOBAL_FUNCTIONS,
         }
 
+    def safe_eval(self, expr):
+        try:
+            result = literal_eval(expr)
+            if not isinstance(result, str):
+                return result
+        except (ValueError, SyntaxError, MemoryError, TypeError):
+            pass
+        return expr
+
     def expand(self, content_str):
         """
         Renders a string that may contain Jinja expressions or statements
@@ -106,7 +116,7 @@ class Jinja:
             override_vars = content_str.upvalues
         try:
             template = self.env.from_string(content_str)
-            result = template.render(override_vars)
+            result = self.safe_eval(template.render(override_vars))
             if isinstance(result, Undefined):
                 # This happens when the expression is simply an undefined variable. Jinja does not
                 # raise an exception, instead we get "Undefined".

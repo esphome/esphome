@@ -14,9 +14,11 @@ from typing import Protocol
 
 import argcomplete
 
+# Note: Do not import modules from esphome.components here, as this would
+# cause them to be loaded before external components are processed, resulting
+# in the built-in version being used instead of the external component one.
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
@@ -240,6 +242,8 @@ def has_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
+    from esphome.components.mqtt import CONF_DISCOVER_IP
+
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -731,6 +735,16 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
+def command_clean_all(args: ArgsProtocol) -> int | None:
+    try:
+        writer.clean_all(args.configuration)
+    except OSError as err:
+        _LOGGER.error("Error cleaning all files: %s", err)
+        return 1
+    _LOGGER.info("Done!")
+    return 0
+
+
 def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import mqtt
 
@@ -921,6 +935,7 @@ PRE_CONFIG_ACTIONS = {
     "dashboard": command_dashboard,
     "vscode": command_vscode,
     "update-all": command_update_all,
+    "clean-all": command_clean_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -929,9 +944,9 @@ POST_CONFIG_ACTIONS = {
     "upload": command_upload,
     "logs": command_logs,
     "run": command_run,
+    "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
-    "clean": command_clean,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -1144,6 +1159,13 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_clean_all = subparsers.add_parser(
+        "clean-all", help="Clean all build and platform files."
+    )
+    parser_clean_all.add_argument(
+        "configuration", help="Your YAML configuration directory.", nargs="*"
+    )
+
     parser_dashboard = subparsers.add_parser(
         "dashboard", help="Create a simple web server for a dashboard."
     )
@@ -1190,7 +1212,7 @@ def parse_args(argv):
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directories.", nargs="+"
+        "configuration", help="Your YAML configuration file or directory.", nargs="+"
     )
 
     parser_idedata = subparsers.add_parser("idedata")
