@@ -164,7 +164,7 @@ class CECTransmit {
 #define NON_ATOMIC_INCR(atom) \
   { \
     volatile uint8_t c = atom; \
-    atom = c + 1; \
+    (atom) = c + 1; \
   }
 
 class CECReceive {
