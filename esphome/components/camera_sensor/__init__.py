@@ -29,7 +29,7 @@ SOFTWARE_SENSOR = "software"
 ESP32_CAMERA_SENSOR = "esp32_camera"
 MIPI_CSI = "mipi_csi"
 
-CONF_MIPI_CSI_ID = "mipi_csi_ID"
+CONF_MIPI_CSI_ID = "mipi_csi_id"
 
 camera_ns = cg.esphome_ns.namespace("camera")
 camera_sensor_ns = cg.esphome_ns.namespace("camera_sensor")
