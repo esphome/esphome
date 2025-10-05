@@ -35,6 +35,10 @@ logger:
 - **logs** (*Optional*, mapping): Manually set the log level for a
    specific component or tag. See [Manual Log Levels for more information](#logger-manual_tag_specific_levels).
 
+- **runtime_tag_levels** (*Optional*, boolean): Enable runtime per-tag log level changes. This is automatically enabled
+   when `logs` is configured or when `logger.set_level` is used with a `tag` parameter. Only needs to be manually
+   enabled if calling `set_log_level()` from a lambda or external component. Defaults to `false` (auto-enabled as needed).
+
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
 Advanced settings:
@@ -174,6 +178,10 @@ logger:
     mqtt.client: ERROR
 ```
 
+> [!NOTE]
+> When using `logs`, runtime per-tag log level support is automatically enabled. When this feature is disabled
+> (the default when `logs` is not configured), the logger is optimized for better performance and reduced memory usage.
+
 The `level` option controls which log statements are included in the
 firmware. You cannot set a tag to a more detailed level than
 the global one, because log statements with lower severity than that level are not compiled in.
@@ -237,6 +245,11 @@ on_...:
         level: DEBUG
         tag: mqtt.client
 ```
+
+> [!NOTE]
+> When using `logger.set_level` with a `tag` parameter, runtime per-tag log level support is automatically enabled.
+> If you need to call `set_log_level()` directly from a lambda or external component, you must manually enable
+> `runtime_tag_levels: true` in the logger configuration.
 
 ## Logger Automation
 
