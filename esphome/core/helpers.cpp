@@ -613,8 +613,6 @@ bool mac_address_is_valid(const uint8_t *mac) {
     if (mac[i] != 0) {
       is_all_zeros = false;
     }
-  }
-  for (uint8_t i = 0; i < 6; i++) {
     if (mac[i] != 0xFF) {
       is_all_ones = false;
     }
