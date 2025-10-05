@@ -24,10 +24,12 @@ namespace web_server_idf {
 
 class AsyncWebParameter {
  public:
-  AsyncWebParameter(std::string value) : value_(std::move(value)) {}
+  AsyncWebParameter(std::string name, std::string value) : name_(std::move(name)), value_(std::move(value)) {}
+  const std::string &name() const { return this->name_; }
   const std::string &value() const { return this->value_; }
 
  protected:
+  std::string name_;
   std::string value_;
 };
 
@@ -168,7 +170,11 @@ class AsyncWebServerRequest {
  protected:
   httpd_req_t *req_;
   AsyncWebServerResponse *rsp_{};
-  std::map<std::string, AsyncWebParameter *> params_;
+  // Use vector instead of map/unordered_map: most requests have 0-3 params, so linear search
+  // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
+  // duplicate storage. Only successful lookups are cached to prevent cache pollution when
+  // handlers check for optional parameters that don't exist.
+  std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
@@ -277,6 +283,8 @@ class AsyncEventSourceResponse {
   std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
   std::string event_buffer_{""};
   size_t event_bytes_sent_;
+  uint16_t consecutive_send_failures_{0};
+  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
