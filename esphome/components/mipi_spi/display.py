@@ -405,7 +405,6 @@ def get_instance(config):
         return MipiSpiBuffer, templateargs
     # Swap height and width if the display is rotated 90 or 270 degrees in software
     if rotation in (90, 270):
-        print(f"Rotation = {rotation}, width = {width}, height = {height}")
         width, height = height, width
         offset_width, offset_height = offset_height, offset_width
     templateargs.extend(
