@@ -125,8 +125,8 @@ EAP_AUTH_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME): cv.string_strict,
             cv.Optional(CONF_PASSWORD): cv.string_strict,
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
-            cv.SplitDefault(CONF_TTLS_PHASE_2, esp32_idf="mschapv2"): cv.All(
-                cv.enum(TTLS_PHASE_2), cv.only_with_esp_idf
+            cv.SplitDefault(CONF_TTLS_PHASE_2, esp32="mschapv2"): cv.All(
+                cv.enum(TTLS_PHASE_2), cv.only_on_esp32
             ),
             cv.Inclusive(
                 CONF_CERTIFICATE, "certificate_and_key"
@@ -280,11 +280,11 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
-            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_ENABLE_BTM, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
@@ -402,7 +402,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
     # Disable Enterprise WiFi support if no EAP is configured
-    if CORE.is_esp32 and CORE.using_esp_idf and not has_eap:
+    if CORE.is_esp32 and not has_eap:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
@@ -416,10 +416,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-    elif (CORE.is_esp32 and CORE.using_arduino) or CORE.is_rp2040:
+    elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
 
-    if CORE.is_esp32 and CORE.using_esp_idf:
+    if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
             add_idf_sdkconfig_option("CONFIG_WPA_11KV_SUPPORT", True)
             cg.add_define("USE_WIFI_11KV_SUPPORT")
@@ -506,8 +506,10 @@ async def wifi_set_sta_to_code(config, action_id, template_arg, args):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "wifi_component_esp32_arduino.cpp": {PlatformFramework.ESP32_ARDUINO},
-        "wifi_component_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "wifi_component_esp_idf.cpp": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
         "wifi_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "wifi_component_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
