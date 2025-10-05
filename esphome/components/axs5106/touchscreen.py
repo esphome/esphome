@@ -21,8 +21,8 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(AXS5106Component),
-            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         }
     )
     .extend(i2c.i2c_device_schema(0x63))
