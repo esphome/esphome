@@ -33,7 +33,7 @@ sensor:
   - platform: internal_temperature
     id: temp_sensor
     name: "Test Temperature"
-  
+
   - platform: packet_transport
     provider: test_provider
     remote_id: temp_sensor
