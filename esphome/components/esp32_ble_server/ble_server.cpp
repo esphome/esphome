@@ -70,11 +70,11 @@ void BLEServer::loop() {
         // it is at the top of the GATT table
         this->device_information_service_->do_create(this);
         // Create all services previously created
-        for (auto &pair : this->services_) {
-          if (pair.second == this->device_information_service_) {
+        for (auto &entry : this->services_) {
+          if (entry.service == this->device_information_service_) {
             continue;
           }
-          pair.second->do_create(this);
+          entry.service->do_create(this);
         }
         this->state_ = STARTING_SERVICE;
       }
@@ -118,7 +118,7 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
   }
   BLEService *service =  // NOLINT(cppcoreguidelines-owning-memory)
       new BLEService(uuid, num_handles, inst_id, advertise);
-  this->services_.emplace(BLEServer::get_service_key(uuid, inst_id), service);
+  this->services_.push_back({uuid, inst_id, service});
   if (this->parent_->is_active() && this->registered_) {
     service->do_create(this);
   }
@@ -127,26 +127,24 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
 
 void BLEServer::remove_service(ESPBTUUID uuid, uint8_t inst_id) {
   ESP_LOGV(TAG, "Removing BLE service - %s %d", uuid.to_string().c_str(), inst_id);
-  BLEService *service = this->get_service(uuid, inst_id);
-  if (service == nullptr) {
-    ESP_LOGW(TAG, "BLE service %s %d does not exist", uuid.to_string().c_str(), inst_id);
-    return;
+  for (auto it = this->services_.begin(); it != this->services_.end(); ++it) {
+    if (it->uuid == uuid && it->inst_id == inst_id) {
+      it->service->do_delete();
+      delete it->service;  // NOLINT(cppcoreguidelines-owning-memory)
+      this->services_.erase(it);
+      return;
+    }
   }
-  service->do_delete();
-  delete service;  // NOLINT(cppcoreguidelines-owning-memory)
-  this->services_.erase(BLEServer::get_service_key(uuid, inst_id));
+  ESP_LOGW(TAG, "BLE service %s %d does not exist", uuid.to_string().c_str(), inst_id);
 }
 
 BLEService *BLEServer::get_service(ESPBTUUID uuid, uint8_t inst_id) {
-  BLEService *service = nullptr;
-  if (this->services_.count(BLEServer::get_service_key(uuid, inst_id)) > 0) {
-    service = this->services_.at(BLEServer::get_service_key(uuid, inst_id));
+  for (auto &entry : this->services_) {
+    if (entry.uuid == uuid && entry.inst_id == inst_id) {
+      return entry.service;
+    }
   }
-  return service;
-}
-
-std::string BLEServer::get_service_key(ESPBTUUID uuid, uint8_t inst_id) {
-  return uuid.to_string() + std::to_string(inst_id);
+  return nullptr;
 }
 
 void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -174,8 +172,8 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (const auto &pair : this->services_) {
-    pair.second->gatts_event_handler(event, gatts_if, param);
+  for (auto &entry : this->services_) {
+    entry.service->gatts_event_handler(event, gatts_if, param);
   }
 }
 
@@ -183,8 +181,8 @@ void BLEServer::ble_before_disabled_event_handler() {
   // Delete all clients
   this->clients_.clear();
   // Delete all services
-  for (auto &pair : this->services_) {
-    pair.second->do_delete();
+  for (auto &entry : this->services_) {
+    entry.service->do_delete();
   }
   this->registered_ = false;
   this->state_ = INIT;

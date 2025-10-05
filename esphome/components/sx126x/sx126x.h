@@ -67,6 +67,10 @@ class SX126x : public Component,
   void set_busy_pin(InternalGPIOPin *busy_pin) { this->busy_pin_ = busy_pin; }
   void set_coding_rate(uint8_t coding_rate) { this->coding_rate_ = coding_rate; }
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
+  void set_crc_inverted(bool crc_inverted) { this->crc_inverted_ = crc_inverted; }
+  void set_crc_size(uint8_t crc_size) { this->crc_size_ = crc_size; }
+  void set_crc_polynomial(uint16_t crc_polynomial) { this->crc_polynomial_ = crc_polynomial; }
+  void set_crc_initial(uint16_t crc_initial) { this->crc_initial_ = crc_initial; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio1_pin(InternalGPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
@@ -118,6 +122,11 @@ class SX126x : public Component,
   char version_[16];
   SX126xBw bandwidth_{SX126X_BW_125000};
   uint32_t bitrate_{0};
+  bool crc_enable_{false};
+  bool crc_inverted_{false};
+  uint8_t crc_size_{0};
+  uint16_t crc_polynomial_{0};
+  uint16_t crc_initial_{0};
   uint32_t deviation_{0};
   uint32_t frequency_{0};
   uint32_t payload_length_{0};
@@ -131,7 +140,6 @@ class SX126x : public Component,
   uint8_t shaping_{0};
   uint8_t spreading_factor_{0};
   int8_t pa_power_{0};
-  bool crc_enable_{false};
   bool rx_start_{false};
   bool rf_switch_{false};
 };
