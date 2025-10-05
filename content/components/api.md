@@ -38,6 +38,7 @@ api:
   batch_delay: 50ms  # Reduce latency for real-time applications
   listen_backlog: 2  # Allow 2 pending connections in queue
   max_connections: 6  # Allow up to 6 simultaneous connections
+  max_send_queue: 10  # Maximum queued messages per connection before disconnect
   encryption:
     key: "YOUR_ENCRYPTION_KEY_HERE"
   reboot_timeout: 30min
@@ -55,6 +56,15 @@ api:
   > Each API connection consumes approximately 500–1000 bytes of RAM while connected. ESP8266 and RP2040 devices have limited
   > RAM available (ESP8266 typically has around 40KB of free RAM after boot, but this can drop to under 20KB once sensors and other components are configured; RP2040 uses LWIP raw sockets with similar constraints), so be careful not to set this value too high or it may cause out-of-memory crashes.
   > The defaults are set to balance memory usage with allowing multiple simultaneous connections.
+
+- **max_send_queue** (*Optional*, int): The maximum number of messages that can be queued for sending per connection before the connection is dropped. Must be between 1 and 64.
+  Defaults to `5` for ESP8266/RP2040, `8` for ESP32/BK72xx/RTL87xx/LN882x, `16` for host platform. This prevents memory exhaustion when a client is slow or network-stalled.
+  Each queued message uses approximately 8-12 bytes of overhead plus the message size.
+
+  > [!NOTE]
+  > When the send queue is full for a connection, the device will log an error and disconnect that client to prevent out-of-memory crashes.
+  > Slow clients, poor WiFi connections causing retries, or network congestion may trigger this. Increase this value if legitimate clients are being disconnected, but be mindful
+  > of memory constraints on embedded devices.
 
 - **encryption** (*Optional*): If present, encryption will be enabled for the API. Using encryption helps to secure the
   communication between the device running ESPHome and the connected client(s).
