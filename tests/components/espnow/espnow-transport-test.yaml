@@ -1,5 +1,5 @@
 esphome:
-  name: espnow-transport-test
+  name: test-espnow
 
 esp32:
   board: esp32dev
@@ -7,31 +7,35 @@ esp32:
     type: esp-idf
 
 wifi:
-  ssid: "test"
-  password: "password"
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 
 logger:
 
 espnow:
-  id: espnow_main
+  id: espnow_component
 
 packet_transport:
   - platform: espnow
-    espnow_id: espnow_main
+    id: transport1
+    espnow_id: espnow_component
+    broadcast_address: "FF:FF:FF:FF:FF:FF"
     encryption:
       key: "0123456789abcdef0123456789abcdef"
     sensors:
-      - test_sensor
+      - temp_sensor
     providers:
-      - name: remote_device
+      - name: test_provider
         encryption:
           key: "0123456789abcdef0123456789abcdef"
 
 sensor:
   - platform: internal_temperature
-    name: "Temperature"
-    id: test_sensor
+    id: temp_sensor
+    name: "Test Temperature"
+  
   - platform: packet_transport
-    provider: remote_device
-    remote_id: test_sensor
+    provider: test_provider
+    remote_id: temp_sensor
+    id: remote_temp
     name: "Remote Temperature"
