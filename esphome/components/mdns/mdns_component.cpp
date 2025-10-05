@@ -79,7 +79,7 @@ void MDNSComponent::compile_records_() {
 
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
-    auto &service = this->services_[this->services_.count()++];
+    auto &service = this->services_.emplace_next();
     service.service_type = MDNS_STR(SERVICE_ESPHOMELIB);
     service.proto = MDNS_STR(SERVICE_TCP);
     service.port = api::global_api_server->get_port();
@@ -158,14 +158,14 @@ void MDNSComponent::compile_records_() {
 #endif  // USE_API
 
 #ifdef USE_PROMETHEUS
-  auto &prom_service = this->services_[this->services_.count()++];
+  auto &prom_service = this->services_.emplace_next();
   prom_service.service_type = MDNS_STR(SERVICE_PROMETHEUS);
   prom_service.proto = MDNS_STR(SERVICE_TCP);
   prom_service.port = USE_WEBSERVER_PORT;
 #endif
 
 #ifdef USE_WEBSERVER
-  auto &web_service = this->services_[this->services_.count()++];
+  auto &web_service = this->services_.emplace_next();
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
   web_service.port = USE_WEBSERVER_PORT;
@@ -174,7 +174,7 @@ void MDNSComponent::compile_records_() {
 #if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
   // Publish "http" service if not using native API or any other services
   // This is just to have *some* mDNS service so that .local resolution works
-  auto &fallback_service = this->services_[this->services_.count()++];
+  auto &fallback_service = this->services_.emplace_next();
   fallback_service.service_type = "_http";
   fallback_service.proto = "_tcp";
   fallback_service.port = USE_WEBSERVER_PORT;

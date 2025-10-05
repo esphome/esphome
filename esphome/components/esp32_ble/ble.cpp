@@ -68,6 +68,10 @@ void ESP32BLE::advertising_set_service_data(const std::vector<uint8_t> &data) {
 }
 
 void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &data) {
+  this->advertising_set_manufacturer_data(std::span<const uint8_t>(data));
+}
+
+void ESP32BLE::advertising_set_manufacturer_data(std::span<const uint8_t> data) {
   this->advertising_init_();
   this->advertising_->set_manufacturer_data(data);
   this->advertising_start();
