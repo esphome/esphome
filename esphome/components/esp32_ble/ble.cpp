@@ -213,15 +213,17 @@ bool ESP32BLE::ble_setup_() {
   if (this->name_.has_value()) {
     name = this->name_.value();
     if (App.is_name_add_mac_suffix_enabled()) {
-      name += "-" + get_mac_address().substr(6);
+      name += "-";
+      name += get_mac_address().substr(6);
     }
   } else {
     name = App.get_name();
     if (name.length() > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
-        name.erase(name.begin() + 13, name.end() - 7);  // Remove characters between 13 and the mac address
+        // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
+        name.erase(13, name.length() - 20);
       } else {
-        name = name.substr(0, 20);
+        name.resize(20);
       }
     }
   }
