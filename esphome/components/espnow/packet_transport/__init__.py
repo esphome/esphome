@@ -36,18 +36,6 @@ async def to_code(config):
 
     await cg.register_parented(var, config[CONF_ESPNOW_ID])
 
-    # Convert MAC address to individual bytes
+    # Set broadcast address using peer_address_t array
     mac = config[CONF_BROADCAST_ADDRESS]
-    mac_bytes = mac.parts
-
-    # Pass each byte individually
-    cg.add(
-        var.set_broadcast_address(
-            mac_bytes[0],
-            mac_bytes[1],
-            mac_bytes[2],
-            mac_bytes[3],
-            mac_bytes[4],
-            mac_bytes[5],
-        )
-    )
+    cg.add(var.set_broadcast_address(mac.as_hex))

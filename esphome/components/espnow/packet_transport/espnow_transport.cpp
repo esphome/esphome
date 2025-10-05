@@ -55,7 +55,7 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
   }
 
   // ESP-NOW send expects a callback parameter - provide an empty lambda
-  this->parent_->send(this->broadcast_address_, buf.data(), buf.size(), [](esp_err_t err) {
+  this->parent_->send(this->broadcast_address_.data(), buf.data(), buf.size(), [](esp_err_t err) {
     // Callback intentionally empty - packet_transport doesn't need send confirmation
   });
 }
@@ -90,4 +90,5 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
 
 }  // namespace espnow
 }  // namespace esphome
+
 #endif  // USE_ESP32
