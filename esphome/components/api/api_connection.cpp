@@ -169,11 +169,8 @@ void APIConnection::loop() {
       } else {
         this->last_traffic_ = now;
         // read a packet
-        if (buffer.data_len > 0) {
-          this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-        } else {
-          this->read_message(0, buffer.type, nullptr);
-        }
+        this->read_message(buffer.data_len, buffer.type,
+                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
         if (this->flags_.remove)
           return;
       }
