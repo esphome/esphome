@@ -2,6 +2,7 @@
 
 #include "csi_camera_sensor.h"
 
+#include "driver/isp.h"
 #include "esp_cache.h"
 #include "esp_cam_sensor.h"
 #include "esp_cam_sensor_detect.h"
@@ -40,6 +41,36 @@ CSICameraSensor::CSICameraSensor(uint16_t width, uint16_t height, camera::PixelF
   this->format_ = NULL;
 }
 
+void CSICameraSensor::number_brightness(float value) {
+  this->brightness_ = static_cast<int8_t>(value);
+  this->color_configure_(true);
+}
+
+void CSICameraSensor::number_contrast(float value) {
+  this->contrast_ = static_cast<uint8_t>(value);
+  this->color_configure_(true);
+}
+
+void CSICameraSensor::number_exposure(float value) {
+  this->exposure_ = static_cast<uint8_t>(value);
+  this->exposure_configure();
+}
+
+void CSICameraSensor::number_filter(float value) {
+  this->filter_ = static_cast<uint8_t>(value);
+  this->filter_configure_(true);
+}
+
+void CSICameraSensor::number_hue(float value) {
+  this->hue_ = static_cast<uint16_t>(value);
+  this->color_configure_(true);
+}
+
+void CSICameraSensor::number_saturation(float value) {
+  this->saturation_ = static_cast<uint8_t>(value);
+  this->color_configure_(true);
+}
+
 void CSICameraSensor::set_pins(int xclk, int pwdn, int reset) {
   this->reset_pin_ = reset;
   this->pwdn_pin_ = pwdn;
@@ -60,11 +91,15 @@ bool CSICameraSensor::configure() {
     return false;
   }
 
+  bool probe = get_i2c_address() == 0x00;
   for (esp_cam_sensor_detect_fn_t *p = &__esp_cam_sensor_detect_fn_array_start;
        p < &__esp_cam_sensor_detect_fn_array_end; ++p) {
     if (p->port != ESP_CAM_SENSOR_MIPI_CSI)
       continue;
+    if (!probe && p->sccb_addr != get_i2c_address())
+      continue;
 
+    set_i2c_address(p->sccb_addr);
     esp_cam_sensor_config_t sensor_config = {.sccb_handle = &this->i2c_adapter_,
                                              .reset_pin = gpio_num_t(this->reset_pin_),
                                              .pwdn_pin = gpio_num_t(this->pwdn_pin_),
@@ -193,13 +228,43 @@ bool CSICameraSensor::configure() {
       return false;
     }
 
+    this->filter_configure_(true);
+    this->color_configure_(true);
+
     if (esp_isp_enable(this->isp_proc_handle_) != ESP_OK) {
       ESP_LOGE(TAG, "esp_isp_enable failed.");
       return false;
     }
   }
 
+  this->exposure_configure();
+
+  int flip = this->flip_y_ ? 1 : 0;
+  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_VFLIP, &flip, sizeof(flip)) != ESP_OK) {
+    ESP_LOGE(TAG, "esp_cam_sensor_set_para_value  ESP_CAM_SENSOR_VFLIP failed.");
+  }
+
+  int mirror = this->flip_x_ ? 1 : 0;
+  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_HMIRROR, &mirror, sizeof(mirror)) != ESP_OK) {
+    ESP_LOGE(TAG, "esp_cam_sensor_set_para_value  ESP_CAM_SENSOR_HMIRROR failed.");
+  }
+
   start_stream_();
+
+#ifdef USE_NUMBER
+  if (this->brightness_number_)
+    this->brightness_number_->publish_state(this->brightness_);
+  if (this->contrast_number_)
+    this->contrast_number_->publish_state(this->contrast_);
+  if (this->exposure_number_)
+    this->exposure_number_->publish_state(this->exposure_);
+  if (this->filter_number_)
+    this->filter_number_->publish_state(this->filter_);
+  if (this->hue_number_)
+    this->hue_number_->publish_state(this->hue_);
+  if (this->saturation_number_)
+    this->saturation_number_->publish_state(this->saturation_);
+#endif
 
   return true;
 }
@@ -240,6 +305,7 @@ void CSICameraSensor::log_config() {
                 this->sensor_->name, this->format_->name, YESNO(this->flip_x_), YESNO(this->flip_y_), this->buffers_,
                 this->format_->mipi_info.mipi_clk / 1000000, this->format_->mipi_info.lane_num,
                 YESNO(this->format_->mipi_info.line_sync_en), YESNO(this->format_->isp_info));
+  LOG_I2C_DEVICE(this);
 }
 
 void CSICameraSensor::start_stream_() {
@@ -273,6 +339,53 @@ color_raw_element_order_t CSICameraSensor::bayer_to_raw_(esp_cam_sensor_bayer_pa
 
   int variation = (this->flip_x_ ? 0 : 1) | (this->flip_y_ ? 2 : 0);
   return table[pattern][variation];
+}
+
+void CSICameraSensor::color_configure_(bool enable) {
+  esp_isp_color_config_t config = {
+      .color_contrast =
+          {
+              .decimal = this->contrast_ < 128 ? this->contrast_ : static_cast<uint32_t>(0),
+              .integer = this->contrast_ >= 128 ? 1 : static_cast<uint32_t>(0),
+          },
+      .color_saturation =
+          {
+              .decimal = this->saturation_ < 128 ? this->saturation_ : static_cast<uint32_t>(0),
+              .integer = this->saturation_ >= 128 ? 1 : static_cast<uint32_t>(0),
+          },
+      .color_hue = this->hue_,
+      .color_brightness = this->brightness_,
+  };
+
+  if (esp_isp_color_configure(this->isp_proc_handle_, &config) != ESP_OK)
+    ESP_LOGE(TAG, "esp_isp_color_configure failed.");
+
+  esp_isp_color_enable(this->isp_proc_handle_);
+}
+
+void CSICameraSensor::exposure_configure() {
+  int exposure = this->exposure_;
+  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_EXPOSURE_VAL, &exposure, sizeof(exposure)) != ESP_OK)
+    ESP_LOGE(TAG, "ESP_CAM_SENSOR_EXPOSURE_VAL failed.");
+}
+
+void CSICameraSensor::filter_configure_(bool enable) {
+  esp_isp_bf_config_t config = {
+      .bf_template =
+          {
+              {1, 2, 1},
+              {2, 4, 2},
+              {1, 2, 1},
+          },
+      .denoising_level = this->filter_,
+  };
+
+  esp_isp_bf_disable(this->isp_proc_handle_);
+  if (esp_isp_bf_configure(this->isp_proc_handle_, &config) != ESP_OK)
+    ESP_LOGE(TAG, "esp_isp_bf_configure failed.");
+
+  if (esp_isp_bf_enable(this->isp_proc_handle_) != ESP_OK)
+    ESP_LOGE(TAG, "esp_isp_bf_enable failed.");
 }
 
 }  // namespace esphome::camera_sensor

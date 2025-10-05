@@ -62,7 +62,7 @@ CONF_ESP32P4_SUBSAMPLING_SELECTS = {
 P4_ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32P4JPEGEncoder),
-        cv.Optional(CONF_QUALITY, default=80): cv.int_range(1, 100),
+        cv.Optional(CONF_QUALITY, default=40): cv.int_range(1, 100),
         cv.Optional(CONF_SUBSAMPLING, default="444"): cv.enum(
             CONF_ESP32P4_SUBSAMPLING_SELECTS, upper=True
         ),

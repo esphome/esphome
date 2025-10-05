@@ -4,7 +4,10 @@ from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BRIGHTNESS,
     CONF_CLEAR,
+    CONF_CONTRAST,
+    CONF_FILTER,
     CONF_FLIP_X,
     CONF_FLIP_Y,
     CONF_FORMAT,
@@ -24,7 +27,9 @@ AUTO_LOAD = ["camera", "i2c"]
 
 SOFTWARE_SENSOR = "software"
 ESP32_CAMERA_SENSOR = "esp32_camera"
-MIPI_CSI = "mipi-csi"
+MIPI_CSI = "mipi_csi"
+
+CONF_MIPI_CSI_ID = "mipi_csi_ID"
 
 camera_ns = cg.esphome_ns.namespace("camera")
 camera_sensor_ns = cg.esphome_ns.namespace("camera_sensor")
@@ -54,6 +59,9 @@ CONF_JPEG_QUALITY = "jpeg_quality"
 
 CONF_BUFFERS = "buffers"
 CONF_BYTE_SWAP = "byte_swap"
+CONF_HUE = "hue"
+CONF_SATURATION = "saturation"
+CONF_EXPOSURE = "exposure"
 
 PINS_SCHEMA = cv.Schema(
     {
@@ -173,6 +181,12 @@ MIPI_CSI_SCHEMA = cv.Schema(
         cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
         cv.Optional(CONF_FLIP_X, default=True): cv.boolean,
         cv.Optional(CONF_FLIP_Y, default=False): cv.boolean,
+        cv.Optional(CONF_BRIGHTNESS, default=0): cv.int_range(-127, 128),
+        cv.Optional(CONF_CONTRAST, default=128): cv.int_range(0, 128),
+        cv.Optional(CONF_EXPOSURE, default=80): cv.int_range(2, 235),
+        cv.Optional(CONF_FILTER, default=10): cv.int_range(2, 20),
+        cv.Optional(CONF_HUE, default=0): cv.int_range(0, 359),
+        cv.Optional(CONF_SATURATION, default=128): cv.int_range(0, 128),
     }
 )
 
@@ -180,7 +194,7 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         SOFTWARE_SENSOR: SOFTWARE_SCHEMA,
         ESP32_CAMERA_SENSOR: ESP32_CAMERA_SCHEMA,
-        MIPI_CSI: MIPI_CSI_SCHEMA.extend(i2c.i2c_device_schema(None)),
+        MIPI_CSI: MIPI_CSI_SCHEMA.extend(i2c.i2c_device_schema(0x00)),
     },
     default_type=SOFTWARE_SENSOR,
 )
@@ -239,7 +253,7 @@ async def to_code(config):
             cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
 
     if config[CONF_TYPE] == MIPI_CSI:
-        add_idf_component(name="espressif/esp_cam_sensor", ref="1.3.0")
+        add_idf_component(name="espressif/esp_cam_sensor", ref="1.4.0")
         cg.add_build_flag("-DUSE_CSI_CAMERA_SENSOR")
         var = cg.new_Pvariable(
             config[CONF_ID],
@@ -255,4 +269,10 @@ async def to_code(config):
         cg.add(var.set_byte_swap(config[CONF_BYTE_SWAP]))
         cg.add(var.set_flip_x(config[CONF_FLIP_X]))
         cg.add(var.set_flip_y(config[CONF_FLIP_Y]))
+        cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
+        cg.add(var.set_contrast(config[CONF_CONTRAST]))
+        cg.add(var.set_exposure(config[CONF_EXPOSURE]))
+        cg.add(var.set_filter(config[CONF_FILTER]))
+        cg.add(var.set_hue(config[CONF_HUE]))
+        cg.add(var.set_saturation(config[CONF_SATURATION]))
         await i2c.register_i2c_device(var, config)
