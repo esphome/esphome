@@ -8,9 +8,10 @@ from esphome.components.packet_transport import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import HexInt
 from esphome.cpp_types import PollingComponent
 
-from .. import ESPNowComponent, espnow_ns
+from .. import ESPNowComponent, espnow_ns, peer_address_t
 
 CODEOWNERS = ["@EasilyBoredEngineer"]
 DEPENDENCIES = ["espnow"]
@@ -36,6 +37,6 @@ async def to_code(config):
 
     await cg.register_parented(var, config[CONF_ESPNOW_ID])
 
-    # Set broadcast address using peer_address_t array
+    # Set broadcast address - convert MAC to parts array like ESP-NOW does
     mac = config[CONF_BROADCAST_ADDRESS]
-    cg.add(var.set_broadcast_address(mac.as_hex))
+    cg.add(var.set_broadcast_address([HexInt(x) for x in mac.parts]))
