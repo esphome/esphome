@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
-#include <set>
+#include <initializer_list>
 
 namespace esphome {
 namespace lock {
@@ -44,16 +44,22 @@ class LockTraits {
   bool get_assumed_state() const { return this->assumed_state_; }
   void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
-  bool supports_state(LockState state) const { return supported_states_.count(state); }
-  std::set<LockState> get_supported_states() const { return supported_states_; }
-  void set_supported_states(std::set<LockState> states) { supported_states_ = std::move(states); }
-  void add_supported_state(LockState state) { supported_states_.insert(state); }
+  bool supports_state(LockState state) const { return supported_states_mask_ & (1 << state); }
+  void set_supported_states(std::initializer_list<LockState> states) {
+    supported_states_mask_ = 0;
+    for (auto state : states) {
+      supported_states_mask_ |= (1 << state);
+    }
+  }
+  uint8_t get_supported_states_mask() const { return supported_states_mask_; }
+  void set_supported_states_mask(uint8_t mask) { supported_states_mask_ = mask; }
+  void add_supported_state(LockState state) { supported_states_mask_ |= (1 << state); }
 
  protected:
   bool supports_open_{false};
   bool requires_code_{false};
   bool assumed_state_{false};
-  std::set<LockState> supported_states_ = {LOCK_STATE_NONE, LOCK_STATE_LOCKED, LOCK_STATE_UNLOCKED};
+  uint8_t supported_states_mask_{(1 << LOCK_STATE_NONE) | (1 << LOCK_STATE_LOCKED) | (1 << LOCK_STATE_UNLOCKED)};
 };
 
 /** This class is used to encode all control actions on a lock device.

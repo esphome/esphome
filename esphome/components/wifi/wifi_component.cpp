@@ -1,7 +1,6 @@
 #include "wifi_component.h"
 #ifdef USE_WIFI
 #include <cinttypes>
-#include <map>
 
 #ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
@@ -41,6 +40,25 @@ namespace esphome {
 namespace wifi {
 
 static const char *const TAG = "wifi";
+
+#if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
+  switch (type) {
+    case ESP_EAP_TTLS_PHASE2_PAP:
+      return "pap";
+    case ESP_EAP_TTLS_PHASE2_CHAP:
+      return "chap";
+    case ESP_EAP_TTLS_PHASE2_MSCHAP:
+      return "mschap";
+    case ESP_EAP_TTLS_PHASE2_MSCHAPV2:
+      return "mschapv2";
+    case ESP_EAP_TTLS_PHASE2_EAP:
+      return "eap";
+    default:
+      return "unknown";
+  }
+}
+#endif
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
@@ -344,15 +362,8 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
     ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
     ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
-#ifdef USE_ESP32
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    std::map<esp_eap_ttls_phase2_types, std::string> phase2types = {{ESP_EAP_TTLS_PHASE2_PAP, "pap"},
-                                                                    {ESP_EAP_TTLS_PHASE2_CHAP, "chap"},
-                                                                    {ESP_EAP_TTLS_PHASE2_MSCHAP, "mschap"},
-                                                                    {ESP_EAP_TTLS_PHASE2_MSCHAPV2, "mschapv2"},
-                                                                    {ESP_EAP_TTLS_PHASE2_EAP, "eap"}};
-    ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), phase2types[eap_config.ttls_phase_2].c_str());
-#endif
+#if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);

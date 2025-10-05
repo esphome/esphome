@@ -4,7 +4,6 @@
 #include "ble_characteristic.h"
 #include "ble_descriptor.h"
 
-#include "esphome/components/event_emitter/event_emitter.h"
 #include "esphome/core/automation.h"
 
 #include <vector>
@@ -18,10 +17,6 @@ namespace esp32_ble_server {
 namespace esp32_ble_server_automations {
 
 using namespace esp32_ble;
-using namespace event_emitter;
-
-// Invalid listener ID constant - 0 is used as sentinel value in EventEmitter
-static constexpr EventEmitterListenerID INVALID_LISTENER_ID = 0;
 
 class BLETriggers {
  public:
@@ -41,38 +36,29 @@ class BLETriggers {
 };
 
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
-enum BLECharacteristicSetValueActionEvt {
-  PRE_NOTIFY,
-};
-
 // Class to make sure only one BLECharacteristicSetValueAction is active at a time for each characteristic
-class BLECharacteristicSetValueActionManager
-    : public EventEmitter<BLECharacteristicSetValueActionEvt, BLECharacteristic *> {
+class BLECharacteristicSetValueActionManager {
  public:
   // Singleton pattern
   static BLECharacteristicSetValueActionManager *get_instance() {
     static BLECharacteristicSetValueActionManager instance;
     return &instance;
   }
-  void set_listener(BLECharacteristic *characteristic, EventEmitterListenerID listener_id,
-                    const std::function<void()> &pre_notify_listener);
-  EventEmitterListenerID get_listener(BLECharacteristic *characteristic) {
+  void set_listener(BLECharacteristic *characteristic, const std::function<void()> &pre_notify_listener);
+  bool has_listener(BLECharacteristic *characteristic) { return this->find_listener_(characteristic) != nullptr; }
+  void emit_pre_notify(BLECharacteristic *characteristic) {
     for (const auto &entry : this->listeners_) {
       if (entry.characteristic == characteristic) {
-        return entry.listener_id;
+        entry.pre_notify_listener();
+        break;
       }
     }
-    return INVALID_LISTENER_ID;
-  }
-  void emit_pre_notify(BLECharacteristic *characteristic) {
-    this->emit_(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, characteristic);
   }
 
  private:
   struct ListenerEntry {
     BLECharacteristic *characteristic;
-    EventEmitterListenerID listener_id;
-    EventEmitterListenerID pre_notify_listener_id;
+    std::function<void()> pre_notify_listener;
   };
   std::vector<ListenerEntry> listeners_;
 
@@ -87,24 +73,22 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
   void play(Ts... x) override {
     // If the listener is already set, do nothing
-    if (BLECharacteristicSetValueActionManager::get_instance()->get_listener(this->parent_) == this->listener_id_)
+    if (BLECharacteristicSetValueActionManager::get_instance()->has_listener(this->parent_))
       return;
     // Set initial value
     this->parent_->set_value(this->buffer_.value(x...));
     // Set the listener for read events
-    this->listener_id_ = this->parent_->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::on(
-        BLECharacteristicEvt::EmptyEvt::ON_READ, [this, x...](uint16_t id) {
-          // Set the value of the characteristic every time it is read
-          this->parent_->set_value(this->buffer_.value(x...));
-        });
+    this->parent_->on_read([this, x...](uint16_t id) {
+      // Set the value of the characteristic every time it is read
+      this->parent_->set_value(this->buffer_.value(x...));
+    });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
-        this->parent_, this->listener_id_, [this, x...]() { this->parent_->set_value(this->buffer_.value(x...)); });
+        this->parent_, [this, x...]() { this->parent_->set_value(this->buffer_.value(x...)); });
   }
 
  protected:
   BLECharacteristic *parent_;
-  EventEmitterListenerID listener_id_;
 };
 #endif  // USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 
