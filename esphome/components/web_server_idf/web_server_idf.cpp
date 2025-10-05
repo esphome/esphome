@@ -204,8 +204,8 @@ esp_err_t AsyncWebServer::request_handler_(AsyncWebServerRequest *request) const
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
   delete this->rsp_;
-  for (const auto &pair : this->params_) {
-    delete pair.second;  // NOLINT(cppcoreguidelines-owning-memory)
+  for (auto *param : this->params_) {
+    delete param;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 
@@ -245,10 +245,22 @@ void AsyncWebServerRequest::redirect(const std::string &url) {
 }
 
 void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
-  httpd_resp_set_status(*this, code == 200   ? HTTPD_200
-                               : code == 404 ? HTTPD_404
-                               : code == 409 ? HTTPD_409
-                                             : to_string(code).c_str());
+  // Set status code - use constants for common codes to avoid string allocation
+  const char *status = nullptr;
+  switch (code) {
+    case 200:
+      status = HTTPD_200;
+      break;
+    case 404:
+      status = HTTPD_404;
+      break;
+    case 409:
+      status = HTTPD_409;
+      break;
+    default:
+      break;
+  }
+  httpd_resp_set_status(*this, status == nullptr ? to_string(code).c_str() : status);
 
   if (content_type && *content_type) {
     httpd_resp_set_type(*this, content_type);
@@ -305,11 +317,14 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
 #endif
 
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
-  auto find = this->params_.find(name);
-  if (find != this->params_.end()) {
-    return find->second;
+  // Check cache first - only successful lookups are cached
+  for (auto *param : this->params_) {
+    if (param->name() == name) {
+      return param;
+    }
   }
 
+  // Look up value from query strings
   optional<std::string> val = query_key_value(this->post_query_, name);
   if (!val.has_value()) {
     auto url_query = request_get_url_query(*this);
@@ -318,11 +333,14 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
     }
   }
 
-  AsyncWebParameter *param = nullptr;
-  if (val.has_value()) {
-    param = new AsyncWebParameter(val.value());  // NOLINT(cppcoreguidelines-owning-memory)
+  // Don't cache misses to avoid wasting memory when handlers check for
+  // optional parameters that don't exist in the request
+  if (!val.has_value()) {
+    return nullptr;
   }
-  this->params_.insert({name, param});
+
+  auto *param = new AsyncWebParameter(name, val.value());  // NOLINT(cppcoreguidelines-owning-memory)
+  this->params_.push_back(param);
   return param;
 }
 
