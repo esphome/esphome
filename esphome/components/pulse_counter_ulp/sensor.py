@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -104,11 +104,11 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     esp32.add_extra_build_file(
         "src/CMakeLists.txt",
-        os.path.join(os.path.dirname(__file__), "CMakeLists.txt"),
+        Path(__file__).parent / "CMakeLists.txt",
     )
     esp32.add_extra_build_file(
         "ulp/pulse_cnt.S",
-        os.path.join(os.path.dirname(__file__), "ulp/pulse_cnt.S"),
+        Path(__file__).parent / "ulp/pulse_cnt.S",
     )
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_ENABLED", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_TYPE_FSM", True)
