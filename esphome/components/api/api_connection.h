@@ -737,9 +737,6 @@ class APIConnection final : public APIServerConnection {
     this->on_fatal_error();
     this->log_warning_(message, err);
   }
-  inline void fatal_error_with_socket_log_(APIError err) {
-    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
-  }
 };
 
 }  // namespace esphome::api
