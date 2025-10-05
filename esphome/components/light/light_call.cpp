@@ -301,7 +301,7 @@ LightColorValues LightCall::validate_() {
 
   // Flash length check
   if (this->has_flash_() && this->flash_length_ == 0) {
-    log_invalid_parameter(name, LOG_STR("flash length must be >= zero"));
+    log_invalid_parameter(name, LOG_STR("flash length must be >0"));
     this->clear_flag_(FLAG_HAS_FLASH);
   }
 
