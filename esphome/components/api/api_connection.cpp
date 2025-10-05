@@ -116,8 +116,7 @@ void APIConnection::start() {
 
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Helper init failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
   this->client_info_.peername = helper_->getpeername();
@@ -147,8 +146,7 @@ void APIConnection::loop() {
 
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return;
   }
 
@@ -163,8 +161,7 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
-        on_fatal_error();
-        this->log_warning_(LOG_STR("Reading failed"), err);
+        this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
@@ -1577,8 +1574,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return false;
   }
   if (this->helper_->can_write_without_blocking())
@@ -1597,8 +1593,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   if (err == APIError::WOULD_BLOCK)
     return false;
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Packet write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Packet write failed"), err);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1784,8 +1779,7 @@ void APIConnection::process_batch_() {
   APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
                                                        std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Batch write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1866,10 +1860,6 @@ void APIConnection::process_state_subscriptions_() {
 void APIConnection::log_warning_(const LogString *message, APIError err) {
   ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
-}
-
-void APIConnection::log_socket_operation_failed_(APIError err) {
-  this->log_warning_(LOG_STR("Socket operation failed"), err);
 }
 
 }  // namespace esphome::api
