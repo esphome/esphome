@@ -1,0 +1,37 @@
+esphome:
+  name: espnow-transport-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test"
+  password: "password"
+
+logger:
+
+espnow:
+  id: espnow_main
+
+packet_transport:
+  - platform: espnow
+    espnow_id: espnow_main
+    encryption:
+      key: "0123456789abcdef0123456789abcdef"
+    sensors:
+      - test_sensor
+    providers:
+      - name: remote_device
+        encryption:
+          key: "0123456789abcdef0123456789abcdef"
+
+sensor:
+  - platform: internal_temperature
+    name: "Temperature"
+    id: test_sensor
+  - platform: packet_transport
+    provider: remote_device
+    remote_id: test_sensor
+    name: "Remote Temperature"
