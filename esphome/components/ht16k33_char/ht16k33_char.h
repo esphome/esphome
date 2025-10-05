@@ -20,11 +20,15 @@ static const uint8_t HT16K33_DISPLAY_ON = 0x01;
 static const uint8_t HT16K33_MODE_STANDBY = 0x00;
 static const uint8_t HT16K33_MODE_NORMAL = 0x01;
 
-//Return codes from handle_special_char_()
-static const uint8_t SPECIAL_CHAR_NOT_FOUND = 0x00;         //Not a special char, the code should show a blank digit at this location.
-static const uint8_t SPECIAL_CHAR_FOUND = 0x01;             //Special char found and handled
-static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;     //Special char found and handled, advance display if the special char was in the first position of the first display.
-static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE = 0x03;  //Special char found and handled, advance display if the special char was in the first position of the first display.
+// Return codes from handle_special_char_()
+static const uint8_t SPECIAL_CHAR_NOT_FOUND =
+    0x00;  // Not a special char, the code should show a blank digit at this location.
+static const uint8_t SPECIAL_CHAR_FOUND = 0x01;          // Special char found and handled
+static const uint8_t SPECIAL_CHAR_FOUND_ADVANCE = 0x02;  // Special char found and handled, advance display if the
+                                                         // special char was in the first position of the first display.
+static const uint8_t SPECIAL_CHAR_FOUND_NO_ADVANCE =
+    0x03;  // Special char found and handled, advance display if the special char was in the first position of the first
+           // display.
 
 class HT16k33CharComponent;
 
@@ -119,12 +123,13 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
 
   std::string message_buffer_;  // This buffer holds the entire character message to display.
   uint8_t buffer_[20];          // This buffer is used to send the raw bytes to the HT16k33 device. TODO: Make this 17?
-  uint16_t char_buffer_max_size_;  // This is the maximum allowable length of the char buffer. This should be set to some
-                                  //  reasonable number greater than the expected length of the strings that will be displayed.
-                                  //  Note that this is not a hard limit, as there is a null terminating character that may
-                                  //  be added into this length. This is also a limit in bytes, not characters. This means
-                                  //  that if multi-byte characters are used, the number of displayed characters will be less
-                                  //  than the number defined here.
+  uint16_t
+      char_buffer_max_size_;  // This is the maximum allowable length of the char buffer. This should be set to some
+                              //  reasonable number greater than the expected length of the strings that will be
+                              //  displayed. Note that this is not a hard limit, as there is a null terminating
+                              //  character that may be added into this length. This is also a limit in bytes, not
+                              //  characters. This means that if multi-byte characters are used, the number of displayed
+                              //  characters will be less than the number defined here.
 
   optional<ht16k33_char_writer_t> writer_{};
 };

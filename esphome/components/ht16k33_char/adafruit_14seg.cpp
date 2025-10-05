@@ -30,13 +30,13 @@ uint16_t Adafruit14Seg::send_to_display_(i2c::I2CDevice *display, uint16_t posit
 }
 
 void Adafruit14Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
   this->buffer_[this->digit_map_[char_position] + 1] |= (uint8_t) ((char_to_write >> 8) & 0xFF);
 }
 
 uint8_t Adafruit14Seg::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -46,13 +46,13 @@ uint8_t Adafruit14Seg::handle_special_char_(char char_to_find, uint8_t position)
       this->buffer_[this->digit_map_[position - 1] + 1] |= 0x40;
       return SPECIAL_CHAR_FOUND;
     } else {
-      // If the peroid is in the first position on the display, we need to advance the first char pointer an extra time to make the scrolling smooth
+      // If the peroid is in the first position on the display, we need to advance the first char pointer an extra time
+      // to make the scrolling smooth
       return SPECIAL_CHAR_FOUND_ADVANCE;
     }
   }
   return SPECIAL_CHAR_NOT_FOUND;
 }
-
 
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
@@ -62,13 +62,13 @@ uint16_t Adafruit14SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t p
 }
 
 void Adafruit14SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
   this->buffer_[this->digit_map_[char_position] + 1] |= (uint8_t) ((char_to_write >> 8) & 0xFF);
 }
 
 uint8_t Adafruit14SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -76,7 +76,8 @@ uint8_t Adafruit14SegFlip::handle_special_char_(char char_to_find, uint8_t posit
     if (position < 4) {
       this->buffer_[this->digit_map_[position] + 1] |= 0x40;
       if (position == 0) {
-        //If the char is at the first position on the first display, we need to advance the first char pointer an extra time to keep the display scrolling steady.
+        // If the char is at the first position on the first display, we need to advance the first char pointer an extra
+        // time to keep the display scrolling steady.
         return SPECIAL_CHAR_FOUND_ADVANCE;
       } else {
         return SPECIAL_CHAR_FOUND;
@@ -86,7 +87,6 @@ uint8_t Adafruit14SegFlip::handle_special_char_(char char_to_find, uint8_t posit
 
   return SPECIAL_CHAR_NOT_FOUND;
 }
-
 
 }  // namespace ht16k33_char
 }  // namespace esphome

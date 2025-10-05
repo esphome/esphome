@@ -36,13 +36,13 @@ uint16_t Adafruit7Seg::send_to_display_(i2c::I2CDevice *display, uint16_t positi
 }
 
 void Adafruit7Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
-  this->buffer_[this->digit_map_[char_position] + 1] = 0; //The higher byte is always 0 for the 7-segment displays
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
 uint8_t Adafruit7Seg::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -55,7 +55,8 @@ uint8_t Adafruit7Seg::handle_special_char_(char char_to_find, uint8_t position) 
   if (char_to_find == '.') {
     if (position > 0) {
       // We can't put a period before the first digit.
-      //For periods on this device, the period at a location is wired to the digit to its left, hence the [position-1] here.
+      // For periods on this device, the period at a location is wired to the digit to its left, hence the [position-1]
+      // here.
       this->buffer_[this->digit_map_[position - 1]] |= 0x80;
       return SPECIAL_CHAR_FOUND;
     } else {
@@ -66,7 +67,6 @@ uint8_t Adafruit7Seg::handle_special_char_(char char_to_find, uint8_t position) 
   return SPECIAL_CHAR_NOT_FOUND;
 }
 
-
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
 // to this function).
@@ -75,13 +75,13 @@ uint16_t Adafruit7SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t po
 }
 
 void Adafruit7SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
-  this->buffer_[this->digit_map_[char_position] + 1] = 0; //The higher byte is always 0 for the 7-segment displays
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
 uint8_t Adafruit7SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -95,7 +95,8 @@ uint8_t Adafruit7SegFlip::handle_special_char_(char char_to_find, uint8_t positi
     if (position < 4) {
       this->buffer_[this->digit_map_[position]] |= 0x80;
       if (position == 0) {
-        //If the char is at the first position on the first display, we need to advance the first char pointer an extra time to keep the display scrolling steady.
+        // If the char is at the first position on the first display, we need to advance the first char pointer an extra
+        // time to keep the display scrolling steady.
         return SPECIAL_CHAR_FOUND_ADVANCE;
       } else {
         return SPECIAL_CHAR_FOUND;

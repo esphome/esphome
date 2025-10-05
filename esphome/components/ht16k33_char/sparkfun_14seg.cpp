@@ -43,7 +43,7 @@ void Sparkfun14Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_positi
 
 uint8_t Sparkfun14Seg::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -59,7 +59,6 @@ uint8_t Sparkfun14Seg::handle_special_char_(char char_to_find, uint8_t position)
 
   return SPECIAL_CHAR_NOT_FOUND;
 }
-
 
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
@@ -87,7 +86,7 @@ void Sparkfun14SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_po
 
 uint8_t Sparkfun14SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -97,14 +96,13 @@ uint8_t Sparkfun14SegFlip::handle_special_char_(char char_to_find, uint8_t posit
   //  scrolling with a colon to look wierd. This seems like a very edge case, so I did not try
   //  to fix it. The period at the top of the display is not implemented.
   if ((char_to_find == ':') && (position == 2)) {
-          // Colon at position 3
-          this->buffer_[2] |= 0x01;
-          return SPECIAL_CHAR_FOUND;
-        }
+    // Colon at position 3
+    this->buffer_[2] |= 0x01;
+    return SPECIAL_CHAR_FOUND;
+  }
 
   return SPECIAL_CHAR_NOT_FOUND;
 }
-
 
 }  // namespace ht16k33_char
 }  // namespace esphome

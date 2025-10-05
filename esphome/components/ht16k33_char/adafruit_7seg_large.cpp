@@ -41,13 +41,13 @@ uint16_t Adafruit7SegLarge::send_to_display_(i2c::I2CDevice *display, uint16_t p
 }
 
 void Adafruit7SegLarge::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
-  this->buffer_[this->digit_map_[char_position] + 1] = 0; //The higher byte is always 0 for the 7-segment displays
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
 uint8_t Adafruit7SegLarge::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 
@@ -87,13 +87,13 @@ uint16_t Adafruit7SegLargeFlip::send_to_display_(i2c::I2CDevice *display, uint16
 }
 
 void Adafruit7SegLargeFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
-  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
-  this->buffer_[this->digit_map_[char_position] + 1] = 0; //The higher byte is always 0 for the 7-segment displays
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] = 0;  // The higher byte is always 0 for the 7-segment displays
 }
 
 uint8_t Adafruit7SegLargeFlip::handle_special_char_(char char_to_find, uint8_t position) {
   if (position > 4) {
-    //This should never happen.
+    // This should never happen.
     return SPECIAL_CHAR_NOT_FOUND;
   }
 

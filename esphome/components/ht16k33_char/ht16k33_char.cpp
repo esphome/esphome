@@ -66,14 +66,14 @@ void HT16k33CharComponent::setup() {
 
 void HT16k33CharComponent::update() {
   uint8_t i;
-  uint16_t current_buffer_location;  //TODO: Make this uint16?
+  uint16_t current_buffer_location;  // TODO: Make this uint16?
 
-  //ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
+  // ESP_LOGD("dbg", "message: %s", this->message_buffer_.c_str());    //TODO: Remove this when everything works.
 
-  //Display the character map. TODO: Remove this when everything works.
-  //for (auto it : this->char_map_) {
-  //  ESP_LOGD("dbg", "%s: %d", it.first.c_str(), it.second);
-  //}
+  // Display the character map. TODO: Remove this when everything works.
+  // for (auto it : this->char_map_) {
+  //   ESP_LOGD("dbg", "%s: %d", it.first.c_str(), it.second);
+  // }
 
   // This checks if the lambda function is defined. If it is not defined, we don't do anything.
   if (this->writer_.has_value()) {
@@ -89,16 +89,22 @@ void HT16k33CharComponent::update() {
     //     function to show the initial contents.
     if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) ||
         (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START) ||
-        (this->scroll_state_ == HT16K33_SCROLL_STATE_STOPPED) ) {   //TODO: Added a state_stopped. we probably don't need this. there is another variable that tells us if we are supposed to scroll
+        (this->scroll_state_ ==
+         HT16K33_SCROLL_STATE_STOPPED)) {  // TODO: Added a state_stopped. we probably don't need this. there is another
+                                           // variable that tells us if we are supposed to scroll
 
       current_buffer_location = this->update_display();
 
       this->last_scroll_ = millis();
-          //TODO: I don't think I need the first char location test. It is required, but it should alwasy be the case wien doing these checks.
-      if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length()) && (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START)) {   //TODO: Check this, not sure if it works with the new size stuff. Also, does this need to be called here at all?
-          // We reached the end of the char buffer before we reached the end of the display.
-          this->scroll_state_ = HT16K33_SCROLL_STATE_STOPPED;
-        }
+      // TODO: I don't think I need the first char location test. It is required, but it should alwasy be the case wien
+      // doing these checks.
+      if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length()) &&
+          (this->scroll_state_ ==
+           HT16K33_SCROLL_STATE_FIRST_START)) {  // TODO: Check this, not sure if it works with the new size stuff.
+                                                 // Also, does this need to be called here at all?
+        // We reached the end of the char buffer before we reached the end of the display.
+        this->scroll_state_ = HT16K33_SCROLL_STATE_STOPPED;
+      }
     }
   }
 }
@@ -350,13 +356,13 @@ uint8_t HT16k33CharComponent::get_next_char(uint16_t start_position, std::string
   char first_char = this->message_buffer_[start_position];
   uint8_t next_char_length = this->char_len_(first_char);
 
-  //Clear contents from the string to hold the next character.
+  // Clear contents from the string to hold the next character.
   next_char->resize(1);
   next_char->clear();
 
-  //Add all of the chars that represent the character to display.
-  for(uint8_t i=0; i<next_char_length; i++) {
-    next_char->push_back(this->message_buffer_.at(start_position+i));
+  // Add all of the chars that represent the character to display.
+  for (uint8_t i = 0; i < next_char_length; i++) {
+    next_char->push_back(this->message_buffer_.at(start_position + i));
   }
 
   return next_char_length;
@@ -377,19 +383,19 @@ uint8_t HT16k33CharComponent::char_len_(char char_to_test) {
 
   first_char = std::char_traits<char>::to_int_type(char_to_test);
   if (first_char <= 0x7F) {
-    //Single byte character
+    // Single byte character
     return 1;
-  } else if ( (first_char & 0xE0) == 0xC0) {
-    //Two byte character
+  } else if ((first_char & 0xE0) == 0xC0) {
+    // Two byte character
     return 2;
-  } else if ( (first_char & 0xF0) == 0xE0) {
-    //Three byte character
+  } else if ((first_char & 0xF0) == 0xE0) {
+    // Three byte character
     return 3;
-  } else if ( (first_char & 0xF0) == 0xF0) {
-    //Four byte character
+  } else if ((first_char & 0xF0) == 0xF0) {
+    // Four byte character
     return 4;
   } else {
-    //Invalid character code.
+    // Invalid character code.
     return 0;
   }
 }
@@ -400,7 +406,7 @@ uint8_t HT16k33CharComponent::char_len_(char char_to_test) {
  *  It should be called before adding new data to the buffer.
  ************************************/
 void HT16k33CharComponent::clear_buffer_(void) {
-  for (uint8_t i = 0; i < sizeof(this->buffer_)/sizeof(this->buffer_[0]); i++) {
+  for (uint8_t i = 0; i < sizeof(this->buffer_) / sizeof(this->buffer_[0]); i++) {
     this->buffer_[i] = 0x00;
   }
 }
@@ -423,7 +429,7 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
   bool special_character_found;
   std::string char_to_find;
 
-  //Clear any old data from the buffer.
+  // Clear any old data from the buffer.
   this->clear_buffer_();
 
   this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
@@ -447,8 +453,8 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
     else {
       // The character to find is within the bounds of the buffer array.
       char_length = this->get_next_char(char_buffer_location, &char_to_find);
-      if(char_length == 0) {
-        //I don't think this is possible. If it is, display a blank character.
+      if (char_length == 0) {
+        // I don't think this is possible. If it is, display a blank character.
         char_to_find.resize(1);
         char_to_find.clear();
         char_to_find.push_back(' ');
@@ -473,20 +479,21 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
               special_character_found = true;
               continue;
             case SPECIAL_CHAR_FOUND_ADVANCE:
-              // This case covers if we are scrolling the display and the first character in the first display is a special character.
+              // This case covers if we are scrolling the display and the first character in the first display is a
+              // special character.
               //  In this instance, we want to skip over that character, or the scrolling will end up choppy.
               //  To do that, we increment the first_char_location_ variable.
               special_character_found = true;
-              if ((this->fist_char_location_ == (char_buffer_location-1)) &&
-                  (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC ) &&
+              if ((this->fist_char_location_ == (char_buffer_location - 1)) &&
+                  (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC) &&
                   (this->scroll_state_ != HT16K33_SCROLL_STATE_STOPPED)) {
-                this->fist_char_location_++;    //All special characters are single byte only.
+                this->fist_char_location_++;  // All special characters are single byte only.
               }
               continue;
           }
         }
 
-        //Character is not in the character map or a speical character, blank this digit.
+        // Character is not in the character map or a speical character, blank this digit.
         this->write_to_buffer_(0, digit_number);
         special_character_found = false;
         digit_number++;
@@ -497,7 +504,7 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
   // We may be able to have special characters after the last digit, Handle that here.
   if (!(char_buffer_location >= this->message_buffer_.length())) {
     this->get_next_char(char_buffer_location, &char_to_find);
-    if(this->handle_special_char_(char_to_find.at(0), digit_number) == SPECIAL_CHAR_FOUND) {
+    if (this->handle_special_char_(char_to_find.at(0), digit_number) == SPECIAL_CHAR_FOUND) {
       char_buffer_location++;
     }
   }
@@ -515,11 +522,11 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
  *
  *  char_code: The code that represents which LEDs should be light for this character.
  ************************************/
-void  HT16k33CharComponent::add_char(const char *char_to_add, uint16_t char_code) {
+void HT16k33CharComponent::add_char(const char *char_to_add, uint16_t char_code) {
   std::string lookup_string = char_to_add;
 
-  if(lookup_string.length() > this->char_len_(char_to_add[0])) {
-    //If the string contains more than one character, we truncate to the first character only.
+  if (lookup_string.length() > this->char_len_(char_to_add[0])) {
+    // If the string contains more than one character, we truncate to the first character only.
     lookup_string.resize(this->char_len_(char_to_add[0]));
   }
 
@@ -541,7 +548,6 @@ void  HT16k33CharComponent::add_char(const char *char_to_add, uint16_t char_code
  *    total buffer length (in bytes) exceede char_buffer_max_size_, the string is truncated to prevent this.
  ************************************/
 uint8_t HT16k33CharComponent::print(uint16_t start_pos, bool clear_buffer, const char *str) {
-
   size_t old_message_size = this->message_buffer_.length();
   uint16_t len = strlen(str);
 
@@ -569,9 +575,8 @@ uint8_t HT16k33CharComponent::print(uint16_t start_pos, bool clear_buffer, const
     this->message_buffer_.insert(start_pos, str, len);
   }
 
-  if ((this->message_buffer_.size() != old_message_size) && (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC))
-  {
-    //If the new message is a different size from the old one, we restart the scrolling.
+  if ((this->message_buffer_.size() != old_message_size) && (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC)) {
+    // If the new message is a different size from the old one, we restart the scrolling.
     this->scroll_state_ = HT16K33_SCROLL_STATE_FIRST_START;
     this->fist_char_location_ = 0;
   }
@@ -611,7 +616,7 @@ uint8_t HT16k33CharComponent::printf(uint16_t start_pos, bool clear_buffer, cons
 
   // Limit the output of printf to the defined max size.
   if (len > this->char_buffer_max_size_) {
-    len = this->char_buffer_max_size_+1; // Add 1 for the null terminator
+    len = this->char_buffer_max_size_ + 1;  // Add 1 for the null terminator
   }
 
   char buffer[len];
@@ -660,8 +665,8 @@ uint8_t HT16k33CharComponent::strftime(uint16_t start_pos, bool clear_buffer, co
  *
  *  Returns the number of bytes written to the buffer.
  ************************************/
-uint8_t HT16k33CharComponent::clock_display(uint16_t start_pos, bool clear_buffer, bool show_leading_zero, bool use_ampm,
-                                            ESPTime time) {
+uint8_t HT16k33CharComponent::clock_display(uint16_t start_pos, bool clear_buffer, bool show_leading_zero,
+                                            bool use_ampm, ESPTime time) {
   char buffer[6];
   // TODO: strftime is very memory intensive if all I need is hours and minutes. I could rewrite this to not use
   // strftime and save a bunch of flash
