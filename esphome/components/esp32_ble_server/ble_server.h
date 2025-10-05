@@ -13,6 +13,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <functional>
 
 #ifdef USE_ESP32
 
@@ -24,18 +25,7 @@ namespace esp32_ble_server {
 using namespace esp32_ble;
 using namespace bytebuffer;
 
-namespace BLEServerEvt {
-enum EmptyEvt {
-  ON_CONNECT,
-  ON_DISCONNECT,
-};
-}  // namespace BLEServerEvt
-
-class BLEServer : public Component,
-                  public GATTsEventHandler,
-                  public BLEStatusEventHandler,
-                  public Parented<ESP32BLE>,
-                  public EventEmitter<BLEServerEvt::EmptyEvt, uint16_t> {
+class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
@@ -65,7 +55,25 @@ class BLEServer : public Component,
 
   void ble_before_disabled_event_handler() override;
 
+  // Direct callback registration - supports multiple callbacks
+  void on_connect(std::function<void(uint16_t)> &&callback) {
+    this->callbacks_.push_back({CallbackType::ON_CONNECT, std::move(callback)});
+  }
+  void on_disconnect(std::function<void(uint16_t)> &&callback) {
+    this->callbacks_.push_back({CallbackType::ON_DISCONNECT, std::move(callback)});
+  }
+
  protected:
+  enum class CallbackType : uint8_t {
+    ON_CONNECT,
+    ON_DISCONNECT,
+  };
+
+  struct CallbackEntry {
+    CallbackType type;
+    std::function<void(uint16_t)> callback;
+  };
+
   struct ServiceEntry {
     ESPBTUUID uuid;
     uint8_t inst_id;
@@ -76,6 +84,9 @@ class BLEServer : public Component,
 
   void add_client_(uint16_t conn_id) { this->clients_.insert(conn_id); }
   void remove_client_(uint16_t conn_id) { this->clients_.erase(conn_id); }
+  void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
+
+  std::vector<CallbackEntry> callbacks_;
 
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
