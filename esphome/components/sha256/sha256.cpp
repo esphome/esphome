@@ -42,8 +42,6 @@ namespace esphome::sha256 {
 //   void helper(HashBase *h) {
 //     h->init();  // WRONG: Will produce truncated/corrupted output
 //   }
-//
-// See s3_hardware_sha.md for complete details on symptoms and debugging.
 
 SHA256::~SHA256() { mbedtls_sha256_free(&this->ctx_); }
 
