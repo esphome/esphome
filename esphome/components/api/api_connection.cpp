@@ -146,7 +146,7 @@ void APIConnection::loop() {
 
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    this->fatal_error_with_socket_log_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return;
   }
 
@@ -1577,7 +1577,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    this->fatal_error_with_socket_log_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return false;
   }
   if (this->helper_->can_write_without_blocking())
