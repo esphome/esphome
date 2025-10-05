@@ -32,7 +32,7 @@ from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ def recursive_check_replaceme(value):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPForceValue):
+    if isinstance(value, ESPLiteralValue):
         pass
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
@@ -314,7 +314,7 @@ def recursive_check_replaceme(value):
             "Please make sure you have replaced all fields from the sample "
             "configuration.\n"
             "If you want to use the literal REPLACEME string, "
-            'please use "!force REPLACEME"'
+            'please use "!literal REPLACEME"'
         )
     return value
 
@@ -382,6 +382,12 @@ class LoadValidationStep(ConfigValidationStep):
             result.add_str_error(f"Component not found: {self.domain}", path)
             return
         CORE.loaded_integrations.add(self.domain)
+        # For platform components, normalize conf before creating MetadataValidationStep
+        if component.is_platform_component:
+            if not self.conf:
+                result[self.domain] = self.conf = []
+            elif not isinstance(self.conf, list):
+                result[self.domain] = self.conf = [self.conf]
 
         # Process AUTO_LOAD
         for load in component.auto_load:
@@ -398,12 +404,6 @@ class LoadValidationStep(ConfigValidationStep):
         # This is a platform component, proceed to reading platform entries
         # Remove this is as an output path
         result.remove_output_path([self.domain], self.domain)
-
-        # Ensure conf is a list
-        if not self.conf:
-            result[self.domain] = self.conf = []
-        elif not isinstance(self.conf, list):
-            result[self.domain] = self.conf = [self.conf]
 
         for i, p_config in enumerate(self.conf):
             path = [self.domain, i]
@@ -846,7 +846,9 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 
 def validate_config(
-    config: dict[str, Any], command_line_substitutions: dict[str, Any]
+    config: dict[str, Any],
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
 ) -> Config:
     result = Config()
 
@@ -859,7 +861,7 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config)
+            config = do_packages_pass(config, skip_update=skip_external_update)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -896,7 +898,7 @@ def validate_config(
 
         result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
         try:
-            do_external_components_pass(config)
+            do_external_components_pass(config, skip_update=skip_external_update)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -1020,7 +1022,9 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
+def _load_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config:
     """Load the configuration file."""
     try:
         config = yaml_util.load_yaml(CORE.config_path)
@@ -1028,7 +1032,7 @@ def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
         raise InvalidYAMLError(e) from e
 
     try:
-        return validate_config(config, command_line_substitutions)
+        return validate_config(config, command_line_substitutions, skip_external_update)
     except EsphomeError:
         raise
     except Exception:
@@ -1036,9 +1040,11 @@ def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
         raise
 
 
-def load_config(command_line_substitutions: dict[str, Any]) -> Config:
+def load_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config:
     try:
-        return _load_config(command_line_substitutions)
+        return _load_config(command_line_substitutions, skip_external_update)
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
@@ -1178,10 +1184,10 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(command_line_substitutions):
+def read_config(command_line_substitutions, skip_external_update=False):
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
-        res = load_config(command_line_substitutions)
+        res = load_config(command_line_substitutions, skip_external_update)
     except EsphomeError as err:
         _LOGGER.error("Error while reading config: %s", err)
         return None
