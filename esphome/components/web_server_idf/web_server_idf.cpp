@@ -52,6 +52,20 @@ DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
 
 namespace {
 // Non-blocking send function to prevent watchdog timeouts when TCP buffers are full
+/**
+ * Sends data on a socket in non-blocking mode.
+ *
+ * @param hd      HTTP server handle (unused).
+ * @param sockfd  Socket file descriptor.
+ * @param buf     Buffer to send.
+ * @param buf_len Length of buffer.
+ * @param flags   Flags for send().
+ * @return
+ *   - Number of bytes sent on success.
+ *   - HTTPD_SOCK_ERR_INVALID if buf is nullptr.
+ *   - HTTPD_SOCK_ERR_TIMEOUT if the send buffer is full (EAGAIN/EWOULDBLOCK).
+ *   - HTTPD_SOCK_ERR_FAIL for other errors.
+ */
 int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
   if (buf == nullptr) {
     return HTTPD_SOCK_ERR_INVALID;
@@ -319,8 +333,8 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
     }
   }
 
-  // Don't cache misses to prevent memory exhaustion from malicious requests
-  // with thousands of non-existent parameter lookups
+  // Don't cache misses to avoid wasting memory when handlers check for
+  // optional parameters that don't exist in the request
   if (!val.has_value()) {
     return nullptr;
   }
