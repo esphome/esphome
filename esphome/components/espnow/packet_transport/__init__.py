@@ -6,9 +6,9 @@ from esphome.components.packet_transport import (
     new_packet_transport,
     transport_schema,
 )
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_types import PollingComponent
-import esphome.config_validation as cv
 
 from .. import ESPNowComponent, espnow_ns
 
@@ -23,7 +23,9 @@ CONF_BROADCAST_ADDRESS = "broadcast_address"
 CONFIG_SCHEMA = transport_schema(ESPNowTransport).extend(
     {
         cv.GenerateID(CONF_ESPNOW_ID): cv.use_id(ESPNowComponent),
-        cv.Optional(CONF_BROADCAST_ADDRESS, default="FF:FF:FF:FF:FF:FF"): cv.mac_address,
+        cv.Optional(
+            CONF_BROADCAST_ADDRESS, default="FF:FF:FF:FF:FF:FF"
+        ): cv.mac_address,
     }
 )
 
@@ -49,4 +51,3 @@ async def to_code(config):
             mac_bytes[5],
         )
     )
-	
