@@ -10,6 +10,7 @@ mqtt:
   port: 1883
   username: debug
   password: debug
+  enable_on_boot: false
   clean_session: True
   client_id: someclient
   use_abbreviations: false
@@ -59,6 +60,7 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+  publish_nan_as_none: false
 
 binary_sensor:
   - platform: template
@@ -87,6 +89,8 @@ button:
     state_topic: some/topic/button
     qos: 2
     on_press:
+      - mqtt.disable
+      - mqtt.enable
       - mqtt.publish:
           topic: some/topic/button
           payload: Hello
@@ -200,6 +204,10 @@ climate:
     fan_only_cooling: true
     fan_with_cooling: true
     fan_with_heating: true
+    visual:
+      temperature_step:
+        target_temperature: 0.1
+        current_temperature: 0.1
 
 cover:
   - platform: template
@@ -226,7 +234,9 @@ datetime:
     id: test_date
     type: date
     state_topic: some/topic/date
+    command_topic: test_date/custom_command_topic
     qos: 2
+    subscribe_qos: 2
     set_action:
       - logger.log: "set_value"
     on_value:
@@ -283,6 +293,8 @@ fan:
   - platform: template
     name: Template Fan
     state_topic: some/topic/fan
+    direction_state_topic: some/topic/direction/state
+    direction_command_topic: some/topic/direction/command
     qos: 2
     on_state:
       - logger.log: on_state

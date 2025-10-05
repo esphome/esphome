@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import display, spi
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_WIDTH, CONF_HEIGHT
+import esphome.config_validation as cv
+from esphome.const import CONF_HEIGHT, CONF_ID, CONF_LAMBDA, CONF_WIDTH
 
 AUTO_LOAD = ["display"]
 CODEOWNERS = ["@marsjan155"]

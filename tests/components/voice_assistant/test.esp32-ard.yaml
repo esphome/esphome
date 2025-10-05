@@ -1,57 +1,8 @@
-esphome:
-  on_boot:
-    then:
-      - voice_assistant.start
-      - voice_assistant.start_continuous
-      - voice_assistant.stop
+substitutions:
+  i2s_lrclk_pin: GPIO16
+  i2s_bclk_pin: GPIO17
+  i2s_mclk_pin: GPIO15
+  i2s_din_pin: GPIO13
+  i2s_dout_pin: GPIO12
 
-wifi:
-  ssid: MySSID
-  password: password1
-
-api:
-
-i2s_audio:
-  i2s_lrclk_pin: 16
-  i2s_bclk_pin: 17
-  i2s_mclk_pin: 15
-
-microphone:
-  - platform: i2s_audio
-    id: mic_id_external
-    i2s_din_pin: 13
-    adc_type: external
-    pdm: false
-
-speaker:
-  - platform: i2s_audio
-    id: speaker_id
-    dac_type: external
-    i2s_dout_pin: 12
-
-voice_assistant:
-  microphone: mic_id_external
-  speaker: speaker_id
-  conversation_timeout: 60s
-  on_listening:
-    - logger.log: "Voice assistant microphone listening"
-  on_start:
-    - logger.log: "Voice assistant started"
-  on_stt_end:
-    - logger.log:
-        format: "Voice assistant STT ended with result %s"
-        args: [x.c_str()]
-  on_tts_start:
-    - logger.log:
-        format: "Voice assistant TTS started with text %s"
-        args: [x.c_str()]
-  on_tts_end:
-    - logger.log:
-        format: "Voice assistant TTS ended with url %s"
-        args: [x.c_str()]
-  on_end:
-    - logger.log: "Voice assistant ended"
-  on_error:
-    - logger.log:
-        format: "Voice assistant error - code %s, message: %s"
-        args: [code.c_str(), message.c_str()]
+<<: !include common.yaml

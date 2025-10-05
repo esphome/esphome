@@ -1,8 +1,8 @@
 #include "tm1638.h"
 #include "sevenseg.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tm1638 {
@@ -20,8 +20,6 @@ static const uint8_t TM1638_UNKNOWN_CHAR = 0b11111111;
 static const uint8_t TM1638_SHIFT_DELAY = 4;  // clock pause between commands, default 4ms
 
 void TM1638Component::setup() {
-  ESP_LOGD(TAG, "Setting up TM1638...");
-
   this->clk_pin_->setup();  // OUTPUT
   this->dio_pin_->setup();  // OUTPUT
   this->stb_pin_->setup();  // OUTPUT
@@ -43,8 +41,10 @@ void TM1638Component::setup() {
 }
 
 void TM1638Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "TM1638:");
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
+  ESP_LOGCONFIG(TAG,
+                "TM1638:\n"
+                "  Intensity: %u",
+                this->intensity_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_PIN("  STB Pin: ", this->stb_pin_);

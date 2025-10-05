@@ -1,13 +1,9 @@
-display:
-  - platform: lcd_gpio
-    id: my_lcd_gpio
-    dimensions: 18x4
-    data_pins:
-      - number: 12
-      - number: 13
-      - number: 14
-      - number: 15
-    enable_pin: 16
-    rs_pin: 5
-    lambda: |-
-      it.print("Hello World!");
+substitutions:
+  d0_pin: GPIO12
+  d1_pin: GPIO13
+  d2_pin: GPIO14
+  d3_pin: GPIO15
+  enable_pin: GPIO16
+  rs_pin: GPIO5
+
+<<: !include common.yaml

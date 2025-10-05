@@ -1,15 +1,14 @@
 import sys
-from typing import Any, Union
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.config_validation import Invalid
-from esphome.const import CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
+from esphome.const import CONF_DEFAULT, CONF_GROUP, CONF_ID, CONF_STATE, CONF_TYPE
 from esphome.core import ID, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import CallExpression, MockObj
+from esphome.cpp_generator import MockObj
 
 from ..defines import (
-    CONF_DEFAULT,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -55,35 +54,19 @@ theme_widget_map = {}
 styles_used = set()
 
 
-class LvScrActType(WidgetType):
-    """
-    A "widget" representing the active screen.
-    """
-
-    def __init__(self):
-        super().__init__("lv_scr_act()", lv_obj_t, ())
-
-    async def to_code(self, w, config: dict):
-        return []
-
-
 class Widget:
     """
     Represents a Widget.
+    This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
     widgets_completed = False
-
-    @staticmethod
-    def set_completed():
-        Widget.widgets_completed = True
 
     def __init__(self, var, wtype: WidgetType, config: dict = None):
         self.var = var
         self.type = wtype
         self.config = config
         self.scale = 1.0
-        self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
         if wtype.is_compound():
@@ -179,8 +162,19 @@ class Widget:
 
     def get_value(self):
         if isinstance(self.type.w_type, LvType):
-            return self.type.w_type.value(self)
+            result = self.type.w_type.value(self)
+            if isinstance(result, list):
+                return result[0]
+            return result
         return self.obj
+
+    def get_values(self):
+        if isinstance(self.type.w_type, LvType):
+            result = self.type.w_type.value(self)
+            if isinstance(result, list):
+                return result
+            return [result]
+        return [self.obj]
 
     def get_number_value(self):
         value = self.type.mock_obj.get_value(self.obj)
@@ -194,7 +188,7 @@ class Widget:
         for matrix buttons
         :return:
         """
-        return None
+        return
 
     def get_max(self):
         return self.type.get_max(self.config)
@@ -211,6 +205,25 @@ class Widget:
 
 # Map of widgets to their config, used for trigger generation
 widget_map: dict[Any, Widget] = {}
+
+
+class LvScrActType(WidgetType):
+    """
+    A "widget" representing the active screen.
+    """
+
+    def __init__(self):
+        super().__init__("lv_scr_act()", lv_obj_t, ())
+
+    async def to_code(self, w, config: dict):
+        return []
+
+
+lv_scr_act_spec = LvScrActType()
+
+
+def get_scr_act(lv_comp: MockObj) -> Widget:
+    return Widget.create(None, lv_comp.get_scr_act(), lv_scr_act_spec, {})
 
 
 def get_widget_generator(wid):
@@ -248,7 +261,7 @@ async def wait_for_widgets():
     await FakeAwaitable(widgets_wait_generator())
 
 
-async def get_widgets(config: Union[dict, list], id: str = CONF_ID) -> list[Widget]:
+async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
     if not config:
         return []
     if not isinstance(config, list):
@@ -425,7 +438,7 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
     :return:
     """
     spec: WidgetType = WIDGET_TYPES[w_type]
-    creator = spec.obj_creator(parent, w_cnfig)
+    creator = await spec.obj_creator(parent, w_cnfig)
     add_lv_use(spec.name)
     add_lv_use(*spec.get_uses())
     wid = w_cnfig[CONF_ID]
@@ -439,11 +452,17 @@ async def widget_to_code(w_cnfig, w_type: WidgetType, parent):
 
     w = Widget.create(wid, var, spec, w_cnfig)
     if theme := theme_widget_map.get(w_type):
-        lv_add(CallExpression(theme, w.obj))
+        for part, states in theme.items():
+            part = "LV_PART_" + part.upper()
+            for state, style in states.items():
+                state = "LV_STATE_" + state.upper()
+                if state == "LV_STATE_DEFAULT":
+                    lv_state = literal(part)
+                elif part == "LV_PART_MAIN":
+                    lv_state = literal(state)
+                else:
+                    lv_state = join_enums((state, part))
+                lv.obj_add_style(w.obj, style, lv_state)
     await set_obj_properties(w, w_cnfig)
     await add_widgets(w, w_cnfig)
     await spec.to_code(w, w_cnfig)
-
-
-lv_scr_act_spec = LvScrActType()
-lv_scr_act = Widget.create(None, literal("lv_scr_act()"), lv_scr_act_spec, {})

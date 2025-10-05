@@ -1,17 +1,5 @@
-uart:
-  - id: uart_cse7766
-    tx_pin:
-      number: 4
-    rx_pin:
-      number: 5
-    baud_rate: 4800
-    parity: EVEN
+substitutions:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
 
-sensor:
-  - platform: cse7766
-    voltage:
-      name: CSE7766 Voltage
-    current:
-      name: CSE7766 Current
-    power:
-      name: CSE776 Power
+<<: !include common.yaml

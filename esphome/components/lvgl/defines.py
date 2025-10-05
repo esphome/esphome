@@ -8,7 +8,7 @@ import logging
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
-from esphome.core import Lambda
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -29,16 +29,20 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
-def literal(arg):
+def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
 
 
+def static_cast(type, value):
+    return literal(f"static_cast<{type}>({value})")
+
+
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[7:][:-1]
+        return expr[6:][:-1].strip()
     return f"{lamb}()"
 
 
@@ -72,6 +76,12 @@ class LValidator:
             )
         if self.retmapper is not None:
             return self.retmapper(value)
+        if isinstance(value, ID):
+            return await cg.get_variable(value)
+        if isinstance(value, list):
+            value = [
+                await cg.get_variable(x) if isinstance(x, ID) else x for x in value
+            ]
         return cg.safe_exp(value)
 
 
@@ -140,6 +150,8 @@ TYPE_FLEX = "flex"
 TYPE_GRID = "grid"
 TYPE_NONE = "none"
 
+DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
+
 LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
     "dejavu_16_persian_hebrew",
     "simsun_16_cjk",
@@ -162,9 +174,14 @@ LV_EVENT_MAP = {
     "READY": "READY",
     "CANCEL": "CANCEL",
     "ALL_EVENTS": "ALL",
+    "CHANGE": "VALUE_CHANGED",
+    "GESTURE": "GESTURE",
 }
 
 LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
+SWIPE_TRIGGERS = tuple(
+    f"on_swipe_{x.lower()}" for x in DIRECTIONS.choices + ("up", "down")
+)
 
 
 LV_ANIM = LvConstant(
@@ -189,14 +206,14 @@ LV_ANIM = LvConstant(
 LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
 
-LOG_LEVELS = (
-    "TRACE",
-    "INFO",
-    "WARN",
-    "ERROR",
-    "USER",
-    "NONE",
-)
+LV_LOG_LEVELS = {
+    "VERBOSE": "TRACE",
+    "DEBUG": "TRACE",
+    "INFO": "INFO",
+    "WARN": "WARN",
+    "ERROR": "ERROR",
+    "NONE": "NONE",
+}
 
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",
@@ -208,7 +225,7 @@ LV_LONG_MODES = LvConstant(
 )
 
 STATES = (
-    "default",
+    # default state not included here
     "checked",
     "focused",
     "focus_key",
@@ -243,7 +260,6 @@ KEYBOARD_MODES = LvConstant(
     "NUMBER",
 )
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
-DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
 TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")
 CHILD_ALIGNMENTS = LvConstant(
     "LV_ALIGN_",
@@ -396,14 +412,13 @@ CONF_COLUMN = "column"
 CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
+CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
 CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
-CONF_COLOR_DEPTH = "color_depth"
 CONF_CONTROL = "control"
-CONF_DEFAULT = "default"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
@@ -436,21 +451,22 @@ CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
 CONF_INITIAL_FOCUS = "initial_focus"
+CONF_SELECTED_DIGIT = "selected_digit"
 CONF_KEY_CODE = "key_code"
+CONF_KEYPADS = "keypads"
 CONF_LAYOUT = "layout"
 CONF_LEFT_BUTTON = "left_button"
 CONF_LINE_WIDTH = "line_width"
-CONF_LOG_LEVEL = "log_level"
 CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
-CONF_OFFSET_X = "offset_x"
-CONF_OFFSET_Y = "offset_y"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
+CONF_ON_PAUSE = "on_pause"
+CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
@@ -466,6 +482,7 @@ CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
+CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
@@ -473,6 +490,7 @@ CONF_ROWS = "rows"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SELECTED_INDEX = "selected_index"
+CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
@@ -500,8 +518,6 @@ CONF_UPDATE_ON_RELEASE = "update_on_release"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
-CONF_X = "x"
-CONF_Y = "y"
 CONF_ZOOM = "zoom"
 
 # Keypad keys

@@ -1,21 +1,5 @@
-i2c:
-  - id: i2c_tcs34725
-    scl: 5
-    sda: 4
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: tcs34725
-    red_channel:
-      name: Red Channel
-    green_channel:
-      name: Green Channel
-    blue_channel:
-      name: Blue Channel
-    clear_channel:
-      name: Clear Channel
-    illuminance:
-      name: Illuminance
-    color_temperature:
-      name: Color Temperature
-    integration_time: 614ms
-    gain: 60x
+<<: !include common.yaml

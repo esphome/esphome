@@ -1,5 +1,6 @@
 #include "matrix_keypad.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace matrix_keypad {
@@ -28,7 +29,7 @@ void MatrixKeypad::setup() {
 void MatrixKeypad::loop() {
   static uint32_t active_start = 0;
   static int active_key = -1;
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
   int key = -1;
   bool error = false;
   int pos = 0, row, col;
@@ -86,6 +87,8 @@ void MatrixKeypad::loop() {
   if (!this->keys_.empty()) {
     uint8_t keycode = this->keys_[key];
     ESP_LOGD(TAG, "key '%c' pressed", keycode);
+    for (auto &trigger : this->key_triggers_)
+      trigger->trigger(keycode);
     for (auto &listener : this->listeners_)
       listener->key_pressed(keycode);
     this->send_key_(keycode);
@@ -94,8 +97,8 @@ void MatrixKeypad::loop() {
 }
 
 void MatrixKeypad::dump_config() {
-  ESP_LOGCONFIG(TAG, "Matrix Keypad:");
-  ESP_LOGCONFIG(TAG, " Rows:");
+  ESP_LOGCONFIG(TAG, "Matrix Keypad:\n"
+                     " Rows:");
   for (auto &pin : this->rows_) {
     LOG_PIN("  Pin: ", pin);
   }
@@ -106,6 +109,8 @@ void MatrixKeypad::dump_config() {
 }
 
 void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->listeners_.push_back(listener); }
+
+void MatrixKeypad::register_key_trigger(MatrixKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
 
 }  // namespace matrix_keypad
 }  // namespace esphome

@@ -44,6 +44,7 @@ binary_sensor:
       number: GPIO39
       inverted: true
 lvgl:
+  draw_rounding: 8
   encoders:
     group: switches
     initial_focus: button_button
@@ -54,5 +55,4 @@ lvgl:
 
 packages:
   lvgl: !include lvgl-package.yaml
-
-<<: !include common.yaml
+  xvgl: !include common.yaml

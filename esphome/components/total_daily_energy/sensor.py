@@ -1,16 +1,16 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, time
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_ICON,
     CONF_ID,
+    CONF_METHOD,
     CONF_RESTORE,
     CONF_TIME_ID,
-    DEVICE_CLASS_ENERGY,
-    CONF_METHOD,
-    STATE_CLASS_TOTAL_INCREASING,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_ACCURACY_DECIMALS,
+    DEVICE_CLASS_ENERGY,
+    STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.core.entity_helpers import inherit_property_from
 

@@ -1,11 +1,10 @@
 i2c:
-  id: i2c_bus
-  sda: ${i2c_sda}
-  scl: ${i2c_scl}
+  - id: i2c_gdk101
+    scl: ${scl_pin}
+    sda: ${sda_pin}
 
 gdk101:
   id: my_gdk101
-  i2c_id: i2c_bus
 
 sensor:
   - platform: gdk101

@@ -1,0 +1,12 @@
+i2c:
+  - id: i2c_mlx90614
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: mlx90614
+    ambient:
+      name: Ambient
+    object:
+      name: Object
+      emissivity: 1.0

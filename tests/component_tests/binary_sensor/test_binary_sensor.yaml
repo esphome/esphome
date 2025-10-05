@@ -1,8 +1,31 @@
 ---
 esphome:
   name: test
-  platform: ESP8266
-  board: d1_mini_lite
+
+esp32:
+  board: m5stack-core2
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+display:
+  platform: ili9xxx
+  id: lcd
+  model: M5STACK
+  dc_pin: GPIO15
+  cs_pin: GPIO5
+  invert_colors: true
+
+touchscreen:
+  platform: ft63x6
+  id: touch
+  interrupt_pin: GPIO39
 
 binary_sensor:
   - platform: gpio
@@ -10,10 +33,25 @@ binary_sensor:
     name: test bs1
     internal: true
     pin:
-      number: D0
+      number: GPIO32
   - platform: gpio
     id: bs_2
     name: test bs2
     internal: false
     pin:
-      number: D1
+      number: GPIO33
+  - platform: touchscreen
+    id: bs_3
+    name: test bs3
+    x_min: 100
+    x_max: 200
+    y_min: 300
+    y_max: 400
+    use_raw: true
+  - platform: touchscreen
+    id: bs_4
+    name: test bs4
+    x_min: 100
+    x_max: 200
+    y_min: 300
+    y_max: 400

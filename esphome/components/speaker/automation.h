@@ -34,6 +34,31 @@ template<typename... Ts> class PlayAction : public Action<Ts...>, public Parente
   std::vector<uint8_t> data_static_{};
 };
 
+template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<Speaker> {
+  TEMPLATABLE_VALUE(float, volume)
+  void play(Ts... x) override { this->parent_->set_volume(this->volume_.value(x...)); }
+};
+
+template<typename... Ts> class MuteOnAction : public Action<Ts...> {
+ public:
+  explicit MuteOnAction(Speaker *speaker) : speaker_(speaker) {}
+
+  void play(Ts... x) override { this->speaker_->set_mute_state(true); }
+
+ protected:
+  Speaker *speaker_;
+};
+
+template<typename... Ts> class MuteOffAction : public Action<Ts...> {
+ public:
+  explicit MuteOffAction(Speaker *speaker) : speaker_(speaker) {}
+
+  void play(Ts... x) override { this->speaker_->set_mute_state(false); }
+
+ protected:
+  Speaker *speaker_;
+};
+
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Speaker> {
  public:
   void play(Ts... x) override { this->parent_->stop(); }

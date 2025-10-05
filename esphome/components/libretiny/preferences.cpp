@@ -1,11 +1,11 @@
 #ifdef USE_LIBRETINY
 
-#include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <flashdb.h>
 #include <cstring>
-#include <vector>
+#include <memory>
 #include <string>
 
 namespace esphome {
@@ -15,7 +15,14 @@ static const char *const TAG = "lt.preferences";
 
 struct NVSData {
   std::string key;
-  std::vector<uint8_t> data;
+  std::unique_ptr<uint8_t[]> data;
+  size_t len;
+
+  void set_data(const uint8_t *src, size_t size) {
+    data = std::make_unique<uint8_t[]>(size);
+    memcpy(data.get(), src, size);
+    len = size;
+  }
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -30,15 +37,15 @@ class LibreTinyPreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and update that
     for (auto &obj : s_pending_save) {
       if (obj.key == key) {
-        obj.data.assign(data, data + len);
+        obj.set_data(data, len);
         return true;
       }
     }
     NVSData save{};
     save.key = key;
-    save.data.assign(data, data + len);
-    s_pending_save.emplace_back(save);
-    ESP_LOGVV(TAG, "s_pending_save: key: %s, len: %d", key.c_str(), len);
+    save.set_data(data, len);
+    s_pending_save.emplace_back(std::move(save));
+    ESP_LOGVV(TAG, "s_pending_save: key: %s, len: %zu", key.c_str(), len);
     return true;
   }
 
@@ -46,11 +53,11 @@ class LibreTinyPreferenceBackend : public ESPPreferenceBackend {
     // try find in pending saves and load from that
     for (auto &obj : s_pending_save) {
       if (obj.key == key) {
-        if (obj.data.size() != len) {
+        if (obj.len != len) {
           // size mismatch
           return false;
         }
-        memcpy(data, obj.data.data(), len);
+        memcpy(data, obj.data.get(), len);
         return true;
       }
     }
@@ -58,10 +65,10 @@ class LibreTinyPreferenceBackend : public ESPPreferenceBackend {
     fdb_blob_make(blob, data, len);
     size_t actual_len = fdb_kv_get_blob(db, key.c_str(), blob);
     if (actual_len != len) {
-      ESP_LOGVV(TAG, "NVS length does not match (%u!=%u)", actual_len, len);
+      ESP_LOGVV(TAG, "NVS length does not match (%zu!=%zu)", actual_len, len);
       return false;
     } else {
-      ESP_LOGVV(TAG, "fdb_kv_get_blob: key: %s, len: %d", key.c_str(), len);
+      ESP_LOGVV(TAG, "fdb_kv_get_blob: key: %s, len: %zu", key.c_str(), len);
     }
     return true;
   }
@@ -101,7 +108,7 @@ class LibreTinyPreferences : public ESPPreferences {
     if (s_pending_save.empty())
       return true;
 
-    ESP_LOGD(TAG, "Saving %d preferences to flash...", s_pending_save.size());
+    ESP_LOGV(TAG, "Saving %zu items...", s_pending_save.size());
     // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
     fdb_err_t last_err = FDB_NO_ERR;
@@ -112,11 +119,11 @@ class LibreTinyPreferences : public ESPPreferences {
       const auto &save = s_pending_save[i];
       ESP_LOGVV(TAG, "Checking if FDB data %s has changed", save.key.c_str());
       if (is_changed(&db, save)) {
-        ESP_LOGV(TAG, "sync: key: %s, len: %d", save.key.c_str(), save.data.size());
-        fdb_blob_make(&blob, save.data.data(), save.data.size());
+        ESP_LOGV(TAG, "sync: key: %s, len: %zu", save.key.c_str(), save.len);
+        fdb_blob_make(&blob, save.data.get(), save.len);
         fdb_err_t err = fdb_kv_set_blob(&db, save.key.c_str(), &blob);
         if (err != FDB_NO_ERR) {
-          ESP_LOGV(TAG, "fdb_kv_set_blob('%s', len=%u) failed: %d", save.key.c_str(), save.data.size(), err);
+          ESP_LOGV(TAG, "fdb_kv_set_blob('%s', len=%zu) failed: %d", save.key.c_str(), save.len, err);
           failed++;
           last_err = err;
           last_key = save.key;
@@ -124,41 +131,48 @@ class LibreTinyPreferences : public ESPPreferences {
         }
         written++;
       } else {
-        ESP_LOGD(TAG, "FDB data not changed; skipping %s  len=%u", save.key.c_str(), save.data.size());
+        ESP_LOGD(TAG, "FDB data not changed; skipping %s  len=%zu", save.key.c_str(), save.len);
         cached++;
       }
       s_pending_save.erase(s_pending_save.begin() + i);
     }
-    ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
-             written, failed);
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
     if (failed > 0) {
-      ESP_LOGE(TAG, "Error saving %d preferences to flash. Last error=%d for key=%s", failed, last_err,
-               last_key.c_str());
+      ESP_LOGE(TAG, "Writing %d items failed. Last error=%d for key=%s", failed, last_err, last_key.c_str());
     }
 
     return failed == 0;
   }
 
   bool is_changed(const fdb_kvdb_t db, const NVSData &to_save) {
-    NVSData stored_data{};
     struct fdb_kv kv;
     fdb_kv_t kvp = fdb_kv_get_obj(db, to_save.key.c_str(), &kv);
     if (kvp == nullptr) {
       ESP_LOGV(TAG, "fdb_kv_get_obj('%s'): nullptr - the key might not be set yet", to_save.key.c_str());
       return true;
     }
-    stored_data.data.reserve(kv.value_len);
-    fdb_blob_make(&blob, stored_data.data.data(), kv.value_len);
+
+    // Check size first - if different, data has changed
+    if (kv.value_len != to_save.len) {
+      return true;
+    }
+
+    // Allocate buffer on heap to avoid stack allocation for large data
+    auto stored_data = std::make_unique<uint8_t[]>(kv.value_len);
+    fdb_blob_make(&blob, stored_data.get(), kv.value_len);
     size_t actual_len = fdb_kv_get_blob(db, to_save.key.c_str(), &blob);
     if (actual_len != kv.value_len) {
       ESP_LOGV(TAG, "fdb_kv_get_blob('%s') len mismatch: %u != %u", to_save.key.c_str(), actual_len, kv.value_len);
       return true;
     }
-    return to_save.data != stored_data.data;
+
+    // Compare the actual data
+    return memcmp(to_save.data.get(), stored_data.get(), kv.value_len) != 0;
   }
 
   bool reset() override {
-    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    ESP_LOGD(TAG, "Erasing storage");
     s_pending_save.clear();
 
     fdb_kv_set_default(&db);

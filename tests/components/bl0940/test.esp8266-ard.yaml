@@ -1,22 +1,5 @@
-uart:
-  - id: uart_bl0939
-    tx_pin:
-      number: 4
-    rx_pin:
-      number: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
 
-sensor:
-  - platform: bl0940
-    voltage:
-      name: BL0940 Voltage
-    current:
-      name: BL0940 Current
-    power:
-      name: BL0940 Power
-    energy:
-      name: BL0940 Energy
-    internal_temperature:
-      name: BL0940 Internal temperature
-    external_temperature:
-      name: BL0940 External temperature
+<<: !include common.yaml

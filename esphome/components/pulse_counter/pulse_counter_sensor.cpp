@@ -13,9 +13,9 @@ PulseCounterStorageBase *get_storage(bool hw_pcnt) {
   return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
                   : (PulseCounterStorageBase *) (new BasicPulseCounterStorage));
 }
-#else
+#else   // HAS_PCNT
 PulseCounterStorageBase *get_storage(bool) { return new BasicPulseCounterStorage; }
-#endif
+#endif  // HAS_PCNT
 
 void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg) {
   const uint32_t now = micros();
@@ -28,14 +28,17 @@ void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg
   switch (mode) {
     case PULSE_COUNTER_DISABLE:
       break;
-    case PULSE_COUNTER_INCREMENT:
-      arg->counter++;
-      break;
-    case PULSE_COUNTER_DECREMENT:
-      arg->counter--;
-      break;
+    case PULSE_COUNTER_INCREMENT: {
+      auto x = arg->counter + 1;
+      arg->counter = x;
+    } break;
+    case PULSE_COUNTER_DECREMENT: {
+      auto x = arg->counter - 1;
+      arg->counter = x;
+    } break;
   }
 }
+
 bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
@@ -43,6 +46,7 @@ bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
   return true;
 }
+
 pulse_counter_t BasicPulseCounterStorage::read_raw_value() {
   pulse_counter_t counter = this->counter;
   pulse_counter_t ret = counter - this->last_value;
@@ -141,6 +145,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
   return true;
 }
+
 pulse_counter_t HwPulseCounterStorage::read_raw_value() {
   pulse_counter_t counter;
   pcnt_get_counter_value(this->pcnt_unit, &counter);
@@ -148,10 +153,9 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
   this->last_value = counter;
   return ret;
 }
-#endif
+#endif  // HAS_PCNT
 
 void PulseCounterSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;
@@ -166,9 +170,12 @@ void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
 void PulseCounterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Counter", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Rising Edge: %s", EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Falling Edge: %s", EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode]);
-  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %" PRIu32 " µs", this->storage_.filter_us);
+  ESP_LOGCONFIG(TAG,
+                "  Rising Edge: %s\n"
+                "  Falling Edge: %s\n"
+                "  Filtering pulses shorter than %" PRIu32 " µs",
+                EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode],
+                EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode], this->storage_.filter_us);
   LOG_UPDATE_INTERVAL(this);
 }
 
