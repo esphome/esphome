@@ -25,6 +25,10 @@
 #include "esphome/components/web_server/list_entities.h"
 #endif  // USE_WEBSERVER
 
+// Include socket headers after Arduino headers to avoid IPADDR_NONE/INADDR_NONE macro conflicts
+#include <cerrno>
+#include <sys/socket.h>
+
 namespace esphome {
 namespace web_server_idf {
 
@@ -45,6 +49,42 @@ DefaultHeaders default_headers_instance;
 }  // namespace
 
 DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
+
+namespace {
+// Non-blocking send function to prevent watchdog timeouts when TCP buffers are full
+/**
+ * Sends data on a socket in non-blocking mode.
+ *
+ * @param hd      HTTP server handle (unused).
+ * @param sockfd  Socket file descriptor.
+ * @param buf     Buffer to send.
+ * @param buf_len Length of buffer.
+ * @param flags   Flags for send().
+ * @return
+ *   - Number of bytes sent on success.
+ *   - HTTPD_SOCK_ERR_INVALID if buf is nullptr.
+ *   - HTTPD_SOCK_ERR_TIMEOUT if the send buffer is full (EAGAIN/EWOULDBLOCK).
+ *   - HTTPD_SOCK_ERR_FAIL for other errors.
+ */
+int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
+  if (buf == nullptr) {
+    return HTTPD_SOCK_ERR_INVALID;
+  }
+
+  // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
+  int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
+  if (ret < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      // Buffer full - retry later
+      return HTTPD_SOCK_ERR_TIMEOUT;
+    }
+    // Real error
+    ESP_LOGD(TAG, "send error: errno %d", errno);
+    return HTTPD_SOCK_ERR_FAIL;
+  }
+  return ret;
+}
+}  // namespace
 
 void AsyncWebServer::end() {
   if (this->server_) {
@@ -384,6 +424,9 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   this->hd_ = req->handle;
   this->fd_.store(httpd_req_to_sockfd(req));
 
+  // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
+  httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
   std::string message = ws->get_config_json();
@@ -459,14 +502,44 @@ void AsyncEventSourceResponse::process_buffer_() {
     return;
   }
 
-  int bytes_sent = httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_,
-                                     event_buffer_.size() - event_bytes_sent_, 0);
-  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || bytes_sent == HTTPD_SOCK_ERR_FAIL) {
-    // Socket error - just return, the connection will be closed by httpd
-    // and our destroy callback will be called
+  size_t remaining = event_buffer_.size() - event_bytes_sent_;
+  int bytes_sent =
+      httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_, remaining, 0);
+  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT) {
+    // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
+    // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_()
+    // The implementations differ due to platform-specific APIs (HTTPD_SOCK_ERR_TIMEOUT vs DISCARDED, fd_.store(0) vs
+    // close()), but the failure counting and timeout logic should be kept in sync. If you change this logic, also
+    // update the Arduino implementation.
+    this->consecutive_send_failures_++;
+    if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
+      // Too many failures, connection is likely dead
+      ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu16 " failed sends",
+               this->consecutive_send_failures_);
+      this->fd_.store(0);  // Mark for cleanup
+      this->deferred_queue_.clear();
+    }
     return;
   }
+  if (bytes_sent == HTTPD_SOCK_ERR_FAIL) {
+    // Real socket error - connection will be closed by httpd and destroy callback will be called
+    return;
+  }
+  if (bytes_sent <= 0) {
+    // Unexpected error or zero bytes sent
+    ESP_LOGW(TAG, "Unexpected send result: %d", bytes_sent);
+    return;
+  }
+
+  // Successful send - reset failure counter
+  this->consecutive_send_failures_ = 0;
   event_bytes_sent_ += bytes_sent;
+
+  // Log partial sends for debugging
+  if (event_bytes_sent_ < event_buffer_.size()) {
+    ESP_LOGV(TAG, "Partial send: %d/%zu bytes (total: %zu/%zu)", bytes_sent, remaining, event_bytes_sent_,
+             event_buffer_.size());
+  }
 
   if (event_bytes_sent_ == event_buffer_.size()) {
     event_buffer_.resize(0);
