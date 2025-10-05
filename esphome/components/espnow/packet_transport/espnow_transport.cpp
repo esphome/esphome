@@ -90,5 +90,4 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
 
 }  // namespace espnow
 }  // namespace esphome
-
 #endif  // USE_ESP32
