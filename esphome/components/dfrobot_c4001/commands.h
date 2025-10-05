@@ -11,7 +11,7 @@ enum CommandState {
   STATE_CMD_SEND = 0,  // command needs to be sent
   STATE_WAIT_ECHO,     // command was sent, now waiting for command echo
   STATE_PROCESS,       // command in process
-  STATE_WAIT_PROMPT,   // waiting for prompt, teminates this transaction
+  STATE_WAIT_PROMPT,   // waiting for prompt, terminates this transaction
   STATE_DONE,
 };
 
