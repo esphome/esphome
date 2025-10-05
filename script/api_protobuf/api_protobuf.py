@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-import os
 from pathlib import Path
 import re
 from subprocess import call
@@ -354,12 +353,33 @@ def create_field_type_info(
             return FixedArrayRepeatedType(field, size_define)
         return RepeatedTypeInfo(field)
 
-    # Check for fixed_array_size option on bytes fields
-    if (
-        field.type == 12
-        and (fixed_size := get_field_opt(field, pb.fixed_array_size)) is not None
-    ):
-        return FixedArrayBytesType(field, fixed_size)
+    # Check for mutually exclusive options on bytes fields
+    if field.type == 12:
+        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
+        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
+
+        if has_pointer_to_buffer and fixed_size is not None:
+            raise ValueError(
+                f"Field '{field.name}' has both pointer_to_buffer and fixed_array_size. "
+                "These options are mutually exclusive. Use pointer_to_buffer for zero-copy "
+                "or fixed_array_size for traditional array storage."
+            )
+
+        if has_pointer_to_buffer:
+            # Zero-copy pointer approach - no size needed, will use size_t for length
+            return PointerToBytesBufferType(field, None)
+
+        if fixed_size is not None:
+            # Traditional fixed array approach with copy
+            return FixedArrayBytesType(field, fixed_size)
+
+    # Check for pointer_to_buffer option on string fields
+    if field.type == 9:
+        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
+
+        if has_pointer_to_buffer:
+            # Zero-copy pointer approach for strings
+            return PointerToBytesBufferType(field, None)
 
     # Special handling for bytes fields
     if field.type == 12:
@@ -819,6 +839,91 @@ class BytesType(TypeInfo):
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
 
 
+class PointerToBytesBufferType(TypeInfo):
+    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
+
+    def __init__(
+        self, field: descriptor.FieldDescriptorProto, size: int | None = None
+    ) -> None:
+        super().__init__(field)
+        # Size is not used for pointer_to_buffer - we always use size_t for length
+        self.array_size = 0
+
+    @property
+    def cpp_type(self) -> str:
+        return "const uint8_t*"
+
+    @property
+    def default_value(self) -> str:
+        return "nullptr"
+
+    @property
+    def reference_type(self) -> str:
+        return "const uint8_t*"
+
+    @property
+    def const_reference_type(self) -> str:
+        return "const uint8_t*"
+
+    @property
+    def public_content(self) -> list[str]:
+        # Use uint16_t for length - max packet size is well below 65535
+        # Add pointer and length fields
+        return [
+            f"const uint8_t* {self.field_name}{{nullptr}};",
+            f"uint16_t {self.field_name}_len{{0}};",
+        ]
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+
+    @property
+    def decode_length_content(self) -> str | None:
+        # Decode directly stores the pointer to avoid allocation
+        return f"""case {self.number}: {{
+      // Use raw data directly to avoid allocation
+      this->{self.field_name} = value.data();
+      this->{self.field_name}_len = value.size();
+      break;
+    }}"""
+
+    @property
+    def decode_length(self) -> str | None:
+        # This is handled in decode_length_content
+        return None
+
+    @property
+    def wire_type(self) -> WireType:
+        """Get the wire type for this bytes field."""
+        return WireType.LENGTH_DELIMITED  # Uses wire type 2
+
+    def dump(self, name: str) -> str:
+        return (
+            f"format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len)"
+        )
+
+    @property
+    def dump_content(self) -> str:
+        # Custom dump that doesn't use dump_field template
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + f"out.append({self.dump(self.field_name)});\n"
+            + 'out.append("\\n");'
+        )
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        return f"size.add_length({self.number}, this->{self.field_name}_len);"
+
+    def get_estimated_size(self) -> int:
+        # field ID + length varint + typical data (assume small for pointer fields)
+        return self.calculate_field_id_size() + 2 + 16
+
+
 class FixedArrayBytesType(TypeInfo):
     """Special type for fixed-size byte arrays."""
 
@@ -848,10 +953,17 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def public_content(self) -> list[str]:
+        len_type = (
+            "uint8_t"
+            if self.array_size <= 255
+            else "uint16_t"
+            if self.array_size <= 65535
+            else "size_t"
+        )
         # Add both the array and length fields
         return [
             f"uint8_t {self.field_name}[{self.array_size}]{{}};",
-            f"uint8_t {self.field_name}_len{{0}};",
+            f"{len_type} {self.field_name}_len{{0}};",
         ]
 
     @property
@@ -1743,13 +1855,16 @@ def build_message_type(
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
-        # Validate that estimated_size fits in uint8_t
-        if estimated_size > 255:
-            raise ValueError(
-                f"Estimated size {estimated_size} for {desc.name} exceeds uint8_t maximum (255)"
-            )
+        # Use a type appropriate for estimated_size
+        estimated_size_type = (
+            "uint8_t"
+            if estimated_size <= 255
+            else "uint16_t"
+            if estimated_size <= 65535
+            else "size_t"
+        )
         public_content.append(
-            f"static constexpr uint8_t ESTIMATED_SIZE = {estimated_size};"
+            f"static constexpr {estimated_size_type} ESTIMATED_SIZE = {estimated_size};"
         )
 
         # Add message_name method inline in header
@@ -2606,6 +2721,10 @@ static const char *const TAG = "api.service";
     hpp_protected = ""
     cpp += "\n"
 
+    # Build a mapping of message input types to their authentication requirements
+    message_auth_map: dict[str, bool] = {}
+    message_conn_map: dict[str, bool] = {}
+
     m = serv.method[0]
     for m in serv.method:
         func = m.name
@@ -2616,6 +2735,10 @@ static const char *const TAG = "api.service";
         on_func = f"on_{snake}"
         needs_conn = get_opt(m, pb.needs_setup_connection, True)
         needs_auth = get_opt(m, pb.needs_authentication, True)
+
+        # Store authentication requirements for message types
+        message_auth_map[inp] = needs_auth
+        message_conn_map[inp] = needs_conn
 
         ifdef = message_ifdef_map.get(inp, ifdefs.get(inp))
 
@@ -2634,33 +2757,14 @@ static const char *const TAG = "api.service";
 
         cpp += f"void {class_name}::{on_func}(const {inp} &msg) {{\n"
 
-        # Start with authentication/connection check if needed
-        if needs_auth or needs_conn:
-            # Determine which check to use
-            if needs_auth:
-                check_func = "this->check_authenticated_()"
-            else:
-                check_func = "this->check_connection_setup_()"
-
-            if is_void:
-                # For void methods, just wrap with auth check
-                body = f"if ({check_func}) {{\n"
-                body += f"  this->{func}(msg);\n"
-                body += "}\n"
-            else:
-                # For non-void methods, combine auth check and send response check
-                body = f"if ({check_func} && !this->send_{func}_response(msg)) {{\n"
-                body += "  this->on_fatal_error();\n"
-                body += "}\n"
+        # No authentication check here - it's done in read_message
+        body = ""
+        if is_void:
+            body += f"this->{func}(msg);\n"
         else:
-            # No auth check needed, just call the handler
-            body = ""
-            if is_void:
-                body += f"this->{func}(msg);\n"
-            else:
-                body += f"if (!this->send_{func}_response(msg)) {{\n"
-                body += "  this->on_fatal_error();\n"
-                body += "}\n"
+            body += f"if (!this->send_{func}_response(msg)) {{\n"
+            body += "  this->on_fatal_error();\n"
+            body += "}\n"
 
         cpp += indent(body) + "\n" + "}\n"
 
@@ -2668,6 +2772,65 @@ static const char *const TAG = "api.service";
             hpp += "#endif\n"
             hpp_protected += "#endif\n"
             cpp += "#endif\n"
+
+    # Generate optimized read_message with authentication checking
+    # Categorize messages by their authentication requirements
+    no_conn_ids: set[int] = set()
+    conn_only_ids: set[int] = set()
+
+    for id_, (_, _, case_msg_name) in cases:
+        if case_msg_name in message_auth_map:
+            needs_auth = message_auth_map[case_msg_name]
+            needs_conn = message_conn_map[case_msg_name]
+
+            if not needs_conn:
+                no_conn_ids.add(id_)
+            elif not needs_auth:
+                conn_only_ids.add(id_)
+
+    # Generate override if we have messages that skip checks
+    if no_conn_ids or conn_only_ids:
+        # Helper to generate case statements with ifdefs
+        def generate_cases(ids: set[int], comment: str) -> str:
+            result = ""
+            for id_ in sorted(ids):
+                _, ifdef, msg_name = RECEIVE_CASES[id_]
+                if ifdef:
+                    result += f"#ifdef {ifdef}\n"
+                result += f"    case {msg_name}::MESSAGE_TYPE:  {comment}\n"
+                if ifdef:
+                    result += "#endif\n"
+            return result
+
+        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
+
+        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+        cpp += "  // Check authentication/connection requirements for messages\n"
+        cpp += "  switch (msg_type) {\n"
+
+        # Messages that don't need any checks
+        if no_conn_ids:
+            cpp += generate_cases(no_conn_ids, "// No setup required")
+            cpp += "      break;  // Skip all checks for these messages\n"
+
+        # Messages that only need connection setup
+        if conn_only_ids:
+            cpp += generate_cases(conn_only_ids, "// Connection setup only")
+            cpp += "      if (!this->check_connection_setup_()) {\n"
+            cpp += "        return;  // Connection not setup\n"
+            cpp += "      }\n"
+            cpp += "      break;\n"
+
+        cpp += "    default:\n"
+        cpp += "      // All other messages require authentication (which includes connection check)\n"
+        cpp += "      if (!this->check_authenticated_()) {\n"
+        cpp += "        return;  // Authentication failed\n"
+        cpp += "      }\n"
+        cpp += "      break;\n"
+        cpp += "  }\n\n"
+        cpp += "  // Call base implementation to process the message\n"
+        cpp += f"  {class_name}Base::read_message(msg_size, msg_type, msg_data);\n"
+        cpp += "}\n"
 
     hpp += " protected:\n"
     hpp += hpp_protected
@@ -2694,8 +2857,8 @@ static const char *const TAG = "api.service";
         import clang_format
 
         def exec_clang_format(path: Path) -> None:
-            clang_format_path = os.path.join(
-                os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+            clang_format_path = (
+                Path(clang_format.__file__).parent / "data" / "bin" / "clang-format"
             )
             call([clang_format_path, "-i", path])
 
