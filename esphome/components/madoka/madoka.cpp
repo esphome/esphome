@@ -314,6 +314,7 @@ void Madoka::parse_cb_(std::vector<uint8_t> msg) {
         }
         i += len;
       }
+      break;
     case CMD_GET_OPERATION_MODE:
       while (i < message_size) {
         uint8_t argument_id = msg[i++];
@@ -324,6 +325,7 @@ void Madoka::parse_cb_(std::vector<uint8_t> msg) {
         }
         i += len;
       }
+      break;
     default:
       break;
   }
@@ -398,6 +400,7 @@ void Madoka::parse_cb_(std::vector<uint8_t> msg) {
           break;
         case 5:
           this->fan_mode = climate::CLIMATE_FAN_HIGH;
+          break;
         default:
           break;
       }
