@@ -31,184 +31,79 @@ static const char *const TAG = "ht16k33_char";
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
 // to this function).
-uint8_t Adafruit7Seg::send_to_display(i2c::I2CDevice *display, uint8_t position) {
-  uint8_t i;
-  char char_to_find;
-  bool special_character_found;
-
-  const uint8_t digit_map[4] = {1, 3, 7, 9};
-  uint8_t char_buffer_location;
-
-  this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
-
-  // Clear any old data from the buffer
-  for (int i = 1; i < 16; i++) {
-    this->buffer_[i] = 0x00;
-  }
-
-  char_buffer_location = position;
-  i = 0;
-  special_character_found = false;
-
-  while (i < 4) {
-    if (char_buffer_location >= this->message_buffer_.length()) {
-      // char_buffer_location is past the end of the character buffer.
-      // TODO: With the updated string size handling, I don't think this can occur anymore? get rid of it if you can...
-      // (Actually, it can happen for short messages. Probably leave it in then?)
-      if (this->continuous_) {
-        // We want a continuous display where the message starts over immediately.
-        char_buffer_location = 0;
-      } else {
-        // Blank the digits past the end of the display.
-        this->buffer_[digit_map[i]] = 0x00;
-        i++;
-      }
-    }
-
-    else {
-      // The character to find is within the bounds of the buffer array.
-      char_to_find = this->message_buffer_.at(char_buffer_location);
-
-      auto it = this->char_map_.find(char_to_find);
-      if (it != this->char_map_.end()) {
-        this->buffer_[digit_map[i]] = it->second;
-        special_character_found = false;
-        i++;
-      } else {
-        // Look for special characters. These characters are only valid at certain locations in the display. A special
-        // character in an invalid location will be treated the same way as an invalid character. In the case of an
-        // invalid character, that location in the display will be left blank. only one special character will be
-        // evaulated per location on the display.
-        if (!special_character_found) {
-          if (char_to_find == ':') {
-            if (i == 2) {
-              // We want a colon between digit 2 and 3
-              this->buffer_[5] = this->buffer_[5] | 0b00000010;
-              special_character_found = true;
-              char_buffer_location++;
-              continue;
-            }
-          }
-
-          if (char_to_find == '.') {
-            special_character_found = true;
-            char_buffer_location++;
-            if (i > 0) {
-              // We can't put a period before the first digit.
-              this->buffer_[digit_map[i - 1]] |= 0x80;
-            } else {
-              // If there is a decimal point in the first location in the char buffer, skip over it.
-              this->fist_char_location_++;
-            }
-            continue;
-          }
-        }
-
-        this->buffer_[digit_map[i]] = 0x00;
-        special_character_found = false;
-        i++;
-      }
-
-      char_buffer_location++;
-    }
-  }
-
-  // We can have a period after the last digit. Handle that here
-  if (!(char_buffer_location >= this->message_buffer_.length())) {
-    char_to_find = this->message_buffer_.at(char_buffer_location);
-    if (char_to_find == '.') {
-      this->buffer_[digit_map[3]] |= 0x80;
-      char_buffer_location++;
-    }
-  }
-
-  display->write(this->buffer_, 16);
-  return char_buffer_location;
+uint16_t Adafruit7Seg::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+  return this->send_to_display_common_(display, position);
 }
+
+void Adafruit7Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] = 0; //The higher byte is always 0 for the 7-segment displays
+}
+
+uint8_t Adafruit7Seg::handle_special_char_(char char_to_find, uint8_t position) {
+  if (position > 4) {
+    //This should never happen.
+    return SPECIAL_CHAR_NOT_FOUND;
+  }
+
+  if ((char_to_find == ':') && (position == 2)) {
+    // We want a colon between digit 2 and 3
+    this->buffer_[5] = this->buffer_[5] | 0b00000010;
+    return SPECIAL_CHAR_FOUND;
+  }
+
+  if (char_to_find == '.') {
+    if (position > 0) {
+      // We can't put a period before the first digit.
+      //For periods on this device, the period at a location is wired to the digit to its left, hence the [position-1] here.
+      this->buffer_[this->digit_map_[position - 1]] |= 0x80;
+      return SPECIAL_CHAR_FOUND;
+    } else {
+      // If there is a decimal point in the first location in the char buffer, skip over it.
+      return SPECIAL_CHAR_FOUND_ADVANCE;
+    }
+  }
+  return SPECIAL_CHAR_NOT_FOUND;
+}
+
 
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
 // to this function).
-uint8_t Adafruit7SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t position) {
-  uint8_t i;
-  char char_to_find;
-  bool special_character_found;
+uint16_t Adafruit7SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+  return this->send_to_display_common_(display, position);
+}
 
-  const uint8_t digit_map[4] = {9, 7, 3, 1};
-  uint8_t char_buffer_location;
+void Adafruit7SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] = 0; //The higher byte is always 0 for the 7-segment displays
+}
 
-  this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
-
-  // Clear any old data from the buffer
-  for (int i = 1; i < 16; i++) {
-    this->buffer_[i] = 0x00;
+uint8_t Adafruit7SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
+  if (position > 4) {
+    //This should never happen.
+    return SPECIAL_CHAR_NOT_FOUND;
   }
 
-  char_buffer_location = position;
-  i = 0;
-  special_character_found = false;
+  if ((char_to_find == ':') && (position == 2)) {
+    // We want a colon between digit 2 and 3
+    this->buffer_[5] = this->buffer_[5] | 0b00000010;
+    return SPECIAL_CHAR_FOUND;
+  }
 
-  while (i < 4) {
-    if (char_buffer_location >= this->message_buffer_.length()) {
-      // char_buffer_location is past the end of the character buffer.
-      if (this->continuous_) {
-        // We want a continuous display where the message starts over immediately.
-        char_buffer_location = 0;
+  if (char_to_find == '\'' || char_to_find == '`') {
+    if (position < 4) {
+      this->buffer_[this->digit_map_[position]] |= 0x80;
+      if (position == 0) {
+        //If the char is at the first position on the first display, we need to advance the first char pointer an extra time to keep the display scrolling steady.
+        return SPECIAL_CHAR_FOUND_ADVANCE;
       } else {
-        // Blank the digits past the end of the display.
-        this->buffer_[digit_map[i]] = 0x00;
-        i++;
+        return SPECIAL_CHAR_FOUND;
       }
-    }
-
-    else {
-      // The character to find is within the bounds of the buffer array.
-      char_to_find = this->message_buffer_.at(char_buffer_location);
-
-      auto it = this->char_map_.find(char_to_find);
-      if (it != this->char_map_.end()) {
-        this->buffer_[digit_map[i]] |= it->second;
-        special_character_found = false;
-        i++;
-      } else {
-        // Look for special characters. These characters are only valid at certain locations in the display. A special
-        // character in an invalid location will be treated the same way as an invalid character. In the case of an
-        // invalid character, that location in the display will be left blank. only one special character will be
-        // evaulated per location on the display.
-        if (!special_character_found) {
-          if (char_to_find == ':') {
-            if (i == 2) {
-              // We want a colon between digit 2 and 3
-              this->buffer_[5] = this->buffer_[5] | 0b00000010;
-              special_character_found = true;
-              char_buffer_location++;
-              continue;
-            }
-          }
-          if (char_to_find == '\'' || char_to_find == '`') {
-            this->buffer_[digit_map[i]] |= 0x80;
-            special_character_found = true;
-            char_buffer_location++;
-            if (i == 0) {
-              // If there is a ' or ` in the first location, we want to advance
-              // the first char location by 2 instead of 1.
-              this->fist_char_location_++;
-            }
-            continue;
-          }
-        }
-
-        this->buffer_[digit_map[i]] = 0x00;
-        special_character_found = false;
-        i++;
-      }
-
-      char_buffer_location++;
     }
   }
 
-  display->write(this->buffer_, 16);
-  return char_buffer_location;
+  return SPECIAL_CHAR_NOT_FOUND;
 }
 
 }  // namespace ht16k33_char

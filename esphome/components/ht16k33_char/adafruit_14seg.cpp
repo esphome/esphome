@@ -25,150 +25,68 @@ static const char *const TAG = "ht16k33_char";
 // Position is the index in the character buffer of the first digit to display. position 0 is the
 //  begining of the buffer Returns the index of the first character to display on the next display.
 //  (what we would give as `position` to the next call to this function).
-uint8_t Adafruit14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position) {
-  uint8_t i;
-  char char_to_find;
-  bool special_character_found;
-  const uint8_t digit_map[4] = {1, 3, 5, 7};
-  uint8_t char_buffer_location;
-
-  this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
-
-  // Clear any old data from the buffer
-  for (int i = 1; i < 16; i++) {
-    this->buffer_[i] = 0x00;
-  }
-
-  char_buffer_location = position;
-  i = 0;
-  special_character_found = false;
-
-  // In this while loop, `i` represents the digit that will display the character. We count through
-  // the four digits in the display and set them to the next four characters in the character buffer.
-  while (i < 4) {
-    if (char_buffer_location >= this->message_buffer_.length()) {
-      // char_buffer_location is past the end of the character buffer.
-      if (this->continuous_) {
-        // We want a continuous display where the message starts over immediately.
-        char_buffer_location = 0;
-      } else {
-        // Blank the digits past the end of the display.
-        this->buffer_[digit_map[i]] = 0x00;
-        i++;
-      }
-    }
-
-    else {
-      // The character to find is within the bounds of the buffer array.
-      char_to_find = this->message_buffer_.at(char_buffer_location);
-      auto it = this->char_map_.find(char_to_find);
-      if (it != this->char_map_.end()) {
-        this->buffer_[digit_map[i]] = (uint8_t) ((it->second) & 0xFF);
-        this->buffer_[digit_map[i] + 1] = (uint8_t) ((it->second >> 8) & 0xFF);
-        special_character_found = false;
-        i++;
-      } else {
-        // Look for special characters. For this display, the only special character is a period.
-        //  Because of how scrolling works, if there is a period in the first location in the char
-        //  buffer, the display will skip over it. So '.123' will be displayed as '123'. This is
-        //  only true if the period is in exactly the first digit. If you want to display .123 on
-        //  the display, you can make the char buffer '0.123' and it will display as expected.
-        if (!special_character_found) {
-          if (char_to_find == '.') {
-            special_character_found = true;
-            char_buffer_location++;
-            if (i > 0) {
-              // We can't put a period before the first digit.
-              this->buffer_[digit_map[i - 1] + 1] |= 0x40;
-            } else {
-              // If there is a decimal point in the first location in the char buffer, skip over it.
-              this->fist_char_location_++;
-            }
-            continue;
-          }
-        }
-
-        // Digit is not in the map. Blank the digit.
-        this->buffer_[digit_map[i]] = 0x00;
-        special_character_found = false;
-        i++;
-      }
-
-      char_buffer_location++;
-    }
-  }
-
-  // We can have a period after the last digit. Handle that here
-  if (!(char_buffer_location >= this->message_buffer_.length())) {
-    char_to_find = this->message_buffer_.at(char_buffer_location);
-    if (char_to_find == '.') {
-      this->buffer_[digit_map[3] + 1] |= 0x40;
-      char_buffer_location++;
-    }
-  }
-
-  display->write(this->buffer_, 16);
-  return char_buffer_location;
+uint16_t Adafruit14Seg::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+  return this->send_to_display_common_(display, position);
 }
+
+void Adafruit14Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] |= (uint8_t) ((char_to_write >> 8) & 0xFF);
+}
+
+uint8_t Adafruit14Seg::handle_special_char_(char char_to_find, uint8_t position) {
+  if (position > 4) {
+    //This should never happen.
+    return SPECIAL_CHAR_NOT_FOUND;
+  }
+
+  if (char_to_find == '.') {
+    if (position > 0) {
+      // We can't put a period before the first digit.
+      this->buffer_[this->digit_map_[position - 1] + 1] |= 0x40;
+      return SPECIAL_CHAR_FOUND;
+    } else {
+      // If the peroid is in the first position on the display, we need to advance the first char pointer an extra time to make the scrolling smooth
+      return SPECIAL_CHAR_FOUND_ADVANCE;
+    }
+  }
+  return SPECIAL_CHAR_NOT_FOUND;
+}
+
 
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
 // to this function).
-uint8_t Adafruit14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t position) {
-  uint8_t i;
-  char char_to_find;
-  const uint8_t digit_map[4] = {7, 5, 3, 1};
-  uint8_t char_buffer_location;
-
-  this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
-
-  // Clear any old data from the buffer
-  for (int i = 1; i < 16; i++) {
-    this->buffer_[i] = 0x00;
-  }
-
-  char_buffer_location = position;
-  i = 0;
-
-  while (i < 4) {
-    if (char_buffer_location >= this->message_buffer_.length()) {
-      // char_buffer_location is past the end of the character buffer.
-      if (this->continuous_) {
-        // We want a continuous display where the message starts over immediately.
-        char_buffer_location = 0;
-      } else {
-        // Blank the digits past the end of the display.
-        this->buffer_[digit_map[i]] = 0x00;
-        i++;
-      }
-    }
-
-    else {
-      // The character to find is within the bounds of the buffer array.
-      char_to_find = this->message_buffer_.at(char_buffer_location);
-      auto it = this->char_map_.find(char_to_find);
-      if (it != this->char_map_.end()) {
-        this->buffer_[digit_map[i]] = (uint8_t) ((it->second) & 0xFF);
-        this->buffer_[digit_map[i] + 1] = (uint8_t) ((it->second >> 8) & 0xFF);
-        i++;
-      } else {
-        // Regarding special characters: With the display flipped, the decimal points are now on the
-        //  top. I suppose I could count those as ' or `. For now I don't do that and just ignore
-        //  the decimal points on the display. ' and ` can be displayed using the actual 14-segment
-        //  digits, so I will leave them there.
-
-        // Digit is not in the map. Blank the digit.
-        this->buffer_[digit_map[i]] = 0x00;
-        i++;
-      }
-
-      char_buffer_location++;
-    }
-  }
-
-  display->write(this->buffer_, 16);
-  return char_buffer_location;
+uint16_t Adafruit14SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+  return this->send_to_display_common_(display, position);
 }
+
+void Adafruit14SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_position) {
+  this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) & 0xFF);
+  this->buffer_[this->digit_map_[char_position] + 1] |= (uint8_t) ((char_to_write >> 8) & 0xFF);
+}
+
+uint8_t Adafruit14SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
+  if (position > 4) {
+    //This should never happen.
+    return SPECIAL_CHAR_NOT_FOUND;
+  }
+
+  if (char_to_find == '\'' || char_to_find == '`') {
+    if (position < 4) {
+      this->buffer_[this->digit_map_[position] + 1] |= 0x40;
+      if (position == 0) {
+        //If the char is at the first position on the first display, we need to advance the first char pointer an extra time to keep the display scrolling steady.
+        return SPECIAL_CHAR_FOUND_ADVANCE;
+      } else {
+        return SPECIAL_CHAR_FOUND;
+      }
+    }
+  }
+
+  return SPECIAL_CHAR_NOT_FOUND;
+}
+
 
 }  // namespace ht16k33_char
 }  // namespace esphome

@@ -87,6 +87,7 @@ def format_14seg_sparkfun_flip(input_code):
 #  -The key is what the user would put in the YAML file to select this device.
 #  -The value is a dictionary that contains the keys:
 #     `CLASS_NAME`: The name of the class that implements the device.
+# TODO: normalize these names.
 HT16K33_DEVICE_TYPES = {
     "ADAFRUIT_7SEGMENT_1.2IN": {
         "CLASS_NAME": "Adafruit7SegLarge",
@@ -164,7 +165,7 @@ async def to_code(config):
 
     await i2c.register_i2c_device(var, config)
     await display.register_display(var, config)
-    cg.add(var.set_buffer_size(config[CONF_MAX_BUFFER_LENGTH]))
+    cg.add(var.set_buffer_max_size(config[CONF_MAX_BUFFER_LENGTH]))
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
 
     if CONF_LAMBDA in config:

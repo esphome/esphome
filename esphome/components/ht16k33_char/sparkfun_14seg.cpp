@@ -25,81 +25,8 @@ static const char *const TAG = "ht16k33_char";
 // Position is the index in the character buffer of the first digit to display. position 0 is the
 //  begining of the buffer Returns the index of the first character to display on the next display.
 //  (what we would give as `position` to the next call to this function).
-uint8_t Sparkfun14Seg::send_to_display(i2c::I2CDevice *display, uint8_t position) {
-  uint8_t i;
-  char char_to_find;
-  bool special_character_found;
-  uint8_t char_buffer_location;
-
-  this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
-
-  // Clear any old data from the buffer
-  for (int i = 1; i < 16; i++) {
-    this->buffer_[i] = 0x00;
-  }
-
-  char_buffer_location = position;
-  i = 0;
-  special_character_found = false;
-
-  // In this while loop, `i` represents the digit that will display the character. We count through
-  // the four digits in the display and set them to the next four characters in the character buffer.
-  while (i < 4) {
-    if (char_buffer_location >= this->message_buffer_.length()) {
-      // char_buffer_location is past the end of the character buffer.
-      if (this->continuous_) {
-        // We want a continuous display where the message starts over immediately.
-        char_buffer_location = 0;
-      } else {
-        // Blank the digits past the end of the display.
-        this->write_to_buffer_(0x0000, i);
-        i++;
-      }
-    }
-
-    else {
-      // The character to find is within the bounds of the buffer array.
-      char_to_find = this->message_buffer_.at(char_buffer_location);
-
-      // Look for special characters. For this display, there is a colon between digit one and two,
-      //  and a period after digit two. The display will try (badly) to display a colon if it is
-      //  placed in any other location. This causes scrolling with a colon to look wierd. This seems
-      //  like a very edge case, so I did not try to fix it. A period in any other location will
-      //  display as blank.
-      if (!special_character_found) {
-        if ((char_to_find == ':') && (i == 2)) {
-          // Colon at position 3
-          special_character_found = true;
-          char_buffer_location++;
-          this->buffer_[2] |= 0x01;
-          continue;
-        } else if ((char_to_find == '.') && (i == 3)) {
-          // Period at position 4
-          special_character_found = true;
-          char_buffer_location++;
-          this->buffer_[4] |= 0x01;
-          continue;
-        }
-      }
-
-      auto it = this->char_map_.find(char_to_find);
-      if (it != this->char_map_.end()) {
-        this->write_to_buffer_((it->second), i);
-        special_character_found = false;
-        i++;
-      } else {
-        // Digit is not in the map. Blank the digit.
-        this->write_to_buffer_(0x0000, i);
-        special_character_found = false;
-        i++;
-      }
-
-      char_buffer_location++;
-    }
-  }
-
-  display->write(this->buffer_, 16);
-  return char_buffer_location;
+uint16_t Sparkfun14Seg::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+  return this->send_to_display_common_(display, position);
 }
 
 // Write a character at position 'char_position' to the memory buffer.
@@ -114,78 +41,31 @@ void Sparkfun14Seg::write_to_buffer_(uint16_t char_to_write, uint8_t char_positi
   }
 }
 
+uint8_t Sparkfun14Seg::handle_special_char_(char char_to_find, uint8_t position) {
+  if (position > 4) {
+    //This should never happen.
+    return SPECIAL_CHAR_NOT_FOUND;
+  }
+
+  if ((char_to_find == ':') && (position == 2)) {
+    // Colon at position 3
+    this->buffer_[2] |= 0x01;
+    return SPECIAL_CHAR_FOUND;
+  } else if ((char_to_find == '.') && (position == 3)) {
+    // Period at position 4
+    this->buffer_[4] |= 0x01;
+    return SPECIAL_CHAR_FOUND;
+  }
+
+  return SPECIAL_CHAR_NOT_FOUND;
+}
+
+
 // Position is the position in the character buffer. position 0 is the begining of the buffer
 // Returns the index of the first character to display in the buffer (what we would give as `position` to the next call
 // to this function).
-uint8_t Sparkfun14SegFlip::send_to_display(i2c::I2CDevice *display, uint8_t position) {
-  uint8_t i;
-  char char_to_find;
-  bool special_character_found;
-  uint8_t char_buffer_location;
-
-  this->buffer_[0] = HT16K33_DISPLAY_DATA_ADDRESS;
-
-  // Clear any old data from the buffer
-  for (int i = 1; i < 16; i++) {
-    this->buffer_[i] = 0x00;
-  }
-
-  char_buffer_location = position;
-  i = 0;
-  special_character_found = false;
-
-  // In this while loop, `i` represents the digit that will display the character. We count through
-  // the four digits in the display and set them to the next four characters in the character buffer.
-  while (i < 4) {
-    if (char_buffer_location >= this->message_buffer_.length()) {
-      // char_buffer_location is past the end of the character buffer.
-      if (this->continuous_) {
-        // We want a continuous display where the message starts over immediately.
-        char_buffer_location = 0;
-      } else {
-        // Blank the digits past the end of the display.
-        this->write_to_buffer_(0x0000, i);
-        i++;
-      }
-    }
-
-    else {
-      // The character to find is within the bounds of the buffer array.
-      char_to_find = this->message_buffer_.at(char_buffer_location);
-
-      // Look for special characters. For this flipped display, there is a colon between digit one
-      //  and two, and a period at the top of the display between digit zero and one. The display
-      //  will try (badly) to display a colon if it is placed in any other location. This causes
-      //  scrolling with a colon to look wierd. This seems like a very edge case, so I did not try
-      //  to fix it. The period at the top of the display is not implemented.
-      if (!special_character_found) {
-        if ((char_to_find == ':') && (i == 2)) {
-          // Colon at position 3
-          special_character_found = true;
-          char_buffer_location++;
-          this->buffer_[2] |= 0x01;
-          continue;
-        }
-      }
-
-      auto it = this->char_map_.find(char_to_find);
-      if (it != this->char_map_.end()) {
-        this->write_to_buffer_((it->second), i);
-        special_character_found = false;
-        i++;
-      } else {
-        // Digit is not in the map. Blank the digit.
-        this->write_to_buffer_(0x0000, i);
-        special_character_found = false;
-        i++;
-      }
-
-      char_buffer_location++;
-    }
-  }
-
-  display->write(this->buffer_, 16);
-  return char_buffer_location;
+uint16_t Sparkfun14SegFlip::send_to_display_(i2c::I2CDevice *display, uint16_t position) {
+  return this->send_to_display_common_(display, position);
 }
 
 // Write a character at position 'char_position' to the memory buffer.
@@ -204,6 +84,27 @@ void Sparkfun14SegFlip::write_to_buffer_(uint16_t char_to_write, uint8_t char_po
     }
   }
 }
+
+uint8_t Sparkfun14SegFlip::handle_special_char_(char char_to_find, uint8_t position) {
+  if (position > 4) {
+    //This should never happen.
+    return SPECIAL_CHAR_NOT_FOUND;
+  }
+
+  // Look for special characters. For this flipped display, there is a colon between digit one
+  //  and two, and a period at the top of the display between digit zero and one. The display
+  //  will try (badly) to display a colon if it is placed in any other location. This causes
+  //  scrolling with a colon to look wierd. This seems like a very edge case, so I did not try
+  //  to fix it. The period at the top of the display is not implemented.
+  if ((char_to_find == ':') && (position == 2)) {
+          // Colon at position 3
+          this->buffer_[2] |= 0x01;
+          return SPECIAL_CHAR_FOUND;
+        }
+
+  return SPECIAL_CHAR_NOT_FOUND;
+}
+
 
 }  // namespace ht16k33_char
 }  // namespace esphome
