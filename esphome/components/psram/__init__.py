@@ -62,6 +62,11 @@ SPIRAM_SPEEDS = {
 }
 
 
+def supported() -> bool:
+    variant = get_esp32_variant()
+    return variant in SPIRAM_MODES
+
+
 def validate_psram_mode(config):
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":
@@ -95,7 +100,7 @@ def get_config_schema(config):
     variant = get_esp32_variant()
     speeds = [f"{s}MHZ" for s in SPIRAM_SPEEDS.get(variant, [])]
     if not speeds:
-        return cv.Invalid("PSRAM is not supported on this chip")
+        raise cv.Invalid("PSRAM is not supported on this chip")
     modes = SPIRAM_MODES[variant]
     return cv.Schema(
         {

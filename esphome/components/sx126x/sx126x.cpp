@@ -235,6 +235,16 @@ void SX126x::configure() {
     buf[7] = (fdev >> 0) & 0xFF;
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 8);
 
+    // set crc params
+    if (this->crc_enable_) {
+      buf[0] = this->crc_initial_ >> 8;
+      buf[1] = this->crc_initial_ & 0xFF;
+      this->write_register_(REG_CRC_INITIAL, buf, 2);
+      buf[0] = this->crc_polynomial_ >> 8;
+      buf[1] = this->crc_polynomial_ & 0xFF;
+      this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
+    }
+
     // set packet params and sync word
     this->set_packet_params_(this->get_max_packet_size());
     if (!this->sync_value_.empty()) {
@@ -276,7 +286,11 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
     buf[4] = 0x00;
     buf[5] = (this->payload_length_ > 0) ? 0x00 : 0x01;
     buf[6] = payload_length;
-    buf[7] = this->crc_enable_ ? 0x06 : 0x01;
+    if (this->crc_enable_) {
+      buf[7] = (this->crc_inverted_ ? 0x04 : 0x00) + (this->crc_size_ & 0x02);
+    } else {
+      buf[7] = 0x01;
+    }
     buf[8] = 0x00;
     this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9);
   }

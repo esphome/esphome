@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_EVENT,
     CONF_ID,
     CONF_KEY,
+    CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
     CONF_PASSWORD,
@@ -59,6 +60,8 @@ CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
+CONF_LISTEN_BACKLOG = "listen_backlog"
+CONF_MAX_SEND_QUEUE = "max_send_queue"
 
 
 def validate_encryption_key(value):
@@ -158,6 +161,42 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
                 single=True
             ),
+            # Connection limits to prevent memory exhaustion on resource-constrained devices
+            # Each connection uses ~500-1000 bytes of RAM plus system resources
+            # Platform defaults based on available RAM and network stack implementation:
+            cv.SplitDefault(
+                CONF_LISTEN_BACKLOG,
+                esp8266=1,  # Limited RAM (~40KB free), LWIP raw sockets
+                esp32=4,  # More RAM (520KB), BSD sockets
+                rp2040=1,  # Limited RAM (264KB), LWIP raw sockets like ESP8266
+                bk72xx=4,  # Moderate RAM, BSD-style sockets
+                rtl87xx=4,  # Moderate RAM, BSD-style sockets
+                host=4,  # Abundant resources
+                ln882x=4,  # Moderate RAM
+            ): cv.int_range(min=1, max=10),
+            cv.SplitDefault(
+                CONF_MAX_CONNECTIONS,
+                esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
+                esp32=8,  # 520KB RAM available
+                rp2040=4,  # 264KB RAM but LWIP constraints
+                bk72xx=8,  # Moderate RAM
+                rtl87xx=8,  # Moderate RAM
+                host=8,  # Abundant resources
+                ln882x=8,  # Moderate RAM
+            ): cv.int_range(min=1, max=20),
+            # Maximum queued send buffers per connection before dropping connection
+            # Each buffer uses ~8-12 bytes overhead plus actual message size
+            # Platform defaults based on available RAM and typical message rates:
+            cv.SplitDefault(
+                CONF_MAX_SEND_QUEUE,
+                esp8266=5,  # Limited RAM, need to fail fast
+                esp32=8,  # More RAM, can buffer more
+                rp2040=5,  # Limited RAM
+                bk72xx=8,  # Moderate RAM
+                rtl87xx=8,  # Moderate RAM
+                host=16,  # Abundant resources
+                ln882x=8,  # Moderate RAM
+            ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
@@ -176,6 +215,11 @@ async def to_code(config):
         cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
+    if CONF_LISTEN_BACKLOG in config:
+        cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
+    if CONF_MAX_CONNECTIONS in config:
+        cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
+    cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
     # Set USE_API_SERVICES if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
