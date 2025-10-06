@@ -67,15 +67,20 @@ ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 
+def _add_auto_load_steps(result: Config, loads: list[str]) -> None:
+    """Add AutoLoadValidationStep for each component in loads that isn't already loaded."""
+    for load in loads:
+        if load not in result:
+            result.add_validation_step(AutoLoadValidationStep(load))
+
+
 def _process_auto_load(
     result: Config, platform: ComponentManifest, path: ConfigPath
 ) -> None:
     # Process platform's AUTO_LOAD
     auto_load = platform.auto_load
     if isinstance(auto_load, list):
-        for load in auto_load:
-            if load not in result:
-                result.add_validation_step(AutoLoadValidationStep(load))
+        _add_auto_load_steps(result, auto_load)
     elif callable(auto_load):
         import inspect
 
@@ -84,9 +89,7 @@ def _process_auto_load(
                 AddDynamicAutoLoadsValidationStep(path, platform)
             )
         else:
-            for load in auto_load():
-                if load not in result:
-                    result.add_validation_step(AutoLoadValidationStep(load))
+            _add_auto_load_steps(result, auto_load())
 
 
 def _process_platform_config(
@@ -661,9 +664,7 @@ class AddDynamicAutoLoadsValidationStep(ConfigValidationStep):
             if not callable(auto_load):
                 return
             loads = auto_load(conf)
-            for load in loads:
-                if load not in result:
-                    result.add_validation_step(AutoLoadValidationStep(load))
+            _add_auto_load_steps(result, loads)
 
 
 class SchemaValidationStep(ConfigValidationStep):
