@@ -218,6 +218,10 @@ class Jinja(jinja.Environment):
                 self.context_vars[k] = JinjaStr(v, self.context_vars)
 
         def jinja_eval(expr, ctx=None):
+            if isinstance(ctx, list):
+                return [jinja_eval(expr, c) for c in ctx]
+            if ctx is not None and not isinstance(ctx, dict):
+                raise TemplateError("eval() context must be a dict or a list of dicts")
             if isinstance(expr, dict):
                 expr = dict(expr)
                 for k, v in expr.items():

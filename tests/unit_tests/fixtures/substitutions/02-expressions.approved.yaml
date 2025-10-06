@@ -30,3 +30,4 @@ test_list:
   - width = 7, double_width = 14
   - ${ width * 3 } is literal
   - 21 == 21
+  - '[21, 27] == [21, 27]'
