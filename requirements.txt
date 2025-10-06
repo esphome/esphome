@@ -13,7 +13,7 @@ esptool==5.1.0
 click==8.1.7
 esphome-dashboard==20250904.0
 aioesphomeapi==41.11.0
-zeroconf==0.147.2
+zeroconf==0.148.0
 puremagic==1.30
 ruamel.yaml==0.18.15 # dashboard_import
 ruamel.yaml.clib==0.2.12 # dashboard_import

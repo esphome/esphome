@@ -18,7 +18,7 @@ void UponorSmatrixSensor::dump_config() {
 }
 
 void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t data_len) {
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     switch (data[i].id) {
       case UPONOR_ID_ROOM_TEMP:
         if (this->temperature_sensor_ != nullptr)
