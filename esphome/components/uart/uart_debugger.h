@@ -60,6 +60,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
   std::string debug_prefix_{""};
+  std::string debug_settings_string_{""};
   bool debug_add_settings_{false};
 
   bool is_my_direction_(UARTDirection direction);
