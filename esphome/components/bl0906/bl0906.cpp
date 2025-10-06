@@ -97,7 +97,7 @@ void BL0906::handle_actions_() {
     return;
   }
   ActionCallbackFuncPtr ptr_func = nullptr;
-  for (int i = 0; i < this->action_queue_.size(); i++) {
+  for (size_t i = 0; i < this->action_queue_.size(); i++) {
     ptr_func = this->action_queue_[i];
     if (ptr_func) {
       ESP_LOGI(TAG, "HandleActionCallback[%d]", i);
