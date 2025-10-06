@@ -70,15 +70,11 @@ class UARTDevice {
   void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,
                            UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t data_bits = 8);
 #ifdef USE_UART_DEBUGGER
-  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
-  void set_debug_add_settings(bool add_settings) { this->debug_add_settings_ = add_settings; }
+  void set_debug_prefix(std::string debug_prefix) { this->parent_->debug_prefix_ = debug_prefix; }
+  void set_debug_add_settings(bool add_settings) { this->parent_->debug_add_settings_ = add_settings; }
 #endif
 
  protected:
-#ifdef USE_UART_DEBUGGER
-  std::string debug_prefix_{};
-  bool debug_add_settings_{false};
-#endif
   UARTComponent *parent_{nullptr};
 };
 
