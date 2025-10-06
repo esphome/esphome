@@ -20,7 +20,7 @@
 #include <WiFi.h>
 #endif
 
-#if defined(USE_ESP_IDF) && defined(USE_WIFI_WPA2_EAP)
+#if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
 #include <esp_eap_client.h>
 #else
@@ -113,7 +113,7 @@ struct EAPAuth {
   const char *client_cert;
   const char *client_key;
 // used for EAP-TTLS
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   esp_eap_ttls_phase2_types ttls_phase_2;
 #endif
 };
@@ -199,7 +199,7 @@ enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_HIGH,
 };
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
 
@@ -368,7 +368,7 @@ class WiFiComponent : public Component {
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
   void wifi_scan_done_callback_();
 #endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 

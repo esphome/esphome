@@ -1,5 +1,5 @@
 import abc
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 import inspect
 import math
 import re
@@ -13,7 +13,6 @@ from esphome.core import (
     HexInt,
     Lambda,
     Library,
-    TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
@@ -21,33 +20,9 @@ from esphome.core import (
     TimePeriodSeconds,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
-
-
-class Expression(abc.ABC):
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def __str__(self):
-        """
-        Convert expression into C++ code
-        """
-
-
-SafeExpType = (
-    Expression
-    | bool
-    | str
-    | str
-    | int
-    | float
-    | TimePeriod
-    | type[bool]
-    | type[int]
-    | type[float]
-    | Sequence[Any]
-)
 
 
 class RawExpression(Expression):
@@ -251,6 +226,19 @@ class StringLiteral(Literal):
 
     def __str__(self):
         return cpp_string_escape(self.string)
+
+
+class LogStringLiteral(Literal):
+    """A string literal that uses LOG_STR() macro for flash storage on ESP8266."""
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
 class IntLiteral(Literal):
@@ -562,7 +550,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     return obj
 
 
-def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
+def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     """Declare a new pointer variable in the code generation by calling it's constructor
     with the given arguments.
 
@@ -668,7 +656,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 async def process_lambda(
     value: Lambda,
-    parameters: list[tuple[SafeExpType, str]],
+    parameters: TemplateArgsType,
     capture: str = "=",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:

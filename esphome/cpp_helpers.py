@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import add, get_variable
+from esphome.cpp_generator import LogStringLiteral, add, get_variable
 from esphome.cpp_types import App
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
@@ -76,7 +76,7 @@ async def register_component(var, config):
             "Error while finding name of component, please report this", exc_info=e
         )
     if name is not None:
-        add(var.set_component_source(name))
+        add(var.set_component_source(LogStringLiteral(name)))
 
     add(App.register_component(var))
     return var
