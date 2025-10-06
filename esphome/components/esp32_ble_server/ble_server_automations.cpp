@@ -14,9 +14,10 @@ Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_characteristic_on_w
     BLECharacteristic *characteristic) {
   Trigger<std::vector<uint8_t>, uint16_t> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
       new Trigger<std::vector<uint8_t>, uint16_t>();
-  characteristic->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::on(
-      BLECharacteristicEvt::VectorEvt::ON_WRITE,
-      [on_write_trigger](const std::vector<uint8_t> &data, uint16_t id) { on_write_trigger->trigger(data, id); });
+  characteristic->on_write([on_write_trigger](std::span<const uint8_t> data, uint16_t id) {
+    // Convert span to vector for trigger
+    on_write_trigger->trigger(std::vector<uint8_t>(data.begin(), data.end()), id);
+  });
   return on_write_trigger;
 }
 #endif
@@ -25,9 +26,10 @@ Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_characteristic_on_w
 Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_descriptor_on_write_trigger(BLEDescriptor *descriptor) {
   Trigger<std::vector<uint8_t>, uint16_t> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
       new Trigger<std::vector<uint8_t>, uint16_t>();
-  descriptor->on(
-      BLEDescriptorEvt::VectorEvt::ON_WRITE,
-      [on_write_trigger](const std::vector<uint8_t> &data, uint16_t id) { on_write_trigger->trigger(data, id); });
+  descriptor->on_write([on_write_trigger](std::span<const uint8_t> data, uint16_t id) {
+    // Convert span to vector for trigger
+    on_write_trigger->trigger(std::vector<uint8_t>(data.begin(), data.end()), id);
+  });
   return on_write_trigger;
 }
 #endif
@@ -35,8 +37,7 @@ Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_descriptor_on_write
 #ifdef USE_ESP32_BLE_SERVER_ON_CONNECT
 Trigger<uint16_t> *BLETriggers::create_server_on_connect_trigger(BLEServer *server) {
   Trigger<uint16_t> *on_connect_trigger = new Trigger<uint16_t>();  // NOLINT(cppcoreguidelines-owning-memory)
-  server->on(BLEServerEvt::EmptyEvt::ON_CONNECT,
-             [on_connect_trigger](uint16_t conn_id) { on_connect_trigger->trigger(conn_id); });
+  server->on_connect([on_connect_trigger](uint16_t conn_id) { on_connect_trigger->trigger(conn_id); });
   return on_connect_trigger;
 }
 #endif
@@ -44,38 +45,22 @@ Trigger<uint16_t> *BLETriggers::create_server_on_connect_trigger(BLEServer *serv
 #ifdef USE_ESP32_BLE_SERVER_ON_DISCONNECT
 Trigger<uint16_t> *BLETriggers::create_server_on_disconnect_trigger(BLEServer *server) {
   Trigger<uint16_t> *on_disconnect_trigger = new Trigger<uint16_t>();  // NOLINT(cppcoreguidelines-owning-memory)
-  server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
-             [on_disconnect_trigger](uint16_t conn_id) { on_disconnect_trigger->trigger(conn_id); });
+  server->on_disconnect([on_disconnect_trigger](uint16_t conn_id) { on_disconnect_trigger->trigger(conn_id); });
   return on_disconnect_trigger;
 }
 #endif
 
 #ifdef USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 void BLECharacteristicSetValueActionManager::set_listener(BLECharacteristic *characteristic,
-                                                          EventEmitterListenerID listener_id,
                                                           const std::function<void()> &pre_notify_listener) {
   // Find and remove existing listener for this characteristic
   auto *existing = this->find_listener_(characteristic);
   if (existing != nullptr) {
-    // Remove the previous listener
-    characteristic->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::off(BLECharacteristicEvt::EmptyEvt::ON_READ,
-                                                                                existing->listener_id);
-    // Remove the pre-notify listener
-    this->off(BLECharacteristicSetValueActionEvt::PRE_NOTIFY, existing->pre_notify_listener_id);
     // Remove from vector
     this->remove_listener_(characteristic);
   }
-  // Create a new listener for the pre-notify event
-  EventEmitterListenerID pre_notify_listener_id =
-      this->on(BLECharacteristicSetValueActionEvt::PRE_NOTIFY,
-               [pre_notify_listener, characteristic](const BLECharacteristic *evt_characteristic) {
-                 // Only call the pre-notify listener if the characteristic is the one we are interested in
-                 if (characteristic == evt_characteristic) {
-                   pre_notify_listener();
-                 }
-               });
   // Save the entry to the vector
-  this->listeners_.push_back({characteristic, listener_id, pre_notify_listener_id});
+  this->listeners_.push_back({characteristic, pre_notify_listener});
 }
 
 BLECharacteristicSetValueActionManager::ListenerEntry *BLECharacteristicSetValueActionManager::find_listener_(

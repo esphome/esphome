@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 #include <strings.h>
 #include <algorithm>
@@ -348,14 +349,31 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
+static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
     auto multiplier = powf(10.0f, accuracy_decimals);
     value = roundf(value * multiplier) / multiplier;
     accuracy_decimals = 0;
   }
+}
+
+std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
+  normalize_accuracy_decimals(value, accuracy_decimals);
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
+  return std::string(tmp);
+}
+
+std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement) {
+  normalize_accuracy_decimals(value, accuracy_decimals);
+  // Buffer sized for float (up to ~15 chars) + space + typical UOM (usually <20 chars like "μS/cm")
+  // snprintf truncates safely if exceeded, though ESPHome UOMs are typically short
+  char tmp[64];
+  if (unit_of_measurement.empty()) {
+    snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
+  } else {
+    snprintf(tmp, sizeof(tmp), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+  }
   return std::string(tmp);
 }
 
