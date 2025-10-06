@@ -81,7 +81,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
 using message_generator_t = std::string(WebServer *, void *);
 
 class DeferredUpdateEventSourceList;
@@ -164,7 +164,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
 
@@ -173,14 +173,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 #if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.css
+   * https://oi.esphome.io/v1/webserver-v1.min.css
    *
    * @param css_url The url to the web server stylesheet.
    */
   void set_css_url(const char *css_url);
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.js
+   * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
@@ -559,11 +559,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   }
 
   web_server_base::WebServerBase *base_;
-#ifdef USE_ARDUINO
-  DeferredUpdateEventSourceList events_;
-#endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   AsyncEventSource events_{"/events", this};
+#elif USE_ARDUINO
+  DeferredUpdateEventSourceList events_;
 #endif
 
 #if USE_WEBSERVER_VERSION == 1

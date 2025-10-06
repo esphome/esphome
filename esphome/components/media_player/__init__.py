@@ -14,7 +14,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.coroutine import coroutine_with_priority
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@jesserockz"]
@@ -303,7 +303,7 @@ async def media_player_volume_set_action(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(media_player_ns.using)
     cg.add_define("USE_MEDIA_PLAYER")

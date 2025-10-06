@@ -51,11 +51,11 @@ void BLECharacteristic::notify() {
 
   for (auto &client : this->service_->get_server()->get_clients()) {
     size_t length = this->value_.size();
-    // If the client is not in the list of clients to notify, skip it
-    if (this->clients_to_notify_.count(client) == 0)
+    // Find the client in the list of clients to notify
+    auto *entry = this->find_client_in_notify_list_(client);
+    if (entry == nullptr)
       continue;
-    // If the client is in the list of clients to notify, check if it requires an ack (i.e. INDICATE)
-    bool require_ack = this->clients_to_notify_[client];
+    bool require_ack = entry->indicate;
     // TODO: Remove this block when INDICATE acknowledgment is supported
     if (require_ack) {
       ESP_LOGW(TAG, "INDICATE acknowledgment is not yet supported (i.e. it works as a NOTIFY)");
@@ -73,16 +73,17 @@ void BLECharacteristic::notify() {
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
   if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
-    descriptor->on(BLEDescriptorEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &value, uint16_t conn_id) {
+    descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;
       uint16_t cccd = encode_uint16(value[1], value[0]);
       bool notify = (cccd & 1) != 0;
       bool indicate = (cccd & 2) != 0;
+      // Remove existing entry if present
+      this->remove_client_from_notify_list_(conn_id);
+      // Add new entry if needed
       if (notify || indicate) {
-        this->clients_to_notify_[conn_id] = indicate;
-      } else {
-        this->clients_to_notify_.erase(conn_id);
+        this->clients_to_notify_.push_back({conn_id, indicate});
       }
     });
   }
@@ -207,8 +208,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (!param->read.need_rsp)
         break;  // For some reason you can request a read but not want a response
 
-      this->EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t>::emit_(BLECharacteristicEvt::EmptyEvt::ON_READ,
-                                                                          param->read.conn_id);
+      if (this->on_read_callback_) {
+        (*this->on_read_callback_)(param->read.conn_id);
+      }
 
       uint16_t max_offset = 22;
 
@@ -276,8 +278,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       }
 
       if (!param->write.is_prep) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->write.conn_id);
+        if (this->on_write_callback_) {
+          (*this->on_write_callback_)(this->value_, param->write.conn_id);
+        }
       }
 
       break;
@@ -288,8 +291,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         break;
       this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
-        this->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::emit_(
-            BLECharacteristicEvt::VectorEvt::ON_WRITE, this->value_, param->exec_write.conn_id);
+        if (this->on_write_callback_) {
+          (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
+        }
       }
       esp_err_t err =
           esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
@@ -305,6 +309,28 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
   for (auto *descriptor : this->descriptors_) {
     descriptor->gatts_event_handler(event, gatts_if, param);
   }
+}
+
+void BLECharacteristic::remove_client_from_notify_list_(uint16_t conn_id) {
+  // Since we typically have very few clients (often just 1), we can optimize
+  // for the common case by swapping with the last element and popping
+  for (size_t i = 0; i < this->clients_to_notify_.size(); i++) {
+    if (this->clients_to_notify_[i].conn_id == conn_id) {
+      // Swap with last element and pop (safe even when i is the last element)
+      this->clients_to_notify_[i] = this->clients_to_notify_.back();
+      this->clients_to_notify_.pop_back();
+      return;
+    }
+  }
+}
+
+BLECharacteristic::ClientNotificationEntry *BLECharacteristic::find_client_in_notify_list_(uint16_t conn_id) {
+  for (auto &entry : this->clients_to_notify_) {
+    if (entry.conn_id == conn_id) {
+      return &entry;
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace esp32_ble_server

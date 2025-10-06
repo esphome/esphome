@@ -3,11 +3,9 @@
 /**
  * NOTE: This is a copy of httplib.h from https://github.com/yhirose/cpp-httplib
  *
- * It has been modified only to add ifdefs for USE_HOST. While it contains many functions unused in ESPHome,
+ * It has been modified to add ifdefs for USE_HOST. While it contains many functions unused in ESPHome,
  * it was considered preferable to use it with as few changes as possible, to facilitate future updates.
  */
-
-#include "esphome/core/defines.h"
 
 //
 //  httplib.h
@@ -17,6 +15,11 @@
 //
 
 #ifdef USE_HOST
+// Prevent this code being included in main.cpp
+#ifdef USE_HTTP_REQUEST_HOST_H
+
+#include "esphome/core/defines.h"
+
 #ifndef CPPHTTPLIB_HTTPLIB_H
 #define CPPHTTPLIB_HTTPLIB_H
 
@@ -9687,5 +9690,6 @@ inline SSL_CTX *Client::ssl_context() const {
 #endif
 
 #endif  // CPPHTTPLIB_HTTPLIB_H
+#endif  // USE_HTTP_REQUEST_HOST_H
 
 #endif
