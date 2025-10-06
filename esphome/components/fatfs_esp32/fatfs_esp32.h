@@ -23,7 +23,7 @@ namespace esphome {
 namespace fatfs_esp32 {
 
 #ifndef FAT_MAX_FILES
-#define FAT_MAX_FILES 5
+#define FAT_MAX_FILES 5  // NOLINT
 #endif
 // #define FF_STR_VOLUME_ID 1  // flash:file1.txt"
 // #define F_STR_VOLUME_ID == 2 // /flash/file1.txt
@@ -79,11 +79,11 @@ DRESULT ff_sd_ioctl(uint8_t pdrv, uint8_t cmd, void *buff);
  *         need to be implemented for IO driver implementation
  *
  *   Method return statueses:
- * 	  RES_OK  		  0 - Successful
- *    RES_ERROR 		1 - R//W Error
- *    RES_WRPRT 		2 - Write Protected
- *    RES_NOTRDY 	  3 - Not Ready
- *    RES_PARERR		4 - Invalid Parameter
+ * RES_OK  0 - Successful
+ * RES_ERROR  1 - R//W Error
+ * RES_WRPRT 2 - Write Protected
+ * RES_NOTRDY 3 - Not Ready
+ * RES_PARERR 4 - Invalid Parameter
  *
  */
 class StorageIO {

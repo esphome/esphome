@@ -41,6 +41,7 @@
 //------------------------------------------------------------------------------
 // SD card errors
 // See the SD Specification for command info.
+
 #define SD_ERROR_CODE_LIST \
   SD_CARD_ERROR(NONE, "No error") \
   SD_CARD_ERROR(CMD0, "Card reset failed") \
@@ -93,6 +94,9 @@ enum {
 #undef SD_CARD_ERROR
       SD_CARD_ERROR_UNKNOWN
 };
+
+namespace esphome {
+namespace fatfs_esp32_sdspi {
 
 // void printSdErrorSymbol(print_t* pr, uint8_t code);
 // void printSdErrorText(print_t* pr, uint8_t code);
@@ -526,3 +530,5 @@ using SdStatus_t = struct SdStatus {
 #pragma pack(pop)
 
 #endif  // DOXYGEN_SHOULD_SKIP_THIS
+}  // namespace fatfs_esp32_sdspi
+}  // namespace esphome

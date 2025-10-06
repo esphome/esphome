@@ -1,3 +1,4 @@
+#pragma once
 #include "fatfs.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"

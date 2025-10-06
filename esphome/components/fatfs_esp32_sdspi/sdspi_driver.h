@@ -15,27 +15,6 @@ static const uint8_t IDLE_STATE = 0;
 static const uint8_t READ_STATE = 1;
 /** SD is in multi-sector write state. */
 static const uint8_t WRITE_STATE = 2;
-//---
-//  Fatfs diskio error codes
-/* Results of Disk Functions */
-// typedef enum {
-// 	IO_RES_OK = 0,		/* 0: Successful */
-// 	IO_RES_ERROR,		/* 1: R/W Error */
-// 	IO_RES_WRPRT,		/* 2: Write Protected */
-// 	IO_RES_NOTRDY,		/* 3: Not Ready */
-// 	IO_RES_PARERR		/* 4: Invalid Parameter */
-// } DRESULT;
-
-// #define STA_NOINIT		0x01	/* Drive not initialized */
-// #define STA_NODISK		0x02	/* No medium in the drive */
-// #define STA_PROTECT		0x04	/* Write protected */
-// card_con_state_ &= ~STA_NOINIT;
-
-// enum class CardTypeEnum : uint8_t {
-//   SD_CARD_TYPE_SD1 = 0,
-//   SD_CARD_TYPE_SD2 = 1,
-//   SD_CARD_TYPE_SDHC = 2,
-// };
 
 class SDSPIDriver : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                           spi::DATA_RATE_20MHZ> {

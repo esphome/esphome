@@ -94,7 +94,9 @@ void FatESP32sdspi::setup() {
       this->mark_failed();
       return;
     } else {
+#ifdef FATFS_FS_TEST
       this->test_fs("/");
+#endif
     }
   }
   { ESP_LOGD(TAG, "Storage media not present."); }
@@ -144,9 +146,11 @@ bool FatESP32sdspi::is_card() {
   }
 
   ESP_LOGD(TAG, "Check storage present = %s", TRUEFALSE(ret));
+#ifdef FATFS_FS_TEST
   if ((ret) && (this->is_mount())) {
     this->test_fs("0:/pic");
   }
+#endif
   return ret;
 }
 

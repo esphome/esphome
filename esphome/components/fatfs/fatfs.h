@@ -15,27 +15,27 @@ namespace fatfs {
  *
  */
 
-// #define	AM_RDO	0x01	/* Read only */
-// #define	AM_HID	0x02	/* Hidden */
-// #define	AM_SYS	0x04	/* System */
-// #define AM_DIR	0x10	/* Directory */
-// #define AM_ARC	0x20	/* Archive */
+// #define AM_RDO 0x01 /* Read only */
+// #define AM_HID 0x02 /* Hidden */
+// #define AM_SYS 0x04 /* System */
+// #define AM_DIR 0x10 /* Directory */
+// #define AM_ARC 0x20 /* Archive */
 
 // /* Filesystem type (FATFS.fs_type) */
-// #define FS_FAT12	1
-// #define FS_FAT16	2
-// #define FS_FAT32	3
-// #define FS_EXFAT	4
+// #define FS_FAT12 1
+// #define FS_FAT16 2
+// #define FS_FAT32 3
+// #define FS_EXFAT 4
 
 //  File open flags
-#define FAT_F_READ 0x01
-#define FAT_F_WRITE 0x02
-#define FAT_F_OPEN_EXISTING 0x00
-#define FAT_F_CREATE_NEW 0x04
-#define FAT_F_CREATE_ALWAYS 0x08
-#define FAT_F_OPEN_ALWAYS 0x10    // 00010000
-#define FAT_F_OPEN_APPEND 0x30    // 00110000
-#define FAT_F_OPEN_TRUNCATE 0x40  // 01000000
+static const uint8_t FAT_F_READ = 0x01;
+static const uint8_t FAT_F_WRITE = 0x02;
+static const uint8_t FAT_F_OPEN_EXISTING = 0x00;
+static const uint8_t FAT_F_CREATE_NEW = 0x04;
+static const uint8_t FAT_F_CREATE_ALWAYS = 0x08;
+static const uint8_t FAT_F_OPEN_ALWAYS = 0x10;    // 00010000
+static const uint8_t FAT_F_OPEN_APPEND = 0x30;    // 00110000
+static const uint8_t FAT_F_OPEN_TRUNCATE = 0x40;  // 01000000
 
 enum class StorageState : uint8_t {
   MEDIA_UNUSED = 0,

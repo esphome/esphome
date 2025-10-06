@@ -5,7 +5,9 @@ namespace esphome {
 namespace fatfs_esp32_sdspi {
 
 static const char *TAG = "sdspi_driver";
-#define USE_SD_CRC 2
+#ifndef USE_SD_CRC
+#define USE_SD_CRC 2  // NOLINT
+#endif
 
 //==============================================================================
 #if USE_SD_CRC
