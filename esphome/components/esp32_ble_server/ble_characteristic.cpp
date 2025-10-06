@@ -129,6 +129,7 @@ bool BLECharacteristic::is_created() {
     if (!descriptor->is_created())
       return false;
   }
+  // All descriptors are created if we reach here
   this->state_ = CREATED;
   return true;
 }
