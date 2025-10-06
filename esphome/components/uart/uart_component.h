@@ -178,8 +178,6 @@ class UARTComponent {
   void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string, bool)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
-  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
-  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
 #endif
 
  protected:
@@ -198,8 +196,6 @@ class UARTComponent {
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string, bool)> debug_callback_{};
-  std::string debug_prefix_{""};
-  bool debug_add_settings_{false};
 #endif
 };
 
