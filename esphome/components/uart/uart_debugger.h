@@ -18,7 +18,7 @@ namespace uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, std::string> {
+class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, std::string, std::string> {
  public:
   explicit UARTDebugger(UARTComponent *parent);
   void loop() override;
@@ -46,26 +46,6 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
   // shall uart channel settings be added to string ?
   void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
-
-  // return settings debug string
-  std::string get_debug_settings_string() {
-    std::string parity;
-    switch(this->get_parity()) {
-      case 0:
-        parity = "none";
-        break;
-      case 1:
-        parity = "even";
-        break;
-      case 2:
-        parity = "odd";
-        break;
-    }
-    std::string res = "|" & std::to_string(this->get_baud_rate());
-    res += ":" + std::to_string(this->get_data_bits());
-    res += ":" + std::to_string(this->get_stop_bits());
-    res += ":" + parity + "|";
-  }
 
  protected:
   UARTDirection for_direction_;
