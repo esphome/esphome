@@ -13,8 +13,6 @@ import sys
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 
-from helpers import changed_files  # noqa: E402
-
 
 def read_file_lines(path: Path) -> list[str]:
     """Read lines from a file."""
@@ -160,6 +158,10 @@ def main() -> None:
         # Check if hash changed OR if .clang-tidy.hash was updated in this PR
         # This is used in CI to determine if a full clang-tidy scan is needed
         hash_changed = current_hash != stored_hash
+
+        # Lazy import to avoid requiring dependencies that aren't needed for other modes
+        from helpers import changed_files  # noqa: E402
+
         hash_file_updated = ".clang-tidy.hash" in changed_files()
 
         # Exit 0 if full scan needed
