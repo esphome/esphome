@@ -1,10 +1,12 @@
 from ast import literal_eval
+from itertools import chain, islice
 import logging
 import math
 import re
+from types import GeneratorType
 
 import jinja2 as jinja
-from jinja2.sandbox import SandboxedEnvironment
+from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
 
 from esphome.yaml_util import ESPLiteralValue
 
@@ -109,10 +111,51 @@ class TrackerContext(jinja.runtime.Context):
         return val
 
 
-class Jinja(SandboxedEnvironment):
+def concat_nodes(values):
+    """
+    This function aims at preserving native types when concatenating
+    multiple nodes together. If the result is a single node, its value
+    is returned. Otherwise, the nodes are concatenated as strings. If
+    the result can be parsed with :func:`ast.literal_eval`, the parsed
+    value is returned. Otherwise, the string is returned.
+    This helps preserve metadata such as ESPHomeDataBase from original values.
+    """
+    head = list(islice(values, 2))
+
+    if not head:
+        return None
+
+    if len(head) == 1:
+        raw = head[0]
+        if not isinstance(raw, str):
+            return raw
+    else:
+        if isinstance(values, GeneratorType):
+            values = chain(head, values)
+        raw = "".join([str(v) for v in values])
+
+    try:
+        # Attempt to parse the concatenated string into a Python literal.
+        # This allows expressions like "1 + 2" to be evaluated to the integer 3.
+        # If the result is also a string or there is a parsing error,
+        # fall back to returning the raw string. This is consistent with
+        #  Home Assistant's behavior when evaluating templates
+        result = literal_eval(raw)
+        if not isinstance(result, str):
+            return result
+
+    except (ValueError, SyntaxError, MemoryError, TypeError):
+        pass
+    return raw
+
+
+class Jinja(jinja.Environment):
     """
     Wraps a Jinja environment
     """
+
+    code_generator_class = NativeCodeGenerator
+    concat = staticmethod(concat_nodes)
 
     def __init__(self, context_vars):
         super().__init__(
@@ -142,15 +185,6 @@ class Jinja(SandboxedEnvironment):
             **SAFE_GLOBALS,
         }
 
-    def safe_eval(self, expr):
-        try:
-            result = literal_eval(expr)
-            if not isinstance(result, str):
-                return result
-        except (ValueError, SyntaxError, MemoryError, TypeError):
-            pass
-        return expr
-
     def expand(self, content_str):
         """
         Renders a string that may contain Jinja expressions or statements
@@ -172,7 +206,7 @@ class Jinja(SandboxedEnvironment):
         self.context_trace = {}
         try:
             template = self.from_string(content_str)
-            result = self.safe_eval(template.render(override_vars))
+            result = template.render(override_vars)
             if isinstance(result, Undefined):
                 print("" + result)  # force a UndefinedError exception
         except (TemplateSyntaxError, UndefinedError) as err:
@@ -201,3 +235,10 @@ class Jinja(SandboxedEnvironment):
             content_str.result = result
 
         return result, None
+
+
+class JinjaTemplate(NativeTemplate):
+    environment_class = Jinja
+
+
+Jinja.template_class = JinjaTemplate

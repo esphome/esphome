@@ -39,6 +39,30 @@ async def to_code(config):
     pass
 
 
+def restore_data_base(value, orig_value):
+    """This function restores ESPHomeDataBase metadata held by the original string.
+    This is needed because during jinja evaluation, strings can be replaced by other types,
+    but we want to keep the original metadata for error reporting and source mapping.
+    For example, if a substitution replaces a string with a dictionary, we want that items
+    in the dictionary to still point to the original document location
+    """
+    if isinstance(value, ESPHomeDataBase):
+        return value
+    if isinstance(value, dict):
+        new_value = {}
+        for k, v in value.items():
+            key = restore_data_base(k, orig_value)
+            new_value[key] = restore_data_base(v, orig_value)
+        return new_value
+    if isinstance(value, list):
+        for i, v in enumerate(value):
+            value[i] = restore_data_base(v, orig_value)
+        return value
+    if isinstance(value, str):
+        return make_data_base(value, orig_value)
+    return value
+
+
 def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
     if has_jinja(value):
         # If the original value passed in to this function is a JinjaStr, it means it contains an unresolved
@@ -65,6 +89,9 @@ def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
                 f"\nSee {'->'.join(str(x) for x in path)}",
                 path,
             )
+        if isinstance(orig_value, ESPHomeDataBase):
+            value = restore_data_base(value, orig_value)
+
     return value
 
 
