@@ -215,8 +215,6 @@ DEBUG_SCHEMA = cv.Schema(
             CONF_SEQUENCE, default=DEFAULT_SEQUENCE
         ): automation.validate_automation(),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
-        cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
-        cv.Optional(CONF_DEBUG_ADD_SETTINGS, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
     }
 )
@@ -247,6 +245,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INVERT): cv.invalid(
                 "This option has been removed. Please instead use invert in the tx/rx pin schemas."
             ),
+            
+            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+            cv.Optional(CONF_DEBUG_ADD_SETTINGS, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
