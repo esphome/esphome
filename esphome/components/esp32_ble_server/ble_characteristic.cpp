@@ -49,7 +49,11 @@ void BLECharacteristic::notify() {
       this->service_->get_server()->get_connected_client_count() == 0)
     return;
 
-  for (auto &client : this->service_->get_server()->get_clients()) {
+  const uint16_t *clients = this->service_->get_server()->get_clients();
+  uint8_t client_count = this->service_->get_server()->get_client_count();
+
+  for (uint8_t i = 0; i < client_count; i++) {
+    uint16_t client = clients[i];
     size_t length = this->value_.size();
     // Find the client in the list of clients to notify
     auto *entry = this->find_client_in_notify_list_(client);
