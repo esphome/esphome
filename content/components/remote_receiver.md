@@ -125,6 +125,20 @@ Multiple remote receivers can be configured as a list of dict definitions within
 - **use_dma** (*Optional*, boolean): Enable DMA on variants that support it. If enabled `rmt_symbols` controls
   the DMA buffer size and can be set to a large value.
 
+#### Signal Demodulation
+
+In rare hardware configurations where the microcontroller will receive modulated signals, the RMT peripheral supports
+signal demodulation. If you aren't sure, you probably don't need this. Infrared remote signals, for example, are
+typically demodulated by an infrared receiver module (IRM) before reaching the microcontroller.
+
+To enable signal demodulation, configure the signal carrier frequency and duty cycle:
+
+- **carrier_duty_percent** (*Optional*, int): The carrier duty cycle for signal demodulation in the RMT peripheral in
+  Hz. Defaults to ``100``.
+
+- **carrier_frequency** (*Optional*, int): The carrier frequency for signal demodulation in the RMT peripheral in Hz.
+  Defaults to ``0Hz`` (carrier demodulation disabled).
+
 > [!NOTE]
 > The dumped **raw** code is sequence of pulse widths (durations in microseconds), positive for on-pulses (mark)
 > and negative for off-pulses (space). Usually you can to copy this directly to the configuration or automation
