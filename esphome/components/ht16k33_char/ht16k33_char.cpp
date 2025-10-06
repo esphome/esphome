@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 
 #include "ht16k33_char.h"
 
@@ -57,10 +58,10 @@ void HT16k33CharComponent::setup() {
   } else if (this->continuous_) {
     // If the state is continuous, there is no start and end delay. Go directly into the scrolling.
     this->scroll_state_ = HT16K33_SCROLL_STATE_SCROLLING;
-    this->last_scroll_ = millis();
+    this->last_scroll_ = App.get_loop_component_start_time();
   } else {
     this->scroll_state_ = HT16K33_SCROLL_STATE_FIRST_START;
-    this->last_scroll_ = millis();
+    this->last_scroll_ = App.get_loop_component_start_time();
   }
 }
 
@@ -95,7 +96,7 @@ void HT16k33CharComponent::update() {
 
       current_buffer_location = this->update_display();
 
-      this->last_scroll_ = millis();
+      this->last_scroll_ = App.get_loop_component_start_time();
       // TODO: I don't think I need the first char location test. It is required, but it should alwasy be the case wien
       // doing these checks.
       if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length()) &&
@@ -118,7 +119,7 @@ void HT16k33CharComponent::loop() {
     return;
   }
 
-  now = millis();
+  now = App.get_loop_component_start_time();
 
   if (this->last_scroll_ > now) {
     // This will happen when the millis() function overflows. (approx every 50 days)
