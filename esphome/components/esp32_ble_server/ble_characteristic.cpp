@@ -125,69 +125,49 @@ bool BLECharacteristic::is_created() {
   if (this->state_ != CREATING_DEPENDENTS)
     return false;
 
-  bool created = true;
   for (auto *descriptor : this->descriptors_) {
-    created &= descriptor->is_created();
+    if (!descriptor->is_created())
+      return false;
   }
-  if (created)
-    this->state_ = CREATED;
-  return this->state_ == CREATED;
+  // All descriptors are created if we reach here
+  this->state_ = CREATED;
+  return true;
 }
 
 bool BLECharacteristic::is_failed() {
   if (this->state_ == FAILED)
     return true;
 
-  bool failed = false;
   for (auto *descriptor : this->descriptors_) {
-    failed |= descriptor->is_failed();
+    if (descriptor->is_failed()) {
+      this->state_ = FAILED;
+      return true;
+    }
   }
-  if (failed)
-    this->state_ = FAILED;
-  return this->state_ == FAILED;
+  return false;
+}
+
+void BLECharacteristic::set_property_bit_(esp_gatt_char_prop_t bit, bool value) {
+  if (value) {
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | bit);
+  } else {
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~bit);
+  }
 }
 
 void BLECharacteristic::set_broadcast_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_BROADCAST);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_BROADCAST);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_BROADCAST, value);
 }
 void BLECharacteristic::set_indicate_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_INDICATE);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_INDICATE);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_INDICATE, value);
 }
 void BLECharacteristic::set_notify_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_NOTIFY);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_NOTIFY);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_NOTIFY, value);
 }
-void BLECharacteristic::set_read_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_READ);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_READ);
-  }
-}
-void BLECharacteristic::set_write_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE);
-  }
-}
+void BLECharacteristic::set_read_property(bool value) { this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_READ, value); }
+void BLECharacteristic::set_write_property(bool value) { this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_WRITE, value); }
 void BLECharacteristic::set_write_no_response_property(bool value) {
-  if (value) {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
-  } else {
-    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
-  }
+  this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_WRITE_NR, value);
 }
 
 void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,

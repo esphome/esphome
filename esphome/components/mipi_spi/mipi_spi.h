@@ -340,7 +340,7 @@ class MipiSpi : public display::Display,
         this->write_cmd_addr_data(0, 0, 0, 0, ptr, w * h, 8);
       }
     } else {
-      for (size_t y = 0; y != h; y++) {
+      for (size_t y = 0; y != static_cast<size_t>(h); y++) {
         if constexpr (BUS_TYPE == BUS_TYPE_SINGLE || BUS_TYPE == BUS_TYPE_SINGLE_16) {
           this->write_array(ptr, w);
         } else if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
@@ -372,8 +372,8 @@ class MipiSpi : public display::Display,
       uint8_t dbuffer[DISPLAYPIXEL * 48];
       uint8_t *dptr = dbuffer;
       auto stride = x_offset + w + x_pad;  // stride in pixels
-      for (size_t y = 0; y != h; y++) {
-        for (size_t x = 0; x != w; x++) {
+      for (size_t y = 0; y != static_cast<size_t>(h); y++) {
+        for (size_t x = 0; x != static_cast<size_t>(w); x++) {
           auto color_val = ptr[y * stride + x];
           if constexpr (DISPLAYPIXEL == PIXEL_MODE_18 && BUFFERPIXEL == PIXEL_MODE_16) {
             // 16 to 18 bit conversion
