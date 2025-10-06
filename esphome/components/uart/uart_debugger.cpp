@@ -21,6 +21,7 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
     this->trigger_after_delimiter_(byte, settings_string);
     this->trigger_after_bytes_(settings_string);
   });
+  parent->set_debug_add_settings(this->debug_add_settings_);
 }
 
 void UARTDebugger::loop() { this->trigger_after_timeout_(); }
