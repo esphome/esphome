@@ -61,9 +61,9 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
         parity = "odd";
         break;
     }
-    std::string res = "|" & std::to_string(parent->get_baud_rate());
-    res += ":" + std::to_string(parent->get_data_bits());
-    res += ":" + std::to_string(parent->get_stop_bits());
+    std::string res = "|" & std::to_string(this->get_baud_rate());
+    res += ":" + std::to_string(this->get_data_bits());
+    res += ":" + std::to_string(this->get_stop_bits());
     res += ":" + parity + "|";
   }
 
