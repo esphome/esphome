@@ -165,7 +165,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_BINARY_SENSOR(warning_battery_too_low_to_charge, QPIWS)
   PIPSOLAR_BINARY_SENSOR(fault_dc_dc_over_current, QPIWS)
   PIPSOLAR_BINARY_SENSOR(fault_code, QPIWS)
-  PIPSOLAR_BINARY_SENSOR(warnung_low_pv_energy, QPIWS)
+  PIPSOLAR_BINARY_SENSOR(warning_low_pv_energy, QPIWS)
   PIPSOLAR_BINARY_SENSOR(warning_high_ac_input_during_bus_soft_start, QPIWS)
   PIPSOLAR_BINARY_SENSOR(warning_battery_equalization, QPIWS)
 

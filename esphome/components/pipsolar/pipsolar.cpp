@@ -621,7 +621,7 @@ void Pipsolar::handle_qpiws_(const char *message) {
         value_faults_present |= enabled.value_or(false);
         break;
       case 33:
-        this->publish_binary_sensor_(enabled, this->warnung_low_pv_energy_);
+        this->publish_binary_sensor_(enabled, this->warning_low_pv_energy_);
         value_warnings_present |= enabled.value_or(false);
         break;
       case 34:
