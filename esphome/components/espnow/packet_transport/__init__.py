@@ -32,7 +32,8 @@ CONFIG_SCHEMA = transport_schema(ESPNowTransport).extend(
 
 async def to_code(config):
     """Set up the ESP-NOW transport component."""
-    var, providers = await new_packet_transport(config)
+    var, _ = await new_packet_transport(config)
+
     await cg.register_parented(var, config[CONF_ESPNOW_ID])
 
     # Set broadcast address - convert MAC to parts array like ESP-NOW does
