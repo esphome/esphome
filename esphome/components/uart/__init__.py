@@ -178,7 +178,7 @@ AFTER_DEFAULTS = {CONF_BYTES: 150, CONF_TIMEOUT: "100ms"}
 # By default, log in hex format when no specific sequence is provided.
 CONF_DEBUG_PREFIX = "debug_prefix"
 CONF_DEBUG_ADD_SETTINGS = "debug_add_uart_settings"
-DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix, debug_add_uart_settings);"
+DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix, \"\");"
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
@@ -261,7 +261,7 @@ async def debug_to_code(config, parent):
     for action in config[CONF_SEQUENCE]:
         await automation.build_automation(
             trigger,
-            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes"), (cg.std_string, "debug_prefix"), (bool, "debug_add_uart_settings")],
+            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes"), (cg.std_string, "debug_prefix"), (cg.std_string, "")],
             action,
         )
     cg.add(trigger.set_direction(config[CONF_DIRECTION]))
