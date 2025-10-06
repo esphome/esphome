@@ -86,7 +86,7 @@ void KeyCollector::key_pressed_(uint8_t key) {
     return;
   }
   if (this->end_keys_.find(key) != std::string::npos) {
-    if ((this->min_length_ == 0) || (this->result_.size() >= this->min_length_)) {
+    if ((this->min_length_ == 0) || (this->result_.size() >= static_cast<size_t>(this->min_length_))) {
       this->result_trigger_->trigger(this->result_, this->start_key_, key);
       this->clear();
     }
@@ -94,9 +94,10 @@ void KeyCollector::key_pressed_(uint8_t key) {
   }
   if (!this->allowed_keys_.empty() && (this->allowed_keys_.find(key) == std::string::npos))
     return;
-  if ((this->max_length_ == 0) || (this->result_.size() < this->max_length_))
+  if ((this->max_length_ == 0) || (this->result_.size() < static_cast<size_t>(this->max_length_)))
     this->result_.push_back(key);
-  if ((this->max_length_ > 0) && (this->result_.size() == this->max_length_) && (!this->end_key_required_)) {
+  if ((this->max_length_ > 0) && (this->result_.size() == static_cast<size_t>(this->max_length_)) &&
+      (!this->end_key_required_)) {
     this->result_trigger_->trigger(this->result_, this->start_key_, 0);
     this->clear(false);
   }
