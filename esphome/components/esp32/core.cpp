@@ -16,9 +16,10 @@
 #include <Esp.h>
 #include <esp32-hal.h>
 // Forward declarations for Arduino watchdog functions (implemented in esp32-hal-misc.c)
-extern "C" void enableLoopWDT();
-extern "C" void disableCore0WDT();
-extern "C" void disableCore1WDT();
+// These are behind preprocessor guards in esp32-hal.h that static analysis tools may not see
+void enableLoopWDT();
+bool disableCore0WDT();
+bool disableCore1WDT();
 #else
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_clk_tree.h>
