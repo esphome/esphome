@@ -1,10 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.sensor import (
     validate_device_class,
     validate_unit_of_measurement,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_TARGET,
