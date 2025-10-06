@@ -8,7 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
 #include "StreamString.h"
 #endif
 
@@ -103,7 +103,7 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
   return match;
 }
 
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
 // helper for allowing only unique entries in the queue
 void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
@@ -301,7 +301,7 @@ void WebServer::setup() {
   }
 #endif
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   this->base_->add_handler(&this->events_);
 #endif
   this->base_->add_handler(this);
@@ -1266,7 +1266,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 #endif
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(buf, (PGM_P) ((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
@@ -1776,15 +1776,15 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 
   // Static URL checks
   static const char *const STATIC_URLS[] = {
-      "/",
-#ifdef USE_ARDUINO
-      "/events",
+    "/",
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
+    "/events",
 #endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-      "/0.css",
+    "/0.css",
 #endif
 #ifdef USE_WEBSERVER_JS_INCLUDE
-      "/0.js",
+    "/0.js",
 #endif
   };
 
@@ -1905,7 +1905,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == "/events") {
     this->events_.add_new_client(this, request);
     return;
