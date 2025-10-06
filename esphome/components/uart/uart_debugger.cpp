@@ -76,7 +76,7 @@ bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
   if (this->debug_add_settings_) {
-  std::string settings_string = this->get_settings_string();
+    std::string settings_string = this->get_debug_settings_string();
     trigger(this->last_direction_, this->bytes_, settings_string + this->debug_prefix_);
   } else {
     trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
