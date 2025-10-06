@@ -177,7 +177,7 @@ void ST7789V::write_display_data() {
     uint8_t temp_buffer[TEMP_BUFFER_SIZE];
     size_t temp_index = 0;
     for (size_t line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
-      for (size_t index = 0; index < this->get_width_internal(); ++index) {
+      for (size_t index = 0; index < static_cast<size_t>(this->get_width_internal()); ++index) {
         auto color = display::ColorUtil::color_to_565(
             display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                          display::ColorBitness::COLOR_BITNESS_332, true));
