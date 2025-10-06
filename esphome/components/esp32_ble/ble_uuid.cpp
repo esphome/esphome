@@ -131,28 +131,16 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   if (this->uuid_.len == uuid.uuid_.len) {
     switch (this->uuid_.len) {
       case ESP_UUID_LEN_16:
-        if (uuid.uuid_.uuid.uuid16 == this->uuid_.uuid.uuid16) {
-          return true;
-        }
-        break;
+        return this->uuid_.uuid.uuid16 == uuid.uuid_.uuid.uuid16;
       case ESP_UUID_LEN_32:
-        if (uuid.uuid_.uuid.uuid32 == this->uuid_.uuid.uuid32) {
-          return true;
-        }
-        break;
+        return this->uuid_.uuid.uuid32 == uuid.uuid_.uuid.uuid32;
       case ESP_UUID_LEN_128:
-        for (uint8_t i = 0; i < ESP_UUID_LEN_128; i++) {
-          if (uuid.uuid_.uuid.uuid128[i] != this->uuid_.uuid.uuid128[i]) {
-            return false;
-          }
-        }
-        return true;
-        break;
+        return memcmp(this->uuid_.uuid.uuid128, uuid.uuid_.uuid.uuid128, ESP_UUID_LEN_128) == 0;
+      default:
+        return false;
     }
-  } else {
-    return this->as_128bit() == uuid.as_128bit();
   }
-  return false;
+  return this->as_128bit() == uuid.as_128bit();
 }
 esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
 std::string ESPBTUUID::to_string() const {
