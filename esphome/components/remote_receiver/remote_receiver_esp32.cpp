@@ -126,8 +126,8 @@ void RemoteReceiverComponent::dump_config() {
                 "  Filter symbols: %" PRIu32 "\n"
                 "  Receive symbols: %" PRIu32 "\n"
                 "  Tolerance: %" PRIu32 "%s\n"
-                "  Carrier Frequency: %" PRIu32 " hz\n"
-                "  Carrier Duty: %u%%\n"
+                "  Carrier frequency: %" PRIu32 " hz\n"
+                "  Carrier duty: %u%%\n"
                 "  Filter out pulses shorter than: %" PRIu32 " us\n"
                 "  Signal is done after %" PRIu32 " us of no changes",
                 this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
