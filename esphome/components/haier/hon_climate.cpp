@@ -208,7 +208,7 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
         this->last_status_message_.reset();
         this->last_status_message_ = std::unique_ptr<uint8_t[]>(new uint8_t[this->real_control_packet_size_]);
       };
-      if (data_size >= static_cast<size_t>(this->real_control_packet_size_) + 2) {
+      if (data_size >= this->real_control_packet_size_ + 2) {
         memcpy(this->last_status_message_.get(), data + 2 + this->status_message_header_size_,
                this->real_control_packet_size_);
         this->status_message_callback_.call((const char *) data, data_size);
