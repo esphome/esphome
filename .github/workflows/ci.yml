@@ -103,7 +103,7 @@ jobs:
         run: |
           . venv/bin/activate
           script/ci-custom.py
-          #script/build_codeowners.py --check
+          script/build_codeowners.py --check
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
 
