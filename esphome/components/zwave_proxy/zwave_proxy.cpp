@@ -128,8 +128,10 @@ void ZWaveProxy::dump_config() {
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
-  // If a client just authenticated, send the current home ID
-  this->send_homeid_changed_msg_(conn);
+  if (this->home_id_ready_) {
+    // If a client just authenticated & HomeID is ready, send the current HomeID
+    this->send_homeid_changed_msg_(conn);
+  }
 }
 
 void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
