@@ -408,11 +408,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
       err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                    (uint8_t *) eap.client_key, client_key_len + 1,
-                                                   (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                   (uint8_t *) eap.password.c_str(), eap.password.length());
 #else
       err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                (uint8_t *) eap.client_key, client_key_len + 1,
-                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                               (uint8_t *) eap.password.c_str(), eap.password.length());
 #endif
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "set_cert_key failed %d", err);
