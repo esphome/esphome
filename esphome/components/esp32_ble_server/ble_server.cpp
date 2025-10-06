@@ -99,8 +99,7 @@ bool BLEServer::can_proceed() { return this->is_running() || !this->parent_->is_
 
 void BLEServer::restart_advertising_() {
   if (this->is_running()) {
-    this->parent_->advertising_set_manufacturer_data(
-        std::span<const uint8_t>(this->manufacturer_data_.get(), this->manufacturer_data_length_));
+    this->parent_->advertising_set_manufacturer_data(this->manufacturer_data_);
   }
 }
 
