@@ -101,15 +101,7 @@ void ZWaveProxy::process_uart_() {
         // Store the 4-byte Home ID, which starts at offset 4, and notify connected clients if it changed
         // The frame parser has already validated the checksum and ensured all bytes are present
         if (this->set_home_id(&this->buffer_[4])) {
-          api::ZWaveProxyRequest msg;
-          msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
-          msg.data = this->home_id_.data();
-          msg.data_len = this->home_id_.size();
-          if (api::global_api_server != nullptr) {
-            // We could add code to manage a second subscription type, but, since this message is
-            //  very infrequent and small, we simply send it to all clients
-            api::global_api_server->on_zwave_proxy_request(msg);
-          }
+          this->send_homeid_changed_msg_();
         }
       }
       ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
@@ -144,6 +136,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       }
       this->api_connection_ = api_connection;
       ESP_LOGV(TAG, "API connection is now subscribed");
+      this->send_homeid_changed_msg_();  // Send current home ID to new subscription
       break;
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       if (this->api_connection_ != api_connection) {
@@ -176,6 +169,18 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
   }
   ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
   this->write_array(data, length);
+}
+
+void ZWaveProxy::send_homeid_changed_msg_() {
+  api::ZWaveProxyRequest msg;
+  msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
+  msg.data = this->home_id_.data();
+  msg.data_len = this->home_id_.size();
+  if (api::global_api_server != nullptr) {
+    // We could add code to manage a second subscription type, but, since this message is
+    //  very infrequent and small, we simply send it to all clients
+    api::global_api_server->on_zwave_proxy_request(msg);
+  }
 }
 
 void ZWaveProxy::send_simple_command_(const uint8_t command_id) {
