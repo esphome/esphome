@@ -35,10 +35,11 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   bool is_running();
 
   void set_manufacturer_data(const std::vector<uint8_t> &data) {
-    this->manufacturer_data_length_ = data.size();
-    this->manufacturer_data_.reset(data.empty() ? nullptr : new uint8_t[data.size()]);
-    if (!data.empty()) {
-      memcpy(this->manufacturer_data_.get(), data.data(), data.size());
+    const auto size = data.size();
+    this->manufacturer_data_length_ = size;
+    this->manufacturer_data_.reset(size == 0 ? nullptr : new uint8_t[size]);
+    if (size > 0) {
+      memcpy(this->manufacturer_data_.get(), data.data(), size);
     }
     this->restart_advertising_();
   }
