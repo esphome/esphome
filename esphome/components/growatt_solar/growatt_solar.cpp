@@ -1,6 +1,7 @@
 #include "growatt_solar.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace growatt_solar {
@@ -134,8 +135,10 @@ void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 
 void GrowattSolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "GROWATT Solar:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "GROWATT Solar:\n"
+                "  Address: 0x%02X",
+                this->address_);
 }
 
 }  // namespace growatt_solar

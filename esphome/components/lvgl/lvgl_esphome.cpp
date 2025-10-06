@@ -1,7 +1,7 @@
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "lvgl_hal.h"
 #include "lvgl_esphome.h"
 
@@ -85,11 +85,14 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
 lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "LVGL:");
-  ESP_LOGCONFIG(TAG, "  Display width/height: %d x %d", this->disp_drv_.hor_res, this->disp_drv_.ver_res);
-  ESP_LOGCONFIG(TAG, "  Buffer size: %zu%%", 100 / this->buffer_frac_);
-  ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation);
-  ESP_LOGCONFIG(TAG, "  Draw rounding: %d", (int) this->draw_rounding);
+  ESP_LOGCONFIG(TAG,
+                "LVGL:\n"
+                "  Display width/height: %d x %d\n"
+                "  Buffer size: %zu%%\n"
+                "  Rotation: %d\n"
+                "  Draw rounding: %d",
+                this->disp_drv_.hor_res, this->disp_drv_.ver_res, 100 / this->buffer_frac_, this->rotation,
+                (int) this->draw_rounding);
 }
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
@@ -431,7 +434,6 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
 }
 
 void LvglComponent::setup() {
-  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
   auto *display = this->displays_[0];
   auto width = display->get_width();
   auto height = display->get_height();
@@ -449,7 +451,8 @@ void LvglComponent::setup() {
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
     buffer_pixels /= MIN_BUFFER_FRAC;
-    buffer = lv_custom_mem_alloc(buf_bytes / MIN_BUFFER_FRAC);  // NOLINT
+    buf_bytes /= MIN_BUFFER_FRAC;
+    buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   }
   if (buffer == nullptr) {
     this->status_set_error("Memory allocation failure");
@@ -486,7 +489,6 @@ void LvglComponent::setup() {
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
-  ESP_LOGCONFIG(TAG, "LVGL Setup complete");
 }
 
 void LvglComponent::update() {

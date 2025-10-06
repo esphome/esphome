@@ -76,16 +76,6 @@ bool GCJA5Component::calculate_checksum_() {
   return (crc == this->rx_message_[30]);
 }
 
-uint32_t GCJA5Component::get_32_bit_uint_(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 3]) << 24) |
-         (((uint32_t) this->rx_message_[start_index + 2]) << 16) |
-         (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
-}
-
-uint16_t GCJA5Component::get_16_bit_uint_(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
-}
-
 void GCJA5Component::parse_data_() {
   ESP_LOGVV(TAG, "GCJA5 Data: ");
   for (uint8_t i = 0; i < 32; i++) {

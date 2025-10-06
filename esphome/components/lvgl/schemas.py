@@ -21,7 +21,7 @@ from esphome.core.config import StartupTrigger
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR, TYPE_GRID
 from .helpers import add_lv_use, requires_component, validate_printf
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import LvglComponent, lv_event_t_ptr
@@ -349,7 +349,60 @@ def obj_schema(widget_type: WidgetType):
     )
 
 
+def _validate_grid_layout(config):
+    layout = config[df.CONF_LAYOUT]
+    rows = len(layout[df.CONF_GRID_ROWS])
+    columns = len(layout[df.CONF_GRID_COLUMNS])
+    used_cells = [[None] * columns for _ in range(rows)]
+    for index, widget in enumerate(config[df.CONF_WIDGETS]):
+        _, w = next(iter(widget.items()))
+        if (df.CONF_GRID_CELL_COLUMN_POS in w) != (df.CONF_GRID_CELL_ROW_POS in w):
+            # pylint: disable=raise-missing-from
+            raise cv.Invalid(
+                "Both row and column positions must be specified, or both omitted",
+                [df.CONF_WIDGETS, index],
+            )
+        if df.CONF_GRID_CELL_ROW_POS in w:
+            row = w[df.CONF_GRID_CELL_ROW_POS]
+            column = w[df.CONF_GRID_CELL_COLUMN_POS]
+        else:
+            try:
+                row, column = next(
+                    (r_idx, c_idx)
+                    for r_idx, row in enumerate(used_cells)
+                    for c_idx, value in enumerate(row)
+                    if value is None
+                )
+            except StopIteration:
+                # pylint: disable=raise-missing-from
+                raise cv.Invalid(
+                    "No free cells available in grid layout", [df.CONF_WIDGETS, index]
+                )
+            w[df.CONF_GRID_CELL_ROW_POS] = row
+            w[df.CONF_GRID_CELL_COLUMN_POS] = column
+
+        for i in range(w[df.CONF_GRID_CELL_ROW_SPAN]):
+            for j in range(w[df.CONF_GRID_CELL_COLUMN_SPAN]):
+                if row + i >= rows or column + j >= columns:
+                    # pylint: disable=raise-missing-from
+                    raise cv.Invalid(
+                        f"Cell at {row}/{column} span {w[df.CONF_GRID_CELL_ROW_SPAN]}x{w[df.CONF_GRID_CELL_COLUMN_SPAN]} "
+                        f"exceeds grid size {rows}x{columns}",
+                        [df.CONF_WIDGETS, index],
+                    )
+                if used_cells[row + i][column + j] is not None:
+                    # pylint: disable=raise-missing-from
+                    raise cv.Invalid(
+                        f"Cell span {row + i}/{column + j} already occupied by widget at index {used_cells[row + i][column + j]}",
+                        [df.CONF_WIDGETS, index],
+                    )
+                used_cells[row + i][column + j] = index
+
+    return config
+
+
 LAYOUT_SCHEMAS = {}
+LAYOUT_VALIDATORS = {TYPE_GRID: _validate_grid_layout}
 
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
@@ -402,8 +455,8 @@ LAYOUT_SCHEMA = {
 }
 
 GRID_CELL_SCHEMA = {
-    cv.Required(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
-    cv.Required(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_ROW_POS): cv.positive_int,
+    cv.Optional(df.CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
     cv.Optional(df.CONF_GRID_CELL_X_ALIGN): grid_alignments,
@@ -454,9 +507,13 @@ def container_validator(schema, widget_type: WidgetType):
     """
 
     def validator(value):
-        result = schema
         if w_sch := widget_type.schema:
-            result = result.extend(w_sch)
+            if isinstance(w_sch, dict):
+                w_sch = cv.Schema(w_sch)
+            # order is important here to preserve extras
+            result = w_sch.extend(schema)
+        else:
+            result = schema
         ltype = df.TYPE_NONE
         if value and (layout := value.get(df.CONF_LAYOUT)):
             if not isinstance(layout, dict):
@@ -470,7 +527,10 @@ def container_validator(schema, widget_type: WidgetType):
         result = result.extend(
             LAYOUT_SCHEMAS.get(ltype.lower(), LAYOUT_SCHEMAS[df.TYPE_NONE])
         )
-        return result(value)
+        value = result(value)
+        if layout_validator := LAYOUT_VALIDATORS.get(ltype):
+            value = layout_validator(value)
+        return value
 
     return validator
 

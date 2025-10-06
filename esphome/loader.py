@@ -112,8 +112,17 @@ class ComponentManifest:
         This will return all cpp source files that are located in the same folder as the
         loaded .py file (does not look through subdirectories)
         """
-        ret = []
+        ret: list[FileResource] = []
 
+        # Get filter function for source files
+        filter_source_files_func = getattr(self.module, "FILTER_SOURCE_FILES", None)
+
+        # Get list of files to exclude
+        excluded_files = (
+            set(filter_source_files_func()) if filter_source_files_func else set()
+        )
+
+        # Process all resources
         for resource in (
             r.name
             for r in importlib.resources.files(self.package).iterdir()
@@ -124,6 +133,11 @@ class ComponentManifest:
             if not importlib.resources.files(self.package).joinpath(resource).is_file():
                 # Not a resource = this is a directory (yeah this is confusing)
                 continue
+
+            # Skip excluded files
+            if resource in excluded_files:
+                continue
+
             ret.append(FileResource(self.package, resource))
         return ret
 
@@ -178,7 +192,7 @@ def install_custom_components_meta_finder():
     install_meta_finder(custom_components_dir)
 
 
-def _lookup_module(domain, exception):
+def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
@@ -205,16 +219,16 @@ def _lookup_module(domain, exception):
     return manif
 
 
-def get_component(domain, exception=False):
+def get_component(domain: str, exception: bool = False) -> ComponentManifest | None:
     assert "." not in domain
     return _lookup_module(domain, exception)
 
 
-def get_platform(domain, platform):
+def get_platform(domain: str, platform: str) -> ComponentManifest | None:
     full = f"{platform}.{domain}"
     return _lookup_module(full, False)
 
 
-_COMPONENT_CACHE = {}
+_COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
 _COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)

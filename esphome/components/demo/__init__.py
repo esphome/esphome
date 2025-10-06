@@ -455,7 +455,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_NAME: "Demo Plain Sensor",
                 },
                 {
-                    CONF_NAME: "Demo Temperature Sensor",
+                    CONF_NAME: "Demo Temperature Sensor 1",
                     CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS,
                     CONF_ICON: ICON_THERMOMETER,
                     CONF_ACCURACY_DECIMALS: 1,
@@ -463,7 +463,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
                 },
                 {
-                    CONF_NAME: "Demo Temperature Sensor",
+                    CONF_NAME: "Demo Temperature Sensor 2",
                     CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS,
                     CONF_ICON: ICON_THERMOMETER,
                     CONF_ACCURACY_DECIMALS: 1,

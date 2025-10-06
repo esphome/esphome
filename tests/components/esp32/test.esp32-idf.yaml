@@ -1,0 +1,11 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    advanced:
+      enable_lwip_mdns_queries: true
+      enable_lwip_bridge_interface: true
+
+wifi:
+  ssid: MySSID
+  password: password1

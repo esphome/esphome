@@ -8,8 +8,11 @@ uart:
   - id: uart_uart
     tx_pin: 17
     rx_pin: 16
+    flow_control_pin: 4
     baud_rate: 9600
     data_bits: 8
     rx_buffer_size: 512
+    rx_full_threshold: 10
+    rx_timeout: 1
     parity: EVEN
     stop_bits: 2

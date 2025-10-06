@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_WHITE,
     CONF_WIDTH,
 )
+from esphome.cpp_generator import MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
@@ -88,8 +89,15 @@ ADDRESSABLE_EFFECTS = []
 EFFECTS_REGISTRY = Registry()
 
 
-def register_effect(name, effect_type, default_name, schema, *extra_validators):
-    schema = cv.Schema(schema).extend(
+def register_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
+    schema = schema if isinstance(schema, cv.Schema) else cv.Schema(schema)
+    schema = schema.extend(
         {
             cv.Optional(CONF_NAME, default=default_name): cv.string_strict,
         }
@@ -98,7 +106,13 @@ def register_effect(name, effect_type, default_name, schema, *extra_validators):
     return EFFECTS_REGISTRY.register(name, effect_type, validator)
 
 
-def register_binary_effect(name, effect_type, default_name, schema, *extra_validators):
+def register_binary_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
     # binary effect can be used for all lights
     BINARY_EFFECTS.append(name)
     MONOCHROMATIC_EFFECTS.append(name)
@@ -109,7 +123,11 @@ def register_binary_effect(name, effect_type, default_name, schema, *extra_valid
 
 
 def register_monochromatic_effect(
-    name, effect_type, default_name, schema, *extra_validators
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
 ):
     # monochromatic effect can be used for all lights expect binary
     MONOCHROMATIC_EFFECTS.append(name)
@@ -119,7 +137,13 @@ def register_monochromatic_effect(
     return register_effect(name, effect_type, default_name, schema, *extra_validators)
 
 
-def register_rgb_effect(name, effect_type, default_name, schema, *extra_validators):
+def register_rgb_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
     # RGB effect can be used for RGB and addressable lights
     RGB_EFFECTS.append(name)
     ADDRESSABLE_EFFECTS.append(name)
@@ -128,7 +152,11 @@ def register_rgb_effect(name, effect_type, default_name, schema, *extra_validato
 
 
 def register_addressable_effect(
-    name, effect_type, default_name, schema, *extra_validators
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
 ):
     # addressable effect can be used only in addressable
     ADDRESSABLE_EFFECTS.append(name)
@@ -291,31 +319,30 @@ async def random_effect_to_code(config, effect_id):
 )
 async def strobe_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
-    colors = []
-    for color in config.get(CONF_COLORS, []):
-        colors.append(
-            cg.StructInitializer(
-                StrobeLightEffectColor,
-                (
-                    "color",
-                    LightColorValues(
-                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
-                        color[CONF_STATE],
-                        color[CONF_BRIGHTNESS],
-                        color[CONF_COLOR_BRIGHTNESS],
-                        color[CONF_RED],
-                        color[CONF_GREEN],
-                        color[CONF_BLUE],
-                        color[CONF_WHITE],
-                        color.get(CONF_COLOR_TEMPERATURE, 0.0),
-                        color[CONF_COLD_WHITE],
-                        color[CONF_WARM_WHITE],
-                    ),
+    colors = [
+        cg.StructInitializer(
+            StrobeLightEffectColor,
+            (
+                "color",
+                LightColorValues(
+                    color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
+                    color[CONF_STATE],
+                    color[CONF_BRIGHTNESS],
+                    color[CONF_COLOR_BRIGHTNESS],
+                    color[CONF_RED],
+                    color[CONF_GREEN],
+                    color[CONF_BLUE],
+                    color[CONF_WHITE],
+                    color.get(CONF_COLOR_TEMPERATURE, 0.0),
+                    color[CONF_COLD_WHITE],
+                    color[CONF_WARM_WHITE],
                 ),
-                ("duration", color[CONF_DURATION]),
-                ("transition_length", color[CONF_TRANSITION_LENGTH]),
-            )
+            ),
+            ("duration", color[CONF_DURATION]),
+            ("transition_length", color[CONF_TRANSITION_LENGTH]),
         )
+        for color in config.get(CONF_COLORS, [])
+    ]
     cg.add(var.set_colors(colors))
     return var
 
@@ -354,10 +381,9 @@ async def addressable_lambda_effect_to_code(config, effect_id):
         (bool, "initial_run"),
     ]
     lambda_ = await cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
-    var = cg.new_Pvariable(
+    return cg.new_Pvariable(
         effect_id, config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL]
     )
-    return var
 
 
 @register_addressable_effect(
@@ -404,20 +430,19 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
     cg.add(var.set_reverse(config[CONF_REVERSE]))
-    colors = []
-    for color in config.get(CONF_COLORS, []):
-        colors.append(
-            cg.StructInitializer(
-                AddressableColorWipeEffectColor,
-                ("r", int(round(color[CONF_RED] * 255))),
-                ("g", int(round(color[CONF_GREEN] * 255))),
-                ("b", int(round(color[CONF_BLUE] * 255))),
-                ("w", int(round(color[CONF_WHITE] * 255))),
-                ("random", color[CONF_RANDOM]),
-                ("num_leds", color[CONF_NUM_LEDS]),
-                ("gradient", color[CONF_GRADIENT]),
-            )
+    colors = [
+        cg.StructInitializer(
+            AddressableColorWipeEffectColor,
+            ("r", int(round(color[CONF_RED] * 255))),
+            ("g", int(round(color[CONF_GREEN] * 255))),
+            ("b", int(round(color[CONF_BLUE] * 255))),
+            ("w", int(round(color[CONF_WHITE] * 255))),
+            ("random", color[CONF_RANDOM]),
+            ("num_leds", color[CONF_NUM_LEDS]),
+            ("gradient", color[CONF_GRADIENT]),
         )
+        for color in config.get(CONF_COLORS, [])
+    ]
     cg.add(var.set_colors(colors))
     return var
 
@@ -526,7 +551,7 @@ def validate_effects(allowed_effects):
         errors = []
         names = set()
         for i, x in enumerate(value):
-            key = next(it for it in x.keys())
+            key = next(it for it in x)
             if key not in allowed_effects:
                 errors.append(
                     cv.Invalid(

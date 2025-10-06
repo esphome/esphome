@@ -32,7 +32,6 @@ static const uint8_t LCD_LINE2 = 0x88;
 static const uint8_t LCD_LINE3 = 0x98;
 
 void ST7920::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
@@ -95,8 +94,10 @@ void ST7920::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Height: %d", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %d", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %d\n"
+                "  Width: %d",
+                this->height_, this->width_);
 }
 
 float ST7920::get_setup_priority() const { return setup_priority::PROCESSOR; }

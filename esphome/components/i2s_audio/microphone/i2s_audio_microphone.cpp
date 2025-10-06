@@ -24,9 +24,6 @@ static const uint32_t READ_DURATION_MS = 16;
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
 
-// Use an exponential moving average to correct a DC offset with weight factor 1/1000
-static const int32_t DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR = 1000;
-
 static const char *const TAG = "i2s_audio.microphone";
 
 enum MicrophoneEventGroupBits : uint32_t {
@@ -40,12 +37,11 @@ enum MicrophoneEventGroupBits : uint32_t {
 };
 
 void I2SAudioMicrophone::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_ADC
   if (this->adc_) {
     if (this->parent_->get_port() != I2S_NUM_0) {
-      ESP_LOGE(TAG, "Internal ADC only works on I2S0!");
+      ESP_LOGE(TAG, "Internal ADC only works on I2S0");
       this->mark_failed();
       return;
     }
@@ -55,7 +51,7 @@ void I2SAudioMicrophone::setup() {
   {
     if (this->pdm_) {
       if (this->parent_->get_port() != I2S_NUM_0) {
-        ESP_LOGE(TAG, "PDM only works on I2S0!");
+        ESP_LOGE(TAG, "PDM only works on I2S0");
         this->mark_failed();
         return;
       }
@@ -64,19 +60,28 @@ void I2SAudioMicrophone::setup() {
 
   this->active_listeners_semaphore_ = xSemaphoreCreateCounting(MAX_LISTENERS, MAX_LISTENERS);
   if (this->active_listeners_semaphore_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create semaphore");
+    ESP_LOGE(TAG, "Creating semaphore failed");
     this->mark_failed();
     return;
   }
 
   this->event_group_ = xEventGroupCreate();
   if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event group");
+    ESP_LOGE(TAG, "Creating event group failed");
     this->mark_failed();
     return;
   }
 
   this->configure_stream_settings_();
+}
+
+void I2SAudioMicrophone::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Microphone:\n"
+                "  Pin: %d\n"
+                "  PDM: %s\n"
+                "  DC offset correction: %s",
+                static_cast<int8_t>(this->din_pin_), YESNO(this->pdm_), YESNO(this->correct_dc_offset_));
 }
 
 void I2SAudioMicrophone::configure_stream_settings_() {
@@ -127,6 +132,7 @@ bool I2SAudioMicrophone::start_driver_() {
   if (!this->parent_->try_lock()) {
     return false;  // Waiting for another i2s to return lock
   }
+  this->locked_driver_ = true;
   esp_err_t err;
 
 #ifdef USE_I2S_LEGACY
@@ -151,7 +157,7 @@ bool I2SAudioMicrophone::start_driver_() {
     config.mode = (i2s_mode_t) (config.mode | I2S_MODE_ADC_BUILT_IN);
     err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error installing driver: %s", esp_err_to_name(err));
       return false;
     }
 
@@ -174,7 +180,7 @@ bool I2SAudioMicrophone::start_driver_() {
 
     err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error installing I2S driver: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error installing driver: %s", esp_err_to_name(err));
       return false;
     }
 
@@ -183,7 +189,7 @@ bool I2SAudioMicrophone::start_driver_() {
 
     err = i2s_set_pin(this->parent_->get_port(), &pin_config);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error setting I2S pin: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error setting pin: %s", esp_err_to_name(err));
       return false;
     }
   }
@@ -198,7 +204,7 @@ bool I2SAudioMicrophone::start_driver_() {
   /* Allocate a new RX channel and get the handle of this channel */
   err = i2s_new_channel(&chan_cfg, NULL, &this->rx_handle_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error creating new I2S channel: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Error creating channel: %s", esp_err_to_name(err));
     return false;
   }
 
@@ -270,14 +276,14 @@ bool I2SAudioMicrophone::start_driver_() {
     err = i2s_channel_init_std_mode(this->rx_handle_, &std_cfg);
   }
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error initializing I2S channel: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Error initializing channel: %s", esp_err_to_name(err));
     return false;
   }
 
   /* Before reading data, start the RX channel first */
   i2s_channel_enable(this->rx_handle_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error enabling I2S Microphone: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Enabling failed: %s", esp_err_to_name(err));
     return false;
   }
 #endif
@@ -304,31 +310,37 @@ void I2SAudioMicrophone::stop_driver_() {
   if (this->adc_) {
     err = i2s_adc_disable(this->parent_->get_port());
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Error disabling ADC - it may not have started: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "Error disabling ADC: %s", esp_err_to_name(err));
     }
   }
 #endif
   err = i2s_stop(this->parent_->get_port());
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error stopping I2S microphone - it may not have started: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "Error stopping: %s", esp_err_to_name(err));
   }
   err = i2s_driver_uninstall(this->parent_->get_port());
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error uninstalling I2S driver - it may not have started: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "Error uninstalling driver: %s", esp_err_to_name(err));
   }
 #else
-  /* Have to stop the channel before deleting it */
-  err = i2s_channel_disable(this->rx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error stopping I2S microphone - it may not have started: %s", esp_err_to_name(err));
-  }
-  /* If the handle is not needed any more, delete it to release the channel resources */
-  err = i2s_del_channel(this->rx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error deleting I2S channel - it may not have started: %s", esp_err_to_name(err));
+  if (this->rx_handle_ != nullptr) {
+    /* Have to stop the channel before deleting it */
+    err = i2s_channel_disable(this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error stopping: %s", esp_err_to_name(err));
+    }
+    /* If the handle is not needed any more, delete it to release the channel resources */
+    err = i2s_del_channel(this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Error deleting channel: %s", esp_err_to_name(err));
+    }
+    this->rx_handle_ = nullptr;
   }
 #endif
-  this->parent_->unlock();
+  if (this->locked_driver_) {
+    this->parent_->unlock();
+    this->locked_driver_ = false;
+  }
 }
 
 void I2SAudioMicrophone::mic_task(void *params) {
@@ -366,26 +378,57 @@ void I2SAudioMicrophone::mic_task(void *params) {
 }
 
 void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
+  /**
+   * From https://www.musicdsp.org/en/latest/Filters/135-dc-filter.html:
+   *
+   *     y(n) = x(n) - x(n-1) + R * y(n-1)
+   *     R = 1 - (pi * 2 * frequency / samplerate)
+   *
+   * From https://en.wikipedia.org/wiki/Hearing_range:
+   *     The human range is commonly given as 20Hz up.
+   *
+   * From https://en.wikipedia.org/wiki/High-resolution_audio:
+   *     A reasonable upper bound for sample rate seems to be 96kHz.
+   *
+   * Calculate R value for 20Hz on a 96kHz sample rate:
+   *     R = 1 - (pi * 2 * 20 / 96000)
+   *     R = 0.9986910031
+   *
+   * Transform floating point to bit-shifting approximation:
+   *     output = input - prev_input + R * prev_output
+   *     output = input - prev_input + (prev_output - (prev_output >> S))
+   *
+   * Approximate bit-shift value S from R:
+   *     R = 1 - (1 >> S)
+   *     R = 1 - (1 / 2^S)
+   *     R = 1 - 2^-S
+   *     0.9986910031 = 1 - 2^-S
+   *     S = 9.57732 ~= 10
+   *
+   * Actual R from S:
+   *     R = 1 - 2^-10 = 0.9990234375
+   *
+   * Confirm this has effect outside human hearing on 96000kHz sample:
+   *     0.9990234375 = 1 - (pi * 2 * f / 96000)
+   *     f = 14.9208Hz
+   *
+   * Confirm this has effect outside human hearing on PDM 16kHz sample:
+   *     0.9990234375 = 1 - (pi * 2 * f / 16000)
+   *     f = 2.4868Hz
+   *
+   */
+  const uint8_t dc_filter_shift = 10;
   const size_t bytes_per_sample = this->audio_stream_info_.samples_to_bytes(1);
   const uint32_t total_samples = this->audio_stream_info_.bytes_to_samples(data.size());
-
-  if (total_samples == 0) {
-    return;
-  }
-
-  int64_t offset_accumulator = 0;
   for (uint32_t sample_index = 0; sample_index < total_samples; ++sample_index) {
     const uint32_t byte_index = sample_index * bytes_per_sample;
-    int32_t sample = audio::unpack_audio_sample_to_q31(&data[byte_index], bytes_per_sample);
-    offset_accumulator += sample;
-    sample -= this->dc_offset_;
-    audio::pack_q31_as_audio_sample(sample, &data[byte_index], bytes_per_sample);
+    int32_t input = audio::unpack_audio_sample_to_q31(&data[byte_index], bytes_per_sample);
+    int32_t output = input - this->dc_offset_prev_input_ +
+                     (this->dc_offset_prev_output_ - (this->dc_offset_prev_output_ >> dc_filter_shift));
+    this->dc_offset_prev_input_ = input;
+    this->dc_offset_prev_output_ = output;
+    audio::pack_q31_as_audio_sample(output, &data[byte_index], bytes_per_sample);
   }
-
-  const int32_t new_offset = offset_accumulator / total_samples;
-  this->dc_offset_ = new_offset / DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR +
-                     (DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR - 1) * this->dc_offset_ /
-                         DC_OFFSET_MOVING_AVERAGE_COEFFICIENT_DENOMINATOR;
 }
 
 size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
@@ -400,7 +443,7 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
     // Ignore ESP_ERR_TIMEOUT if ticks_to_wait = 0, as it will read the data on the next call
     if (!this->status_has_warning()) {
       // Avoid spamming the logs with the error message if its repeated
-      ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "Read error: %s", esp_err_to_name(err));
     }
     this->status_set_warning();
     return 0;
@@ -428,19 +471,19 @@ void I2SAudioMicrophone::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_group_bits & MicrophoneEventGroupBits::TASK_STARTING) {
-    ESP_LOGD(TAG, "Task started, attempting to allocate buffer");
+    ESP_LOGV(TAG, "Task started, attempting to allocate buffer");
     xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_STARTING);
   }
 
   if (event_group_bits & MicrophoneEventGroupBits::TASK_RUNNING) {
-    ESP_LOGD(TAG, "Task is running and reading data");
+    ESP_LOGV(TAG, "Task is running and reading data");
 
     xEventGroupClearBits(this->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
     this->state_ = microphone::STATE_RUNNING;
   }
 
   if ((event_group_bits & MicrophoneEventGroupBits::TASK_STOPPED)) {
-    ESP_LOGD(TAG, "Task finished, freeing resources and uninstalling I2S driver");
+    ESP_LOGV(TAG, "Task finished, freeing resources and uninstalling driver");
 
     vTaskDelete(this->task_handle_);
     this->task_handle_ = nullptr;
@@ -470,7 +513,8 @@ void I2SAudioMicrophone::loop() {
       }
 
       if (!this->start_driver_()) {
-        this->status_momentary_error("I2S driver failed to start, unloading it and attempting again in 1 second", 1000);
+        ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
+        this->status_momentary_error("driver_fail", 1000);
         this->stop_driver_();  // Stop/frees whatever possibly started
         break;
       }
@@ -480,7 +524,8 @@ void I2SAudioMicrophone::loop() {
                     &this->task_handle_);
 
         if (this->task_handle_ == nullptr) {
-          this->status_momentary_error("Task failed to start, attempting again in 1 second", 1000);
+          ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
+          this->status_momentary_error("task_fail", 1000);
           this->stop_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
         }
       }

@@ -7,7 +7,6 @@ namespace st7567_i2c {
 static const char *const TAG = "st7567_i2c";
 
 void I2CST7567::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
@@ -24,9 +23,11 @@ void I2CST7567::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
-  ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
-  ESP_LOGCONFIG(TAG, "  Invert Colors: %s", YESNO(this->invert_colors_));
+  ESP_LOGCONFIG(TAG,
+                "  Mirror X: %s\n"
+                "  Mirror Y: %s\n"
+                "  Invert Colors: %s",
+                YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->invert_colors_));
   LOG_UPDATE_INTERVAL(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {
@@ -50,8 +51,7 @@ void HOT I2CST7567::write_display_data() {
     static const size_t BLOCK_SIZE = 64;
     for (uint8_t x = 0; x < (uint8_t) this->get_width_internal(); x += BLOCK_SIZE) {
       this->write_register(esphome::st7567_base::ST7567_SET_START_LINE, &buffer_[y * this->get_width_internal() + x],
-                           this->get_width_internal() - x > BLOCK_SIZE ? BLOCK_SIZE : this->get_width_internal() - x,
-                           true);
+                           this->get_width_internal() - x > BLOCK_SIZE ? BLOCK_SIZE : this->get_width_internal() - x);
     }
   }
 }

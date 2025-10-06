@@ -56,7 +56,6 @@ uint32_t ESP8266UartComponent::get_config() {
 }
 
 void ESP8266UartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
@@ -121,10 +120,12 @@ void ESP8266UartComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %u baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial interface.");
   } else {

@@ -1,5 +1,5 @@
 import abc
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 import inspect
 import math
 import re
@@ -13,7 +13,6 @@ from esphome.core import (
     HexInt,
     Lambda,
     Library,
-    TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
@@ -21,33 +20,9 @@ from esphome.core import (
     TimePeriodSeconds,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
-
-
-class Expression(abc.ABC):
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def __str__(self):
-        """
-        Convert expression into C++ code
-        """
-
-
-SafeExpType = (
-    Expression
-    | bool
-    | str
-    | str
-    | int
-    | float
-    | TimePeriod
-    | type[bool]
-    | type[int]
-    | type[float]
-    | Sequence[Any]
-)
 
 
 class RawExpression(Expression):
@@ -251,6 +226,19 @@ class StringLiteral(Literal):
 
     def __str__(self):
         return cpp_string_escape(self.string)
+
+
+class LogStringLiteral(Literal):
+    """A string literal that uses LOG_STR() macro for flash storage on ESP8266."""
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
 class IntLiteral(Literal):
@@ -562,7 +550,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     return obj
 
 
-def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
+def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     """Declare a new pointer variable in the code generation by calling it's constructor
     with the given arguments.
 
@@ -579,13 +567,13 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
     return Pvariable(id_, rhs)
 
 
-def add(expression: Expression | Statement):
+def add(expression: Expression | Statement, prepend: bool = False):
     """Add an expression to the codegen section.
 
     After this is called, the given given expression will
     show up in the setup() function after this has been called.
     """
-    CORE.add(expression)
+    CORE.add(expression, prepend)
 
 
 def add_global(expression: SafeExpType | Statement, prepend: bool = False):
@@ -606,6 +594,23 @@ def add_library(name: str, version: str | None, repository: str | None = None):
 def add_build_flag(build_flag: str):
     """Add a global build flag to the compiler flags."""
     CORE.add_build_flag(build_flag)
+
+
+def add_build_unflag(build_unflag: str) -> None:
+    """Add a global build unflag to the compiler flags."""
+    CORE.add_build_unflag(build_unflag)
+
+
+def set_cpp_standard(standard: str) -> None:
+    """Set C++ standard with compiler flag `-std={standard}`."""
+    CORE.add_build_unflag("-std=gnu++11")
+    CORE.add_build_unflag("-std=gnu++14")
+    CORE.add_build_unflag("-std=gnu++17")
+    CORE.add_build_unflag("-std=gnu++23")
+    CORE.add_build_unflag("-std=gnu++2a")
+    CORE.add_build_unflag("-std=gnu++2b")
+    CORE.add_build_unflag("-std=gnu++2c")
+    CORE.add_build_flag(f"-std={standard}")
 
 
 def add_define(name: str, value: SafeExpType = None):
@@ -651,7 +656,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 async def process_lambda(
     value: Lambda,
-    parameters: list[tuple[SafeExpType, str]],
+    parameters: TemplateArgsType,
     capture: str = "=",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:
@@ -754,8 +759,7 @@ class MockObj(Expression):
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
             next_op = "->"
-        if attr.startswith("_"):
-            attr = attr[1:]
+        attr = attr.removeprefix("_")
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
@@ -1020,10 +1024,7 @@ class MockObjClass(MockObj):
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
-        for parent in self._parents:
-            if str(parent) == str(other):
-                return True
-        return False
+        return any(str(parent) == str(other) for parent in self._parents)
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):

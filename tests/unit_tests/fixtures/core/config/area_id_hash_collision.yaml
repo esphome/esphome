@@ -1,0 +1,10 @@
+esphome:
+  name: test
+  areas:
+    - id: test_2258
+      name: "Area 1"
+    - id: d6ka
+      name: "Area 2"
+
+esp32:
+  board: esp32dev

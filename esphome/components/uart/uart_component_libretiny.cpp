@@ -46,8 +46,6 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
@@ -108,10 +106,12 @@ void LibreTinyUARTComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %u baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
 }
 

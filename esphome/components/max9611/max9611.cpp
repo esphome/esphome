@@ -31,7 +31,6 @@ static const float TEMP_LSB = 0.48;           // 0.48C/LSB
 static const float MICRO_VOLTS_PER_VOLT = 1000000.0;
 
 void MAX9611Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Perform dummy-read
   uint8_t value;
   this->read(&value, 1);
@@ -52,8 +51,10 @@ void MAX9611Component::setup() {
   }
 }
 void MAX9611Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX9611:");
-  ESP_LOGCONFIG(TAG, "    CSA Gain Register: %x", gain_);
+  ESP_LOGCONFIG(TAG,
+                "MAX9611:\n"
+                "    CSA Gain Register: %x",
+                gain_);
   LOG_I2C_DEVICE(this);
 }
 void MAX9611Component::update() {

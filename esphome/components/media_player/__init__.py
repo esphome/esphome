@@ -7,13 +7,15 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_IDLE,
     CONF_ON_STATE,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
     CONF_VOLUME,
 )
 from esphome.core import CORE
-from esphome.coroutine import coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -58,6 +60,12 @@ VolumeDownAction = media_player_ns.class_(
 VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+TurnOnAction = media_player_ns.class_(
+    "TurnOnAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+TurnOffAction = media_player_ns.class_(
+    "TurnOffAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ON_PLAY = "on_play"
@@ -72,16 +80,20 @@ PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.templat
 AnnoucementTrigger = media_player_ns.class_(
     "AnnouncementTrigger", automation.Trigger.template()
 )
+OnTrigger = media_player_ns.class_("OnTrigger", automation.Trigger.template())
+OffTrigger = media_player_ns.class_("OffTrigger", automation.Trigger.template())
 IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
 IsPausedCondition = media_player_ns.class_("IsPausedCondition", automation.Condition)
 IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
 IsAnnouncingCondition = media_player_ns.class_(
     "IsAnnouncingCondition", automation.Condition
 )
+IsOnCondition = media_player_ns.class_("IsOnCondition", automation.Condition)
+IsOffCondition = media_player_ns.class_("IsOffCondition", automation.Condition)
 
 
 async def setup_media_player_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "media_player")
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -97,12 +109,19 @@ async def setup_media_player_core_(var, config):
     for conf in config.get(CONF_ON_ANNOUNCEMENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_ON, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_OFF, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 async def register_media_player(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_media_player(var))
+    CORE.register_platform_component("media_player", var)
     await setup_media_player_core_(var, config)
 
 
@@ -139,8 +158,20 @@ _MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(AnnoucementTrigger),
             }
         ),
+        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OffTrigger),
+            }
+        ),
     }
 )
+
+_MEDIA_PLAYER_SCHEMA.add_extra(entity_duplicate_validator("media_player"))
 
 
 def media_player_schema(
@@ -164,7 +195,6 @@ def media_player_schema(
 # Remove before 2025.11.0
 MEDIA_PLAYER_SCHEMA = media_player_schema(MediaPlayer)
 MEDIA_PLAYER_SCHEMA.add_extra(cv.deprecated_schema_constant("media_player"))
-
 
 MEDIA_PLAYER_ACTION_SCHEMA = automation.maybe_simple_id(
     cv.Schema(
@@ -216,6 +246,12 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
 @automation.register_action(
     "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
 )
+@automation.register_action(
+    "media_player.turn_on", TurnOnAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.turn_off", TurnOffAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
 async def media_player_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -235,6 +271,12 @@ async def media_player_action(config, action_id, template_arg, args):
 )
 @automation.register_condition(
     "media_player.is_announcing", IsAnnouncingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_on", IsOnCondition, MEDIA_PLAYER_CONDITION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_off", IsOffCondition, MEDIA_PLAYER_CONDITION_SCHEMA
 )
 async def media_player_condition(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -261,7 +303,7 @@ async def media_player_volume_set_action(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(media_player_ns.using)
     cg.add_define("USE_MEDIA_PLAYER")

@@ -50,7 +50,7 @@ class OnlineImage : public PollingComponent,
    * @param buffer_size Size of the buffer used to download the image.
    */
   OnlineImage(const std::string &url, int width, int height, ImageFormat format, image::ImageType type,
-              image::Transparency transparency, uint32_t buffer_size);
+              image::Transparency transparency, uint32_t buffer_size, bool is_big_endian);
 
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
@@ -65,6 +65,11 @@ class OnlineImage : public PollingComponent,
     }
     this->etag_ = "";
     this->last_modified_ = "";
+  }
+
+  /** Add the request header */
+  template<typename V> void add_request_header(const std::string &header, V value) {
+    this->request_headers_.push_back(std::pair<std::string, TemplatableValue<std::string> >(header, value));
   }
 
   /**
@@ -153,10 +158,17 @@ class OnlineImage : public PollingComponent,
 
   std::string url_{""};
 
+  std::vector<std::pair<std::string, TemplatableValue<std::string> > > request_headers_;
+
   /** width requested on configuration, or 0 if non specified. */
   const int fixed_width_;
   /** height requested on configuration, or 0 if non specified. */
   const int fixed_height_;
+  /**
+   * Whether the image is stored in big-endian format.
+   * This is used to determine how to store 16 bit colors in the buffer.
+   */
+  bool is_big_endian_;
   /**
    * Actual width of the current image. If fixed_width_ is specified,
    * this will be equal to it; otherwise it will be set once the decoding
@@ -194,9 +206,12 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
  public:
   OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
+  TEMPLATABLE_VALUE(bool, update)
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
-    this->parent_->update();
+    if (this->update_.value(x...)) {
+      this->parent_->update();
+    }
   }
 
  protected:

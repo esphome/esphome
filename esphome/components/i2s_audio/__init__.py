@@ -1,22 +1,18 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BITS_PER_SAMPLE,
-    CONF_CHANNEL,
-    CONF_ID,
-    CONF_SAMPLE_RATE,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-)
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
 from esphome.core import CORE
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
@@ -69,12 +65,15 @@ I2S_ROLE_OPTIONS = {
     CONF_SECONDARY: i2s_role_t.I2S_ROLE_SLAVE,  # NOLINT
 }
 
-# https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h
+# https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h (SOC_I2S_NUM)
 I2S_PORTS = {
     VARIANT_ESP32: 2,
     VARIANT_ESP32S2: 1,
     VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
+    VARIANT_ESP32C5: 1,
+    VARIANT_ESP32C6: 1,
+    VARIANT_ESP32H2: 1,
     VARIANT_ESP32P4: 3,
 }
 
@@ -219,7 +218,7 @@ def validate_use_legacy(value):
                 f"All i2s_audio components must set {CONF_USE_LEGACY} to the same value."
             )
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
-            raise cv.Invalid("Arduino supports only the legacy i2s driver.")
+            raise cv.Invalid("Arduino supports only the legacy i2s driver")
         _use_legacy_driver = value[CONF_USE_LEGACY]
     return value
 
@@ -250,11 +249,7 @@ def _final_validate(_):
 
 
 def use_legacy():
-    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.using_esp_idf and framework_version >= cv.Version(5, 0, 0):
-        if not _use_legacy_driver:
-            return False
-    return True
+    return not (CORE.using_esp_idf and not _use_legacy_driver)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -265,6 +260,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     if use_legacy():
         cg.add_define("USE_I2S_LEGACY")
+
+    # Helps avoid callbacks being skipped due to processor load
+    add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)
 
     cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
     if CONF_I2S_BCLK_PIN in config:

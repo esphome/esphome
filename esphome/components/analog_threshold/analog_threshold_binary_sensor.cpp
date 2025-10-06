@@ -34,8 +34,10 @@ void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) {
 void AnalogThresholdBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Analog Threshold Binary Sensor", this);
   LOG_SENSOR("  ", "Sensor", this->sensor_);
-  ESP_LOGCONFIG(TAG, "  Upper threshold: %.11f", this->upper_threshold_.value());
-  ESP_LOGCONFIG(TAG, "  Lower threshold: %.11f", this->lower_threshold_.value());
+  ESP_LOGCONFIG(TAG,
+                "  Upper threshold: %.11f\n"
+                "  Lower threshold: %.11f",
+                this->upper_threshold_.value(), this->lower_threshold_.value());
 }
 
 }  // namespace analog_threshold
