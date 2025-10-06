@@ -50,7 +50,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   // return settings debug string
   std::string get_debug_settings_string() {
     std::string parity;
-    switch(parent->get_parity()) {
+    switch(this->get_parity()) {
       case 0:
         parity = "none";
         break;
