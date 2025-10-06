@@ -7,9 +7,10 @@ import subprocess
 import sys
 import tempfile
 
-from esphome.components.esp32 import ESP_IDF_PLATFORM_VERSION as ver
+from esphome.components.esp32 import PLATFORM_VERSION_LOOKUP
 from esphome.helpers import write_file_if_changed
 
+ver = PLATFORM_VERSION_LOOKUP["recommended"]
 version_str = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
 root = Path(__file__).parent.parent
 boards_file_path = root / "esphome" / "components" / "esp32" / "boards.py"
