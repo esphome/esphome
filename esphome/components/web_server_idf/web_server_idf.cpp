@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <cstdarg>
 #include <memory>
@@ -761,4 +761,4 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }  // namespace web_server_idf
 }  // namespace esphome
 
-#endif  // !defined(USE_ESP_IDF)
+#endif  // !defined(USE_ESP32)
