@@ -179,6 +179,7 @@ class UARTComponent {
     this->debug_callback_.add(std::move(callback));
   }
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
+  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
 #endif
 
  protected:
