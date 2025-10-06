@@ -67,6 +67,31 @@ ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 
+def _add_auto_load_steps(result: Config, loads: list[str]) -> None:
+    """Add AutoLoadValidationStep for each component in loads that isn't already loaded."""
+    for load in loads:
+        if load not in result:
+            result.add_validation_step(AutoLoadValidationStep(load))
+
+
+def _process_auto_load(
+    result: Config, platform: ComponentManifest, path: ConfigPath
+) -> None:
+    # Process platform's AUTO_LOAD
+    auto_load = platform.auto_load
+    if isinstance(auto_load, list):
+        _add_auto_load_steps(result, auto_load)
+    elif callable(auto_load):
+        import inspect
+
+        if inspect.signature(auto_load).parameters:
+            result.add_validation_step(
+                AddDynamicAutoLoadsValidationStep(path, platform)
+            )
+        else:
+            _add_auto_load_steps(result, auto_load())
+
+
 def _process_platform_config(
     result: Config,
     component_name: str,
@@ -91,9 +116,7 @@ def _process_platform_config(
     CORE.loaded_platforms.add(f"{component_name}/{platform_name}")
 
     # Process platform's AUTO_LOAD
-    for load in platform.auto_load:
-        if load not in result:
-            result.add_validation_step(AutoLoadValidationStep(load))
+    _process_auto_load(result, platform, path)
 
     # Add validation steps for the platform
     p_domain = f"{component_name}.{platform_name}"
@@ -390,9 +413,7 @@ class LoadValidationStep(ConfigValidationStep):
                 result[self.domain] = self.conf = [self.conf]
 
         # Process AUTO_LOAD
-        for load in component.auto_load:
-            if load not in result:
-                result.add_validation_step(AutoLoadValidationStep(load))
+        _process_auto_load(result, component, path)
 
         result.add_validation_step(
             MetadataValidationStep([self.domain], self.domain, self.conf, component)
@@ -616,6 +637,34 @@ class MetadataValidationStep(ConfigValidationStep):
             SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
         )
         result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
+
+
+class AddDynamicAutoLoadsValidationStep(ConfigValidationStep):
+    """Add dynamic auto loads step.
+
+    This step is used to auto-load components where one component can alter its
+    AUTO_LOAD based on its configuration.
+    """
+
+    # Has to happen after normal schema is validated and before final schema validation
+    priority = -10.0
+
+    def __init__(self, path: ConfigPath, comp: ComponentManifest) -> None:
+        self.path = path
+        self.comp = comp
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+
+        conf = result.get_nested_item(self.path)
+        with result.catch_error(self.path):
+            auto_load = self.comp.auto_load
+            if not callable(auto_load):
+                return
+            loads = auto_load(conf)
+            _add_auto_load_steps(result, loads)
 
 
 class SchemaValidationStep(ConfigValidationStep):
