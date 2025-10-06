@@ -13,7 +13,7 @@ import voluptuous as vol
 
 import esphome.config_validation as cv
 from esphome.const import CONF_JINJA, VALID_SUBSTITUTIONS_CHARACTERS
-from esphome.yaml_util import ESPLiteralValue
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
 
 from .helpers import JinjaStr, has_jinja
 
@@ -226,13 +226,15 @@ class Jinja(jinja.Environment):
                     if new_k != k:
                         expr.pop(k)
                         k = new_k
-                    expr[k] = jinja_eval(v, ctx)
+                    expr[k] = v
                 return expr
             if isinstance(expr, list):
                 return [jinja_eval(v, ctx) for v in expr]
             if not isinstance(expr, str):
                 return expr
             result, _ = self.expand(JinjaStr(expr, ctx))
+            if isinstance(expr, ESPHomeDataBase):
+                result = make_data_base(result, expr)
             return result
 
         self.globals = {
