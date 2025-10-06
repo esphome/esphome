@@ -40,3 +40,4 @@ async def to_code(config):
     # Set broadcast address - convert MAC to parts array like ESP-NOW does
     mac = config[CONF_BROADCAST_ADDRESS]
     cg.add(var.set_broadcast_address([HexInt(x) for x in mac.parts]))
+	
