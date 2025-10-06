@@ -213,7 +213,7 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
                this->real_control_packet_size_);
         this->status_message_callback_.call((const char *) data, data_size);
       } else {
-        ESP_LOGW(TAG, "Status packet too small: %d (should be >= %d)", data_size, this->real_control_packet_size_);
+        ESP_LOGW(TAG, "Status packet too small: %zu (should be >= %zu)", data_size, this->real_control_packet_size_);
       }
       switch (this->protocol_phase_) {
         case ProtocolPhases::SENDING_FIRST_STATUS_REQUEST:
@@ -827,7 +827,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
   if (size < expected_size) {
-    ESP_LOGW(TAG, "Unexpected message size %d (expexted >= %d)", size, expected_size);
+    ESP_LOGW(TAG, "Unexpected message size %u (expexted >= %zu)", size, expected_size);
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   }
   uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
