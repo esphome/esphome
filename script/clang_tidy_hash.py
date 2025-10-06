@@ -158,11 +158,23 @@ def main() -> None:
 
     if args.check:
         # Check if hash changed OR if .clang-tidy.hash was updated in this PR
+        # This is used in CI to determine if a full clang-tidy scan is needed
         hash_changed = current_hash != stored_hash
         hash_file_updated = ".clang-tidy.hash" in changed_files()
 
         # Exit 0 if full scan needed
         sys.exit(0 if (hash_changed or hash_file_updated) else 1)
+
+    elif args.verify:
+        # Verify that hash file is up to date with current configuration
+        # This is used in pre-commit and CI checks to ensure hash was updated
+        if current_hash != stored_hash:
+            print("ERROR: Clang-tidy configuration has changed but hash not updated!")
+            print(f"Expected: {current_hash}")
+            print(f"Found: {stored_hash}")
+            print("\nPlease run: script/clang_tidy_hash.py --update")
+            sys.exit(1)
+        print("Hash verification passed")
 
     elif args.update:
         write_hash(current_hash)
@@ -177,15 +189,6 @@ def main() -> None:
         else:
             print("Clang-tidy hash unchanged")
             sys.exit(0)
-
-    elif args.verify:
-        if current_hash != stored_hash:
-            print("ERROR: Clang-tidy configuration has changed but hash not updated!")
-            print(f"Expected: {current_hash}")
-            print(f"Found: {stored_hash}")
-            print("\nPlease run: script/clang_tidy_hash.py --update")
-            sys.exit(1)
-        print("Hash verification passed")
 
     else:
         print(f"Current hash: {current_hash}")
