@@ -125,26 +125,26 @@ bool BLECharacteristic::is_created() {
   if (this->state_ != CREATING_DEPENDENTS)
     return false;
 
-  bool created = true;
   for (auto *descriptor : this->descriptors_) {
-    created &= descriptor->is_created();
+    if (!descriptor->is_created())
+      return false;
   }
-  if (created)
-    this->state_ = CREATED;
-  return this->state_ == CREATED;
+  // All descriptors are created if we reach here
+  this->state_ = CREATED;
+  return true;
 }
 
 bool BLECharacteristic::is_failed() {
   if (this->state_ == FAILED)
     return true;
 
-  bool failed = false;
   for (auto *descriptor : this->descriptors_) {
-    failed |= descriptor->is_failed();
+    if (descriptor->is_failed()) {
+      this->state_ = FAILED;
+      return true;
+    }
   }
-  if (failed)
-    this->state_ = FAILED;
-  return this->state_ == FAILED;
+  return false;
 }
 
 void BLECharacteristic::set_property_bit_(esp_gatt_char_prop_t bit, bool value) {
