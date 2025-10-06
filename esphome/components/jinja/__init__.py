@@ -314,22 +314,35 @@ class Jinja(jinja.Environment):
         Creates Jinja macros out of a simplified yaml syntax
         """
         for name, macro in macros.items():
-            parameters = ", ".join(
-                [
-                    f"{k}={json.dumps(v, cls=PythonLiteralEncoder)}"
-                    for k, v in macro["parameters"].items()
-                ]
-            )
+            # parameters contains a dict of parameter names to default values
+            parameters = macro["parameters"] or {}
             macro["upvalues"] = upvalues = {
                 **self.context_vars,
                 **macro.get("upvalues", {}),
             }
             body = macro["body"]
-            self.parse_template(
-                f"<% macro {name}({parameters}) %>\n{body}<% endmacro %>",
-                upvalues,
-                [name],
-            )
+            local_env = self
+            if len(upvalues) > 0:
+                local_env = self.overlay()
+                local_env.globals = ChainMap(upvalues, self.globals)
+            template = local_env.from_string(body)
+
+            def make_macro_func(template=template, parameters=parameters, name=name):
+                keys = tuple(parameters.keys())
+
+                def macro_func(*args, **kwargs):
+                    call_params = {**parameters}  # copy defaults
+                    for i, arg in enumerate(args):
+                        if i < len(keys):
+                            call_params[keys[i]] = arg
+                    for k, v in kwargs.items():
+                        if k in call_params:
+                            call_params[k] = v
+                    return template.render(call_params)
+
+                return macro_func
+
+            self.globals[name] = make_macro_func()
 
     def expand(self, content_str: str | JinjaStr) -> Any:
         """
