@@ -350,10 +350,10 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   bool valid_daikin_frame = false;
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     valid_daikin_frame = true;
-    int bytes_count = data.size() / 2 / 8;
+    size_t bytes_count = data.size() / 2 / 8;
     std::unique_ptr<char[]> buf(new char[bytes_count * 3 + 1]);
     buf[0] = '\0';
-    for (size_t i = 0; i < static_cast<size_t>(bytes_count); i++) {
+    for (size_t i = 0; i < bytes_count; i++) {
       uint8_t byte = 0;
       for (int8_t bit = 0; bit < 8; bit++) {
         if (data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE)) {
@@ -407,7 +407,7 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
       } else {
         sprintf(sbuf, "%s%-5d[%c] ", sbuf, (int) (round(data[j] / 10.) * 10), type_ch);
       }
-      if (j == static_cast<size_t>(data.size()) - 1) {
+      if (j + 1 == static_cast<size_t>(data.size())) {
         ESP_LOGD(TAG, "DATA %04x: %s", (j - 8 > 0xffff ? 0 : j - 8), sbuf);
       }
     }
