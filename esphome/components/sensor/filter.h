@@ -364,25 +364,11 @@ class HeartbeatFilter : public Filter, public Component {
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
-  void set_exact(float v) { this->exact_value_ = v; }
-  void clear_exact() { this->exact_value_.reset(); }
-
-  void set_min_value(float v) { this->min_value_ = v; }
-  void set_max_value(float v) { this->max_value_ = v; }
-  void clear_min_value() { this->min_value_.reset(); }
-  void clear_max_value() { this->max_value_.reset(); }
-
  protected:
   uint32_t time_period_;
   float last_input_;
   bool has_value_{false};
   bool optimistic_{false};
-
-  optional<float> min_value_;
-  optional<float> max_value_;
-  optional<float> exact_value_;
-
-  bool passes_periodic_conditions_(float v) const;
 };
 
 class DeltaFilter : public Filter {
