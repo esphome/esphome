@@ -76,7 +76,7 @@ void MatrixKeypad::loop() {
     active_start = now;
   }
 
-  if ((this->pressed_key_ == key) || (now - active_start < this->debounce_time_))
+  if ((this->pressed_key_ == key) || (now - active_start < static_cast<uint32_t>(this->debounce_time_)))
     return;
 
   row = key / this->columns_.size();
