@@ -1,7 +1,8 @@
 #pragma once
+#include <array>
 #include <cstdint>
-#include <deque>
 #include <limits>
+#include <memory>
 #include <span>
 #include <utility>
 #include <vector>
@@ -79,7 +80,7 @@ class APIFrameHelper {
   virtual APIError init() = 0;
   virtual APIError loop();
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
-  bool can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
+  bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
   std::string getpeername() { return socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
@@ -161,7 +162,7 @@ class APIFrameHelper {
   };
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
-  std::deque<SendBuffer> tx_buf_;
+  std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
   std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
@@ -174,7 +175,10 @@ class APIFrameHelper {
   State state_{State::INITIALIZE};
   uint8_t frame_header_padding_{0};
   uint8_t frame_footer_size_{0};
-  // 5 bytes total, 3 bytes padding
+  uint8_t tx_buf_head_{0};
+  uint8_t tx_buf_tail_{0};
+  uint8_t tx_buf_count_{0};
+  // 8 bytes total, 0 bytes padding
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();

@@ -41,17 +41,20 @@ static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
+  ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
+  this->mark_failed();
+}
+
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
+    this->log_error_and_mark_failed_(err, message); \
     return; \
   }
 
 #define ESPHL_ERROR_CHECK_RET(err, message, ret) \
   if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
+    this->log_error_and_mark_failed_(err, message); \
     return ret; \
   }
 
