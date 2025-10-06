@@ -153,7 +153,7 @@ class UARTComponent {
   std::string get_debug_prefix() const { return this->debug_prefix_; }
 
   // return settings string or empty if not desired
-  std::string get_debug_settings_string() {
+  void set_debug_settings_string() {
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
@@ -168,7 +168,7 @@ class UARTComponent {
         res += "odd|";
         break;
     }
-    return res;
+    this->settings_string_ = res;
   }
 #endif
 
@@ -200,7 +200,7 @@ class UARTComponent {
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
-  void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string, std::string)> &&callback) {
+  void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string, bool)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
 #endif
@@ -220,8 +220,9 @@ class UARTComponent {
   uint8_t data_bits_;
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
-  CallbackManager<void(UARTDirection, uint8_t, std::string, std::string)> debug_callback_{};
+  CallbackManager<void(UARTDirection, uint8_t, std::string, bool)> debug_callback_{};
   std::string debug_prefix_{""};
+  std::string settings_string_{""};
 #endif
 };
 
