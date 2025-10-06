@@ -14,6 +14,7 @@
 
 #ifdef USE_ARDUINO
 #include <Esp.h>
+#include <esp32-hal.h>
 #else
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_clk_tree.h>
