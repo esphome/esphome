@@ -35,11 +35,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   bool is_running();
 
   void set_manufacturer_data(const std::vector<uint8_t> &data) {
-    this->manufacturer_data_length_ = data.size();
-    this->manufacturer_data_.reset(data.empty() ? nullptr : new uint8_t[data.size()]);
-    if (!data.empty()) {
-      memcpy(this->manufacturer_data_.get(), data.data(), data.size());
-    }
+    this->manufacturer_data_ = data;
     this->restart_advertising_();
   }
 
@@ -91,27 +87,24 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   void remove_client_(uint16_t conn_id);
   void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
 
-  // 4-byte aligned (pointers and vectors on 32-bit)
   std::vector<CallbackEntry> callbacks_;
+
+  std::vector<uint8_t> manufacturer_data_{};
+  esp_gatt_if_t gatts_if_{0};
+  bool registered_{false};
+
+  uint16_t clients_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
+  uint8_t client_count_{0};
   std::vector<ServiceEntry> services_{};
   std::vector<BLEService *> services_to_start_{};
-  std::unique_ptr<uint8_t[]> manufacturer_data_{};
   BLEService *device_information_service_{};
 
-  // 2-byte aligned
-  uint16_t clients_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
-
-  // 1-byte aligned
-  uint8_t manufacturer_data_length_{0};
-  uint8_t client_count_{0};
-  esp_gatt_if_t gatts_if_{0};
   enum State : uint8_t {
     INIT = 0x00,
     REGISTERING,
     STARTING_SERVICE,
     RUNNING,
   } state_{INIT};
-  bool registered_{false};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
