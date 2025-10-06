@@ -127,6 +127,11 @@ void ZWaveProxy::dump_config() {
                 format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
 }
 
+void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
+  // If a client just authenticated, send the current home ID
+  this->send_homeid_changed_msg_(conn);
+}
+
 void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
   switch (type) {
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
@@ -136,7 +141,6 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       }
       this->api_connection_ = api_connection;
       ESP_LOGV(TAG, "API connection is now subscribed");
-      this->send_homeid_changed_msg_();  // Send current home ID to new subscription
       break;
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       if (this->api_connection_ != api_connection) {
@@ -171,12 +175,15 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
   this->write_array(data, length);
 }
 
-void ZWaveProxy::send_homeid_changed_msg_() {
+void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
   api::ZWaveProxyRequest msg;
   msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
   msg.data = this->home_id_.data();
   msg.data_len = this->home_id_.size();
-  if (api::global_api_server != nullptr) {
+  if (conn != nullptr) {
+    // Send to specific connection
+    conn->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+  } else if (api::global_api_server != nullptr) {
     // We could add code to manage a second subscription type, but, since this message is
     //  very infrequent and small, we simply send it to all clients
     api::global_api_server->on_zwave_proxy_request(msg);
