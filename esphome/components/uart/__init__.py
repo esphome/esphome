@@ -1,5 +1,6 @@
 import math
 import re
+import string
 
 from esphome import automation, pins
 import esphome.codegen as cg
