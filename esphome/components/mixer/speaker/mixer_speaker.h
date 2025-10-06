@@ -7,6 +7,7 @@
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
