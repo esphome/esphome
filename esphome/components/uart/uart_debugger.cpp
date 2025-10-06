@@ -59,13 +59,13 @@ void UARTDebugger::trigger_after_delimiter_(uint8_t byte, std::string settings_s
   }
 }
 
-void UARTDebugger::trigger_after_bytes_(, std::string settings_string) {
+void UARTDebugger::trigger_after_bytes_(std::string settings_string) {
   if (this->has_buffered_bytes_() && this->after_bytes_ > 0 && this->bytes_.size() >= this->after_bytes_) {
     this->fire_trigger_(settings_string);
   }
 }
 
-void UARTDebugger::trigger_after_timeout_(, std::string settings_string) {
+void UARTDebugger::trigger_after_timeout_(std::string settings_string) {
   if (this->has_buffered_bytes_() && this->after_timeout_ > 0 && millis() - this->last_time_ >= this->after_timeout_) {
     this->fire_trigger_(settings_string);
   }
