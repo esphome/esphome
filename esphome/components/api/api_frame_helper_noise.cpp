@@ -134,6 +134,9 @@ APIError APINoiseFrameHelper::loop() {
 
 /** Read a packet into the rx_buf_.
  *
+ * On success, rx_buf_ contains the frame data and state variables are cleared for the next read.
+ * Caller is responsible for consuming rx_buf_ (e.g., via std::move).
+ *
  * @return APIError::OK if a full packet is in rx_buf_
  *
  * errno EWOULDBLOCK: Packet could not be read without blocking. Try again later.
@@ -142,6 +145,11 @@ APIError APINoiseFrameHelper::loop() {
  * errno API_ERROR_HANDSHAKE_PACKET_LEN: Packet too big for this phase.
  */
 APIError APINoiseFrameHelper::try_read_frame_() {
+  // Clear buffer when starting a new frame (rx_buf_len_ == 0 means not resuming after WOULD_BLOCK)
+  if (this->rx_buf_len_ == 0) {
+    this->rx_buf_.clear();
+  }
+
   // read header
   if (rx_header_buf_len_ < 3) {
     // no header information yet
@@ -240,7 +248,6 @@ APIError APINoiseFrameHelper::state_action_() {
     this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
     this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
     std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
-    this->rx_buf_.clear();
 
     state_ = State::SERVER_HELLO;
   }
@@ -307,7 +314,6 @@ APIError APINoiseFrameHelper::state_action_() {
         return handle_noise_error_(err, LOG_STR("noise_handshakestate_read_message"),
                                    APIError::HANDSHAKESTATE_READ_FAILED);
       }
-      this->rx_buf_.clear();
 
       aerr = check_handshake_finished_();
       if (aerr != APIError::OK)
@@ -419,7 +425,6 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->data_offset = 4;
   buffer->data_len = data_len;
   buffer->type = type;
-  this->rx_buf_.clear();
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {

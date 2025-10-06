@@ -49,11 +49,19 @@ APIError APIPlaintextFrameHelper::loop() {
 
 /** Read a packet into the rx_buf_.
  *
+ * On success, rx_buf_ contains the frame data and state variables are cleared for the next read.
+ * Caller is responsible for consuming rx_buf_ (e.g., via std::move).
+ *
  * @return See APIError
  *
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  */
 APIError APIPlaintextFrameHelper::try_read_frame_() {
+  // Clear buffer when starting a new frame (rx_buf_len_ == 0 means not resuming after WOULD_BLOCK)
+  if (this->rx_buf_len_ == 0) {
+    this->rx_buf_.clear();
+  }
+
   // read header
   while (!rx_header_parsed_) {
     // Now that we know when the socket is ready, we can read up to 3 bytes
@@ -214,7 +222,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->data_offset = 0;
   buffer->data_len = this->rx_header_parsed_len_;
   buffer->type = this->rx_header_parsed_type_;
-  this->rx_buf_.clear();
   return APIError::OK;
 }
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
