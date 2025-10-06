@@ -59,14 +59,14 @@ def resolve_auto_load(
     Returns:
         List of component names to auto-load
     """
-    if callable(auto_load):
-        import inspect
+    if not callable(auto_load):
+        return auto_load
 
-        if inspect.signature(auto_load).parameters:
-            auto_load = auto_load(config)
-        else:
-            auto_load = auto_load()
-    return auto_load
+    import inspect
+
+    if inspect.signature(auto_load).parameters:
+        return auto_load(config)
+    return auto_load()
 
 
 def create_components_graph():
