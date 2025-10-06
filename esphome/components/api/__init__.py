@@ -356,6 +356,7 @@ async def homeassistant_service_to_code(
         cg.add(var.set_response_template(templ))
 
     if on_response := config.get(CONF_ON_RESPONSE):
+        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
         trigger = cg.new_Pvariable(
             on_response[CONF_TRIGGER_ID],
             template_arg,
