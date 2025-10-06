@@ -147,13 +147,12 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+#ifdef USE_UART_DEBUGGER
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
-
   std::string get_debug_prefix() const { return this->debug_prefix_; }
-
   void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
-
   bool get_debug_add_settings() const { return this->debug_add_settings_; }
+#endif
 
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
