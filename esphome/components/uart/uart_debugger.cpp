@@ -121,7 +121,7 @@ void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uin
   delay(10);
 }
 
-void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) {
+void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes, std::string debug_prefix, bool debug_add_settings) {
   std::string res;
   if (direction == UART_DIRECTION_RX) {
     res += "<<< \"";
@@ -161,11 +161,17 @@ void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) 
     }
   }
   res += '"';
-  ESP_LOGD(TAG, "%s", res.c_str());
+  if(!debug_prefix.empty() && debug_add_settings) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else if (!debug_prefix.empty()) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else {
+    ESP_LOGD(TAG, "%s", res.c_str());
+  }
   delay(10);
 }
 
-void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
+void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, std::string debug_prefix, bool debug_add_settings) {
   std::string res;
   size_t len = bytes.size();
   if (direction == UART_DIRECTION_RX) {
@@ -179,11 +185,17 @@ void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uin
     }
     res += to_string(bytes[i]);
   }
-  ESP_LOGD(TAG, "%s", res.c_str());
+  if(!debug_prefix.empty() && debug_add_settings) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else if (!debug_prefix.empty()) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else {
+    ESP_LOGD(TAG, "%s", res.c_str());
+  }
   delay(10);
 }
 
-void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
+void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, std::string debug_prefix, bool debug_add_settings) {
   std::string res;
   size_t len = bytes.size();
   if (direction == UART_DIRECTION_RX) {
@@ -199,7 +211,13 @@ void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, 
     sprintf(buf, "0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(bytes[i]), bytes[i]);
     res += buf;
   }
-  ESP_LOGD(TAG, "%s", res.c_str());
+  if(!debug_prefix.empty() && debug_add_settings) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else if (!debug_prefix.empty()) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else {
+    ESP_LOGD(TAG, "%s", res.c_str());
+  }
   delay(10);
 }
 
