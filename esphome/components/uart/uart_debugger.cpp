@@ -95,7 +95,7 @@ void UARTDummyReceiver::loop() {
 // TCP connection(s). Without these delays, debug log lines could go
 // missing when UART devices block the main loop for too long.
 
-void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
+void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, std::string debug_prefix, bool debug_add_settings) {
   std::string res;
   if (direction == UART_DIRECTION_RX) {
     res += "<<< ";
@@ -111,7 +111,13 @@ void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uin
     sprintf(buf, "%02X", bytes[i]);
     res += buf;
   }
-  ESP_LOGD(TAG, "%s", res.c_str());
+  if(!debug_prefix.empty() && debug_add_settings) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else if (!debug_prefix.empty()) {
+    ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
+  } else {
+    ESP_LOGD(TAG, "%s", res.c_str());
+  }
   delay(10);
 }
 
