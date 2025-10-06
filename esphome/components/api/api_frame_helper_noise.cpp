@@ -190,9 +190,9 @@ APIError APINoiseFrameHelper::try_read_frame_() {
     return APIError::BAD_DATA_PACKET;
   }
 
-  // reserve space for body
-  if (rx_buf_.size() != msg_size) {
-    rx_buf_.resize(msg_size);
+  // Reserve space for body
+  if (this->rx_buf_.size() != msg_size) {
+    this->rx_buf_.resize(msg_size);
   }
 
   if (rx_buf_len_ < msg_size) {
