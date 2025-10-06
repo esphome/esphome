@@ -101,15 +101,7 @@ void ZWaveProxy::process_uart_() {
         // Store the 4-byte Home ID, which starts at offset 4, and notify connected clients if it changed
         // The frame parser has already validated the checksum and ensured all bytes are present
         if (this->set_home_id(&this->buffer_[4])) {
-          api::ZWaveProxyRequest msg;
-          msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
-          msg.data = this->home_id_.data();
-          msg.data_len = this->home_id_.size();
-          if (api::global_api_server != nullptr) {
-            // We could add code to manage a second subscription type, but, since this message is
-            //  very infrequent and small, we simply send it to all clients
-            api::global_api_server->on_zwave_proxy_request(msg);
-          }
+          this->send_homeid_changed_msg_();
         }
       }
       ESP_LOGV(TAG, "Sending to client: %s", YESNO(this->api_connection_ != nullptr));
@@ -133,6 +125,13 @@ void ZWaveProxy::dump_config() {
                 "Z-Wave Proxy:\n"
                 "  Home ID: %s",
                 format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+}
+
+void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
+  if (this->home_id_ready_) {
+    // If a client just authenticated & HomeID is ready, send the current HomeID
+    this->send_homeid_changed_msg_(conn);
+  }
 }
 
 void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
@@ -176,6 +175,21 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
   }
   ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
   this->write_array(data, length);
+}
+
+void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
+  api::ZWaveProxyRequest msg;
+  msg.type = api::enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
+  msg.data = this->home_id_.data();
+  msg.data_len = this->home_id_.size();
+  if (conn != nullptr) {
+    // Send to specific connection
+    conn->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+  } else if (api::global_api_server != nullptr) {
+    // We could add code to manage a second subscription type, but, since this message is
+    //  very infrequent and small, we simply send it to all clients
+    api::global_api_server->on_zwave_proxy_request(msg);
+  }
 }
 
 void ZWaveProxy::send_simple_command_(const uint8_t command_id) {
