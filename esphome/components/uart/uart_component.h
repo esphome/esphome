@@ -207,7 +207,7 @@ class UARTComponent {
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string, bool)> debug_callback_{};
   std::string debug_prefix_{""};
-  bool debug_add_setting_{false};
+  bool debug_add_settings_{false};
 #endif
 };
 
