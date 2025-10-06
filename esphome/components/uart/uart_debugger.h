@@ -41,6 +41,11 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// When the constructed byte sequence is found in the data stream,
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
+  
+  // add user defined prefix
+  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
+  // shall uart channel settings be added to string ?
+  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
 
  protected:
   UARTDirection for_direction_;
