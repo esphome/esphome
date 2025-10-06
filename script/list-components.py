@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 import sys
 
@@ -43,6 +44,29 @@ def add_item_to_components_graph(components_graph, parent, child):
             components_graph[parent] = []
         if child not in components_graph[parent]:
             components_graph[parent].append(child)
+
+
+def resolve_auto_load(
+    auto_load: list[str] | Callable[[], list[str]] | Callable[[dict | None], list[str]],
+    config: dict | None = None,
+) -> list[str]:
+    """Resolve AUTO_LOAD to a list, handling callables with or without config parameter.
+
+    Args:
+        auto_load: The AUTO_LOAD value (list or callable)
+        config: Optional config to pass to callable AUTO_LOAD functions
+
+    Returns:
+        List of component names to auto-load
+    """
+    if callable(auto_load):
+        import inspect
+
+        if inspect.signature(auto_load).parameters:
+            auto_load = auto_load(config)
+        else:
+            auto_load = auto_load()
+    return auto_load
 
 
 def create_components_graph():
@@ -92,15 +116,7 @@ def create_components_graph():
 
         for target_config in TARGET_CONFIGURATIONS:
             CORE.data[KEY_CORE] = target_config
-            auto_load = comp.auto_load
-            if callable(auto_load):
-                import inspect
-
-                if inspect.signature(auto_load).parameters:
-                    auto_load = auto_load(None)
-                else:
-                    auto_load = auto_load()
-            for item in auto_load:
+            for item in resolve_auto_load(comp.auto_load, config=None):
                 add_item_to_components_graph(components_graph, item, name)
         # restore config
         CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
@@ -122,16 +138,8 @@ def create_components_graph():
 
             for target_config in TARGET_CONFIGURATIONS:
                 CORE.data[KEY_CORE] = target_config
-                auto_load = platform.auto_load
-                if callable(auto_load):
-                    import inspect
-
-                    if inspect.signature(auto_load).parameters:
-                        auto_load = auto_load({})
-                    else:
-                        auto_load = auto_load()
-                    for item in auto_load:
-                        add_item_to_components_graph(components_graph, item, name)
+                for item in resolve_auto_load(platform.auto_load, config={}):
+                    add_item_to_components_graph(components_graph, item, name)
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
