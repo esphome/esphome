@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32
 
 #include <freertos/FreeRTOS.h>
