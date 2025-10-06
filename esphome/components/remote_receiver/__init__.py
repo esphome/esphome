@@ -105,13 +105,6 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
         {
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
-            cv.SplitDefault(CONF_CARRIER_DUTY_PERCENT, esp32=100): cv.All(
-                cv.percentage_int,
-                cv.Range(min=1, max=100),
-            ),
-            cv.SplitDefault(CONF_CARRIER_FREQUENCY, esp32="0Hz"): cv.All(
-                cv.frequency, cv.int_
-            ),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
             cv.SplitDefault(
@@ -157,6 +150,14 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                     supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
                 ),
                 cv.boolean,
+            ),
+            cv.SplitDefault(CONF_CARRIER_DUTY_PERCENT, esp32=100): cv.All(
+                cv.only_on_esp32,
+                cv.percentage_int,
+                cv.Range(min=1, max=100),
+            ),
+            cv.SplitDefault(CONF_CARRIER_FREQUENCY, esp32="0Hz"): cv.All(
+                cv.only_on_esp32, cv.frequency, cv.int_
             ),
         }
     )
