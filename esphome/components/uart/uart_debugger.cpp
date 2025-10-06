@@ -12,9 +12,10 @@ namespace uart {
 static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
+  this->settings_string_ = parent->get_settings_string();
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix, std::string settings_string) {
     if (this->debug_add_settings_)
-      settings_string = this->get_debug_settings_string();
+      settings_string = this->settings_string_;
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
