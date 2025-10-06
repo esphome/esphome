@@ -155,6 +155,25 @@ class UARTComponent {
   // get&set bool if settings shall be logged
   void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
   bool get_debug_add_settings() const { return this->debug_add_settings_; }
+
+  // return settings string or empty if not desired
+  std::string get_debug_settings_string() {
+    std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
+    res += std::to_string(this->get_data_bits()) + ":";
+    res += std::to_string(this->get_stop_bits()) + ":";
+    switch(this->get_parity()) {
+      case 0:
+        res += "none|";
+        break;
+      case 1:
+        res += "even|";
+        break;
+      case 2:
+        res += "odd|";
+        break;
+    }
+    return res;
+  }
 #endif
 
 #if defined(USE_ESP8266) || defined(USE_ESP32)
