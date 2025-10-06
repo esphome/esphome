@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -149,11 +149,15 @@ def test_main_check_mode(
     """Test main function in check mode."""
     changed = [".clang-tidy.hash"] if hash_file_in_changed else []
 
+    # Create a mock module that can be imported
+    mock_helpers = Mock()
+    mock_helpers.changed_files = Mock(return_value=changed)
+
     with (
         patch("sys.argv", ["clang_tidy_hash.py"] + args),
         patch("clang_tidy_hash.calculate_clang_tidy_hash", return_value=current_hash),
         patch("clang_tidy_hash.read_stored_hash", return_value=stored_hash),
-        patch("clang_tidy_hash.changed_files", return_value=changed),
+        patch.dict("sys.modules", {"helpers": mock_helpers}),
         pytest.raises(SystemExit) as exc_info,
     ):
         clang_tidy_hash.main()
