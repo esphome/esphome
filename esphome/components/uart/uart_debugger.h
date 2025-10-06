@@ -55,10 +55,10 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
         parity = "none";
         break;
       case 1:
-        parity = "odd";
+        parity = "even";
         break;
       case 2:
-        parity = "even";
+        parity = "odd";
         break;
     }
     std::string ret = "|" & std::to_string(parent->get_baud_rate());
