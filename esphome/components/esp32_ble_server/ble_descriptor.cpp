@@ -74,9 +74,10 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
         break;
       this->value_.attr_len = param->write.len;
       memcpy(this->value_.attr_value, param->write.value, param->write.len);
-      this->emit_(BLEDescriptorEvt::VectorEvt::ON_WRITE,
-                  std::vector<uint8_t>(param->write.value, param->write.value + param->write.len),
-                  param->write.conn_id);
+      if (this->on_write_callback_) {
+        (*this->on_write_callback_)(std::span<const uint8_t>(param->write.value, param->write.len),
+                                    param->write.conn_id);
+      }
       break;
     }
     default:

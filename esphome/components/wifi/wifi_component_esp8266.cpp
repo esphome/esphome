@@ -301,7 +301,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       // if we have certs, this must be EAP-TLS
       ret = wifi_station_set_enterprise_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                  (uint8_t *) eap.client_key, client_key_len + 1,
-                                                 (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                 (uint8_t *) eap.password.c_str(), eap.password.length());
       if (ret) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed: %d", ret);
       }

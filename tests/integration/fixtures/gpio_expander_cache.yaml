@@ -12,6 +12,10 @@ external_components:
   - source:
       type: local
       path: EXTERNAL_COMPONENT_PATH
-    components: [gpio_expander_test_component]
+    components: [gpio_expander_test_component, gpio_expander_test_component_uint16]
 
+# Test with uint8_t (multiple banks)
 gpio_expander_test_component:
+
+# Test with uint16_t (single bank)
+gpio_expander_test_component_uint16:

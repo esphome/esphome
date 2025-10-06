@@ -31,7 +31,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 
 IS_PLATFORM_COMPONENT = True
@@ -398,6 +398,6 @@ async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(fan_ns.using)

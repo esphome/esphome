@@ -155,7 +155,7 @@ void MCP2515::prepare_id_(uint8_t *buffer, const bool extended, const uint32_t i
     canid = (uint16_t) (id >> 16);
     buffer[MCP_SIDL] = (uint8_t) (canid & 0x03);
     buffer[MCP_SIDL] += (uint8_t) ((canid & 0x1C) << 3);
-    buffer[MCP_SIDL] |= TXB_EXIDE_MASK;
+    buffer[MCP_SIDL] |= SIDL_EXIDE_MASK;
     buffer[MCP_SIDH] = (uint8_t) (canid >> 5);
   } else {
     buffer[MCP_SIDH] = (uint8_t) (canid >> 3);
@@ -258,7 +258,7 @@ canbus::Error MCP2515::send_message(struct canbus::CanFrame *frame) {
     }
   }
 
-  return canbus::ERROR_FAILTX;
+  return canbus::ERROR_ALLTXBUSY;
 }
 
 canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) {
@@ -272,7 +272,7 @@ canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) 
   bool use_extended_id = false;
   bool remote_transmission_request = false;
 
-  if ((tbufdata[MCP_SIDL] & TXB_EXIDE_MASK) == TXB_EXIDE_MASK) {
+  if ((tbufdata[MCP_SIDL] & SIDL_EXIDE_MASK) == SIDL_EXIDE_MASK) {
     id = (id << 2) + (tbufdata[MCP_SIDL] & 0x03);
     id = (id << 8) + tbufdata[MCP_EID8];
     id = (id << 8) + tbufdata[MCP_EID0];
@@ -314,6 +314,17 @@ canbus::Error MCP2515::read_message(struct canbus::CanFrame *frame) {
   } else {
     rc = canbus::ERROR_NOMSG;
   }
+
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  uint8_t err = get_error_flags_();
+  // The receive flowchart in the datasheet says that if rollover is set (BUKT), RX1OVR flag will be set
+  // once both buffers are full. However, the RX0OVR flag is actually set instead.
+  // We can just check for both though because it doesn't break anything.
+  if (err & (EFLG_RX0OVR | EFLG_RX1OVR)) {
+    ESP_LOGD(TAG, "receive buffer overrun");
+    clear_rx_n_ovr_flags_();
+  }
+#endif
 
   return rc;
 }

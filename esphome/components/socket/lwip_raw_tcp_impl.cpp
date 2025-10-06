@@ -9,7 +9,7 @@
 #include "lwip/tcp.h"
 #include <cerrno>
 #include <cstring>
-#include <queue>
+#include <array>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -50,12 +50,18 @@ class LWIPRawImpl : public Socket {
       errno = EBADF;
       return nullptr;
     }
-    if (accepted_sockets_.empty()) {
+    if (this->accepted_socket_count_ == 0) {
       errno = EWOULDBLOCK;
       return nullptr;
     }
-    std::unique_ptr<LWIPRawImpl> sock = std::move(accepted_sockets_.front());
-    accepted_sockets_.pop();
+    // Take from front for FIFO ordering
+    std::unique_ptr<LWIPRawImpl> sock = std::move(this->accepted_sockets_[0]);
+    // Shift remaining sockets forward
+    for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
+      this->accepted_sockets_[i - 1] = std::move(this->accepted_sockets_[i]);
+    }
+    this->accepted_socket_count_--;
+    LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
     if (addr != nullptr) {
       sock->getpeername(addr, addrlen);
     }
@@ -494,9 +500,18 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
+    // Check if we've reached the maximum accept queue size
+    if (this->accepted_socket_count_ >= MAX_ACCEPTED_SOCKETS) {
+      LWIP_LOG("Rejecting connection, queue full (%d)", this->accepted_socket_count_);
+      // Abort the connection when queue is full
+      tcp_abort(newpcb);
+      // Must return ERR_ABRT since we called tcp_abort()
+      return ERR_ABRT;
+    }
     auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
     sock->init();
-    accepted_sockets_.push(std::move(sock));
+    this->accepted_sockets_[this->accepted_socket_count_++] = std::move(sock);
+    LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
     return ERR_OK;
   }
   void err_fn(err_t err) {
@@ -587,7 +602,20 @@ class LWIPRawImpl : public Socket {
   }
 
   struct tcp_pcb *pcb_;
-  std::queue<std::unique_ptr<LWIPRawImpl>> accepted_sockets_;
+  // Accept queue - holds incoming connections briefly until the event loop calls accept()
+  // This is NOT a connection pool - just a temporary queue between LWIP callbacks and the main loop
+  // 3 slots is plenty since connections are pulled out quickly by the event loop
+  //
+  // Memory analysis: std::array<3> vs original std::queue implementation:
+  // - std::queue uses std::deque internally which on 32-bit systems needs:
+  //   24 bytes (deque object) + 32+ bytes (map array) + heap allocations
+  //   Total: ~56+ bytes minimum, plus heap fragmentation
+  // - std::array<3>: 12 bytes fixed (3 pointers × 4 bytes)
+  // Saves ~44+ bytes RAM per listening socket + avoids ALL heap allocations
+  // Used on ESP8266 and RP2040 (platforms using LWIP_TCP implementation)
+  static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
+  std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
+  uint8_t accepted_socket_count_ = 0;  // Number of sockets currently in queue
   bool rx_closed_ = false;
   pbuf *rx_buf_ = nullptr;
   size_t rx_buf_offset_ = 0;
