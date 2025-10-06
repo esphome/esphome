@@ -153,7 +153,7 @@ class UARTComponent {
 
   void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
 
-  std::string get_debug_add_settings() const { return this->debug_add_settings_; }
+  bool get_debug_add_settings() const { return this->debug_add_settings_; }
 
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
