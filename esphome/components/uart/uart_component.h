@@ -185,7 +185,7 @@ class UARTComponent {
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
-  void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string, bool)> &&callback) {
+  void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
 #endif
@@ -205,7 +205,7 @@ class UARTComponent {
   uint8_t data_bits_;
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
-  CallbackManager<void(UARTDirection, uint8_t, std::string, bool)> debug_callback_{};
+  CallbackManager<void(UARTDirection, uint8_t, std::string)> debug_callback_{};
   std::string debug_prefix_{""};
   bool debug_add_settings_{false};
 #endif
