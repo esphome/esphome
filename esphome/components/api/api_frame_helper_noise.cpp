@@ -182,9 +182,9 @@ APIError APINoiseFrameHelper::try_read_frame_() {
     return APIError::BAD_DATA_PACKET;
   }
 
-  // reserve space for body
-  if (rx_buf_.size() != msg_size) {
-    rx_buf_.resize(msg_size);
+  // Reserve space for body
+  if (this->rx_buf_.size() != msg_size) {
+    this->rx_buf_.resize(msg_size);
   }
 
   if (rx_buf_len_ < msg_size) {
@@ -240,7 +240,6 @@ APIError APINoiseFrameHelper::state_action_() {
     this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
     this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
     std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
-    this->rx_buf_.clear();
 
     state_ = State::SERVER_HELLO;
   }
@@ -307,7 +306,6 @@ APIError APINoiseFrameHelper::state_action_() {
         return handle_noise_error_(err, LOG_STR("noise_handshakestate_read_message"),
                                    APIError::HANDSHAKESTATE_READ_FAILED);
       }
-      this->rx_buf_.clear();
 
       aerr = check_handshake_finished_();
       if (aerr != APIError::OK)
@@ -419,7 +417,6 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->data_offset = 4;
   buffer->data_len = data_len;
   buffer->type = type;
-  this->rx_buf_.clear();
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {

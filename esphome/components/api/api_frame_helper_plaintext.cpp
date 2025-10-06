@@ -142,9 +142,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
   }
   // header reading done
 
-  // reserve space for body
-  if (rx_buf_.size() != rx_header_parsed_len_) {
-    rx_buf_.resize(rx_header_parsed_len_);
+  // Reserve space for body
+  if (this->rx_buf_.size() != this->rx_header_parsed_len_) {
+    this->rx_buf_.resize(this->rx_header_parsed_len_);
   }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
@@ -214,7 +214,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->data_offset = 0;
   buffer->data_len = this->rx_header_parsed_len_;
   buffer->type = this->rx_header_parsed_type_;
-  this->rx_buf_.clear();
   return APIError::OK;
 }
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
