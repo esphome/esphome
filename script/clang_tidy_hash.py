@@ -13,6 +13,8 @@ import sys
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 
+from helpers import changed_files  # noqa: E402
+
 
 def read_file_lines(path: Path) -> list[str]:
     """Read lines from a file."""
@@ -155,8 +157,12 @@ def main() -> None:
     stored_hash = read_stored_hash()
 
     if args.check:
-        # Exit 0 if full scan needed (hash changed or no hash file)
-        sys.exit(0 if current_hash != stored_hash else 1)
+        # Check if hash changed OR if .clang-tidy.hash was updated in this PR
+        hash_changed = current_hash != stored_hash
+        hash_file_updated = ".clang-tidy.hash" in changed_files()
+
+        # Exit 0 if full scan needed
+        sys.exit(0 if (hash_changed or hash_file_updated) else 1)
 
     elif args.update:
         write_hash(current_hash)

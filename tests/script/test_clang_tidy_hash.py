@@ -125,21 +125,35 @@ def test_write_hash(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("args", "current_hash", "stored_hash", "expected_exit"),
+    ("args", "current_hash", "stored_hash", "hash_file_in_changed", "expected_exit"),
     [
-        (["--check"], "abc123", "abc123", 1),  # Hashes match, no scan needed
-        (["--check"], "abc123", "def456", 0),  # Hashes differ, scan needed
-        (["--check"], "abc123", None, 0),  # No stored hash, scan needed
+        (["--check"], "abc123", "abc123", False, 1),  # Hashes match, no scan needed
+        (["--check"], "abc123", "def456", False, 0),  # Hashes differ, scan needed
+        (["--check"], "abc123", None, False, 0),  # No stored hash, scan needed
+        (
+            ["--check"],
+            "abc123",
+            "abc123",
+            True,
+            0,
+        ),  # Hash file updated in PR, scan needed
     ],
 )
 def test_main_check_mode(
-    args: list[str], current_hash: str, stored_hash: str | None, expected_exit: int
+    args: list[str],
+    current_hash: str,
+    stored_hash: str | None,
+    hash_file_in_changed: bool,
+    expected_exit: int,
 ) -> None:
     """Test main function in check mode."""
+    changed = [".clang-tidy.hash"] if hash_file_in_changed else []
+
     with (
         patch("sys.argv", ["clang_tidy_hash.py"] + args),
         patch("clang_tidy_hash.calculate_clang_tidy_hash", return_value=current_hash),
         patch("clang_tidy_hash.read_stored_hash", return_value=stored_hash),
+        patch("clang_tidy_hash.changed_files", return_value=changed),
         pytest.raises(SystemExit) as exc_info,
     ):
         clang_tidy_hash.main()
