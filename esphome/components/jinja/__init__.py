@@ -43,6 +43,7 @@ SAFE_GLOBALS = {
     "ord": ord,
     "chr": chr,
     "len": len,
+    "map": map,
 }
 
 
