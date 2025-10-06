@@ -154,11 +154,10 @@ class UARTComponent {
 
   // get&set bool if settings shall be logged
   void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
-  bool get_debug_add_settings() const { return this->debug_add_settings_; }
 
   // return settings string or empty if not desired
   std::string get_debug_settings_string() {
-    if(!this->get_debug_add_settings())
+    if(!this->debug_add_settings_)
       return "";
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
