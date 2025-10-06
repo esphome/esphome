@@ -8,9 +8,9 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
-#include <utility>
 #include <functional>
 #include <limits>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -1550,9 +1550,10 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
 }
 #endif
 
-#ifdef USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
-  this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data);
+  this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
+                                        msg.response_data_len);
 };
 #endif
 #ifdef USE_API_NOISE

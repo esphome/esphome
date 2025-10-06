@@ -17,14 +17,12 @@ esphome:
             type: hourly
           on_response:
             - lambda: |-
-                if (response->is_success()) {
-                  JsonObject json = response->get_json();
-                  JsonObject next_hour = json["response"]["weather.forecast_home"]["forecast"][0];
-                  float next_temperature = next_hour["temperature"].as<float>();
-                  ESP_LOGD("main", "Next hour temperature: %f", next_temperature);
-                } else {
-                  ESP_LOGE("main", "Action failed: %s", response->get_error_message().c_str());
-                }
+                JsonObject next_hour = response["response"]["weather.forecast_home"]["forecast"][0];
+                float next_temperature = next_hour["temperature"].as<float>();
+                ESP_LOGD("main", "Next hour temperature: %f", next_temperature);
+          on_error:
+            - lambda: |-
+                ESP_LOGE("main", "Action failed with error: %s", error.c_str());
       - homeassistant.action:
           action: weather.get_forecasts
           data:
@@ -33,13 +31,8 @@ esphome:
           response_template: "{{ response['weather.forecast_home']['forecast'][0]['temperature'] }}"
           on_response:
             - lambda: |-
-                if (response->is_success()) {
-                  JsonObject json = response->get_json();
-                  float temperature = json["response"].as<float>();
-                  ESP_LOGD("main", "Next hour temperature: %f", temperature);
-                } else {
-                  ESP_LOGE("main", "Action failed: %s", response->get_error_message().c_str());
-                }
+                float temperature = response["response"].as<float>();
+                ESP_LOGD("main", "Next hour temperature: %f", temperature);
 
 api:
   port: 8000

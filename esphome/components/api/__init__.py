@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_ERROR,
     CONF_ON_RESPONSE,
     CONF_PASSWORD,
     CONF_PORT,
@@ -304,14 +305,8 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
                 {cv.string: cv.returning_lambda}
             ),
             cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
-            cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        HomeAssistantActionResponseTrigger
-                    ),
-                },
-                single=True,
-            ),
+            cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
     cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
@@ -357,15 +352,21 @@ async def homeassistant_service_to_code(
 
     if on_response := config.get(CONF_ON_RESPONSE):
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
-        trigger = cg.new_Pvariable(
-            on_response[CONF_TRIGGER_ID],
-            template_arg,
-            var,
-        )
+        cg.add(var.set_wants_response())
         await automation.build_automation(
-            trigger,
-            [(cg.std_shared_ptr.template(ActionResponse), "response"), *args],
+            var.get_response_trigger(),
+            [(cg.JsonObject, "response"), *args],
             on_response,
+        )
+
+    if on_error := config.get(CONF_ON_ERROR):
+        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_ERRORS")
+        cg.add(var.set_wants_response())
+        await automation.build_automation(
+            var.get_error_trigger(),
+            [(cg.std_string, "error"), *args],
+            on_error,
         )
 
     return var

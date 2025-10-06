@@ -112,12 +112,14 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);
 
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   // Action response handling
   using ActionResponseCallback = std::function<void(std::shared_ptr<class ActionResponse>)>;
   void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
   void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
-                              const std::string &response_data);
-#endif
+                              const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_API_SERVICES
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
@@ -193,7 +195,7 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
-#ifdef USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   std::map<uint32_t, ActionResponseCallback> action_response_callbacks_;
 #endif
 

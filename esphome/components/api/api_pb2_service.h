@@ -66,7 +66,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
 #endif
 
-#ifdef USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   virtual void on_homeassistant_action_response(const HomeassistantActionResponse &value){};
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES

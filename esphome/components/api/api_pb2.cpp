@@ -884,8 +884,12 @@ void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_message(4, it, true);
   }
   buffer.encode_bool(5, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   buffer.encode_uint32(6, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   buffer.encode_string(7, this->response_template);
+#endif
 }
 void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
@@ -893,9 +897,15 @@ void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_repeated_message(1, this->data_template);
   size.add_repeated_message(1, this->variables);
   size.add_bool(1, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   size.add_uint32(1, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   size.add_length(1, this->response_template.size());
+#endif
 }
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1:
@@ -914,9 +924,12 @@ bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDe
     case 3:
       this->error_message = value.as_string();
       break;
-    case 4:
-      this->response_data = value.as_string();
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->response_data = value.data();
+      this->response_data_len = value.size();
       break;
+    }
     default:
       return false;
   }

@@ -611,7 +611,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
     case HomeassistantActionResponse::MESSAGE_TYPE: {
       HomeassistantActionResponse msg;
       msg.decode(msg_data, msg_size);
