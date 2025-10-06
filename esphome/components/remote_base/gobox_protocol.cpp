@@ -39,7 +39,7 @@ void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
 }
 
 optional<GoboxData> GoboxProtocol::decode(RemoteReceiveData src) {
-  if (src.size() < ((HEADER_SIZE + CODE_SIZE) * 2 + 1)) {
+  if (static_cast<uint64_t>(src.size()) < ((HEADER_SIZE + CODE_SIZE) * 2 + 1)) {
     return {};
   }
 
