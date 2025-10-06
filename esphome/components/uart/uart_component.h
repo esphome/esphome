@@ -152,23 +152,28 @@ class UARTComponent {
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
   std::string get_debug_prefix() const { return this->debug_prefix_; }
 
+  // setter for bool if channel settings shall be added
+  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
+
   // return settings string or empty if not desired
-  void set_debug_settings_string() {
+  std::string set_debug_settings_string() {
+    if(!this->debug_add_settings_)
+      return "";
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
     switch(this->get_parity()) {
       case 0:
         res += "none|";
-        break;
+        return res;
       case 1:
         res += "even|";
-        break;
+        return res;
       case 2:
         res += "odd|";
-        break;
+        return res;
     }
-    this->settings_string_ = res;
+    return res;
   }
 #endif
 
@@ -222,7 +227,7 @@ class UARTComponent {
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string, bool)> debug_callback_{};
   std::string debug_prefix_{""};
-  std::string settings_string_{""};
+  bool debug_add_settings_{false};
 #endif
 };
 
