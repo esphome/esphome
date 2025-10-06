@@ -732,8 +732,11 @@ class APIConnection final : public APIServerConnection {
 
   // Helper function to log API errors with errno
   void log_warning_(const LogString *message, APIError err);
-  // Specific helper for duplicated error message
-  void log_socket_operation_failed_(APIError err);
+  // Helper to handle fatal errors with logging
+  inline void fatal_error_with_log_(const LogString *message, APIError err) {
+    this->on_fatal_error();
+    this->log_warning_(message, err);
+  }
 };
 
 }  // namespace esphome::api
