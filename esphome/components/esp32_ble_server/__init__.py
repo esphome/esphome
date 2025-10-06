@@ -26,7 +26,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
-AUTO_LOAD = ["esp32_ble", "bytebuffer", "event_emitter"]
+AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_ble_server"
