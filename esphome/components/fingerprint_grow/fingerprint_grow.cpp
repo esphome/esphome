@@ -80,7 +80,7 @@ void FingerprintGrowComponent::setup() {
   delay(20);  // This delay guarantees the sensor will in fact be powered power.
 
   if (this->check_password_()) {
-    if (this->new_password_ != -1) {
+    if (this->new_password_ != std::numeric_limits<uint32_t>::max()) {
       if (this->set_password_())
         return;
     } else {

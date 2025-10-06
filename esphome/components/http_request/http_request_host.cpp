@@ -1,6 +1,9 @@
-#include "http_request_host.h"
-
 #ifdef USE_HOST
+
+#define USE_HTTP_REQUEST_HOST_H
+#define CPPHTTPLIB_NO_EXCEPTIONS
+#include "httplib.h"
+#include "http_request_host.h"
 
 #include <regex>
 #include "esphome/components/network/util.h"

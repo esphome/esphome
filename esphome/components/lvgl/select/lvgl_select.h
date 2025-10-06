@@ -20,7 +20,7 @@ class LVGLSelect : public select::Select, public Component {
     this->set_options_();
     if (this->restore_) {
       size_t index;
-      this->pref_ = global_preferences->make_preference<size_t>(this->get_object_id_hash());
+      this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
       if (this->pref_.load(&index))
         this->widget_->set_selected_index(index, LV_ANIM_OFF);
     }
