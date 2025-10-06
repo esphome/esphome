@@ -5,6 +5,7 @@
 #include "esphome/components/udp/udp_component.h"
 #include "esphome/components/time/real_time_clock.h"
 
+#ifdef USE_NETWORK
 namespace esphome {
 namespace syslog {
 class Syslog : public Component, public Parented<udp::UDPComponent> {
@@ -16,10 +17,11 @@ class Syslog : public Component, public Parented<udp::UDPComponent> {
 
  protected:
   int log_level_;
-  void log_(int level, const char *tag, const char *message) const;
+  void log_(int level, const char *tag, const char *message, size_t message_len) const;
   time::RealTimeClock *time_;
   bool strip_{true};
   int facility_{16};
 };
 }  // namespace syslog
 }  // namespace esphome
+#endif

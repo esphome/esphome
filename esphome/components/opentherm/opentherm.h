@@ -9,8 +9,8 @@
 
 #include <string>
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #if defined(ESP32) || defined(USE_ESP_IDF)
 #include "driver/timer.h"

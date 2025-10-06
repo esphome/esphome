@@ -7,13 +7,10 @@
 namespace esphome {
 namespace button {
 
-#define LOG_BUTTON(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-  }
+class Button;
+void log_button(const char *tag, const char *prefix, const char *type, Button *obj);
+
+#define LOG_BUTTON(prefix, type, obj) log_button(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_BUTTON(name) \
  protected: \

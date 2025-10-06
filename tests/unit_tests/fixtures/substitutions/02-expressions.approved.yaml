@@ -1,0 +1,27 @@
+substitutions:
+  width: 7
+  height: 8
+  enabled: true
+  pin: &id001
+    number: 18
+    inverted: true
+  area: 25
+  numberOne: 1
+  var1: 79
+test_list:
+  - The area is 56
+  - 56
+  - 56 + 1
+  - ENABLED
+  - list:
+      - 7
+      - 8
+  - width: 7
+    height: 8
+  - *id001
+  - The pin number is 18
+  - The square root is: 5.0
+  - The number is 80
+  - ord("a") = 97
+  - chr(97) = a
+  - len([1,2,3]) = 3

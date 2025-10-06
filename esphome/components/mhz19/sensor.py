@@ -32,7 +32,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MHZ19Component),
-            cv.Required(CONF_CO2): sensor.sensor_schema(
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
@@ -61,16 +61,20 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
+    if co2 := config.get(CONF_CO2):
+        sens = await sensor.new_sensor(co2)
         cg.add(var.set_co2_sensor(sens))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature)
         cg.add(var.set_temperature_sensor(sens))
 
-    if CONF_AUTOMATIC_BASELINE_CALIBRATION in config:
-        cg.add(var.set_abc_enabled(config[CONF_AUTOMATIC_BASELINE_CALIBRATION]))
+    if (
+        automatic_baseline_calibration := config.get(
+            CONF_AUTOMATIC_BASELINE_CALIBRATION
+        )
+    ) is not None:
+        cg.add(var.set_abc_enabled(automatic_baseline_calibration))
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 

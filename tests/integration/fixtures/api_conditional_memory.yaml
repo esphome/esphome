@@ -1,0 +1,29 @@
+esphome:
+  name: api-conditional-memory-test
+host:
+api:
+  actions:
+    - action: test_simple_service
+      then:
+        - logger.log: "Simple service called"
+    - action: test_service_with_args
+      variables:
+        arg_string: string
+        arg_int: int
+        arg_bool: bool
+        arg_float: float
+      then:
+        - logger.log:
+            format: "Service called with: %s, %d, %d, %.2f"
+            args: [arg_string.c_str(), arg_int, arg_bool, arg_float]
+  on_client_connected:
+    - logger.log:
+        format: "Client %s connected from %s"
+        args: [client_info.c_str(), client_address.c_str()]
+  on_client_disconnected:
+    - logger.log:
+        format: "Client %s disconnected from %s"
+        args: [client_info.c_str(), client_address.c_str()]
+
+logger:
+  level: DEBUG

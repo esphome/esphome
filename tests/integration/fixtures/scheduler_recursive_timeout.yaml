@@ -1,0 +1,38 @@
+esphome:
+  name: sched-recursive-timeout
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_recursive_timeout_component]
+
+host:
+
+logger:
+  level: VERBOSE
+
+scheduler_recursive_timeout_component:
+  id: recursive_timeout
+
+api:
+  services:
+    - service: run_recursive_timeout_test
+      then:
+        - lambda: |-
+            id(recursive_timeout)->run_recursive_timeout_test();
+
+event:
+  - platform: template
+    name: "Test Complete"
+    id: test_complete
+    device_class: button
+    event_types:
+      - "test_finished"
+  - platform: template
+    name: "Test Result"
+    id: test_result
+    device_class: button
+    event_types:
+      - "passed"
+      - "failed"

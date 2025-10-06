@@ -31,6 +31,6 @@ void UDPTransport::update() {
   this->resend_data_ = this->should_broadcast_;
 }
 
-void UDPTransport::send_packet(std::vector<uint8_t> &buf) const { this->parent_->send_packet(buf); }
+void UDPTransport::send_packet(const std::vector<uint8_t> &buf) const { this->parent_->send_packet(buf); }
 }  // namespace udp
 }  // namespace esphome
