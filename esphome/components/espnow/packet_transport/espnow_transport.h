@@ -41,3 +41,4 @@ class ESPNowTransport : public packet_transport::PacketTransport,
 }  // namespace esphome
 
 #endif  // USE_ESP32
+
