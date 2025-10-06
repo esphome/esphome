@@ -54,7 +54,7 @@ bluetooth_proxy:
   Each configured slot consumes ~1KB of RAM, with a maximum of `9`. It is recommended not to exceed `5`
   connection slots to avoid memory issues. Defaults to `3`.
   The value must not exceed the total configured `max_connections`
-  for {{< docref "esp32_ble_tracker/" >}}.
+  for {{< docref "esp32_ble/" >}}.
 
 The Bluetooth proxy depends on {{< docref "esp32_ble_tracker/" >}} so make sure to add that to your configuration.
 
