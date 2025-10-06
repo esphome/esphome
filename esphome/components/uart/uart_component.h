@@ -158,6 +158,8 @@ class UARTComponent {
 
   // return settings string or empty if not desired
   std::string get_debug_settings_string() {
+    if(!this->get_debug_add_settings())
+      return;
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
