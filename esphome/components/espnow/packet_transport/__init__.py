@@ -7,11 +7,10 @@ from esphome.components.packet_transport import (
     transport_schema,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.core import HexInt
 from esphome.cpp_types import PollingComponent
 
-from .. import ESPNowComponent, espnow_ns, peer_address_t
+from .. import ESPNowComponent, espnow_ns
 
 CODEOWNERS = ["@EasilyBoredEngineer"]
 DEPENDENCIES = ["espnow"]
@@ -34,9 +33,10 @@ CONFIG_SCHEMA = transport_schema(ESPNowTransport).extend(
 async def to_code(config):
     """Set up the ESP-NOW transport component."""
     var, providers = await new_packet_transport(config)
-
     await cg.register_parented(var, config[CONF_ESPNOW_ID])
 
     # Set broadcast address - convert MAC to parts array like ESP-NOW does
     mac = config[CONF_BROADCAST_ADDRESS]
     cg.add(var.set_broadcast_address([HexInt(x) for x in mac.parts]))
+
+
