@@ -7,7 +7,9 @@
 #include <utility>
 #include <vector>
 #include "api_pb2.h"
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #include "esphome/components/json/json_util.h"
+#endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
