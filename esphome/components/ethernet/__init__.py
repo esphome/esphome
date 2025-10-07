@@ -2,9 +2,15 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+)
 from esphome.components.esp32.const import (
+    VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
@@ -21,6 +27,7 @@ from esphome.const import (
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
+    CONF_MAC_ADDRESS,
     CONF_MANUAL_IP,
     CONF_MISO_PIN,
     CONF_MODE,
@@ -75,12 +82,14 @@ ETHERNET_TYPES = {
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
+    "LAN8670": EthernetType.ETHERNET_TYPE_LAN8670,
 }
 
 # PHY types that need compile-time defines for conditional compilation
 _PHY_TYPE_TO_DEFINE = {
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "LAN8670": "USE_ETHERNET_LAN8670",
     # Add other PHY types here only if they need conditional compilation
 }
 
@@ -117,19 +126,15 @@ ManualIP = ethernet_ns.struct("ManualIP")
 
 def _is_framework_spi_polling_mode_supported():
     # SPI Ethernet without IRQ feature is added in
-    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4) and arduino-esp32 >= 3.0.0
+    # esp-idf >= (5.3+ ,5.2.1+, 5.1.4)
+    # Note: Arduino now uses ESP-IDF as a component, so we only check IDF version
     framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.using_esp_idf:
-        if framework_version >= cv.Version(5, 3, 0):
-            return True
-        if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
-            return True
-        if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
-            return True
-        return False
-    if CORE.using_arduino:
-        return framework_version >= cv.Version(3, 0, 0)
-    # fail safe: Unknown framework
+    if framework_version >= cv.Version(5, 3, 0):
+        return True
+    if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
+        return True
+    if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
+        return True
     return False
 
 
@@ -140,6 +145,7 @@ def _validate(config):
         else:
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
+
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if _is_framework_spi_polling_mode_supported():
             if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
@@ -172,6 +178,12 @@ def _validate(config):
             del config[CONF_CLK_MODE]
         elif CONF_CLK not in config:
             raise cv.Invalid("'clk' is a required option for [ethernet].")
+        variant = get_esp32_variant()
+        if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
+            raise cv.Invalid(
+                f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
+                f"on ESP32 classic and ESP32-P4, not {variant}"
+            )
 
     return config
 
@@ -186,6 +198,7 @@ BASE_SCHEMA = cv.Schema(
             "This option has been removed. Please use the [disabled] option under the "
             "new mdns component instead."
         ),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -252,6 +265,7 @@ CONFIG_SCHEMA = cv.All(
             "W5500": SPI_SCHEMA,
             "OPENETH": BASE_SCHEMA,
             "DM9051": SPI_SCHEMA,
+            "LAN8670": RMII_SCHEMA,
         },
         upper=True,
     ),
@@ -322,11 +336,8 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option(
-                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
-            )
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
@@ -356,13 +367,19 @@ async def to_code(config):
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
         cg.add_define(phy_define)
 
+    if mac_address := config.get(CONF_MAC_ADDRESS):
+        cg.add(var.set_fixed_mac(mac_address.parts))
+
     cg.add_define("USE_ETHERNET")
 
     # Disable WiFi when using Ethernet to save memory
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-        # Also disable WiFi/BT coexistence since WiFi is disabled
-        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+    # Also disable WiFi/BT coexistence since WiFi is disabled
+    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+
+    if config[CONF_TYPE] == "LAN8670":
+        # Add LAN867x 10BASE-T1S PHY support component
+        add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)

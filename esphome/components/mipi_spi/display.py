@@ -380,25 +380,41 @@ def get_instance(config):
         bus_type = BusTypes[bus_type]
     buffer_type = cg.uint8 if color_depth == 8 else cg.uint16
     frac = denominator(config)
-    rotation = DISPLAY_ROTATIONS[
+    rotation = (
         0 if model.rotation_as_transform(config) else config.get(CONF_ROTATION, 0)
-    ]
+    )
     templateargs = [
         buffer_type,
         bufferpixels,
         config[CONF_BYTE_ORDER] == "big_endian",
         display_pixel_mode,
         bus_type,
-        width,
-        height,
-        offset_width,
-        offset_height,
     ]
     # If a buffer is required, use MipiSpiBuffer, otherwise use MipiSpi
     if requires_buffer(config):
-        templateargs.append(rotation)
-        templateargs.append(frac)
+        templateargs.extend(
+            [
+                width,
+                height,
+                offset_width,
+                offset_height,
+                DISPLAY_ROTATIONS[rotation],
+                frac,
+            ]
+        )
         return MipiSpiBuffer, templateargs
+    # Swap height and width if the display is rotated 90 or 270 degrees in software
+    if rotation in (90, 270):
+        width, height = height, width
+        offset_width, offset_height = offset_height, offset_width
+    templateargs.extend(
+        [
+            width,
+            height,
+            offset_width,
+            offset_height,
+        ]
+    )
     return MipiSpi, templateargs
 
 
