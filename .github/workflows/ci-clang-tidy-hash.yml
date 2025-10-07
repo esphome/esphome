@@ -6,6 +6,7 @@ on:
       - ".clang-tidy"
       - "platformio.ini"
       - "requirements_dev.txt"
+      - "sdkconfig.defaults"
       - ".clang-tidy.hash"
       - "script/clang_tidy_hash.py"
       - ".github/workflows/ci-clang-tidy-hash.yml"
