@@ -36,8 +36,7 @@ void MDNSComponent::setup() {
       txt_records.push_back(it);
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
-    err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), port, txt_records.data(),
-                           txt_records.size());
+    err = mdns_service_add(nullptr, service.service_type, service.proto, port, txt_records.data(), txt_records.size());
 
     // free records
     for (const auto &it : txt_records) {
@@ -45,7 +44,7 @@ void MDNSComponent::setup() {
     }
 
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to register service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
+      ESP_LOGW(TAG, "Failed to register service %s: %s", service.service_type, esp_err_to_name(err));
     }
   }
 }
