@@ -28,7 +28,8 @@ namespace fatfs_esp32 {
 // #define FF_STR_VOLUME_ID 1  // flash:file1.txt"
 // #define F_STR_VOLUME_ID == 2 // /flash/file1.txt
 
-typedef BYTE DSTATUS;
+// typedef BYTE DSTATUS;
+using DSTATUS = BYTE;
 
 DSTATUS ff_sd_initialize(uint8_t pdrv);
 DSTATUS ff_sd_status(uint8_t pdrv);
@@ -223,7 +224,7 @@ class FatESP32 : public fatfs::FatFs {
    * @return true   FS available
    * @return false  FS not mounted
    */
-  virtual bool is_mount() override { return fs_ != NULL; };
+  bool is_mount() override { return fs_ != NULL; };
 
   fatfs::FatInfo *get_info(std::string path) override;
   bool is_exist(std::string path) override;

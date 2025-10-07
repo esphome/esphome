@@ -13,7 +13,7 @@ extern "C" {
 namespace esphome {
 namespace fatfs {
 
-static const char *TAG = "fatfs";
+static const char *const TAG = "fatfs";
 
 void MediaDetectInterrupt::inserted(MediaDetectInterrupt *data) { data->present = true; }
 void MediaDetectInterrupt::ejected(MediaDetectInterrupt *data) { data->present = false; }
@@ -85,10 +85,11 @@ StorageState FatFs::is_storage_state_interrupt() {
     if (this->media_present_st_.present != media_present_) {
       media_present_ = this->media_present_st_.present;
     }
-    if (media_present_)
+    if (media_present_) {
       return StorageState::MEDIA_PRESENT;
-    else
+    } else {
       return StorageState::MEDIA_ABSENT;
+    }
   }
   return StorageState::MEDIA_UNUSED;
 }

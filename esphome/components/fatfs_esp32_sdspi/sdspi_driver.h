@@ -188,10 +188,10 @@ class SDSPIDriver : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_P
    * @brief Read data block
    *
    * @param dst
-   * @param size
+   * @param count
    * @return uint8_t
    */
-  uint8_t read_data(uint8_t *dst, size_t size);
+  uint8_t read_data(uint8_t *dst, size_t count);
 
   /***********************************************************************************
    * @brief Read single sector
@@ -256,7 +256,7 @@ class SDSPIDriver : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_P
    * @return true
    * @return false
    */
-  bool read_CID(cid_t *cid) { return this->read_register(CMD10, cid); };
+  bool read_cid(cid_t *cid) { return this->read_register(CMD10, cid); };
 
   /***********************************************************************************
    * @brief Read a card's CSD register. The CSD contains Card-Specific Data that
@@ -265,18 +265,18 @@ class SDSPIDriver : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_P
    * @return true
    * @return false
    */
-  bool read_CSD(csd_t *csd) { return this->read_register(CMD9, csd); };
+  bool read_csd(csd_t *csd) { return this->read_register(CMD9, csd); };
 
   /***********************************************************************************
    *
    * @brief Erase a subsequent sectors.
    *
-   * @param firstSector
-   * @param lastSector
+   * @param first_sector
+   * @param last_sector
    * @return true
    * @return false
    */
-  bool erase(uint32_t firstSector, uint32_t lastSector);
+  bool erase(uint32_t first_sector, uint32_t last_sector);
 
   /***********************************************************************************
    * @brief  is erase sectors enabled
@@ -311,7 +311,7 @@ class SDSPIDriver : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_P
   uint8_t error() { return last_err_; };
 
  private:
-  void set_type(uint8_t c_type) { card_type_ = c_type; }
+  void set_type_(uint8_t c_type) { card_type_ = c_type; }
   uint8_t state_ = 0;  // IO transaction state  read; write; idle
   bool is_active_ = false;
   uint8_t last_err_ = 0;

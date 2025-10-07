@@ -41,10 +41,11 @@ class SdspiIO : public StorageIO,   //  vfat callbacks
   void storage_uninit() override { this->uninit(); };
 
   uint8_t storage_write_sectors(const uint8_t *buffer, DWORD sector, UINT count) override {
-    if (this->write_sectors(sector, buffer, count))
+    if (this->write_sectors(sector, buffer, count)) {
       return RES_OK;
-    else
+    } else {
       return RES_ERROR;
+    }
   };
 
   /**
@@ -56,10 +57,11 @@ class SdspiIO : public StorageIO,   //  vfat callbacks
    * @return uint8_t
    */
   uint8_t storage_read_sectors(uint8_t *buffer, DWORD sector, UINT count) override {
-    if (this->read_sectors(sector, buffer, count))
+    if (this->read_sectors(sector, buffer, count)) {
       return RES_OK;
-    else
+    } else {
       return RES_ERROR;
+    }
   };
 
   /**

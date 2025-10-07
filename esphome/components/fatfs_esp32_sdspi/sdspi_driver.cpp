@@ -4,7 +4,7 @@
 namespace esphome {
 namespace fatfs_esp32_sdspi {
 
-static const char *TAG = "sdspi_driver";
+static const char *const TAG = "sdspi_driver";
 #ifndef USE_SD_CRC
 #define USE_SD_CRC 2  // NOLINT
 #endif
@@ -13,7 +13,7 @@ static const char *TAG = "sdspi_driver";
 #if USE_SD_CRC
 // CRC functions
 //------------------------------------------------------------------------------
-static uint8_t CRC7(const uint8_t *data, uint8_t n) {
+static uint8_t crc7(const uint8_t *data, uint8_t n) {
   uint8_t crc = 0;
   for (uint8_t i = 0; i < n; i++) {
     uint8_t d = data[i];
@@ -31,7 +31,7 @@ static uint8_t CRC7(const uint8_t *data, uint8_t n) {
 #if USE_SD_CRC == 1
 // Shift based CRC-CCITT
 // uses the x^16,x^12,x^5,x^1 polynomial.
-static uint16_t CRC_CCITT(const uint8_t *data, size_t n) {
+static uint16_t crc_ccitt(const uint8_t *data, size_t n) {
   uint16_t crc = 0;
   for (size_t i = 0; i < n; i++) {
     crc = (uint8_t) (crc >> 8) | (crc << 8);
@@ -42,14 +42,14 @@ static uint16_t CRC_CCITT(const uint8_t *data, size_t n) {
   }
   return crc;
 }
-#elif USE_SD_CRC > 1  // CRC_CCITT
+#elif USE_SD_CRC > 1  // crc_ccitt
 //------------------------------------------------------------------------------
 // Table based CRC-CCITT
 // uses the x^16,x^12,x^5,x^1 polynomial.
 #ifdef __AVR__
-static const uint16_t crctab[] PROGMEM = {
+static const uint16_t CRCTAB[] PROGMEM = {
 #else   // __AVR__
-static const uint16_t crctab[] = {
+static const uint16_t CRCTAB[] = {
 #endif  // __AVR__
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7, 0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD,
     0xE1CE, 0xF1EF, 0x1231, 0x0210, 0x3273, 0x2252, 0x52B5, 0x4294, 0x72F7, 0x62D6, 0x9339, 0x8318, 0xB37B, 0xA35A,
@@ -70,18 +70,18 @@ static const uint16_t crctab[] = {
     0xFD2E, 0xED0F, 0xDD6C, 0xCD4D, 0xBDAA, 0xAD8B, 0x9DE8, 0x8DC9, 0x7C26, 0x6C07, 0x5C64, 0x4C45, 0x3CA2, 0x2C83,
     0x1CE0, 0x0CC1, 0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8, 0x6E17, 0x7E36, 0x4E55, 0x5E74,
     0x2E93, 0x3EB2, 0x0ED1, 0x1EF0};
-static uint16_t CRC_CCITT(const uint8_t *data, size_t n) {
+static uint16_t crc_ccitt(const uint8_t *data, size_t n) {
   uint16_t crc = 0;
   for (size_t i = 0; i < n; i++) {
 #ifdef __AVR__
-    crc = pgm_read_word(&crctab[(crc >> 8 ^ data[i]) & 0XFF]) ^ (crc << 8);
+    crc = pgm_read_word(&CRCTAB[(crc >> 8 ^ data[i]) & 0XFF]) ^ (crc << 8);
 #else   // __AVR__
-    crc = crctab[(crc >> 8 ^ data[i]) & 0XFF] ^ (crc << 8);
+    crc = CRCTAB[(crc >> 8 ^ data[i]) & 0XFF] ^ (crc << 8);
 #endif  // __AVR__
   }
   return crc;
 }
-#endif  // CRC_CCITT
+#endif  // crc_ccitt
 #endif  // USE_SD_CRC
 
 // ////------------------------------------------------------------------------------
@@ -98,7 +98,7 @@ class Timeout {
   explicit Timeout(uint16_t ms) { set(ms); }
   uint16_t millis16() { return millis(); }
   void set(uint16_t ms) { end_tile_ = ms + millis16(); }
-  bool timedOut() { return (int16_t) (end_tile_ - millis16()) < 0; }
+  bool timed_out() { return (int16_t) (end_tile_ - millis16()) < 0; }
 
  private:
   uint16_t end_tile_;
@@ -109,7 +109,7 @@ class Timeout {
 bool SDSPIDriver::wait(uint16_t ms) {  // waitReady
   Timeout timeout(ms);
   while (this->transfer_byte(0xFF) != 0XFF) {
-    if (timeout.timedOut()) {
+    if (timeout.timed_out()) {
       return false;
     }
   }
@@ -208,18 +208,18 @@ bool SDSPIDriver::init() {
   ESP_LOGD(TAG, "Check SD_TYPE");
   // check SD version
   if (!(spi_command(CMD8, 0x1AA) & R1_ILLEGAL_COMMAND)) {
-    this->set_type(SD_CARD_TYPE_SD2);
-    uint8_t response_ = 0xFF;
+    this->set_type_(SD_CARD_TYPE_SD2);
+    uint8_t response = 0xFF;
     for (uint8_t i = 0; i < 4; i++) {
-      response_ = this->transfer_byte(0xFF);
+      response = this->transfer_byte(0xFF);
     }
-    if (response_ != 0XAA) {
+    if (response != 0XAA) {
       last_err_ = SD_CARD_ERROR_CMD8;
       this->spi_stop();
       return false;
     }
   } else {
-    this->set_type(SD_CARD_TYPE_SD1);
+    this->set_type_(SD_CARD_TYPE_SD1);
   }
 
   // initialize card and send host supports SDHC if SD2
@@ -228,7 +228,7 @@ bool SDSPIDriver::init() {
   timeout.set(SD_INIT_TIMEOUT);
   while (this->spi_app_command(ACMD41, arg) != R1_READY_STATE) {
     // check for timeout
-    if (timeout.timedOut()) {
+    if (timeout.timed_out()) {
       last_err_ = SD_CARD_ERROR_ACMD41;
       this->spi_stop();
       return false;
@@ -243,7 +243,7 @@ bool SDSPIDriver::init() {
       return false;
     }
     if ((this->transfer_byte(0xFF) & 0XC0) == 0XC0) {
-      this->set_type(SD_CARD_TYPE_SDHC);
+      this->set_type_(SD_CARD_TYPE_SDHC);
     }
     // Discard rest of ocr - contains allowed voltage range.
     for (uint8_t i = 0; i < 3; i++) {
@@ -303,7 +303,7 @@ uint8_t SDSPIDriver::spi_command(uint8_t cmd, uint32_t arg) {  //  cardCommand
   buf[4] = (uint8_t) arg;
 
   // add CRC
-  buf[5] = CRC7(buf, 5);
+  buf[5] = crc7(buf, 5);
 
   // send message
   this->write_array(buf, 6);
@@ -366,7 +366,7 @@ bool SDSPIDriver::write_stop() {
 //------------------------------------------------------------------------------
 bool SDSPIDriver::write_data(uint8_t token, const uint8_t *src) {
 #if USE_SD_CRC
-  uint16_t crc = CRC_CCITT(src, this->sector_size());
+  uint16_t crc = crc_ccitt(src, this->sector_size());
 #else                                           // USE_SD_CRC
   uint16_t crc = 0XFFFF;
 #endif                                          // USE_SD_CRC
@@ -494,7 +494,7 @@ uint8_t SDSPIDriver::read_data(uint8_t *dst, size_t count) {
   // wait for start sector token
   Timeout timeout(SD_READ_TIMEOUT);
   while ((response_ = this->transfer_byte(0xFF)) == 0XFF) {
-    if (timeout.timedOut()) {
+    if (timeout.timed_out()) {
       last_err_ = SD_CARD_ERROR_READ_TIMEOUT;
       this->spi_stop();
       return false;
@@ -518,7 +518,7 @@ uint8_t SDSPIDriver::read_data(uint8_t *dst, size_t count) {
 #if USE_SD_CRC
   // get crc
   crc = (this->transfer_byte(0xFF) << 8) | this->transfer_byte(0xFF);
-  if (crc != CRC_CCITT(dst, count)) {
+  if (crc != crc_ccitt(dst, count)) {
     last_err_ = SD_CARD_ERROR_READ_CRC;
     this->spi_stop();
     return false;
@@ -572,18 +572,20 @@ bool SDSPIDriver::read_sectors(uint32_t sector, uint8_t *dst, size_t ns) {
 
 bool SDSPIDriver::read_status(uint8_t *status) {
   // retrun is R2 so read extra status byte.
+  bool ret = true;
   ESP_LOGD(TAG, "Read status");
   if (this - spi_app_command(ACMD13, 0) || this->transfer_byte(0xFF)) {
     last_err_ = SD_CARD_ERROR_ACMD13;
     this->spi_stop();
     return false;
   }
+
   response_ = this->read_data(status, 64);
   this->spi_stop();
   if (!response_) {
-    return false;
+    ret = false;
   }
-  return true;
+  return ret;
 }
 
 //------------------------------------------------------------------------------
@@ -608,7 +610,7 @@ bool SDSPIDriver::read_register(uint8_t cmd, void *buf) {
 
 uint32_t SDSPIDriver::sector_count() {
   csd_t csd;
-  uint32_t s_count = read_CSD(&csd) ? sdCardCapacity(&csd) : 0;
+  uint32_t s_count = read_csd(&csd) ? sdCardCapacity(&csd) : 0;
   ESP_LOGV(TAG, "Read sectors count = %d", s_count);
   return s_count;
 }
@@ -623,9 +625,9 @@ uint32_t SDSPIDriver::sector_size() {
 
 //------------------------------------------------------------------------------
 
-bool SDSPIDriver::erase(uint32_t firstSector, uint32_t lastSector) {
+bool SDSPIDriver::erase(uint32_t first_sector, uint32_t last_sector) {
   csd_t csd;
-  if (!this->read_CSD(&csd)) {
+  if (!this->read_csd(&csd)) {
     this->spi_stop();
     return false;
   }
@@ -633,7 +635,7 @@ bool SDSPIDriver::erase(uint32_t firstSector, uint32_t lastSector) {
   if (!csd.v1.erase_blk_en) {
     // erase size mask
     uint8_t m = (csd.v1.sector_size_high << 1) | csd.v1.sector_size_low;
-    if ((firstSector & m) != 0 || ((lastSector + 1) & m) != 0) {
+    if ((first_sector & m) != 0 || ((last_sector + 1) & m) != 0) {
       // error card can't erase specified area
       last_err_ = SD_CARD_ERROR_ERASE_SINGLE_SECTOR;
       this->spi_stop();
@@ -641,10 +643,10 @@ bool SDSPIDriver::erase(uint32_t firstSector, uint32_t lastSector) {
     }
   }
   if (card_type_ != SD_CARD_TYPE_SDHC) {
-    firstSector <<= 9;
-    lastSector <<= 9;
+    first_sector <<= 9;
+    last_sector <<= 9;
   }
-  if (this->spi_command(CMD32, firstSector) || this->spi_command(CMD33, lastSector) || this->spi_command(CMD38, 0)) {
+  if (this->spi_command(CMD32, first_sector) || this->spi_command(CMD33, last_sector) || this->spi_command(CMD38, 0)) {
     last_err_ = SD_CARD_ERROR_ERASE;
     this->spi_stop();
     return false;
@@ -662,7 +664,7 @@ bool SDSPIDriver::erase(uint32_t firstSector, uint32_t lastSector) {
 
 bool SDSPIDriver::erase_sector_enable() {
   csd_t csd;
-  return read_CSD(&csd) ? csd.v1.erase_blk_en : false;
+  return read_csd(&csd) ? csd.v1.erase_blk_en : false;
 }
 
 //------------------------------------------------------------------------------
@@ -713,7 +715,7 @@ uint8_t SDSPIDriver::ioctl(uint8_t cmd, void *buff) {
 
     case GET_SECTOR_COUNT: {
       uint32_t s_cnt = this->sector_count();
-      *((unsigned long *) buff) = s_cnt;  // s_cards[pdrv]->sectors; // this->sector_count()
+      *((uint32_t *) buff) = s_cnt;  // s_cards[pdrv]->sectors; // this->sector_count()
       return RES_OK;
     }
     case GET_SECTOR_SIZE:

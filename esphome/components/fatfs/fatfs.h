@@ -28,14 +28,14 @@ namespace fatfs {
 // #define FS_EXFAT 4
 
 //  File open flags
-static const uint8_t FAT_F_READ = 0x01;
-static const uint8_t FAT_F_WRITE = 0x02;
-static const uint8_t FAT_F_OPEN_EXISTING = 0x00;
-static const uint8_t FAT_F_CREATE_NEW = 0x04;
-static const uint8_t FAT_F_CREATE_ALWAYS = 0x08;
-static const uint8_t FAT_F_OPEN_ALWAYS = 0x10;    // 00010000
-static const uint8_t FAT_F_OPEN_APPEND = 0x30;    // 00110000
-static const uint8_t FAT_F_OPEN_TRUNCATE = 0x40;  // 01000000
+#define FAT_F_READ 0x01           // NOLINT
+#define FAT_F_WRITE = 0x02        // NOLINT
+#define FAT_F_OPEN_EXISTING 0x00  // NOLINT
+#define FAT_F_CREATE_NEW 0x04     // NOLINT
+#define FAT_F_CREATE_ALWAYS 0x08  // NOLINT
+#define FAT_F_OPEN_ALWAYS 0x10    // NOLINT  // 00010000
+#define FAT_F_OPEN_APPEND 0x30    // NOLINT // 00110000
+#define FAT_F_OPEN_TRUNCATE 0x40  // NOLINT// 01000000
 
 enum class StorageState : uint8_t {
   MEDIA_UNUSED = 0,
@@ -148,7 +148,7 @@ class FatInfo {
  * Cover FF_function from fatfs @ref https://elm-chan.org/fsw/ff/
  *
  */
-class FileObject : virtual public FatInfo {
+class FileObject {
  public:
   /**
    * @brief   Open file for read and write, depends of mode flags.
@@ -252,7 +252,7 @@ class FileObject : virtual public FatInfo {
  * @brief Open directory object. and set content read pointer to first object
  *
  */
-class DirObject : virtual public FatInfo {
+class DirObject {
  public:
   /**
    * @brief Subsequently reads an item of the directory. Directory item return as FatInfo object
@@ -361,7 +361,7 @@ class FatFs {
    * @param path path to new directory
    * @return DirObject*
    */
-  virtual DirObject *mk_dir(std::string path) { return NULL; };
+  virtual DirObject *mk_dir(const std::string path) { return NULL; };
   /**
    * @brief Create directory as children or specifyed obj with name
    *
@@ -369,7 +369,7 @@ class FatFs {
    * @param name name of new directory
    * @return DirObject*
    */
-  virtual DirObject *mk_dir(FatInfo *obj, std::string name) { return NULL; };
+  virtual DirObject *mk_dir(FatInfo *obj, const std::string name) { return NULL; };
   /**
    * @brief Removes a file or sub-directory from the volume.
    *
@@ -377,7 +377,7 @@ class FatFs {
    * @return true
    * @return false
    */
-  virtual bool del(std::string path) { return false; };
+  virtual bool del(const std::string path) { return false; };
   /**
    * @brief Renames and/or moves a file or sub-directory.
    *
@@ -386,7 +386,7 @@ class FatFs {
    * @return true
    * @return false
    */
-  virtual bool rename(std::string path_from, std::string path_to) { return false; };
+  virtual bool rename(const std::string path_from, const std::string path_to) { return false; };
   /**
    * @brief error of last FS operation
    *

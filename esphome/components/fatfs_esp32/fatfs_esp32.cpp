@@ -14,7 +14,7 @@ namespace esphome {
 namespace fatfs_esp32 {
 
 using namespace esphome::fatfs;
-static const char *TAG = "fatfs_esp32";
+static const char *const TAG = "fatfs_esp32";
 
 std::map<std::uint8_t, StorageIO *> db;
 using enum fatfs::StorageState;
@@ -262,10 +262,11 @@ fatfs::DirObject *FatESP32::open_dir(fatfs::FatInfo *obj) {
 
 //--------------------------------------------------------------------------------
 
-fatfs::DirObject *FatESP32::mk_dir(std::string path) {
+fatfs::DirObject *FatESP32::mk_dir(const std::string path) {
   error_ = static_cast<fatfs::FatError>(f_mkdir(path.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
-    ESP_LOGE(TAG, "f_mkdir  %s failled (0x%x) %s", path, static_cast<int>(error_), fs_errstr(static_cast<int>(error_)));
+    ESP_LOGE(TAG, "f_mkdir  %s failled (0x%x) %s", path.c_str(), static_cast<int>(error_),
+             fs_errstr(static_cast<int>(error_)));
     return NULL;
   }
   FatESP32Dir *dptr = new FatESP32Dir(path);
@@ -275,13 +276,13 @@ fatfs::DirObject *FatESP32::mk_dir(std::string path) {
 
 //--------------------------------------------------------------------------------
 
-fatfs::DirObject *FatESP32::mk_dir(fatfs::FatInfo *obj, std::string name) {
+fatfs::DirObject *FatESP32::mk_dir(fatfs::FatInfo *obj, const std::string name) {
   return this->mk_dir(obj->get_full_path() + "/" + std::string(name));
 }
 
 //--------------------------------------------------------------------------------
 
-bool FatESP32::del(std::string path) {
+bool FatESP32::del(const std::string path) {
   error_ = static_cast<fatfs::FatError>(f_unlink(path.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
     ESP_LOGE(TAG, "f_unlink  %s failled (0x%x) %s", path, static_cast<int>(error_),
@@ -293,7 +294,7 @@ bool FatESP32::del(std::string path) {
 
 //--------------------------------------------------------------------------------
 
-bool FatESP32::rename(std::string path_from, std::string path_to) {
+bool FatESP32::rename(const std::string path_from, const std::string path_to) {
   error_ = static_cast<fatfs::FatError>(f_rename(path_from.c_str(), path_to.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
     ESP_LOGE(TAG, "f_rename %s - %s failled (0x%x) %s", path_from, path_to, static_cast<int>(error_),

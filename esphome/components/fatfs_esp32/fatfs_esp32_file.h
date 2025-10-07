@@ -27,23 +27,25 @@ using fatfs::fs_errstr;
  * @brief Provde implementation for @ref fatfs::FatInfo API
  *
  */
-class FatESP32Info : virtual public fatfs::FatInfo {
+class FatESP32Info : public fatfs::FatInfo {
+  // class FatESP32Info : virtual public fatfs::FatInfo {
  public:
+  FatESP32Info() = default;
   FatESP32Info(fatfs::FatInfo &source);
   FatESP32Info(std::string path);
   FatESP32Info &operator=(const FatESP32Info &source);
-  void load(std::string path, FILINFO *finfo);
-  virtual bool is_exist() override { return exist_; };
-  virtual bool is_dir() override { return is_dir_; };
-  virtual bool is_readonly() override { return is_ro_; };
-  virtual bool is_sys() override { return is_system_; };
-  virtual bool is_hidden() override { return is_hidden_; };
-  virtual size_t size() override { return size_; };
-  virtual ESPTime *get_cr_date() override { return &create_date_; };
-  virtual std::string get_name() override { return name_; };
-  virtual std::string get_path() override { return path_; };
-  virtual std::string get_drive() override { return drive_; };
-  virtual std::string get_full_path() override;
+  // void load(std::string path, FILINFO *finfo);
+  bool is_exist() override { return exist_; };
+  bool is_dir() override { return is_dir_; };
+  bool is_readonly() override { return is_ro_; };
+  bool is_sys() override { return is_system_; };
+  bool is_hidden() override { return is_hidden_; };
+  size_t size() override { return size_; };
+  ESPTime *get_cr_date() override { return &create_date_; };
+  std::string get_name() override { return name_; };
+  std::string get_path() override { return path_; };
+  std::string get_drive() override { return drive_; };
+  std::string get_full_path() override;
 
  private:
   std::string name_{""};
@@ -63,21 +65,21 @@ class FatESP32Info : virtual public fatfs::FatInfo {
  * @brief Provde implementation for @ref fatfs::FileObject API
  *
  */
-class FatESP32File : virtual public fatfs::FileObject, public FatESP32Info {
+class FatESP32File : public fatfs::FileObject, public FatESP32Info {
  public:
   FatESP32File(std::string path, uint16_t mode);
   FatESP32File(fatfs::FatInfo &finfo, uint16_t mode);
   ~FatESP32File();
-  bool open(uint16_t mode);
-  virtual void close() override;
-  virtual int32_t read(void *buf, size_t size) override;
-  virtual int32_t write(void *buf, size_t size) override;
-  virtual bool lseek(size_t pos) override;
-  virtual bool truncate() override;
-  virtual void flush() override;
-  virtual bool is_eof() override;
-  virtual uint32_t get_pos() override;
-  virtual fatfs::FatError file_error() override { return static_cast<fatfs::FatError>(error_); };
+  bool open(uint16_t mode) override;
+  void close() override;
+  int32_t read(void *buf, size_t size) override;
+  int32_t write(void *buf, size_t size) override;
+  bool lseek(size_t pos) override;
+  bool truncate() override;
+  void flush() override;
+  bool is_eof() override;
+  uint32_t get_pos() override;
+  fatfs::FatError file_error() override { return static_cast<fatfs::FatError>(error_); };
 
  private:
   uint8_t error_ = FR_OK;
@@ -90,18 +92,18 @@ class FatESP32File : virtual public fatfs::FileObject, public FatESP32Info {
  * @brief Provde implementation for @ref fatfs::DirObject API
  *
  */
-class FatESP32Dir : virtual public fatfs::DirObject, public FatESP32Info {
+class FatESP32Dir : public fatfs::DirObject, public FatESP32Info {
  public:
   FatESP32Dir(std::string path);
   FatESP32Dir(fatfs::FatInfo &finfo);
   ~FatESP32Dir();
   bool open();
-  virtual fatfs::FatInfo *get_next() override;
-  virtual bool reset() override;
-  virtual fatfs::FatError file_error() override { return static_cast<fatfs::FatError>(error_); };
+  fatfs::FatInfo *get_next() override;
+  bool reset() override;
+  fatfs::FatError file_error() override { return static_cast<fatfs::FatError>(error_); };
 
  private:
-  uint8_t error_ = FR_OK;
+  uint8_t error_ = {FR_OK};
   FF_DIR dptr_;
   bool is_open_ = false;
 };

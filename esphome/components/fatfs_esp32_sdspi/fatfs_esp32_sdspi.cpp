@@ -9,7 +9,7 @@ namespace fatfs_esp32_sdspi {
 // using namespace esphome::fatfs_esp32;
 using namespace esphome::fatfs;
 
-static const char *TAG = "fatfs_esp32_sdspi";
+static const char *const TAG = "fatfs_esp32_sdspi";
 
 bool SdspiIO::storage_init() {
   bool ret = this->init();  //  Call init from SDSPIDriver parent class
@@ -40,10 +40,11 @@ bool FatESP32sdspi::init_io() {
   if (io_driver_ != NULL) {
     if (io_driver_->is_storage_status(STA_NOINIT)) {
       ret = io_driver_->storage_init();
-      if (!ret)
+      if (!ret) {
         ESP_LOGE(TAG, "init io. err");
-      else
+      } else {
         ESP_LOGD(TAG, "init io.");
+      }
     } else {
       ret = true;
       ESP_LOGV(TAG, "init io. already");
@@ -128,10 +129,11 @@ bool FatESP32sdspi::is_card() {
 
   // If Card detect pin activated, check pin.
 
-  if (storage_state_int == StorageState::MEDIA_PRESENT)
+  if (storage_state_int == StorageState::MEDIA_PRESENT) {
     ret = true;
-  else if (storage_state_int == StorageState::MEDIA_ABSENT)
+  } else if (storage_state_int == StorageState::MEDIA_ABSENT) {
     ret = false;
+  }
 
   //  Card detect pin/interrupt not used.  Use dummy reading from media
   else {
@@ -139,10 +141,12 @@ bool FatESP32sdspi::is_card() {
       ESP_LOGV(TAG, "start storage_ioctl ...");
       uint32_t ssize = 0;
       io_driver_->storage_ioctl(GET_SECTOR_COUNT, &ssize);
-      if (ssize > 0)
+      if (ssize > 0) {
         ret = true;
-    } else
+      }
+    } else {
       ret = false;  //  cannot init_io
+    }
   }
 
   ESP_LOGD(TAG, "Check storage present = %s", TRUEFALSE(ret));
@@ -200,7 +204,7 @@ bool FatESP32sdspi::reinit_driver(StorageState state) {
  * @return true
  * @return false
  */
-bool FatESP32sdspi::test_fs(std::string path) {
+bool FatESP32sdspi::test_fs(const std::string path) {
   uint8_t res;
 
   ESP_LOGD(TAG, "TEST FS for path %s", path.c_str());
@@ -217,7 +221,7 @@ bool FatESP32sdspi::test_fs(std::string path) {
     ESP_LOGD(TAG, "Found %s: %s", fat_obj->is_dir() ? "DIR" : "FILE", fat_obj->get_full_path().c_str());
 
     if (!fat_obj->is_dir()) {
-      FileObject *fl = this->open_file(fat_obj, FAT_F_READ);
+      fatfs::FileObject *fl = this->open_file(fat_obj, FAT_F_READ);
       res = (uint8_t) this->file_error();
       if (res != FR_OK) {
         ESP_LOGE(TAG, "Open file error: %s", fs_errstr(res));
