@@ -92,6 +92,7 @@
 #define USE_QR_CODE
 #define USE_SELECT
 #define USE_SENSOR
+#define USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 #define USE_STATUS_LED
 #define USE_STATUS_SENSOR
 #define USE_SWITCH

@@ -312,7 +312,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config):
     if CONF_ON_TURN_OFF in config or CONF_ON_TURN_ON in config:
-        cg.add_define("USE_SUPPORTS_TURN_OFF_ON", True)
+        cg.add_define("USE_SPEAKER_MEDIA_PLAYER_ON_OFF", True)
 
     if config[CONF_CODEC_SUPPORT_ENABLED]:
         # Compile all supported audio codecs and optimize the wifi settings

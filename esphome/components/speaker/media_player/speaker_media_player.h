@@ -11,6 +11,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
 
 #include <deque>
@@ -127,7 +128,7 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
 
   bool is_paused_{false};
   bool is_muted_{false};
-#ifdef USE_SUPPORTS_TURN_OFF_ON
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
   bool is_turn_off_{false};
 #endif
 
