@@ -4523,14 +4523,14 @@ void HOT WaveshareEPaper7P5InHDB::display() {
   // COMMAND DATA START TRANSMISSION 1 (BLACK)
   this->command(0x24);
   delay(2);
-  for (uint32_t i = 0; i < buf_len_half; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     this->data(~this->buffer_[i]);
   }
   delay(2);
   
   this->command(0x26);
   delay(2);
-  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     this->data(this->buffer_[i]);
   }
 
