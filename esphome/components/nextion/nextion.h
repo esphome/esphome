@@ -1500,7 +1500,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   uint16_t startup_override_ms_ = 8000;  ///< Timeout before forcing setup complete
   uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
-
 };
 
 }  // namespace nextion
