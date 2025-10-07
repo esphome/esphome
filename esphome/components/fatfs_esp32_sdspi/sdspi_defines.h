@@ -473,7 +473,7 @@ union csd_t {
 };
 #pragma pack(pop)
 //-----------------------------------------------------------------------------
-inline uint32_t sdCardCapacity(csd_t *csd) {
+inline uint32_t sd_card_capacity(csd_t *csd) {
   if (csd->v1.csd_ver == 0) {
     uint8_t read_bl_len = csd->v1.read_bl_len;
     uint16_t c_size = (csd->v1.c_size_high << 10) | (csd->v1.c_size_mid << 2) | csd->v1.c_size_low;

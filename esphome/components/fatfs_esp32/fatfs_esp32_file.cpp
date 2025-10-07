@@ -3,6 +3,7 @@
 #include "esphome/core/time.h"
 
 #include "fatfs_esp32_file.h"
+#include <utility>
 
 extern "C" {
 #include "ff.h"
@@ -116,7 +117,7 @@ FatESP32Info::FatESP32Info(fatfs::FatInfo &source) {
     is_hidden_ = source.is_hidden();
     is_system_ = source.is_sys();
     is_ro_ = source.is_readonly();
-    create_date_ = std::move(*(source.get_cr_date()));
+    create_date_ = *(source.get_cr_date());
   }
 
   // drive_ = source->get_drive();
@@ -311,7 +312,7 @@ bool FatESP32File::is_eof() { return f_eof(&fptr_); }
 
 // --------------------------------------------------------------------------------
 
-FatESP32Dir::FatESP32Dir(std::string path) : FatESP32Info{path} { this->open(); }
+FatESP32Dir::FatESP32Dir(std::string path) : FatESP32Info{std::move(path)} { this->open(); }
 
 // --------------------------------------------------------------------------------
 
@@ -332,11 +333,12 @@ bool FatESP32Dir::open() {
 
   error_ = f_opendir(&dptr_, this->FatESP32Info::get_full_path().c_str());
 
-  if (error_ != FR_OK) {
-    is_open_ = false;
-  } else {
-    is_open_ = true;
-  }
+  // if (error_ != FR_OK) {
+  //   is_open_ = false;
+  // } else {
+  //   is_open_ = true;
+  // }
+  is_open_ = error_ == FR_OK;
   return is_open_;
 }
 
@@ -378,11 +380,7 @@ bool FatESP32Dir::reset() {
     }
   }
   error_ = f_opendir(&dptr_, this->FatESP32Info::get_full_path().c_str());
-  if (error_ != FR_OK) {
-    return false;
-  }
-
-  return true;
+  return error_ == FR_OK;
 }
 
 }  // namespace fatfs_esp32

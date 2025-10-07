@@ -21,7 +21,7 @@ using enum fatfs::StorageState;
 
 //--------------------------------------------------------------------------------
 DSTATUS ff_sd_initialize(uint8_t pdrv) {
-  StorageIO *io_class;
+  StorageIO *io_class = nullptr;
   if (db.find(pdrv) != db.end()) {
     io_class = db.at(pdrv);
   } else {
@@ -54,7 +54,7 @@ DRESULT ff_sd_read(uint8_t pdrv, uint8_t *buffer, DWORD sector, UINT count) {
   if (db.find(pdrv) != db.end()) {
     io_class = db.at(pdrv);
   } else {
-    ESP_LOGE(TAG, "ff_sd_read. IO driver not initilized, drv=%s", pdrv);
+    ESP_LOGE(TAG, "ff_sd_read. IO driver not initilized, drv=%d", pdrv);
     return RES_ERROR;
   }
   DRESULT res = static_cast<DRESULT>(io_class->storage_read_sectors(buffer, sector, count));
@@ -73,7 +73,7 @@ DRESULT ff_sd_write(uint8_t pdrv, const uint8_t *buffer, DWORD sector, UINT coun
   if (db.find(pdrv) != db.end()) {
     io_class = db.at(pdrv);
   } else {
-    ESP_LOGE(TAG, "ff_sd_write. IO driver not initilized, drv=%s", pdrv);
+    ESP_LOGE(TAG, "ff_sd_write. IO driver not initilized, drv=%d", pdrv);
     return RES_ERROR;
   }
 

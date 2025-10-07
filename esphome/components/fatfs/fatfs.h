@@ -176,7 +176,7 @@ class FileObject {
    * @brief  CLose file. Flush to media&
    *
    */
-  virtual void close() { return; };
+  virtual void close(){};
   /**
    * @brief Reads data from a file
    *
@@ -226,7 +226,7 @@ class FileObject {
    * @brief flushes the cached information of a writing file. See @ref https://elm-chan.org/fsw/ff/doc/sync.html
    *
    */
-  virtual void flush() { return; };
+  virtual void flush(){};
   /**
    * @brief Test for end-of-file
    *

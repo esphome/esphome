@@ -610,7 +610,7 @@ bool SDSPIDriver::read_register(uint8_t cmd, void *buf) {
 
 uint32_t SDSPIDriver::sector_count() {
   csd_t csd;
-  uint32_t s_count = read_csd(&csd) ? sdCardCapacity(&csd) : 0;
+  uint32_t s_count = read_csd(&csd) ? sd_card_capacity(&csd) : 0;
   ESP_LOGV(TAG, "Read sectors count = %d", s_count);
   return s_count;
 }
