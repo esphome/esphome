@@ -4503,7 +4503,7 @@ void HOT WaveshareEPaper7P5InHDB::display() {
   this->command(0x4F);
   this->data(0xAf);
   this->data(0x02);
-  /*
+  
   // BLACK
   this->command(0x24);
   this->start_data_();
@@ -4514,25 +4514,8 @@ void HOT WaveshareEPaper7P5InHDB::display() {
   this->command(0x26);
   this->start_data_();
   for (size_t i = 0; i < this->get_buffer_length_(); i++)
-    this->write_byte(0x00);
+  this->write_array(this->buffer_, this->get_buffer_length_());
   this->end_data_();
-  */
-  //this->init_display_();
-  const uint32_t buf_len = this->get_buffer_length_() / 2u;
-  /* CUSTOM DRIVER  for this display*/
-  // COMMAND DATA START TRANSMISSION 1 (BLACK)
-  this->command(0x24);
-  delay(2);
-  for (uint32_t i = 0; i < buf_len; i++) {
-    this->data(~this->buffer_[i]);
-  }
-  delay(2);
-  
-  this->command(0x26);
-  delay(2);
-  for (uint32_t i = 0; i < buf_len; i++) {
-    this->data(this->buffer_[i]);
-  }
 
   this->command(0x22);
   this->data(0xC7);
