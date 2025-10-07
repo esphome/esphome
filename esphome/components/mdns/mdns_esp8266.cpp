@@ -21,11 +21,11 @@ void MDNSComponent::setup() {
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
     // the underscore itself.
-    auto *proto = service.proto.c_str();
+    auto *proto = service.proto;
     while (*proto == '_') {
       proto++;
     }
-    auto *service_type = service.service_type.c_str();
+    auto *service_type = service.service_type;
     while (*service_type == '_') {
       service_type++;
     }
