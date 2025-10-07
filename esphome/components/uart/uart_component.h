@@ -156,6 +156,7 @@ class UARTComponent {
   std::string get_debug_settings_string(bool debug_add_settings_) {
     if(!debug_add_settings_)
       return "";
+    this->debug_add_settings = true;
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
@@ -224,6 +225,7 @@ class UARTComponent {
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string, bool)> debug_callback_{};
   std::string debug_prefix_{""};
+  bool debug_add_settings_{false};
 #endif
 };
 
