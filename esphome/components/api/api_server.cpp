@@ -409,6 +409,16 @@ void APIServer::register_action_response_callback(uint32_t call_id, ActionRespon
   this->action_response_callbacks_[call_id] = std::move(callback);
 }
 
+void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message) {
+  auto it = this->action_response_callbacks_.find(call_id);
+  if (it != this->action_response_callbacks_.end()) {
+    auto callback = std::move(it->second);
+    this->action_response_callbacks_.erase(it);
+    auto response = std::make_shared<ActionResponse>(success, error_message);
+    callback(response);
+  }
+}
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
                                        const uint8_t *response_data, size_t response_data_len) {
   auto it = this->action_response_callbacks_.find(call_id);
@@ -419,6 +429,7 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
     callback(response);
   }
 }
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 

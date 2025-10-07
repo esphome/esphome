@@ -116,8 +116,11 @@ class APIServer : public Component, public Controller {
   // Action response handling
   using ActionResponseCallback = std::function<void(std::shared_ptr<class ActionResponse>)>;
   void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
                               const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_API_SERVICES

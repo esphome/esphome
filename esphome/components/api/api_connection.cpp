@@ -1552,8 +1552,15 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
-  this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
-                                        msg.response_data_len);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  if (msg.response_data_len > 0) {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
+                                          msg.response_data_len);
+  } else
+#endif
+  {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message);
+  }
 };
 #endif
 #ifdef USE_API_NOISE

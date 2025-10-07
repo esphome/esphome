@@ -1104,7 +1104,7 @@ class HomeassistantServiceMap final : public ProtoMessage {
 class HomeassistantActionRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 35;
-  static constexpr uint8_t ESTIMATED_SIZE = 126;
+  static constexpr uint8_t ESTIMATED_SIZE = 128;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
@@ -1117,7 +1117,10 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   uint32_t call_id{0};
 #endif
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  bool wants_response{false};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   std::string response_template{};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1140,8 +1143,10 @@ class HomeassistantActionResponse final : public ProtoDecodableMessage {
   uint32_t call_id{0};
   bool success{false};
   std::string error_message{};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   const uint8_t *response_data{nullptr};
   uint16_t response_data_len{0};
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
