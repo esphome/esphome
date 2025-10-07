@@ -115,7 +115,7 @@ void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uin
   }
   if(!debug_prefix.empty() && !settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s%s", settings_string.c_str(), debug_prefix.c_str(), res.c_str());
-  } else if (!debug_prefix.empty()) {
+  } else if (!debug_prefix.empty() && settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
   } else {
     ESP_LOGD(TAG, "%s", res.c_str());
@@ -165,7 +165,7 @@ void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes, 
   res += '"';
   if(!debug_prefix.empty() && !settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s%s", settings_string.c_str(), debug_prefix.c_str(), res.c_str());
-  } else if (!debug_prefix.empty()) {
+  } else if (!debug_prefix.empty() && settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
   } else {
     ESP_LOGD(TAG, "%s", res.c_str());
@@ -189,7 +189,7 @@ void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uin
   }
   if(!debug_prefix.empty() && !settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s%s", settings_string.c_str(), debug_prefix.c_str(), res.c_str());
-  } else if (!debug_prefix.empty()) {
+  } else if (!debug_prefix.empty() && settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
   } else {
     ESP_LOGD(TAG, "%s", res.c_str());
@@ -215,7 +215,7 @@ void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, 
   }
   if(!debug_prefix.empty() && !settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s%s", settings_string.c_str(), debug_prefix.c_str(), res.c_str());
-  } else if (!debug_prefix.empty()) {
+  } else if (!debug_prefix.empty() && settings_string.empty()) {
     ESP_LOGD(TAG, "%s%s", debug_prefix.c_str(), res.c_str());
   } else {
     ESP_LOGD(TAG, "%s", res.c_str());
