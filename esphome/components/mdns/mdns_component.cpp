@@ -45,7 +45,7 @@ static const char *const TAG = "mdns";
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
-// Define constant strings for values (PROGMEM on ESP8266, regular flash on others)
+// Define constant strings for values (PROGMEM on ESP8266, static pointers on others)
 MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
 MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
 MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
