@@ -22,11 +22,11 @@ void MDNSComponent::setup() {
     // expects the underscore to be there, the ESP8266 implementation always adds
     // the underscore itself.
     auto *proto = MDNS_STR_ARG(service.proto);
-    while (progmem_read_byte(proto) == '_') {
+    while (progmem_read_byte((const uint8_t *) proto) == '_') {
       proto++;
     }
     auto *service_type = MDNS_STR_ARG(service.service_type);
-    while (progmem_read_byte(service_type) == '_') {
+    while (progmem_read_byte((const uint8_t *) service_type) == '_') {
       service_type++;
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
