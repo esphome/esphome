@@ -40,7 +40,9 @@ void MDNSComponent::setup() {
 
     // free records
     for (const auto &it : txt_records) {
-      free((void *) it.value);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-pro-type-cstyle-cast)
+      free(
+          (void *) it
+              .value);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-pro-type-cstyle-cast,cppcoreguidelines-no-malloc)
     }
 
     if (err != ESP_OK) {
