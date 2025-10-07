@@ -4434,6 +4434,61 @@ void WaveshareEPaper7P5InBC::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+void WaveshareEPaper7P5InHDBWR::initialize() {
+  this->reset_();
+
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  this->command(0x01);  // Power setting
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+
+  this->command(0x04);  // Power on
+  this->wait_until_idle_();
+
+  this->command(0x00);  // Panel setting
+  this->data(0x1F);
+
+  this->command(0x61);  // Resolution setting
+  this->data(0x03);
+  this->data(0x70);     // 880
+  this->data(0x02);
+  this->data(0x10);     // 528
+
+  this->command(0x15);
+  this->data(0x00);
+
+  this->command(0x50);  // VCOM and data interval setting
+  this->data(0x11);
+  this->command(0x60);  // TCON setting
+  this->data(0x22);
+}
+
+void WaveshareEPaper7P5InHDBWR::display() {
+  this->command(0x10);  // Data start transmission 1 (black)
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->data(this->buffer_[i]);
+  }
+
+  this->command(0x13);  // Data start transmission 2 (red)
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->data(this->buffer_red_[i]);
+  }
+
+  this->command(0x12);  // Display refresh
+  this->wait_until_idle_();
+}
+
+void WaveshareEPaper7P5InHDBWR::dump_config() {
+  ESP_LOGCONFIG(TAG, "Waveshare 7.50in HD-B BWR e-Paper:");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  ESP_LOGCONFIG(TAG, "  Resolution: 880x528 (Black/Red)");
+}
 
 void WaveshareEPaper7P5InHDB::initialize() {
   this->command(0x12);  // SWRESET
