@@ -218,23 +218,23 @@ class Jinja(jinja.Environment):
             if isinstance(v, str) and not isinstance(v, JinjaStr) and has_jinja(v):
                 self.context_vars[k] = JinjaStr(v, self.context_vars)
 
-        def jinja_eval(expr, ctx=None):
+        def jinja_eval(expr, ctx=None, list_item="item"):
             if isinstance(ctx, list):
-                return [jinja_eval(expr, c) for c in ctx]
+                return [jinja_eval(expr, c, list_item) for c in ctx]
             if ctx is not None and not isinstance(ctx, dict):
-                raise TemplateError("eval() context must be a dict or a list of dicts")
+                ctx = {list_item: ctx}
             if isinstance(expr, dict):
                 expr = dict(expr)
                 for k, v in expr.items():
-                    new_k = jinja_eval(k, ctx)
-                    v = jinja_eval(v, ctx)
+                    new_k = jinja_eval(k, ctx, list_item)
+                    v = jinja_eval(v, ctx, list_item)
                     if new_k != k:
                         expr.pop(k)
                         k = new_k
                     expr[k] = v
                 return expr
             if isinstance(expr, list):
-                return [jinja_eval(v, ctx) for v in expr]
+                return [jinja_eval(v, ctx, list_item) for v in expr]
             if not isinstance(expr, str):
                 return expr
             result, _ = self.expand(JinjaStr(expr, ctx))

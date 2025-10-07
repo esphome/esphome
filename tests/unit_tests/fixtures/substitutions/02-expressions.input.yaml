@@ -29,3 +29,4 @@ test_list:
   - ${ template_expression } is literal
   - "${ eval(template_expression, {'width': 7 }) } == 21"
   - "${ eval(template_expression, [{'width': 7 }, {'width': 9 }]) } == [21, 27]"
+  - "${ eval(template_expression, [7, 9], 'width') } == [21, 27]"
