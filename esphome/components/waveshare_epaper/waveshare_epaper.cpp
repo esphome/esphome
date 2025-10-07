@@ -4513,7 +4513,8 @@ void HOT WaveshareEPaper7P5InHDB::display() {
   // RED
   this->command(0x26);
   this->start_data_();
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0x00);
   this->end_data_();
 
   this->command(0x22);
