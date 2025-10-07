@@ -18,13 +18,13 @@ DEPENDENCIES = ["espnow"]
 ESPNowTransport = espnow_ns.class_("ESPNowTransport", PacketTransport, PollingComponent)
 
 CONF_ESPNOW_ID = "espnow_id"
-CONF_BROADCAST_ADDRESS = "broadcast_address"
+CONF_PEER_ADDRESS = "peer_address"
 
 CONFIG_SCHEMA = transport_schema(ESPNowTransport).extend(
     {
         cv.GenerateID(CONF_ESPNOW_ID): cv.use_id(ESPNowComponent),
         cv.Optional(
-            CONF_BROADCAST_ADDRESS, default="FF:FF:FF:FF:FF:FF"
+            CONF_PEER_ADDRESS, default="FF:FF:FF:FF:FF:FF"
         ): cv.mac_address,
     }
 )
@@ -36,6 +36,7 @@ async def to_code(config):
 
     await cg.register_parented(var, config[CONF_ESPNOW_ID])
 
-    # Set broadcast address - convert MAC to parts array like ESP-NOW does
-    mac = config[CONF_BROADCAST_ADDRESS]
-    cg.add(var.set_broadcast_address([HexInt(x) for x in mac.parts]))
+    # Set peer address - convert MAC to parts array like ESP-NOW does
+    mac = config[CONF_PEER_ADDRESS]
+    cg.add(var.set_peer_address([HexInt(x) for x in mac.parts]))
+

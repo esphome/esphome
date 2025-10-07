@@ -21,8 +21,8 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   void update() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_broadcast_address(peer_address_t address) {
-    memcpy(this->broadcast_address_.data(), address.data(), ESP_NOW_ETH_ALEN);
+  void set_peer_address(peer_address_t address) {
+    memcpy(this->peer_address_.data(), address.data(), ESP_NOW_ETH_ALEN);
   }
 
   // ESPNow handler interface
@@ -34,10 +34,11 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   size_t get_max_packet_size() override { return ESP_NOW_MAX_DATA_LEN; }
   bool should_send() override;
 
-  peer_address_t broadcast_address_{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
+  peer_address_t peer_address_{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
 };
 
 }  // namespace espnow
 }  // namespace esphome
 
 #endif  // USE_ESP32
+

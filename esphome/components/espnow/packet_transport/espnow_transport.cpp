@@ -22,9 +22,9 @@ void ESPNowTransport::setup() {
   }
 
   ESP_LOGI(TAG, "Registering ESP-NOW handlers");
-  ESP_LOGI(TAG, "Broadcast address: %02X:%02X:%02X:%02X:%02X:%02X", this->broadcast_address_[0],
-           this->broadcast_address_[1], this->broadcast_address_[2], this->broadcast_address_[3],
-           this->broadcast_address_[4], this->broadcast_address_[5]);
+  ESP_LOGI(TAG, "Peer address: %02X:%02X:%02X:%02X:%02X:%02X", this->peer_address_[0],
+           this->peer_address_[1], this->peer_address_[2], this->peer_address_[3],
+           this->peer_address_[4], this->peer_address_[5]);
 
   // Register this transport as an ESP-NOW handler
   this->parent_->register_received_handler(static_cast<ESPNowReceivedPacketHandler *>(this));
@@ -54,9 +54,11 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
     return;
   }
 
-  // ESP-NOW send expects a callback parameter - provide an empty lambda
-  this->parent_->send(this->broadcast_address_.data(), buf.data(), buf.size(), [](esp_err_t err) {
-    // Callback intentionally empty - packet_transport doesn't need send confirmation
+  // Send to configured peer address
+  this->parent_->send(this->peer_address_.data(), buf.data(), buf.size(), [](esp_err_t err) {
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Send failed: %d", err);
+    }
   });
 }
 
@@ -92,3 +94,4 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
 }  // namespace esphome
 
 #endif  // USE_ESP32
+
