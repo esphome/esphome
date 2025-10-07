@@ -9,24 +9,20 @@
 #include <pgmspace.h>
 // Macro to define strings in PROGMEM on ESP8266, regular memory on other platforms
 #define MDNS_STATIC_CONST_CHAR(name, value) static const char name[] PROGMEM = value
-// Helper to get string from PROGMEM - returns a temporary std::string
-// Only define this function if we have services that will use it
-#if defined(USE_API) || defined(USE_PROMETHEUS) || defined(USE_WEBSERVER) || defined(USE_MDNS_EXTRA_SERVICES)
-static std::string mdns_string_p(const char *src) {
+#define MDNS_STR(name) (reinterpret_cast<const MDNSString *>(name))
+// Helper to convert PROGMEM string to std::string for TemplatableValue
+static std::string mdns_str_value(PGM_P str) {
   char buf[64];
-  strncpy_P(buf, src, sizeof(buf) - 1);
+  strncpy_P(buf, str, sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';
   return std::string(buf);
 }
-#define MDNS_STR(name) mdns_string_p(name)
-#else
-// If no services are configured, we still need the fallback service but it uses string literals
-#define MDNS_STR(name) std::string(name)
-#endif
+#define MDNS_STR_VALUE(name) mdns_str_value(name)
 #else
 // On non-ESP8266 platforms, use regular const char*
-#define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char *name = value
-#define MDNS_STR(name) name
+#define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char name[] = value
+#define MDNS_STR(name) (reinterpret_cast<const MDNSString *>(name))
+#define MDNS_STR_VALUE(name) std::string(name)
 #endif
 
 #ifdef USE_API
@@ -118,11 +114,11 @@ void MDNSComponent::compile_records_() {
     txt_records.push_back({MDNS_STR(TXT_MAC), get_mac_address()});
 
 #ifdef USE_ESP8266
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP8266)});
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR_VALUE(PLATFORM_ESP8266)});
 #elif defined(USE_ESP32)
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP32)});
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR_VALUE(PLATFORM_ESP32)});
 #elif defined(USE_RP2040)
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2040)});
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR_VALUE(PLATFORM_RP2040)});
 #elif defined(USE_LIBRETINY)
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), lt_cpu_get_model_name()});
 #endif
@@ -130,19 +126,19 @@ void MDNSComponent::compile_records_() {
     txt_records.push_back({MDNS_STR(TXT_BOARD), ESPHOME_BOARD});
 
 #if defined(USE_WIFI)
-    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_WIFI)});
+    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR_VALUE(NETWORK_WIFI)});
 #elif defined(USE_ETHERNET)
-    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_ETHERNET)});
+    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR_VALUE(NETWORK_ETHERNET)});
 #elif defined(USE_OPENTHREAD)
-    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_THREAD)});
+    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR_VALUE(NETWORK_THREAD)});
 #endif
 
 #ifdef USE_API_NOISE
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
     if (api::global_api_server->get_noise_ctx()->has_psk()) {
-      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION), MDNS_STR(NOISE_ENCRYPTION)});
+      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION), MDNS_STR_VALUE(NOISE_ENCRYPTION)});
     } else {
-      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION_SUPPORTED), MDNS_STR(NOISE_ENCRYPTION)});
+      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION_SUPPORTED), MDNS_STR_VALUE(NOISE_ENCRYPTION)});
     }
 #endif
 
@@ -190,10 +186,10 @@ void MDNSComponent::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
-    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type, service.proto,
+    ESP_LOGV(TAG, "  - %s, %s, %d", MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto),
              const_cast<TemplatableValue<uint16_t> &>(service.port).value());
     for (const auto &record : service.txt_records) {
-      ESP_LOGV(TAG, "    TXT: %s = %s", record.key,
+      ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key),
                const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
     }
   }
