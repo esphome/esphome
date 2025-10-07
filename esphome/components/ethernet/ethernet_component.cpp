@@ -9,6 +9,10 @@
 #include <cinttypes>
 #include "esp_event.h"
 
+#ifdef USE_ETHERNET_LAN8670
+#include "esp_eth_phy_lan867x.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -37,17 +41,20 @@ static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
+  ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
+  this->mark_failed();
+}
+
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
+    this->log_error_and_mark_failed_(err, message); \
     return; \
   }
 
 #define ESPHL_ERROR_CHECK_RET(err, message, ret) \
   if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
+    this->log_error_and_mark_failed_(err, message); \
     return ret; \
   }
 
@@ -200,6 +207,12 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
       break;
     }
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670: {
+      this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
+      break;
+    }
+#endif
 #endif
 #ifdef USE_ETHERNET_SPI
 #if CONFIG_ETH_SPI_ETHERNET_W5500
@@ -243,7 +256,11 @@ void EthernetComponent::setup() {
 
   // use ESP internal eth mac
   uint8_t mac_addr[6];
-  esp_read_mac(mac_addr, ESP_MAC_ETH);
+  if (this->fixed_mac_.has_value()) {
+    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+  } else {
+    esp_read_mac(mac_addr, ESP_MAC_ETH);
+  }
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_MAC_ADDR, mac_addr);
   ESPHL_ERROR_CHECK(err, "set mac address error");
 
@@ -352,6 +369,12 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;
+
+#ifdef USE_ETHERNET_LAN8670
+    case ETHERNET_TYPE_LAN8670:
+      eth_type = "LAN8670";
+      break;
+#endif
 
     default:
       eth_type = "Unknown";

@@ -11,6 +11,7 @@ from hypothesis.strategies import ip_addresses
 import pytest
 
 from esphome import helpers
+from esphome.address_cache import AddressCache
 from esphome.core import EsphomeError
 
 
@@ -153,11 +154,11 @@ def test_walk_files(fixture_path):
     actual = list(helpers.walk_files(path))
 
     # Ensure paths start with the root
-    assert all(p.startswith(str(path)) for p in actual)
+    assert all(p.is_relative_to(path) for p in actual)
 
 
 class Test_write_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path):
+    def test_src_and_dst_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = text
         dst = tmp_path / "file-a.txt"
@@ -167,7 +168,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_src_and_dst_do_not_match(self, tmp_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = "B files are unique.\n"
         dst = tmp_path / "file-a.txt"
@@ -177,7 +178,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_dst_does_not_exist(self, tmp_path):
+    def test_dst_does_not_exist(self, tmp_path: Path):
         text = "A files are unique.\n"
         dst = tmp_path / "file-a.txt"
 
@@ -187,7 +188,7 @@ class Test_write_file_if_changed:
 
 
 class Test_copy_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
@@ -196,7 +197,7 @@ class Test_copy_file_if_changed:
 
         helpers.copy_file_if_changed(src, dst)
 
-    def test_src_and_dst_do_not_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-c.txt"
         dst = tmp_path / "file-a.txt"
@@ -207,7 +208,7 @@ class Test_copy_file_if_changed:
 
         assert src.read_text() == dst.read_text()
 
-    def test_dst_does_not_exist(self, tmp_path, fixture_path):
+    def test_dst_does_not_exist(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
 
@@ -603,9 +604,8 @@ def test_mkdir_p_with_existing_file_raises_error(tmp_path: Path) -> None:
         helpers.mkdir_p(dir_path)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
-def test_read_file_unix(tmp_path: Path) -> None:
-    """Test read_file reads file content correctly on Unix."""
+def test_read_file(tmp_path: Path) -> None:
+    """Test read_file reads file content correctly."""
     # Test reading regular file
     test_file = tmp_path / "test.txt"
     expected_content = "Test content\nLine 2\n"
@@ -623,31 +623,10 @@ def test_read_file_unix(tmp_path: Path) -> None:
     assert content == utf8_content
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
-def test_read_file_windows(tmp_path: Path) -> None:
-    """Test read_file reads file content correctly on Windows."""
-    # Test reading regular file
-    test_file = tmp_path / "test.txt"
-    expected_content = "Test content\nLine 2\n"
-    test_file.write_text(expected_content)
-
-    content = helpers.read_file(test_file)
-    # On Windows, text mode reading converts \n to \r\n
-    assert content == expected_content.replace("\n", "\r\n")
-
-    # Test reading file with UTF-8 characters
-    utf8_file = tmp_path / "utf8.txt"
-    utf8_content = "Hello 世界 🌍"
-    utf8_file.write_text(utf8_content, encoding="utf-8")
-
-    content = helpers.read_file(utf8_file)
-    assert content == utf8_content
-
-
 def test_read_file_not_found() -> None:
     """Test read_file raises error for non-existent file."""
     with pytest.raises(EsphomeError, match=r"Error reading file"):
-        helpers.read_file("/nonexistent/file.txt")
+        helpers.read_file(Path("/nonexistent/file.txt"))
 
 
 def test_read_file_unicode_decode_error(tmp_path: Path) -> None:
@@ -830,3 +809,84 @@ def test_resolve_ip_address_sorting() -> None:
         assert result[0][4][0] == "2001:db8::1"  # IPv6 (preference 1)
         assert result[1][4][0] == "192.168.1.100"  # IPv4 (preference 2)
         assert result[2][4][0] == "fe80::1"  # Link-local no scope (preference 3)
+
+
+def test_resolve_ip_address_with_cache() -> None:
+    """Test that the cache is used when provided."""
+    cache = AddressCache(
+        mdns_cache={"test.local": ["192.168.1.100", "192.168.1.101"]},
+        dns_cache={
+            "example.com": ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]
+        },
+    )
+
+    # Test mDNS cache hit
+    result = helpers.resolve_ip_address("test.local", 6053, address_cache=cache)
+
+    # Should return cached addresses without calling resolver
+    assert len(result) == 2
+    assert result[0][4][0] == "192.168.1.100"
+    assert result[1][4][0] == "192.168.1.101"
+
+    # Test DNS cache hit
+    result = helpers.resolve_ip_address("example.com", 6053, address_cache=cache)
+
+    # Should return cached addresses with IPv6 first due to preference
+    assert len(result) == 2
+    assert result[0][4][0] == "2606:2800:220:1:248:1893:25c8:1946"  # IPv6 first
+    assert result[1][4][0] == "93.184.216.34"  # IPv4 second
+
+
+def test_resolve_ip_address_cache_miss() -> None:
+    """Test that resolver is called when not in cache."""
+    cache = AddressCache(mdns_cache={"other.local": ["192.168.1.200"]})
+
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address("test.local", 6053, address_cache=cache)
+
+        # Should call resolver since test.local is not in cache
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        assert len(result) == 1
+        assert result[0][4][0] == "192.168.1.100"
+
+
+def test_resolve_ip_address_mixed_cached_uncached() -> None:
+    """Test resolution with mix of cached and uncached hosts."""
+    cache = AddressCache(mdns_cache={"cached.local": ["192.168.1.50"]})
+
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.return_value = [mock_addr_info]
+
+        # Pass a list with cached IP, cached hostname, and uncached hostname
+        result = helpers.resolve_ip_address(
+            ["192.168.1.10", "cached.local", "uncached.local"],
+            6053,
+            address_cache=cache,
+        )
+
+        # Should only resolve uncached.local
+        MockResolver.assert_called_once_with(["uncached.local"], 6053)
+
+        # Results should include all addresses
+        addresses = [r[4][0] for r in result]
+        assert "192.168.1.10" in addresses  # Direct IP
+        assert "192.168.1.50" in addresses  # From cache
+        assert "192.168.1.100" in addresses  # From resolver

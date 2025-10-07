@@ -11,10 +11,16 @@ from esphome.const import (
     CONF_SERVICES,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+
+# Components that create mDNS services at runtime
+# IMPORTANT: If you add a new component here, you must also update the corresponding
+# #ifdef blocks in mdns_component.cpp compile_records_() method
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -72,7 +78,7 @@ def mdns_service(
     )
 
 
-@coroutine_with_priority(CoroPriority.COMMUNICATION)
+@coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config):
     if config[CONF_DISABLED] is True:
         return
@@ -90,11 +96,19 @@ async def to_code(config):
 
     cg.add_define("USE_MDNS")
 
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    # Calculate compile-time service count
+    service_count = sum(
+        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
+    ) + len(config[CONF_SERVICES])
 
     if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
+
+    # Ensure at least 1 service (fallback service)
+    cg.add_define("MDNS_SERVICE_COUNT", max(1, service_count))
+
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
 
     for service in config[CONF_SERVICES]:
         txt = [

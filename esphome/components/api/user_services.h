@@ -35,7 +35,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
     msg.set_name(StringRef(this->name_));
     msg.key = this->key_;
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
-    for (int i = 0; i < sizeof...(Ts); i++) {
+    for (size_t i = 0; i < sizeof...(Ts); i++) {
       msg.args.emplace_back();
       auto &arg = msg.args.back();
       arg.type = arg_types[i];
@@ -55,7 +55,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
 
  protected:
   virtual void execute(Ts... x) = 0;
-  template<int... S> void execute_(std::vector<ExecuteServiceArgument> args, seq<S...> type) {
+  template<int... S> void execute_(const std::vector<ExecuteServiceArgument> &args, seq<S...> type) {
     this->execute((get_execute_arg_value<Ts>(args[S]))...);
   }
 
