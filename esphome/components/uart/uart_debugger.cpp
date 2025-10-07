@@ -16,15 +16,13 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
   this->debug_settings_string_ = parent->get_debug_settings_string();
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix, bool debug_add_settings) {
     std::string settings_string;
-    if (debug_add_settings_)
-      settings_string = this->debug_settings_string_;
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
-    this->trigger_after_direction_change_(direction, settings_string);
+    this->trigger_after_direction_change_(direction);
     this->store_byte_(direction, byte);
-    this->trigger_after_delimiter_(byte, settings_string);
-    this->trigger_after_bytes_(settings_string);
+    this->trigger_after_delimiter_(byte);
+    this->trigger_after_bytes_();
   });
 }
 
@@ -39,7 +37,7 @@ bool UARTDebugger::is_recursive_() { return this->is_triggering_; }
 void UARTDebugger::trigger_after_direction_change_(UARTDirection direction, std::string settings_string) {
   if (this->has_buffered_bytes_() && this->for_direction_ == UART_DIRECTION_BOTH &&
       this->last_direction_ != direction) {
-    this->fire_trigger_(settings_string);
+    this->fire_trigger_();
   }
 }
 
@@ -66,21 +64,21 @@ void UARTDebugger::trigger_after_delimiter_(uint8_t byte, std::string settings_s
 
 void UARTDebugger::trigger_after_bytes_(std::string settings_string) {
   if (this->has_buffered_bytes_() && this->after_bytes_ > 0 && this->bytes_.size() >= this->after_bytes_) {
-    this->fire_trigger_(settings_string);
+    this->fire_trigger_();
   }
 }
 
 void UARTDebugger::trigger_after_timeout_(std::string settings_string) {
   if (this->has_buffered_bytes_() && this->after_timeout_ > 0 && millis() - this->last_time_ >= this->after_timeout_) {
-    this->fire_trigger_(settings_string);
+    this->fire_trigger_();
   }
 }
 
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
-void UARTDebugger::fire_trigger_(std::string settings_string) {
+void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
-  trigger(this->last_direction_, this->bytes_, this->debug_prefix_, settings_string);
+  trigger(this->last_direction_, this->bytes_, this->debug_prefix_, this->debug_settings_string_);
   this->bytes_.clear();
   this->is_triggering_ = false;
 }
