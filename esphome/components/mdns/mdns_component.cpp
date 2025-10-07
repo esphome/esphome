@@ -74,32 +74,12 @@ MDNS_STATIC_CONST_CHAR(NETWORK_THREAD, "thread");
 void MDNSComponent::compile_records_() {
   this->hostname_ = App.get_name();
 
-  // Calculate exact capacity needed for services vector
-  size_t services_count = 0;
-#ifdef USE_API
-  if (api::global_api_server != nullptr) {
-    services_count++;
-  }
-#endif
-#ifdef USE_PROMETHEUS
-  services_count++;
-#endif
-#ifdef USE_WEBSERVER
-  services_count++;
-#endif
-#ifdef USE_MDNS_EXTRA_SERVICES
-  services_count += this->services_extra_.size();
-#endif
-  // Reserve for fallback service if needed
-  if (services_count == 0) {
-    services_count = 1;
-  }
-  this->services_.reserve(services_count);
+  // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
+  // in mdns/__init__.py. If you add a new service here, update both locations.
 
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
-    this->services_.emplace_back();
-    auto &service = this->services_.back();
+    auto &service = this->services_.emplace_next();
     service.service_type = MDNS_STR(SERVICE_ESPHOMELIB);
     service.proto = MDNS_STR(SERVICE_TCP);
     service.port = api::global_api_server->get_port();
@@ -178,30 +158,23 @@ void MDNSComponent::compile_records_() {
 #endif  // USE_API
 
 #ifdef USE_PROMETHEUS
-  this->services_.emplace_back();
-  auto &prom_service = this->services_.back();
+  auto &prom_service = this->services_.emplace_next();
   prom_service.service_type = MDNS_STR(SERVICE_PROMETHEUS);
   prom_service.proto = MDNS_STR(SERVICE_TCP);
   prom_service.port = USE_WEBSERVER_PORT;
 #endif
 
 #ifdef USE_WEBSERVER
-  this->services_.emplace_back();
-  auto &web_service = this->services_.back();
+  auto &web_service = this->services_.emplace_next();
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
   web_service.port = USE_WEBSERVER_PORT;
 #endif
 
-#ifdef USE_MDNS_EXTRA_SERVICES
-  this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
-#endif
-
 #if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
   // Publish "http" service if not using native API or any other services
   // This is just to have *some* mDNS service so that .local resolution works
-  this->services_.emplace_back();
-  auto &fallback_service = this->services_.back();
+  auto &fallback_service = this->services_.emplace_next();
   fallback_service.service_type = "_http";
   fallback_service.proto = "_tcp";
   fallback_service.port = USE_WEBSERVER_PORT;
@@ -214,7 +187,7 @@ void MDNSComponent::dump_config() {
                 "mDNS:\n"
                 "  Hostname: %s",
                 this->hostname_.c_str());
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),
@@ -226,8 +199,6 @@ void MDNSComponent::dump_config() {
   }
 #endif
 }
-
-std::vector<MDNSService> MDNSComponent::get_services() { return this->services_; }
 
 }  // namespace mdns
 }  // namespace esphome

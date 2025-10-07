@@ -1,5 +1,8 @@
+from collections.abc import Callable, MutableMapping
 from enum import Enum
+import logging
 import re
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -9,15 +12,18 @@ from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ESPHOME,
     CONF_ID,
+    CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import TimePeriod
+from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class BTLoggers(Enum):
@@ -127,6 +133,28 @@ CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
 
+# BLE connection limits
+# ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
+# Total instances: 10 (ADV + SCAN + connections)
+# - ADV only: up to 9 connections
+# - SCAN only: up to 9 connections
+# - ADV + SCAN: up to 8 connections
+DEFAULT_MAX_CONNECTIONS = 3
+IDF_MAX_CONNECTIONS = 9
+
+# Connection slot tracking keys
+KEY_ESP32_BLE = "esp32_ble"
+KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
+
+# Export for use by other components (bluetooth_proxy, etc.)
+__all__ = [
+    "DEFAULT_MAX_CONNECTIONS",
+    "IDF_MAX_CONNECTIONS",
+    "KEY_ESP32_BLE",
+    "KEY_USED_CONNECTION_SLOTS",
+    "consume_connection_slots",
+]
+
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
@@ -183,6 +211,9 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
+        cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
+            cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -230,6 +261,56 @@ def validate_variant(_):
         raise cv.Invalid(f"{variant} does not support Bluetooth")
 
 
+def consume_connection_slots(
+    value: int, consumer: str
+) -> Callable[[MutableMapping], MutableMapping]:
+    """Reserve BLE connection slots for a component.
+
+    Args:
+        value: Number of connection slots to reserve
+        consumer: Name of the component consuming the slots
+
+    Returns:
+        A validator function that records the slot usage
+    """
+
+    def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
+        data: dict[str, Any] = CORE.data.setdefault(KEY_ESP32_BLE, {})
+        slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
+        slots.extend([consumer] * value)
+        return config
+
+    return _consume_connection_slots
+
+
+def validate_connection_slots(max_connections: int) -> None:
+    """Validate that BLE connection slots don't exceed the configured maximum."""
+    ble_data = CORE.data.get(KEY_ESP32_BLE, {})
+    used_slots = ble_data.get(KEY_USED_CONNECTION_SLOTS, [])
+    num_used = len(used_slots)
+
+    if num_used <= max_connections:
+        return
+
+    slot_users = ", ".join(used_slots)
+
+    if num_used > IDF_MAX_CONNECTIONS:
+        raise cv.Invalid(
+            f"BLE components require {num_used} connection slots but maximum is {IDF_MAX_CONNECTIONS}. "
+            f"Reduce the number of BLE clients. Components: {slot_users}"
+        )
+
+    _LOGGER.warning(
+        "BLE components require %d connection slot(s) but only %d configured. "
+        "Please set 'max_connections: %d' in the 'esp32_ble' component. "
+        "Components: %s",
+        num_used,
+        max_connections,
+        num_used,
+        slot_users,
+    )
+
+
 def final_validation(config):
     validate_variant(config)
     if (name := config.get(CONF_NAME)) is not None:
@@ -245,6 +326,10 @@ def final_validation(config):
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
 
+    # Validate connection slots usage
+    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+    validate_connection_slots(max_connections)
+
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
     add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server)
@@ -254,6 +339,26 @@ def final_validation(config):
         "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
     )
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
+
+    # Handle max_connections: check for deprecated location in esp32_ble_tracker
+    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+
+    # Use value from tracker if esp32_ble doesn't have it explicitly set (backward compat)
+    if "esp32_ble_tracker" in full_config:
+        tracker_config = full_config["esp32_ble_tracker"]
+        if "max_connections" in tracker_config and CONF_MAX_CONNECTIONS not in config:
+            max_connections = tracker_config["max_connections"]
+
+    # Set CONFIG_BT_ACL_CONNECTIONS to the maximum connections needed + 1 for ADV/SCAN
+    # This is the Bluedroid host stack total instance limit (range 1-9, default 4)
+    # Total instances = ADV/SCAN (1) + connection slots (max_connections)
+    # Shared between client (tracker/ble_client) and server
+    add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", max_connections + 1)
+
+    # Set controller-specific max connections for ESP32 (classic)
+    # CONFIG_BTDM_CTRL_BLE_MAX_CONN is ESP32-specific controller limit (just connections, not ADV/SCAN)
+    # For newer chips (C3/S3/etc), different configs are used automatically
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BLE_MAX_CONN", max_connections)
 
     return config
 
@@ -269,6 +374,10 @@ async def to_code(config):
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
+
+    # Define max connections for use in C++ code (e.g., ble_server.h)
+    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+    cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)

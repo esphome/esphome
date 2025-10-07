@@ -36,6 +36,13 @@ struct device;
 
 namespace esphome::logger {
 
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+// Comparison function for const char* keys in log_levels_ map
+struct CStrCompare {
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+};
+#endif
+
 // ANSI color code last digit (30-38 range, store only last digit to save RAM)
 static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
     '\0',  // NONE
@@ -133,8 +140,10 @@ class Logger : public Component {
 
   /// Set the default log level for this logger.
   void set_log_level(uint8_t level);
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   /// Set the log level of the specified tag.
-  void set_log_level(const std::string &tag, uint8_t log_level);
+  void set_log_level(const char *tag, uint8_t log_level);
+#endif
   uint8_t get_log_level() { return this->current_level_; }
 
   // ========== INTERNAL METHODS ==========
@@ -242,7 +251,9 @@ class Logger : public Component {
 #endif
 
   // Large objects (internally aligned)
-  std::map<std::string, uint8_t> log_levels_{};
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  std::map<const char *, uint8_t, CStrCompare> log_levels_{};
+#endif
   CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
@@ -355,9 +366,18 @@ class Logger : public Component {
     buffer[pos++] = '[';
     copy_string(buffer, pos, tag);
     buffer[pos++] = ':';
-    buffer[pos++] = '0' + (line / 100) % 10;
-    buffer[pos++] = '0' + (line / 10) % 10;
-    buffer[pos++] = '0' + line % 10;
+    // Format line number without modulo operations (passed by value, safe to mutate)
+    if (line > 999) [[unlikely]] {
+      int thousands = line / 1000;
+      buffer[pos++] = '0' + thousands;
+      line -= thousands * 1000;
+    }
+    int hundreds = line / 100;
+    int remainder = line - hundreds * 100;
+    int tens = remainder / 10;
+    buffer[pos++] = '0' + hundreds;
+    buffer[pos++] = '0' + tens;
+    buffer[pos++] = '0' + (remainder - tens * 10);
     buffer[pos++] = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
