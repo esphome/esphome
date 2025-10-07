@@ -52,10 +52,10 @@ def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     return prefix + msg + suffix
 
 
-def print_error_for_file(file: str, body: str | None) -> None:
+def print_error_for_file(file: str | Path, body: str | None) -> None:
     print(
         styled(colorama.Fore.GREEN, "### File ")
-        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
+        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), str(file))
     )
     print()
     if body is not None:
@@ -139,9 +139,24 @@ def _get_changed_files_github_actions() -> list[str] | None:
     if event_name == "pull_request":
         pr_number = _get_pr_number_from_github_env()
         if pr_number:
-            # Use GitHub CLI to get changed files directly
+            # Try gh pr diff first (faster for small PRs)
             cmd = ["gh", "pr", "diff", pr_number, "--name-only"]
-            return _get_changed_files_from_command(cmd)
+            try:
+                return _get_changed_files_from_command(cmd)
+            except Exception as e:
+                # If it fails due to the 300 file limit, use the API method
+                if "maximum" in str(e) and "files" in str(e):
+                    cmd = [
+                        "gh",
+                        "api",
+                        f"repos/esphome/esphome/pulls/{pr_number}/files",
+                        "--paginate",
+                        "--jq",
+                        ".[].filename",
+                    ]
+                    return _get_changed_files_from_command(cmd)
+                # Re-raise for other errors
+                raise
 
     # For pushes (including squash-and-merge)
     elif event_name == "push":
@@ -498,7 +513,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
-    CORE.config_path = str(root)
+    CORE.config_path = root
     CORE.data[KEY_CORE] = {}
 
     # Keep finding dependencies until no new ones are found
@@ -514,7 +529,16 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
             new_components.update(dep.split(".")[0] for dep in comp.dependencies)
 
             # Add auto_load components
-            new_components.update(comp.auto_load)
+            auto_load = comp.auto_load
+            if callable(auto_load):
+                import inspect
+
+                if inspect.signature(auto_load).parameters:
+                    auto_load = auto_load(None)
+                else:
+                    auto_load = auto_load()
+
+            new_components.update(auto_load)
 
         # Check if we found any new components
         new_components -= all_components
@@ -538,7 +562,7 @@ def get_components_from_integration_fixtures() -> set[str]:
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(str(yaml_file))
+        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 

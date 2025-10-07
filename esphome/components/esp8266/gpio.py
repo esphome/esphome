@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_PULLUP,
     PLATFORM_ESP8266,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
@@ -188,7 +188,7 @@ async def esp8266_pin_to_code(config):
     return var
 
 
-@coroutine_with_priority(-999.0)
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
 async def add_pin_initial_states_array():
     # Add includes at the very end, so that they override everything
     initial_states: list[PinInitialState] = CORE.data[KEY_ESP8266][
@@ -199,11 +199,11 @@ async def add_pin_initial_states_array():
 
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] = {{{initial_modes_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] PROGMEM = {{{initial_modes_s}}}"
         )
     )
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] = {{{initial_levels_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] PROGMEM = {{{initial_levels_s}}}"
         )
     )
