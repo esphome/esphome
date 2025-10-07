@@ -173,7 +173,7 @@ void MDNSComponent::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
-    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),
+    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type, service.proto,
              const_cast<TemplatableValue<uint16_t> &>(service.port).value());
     for (const auto &record : service.txt_records) {
       ESP_LOGV(TAG, "    TXT: %s = %s", record.key,
