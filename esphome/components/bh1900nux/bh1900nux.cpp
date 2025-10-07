@@ -36,16 +36,9 @@ void BH1900NUXSensor::update() {
   }
 
   // Combined raw value, unsigned and unaligned 16 bit
-  uint16_t raw_temperature_register_value = encode_uint16(temperature_raw[0], temperature_raw[1]);
-
   // Temperature is represented in just 12 bits, shift needed
-  int16_t raw_temperature_value = raw_temperature_register_value >> 4;
-
-  // Check if temperature is positive or negative (bit 11)
-  if (raw_temperature_value & 0x800) {  // Check if the sign bit is set
-    raw_temperature_value |= 0xF000;    // Temperature is negative, sign extension needed
-  }
-
+  int16_t raw_temperature_register_value = encode_uint16(temperature_raw[0], temperature_raw[1]);
+  raw_temperature_register_value >>= 4;
   float temperature_value = raw_temperature_value * SENSOR_RESOLUTION;  // Apply sensor resolution
 
   this->publish_state(temperature_value);
