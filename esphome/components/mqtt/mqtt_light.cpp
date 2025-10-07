@@ -69,6 +69,12 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
     root["brightness"] = true;
 
+  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
+      traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {
+    root["min_mireds"] = traits.get_min_mireds();
+    root["max_mireds"] = traits.get_max_mireds();
+  }
+
   if (this->state_->supports_effects()) {
     root["effect"] = true;
     JsonArray effect_list = root[MQTT_EFFECT_LIST].to<JsonArray>();
