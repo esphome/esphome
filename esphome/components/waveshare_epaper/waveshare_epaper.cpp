@@ -4517,7 +4517,8 @@ void HOT WaveshareEPaper7P5InHDB::display() {
     this->write_byte(0x00);
   this->end_data_();
   */
-  // CUSTOM DRIVER
+  
+  /* CUSTOM DRIVER  for this display*/
   // COMMAND DATA START TRANSMISSION 1 (BLACK)
   this->command(0x24);
   delay(2);
