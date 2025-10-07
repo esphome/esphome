@@ -55,7 +55,7 @@ void UARTDebugger::trigger_after_delimiter_(uint8_t byte, std::string settings_s
   }
   this->after_delimiter_pos_++;
   if (this->after_delimiter_pos_ == this->after_delimiter_.size()) {
-    this->fire_trigger_(settings_string);
+    this->fire_trigger_();
     this->after_delimiter_pos_ = 0;
   }
 }
