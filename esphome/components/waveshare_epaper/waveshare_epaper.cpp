@@ -4752,3 +4752,98 @@ void WaveshareEPaper13P3InK::dump_config() {
 
 }  // namespace waveshare_epaper
 }  // namespace esphome
+
+class WaveshareEPaper7P5InHDBR : public WaveshareEPaper7P5InHDB {
+public:
+    void initialize() override {
+        this->reset_();
+
+        // Init waveform / power settings (kan worden aangepast naar LUT voor rood)
+        this->command(0x01);  // POWER SETTING
+        this->data(0x07);
+        this->data(0x17);
+        this->data(0x3F);
+        this->data(0x26);
+        this->data(0x11);
+
+        // VCOM DC Setting
+        this->command(0x82);
+        this->data(0x24);
+
+        // POWER ON
+        this->command(0x04);
+        delay(100);
+        this->wait_until_idle_();
+
+        // PANEL SETTING
+        this->command(0x00);
+        this->data(0x0F);
+
+        // RESOLUTION
+        this->command(0x61);
+        this->data(0x03);  // 880
+        this->data(0x70);  // 0x70 = 112, 0x03 0x70 = 880?
+        this->data(0x02);  // 528 high byte
+        this->data(0x10);  // 528 low byte
+
+        // VCOM AND DATA INTERVAL
+        this->command(0x50);
+        this->data(0x20);
+        this->data(0x00);
+
+        // TCON SETTING
+        this->command(0x60);
+        this->data(0x22);
+
+        // Extra init zoals BV3BWR (kan LUT rood bevatten)
+        this->command(0x3C);
+        this->data(0x01); // LUT1, voor rode laag
+    }
+
+    void display() override {
+        const uint32_t buf_len = this->get_buffer_length_();
+
+        // ZWART/WIT
+        this->command(0x10);  // BW data
+        delay(2);
+        for (uint32_t i = 0; i < buf_len; i++) {
+            this->data(this->buffer_[i]);
+        }
+
+        // ROOD
+        this->command(0x13);  // RED data
+        delay(2);
+        for (uint32_t i = 0; i < buf_len; i++) {
+            this->data(this->buffer_red_[i]);
+        }
+
+        // REFRESH
+        this->command(0x12);
+        delay(100);
+        this->wait_until_idle_();
+
+        // Optioneel: deep sleep
+        this->deep_sleep();
+    }
+
+    int get_width_internal() override { return 880; }
+    int get_height_internal() override { return 528; }
+
+    // Voeg extra buffer voor rood toe
+    uint8_t* buffer_red_ = nullptr;
+
+    void allocate_buffers() {
+        // Allocatie voor rood + zwart/wit
+        const uint32_t buf_len = this->get_buffer_length_();
+        this->buffer_red_ = new uint8_t[buf_len];
+        memset(this->buffer_red_, 0x00, buf_len);
+    }
+
+    void free_buffers() {
+        if (this->buffer_red_) {
+            delete[] this->buffer_red_;
+            this->buffer_red_ = nullptr;
+        }
+    }
+};
+
