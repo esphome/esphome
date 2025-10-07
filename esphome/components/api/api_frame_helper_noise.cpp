@@ -134,9 +134,6 @@ APIError APINoiseFrameHelper::loop() {
 
 /** Read a packet into the rx_buf_.
  *
- * On success, rx_buf_ contains the frame data and state variables are cleared for the next read.
- * Caller is responsible for consuming rx_buf_ (e.g., via std::move).
- *
  * @return APIError::OK if a full packet is in rx_buf_
  *
  * errno EWOULDBLOCK: Packet could not be read without blocking. Try again later.

@@ -49,9 +49,6 @@ APIError APIPlaintextFrameHelper::loop() {
 
 /** Read a packet into the rx_buf_.
  *
- * On success, rx_buf_ contains the frame data and state variables are cleared for the next read.
- * Caller is responsible for consuming rx_buf_ (e.g., via std::move).
- *
  * @return See APIError
  *
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
