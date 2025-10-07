@@ -50,7 +50,7 @@ std::unique_ptr<Socket> socket_ip_loop_monitored(int type, int protocol) {
 }
 
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && !USE_HOST
   if (ip_address.find(':') != std::string::npos) {
     if (addrlen < sizeof(sockaddr_in6)) {
       errno = EINVAL;
