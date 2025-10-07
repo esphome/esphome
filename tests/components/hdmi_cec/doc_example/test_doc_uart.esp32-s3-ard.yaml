@@ -6,6 +6,6 @@ substitutions:
   cec_pin: GPIO9
   hpd_pin: GPIO8
   uart_pin: GPIO7
-  has_hw_uart: id(cec_uart)->get_hw_serial() != nullptr
+  has_hw_uart: (!id(cec_uart)->is_failed())
 
 <<: !include test_doc_uart_common.yaml

@@ -14,7 +14,7 @@ ota:
 wifi:
   reboot_timeout: 0s
   networks:
-    - ssid: !secret wifi_homeiot_ssid
+    - ssid: !secret wifi_home_ssid
       password: !secret wifi_home_pw
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
@@ -102,10 +102,6 @@ binary_sensor:
         - logger.log: "HDMI Power Detect On"
 
 text_sensor:
-  - platform: template
-    name: "HDMI CEC Message"
-    id: cec_message
-    update_interval: never
   - platform: wifi_info
     ip_address:
       id: my_ip_address
@@ -118,8 +114,3 @@ hdmi_cec:
   address: 0xE
   physical_address: 0x2000
   uart_id: cec_uart
-  on_message:
-    then:
-      - lambda: |-
-          hdmi_cec::Frame frame = hdmi_cec::Frame(source, destination, data);
-          id(cec_message).publish_state(frame.to_string());
