@@ -4517,7 +4517,8 @@ void HOT WaveshareEPaper7P5InHDB::display() {
     this->write_byte(0x00);
   this->end_data_();
   */
-  
+  //this->init_display_();
+  const uint32_t buf_len = this->get_buffer_length_() / 2u;
   /* CUSTOM DRIVER  for this display*/
   // COMMAND DATA START TRANSMISSION 1 (BLACK)
   this->command(0x24);
