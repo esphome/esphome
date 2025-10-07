@@ -252,6 +252,15 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
 
+std::string OpenThreadComponent::get_use_address() const {
+  if (this->use_address_.empty()) {
+    return App.get_name() + ".local";
+  }
+  return this->use_address_;
+}
+
+void OpenThreadComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
 }  // namespace openthread
 }  // namespace esphome
 
