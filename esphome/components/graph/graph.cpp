@@ -179,7 +179,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
         if (b) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
           auto draw_pixel_at = [&buff, c, y_offset, this](int16_t x, int16_t y) {
-            if (y >= y_offset && y < y_offset + this->height_)
+            if (y >= y_offset && static_cast<uint32_t>(y) < y_offset + this->height_)
               buff->draw_pixel_at(x, y, c);
           };
           if (!continuous || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {

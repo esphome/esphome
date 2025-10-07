@@ -87,7 +87,7 @@ void HomeassistantNumber::control(float value) {
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
   static constexpr auto VALUE_KEY = StringRef::from_lit("value");
 
-  api::HomeassistantServiceResponse resp;
+  api::HomeassistantActionRequest resp;
   resp.set_service(SERVICE_NAME);
 
   resp.data.emplace_back();
@@ -100,7 +100,7 @@ void HomeassistantNumber::control(float value) {
   entity_value.set_key(VALUE_KEY);
   entity_value.value = to_string(value);
 
-  api::global_api_server->send_homeassistant_service_call(resp);
+  api::global_api_server->send_homeassistant_action(resp);
 }
 
 }  // namespace homeassistant

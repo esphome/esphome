@@ -41,7 +41,7 @@ void LightState::setup() {
     case LIGHT_RESTORE_DEFAULT_ON:
     case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
     case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_preference_hash());
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
         recovered.state = (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
@@ -54,7 +54,7 @@ void LightState::setup() {
       break;
     case LIGHT_RESTORE_AND_OFF:
     case LIGHT_RESTORE_AND_ON:
-      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_preference_hash());
       this->rtc_.load(&recovered);
       recovered.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
       break;
@@ -140,12 +140,22 @@ float LightState::get_setup_priority() const { return setup_priority::HARDWARE -
 void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
+
+static constexpr const char *EFFECT_NONE = "None";
+static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
+
 std::string LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  } else {
-    return "None";
   }
+  return EFFECT_NONE;
+}
+
+StringRef LightState::get_effect_name_ref() {
+  if (this->active_effect_index_ > 0) {
+    return StringRef(this->effects_[this->active_effect_index_ - 1]->get_name());
+  }
+  return EFFECT_NONE_REF;
 }
 
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {

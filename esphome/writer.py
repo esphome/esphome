@@ -80,13 +80,16 @@ def replace_file_content(text, pattern, repl):
     return content_new, count
 
 
-def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
+def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old is None:
         return True
 
     if old.src_version != new.src_version:
         return True
-    return old.build_path != new.build_path
+    if old.build_path != new.build_path:
+        return True
+    # Check if any components have been removed
+    return bool(old.loaded_integrations - new.loaded_integrations)
 
 
 def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
@@ -100,7 +103,7 @@ def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> boo
     return False
 
 
-def update_storage_json():
+def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -108,7 +111,14 @@ def update_storage_json():
         return
 
     if storage_should_clean(old, new):
-        _LOGGER.info("Core config, version changed, cleaning build files...")
+        if old is not None and old.loaded_integrations - new.loaded_integrations:
+            removed = old.loaded_integrations - new.loaded_integrations
+            _LOGGER.info(
+                "Components removed (%s), cleaning build files...",
+                ", ".join(sorted(removed)),
+            )
+        else:
+            _LOGGER.info("Core config or version changed, cleaning build files...")
         clean_build()
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
@@ -256,7 +266,7 @@ def generate_version_h():
 
 def write_cpp(code_s):
     path = CORE.relative_src_path("main.cpp")
-    if os.path.isfile(path):
+    if path.is_file():
         text = read_file(path)
         code_format = find_begin_end(
             text, CPP_AUTO_GENERATE_BEGIN, CPP_AUTO_GENERATE_END
@@ -282,24 +292,77 @@ def write_cpp(code_s):
 
 def clean_cmake_cache():
     pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
-        pioenvs_cmake_path = CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt")
-        if os.path.isfile(pioenvs_cmake_path):
+    if pioenvs.is_dir():
+        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
+        if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
-            os.remove(pioenvs_cmake_path)
+            pioenvs_cmake_path.unlink()
 
 
 def clean_build():
     import shutil
 
+    # Allow skipping cache cleaning for integration tests
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
+        _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
+        return
+
     pioenvs = CORE.relative_pioenvs_path()
-    if os.path.isdir(pioenvs):
+    if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
         shutil.rmtree(pioenvs)
     piolibdeps = CORE.relative_piolibdeps_path()
-    if os.path.isdir(piolibdeps):
+    if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
         shutil.rmtree(piolibdeps)
+    dependencies_lock = CORE.relative_build_path("dependencies.lock")
+    if dependencies_lock.is_file():
+        _LOGGER.info("Deleting %s", dependencies_lock)
+        dependencies_lock.unlink()
+
+    # Clean PlatformIO cache to resolve CMake compiler detection issues
+    # This helps when toolchain paths change or get corrupted
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cache cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        cache_dir = Path(config.get("platformio", "cache_dir"))
+        if cache_dir.is_dir():
+            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
+            shutil.rmtree(cache_dir)
+
+
+def clean_all(configuration: list[str]):
+    import shutil
+
+    # Clean entire build dir
+    for dir in configuration:
+        build_dir = Path(dir) / ".esphome"
+        if build_dir.is_dir():
+            _LOGGER.info("Cleaning %s", build_dir)
+            # Don't remove storage as it will cause the dashboard to regenerate all configs
+            for item in build_dir.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.name != "storage" and item.is_dir():
+                    shutil.rmtree(item)
+
+    # Clean PlatformIO project files
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cleaning
+        pass
+    else:
+        config = ProjectConfig.get_instance()
+        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
+            path = Path(config.get("platformio", pio_dir))
+            if path.is_dir():
+                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
+                shutil.rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
@@ -312,6 +375,5 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 
 def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
-    if not os.path.isfile(path):
-        with open(file=path, mode="w", encoding="utf-8") as f:
-            f.write(GITIGNORE_CONTENT)
+    if not path.is_file():
+        path.write_text(GITIGNORE_CONTENT, encoding="utf-8")
