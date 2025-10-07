@@ -20,7 +20,7 @@ namespace uart {
 /// and/or when no more data has been seen for a given time interval.
 class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, std::string, bool> {
  public:
-  explicit UARTDebugger(UARTComponent *parent);
+  explicit UARTDebugger(UARTComponent *parent, bool debug_add_settings);
   void loop() override;
 
   /// Set the direction in which to inspect the bytes: incoming, outgoing
@@ -46,7 +46,9 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
 
   // get&set bool if settings shall be logged
-  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
+  void set_debug_add_settings(bool debug_add_settings) { 
+    this->debug_add_settings_ = debug_add_settings;
+  }
   bool get_debug_add_settings() const { return this->debug_add_settings_; }
 
  protected:
