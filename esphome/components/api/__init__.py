@@ -408,7 +408,7 @@ async def homeassistant_service_to_code(
             cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON")
             await automation.build_automation(
                 var.get_success_trigger_with_response(),
-                [(cg.JsonObject, "response"), *args],
+                [(cg.JsonObjectConst, "response"), *args],
                 on_success,
             )
 

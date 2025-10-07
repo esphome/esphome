@@ -114,7 +114,7 @@ class APIServer : public Component, public Controller {
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   // Action response handling
-  using ActionResponseCallback = std::function<void(std::shared_ptr<class ActionResponse>)>;
+  using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
   void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
   void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON

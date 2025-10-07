@@ -62,7 +62,6 @@ class ActionResponse {
     if (data == nullptr || data_len == 0)
       return;
     this->json_document_ = json::parse_json(data, data_len);
-    this->json_ = this->json_document_.as<JsonObject>();
   }
 #endif
 
@@ -70,8 +69,8 @@ class ActionResponse {
   const std::string &get_error_message() const { return this->error_message_; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  // Get data as parsed JSON object
-  JsonObject get_json() { return this->json_; }
+  // Get data as parsed JSON object (const version returns read-only view)
+  JsonObjectConst get_json() const { return this->json_document_.as<JsonObjectConst>(); }
 #endif
 
  protected:
@@ -79,12 +78,11 @@ class ActionResponse {
   std::string error_message_;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   JsonDocument json_document_;
-  JsonObject json_;
 #endif
 };
 
 // Callback type for action responses
-template<typename... Ts> using ActionResponseCallback = std::function<void(std::shared_ptr<ActionResponse>, Ts...)>;
+template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
 #endif
 
 template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
@@ -116,7 +114,9 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   void set_wants_response() { this->flags_.wants_response = true; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  Trigger<JsonObject, Ts...> *get_success_trigger_with_response() const { return this->success_trigger_with_response_; }
+  Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() const {
+    return this->success_trigger_with_response_;
+  }
 #endif
   Trigger<Ts...> *get_success_trigger() const { return this->success_trigger_; }
   Trigger<std::string, Ts...> *get_error_trigger() const { return this->error_trigger_; }
@@ -164,25 +164,24 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 #endif
 
       auto captured_args = std::make_tuple(x...);
-      this->parent_->register_action_response_callback(
-          call_id, [this, captured_args](std::shared_ptr<ActionResponse> response) {
-            std::apply(
-                [this, &response](auto &&...args) {
-                  if (response->is_success()) {
+      this->parent_->register_action_response_callback(call_id, [this, captured_args](const ActionResponse &response) {
+        std::apply(
+            [this, &response](auto &&...args) {
+              if (response.is_success()) {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-                    if (this->flags_.wants_response) {
-                      this->success_trigger_with_response_->trigger(response->get_json(), args...);
-                    } else
+                if (this->flags_.wants_response) {
+                  this->success_trigger_with_response_->trigger(response.get_json(), args...);
+                } else
 #endif
-                    {
-                      this->success_trigger_->trigger(args...);
-                    }
-                  } else {
-                    this->error_trigger_->trigger(response->get_error_message(), args...);
-                  }
-                },
-                captured_args);
-          });
+                {
+                  this->success_trigger_->trigger(args...);
+                }
+              } else {
+                this->error_trigger_->trigger(response.get_error_message(), args...);
+              }
+            },
+            captured_args);
+      });
     }
 #endif
 
@@ -198,7 +197,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   TemplatableStringValue<Ts...> response_template_{""};
-  Trigger<JsonObject, Ts...> *success_trigger_with_response_ = new Trigger<JsonObject, Ts...>();
+  Trigger<JsonObjectConst, Ts...> *success_trigger_with_response_ = new Trigger<JsonObjectConst, Ts...>();
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   Trigger<Ts...> *success_trigger_ = new Trigger<Ts...>();
   Trigger<std::string, Ts...> *error_trigger_ = new Trigger<std::string, Ts...>();
