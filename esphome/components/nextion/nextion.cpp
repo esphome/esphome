@@ -151,19 +151,21 @@ void Nextion::dump_config() {
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG,
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-                "  Device Model:   %s\n"
-                "  FW Version:     %s\n"
-                "  Serial Number:  %s\n"
-                "  Flash Size:     %s\n"
+                "  Device Model: %s\n"
+                "  FW Version: %s\n"
+                "  Serial Number: %s\n"
+                "  Flash Size: %s\n"
+                "  Max queue age: %u ms\n"
+                "  Startup override: %u ms\n", 
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-                "  Exit reparse:   YES\n"
+                "  Exit reparse: YES\n"
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-                "  Wake On Touch:  %s\n"
-                "  Touch Timeout:  %" PRIu16,
+                "  Wake On Touch: %s\n"
+                "  Touch Timeout: %" PRIu16,
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
                 this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(),
+                this->flash_size_.c_str(), this->max_q_age_ms_, this->startup_override_ms_
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
                 YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
@@ -173,30 +175,22 @@ void Nextion::dump_config() {
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
   if (this->wake_up_page_ != 255) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page:   %u", this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page: %u", this->wake_up_page_);
   }
 
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
   if (this->start_up_page_ != 255) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page:  %u", this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page: %u", this->start_up_page_);
   }
 #endif  // USE_NEXTION_CONF_START_UP_PAGE
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  ESP_LOGCONFIG(TAG, "  Cmd spacing:      %u ms", this->command_pacer_.get_spacing());
+  ESP_LOGCONFIG(TAG, "  Cmd spacing: %u ms", this->command_pacer_.get_spacing());
 #endif  // USE_NEXTION_COMMAND_SPACING
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  ESP_LOGCONFIG(TAG, "  Max queue size:   %zu", this->max_queue_size_);
+  ESP_LOGCONFIG(TAG, "  Max queue size: %zu", this->max_queue_size_);
 #endif
-
-#if NEXTION_MAX_QUEUE_AGE_MS != 8000  // Only log if non-default values are configured
-  ESP_LOGCONFIG(TAG, "  Max queue age:    %u ms", NEXTION_MAX_QUEUE_AGE_MS);
-#endif  // NEXTION_MAX_QUEUE_AGE_MS != 8000
-
-#if NEXTION_STARTUP_OVERRIDE_MS != 8000  // Only log if non-default values are configured
-  ESP_LOGCONFIG(TAG, "  Startup override: %u ms", NEXTION_STARTUP_OVERRIDE_MS);
-#endif  // NEXTION_STARTUP_OVERRIDE_MS != 8000
 }
 
 float Nextion::get_setup_priority() const { return setup_priority::DATA; }
@@ -341,7 +335,7 @@ void Nextion::loop() {
     if (this->started_ms_ == 0)
       this->started_ms_ = App.get_loop_component_start_time();
 
-    if (this->started_ms_ + NEXTION_STARTUP_OVERRIDE_MS < App.get_loop_component_start_time()) {
+    if (this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
       ESP_LOGV(TAG, "Manual ready set");
       this->connection_state_.nextion_reports_is_setup_ = true;
     }
@@ -850,10 +844,10 @@ void Nextion::process_nextion_commands_() {
 
   const uint32_t ms = App.get_loop_component_start_time();
 
-  if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + NEXTION_MAX_QUEUE_AGE_MS < ms) {
+  if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
     for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (this->nextion_queue_[i]->queue_time + NEXTION_MAX_QUEUE_AGE_MS < ms) {
+      if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {
         if (this->nextion_queue_[i]->queue_time == 0) {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
                    component->get_variable_name().c_str());

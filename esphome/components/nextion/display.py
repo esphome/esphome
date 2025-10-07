@@ -137,6 +137,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
 
+    if max_queue_age := config.get(CONF_MAX_QUEUE_AGE):
+        cg.add(var.set_max_queue_age(max_queue_age))
+
     if max_queue_size := config.get(CONF_MAX_QUEUE_SIZE):
         cg.add_define("USE_NEXTION_MAX_QUEUE_SIZE")
         cg.add(var.set_max_queue_size(max_queue_size))
@@ -144,6 +147,9 @@ async def to_code(config):
     if command_spacing := config.get(CONF_COMMAND_SPACING):
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
         cg.add(var.set_command_spacing(command_spacing.total_milliseconds))
+
+    if startup_override_ms := config.get(CONF_STARTUP_OVERRIDE_MS):
+        cg.add(var.set_startup_override_ms(startup_override_ms))
 
     if CONF_BRIGHTNESS in config:
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
@@ -188,12 +194,6 @@ async def to_code(config):
 
     if config[CONF_SKIP_CONNECTION_HANDSHAKE]:
         cg.add_define("USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE")
-
-    if config[CONF_MAX_QUEUE_AGE]:
-        cg.add_define("NEXTION_MAX_QUEUE_AGE_MS", config[CONF_MAX_QUEUE_AGE])
-
-    if config[CONF_STARTUP_OVERRIDE_MS]:
-        cg.add_define("NEXTION_STARTUP_OVERRIDE_MS", config[CONF_STARTUP_OVERRIDE_MS])
 
     if max_commands_per_loop := config.get(CONF_MAX_COMMANDS_PER_LOOP):
         cg.add_define("USE_NEXTION_MAX_COMMANDS_PER_LOOP")
