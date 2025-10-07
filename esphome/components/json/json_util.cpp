@@ -19,15 +19,19 @@ std::string build_json(const json_build_t &f) {
 
 bool parse_json(const std::string &data, const json_parse_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  JsonDocument doc = parse_json(data);
+  JsonDocument doc = parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
   if (doc.overflowed() || doc.isNull())
     return false;
   return f(doc.as<JsonObject>());
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-JsonDocument parse_json(const std::string &data) {
+JsonDocument parse_json(const uint8_t *data, size_t len) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  if (data == nullptr || len == 0) {
+    ESP_LOGE(TAG, "No data to parse");
+    return JsonObject();  // return unbound object
+  }
 #ifdef USE_PSRAM
   auto doc_allocator = SpiRamAllocator();
   JsonDocument json_document(&doc_allocator);
@@ -38,7 +42,7 @@ JsonDocument parse_json(const std::string &data) {
     ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
     return JsonObject();  // return unbound object
   }
-  DeserializationError err = deserializeJson(json_document, data);
+  DeserializationError err = deserializeJson(json_document, data, len);
 
   if (err == DeserializationError::Ok) {
     return json_document;
