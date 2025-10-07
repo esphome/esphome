@@ -11,6 +11,8 @@
 #define MDNS_STATIC_CONST_CHAR(name, value) static const char name[] PROGMEM = value
 #define MDNS_STR(name) (reinterpret_cast<const MDNSString *>(name))
 // Helper to convert PROGMEM string to std::string for TemplatableValue
+// Only define this function if we have services that will use it
+#if defined(USE_API) || defined(USE_PROMETHEUS) || defined(USE_WEBSERVER) || defined(USE_MDNS_EXTRA_SERVICES)
 static std::string mdns_str_value(PGM_P str) {
   char buf[64];
   strncpy_P(buf, str, sizeof(buf) - 1);
@@ -18,6 +20,7 @@ static std::string mdns_str_value(PGM_P str) {
   return std::string(buf);
 }
 #define MDNS_STR_VALUE(name) mdns_str_value(name)
+#endif
 #else
 // On non-ESP8266 platforms, use regular const char*
 #define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char name[] = value
