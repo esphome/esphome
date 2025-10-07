@@ -161,7 +161,7 @@ async def test_oversized_payload_noise(
             assert device_info is not None
             assert device_info.name == "oversized-noise"
 
-            # Create an oversized payload (>2304 bytes which is our new limit)
+            # Create an oversized payload (>32Kbytes which is our new limit)
             oversized_data = b"Y" * 32769  # ~32KiB, exceeds the 32 Kbyte limit
 
             # Access the internal connection to send raw data
