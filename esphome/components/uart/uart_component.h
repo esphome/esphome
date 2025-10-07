@@ -156,7 +156,7 @@ class UARTComponent {
   std::string get_debug_settings_string(bool debug_add_settings_) {
     if(!debug_add_settings_)
       return "";
-    this->debug_add_settings = true;
+    this->debug_add_settings_ = true;
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
