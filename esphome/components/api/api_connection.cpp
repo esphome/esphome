@@ -116,8 +116,7 @@ void APIConnection::start() {
 
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Helper init failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
   this->client_info_.peername = helper_->getpeername();
@@ -147,8 +146,7 @@ void APIConnection::loop() {
 
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return;
   }
 
@@ -163,17 +161,13 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
-        on_fatal_error();
-        this->log_warning_(LOG_STR("Reading failed"), err);
+        this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
         // read a packet
-        if (buffer.data_len > 0) {
-          this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-        } else {
-          this->read_message(0, buffer.type, nullptr);
-        }
+        this->read_message(buffer.data_len, buffer.type,
+                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
         if (this->flags_.remove)
           return;
       }
@@ -205,7 +199,8 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->get_client_combined_info().c_str());
+      ESP_LOGW(TAG, "%s (%s) is unresponsive; disconnecting", this->client_info_.name.c_str(),
+               this->client_info_.peername.c_str());
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
     // Only send ping if we're not disconnecting
@@ -255,7 +250,7 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s disconnected", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) disconnected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
   this->flags_.next_close = true;
   DisconnectResponse resp;
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
@@ -1385,13 +1380,18 @@ void APIConnection::complete_authentication_() {
   }
 
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
-  ESP_LOGD(TAG, "%s connected", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) connected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   this->parent_->get_client_connected_trigger()->trigger(this->client_info_.name, this->client_info_.peername);
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
     this->send_time_request();
+  }
+#endif
+#ifdef USE_ZWAVE_PROXY
+  if (zwave_proxy::global_zwave_proxy != nullptr) {
+    zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
   }
 #endif
 }
@@ -1579,8 +1579,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return false;
   }
   if (this->helper_->can_write_without_blocking())
@@ -1599,8 +1598,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   if (err == APIError::WOULD_BLOCK)
     return false;
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Packet write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Packet write failed"), err);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1609,12 +1607,12 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
 #ifdef USE_API_PASSWORD
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s access without authentication", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) no authentication", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
 }
 #endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s access without full connection", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
@@ -1786,8 +1784,7 @@ void APIConnection::process_batch_() {
   APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
                                                        std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Batch write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1866,12 +1863,8 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  ESP_LOGW(TAG, "%s: %s %s errno=%d", this->get_client_combined_info().c_str(), LOG_STR_ARG(message),
-           LOG_STR_ARG(api_error_to_logstr(err)), errno);
-}
-
-void APIConnection::log_socket_operation_failed_(APIError err) {
-  this->log_warning_(LOG_STR("Socket operation failed"), err);
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
+           LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
 }  // namespace esphome::api
