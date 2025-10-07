@@ -47,21 +47,13 @@ APIError APIPlaintextFrameHelper::loop() {
   return APIFrameHelper::loop();
 }
 
-/** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
- *
- * @param frame: The struct to hold the frame information in.
- *   msg: store the parsed frame in that struct
+/** Read a packet into the rx_buf_.
  *
  * @return See APIError
  *
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  */
-APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
-  if (frame == nullptr) {
-    HELPER_LOG("Bad argument for try_read_frame_");
-    return APIError::BAD_ARG;
-  }
-
+APIError APIPlaintextFrameHelper::try_read_frame_() {
   // read header
   while (!rx_header_parsed_) {
     // Now that we know when the socket is ready, we can read up to 3 bytes
@@ -150,9 +142,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
   }
   // header reading done
 
-  // reserve space for body
-  if (rx_buf_.size() != rx_header_parsed_len_) {
-    rx_buf_.resize(rx_header_parsed_len_);
+  // Reserve space for body
+  if (this->rx_buf_.size() != this->rx_header_parsed_len_) {
+    this->rx_buf_.resize(this->rx_header_parsed_len_);
   }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
@@ -170,24 +162,22 @@ APIError APIPlaintextFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
     }
   }
 
-  LOG_PACKET_RECEIVED(rx_buf_);
-  *frame = std::move(rx_buf_);
-  // consume msg
-  rx_buf_ = {};
-  rx_buf_len_ = 0;
-  rx_header_buf_pos_ = 0;
-  rx_header_parsed_ = false;
+  LOG_PACKET_RECEIVED(this->rx_buf_);
+
+  // Clear state for next frame (rx_buf_ still contains data for caller)
+  this->rx_buf_len_ = 0;
+  this->rx_header_buf_pos_ = 0;
+  this->rx_header_parsed_ = false;
+
   return APIError::OK;
 }
-APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  APIError aerr;
 
-  if (state_ != State::DATA) {
+APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
+  if (this->state_ != State::DATA) {
     return APIError::WOULD_BLOCK;
   }
 
-  std::vector<uint8_t> frame;
-  aerr = try_read_frame_(&frame);
+  APIError aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
     if (aerr == APIError::BAD_INDICATOR) {
       // Make sure to tell the remote that we don't
@@ -220,10 +210,10 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return aerr;
   }
 
-  buffer->container = std::move(frame);
+  buffer->container = std::move(this->rx_buf_);
   buffer->data_offset = 0;
-  buffer->data_len = rx_header_parsed_len_;
-  buffer->type = rx_header_parsed_type_;
+  buffer->data_len = this->rx_header_parsed_len_;
+  buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
