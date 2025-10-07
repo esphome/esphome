@@ -45,7 +45,7 @@ static const char *const TAG = "mdns";
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
-// Define constant strings for values (PROGMEM on ESP8266, regular flash on others)
+// Define constant strings for values (PROGMEM on ESP8266, static pointers on others)
 MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
 MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
 MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
@@ -173,7 +173,7 @@ void MDNSComponent::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
-    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),
+    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type, service.proto,
              const_cast<TemplatableValue<uint16_t> &>(service.port).value());
     for (const auto &record : service.txt_records) {
       ESP_LOGV(TAG, "    TXT: %s = %s", record.key,
