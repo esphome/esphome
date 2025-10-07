@@ -165,5 +165,5 @@ def final_validate_audio_schema(
 
 
 async def to_code(config):
-    cg.add_define("USE_AUDIO")
     cg.add_library("esphome/esp-audio-libs", "2.0.1")
+    cg.add_define("USE_AUDIO")

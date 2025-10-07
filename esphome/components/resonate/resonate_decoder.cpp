@@ -121,9 +121,8 @@ bool ResonateDecoder::decode_audio_chunk(std::shared_ptr<ResonateAudioChunk> enc
 
     if ((this->flac_decoder_ != nullptr) && (this->current_codec_ == ResonateCodecFormat::FLAC)) {
       uint32_t output_samples = 0;
-      auto result =
-          this->flac_decoder_->decode_frame(encoded_chunk->get_data(), encoded_chunk->get_usable_size(),
-                                            reinterpret_cast<int16_t *>(decoded_chunk->get_data()), &output_samples);
+      auto result = this->flac_decoder_->decode_frame(encoded_chunk->get_data(), encoded_chunk->get_usable_size(),
+                                                      decoded_chunk->get_data(), &output_samples);
 
       if (result == esp_audio_libs::flac::FLAC_DECODER_ERROR_OUT_OF_DATA) {
         ESP_LOGE(TAG, "FLAC decoder ran out of data");
