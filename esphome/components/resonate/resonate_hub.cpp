@@ -48,7 +48,11 @@ static const UBaseType_t WEBSOCKET_TASK_PRIORITY = 17;
 
 enum EventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),
-  CONTROL_START = (1 << 7),
+  COMMAND_START = (1 << 7),
+  TASK_STARTING = (1 << 8),
+  TASK_RUNNING = (1 << 9),
+  TASK_STOPPING = (1 << 10),
+  TASK_STOPPED = (1 << 11),
   WARNING_ENCODED_CHUNK_FULL = (1 << 11),
 };
 
@@ -117,21 +121,72 @@ void ResonateHub::loop() {
   if (network::is_connected() && !this->resonate_websocket_->is_started()) {
     this->resonate_websocket_->start_server(websocket_server_handler, websocket_close_callback, (void *) this,
                                             this->task_stack_in_psram_, WEBSOCKET_TASK_PRIORITY);
+  }
+
 #ifdef USE_RESONATE_AUDIO
-    if (this->decode_task_stack_buffer_ == nullptr) {
+  EventBits_t event_bits = xEventGroupGetBits(this->event_group_);
+
+  if (event_bits & EventGroupBits::COMMAND_START) {
+    ESP_LOGD(TAG, "Trying to start decode task");
+    if (this->decode_task_handle_ == nullptr) {
+      if (this->decode_task_stack_buffer_ == nullptr) {
+        // Allocate stack for decode task
+        if (this->task_stack_in_psram_) {
+          RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
+          this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
+        } else {
+          RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
+          this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
+        }
+      }
+      if (this->decode_task_stack_buffer_ != nullptr) {
+        this->decode_task_handle_ =
+            xTaskCreateStatic(decode_task, "resonate_decode", DECODE_TASK_STACK_SIZE, (void *) this,
+                              DECODE_TASK_PRIORITY, this->decode_task_stack_buffer_, &this->decode_task_stack_);
+        if (this->decode_task_handle_ == nullptr) {
+          ESP_LOGE(TAG, "Failed to create decode task.");
+        } else {
+          xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_START);
+        }
+      } else {
+        ESP_LOGW(TAG, "Couldn't allocate memory for decode task stack");
+      }
+    }
+  }
+
+  if (event_bits & EventGroupBits::TASK_STARTING) {
+    ESP_LOGD(TAG, "Decode task starting");
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STARTING);
+  }
+  if (event_bits & EventGroupBits::TASK_RUNNING) {
+    // Task is running
+    ESP_LOGD(TAG, "Decode task running");
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_RUNNING);
+  }
+  if (event_bits & EventGroupBits::TASK_STOPPING) {
+    ESP_LOGD(TAG, "Decode task stopping");
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPING);
+  }
+  if (event_bits & EventGroupBits::TASK_STOPPED) {
+    ESP_LOGD(TAG, "Decode task stopped");
+    if (this->decode_task_handle_ != nullptr) {
+      vTaskDelete(this->decode_task_handle_);
+      this->decode_task_handle_ = nullptr;
+    }
+    if (this->decode_task_stack_buffer_ != nullptr) {
       if (this->task_stack_in_psram_) {
         RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
+        stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
       } else {
         RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        this->decode_task_stack_buffer_ = stack_allocator.allocate(DECODE_TASK_STACK_SIZE);
+        stack_allocator.deallocate(this->decode_task_stack_buffer_, DECODE_TASK_STACK_SIZE);
       }
-      this->decode_task_handle_ =
-          xTaskCreateStatic(decode_task, "resonate_decode", DECODE_TASK_STACK_SIZE, (void *) this, DECODE_TASK_PRIORITY,
-                            this->decode_task_stack_buffer_, &this->decode_task_stack_);
+      this->decode_task_stack_buffer_ = nullptr;
     }
-#endif
+
+    xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPED | EventGroupBits::COMMAND_STOP);
   }
+#endif
 }
 
 void ResonateHub::start() {
@@ -379,7 +434,9 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
   ResonateServerToClientMessageType message_type = determine_message_type(message);
 
   switch (message_type) {
-    case ResonateServerToClientMessageType::STREAM_START:  // intentional fallthrough
+    case ResonateServerToClientMessageType::STREAM_START: {
+      xEventGroupSetBits(this->event_group_, COMMAND_START);
+    }  // intentional fallthrough
     case ResonateServerToClientMessageType::STREAM_UPDATE: {
       ESP_LOGD(TAG, "Stream Started");
 #ifdef USE_RESONATE_AUDIO
@@ -451,7 +508,6 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
         // TODO: why did I use move instead of passing a pointer in directly...?
         this->server_id_ = std::move(server_id);
         this->server_name_ = std::move(server_name);
-        xEventGroupSetBits(this->event_group_, CONTROL_START);
         ESP_LOGD(TAG, "Connected to server %s with id %s", this->server_name_.c_str(), this->server_id_.c_str());
       }
       break;
@@ -556,30 +612,21 @@ bool ResonateHub::send_audio_chunk_(std::shared_ptr<ResonateAudioChunk> audio_ch
 void ResonateHub::decode_task(void *params) {
   ResonateHub *this_resonate = (ResonateHub *) params;
 
+  xEventGroupSetBits(this_resonate->event_group_, TASK_STARTING);
+
   std::shared_ptr<ResonateAudioChunk> encoded_chunk = nullptr;  // timestamp is in server time domain
   std::shared_ptr<ResonateAudioChunk> decoded_chunk = nullptr;  // timestamp is in client time domain
 
   std::unique_ptr<ResonateDecoder> decoder = std::make_unique<ResonateDecoder>();
   audio::AudioStreamInfo current_stream_info;
 
-  while (true) {
-    EventBits_t event_bits = xEventGroupGetBits(this_resonate->event_group_);
+  xEventGroupSetBits(this_resonate->event_group_, TASK_RUNNING);
+  while (!(xEventGroupGetBits(this_resonate->event_group_) & COMMAND_STOP)) {
+    // EventBits_t event_bits = xEventGroupGetBits(this_resonate->event_group_);
 
-    if (event_bits & COMMAND_STOP) {
-      // Processes the stop command by stopping the speaker and resetting all states
-
-      decoder->reset_decoders();
-
-      // shared_ptr automatically handles cleanup
-      encoded_chunk = nullptr;
-      decoded_chunk = nullptr;
-
-      this_resonate->encoded_chunk_queue_->reset();
-
-      vTaskDelay(pdMS_TO_TICKS(50));
-
-      xEventGroupClearBits(this_resonate->event_group_, COMMAND_STOP);
-    }
+    // if (event_bits & COMMAND_STOP) {
+    //   // Processes the stop command by stopping the speaker and resetting all states
+    // }
 
     if (decoded_chunk != nullptr) {
       // Add decoded chunk to the queue
@@ -656,6 +703,22 @@ void ResonateHub::decode_task(void *params) {
       ESP_LOGD(TAG, "Decode task - High water mark changed from %d to %d.", high_water_mark, new_high_water_mark);
       high_water_mark = new_high_water_mark;
     }
+  }
+
+  xEventGroupSetBits(this_resonate->event_group_, TASK_STOPPING);
+  decoder->reset_decoders();
+
+  // shared_ptr automatically handles cleanup
+  encoded_chunk = nullptr;
+  decoded_chunk = nullptr;
+
+  this_resonate->encoded_chunk_queue_->reset();
+
+  vTaskDelay(pdMS_TO_TICKS(50));
+
+  xEventGroupSetBits(this_resonate->event_group_, TASK_STOPPED);
+  while (true) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 #endif
