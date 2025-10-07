@@ -18,6 +18,7 @@ from .base_component import (
     CONF_DUMP_DEVICE_INFO,
     CONF_EXIT_REPARSE_ON_START,
     CONF_MAX_COMMANDS_PER_LOOP,
+    CONF_MAX_QUEUE_AGE,
     CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
     CONF_ON_PAGE,
@@ -25,6 +26,7 @@ from .base_component import (
     CONF_ON_SLEEP,
     CONF_ON_WAKE,
     CONF_SKIP_CONNECTION_HANDSHAKE,
+    CONF_STARTUP_OVERRIDE_MS,
     CONF_START_UP_PAGE,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
@@ -60,6 +62,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_QUEUE_AGE, default=8000): cv.uint16_t,
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
@@ -95,6 +98,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
+            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default=8000): cv.uint16_t,
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
@@ -184,6 +188,12 @@ async def to_code(config):
 
     if config[CONF_SKIP_CONNECTION_HANDSHAKE]:
         cg.add_define("USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE")
+
+    if config[CONF_MAX_QUEUE_AGE]:
+        cg.add_define("NEXTION_MAX_QUEUE_AGE_MS", config[CONF_MAX_QUEUE_AGE])
+
+    if config[CONF_STARTUP_OVERRIDE_MS]:
+        cg.add_define("NEXTION_STARTUP_OVERRIDE_MS", config[CONF_STARTUP_OVERRIDE_MS])
 
     if max_commands_per_loop := config.get(CONF_MAX_COMMANDS_PER_LOOP):
         cg.add_define("USE_NEXTION_MAX_COMMANDS_PER_LOOP")

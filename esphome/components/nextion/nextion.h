@@ -1472,9 +1472,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;
-  const uint16_t startup_override_ms_ = 8000;
-  const uint16_t max_q_age_ms_ = 8000;
   uint32_t started_ms_ = 0;
+
+  // Use compile-time constants with macro override support
+  // Default to 8000ms if not defined via YAML configuration
+#ifndef NEXTION_STARTUP_OVERRIDE_MS
+#define NEXTION_STARTUP_OVERRIDE_MS 8000
+#endif  // NEXTION_STARTUP_OVERRIDE_MS
+
+#ifndef NEXTION_MAX_QUEUE_AGE_MS
+#define NEXTION_MAX_QUEUE_AGE_MS 8000
+#endif  // NEXTION_MAX_QUEUE_AGE_MS
+
 };
 
 }  // namespace nextion

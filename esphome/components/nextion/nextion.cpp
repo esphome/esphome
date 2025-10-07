@@ -189,6 +189,14 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   ESP_LOGCONFIG(TAG, "  Max queue size:   %zu", this->max_queue_size_);
 #endif
+
+#if NEXTION_MAX_QUEUE_AGE_MS != 8000  // Only log if non-default values are configured
+  ESP_LOGCONFIG(TAG, "  Max queue age:    %u ms", NEXTION_MAX_QUEUE_AGE_MS);
+#endif  // NEXTION_MAX_QUEUE_AGE_MS != 8000
+
+#if NEXTION_STARTUP_OVERRIDE_MS != 8000  // Only log if non-default values are configured
+  ESP_LOGCONFIG(TAG, "  Startup override: %u ms", NEXTION_STARTUP_OVERRIDE_MS);
+#endif  // NEXTION_STARTUP_OVERRIDE_MS != 8000
 }
 
 float Nextion::get_setup_priority() const { return setup_priority::DATA; }
@@ -333,7 +341,7 @@ void Nextion::loop() {
     if (this->started_ms_ == 0)
       this->started_ms_ = App.get_loop_component_start_time();
 
-    if (this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
+    if (this->started_ms_ + NEXTION_STARTUP_OVERRIDE_MS < App.get_loop_component_start_time()) {
       ESP_LOGV(TAG, "Manual ready set");
       this->connection_state_.nextion_reports_is_setup_ = true;
     }
@@ -842,10 +850,10 @@ void Nextion::process_nextion_commands_() {
 
   const uint32_t ms = App.get_loop_component_start_time();
 
-  if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
+  if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + NEXTION_MAX_QUEUE_AGE_MS < ms) {
     for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {
+      if (this->nextion_queue_[i]->queue_time + NEXTION_MAX_QUEUE_AGE_MS < ms) {
         if (this->nextion_queue_[i]->queue_time == 0) {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
                    component->get_variable_name().c_str());
