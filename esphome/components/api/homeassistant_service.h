@@ -152,6 +152,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
       static uint32_t call_id_counter = 1;
       uint32_t call_id = call_id_counter++;
       resp.call_id = call_id;
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
       if (this->flags_.wants_response) {
         resp.wants_response = true;
         // Set response template if provided
@@ -160,6 +161,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
           resp.response_template = response_template_value;
         }
       }
+#endif
 
       auto captured_args = std::make_tuple(x...);
       this->parent_->register_action_response_callback(
