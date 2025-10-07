@@ -199,7 +199,11 @@ class APIServer : public Component, public Controller {
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-  std::map<uint32_t, ActionResponseCallback> action_response_callbacks_;
+  struct PendingActionResponse {
+    uint32_t call_id;
+    ActionResponseCallback callback;
+  };
+  std::vector<PendingActionResponse> action_response_callbacks_;
 #endif
 
   // Group smaller types together

@@ -406,27 +406,31 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
 }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 void APIServer::register_action_response_callback(uint32_t call_id, ActionResponseCallback callback) {
-  this->action_response_callbacks_[call_id] = std::move(callback);
+  this->action_response_callbacks_.push_back({call_id, std::move(callback)});
 }
 
 void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message) {
-  auto it = this->action_response_callbacks_.find(call_id);
-  if (it != this->action_response_callbacks_.end()) {
-    auto callback = std::move(it->second);
-    this->action_response_callbacks_.erase(it);
-    auto response = std::make_shared<ActionResponse>(success, error_message);
-    callback(response);
+  for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
+    if (it->call_id == call_id) {
+      auto callback = std::move(it->callback);
+      this->action_response_callbacks_.erase(it);
+      ActionResponse response(success, error_message);
+      callback(response);
+      return;
+    }
   }
 }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
                                        const uint8_t *response_data, size_t response_data_len) {
-  auto it = this->action_response_callbacks_.find(call_id);
-  if (it != this->action_response_callbacks_.end()) {
-    auto callback = std::move(it->second);
-    this->action_response_callbacks_.erase(it);
-    auto response = std::make_shared<ActionResponse>(success, error_message, response_data, response_data_len);
-    callback(response);
+  for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
+    if (it->call_id == call_id) {
+      auto callback = std::move(it->callback);
+      this->action_response_callbacks_.erase(it);
+      ActionResponse response(success, error_message, response_data, response_data_len);
+      callback(response);
+      return;
+    }
   }
 }
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
