@@ -162,7 +162,7 @@ async def test_oversized_payload_noise(
             assert device_info.name == "oversized-noise"
 
             # Create an oversized payload (>2304 bytes which is our new limit)
-            oversized_data = b"Y" * 3000  # ~3KiB, exceeds the 2304 byte limit
+            oversized_data = b"Y" * 32769  # ~32KiB, exceeds the 32 Kbyte limit
 
             # Access the internal connection to send raw data
             frame_helper = client._connection._frame_helper
