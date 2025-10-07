@@ -1483,7 +1483,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #ifndef NEXTION_MAX_QUEUE_AGE_MS
 #define NEXTION_MAX_QUEUE_AGE_MS 8000
 #endif  // NEXTION_MAX_QUEUE_AGE_MS
-
 };
 
 }  // namespace nextion
