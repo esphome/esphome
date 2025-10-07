@@ -26,23 +26,15 @@ void MDNSComponent::setup() {
   mdns_instance_name_set(this->hostname_.c_str());
 
   for (const auto &service : this->services_) {
-    std::vector<mdns_txt_item_t> txt_records;
-    for (const auto &record : service.txt_records) {
-      mdns_txt_item_t it{};
-      // dup strings to ensure the pointer is valid even after the record loop
-      it.key = strdup(record.key.c_str());
-      it.value = strdup(const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
-      txt_records.push_back(it);
+    std::vector<mdns_txt_item_t> txt_records(service.txt_records.size());
+    for (size_t i = 0; i < service.txt_records.size(); i++) {
+      // mdns_service_add copies the strings internally, no need to strdup
+      txt_records[i].key = service.txt_records[i].key.c_str();
+      txt_records[i].value = const_cast<TemplatableValue<std::string> &>(service.txt_records[i].value).value().c_str();
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
     err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), port, txt_records.data(),
                            txt_records.size());
-
-    // free records
-    for (const auto &it : txt_records) {
-      delete it.key;    // NOLINT(cppcoreguidelines-owning-memory)
-      delete it.value;  // NOLINT(cppcoreguidelines-owning-memory)
-    }
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
