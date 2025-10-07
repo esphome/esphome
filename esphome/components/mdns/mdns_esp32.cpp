@@ -45,7 +45,7 @@ void MDNSComponent::setup() {
     }
 
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to register service %s: %s", service.service_type, esp_err_to_name(err));
+      ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
     }
   }
 }
