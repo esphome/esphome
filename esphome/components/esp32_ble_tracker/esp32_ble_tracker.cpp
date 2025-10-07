@@ -295,7 +295,7 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 void ESP32BLETracker::gap_scan_event_handler(const BLEScanResult &scan_result) {
   // Note: This handler is called from the main loop context via esp32_ble's event queue.
   // We process advertisements immediately instead of buffering them.
-  ESP_LOGV(TAG, "gap_scan_result - event %d", scan_result.search_evt);
+  ESP_LOGVV(TAG, "gap_scan_result - event %d", scan_result.search_evt);
 
   if (scan_result.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     // Process the scan result immediately

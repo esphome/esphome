@@ -45,6 +45,9 @@
 
 namespace esphome {
 
+// Forward declaration to avoid circular dependency with string_ref.h
+class StringRef;
+
 /// @name STL backports
 ///@{
 
@@ -82,6 +85,16 @@ template<typename T> constexpr T byteswap(T n) {
   return m;
 }
 template<> constexpr uint8_t byteswap(uint8_t n) { return n; }
+#ifdef USE_LIBRETINY
+// LibreTiny's Beken framework redefines __builtin_bswap functions as non-constexpr
+template<> inline uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> inline uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> inline uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> inline int8_t byteswap(int8_t n) { return n; }
+template<> inline int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> inline int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> inline int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#else
 template<> constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
 template<> constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
 template<> constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
@@ -89,6 +102,7 @@ template<> constexpr int8_t byteswap(int8_t n) { return n; }
 template<> constexpr int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
 template<> constexpr int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
 template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#endif
 
 ///@}
 
@@ -114,6 +128,16 @@ template<typename T, size_t N> class StaticVector {
     if (count_ < N) {
       data_[count_++] = value;
     }
+  }
+
+  // Return reference to next element and increment count (with bounds checking)
+  T &emplace_next() {
+    if (count_ >= N) {
+      // Should never happen with proper size calculation
+      // Return reference to last element to avoid crash
+      return data_[N - 1];
+    }
+    return data_[count_++];
   }
 
   size_t size() const { return count_; }
@@ -589,6 +613,8 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+/// Create a string from a value, an accuracy in decimals, and a unit of measurement.
+std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);

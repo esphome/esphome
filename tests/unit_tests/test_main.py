@@ -4,17 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass
+import logging
 from pathlib import Path
+import re
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from pytest import CaptureFixture
 
+from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
+    command_clean_all,
     command_rename,
+    command_update_all,
     command_wizard,
     get_port_type,
     has_ip_address,
@@ -26,7 +31,9 @@ from esphome.__main__ import (
     mqtt_get_ip,
     show_logs,
     upload_program,
+    upload_using_esptool,
 )
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -53,6 +60,17 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
+
+
+def strip_ansi_codes(text: str) -> str:
+    """Remove ANSI escape codes from text.
+
+    This helps make test assertions cleaner by removing color codes and other
+    terminal formatting that can make tests brittle.
+    """
+    # Pattern to match ANSI escape sequences
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    return ansi_escape.sub("", text)
 
 
 @dataclass
@@ -203,6 +221,14 @@ def mock_has_mqtt_logging() -> Generator[Mock]:
 def mock_run_external_process() -> Generator[Mock]:
     """Mock run_external_process for testing."""
     with patch("esphome.__main__.run_external_process") as mock:
+        mock.return_value = 0  # Default to success
+        yield mock
+
+
+@pytest.fixture
+def mock_run_external_command() -> Generator[Mock]:
+    """Mock run_external_command for testing."""
+    with patch("esphome.__main__.run_external_command") as mock:
         mock.return_value = 0  # Default to success
         yield mock
 
@@ -805,6 +831,122 @@ def test_upload_program_serial_esp8266_with_file(
     )
 
 
+def test_upload_using_esptool_path_conversion(
+    tmp_path: Path,
+    mock_run_external_command: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test upload_using_esptool properly converts Path objects to strings for esptool.
+
+    This test ensures that img.path (Path object) is converted to string before
+    passing to esptool, preventing AttributeError.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+
+    # Set up ESP32-specific data required by get_esp32_variant()
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create mock IDEData with Path objects
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = [
+        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        platformio_api.FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
+    ]
+
+    mock_get_idedata.return_value = mock_idedata
+
+    # Create the actual firmware files so they exist
+    (tmp_path / "firmware.bin").touch()
+    (tmp_path / "bootloader.bin").touch()
+    (tmp_path / "partitions.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    # Call upload_using_esptool without custom file argument
+    result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+
+    # Verify that run_external_command was called
+    assert mock_run_external_command.call_count == 1
+
+    # Get the actual call arguments
+    call_args = mock_run_external_command.call_args[0]
+
+    # The first argument should be esptool.main function,
+    # followed by the command arguments
+    assert len(call_args) > 1
+
+    # Find the indices of the flash image arguments
+    # They should come after "write-flash" and "-z"
+    cmd_list = list(call_args[1:])  # Skip the esptool.main function
+
+    # Verify all paths are strings, not Path objects
+    # The firmware and flash images should be at specific positions
+    write_flash_idx = cmd_list.index("write-flash")
+
+    # After write-flash we have: -z, --flash-size, detect, then offset/path pairs
+    # Check firmware at offset 0x10000 (ESP32)
+    firmware_offset_idx = write_flash_idx + 4
+    assert cmd_list[firmware_offset_idx] == "0x10000"
+    firmware_path = cmd_list[firmware_offset_idx + 1]
+    assert isinstance(firmware_path, str)
+    assert firmware_path.endswith("firmware.bin")
+
+    # Check bootloader
+    bootloader_offset_idx = firmware_offset_idx + 2
+    assert cmd_list[bootloader_offset_idx] == "0x1000"
+    bootloader_path = cmd_list[bootloader_offset_idx + 1]
+    assert isinstance(bootloader_path, str)
+    assert bootloader_path.endswith("bootloader.bin")
+
+    # Check partitions
+    partitions_offset_idx = bootloader_offset_idx + 2
+    assert cmd_list[partitions_offset_idx] == "0x8000"
+    partitions_path = cmd_list[partitions_offset_idx + 1]
+    assert isinstance(partitions_path, str)
+    assert partitions_path.endswith("partitions.bin")
+
+
+def test_upload_using_esptool_with_file_path(
+    tmp_path: Path,
+    mock_run_external_command: Mock,
+) -> None:
+    """Test upload_using_esptool with a custom file that's a Path object."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+
+    # Create a test firmware file
+    firmware_file = tmp_path / "custom_firmware.bin"
+    firmware_file.touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    # Call with a Path object as the file argument (though usually it's a string)
+    result = upload_using_esptool(config, "/dev/ttyUSB0", str(firmware_file), None)
+
+    assert result == 0
+
+    # Verify that run_external_command was called
+    mock_run_external_command.assert_called_once()
+
+    # Get the actual call arguments
+    call_args = mock_run_external_command.call_args[0]
+    cmd_list = list(call_args[1:])  # Skip the esptool.main function
+
+    # Find the firmware path in the command
+    write_flash_idx = cmd_list.index("write-flash")
+
+    # For custom file, it should be at offset 0x0
+    firmware_offset_idx = write_flash_idx + 4
+    assert cmd_list[firmware_offset_idx] == "0x0"
+    firmware_path = cmd_list[firmware_offset_idx + 1]
+
+    # Verify it's a string, not a Path object
+    assert isinstance(firmware_path, str)
+    assert firmware_path.endswith("custom_firmware.bin")
+
+
 @pytest.mark.parametrize(
     "platform,device",
     [
@@ -885,7 +1027,7 @@ def test_upload_program_ota_success(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    expected_firmware = str(
+    expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
@@ -919,7 +1061,9 @@ def test_upload_program_ota_with_file_arg(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", "custom.bin")
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, "", Path("custom.bin")
+    )
 
 
 def test_upload_program_ota_no_config(
@@ -972,7 +1116,7 @@ def test_upload_program_ota_with_mqtt_resolution(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
-    expected_firmware = str(
+    expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
@@ -1382,7 +1526,7 @@ def test_command_wizard(tmp_path: Path) -> None:
         result = command_wizard(args)
 
         assert result == 0
-        mock_wizard.assert_called_once_with(str(config_file))
+        mock_wizard.assert_called_once_with(config_file)
 
 
 def test_command_rename_invalid_characters(
@@ -1407,7 +1551,7 @@ def test_command_rename_complex_yaml(
     config_file = tmp_path / "test.yaml"
     config_file.write_text("# Complex YAML without esphome section\nsome_key: value\n")
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     args = MockArgs(name="newname")
     result = command_rename(args, {})
@@ -1436,7 +1580,7 @@ wifi:
   password: "test1234"
 """)
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     # Set up CORE.config to avoid ValueError when accessing CORE.address
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
@@ -1486,7 +1630,7 @@ esp32:
   board: nodemcu-32s
 """)
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     # Set up CORE.config to avoid ValueError when accessing CORE.address
     CORE.config = {
@@ -1523,7 +1667,7 @@ esp32:
   board: nodemcu-32s
 """)
     setup_core(tmp_path=tmp_path)
-    CORE.config_path = str(config_file)
+    CORE.config_path = config_file
 
     args = MockArgs(name="newname", dashboard=False)
 
@@ -1543,3 +1687,263 @@ esp32:
 
     captured = capfd.readouterr()
     assert "Rename failed" in captured.out
+
+
+def test_command_update_all_path_string_conversion(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+) -> None:
+    """Test that command_update_all properly converts Path objects to strings in output."""
+    yaml1 = tmp_path / "device1.yaml"
+    yaml1.write_text("""
+esphome:
+  name: device1
+
+esp32:
+  board: nodemcu-32s
+""")
+
+    yaml2 = tmp_path / "device2.yaml"
+    yaml2.write_text("""
+esphome:
+  name: device2
+
+esp8266:
+  board: nodemcuv2
+""")
+
+    setup_core(tmp_path=tmp_path)
+    mock_run_external_process.return_value = 0
+
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    # Check that Path objects were properly converted to strings
+    # The output should contain file paths without causing TypeError
+    assert "device1.yaml" in clean_output
+    assert "device2.yaml" in clean_output
+    assert "SUCCESS" in clean_output
+    assert "SUMMARY" in clean_output
+
+    # Verify run_external_process was called for each file
+    assert mock_run_external_process.call_count == 2
+
+
+def test_command_update_all_with_failures(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+) -> None:
+    """Test command_update_all handles mixed success/failure cases properly."""
+    yaml1 = tmp_path / "success_device.yaml"
+    yaml1.write_text("""
+esphome:
+  name: success_device
+
+esp32:
+  board: nodemcu-32s
+""")
+
+    yaml2 = tmp_path / "failed_device.yaml"
+    yaml2.write_text("""
+esphome:
+  name: failed_device
+
+esp8266:
+  board: nodemcuv2
+""")
+
+    setup_core(tmp_path=tmp_path)
+
+    # Mock mixed results - first succeeds, second fails
+    mock_run_external_process.side_effect = [0, 1]
+
+    # Should return 1 (failure) since one device failed
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 1
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    # Check that both success and failure are properly displayed
+    assert "SUCCESS" in clean_output
+    assert "ERROR" in clean_output or "FAILED" in clean_output
+    assert "SUMMARY" in clean_output
+
+    # Files are processed in alphabetical order, so we need to check which one succeeded/failed
+    # The mock_run_external_process.side_effect = [0, 1] applies to files in alphabetical order
+    # So "failed_device.yaml" gets 0 (success) and "success_device.yaml" gets 1 (failure)
+    assert "failed_device.yaml: SUCCESS" in clean_output
+    assert "success_device.yaml: FAILED" in clean_output
+
+
+def test_command_update_all_empty_directory(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+) -> None:
+    """Test command_update_all with an empty directory (no YAML files)."""
+    setup_core(tmp_path=tmp_path)
+
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
+    mock_run_external_process.assert_not_called()
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    assert "SUMMARY" in clean_output
+
+
+def test_command_update_all_single_file(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+) -> None:
+    """Test command_update_all with a single YAML file specified."""
+    yaml_file = tmp_path / "single_device.yaml"
+    yaml_file.write_text("""
+esphome:
+  name: single_device
+
+esp32:
+  board: nodemcu-32s
+""")
+
+    setup_core(tmp_path=tmp_path)
+    mock_run_external_process.return_value = 0
+
+    assert command_update_all(MockArgs(configuration=[str(yaml_file)])) == 0
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    assert "single_device.yaml" in clean_output
+    assert "SUCCESS" in clean_output
+    mock_run_external_process.assert_called_once()
+
+
+def test_command_update_all_path_formatting_in_color_calls(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+) -> None:
+    """Test that Path objects are properly converted when passed to color() function."""
+    yaml_file = tmp_path / "test-device_123.yaml"
+    yaml_file.write_text("""
+esphome:
+  name: test-device_123
+
+esp32:
+  board: nodemcu-32s
+""")
+
+    setup_core(tmp_path=tmp_path)
+    mock_run_external_process.return_value = 0
+
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    assert "test-device_123.yaml" in clean_output
+    assert "Updating" in clean_output
+    assert "SUCCESS" in clean_output
+    assert "SUMMARY" in clean_output
+
+    # Should not have any Python error messages
+    assert "TypeError" not in clean_output
+    assert "can only concatenate str" not in clean_output
+
+
+def test_command_clean_all_success(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_all when writer.clean_all() succeeds."""
+    args = MockArgs(configuration=["/path/to/config1", "/path/to/config2"])
+
+    # Set logger level to capture INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_all") as mock_clean_all,
+    ):
+        result = command_clean_all(args)
+
+        assert result == 0
+        mock_clean_all.assert_called_once_with(["/path/to/config1", "/path/to/config2"])
+
+        # Check that success message was logged
+        assert "Done!" in caplog.text
+
+
+def test_command_clean_all_oserror(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_all when writer.clean_all() raises OSError."""
+    args = MockArgs(configuration=["/path/to/config1"])
+
+    # Create a mock OSError with a specific message
+    mock_error = OSError("Permission denied: cannot delete directory")
+
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_all", side_effect=mock_error) as mock_clean_all,
+    ):
+        result = command_clean_all(args)
+
+        assert result == 1
+        mock_clean_all.assert_called_once_with(["/path/to/config1"])
+
+        # Check that error message was logged
+        assert (
+            "Error cleaning all files: Permission denied: cannot delete directory"
+            in caplog.text
+        )
+        # Should not have success message
+        assert "Done!" not in caplog.text
+
+
+def test_command_clean_all_oserror_no_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_clean_all when writer.clean_all() raises OSError without message."""
+    args = MockArgs(configuration=["/path/to/config1"])
+
+    # Create a mock OSError without a message
+    mock_error = OSError()
+
+    # Set logger level to capture ERROR and INFO messages
+    with (
+        caplog.at_level(logging.INFO),
+        patch("esphome.writer.clean_all", side_effect=mock_error) as mock_clean_all,
+    ):
+        result = command_clean_all(args)
+
+        assert result == 1
+        mock_clean_all.assert_called_once_with(["/path/to/config1"])
+
+        # Check that error message was logged (should show empty string for OSError without message)
+        assert "Error cleaning all files:" in caplog.text
+        # Should not have success message
+        assert "Done!" not in caplog.text
+
+
+def test_command_clean_all_args_used() -> None:
+    """Test that command_clean_all uses args.configuration parameter."""
+    # Test with different configuration paths
+    args1 = MockArgs(configuration=["/path/to/config1"])
+    args2 = MockArgs(configuration=["/path/to/config2", "/path/to/config3"])
+
+    with patch("esphome.writer.clean_all") as mock_clean_all:
+        result1 = command_clean_all(args1)
+        result2 = command_clean_all(args2)
+
+        assert result1 == 0
+        assert result2 == 0
+        assert mock_clean_all.call_count == 2
+
+        # Verify the correct configuration paths were passed
+        mock_clean_all.assert_any_call(["/path/to/config1"])
+        mock_clean_all.assert_any_call(["/path/to/config2", "/path/to/config3"])
