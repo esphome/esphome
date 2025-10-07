@@ -181,7 +181,7 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       auto value = const_cast<TemplatableValue<std::string> &>(txt.value).value();
-      txt_entries[i].mKey = strdup(txt.key.c_str());
+      txt_entries[i].mKey = txt.key;  // Compile-time string literal in flash
       txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value.c_str()));
       txt_entries[i].mValueLength = value.size();
     }

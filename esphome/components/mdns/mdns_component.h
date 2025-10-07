@@ -13,7 +13,7 @@ namespace mdns {
 // MDNS_SERVICE_COUNT will always be defined
 
 struct MDNSTXTRecord {
-  std::string key;
+  const char *key;
   TemplatableValue<std::string> value;
 };
 

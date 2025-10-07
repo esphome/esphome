@@ -29,8 +29,8 @@ void MDNSComponent::setup() {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
-      // key is a persistent string in services_, no need to strdup
-      it.key = record.key.c_str();
+      // key is a compile-time string literal in flash, no need to strdup
+      it.key = record.key;
       // value is a temporary from TemplatableValue, must strdup to keep it alive
       it.value = strdup(const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
       txt_records.push_back(it);
