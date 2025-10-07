@@ -188,8 +188,7 @@ template<> bool Decoder::do_operand_<Decoder::DEVICE_TYPE>() {
 }
 
 template<> bool Decoder::do_operand_<Decoder::DISPLAY_CONTROL>() {
-  const static std::array<const char *, 9> NAMES = {"Default Time", "Until cleared", "Clear previous",
-                                                    "Reserved"};
+  const static std::array<const char *, 9> NAMES = {"Default time", "Until cleared", "Clear previous", "Reserved"};
   return append_operand_<NAMES.size()>(NAMES);
 }
 
