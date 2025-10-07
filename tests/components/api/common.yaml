@@ -18,7 +18,7 @@ esphome:
           capture_response: true
           on_success:
             - lambda: |-
-                JsonObject next_hour = response["response"]["weather.forecast_home"]["forecast"][0];
+                JsonObjectConst next_hour = response["response"]["weather.forecast_home"]["forecast"][0];
                 float next_temperature = next_hour["temperature"].as<float>();
                 ESP_LOGD("main", "Next hour temperature: %f", next_temperature);
           on_error:
