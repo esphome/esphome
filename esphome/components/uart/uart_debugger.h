@@ -67,7 +67,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   void trigger_after_bytes_(bool debug_add_settings = false);
   void trigger_after_timeout_(bool debug_add_settings = false);
   bool has_buffered_bytes_();
-  void fire_trigger_();
+  void fire_trigger_(bool debug_add_settings = false);
 };
 
 /// This UARTDevice is used by the serial debugger to read data from a
