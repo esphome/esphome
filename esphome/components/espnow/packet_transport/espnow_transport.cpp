@@ -22,9 +22,8 @@ void ESPNowTransport::setup() {
   }
 
   ESP_LOGI(TAG, "Registering ESP-NOW handlers");
-  ESP_LOGI(TAG, "Peer address: %02X:%02X:%02X:%02X:%02X:%02X", this->peer_address_[0],
-           this->peer_address_[1], this->peer_address_[2], this->peer_address_[3],
-           this->peer_address_[4], this->peer_address_[5]);
+  ESP_LOGI(TAG, "Peer address: %02X:%02X:%02X:%02X:%02X:%02X", this->peer_address_[0], this->peer_address_[1],
+           this->peer_address_[2], this->peer_address_[3], this->peer_address_[4], this->peer_address_[5]);
 
   // Register this transport as an ESP-NOW handler
   this->parent_->register_received_handler(static_cast<ESPNowReceivedPacketHandler *>(this));
@@ -94,4 +93,3 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
 }  // namespace esphome
 
 #endif  // USE_ESP32
-
