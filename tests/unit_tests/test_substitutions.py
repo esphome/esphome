@@ -1,6 +1,6 @@
 import glob
 import logging
-import os
+from pathlib import Path
 
 from esphome import yaml_util
 from esphome.components import substitutions
@@ -52,9 +52,8 @@ def dict_diff(a, b, path=""):
     return diffs
 
 
-def write_yaml(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(yaml_util.dump(data))
+def write_yaml(path: Path, data: dict) -> None:
+    path.write_text(yaml_util.dump(data), encoding="utf-8")
 
 
 def test_substitutions_fixtures(fixture_path):
@@ -64,11 +63,10 @@ def test_substitutions_fixtures(fixture_path):
 
     failures = []
     for source_path in sources:
+        source_path = Path(source_path)
         try:
-            expected_path = source_path.replace(".input.yaml", ".approved.yaml")
-            test_case = os.path.splitext(os.path.basename(source_path))[0].replace(
-                ".input", ""
-            )
+            expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
+            test_case = source_path.with_suffix("").stem
 
             # Load using ESPHome's YAML loader
             config = yaml_util.load_yaml(source_path)
@@ -81,12 +79,12 @@ def test_substitutions_fixtures(fixture_path):
             substitutions.do_substitution_pass(config, None)
 
             # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
-            if os.path.isfile(expected_path):
+            if expected_path.is_file():
                 expected = yaml_util.load_yaml(expected_path)
             elif DEV_MODE:
                 expected = {}
             else:
-                assert os.path.isfile(expected_path), (
+                assert expected_path.is_file(), (
                     f"Expected file missing: {expected_path}"
                 )
 
@@ -97,16 +95,14 @@ def test_substitutions_fixtures(fixture_path):
             if got_sorted != expected_sorted:
                 diff = "\n".join(dict_diff(got_sorted, expected_sorted))
                 msg = (
-                    f"Substitution result mismatch for {os.path.basename(source_path)}\n"
+                    f"Substitution result mismatch for {source_path.name}\n"
                     f"Diff:\n{diff}\n\n"
                     f"Got:      {got_sorted}\n"
                     f"Expected: {expected_sorted}"
                 )
                 # Write out the received file when test fails
                 if DEV_MODE:
-                    received_path = os.path.join(
-                        os.path.dirname(source_path), f"{test_case}.received.yaml"
-                    )
+                    received_path = source_path.with_name(f"{test_case}.received.yaml")
                     write_yaml(received_path, config)
                     print(msg)
                     failures.append(msg)
