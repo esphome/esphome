@@ -126,9 +126,11 @@ async def to_code(config):
             if cg.is_template(txt_value):
                 # It's a lambda - evaluate and store using helper
                 templated_value = await cg.templatable(txt_value, [], cg.std_string)
+                safe_key = cg.safe_exp(txt_key)
+                dynamic_call = f"{var}->add_dynamic_txt_value(({templated_value})())"
                 txt_records.append(
                     cg.RawExpression(
-                        f"{{MDNS_STR({cg.safe_exp(txt_key)}), MDNS_STR({var}->add_dynamic_txt_value(({templated_value})()))}}"
+                        f"{{MDNS_STR({safe_key}), MDNS_STR({dynamic_call})}}"
                     )
                 )
             else:
