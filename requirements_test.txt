@@ -1,6 +1,6 @@
 pylint==3.3.9
 flake8==7.3.0  # also change in .pre-commit-config.yaml when updating
-ruff==0.13.3  # also change in .pre-commit-config.yaml when updating
+ruff==0.14.0  # also change in .pre-commit-config.yaml when updating
 pyupgrade==3.20.0  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
