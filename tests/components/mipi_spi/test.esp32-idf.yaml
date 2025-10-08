@@ -7,7 +7,3 @@ substitutions:
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
   display: !include common.yaml
-
-display:
-  - platform: mipi_spi
-    model: LANBON-L8
