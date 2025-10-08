@@ -64,8 +64,8 @@ bool SplitBuffer::init(size_t total_length) {
       this->buffers_ = temp_buffers;
       this->buffer_count_ = needed_buffers;
       this->buffer_size_ = current_buffer_size;
-      ESP_LOGD(TAG, "Allocated %zu * %zu bytes - %zu bytes", this->buffer_count_,
-               this->buffer_size_, this->total_length_);
+      ESP_LOGD(TAG, "Allocated %zu * %zu bytes - %zu bytes", this->buffer_count_, this->buffer_size_,
+               this->total_length_);
       return true;
     }
 
