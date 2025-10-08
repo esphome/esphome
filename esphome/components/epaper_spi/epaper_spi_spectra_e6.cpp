@@ -88,7 +88,7 @@ void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color
 bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
   if (this->current_data_index_ == 0) {
-    ESP_LOGI(TAG, "Sending data to the display");
+    ESP_LOGV(TAG, "Sending data");
     this->command(0x10);
   }
 
