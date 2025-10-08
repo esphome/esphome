@@ -1,4 +1,4 @@
 substitutions:
-  rx_pin: GPIO5
+  rx_pin: GPIO0
 
 <<: !include common.yaml

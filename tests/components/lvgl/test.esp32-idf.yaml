@@ -62,6 +62,7 @@ display:
 
 packages:
   lvgl: !include lvgl-package.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 lvgl:
   displays:

@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_lcd_pcf8574
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 display:
   - platform: lcd_pcf8574
     dimensions: 18x4

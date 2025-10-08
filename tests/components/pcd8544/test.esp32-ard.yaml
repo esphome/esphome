@@ -1,7 +1,7 @@
 substitutions:
   clk_pin: GPIO16
   mosi_pin: GPIO17
-  miso_pin: GPIO18
+  miso_pin: GPIO4
   cs_pin: GPIO12
   dc_pin: GPIO13
   reset_pin: GPIO14

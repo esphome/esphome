@@ -4,7 +4,7 @@ substitutions:
   miso_pin: GPIO15
   dc_pin: GPIO14
   cs_pin: GPIO13
-  enable_pin: GPIO19
+  enable_pin: GPIO4
   reset_pin: GPIO20
 
 display:

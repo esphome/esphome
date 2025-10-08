@@ -1,8 +1,11 @@
 substitutions:
   client_tx_pin: GPIO12
   client_rx_pin: GPIO14
-  server_tx_pin: GPIO16
-  server_rx_pin: GPIO17
+  server_tx_pin: GPIO4
+  server_rx_pin: GPIO5
   flow_control_pin: GPIO13
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 <<: !include common.yaml

@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_tof10120
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: tof10120
     name: Distance sensor

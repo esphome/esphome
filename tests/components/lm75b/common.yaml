@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_lm75b
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: lm75b
     name: LM75B Temperature

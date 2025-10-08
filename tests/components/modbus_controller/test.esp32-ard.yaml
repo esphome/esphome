@@ -5,4 +5,7 @@ substitutions:
   server_rx_pin: GPIO17
   flow_control_pin: GPIO13
 
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-ard.yaml
+
 <<: !include common.yaml

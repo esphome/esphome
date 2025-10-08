@@ -1,14 +1,13 @@
 substitutions:
-  clk_pin: GPIO16
-  mosi_pin: GPIO17
-  miso_pin: GPIO15
   dc_pin: GPIO21
-  cs_pin: GPIO18
-  enable_pin: GPIO19
+  cs_pin: GPIO12
+  enable_pin: GPIO13
   reset_pin: GPIO20
 
 packages:
-  display: !include common.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml
 
 display:
   - platform: mipi_spi

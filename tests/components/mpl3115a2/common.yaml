@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_mpl3115a2
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mpl3115a2
     temperature:

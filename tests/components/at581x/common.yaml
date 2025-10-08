@@ -18,11 +18,6 @@ esphome:
 at581x:
   id: waveradar
 
-i2c:
-  - id: i2c_at581x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 switch:
   - platform: at581x
     name: Enable Radar

@@ -1,0 +1,5 @@
+# Common I2C configuration for ESP32-C3 IDF tests
+
+substitutions:
+  scl_pin: GPIO8
+  sda_pin: GPIO10

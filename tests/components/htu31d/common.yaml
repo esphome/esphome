@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_htu31d
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: htu31d
     temperature:

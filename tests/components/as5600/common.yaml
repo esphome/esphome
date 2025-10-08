@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_as5600
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 as5600:
   dir_pin: ${dir_pin}
   direction: clockwise

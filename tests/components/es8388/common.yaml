@@ -7,11 +7,6 @@ esphome:
       - audio_dac.set_volume:
           volume: 50%
 
-i2c:
-  - id: i2c_es8388
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 audio_dac:
   - platform: es8388
     id: es8388_parent

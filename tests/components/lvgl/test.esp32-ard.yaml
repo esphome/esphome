@@ -18,8 +18,8 @@ display:
       mirror_x: true
       mirror_y: true
     data_rate: 80MHz
-    cs_pin: GPIO22
-    dc_pin: GPIO21
+    cs_pin: GPIO4
+    dc_pin: GPIO5
     auto_clear_enabled: false
     invert_colors: false
     update_interval: never

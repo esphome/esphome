@@ -2,4 +2,7 @@ substitutions:
   tx_pin: GPIO4
   rx_pin: GPIO5
 
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
+
 <<: !include common.yaml

@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_sdp3x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: sdp3x
     id: filter_pressure

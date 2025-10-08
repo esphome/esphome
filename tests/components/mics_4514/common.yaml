@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_mics_4514
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mics_4514
     update_interval: 60s

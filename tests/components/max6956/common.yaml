@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_max6956
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 max6956:
   - id: max6956_1
     address: 0x40

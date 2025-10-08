@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_honeywell_hih
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: honeywell_hih_i2c
     temperature:

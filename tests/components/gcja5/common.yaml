@@ -1,10 +1,3 @@
-uart:
-  - id: uart_gcja5
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-    parity: EVEN
-
 sensor:
   - platform: gcja5
     pm_1_0:

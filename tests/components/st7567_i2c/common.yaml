@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_st7567_i2c
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 display:
   - platform: st7567_i2c
     reset_pin: ${reset_pin}

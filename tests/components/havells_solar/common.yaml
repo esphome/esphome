@@ -1,9 +1,3 @@
-uart:
-  - id: uart_havells_solar
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 modbus:
   flow_control_pin: ${flow_control_pin}
 

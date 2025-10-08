@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_ms5611
-    scl: ${i2c_scl}
-    sda: ${i2c_sda}
-
 sensor:
   - platform: ms5611
     temperature:
