@@ -112,7 +112,10 @@ class VoiceAssistant : public Component {
 
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
 #ifdef USE_MICRO_WAKE_WORD
-  void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
+  void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) {
+    this->micro_wake_word_ = mww;
+    this->mark_configuration_needs_rebuild_();
+  }
 #endif
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
@@ -168,7 +171,13 @@ class VoiceAssistant : public Component {
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
   void on_set_configuration(const std::vector<std::string> &active_wake_words);
+
+  // Returns cached configuration reference. Only rebuilds when config_needs_rebuild_ is true
+  // to prevent use-after-free with StringRef and avoid wasteful rebuilding.
   const Configuration &get_configuration();
+
+  // Mark configuration dirty so it gets rebuilt on next get_configuration() call.
+  void mark_configuration_needs_rebuild_() { this->config_needs_rebuild_ = true; }
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -313,7 +322,11 @@ class VoiceAssistant : public Component {
   bool udp_socket_running_{false};
   bool start_udp_socket_();
 
+  // Configuration caching for safety and performance. Only rebuild when config_needs_rebuild_
+  // is true to prevent use-after-free race condition when StringRef pointers reference
+  // wake word strings during API message serialization, and to avoid wasteful rebuilding.
   Configuration config_{};
+  bool config_needs_rebuild_{true};
 
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};

@@ -953,11 +953,21 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
         }
       }
     }
+
+    // Mark configuration dirty to trigger rebuild on next get_configuration() call.
+    this->mark_configuration_needs_rebuild_();
   }
 #endif
 };
 
 const Configuration &VoiceAssistant::get_configuration() {
+  // Return cached configuration if it hasn't changed. This prevents a use-after-free
+  // race condition when API message serialization creates StringRef pointers to strings
+  // in config_.available_wake_words, and avoids wastefully rebuilding on every call.
+  if (!this->config_needs_rebuild_) {
+    return this->config_;
+  }
+
   this->config_.available_wake_words.clear();
   this->config_.active_wake_words.clear();
 
@@ -986,6 +996,8 @@ const Configuration &VoiceAssistant::get_configuration() {
   }
 #endif
 
+  // Mark configuration as clean now that we've rebuilt it
+  this->config_needs_rebuild_ = false;
   return this->config_;
 };
 
