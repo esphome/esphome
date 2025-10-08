@@ -56,6 +56,14 @@ MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
 MDNS_STATIC_CONST_CHAR(NETWORK_ETHERNET, "ethernet");
 MDNS_STATIC_CONST_CHAR(NETWORK_THREAD, "thread");
 
+// Wrap build-time defines into flash storage
+MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
+MDNS_STATIC_CONST_CHAR(VALUE_BOARD, ESPHOME_BOARD);
+#ifdef ESPHOME_PROJECT_NAME
+MDNS_STATIC_CONST_CHAR(VALUE_PROJECT_NAME, ESPHOME_PROJECT_NAME);
+MDNS_STATIC_CONST_CHAR(VALUE_PROJECT_VERSION, ESPHOME_PROJECT_VERSION);
+#endif
+
 void MDNSComponent::compile_records_() {
   this->hostname_ = App.get_name();
 
@@ -99,7 +107,7 @@ void MDNSComponent::compile_records_() {
     if (!friendly_name_empty) {
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
-    txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(ESPHOME_VERSION)});
+    txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
     txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
 
 #ifdef USE_ESP8266
@@ -112,7 +120,7 @@ void MDNSComponent::compile_records_() {
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(lt_cpu_get_model_name())});
 #endif
 
-    txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(ESPHOME_BOARD)});
+    txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
 
 #if defined(USE_WIFI)
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_WIFI)});
@@ -124,16 +132,14 @@ void MDNSComponent::compile_records_() {
 
 #ifdef USE_API_NOISE
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
-    if (api::global_api_server->get_noise_ctx()->has_psk()) {
-      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION), MDNS_STR(NOISE_ENCRYPTION)});
-    } else {
-      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION_SUPPORTED), MDNS_STR(NOISE_ENCRYPTION)});
-    }
+    txt_records.push_back({MDNS_STR(api::global_api_server->get_noise_ctx()->has_psk() ? TXT_API_ENCRYPTION
+                                                                                       : TXT_API_ENCRYPTION_SUPPORTED),
+                           MDNS_STR(NOISE_ENCRYPTION)});
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
-    txt_records.push_back({MDNS_STR(TXT_PROJECT_NAME), MDNS_STR(ESPHOME_PROJECT_NAME)});
-    txt_records.push_back({MDNS_STR(TXT_PROJECT_VERSION), MDNS_STR(ESPHOME_PROJECT_VERSION)});
+    txt_records.push_back({MDNS_STR(TXT_PROJECT_NAME), MDNS_STR(VALUE_PROJECT_NAME)});
+    txt_records.push_back({MDNS_STR(TXT_PROJECT_VERSION), MDNS_STR(VALUE_PROJECT_VERSION)});
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
@@ -164,7 +170,7 @@ void MDNSComponent::compile_records_() {
   fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
   fallback_service.port = USE_WEBSERVER_PORT;
-  fallback_service.txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(ESPHOME_VERSION)});
+  fallback_service.txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
 #endif
 }
 
