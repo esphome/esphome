@@ -10,6 +10,39 @@ esphome:
           data:
             message: Button was pressed
       - homeassistant.tag_scanned: pulse
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+            type: hourly
+          capture_response: true
+          on_success:
+            - lambda: |-
+                JsonObjectConst next_hour = response["response"]["weather.forecast_home"]["forecast"][0];
+                float next_temperature = next_hour["temperature"].as<float>();
+                ESP_LOGD("main", "Next hour temperature: %f", next_temperature);
+          on_error:
+            - lambda: |-
+                ESP_LOGE("main", "Action failed with error: %s", error.c_str());
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+            type: hourly
+          capture_response: true
+          response_template: "{{ response['weather.forecast_home']['forecast'][0]['temperature'] }}"
+          on_success:
+            - lambda: |-
+                float temperature = response["response"].as<float>();
+                ESP_LOGD("main", "Next hour temperature: %f", temperature);
+      - homeassistant.action:
+          action: light.toggle
+          data:
+            entity_id: light.demo_light
+          on_success:
+            - logger.log: "Toggled demo light"
+          on_error:
+            - logger.log: "Failed to toggle demo light"
 
 api:
   port: 8000

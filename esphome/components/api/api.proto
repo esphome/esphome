@@ -780,6 +780,22 @@ message HomeassistantActionRequest {
   repeated HomeassistantServiceMap data_template = 3;
   repeated HomeassistantServiceMap variables = 4;
   bool is_event = 5;
+  uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
+  bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  string response_template = 8 [(no_zero_copy) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+}
+
+// Message sent by Home Assistant to ESPHome with service call response data
+message HomeassistantActionResponse {
+  option (id) = 130;
+  option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
+  bool success = 2; // Whether the service call succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
