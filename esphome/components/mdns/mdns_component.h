@@ -13,7 +13,7 @@ namespace mdns {
 struct MDNSString;
 
 // Macro to cast string literals to MDNSString* (works on all platforms)
-#define MDNS_STR(name) (reinterpret_cast<const MDNSString *>(name))
+#define MDNS_STR(name) (reinterpret_cast<const esphome::mdns::MDNSString *>(name))
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
