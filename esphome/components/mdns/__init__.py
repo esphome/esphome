@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 def mdns_txt_record(key: str, value: str):
     return cg.StructInitializer(
         MDNSTXTRecord,
-        ("key", key),
+        ("key", cg.RawExpression(f"MDNS_STR({cg.safe_exp(key)})")),
         ("value", value),
     )
 
@@ -71,8 +71,8 @@ def mdns_service(
 ):
     return cg.StructInitializer(
         MDNSService,
-        ("service_type", service),
-        ("proto", proto),
+        ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
+        ("proto", cg.RawExpression(f"MDNS_STR({cg.safe_exp(proto)})")),
         ("port", port),
         ("txt_records", txt_records),
     )
@@ -114,7 +114,7 @@ async def to_code(config):
         txt = [
             cg.StructInitializer(
                 MDNSTXTRecord,
-                ("key", txt_key),
+                ("key", cg.RawExpression(f"MDNS_STR({cg.safe_exp(txt_key)})")),
                 ("value", await cg.templatable(txt_value, [], cg.std_string)),
             )
             for txt_key, txt_value in service[CONF_TXT].items()
