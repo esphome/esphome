@@ -65,6 +65,9 @@ class MDNSComponent : public Component {
     return this->dynamic_txt_values_.back().c_str();
   }
 
+  /// Storage for runtime-generated TXT values (MAC address, user lambdas)
+  /// Pre-sized at compile time via MDNS_DYNAMIC_TXT_COUNT to avoid heap allocations.
+  /// Static/compile-time values (version, board, etc.) are stored directly in flash and don't use this.
   StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
 
  protected:
