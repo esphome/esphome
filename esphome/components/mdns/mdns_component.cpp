@@ -132,9 +132,9 @@ void MDNSComponent::compile_records_() {
 
 #ifdef USE_API_NOISE
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
-    txt_records.push_back({MDNS_STR(api::global_api_server->get_noise_ctx()->has_psk() ? TXT_API_ENCRYPTION
-                                                                                       : TXT_API_ENCRYPTION_SUPPORTED),
-                           MDNS_STR(NOISE_ENCRYPTION)});
+    bool has_psk = api::global_api_server->get_noise_ctx()->has_psk();
+    const char *encryption_key = has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
+    txt_records.push_back({MDNS_STR(encryption_key), MDNS_STR(NOISE_ENCRYPTION)});
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
