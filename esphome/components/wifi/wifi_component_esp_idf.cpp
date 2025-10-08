@@ -1,7 +1,7 @@
 #include "wifi_component.h"
 
 #ifdef USE_WIFI
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <esp_event.h>
 #include <esp_netif.h>
@@ -26,6 +26,10 @@
 #ifdef USE_WIFI_AP
 #include "dhcpserver/dhcpserver.h"
 #endif  // USE_WIFI_AP
+
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
 
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
@@ -404,11 +408,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
       err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                    (uint8_t *) eap.client_key, client_key_len + 1,
-                                                   (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                   (uint8_t *) eap.password.c_str(), eap.password.length());
 #else
       err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                (uint8_t *) eap.client_key, client_key_len + 1,
-                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                               (uint8_t *) eap.password.c_str(), eap.password.length());
 #endif
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "set_cert_key failed %d", err);
@@ -918,6 +922,22 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
+#if defined(USE_CAPTIVE_PORTAL) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+  // Configure DHCP Option 114 (Captive Portal URI) if captive portal is enabled
+  // This provides a standards-compliant way for clients to discover the captive portal
+  if (captive_portal::global_captive_portal != nullptr) {
+    static char captive_portal_uri[32];
+    snprintf(captive_portal_uri, sizeof(captive_portal_uri), "http://%s", network::IPAddress(&info.ip).str().c_str());
+    err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
+                                 strlen(captive_portal_uri));
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "Failed to set DHCP captive portal URI: %s", esp_err_to_name(err));
+    } else {
+      ESP_LOGV(TAG, "DHCP Captive Portal URI set to: %s", captive_portal_uri);
+    }
+  }
+#endif
+
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
@@ -1050,5 +1070,5 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }  // namespace wifi
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
 #endif
