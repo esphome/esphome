@@ -3,25 +3,29 @@
 set -e
 
 help() {
-  echo "Usage: $0 [-e <config|compile|clean>] [-c <string>] [-t <string>]" 1>&2
+  echo "Usage: $0 [-e <config|compile|clean>] [-c <string>] [-t <string>] [-f]" 1>&2
   echo 1>&2
   echo "  - e - Parameter for esphome command. Default compile. Common alternative is config." 1>&2
   echo "  - c - Component folder name to test. Default *. E.g. '-c logger'." 1>&2
   echo "  - t - Target name to test. Put '-t list' to display all possibilities. E.g. '-t esp32-s2-idf-51'." 1>&2
+  echo "  - f - Continue on fail. Don't exit on first error." 1>&2
   exit 1
 }
 
 # Parse parameter:
 # - `e` - Parameter for `esphome` command. Default `compile`. Common alternative is `config`.
 # - `c` - Component folder name to test. Default `*`.
+# - `f` - Continue on fail flag.
 esphome_command="compile"
 target_component="*"
-while getopts e:c:t: flag
+continue_on_fail=false
+while getopts e:c:t:f flag
 do
     case $flag in
         e) esphome_command=${OPTARG};;
         c) target_component=${OPTARG};;
         t) requested_target_platform=${OPTARG};;
+        f) continue_on_fail=true;;
         \?) help;;
     esac
 done
