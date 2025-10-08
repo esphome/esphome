@@ -116,7 +116,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
-    esp32_ble_tracker.consume_connection_slots(1, "ble_client"),
+    esp32_ble.consume_connection_slots(1, "ble_client"),
 )
 
 CONF_BLE_CLIENT_ID = "ble_client_id"
@@ -286,6 +286,7 @@ async def remove_bond_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+    cg.add_define("USE_ESP32_BLE_UUID")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

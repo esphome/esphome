@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <cstdarg>
 #include <memory>
@@ -25,6 +25,10 @@
 #include "esphome/components/web_server/list_entities.h"
 #endif  // USE_WEBSERVER
 
+// Include socket headers after Arduino headers to avoid IPADDR_NONE/INADDR_NONE macro conflicts
+#include <cerrno>
+#include <sys/socket.h>
+
 namespace esphome {
 namespace web_server_idf {
 
@@ -45,6 +49,42 @@ DefaultHeaders default_headers_instance;
 }  // namespace
 
 DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
+
+namespace {
+// Non-blocking send function to prevent watchdog timeouts when TCP buffers are full
+/**
+ * Sends data on a socket in non-blocking mode.
+ *
+ * @param hd      HTTP server handle (unused).
+ * @param sockfd  Socket file descriptor.
+ * @param buf     Buffer to send.
+ * @param buf_len Length of buffer.
+ * @param flags   Flags for send().
+ * @return
+ *   - Number of bytes sent on success.
+ *   - HTTPD_SOCK_ERR_INVALID if buf is nullptr.
+ *   - HTTPD_SOCK_ERR_TIMEOUT if the send buffer is full (EAGAIN/EWOULDBLOCK).
+ *   - HTTPD_SOCK_ERR_FAIL for other errors.
+ */
+int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
+  if (buf == nullptr) {
+    return HTTPD_SOCK_ERR_INVALID;
+  }
+
+  // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
+  int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
+  if (ret < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      // Buffer full - retry later
+      return HTTPD_SOCK_ERR_TIMEOUT;
+    }
+    // Real error
+    ESP_LOGD(TAG, "send error: errno %d", errno);
+    return HTTPD_SOCK_ERR_FAIL;
+  }
+  return ret;
+}
+}  // namespace
 
 void AsyncWebServer::end() {
   if (this->server_) {
@@ -116,7 +156,7 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
   }
 
   // Handle regular form data
-  if (r->content_len > HTTPD_MAX_REQ_HDR_LEN) {
+  if (r->content_len > CONFIG_HTTPD_MAX_REQ_HDR_LEN) {
     ESP_LOGW(TAG, "Request size is to big: %zu", r->content_len);
     httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
     return ESP_FAIL;
@@ -164,8 +204,8 @@ esp_err_t AsyncWebServer::request_handler_(AsyncWebServerRequest *request) const
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
   delete this->rsp_;
-  for (const auto &pair : this->params_) {
-    delete pair.second;  // NOLINT(cppcoreguidelines-owning-memory)
+  for (auto *param : this->params_) {
+    delete param;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 
@@ -205,10 +245,22 @@ void AsyncWebServerRequest::redirect(const std::string &url) {
 }
 
 void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
-  httpd_resp_set_status(*this, code == 200   ? HTTPD_200
-                               : code == 404 ? HTTPD_404
-                               : code == 409 ? HTTPD_409
-                                             : to_string(code).c_str());
+  // Set status code - use constants for common codes to avoid string allocation
+  const char *status = nullptr;
+  switch (code) {
+    case 200:
+      status = HTTPD_200;
+      break;
+    case 404:
+      status = HTTPD_404;
+      break;
+    case 409:
+      status = HTTPD_409;
+      break;
+    default:
+      break;
+  }
+  httpd_resp_set_status(*this, status == nullptr ? to_string(code).c_str() : status);
 
   if (content_type && *content_type) {
     httpd_resp_set_type(*this, content_type);
@@ -223,6 +275,7 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   this->rsp_ = rsp;
 }
 
+#ifdef USE_WEBSERVER_AUTH
 bool AsyncWebServerRequest::authenticate(const char *username, const char *password) const {
   if (username == nullptr || password == nullptr || *username == 0) {
     return true;
@@ -252,7 +305,7 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
                            reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
 
-  return strncmp(digest.get(), auth_str + auth_prefix_len, auth.value().size() - auth_prefix_len) == 0;
+  return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
@@ -261,13 +314,17 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
+#endif
 
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
-  auto find = this->params_.find(name);
-  if (find != this->params_.end()) {
-    return find->second;
+  // Check cache first - only successful lookups are cached
+  for (auto *param : this->params_) {
+    if (param->name() == name) {
+      return param;
+    }
   }
 
+  // Look up value from query strings
   optional<std::string> val = query_key_value(this->post_query_, name);
   if (!val.has_value()) {
     auto url_query = request_get_url_query(*this);
@@ -276,11 +333,14 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
     }
   }
 
-  AsyncWebParameter *param = nullptr;
-  if (val.has_value()) {
-    param = new AsyncWebParameter(val.value());  // NOLINT(cppcoreguidelines-owning-memory)
+  // Don't cache misses to avoid wasting memory when handlers check for
+  // optional parameters that don't exist in the request
+  if (!val.has_value()) {
+    return nullptr;
   }
-  this->params_.insert({name, param});
+
+  auto *param = new AsyncWebParameter(name, val.value());  // NOLINT(cppcoreguidelines-owning-memory)
+  this->params_.push_back(param);
   return param;
 }
 
@@ -315,8 +375,8 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto *rsp =  // NOLINT(cppcoreguidelines-owning-memory)
-      new AsyncEventSourceResponse(request, this, this->web_server_);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
+  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
@@ -382,6 +442,9 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   this->hd_ = req->handle;
   this->fd_.store(httpd_req_to_sockfd(req));
 
+  // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
+  httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
   std::string message = ws->get_config_json();
@@ -390,10 +453,11 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
     // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-    message = json::build_json([group](JsonObject root) {
-      root["name"] = group.second.name;
-      root["sorting_weight"] = group.second.weight;
-    });
+    json::JsonBuilder builder;
+    JsonObject root = builder.root();
+    root["name"] = group.second.name;
+    root["sorting_weight"] = group.second.weight;
+    message = builder.serialize();
     // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
     // a (very) large number of these should be able to be queued initially without defer
@@ -423,14 +487,14 @@ void AsyncEventSourceResponse::destroy(void *ptr) {
 void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
 
-  auto iter = std::find_if(this->deferred_queue_.begin(), this->deferred_queue_.end(),
-                           [&item](const DeferredEvent &test) -> bool { return test == item; });
-
-  if (iter != this->deferred_queue_.end()) {
-    (*iter) = item;
-  } else {
-    this->deferred_queue_.push_back(item);
+  // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
+  for (auto &event : this->deferred_queue_) {
+    if (event == item) {
+      event = item;
+      return;
+    }
   }
+  this->deferred_queue_.push_back(item);
 }
 
 void AsyncEventSourceResponse::process_deferred_queue_() {
@@ -456,14 +520,44 @@ void AsyncEventSourceResponse::process_buffer_() {
     return;
   }
 
-  int bytes_sent = httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_,
-                                     event_buffer_.size() - event_bytes_sent_, 0);
-  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT || bytes_sent == HTTPD_SOCK_ERR_FAIL) {
-    // Socket error - just return, the connection will be closed by httpd
-    // and our destroy callback will be called
+  size_t remaining = event_buffer_.size() - event_bytes_sent_;
+  int bytes_sent =
+      httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_, remaining, 0);
+  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT) {
+    // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
+    // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_()
+    // The implementations differ due to platform-specific APIs (HTTPD_SOCK_ERR_TIMEOUT vs DISCARDED, fd_.store(0) vs
+    // close()), but the failure counting and timeout logic should be kept in sync. If you change this logic, also
+    // update the Arduino implementation.
+    this->consecutive_send_failures_++;
+    if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
+      // Too many failures, connection is likely dead
+      ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu16 " failed sends",
+               this->consecutive_send_failures_);
+      this->fd_.store(0);  // Mark for cleanup
+      this->deferred_queue_.clear();
+    }
     return;
   }
+  if (bytes_sent == HTTPD_SOCK_ERR_FAIL) {
+    // Real socket error - connection will be closed by httpd and destroy callback will be called
+    return;
+  }
+  if (bytes_sent <= 0) {
+    // Unexpected error or zero bytes sent
+    ESP_LOGW(TAG, "Unexpected send result: %d", bytes_sent);
+    return;
+  }
+
+  // Successful send - reset failure counter
+  this->consecutive_send_failures_ = 0;
   event_bytes_sent_ += bytes_sent;
+
+  // Log partial sends for debugging
+  if (event_bytes_sent_ < event_buffer_.size()) {
+    ESP_LOGV(TAG, "Partial send: %d/%zu bytes (total: %zu/%zu)", bytes_sent, remaining, event_bytes_sent_,
+             event_buffer_.size());
+  }
 
   if (event_bytes_sent_ == event_buffer_.size()) {
     event_buffer_.resize(0);
@@ -667,4 +761,4 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }  // namespace web_server_idf
 }  // namespace esphome
 
-#endif  // !defined(USE_ESP_IDF)
+#endif  // !defined(USE_ESP32)

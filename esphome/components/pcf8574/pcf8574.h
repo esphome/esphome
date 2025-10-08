@@ -3,11 +3,16 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/gpio_expander/cached_gpio.h"
 
 namespace esphome {
 namespace pcf8574 {
 
-class PCF8574Component : public Component, public i2c::I2CDevice {
+// PCF8574(8 pins)/PCF8575(16 pins) always read/write all pins in a single I2C transaction
+// so we use uint16_t as bank type to ensure all pins are in one bank and cached together
+class PCF8574Component : public Component,
+                         public i2c::I2CDevice,
+                         public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   PCF8574Component() = default;
 
@@ -15,20 +20,22 @@ class PCF8574Component : public Component, public i2c::I2CDevice {
 
   /// Check i2c availability and setup masks
   void setup() override;
-  /// Helper function to read the value of a pin.
-  bool digital_read(uint8_t pin);
-  /// Helper function to write the value of a pin.
-  void digital_write(uint8_t pin, bool value);
+  /// Invalidate cache at start of each loop
+  void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
+  float get_loop_priority() const override;
 
   void dump_config() override;
 
  protected:
-  bool read_gpio_();
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
 
+  bool read_gpio_();
   bool write_gpio_();
 
   /// Mask for the pin mode - 1 means output, 0 means input

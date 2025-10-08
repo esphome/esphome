@@ -17,5 +17,7 @@ sensor:
     temperature:
       name: QMC5883L Temperature
     range: 800uT
+    data_rate: 200Hz
     oversampling: 256x
     update_interval: 15s
+    drdy_pin: ${drdy_pin}

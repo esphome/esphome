@@ -1,0 +1,42 @@
+# Comprehensive ESP8266 test for mdns with multiple network components
+# Tests the complete priority chain:
+# wifi (60) -> mdns (55) -> ota (54) -> web_server_ota (52)
+
+esphome:
+  name: mdns-comprehensive-test
+
+esp8266:
+  board: esp01_1m
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# web_server_base should run at priority 65 (before wifi)
+web_server:
+  port: 80
+
+# mdns should run at priority 55 (after wifi at 60)
+mdns:
+  services:
+    - service: _http
+      protocol: _tcp
+      port: 80
+
+# OTA should run at priority 54 (after mdns)
+ota:
+  - platform: esphome
+    password: "otapassword"
+
+# Test status LED at priority 80
+status_led:
+  pin:
+    number: GPIO2
+    inverted: true
+
+# Include API at priority 40
+api:
+  password: "apipassword"
