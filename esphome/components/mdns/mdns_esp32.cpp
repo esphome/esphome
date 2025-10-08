@@ -29,23 +29,23 @@ void MDNSComponent::setup() {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
-      // dup strings to ensure the pointer is valid even after the record loop
-      it.key = strdup(record.key.c_str());
+      // key is a compile-time string literal in flash, no need to strdup
+      it.key = MDNS_STR_ARG(record.key);
+      // value is a temporary from TemplatableValue, must strdup to keep it alive
       it.value = strdup(const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
       txt_records.push_back(it);
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
-    err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), port, txt_records.data(),
-                           txt_records.size());
+    err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
+                           txt_records.data(), txt_records.size());
 
     // free records
     for (const auto &it : txt_records) {
-      delete it.key;    // NOLINT(cppcoreguidelines-owning-memory)
-      delete it.value;  // NOLINT(cppcoreguidelines-owning-memory)
+      free((void *) it.value);  // NOLINT(cppcoreguidelines-no-malloc)
     }
 
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to register service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
+      ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
     }
   }
 }
