@@ -139,7 +139,13 @@ void OpenthermHub::process_response(OpenthermData &data) {
     ESP_LOGE(TAG, "Received OpenTherm response with id %d (%s), while expecting %d (%s). Skip message",
        data.id, this->opentherm_->message_id_to_str((MessageId) data.id),
        this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
+    return;
+  }
 
+  if (data.id == 0 && data.valueHB != this->last_request_.valueHB) {
+    ESP_LOGE(TAG, "Received OpenTherm malformed STATUS response with id %d (%s). Skip message",
+       data.id, this->opentherm_->message_id_to_str((MessageId) data.id),
+       this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
     return;
   }
 
