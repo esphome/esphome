@@ -454,12 +454,8 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
   const auto uom_ref = obj->get_unit_of_measurement_ref();
 
   // Build JSON directly inline
-  std::string state;
-  if (std::isnan(value)) {
-    state = "NA";
-  } else {
-    state = value_accuracy_with_uom_to_string(value, obj->get_accuracy_decimals(), uom_ref);
-  }
+  std::string state =
+      std::isnan(value) ? "NA" : value_accuracy_with_uom_to_string(value, obj->get_accuracy_decimals(), uom_ref);
   set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1020,10 +1016,8 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "date", start_config);
   std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
-  root["value"] = value;
-  root["state"] = value;
+  set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1078,10 +1072,8 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "time", start_config);
   std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-  root["value"] = value;
-  root["state"] = value;
+  set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1136,11 +1128,9 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "datetime", start_config);
   std::string value =
       str_sprintf("%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute, obj->second);
-  root["value"] = value;
-  root["state"] = value;
+  set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1191,16 +1181,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "text", start_config);
+  set_json_value(root, obj, "text", value, start_config);
   root["min_length"] = obj->traits.get_min_length();
   root["max_length"] = obj->traits.get_max_length();
   root["pattern"] = obj->traits.get_pattern();
-  if (obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD) {
-    root["state"] = "********";
-  } else {
-    root["state"] = value;
-  }
-  root["value"] = value;
+  root["state"] = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value;
   if (start_config == DETAIL_ALL) {
     root["mode"] = (int) obj->traits.get_mode();
     this->add_sorting_info_(root, obj);
@@ -1754,8 +1739,7 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "update", start_config);
-  root["value"] = obj->update_info.latest_version;
+  set_json_value(root, obj, "update", obj->update_info.latest_version, start_config);
   root["state"] = update_state_to_string(obj->state);
   if (start_config == DETAIL_ALL) {
     root["current_version"] = obj->update_info.current_version;
