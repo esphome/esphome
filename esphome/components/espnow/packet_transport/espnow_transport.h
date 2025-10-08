@@ -35,6 +35,7 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   bool should_send() override;
 
   peer_address_t peer_address_{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
+  std::vector<uint8_t> packet_buffer_;
 };
 
 }  // namespace espnow
