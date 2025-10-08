@@ -160,7 +160,6 @@ esphome/components/esp_ldo/* @clydebarrow
 esphome/components/espnow/* @jesserockz
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
-esphome/components/event_emitter/* @Rapsssito
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
@@ -257,6 +256,7 @@ esphome/components/libretiny_pwm/* @kuba2k2
 esphome/components/light/* @esphome/core
 esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
+esphome/components/lm75b/* @beormund
 esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core

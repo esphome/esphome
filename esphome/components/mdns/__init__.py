@@ -17,6 +17,11 @@ from esphome.coroutine import CoroPriority
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
+# Components that create mDNS services at runtime
+# IMPORTANT: If you add a new component here, you must also update the corresponding
+# #ifdef blocks in mdns_component.cpp compile_records_() method
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
+
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
 MDNSTXTRecord = mdns_ns.struct("MDNSTXTRecord")
@@ -56,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 def mdns_txt_record(key: str, value: str):
     return cg.StructInitializer(
         MDNSTXTRecord,
-        ("key", key),
+        ("key", cg.RawExpression(f"MDNS_STR({cg.safe_exp(key)})")),
         ("value", value),
     )
 
@@ -66,8 +71,8 @@ def mdns_service(
 ):
     return cg.StructInitializer(
         MDNSService,
-        ("service_type", service),
-        ("proto", proto),
+        ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
+        ("proto", cg.RawExpression(f"MDNS_STR({cg.safe_exp(proto)})")),
         ("port", port),
         ("txt_records", txt_records),
     )
@@ -91,17 +96,25 @@ async def to_code(config):
 
     cg.add_define("USE_MDNS")
 
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    # Calculate compile-time service count
+    service_count = sum(
+        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
+    ) + len(config[CONF_SERVICES])
 
     if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
+
+    # Ensure at least 1 service (fallback service)
+    cg.add_define("MDNS_SERVICE_COUNT", max(1, service_count))
+
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
 
     for service in config[CONF_SERVICES]:
         txt = [
             cg.StructInitializer(
                 MDNSTXTRecord,
-                ("key", txt_key),
+                ("key", cg.RawExpression(f"MDNS_STR({cg.safe_exp(txt_key)})")),
                 ("value", await cg.templatable(txt_value, [], cg.std_string)),
             )
             for txt_key, txt_value in service[CONF_TXT].items()
