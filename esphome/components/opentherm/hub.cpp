@@ -133,9 +133,15 @@ void OpenthermHub::process_response(OpenthermData &data) {
   ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s). Requested id %d (%s)", 
     data.id, this->opentherm_->message_id_to_str((MessageId) data.id), 
     this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
+  
   this->opentherm_->debug_data(data);
 
-  if (data.type == MessageType::UNKNOWN_DATAID || this->last_request_.id != data.id) {
+  if (data.type == MessageType::UNKNOWN_DATAID || data.type == MessageType::DATA_INVALID) {
+    ESP_LOGE(TAG, "Received invalid or unknown data. Skip message");
+    return;
+  }
+
+  if (this->last_request_.id != data.id) {
     ESP_LOGE(TAG, "Received OpenTherm response with id %d (%s), while expecting %d (%s). Skip message",
        data.id, this->opentherm_->message_id_to_str((MessageId) data.id),
        this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
