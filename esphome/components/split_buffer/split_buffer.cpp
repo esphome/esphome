@@ -30,9 +30,9 @@ bool SplitBuffer::init(size_t total_length) {
     // Try to allocate array of buffer pointers
     uint8_t **temp_buffers = ptr_allocator.allocate(needed_buffers);
     if (temp_buffers == nullptr) {
-      // If we can't even allocate the pointer array, halve the buffer size
-      current_buffer_size = current_buffer_size / 2;
-      continue;
+      // If we can't even allocate the pointer array, don't need to continue
+      ESP_LOGE(TAG, "Failed to allocate pointers");
+      return false;
     }
 
     // Initialize all pointers to null
@@ -64,7 +64,7 @@ bool SplitBuffer::init(size_t total_length) {
       this->buffers_ = temp_buffers;
       this->buffer_count_ = needed_buffers;
       this->buffer_size_ = current_buffer_size;
-      ESP_LOGD(TAG, "SplitBuffer allocated %zu buffers of %zu bytes each (total: %zu bytes)", this->buffer_count_,
+      ESP_LOGD(TAG, "Allocated %zu * %zu bytes - %zu bytes", this->buffer_count_,
                this->buffer_size_, this->total_length_);
       return true;
     }
@@ -81,7 +81,7 @@ bool SplitBuffer::init(size_t total_length) {
     current_buffer_size = current_buffer_size / 2;
   }
 
-  ESP_LOGE(TAG, "SplitBuffer failed to allocate %zu bytes", total_length);
+  ESP_LOGE(TAG, "Failed to allocate %zu bytes", total_length);
   return false;
 }
 
@@ -104,7 +104,7 @@ void SplitBuffer::free() {
 
 uint8_t &SplitBuffer::operator[](size_t index) {
   if (index >= this->total_length_) {
-    ESP_LOGE(TAG, "SplitBuffer index %zu out of bounds (size: %zu)", index, this->total_length_);
+    ESP_LOGE(TAG, "Out of bounds - %zu >= %zu", index, this->total_length_);
     // Return reference to a static dummy byte to avoid crash
     static uint8_t dummy = 0;
     return dummy;
@@ -118,14 +118,14 @@ uint8_t &SplitBuffer::operator[](size_t index) {
 
 const uint8_t &SplitBuffer::operator[](size_t index) const {
   if (index >= this->total_length_) {
-    ESP_LOGE(TAG, "SplitBuffer index %zu out of bounds (size: %zu)", index, this->total_length_);
+    ESP_LOGE(TAG, "Out of bounds - %zu >= %zu", index, this->total_length_);
     // Return reference to a static dummy byte to avoid crash
     static const uint8_t DUMMY = 0;
     return DUMMY;
   }
 
   size_t buffer_index = index / this->buffer_size_;
-  size_t offset_in_buffer = index % this->buffer_size_;
+  size_t offset_in_buffer = index - this->buffer_size_ * buffer_index;
 
   return this->buffers_[buffer_index][offset_in_buffer];
 }
