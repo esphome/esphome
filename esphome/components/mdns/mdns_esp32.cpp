@@ -29,10 +29,10 @@ void MDNSComponent::setup() {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
-      // key is a compile-time string literal in flash, no need to strdup
+      // key and value are either compile-time string literals in flash or pointers to dynamic_txt_values_
+      // ESP-IDF requires strdup for both to keep them alive during mdns operation
       it.key = MDNS_STR_ARG(record.key);
-      // value is a temporary from TemplatableValue, must strdup to keep it alive
-      it.value = strdup(const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
+      it.value = strdup(MDNS_STR_ARG(record.value));
       txt_records.push_back(it);
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
