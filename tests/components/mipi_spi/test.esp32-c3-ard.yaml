@@ -1,13 +1,13 @@
 substitutions:
-  clk_pin: GPIO6
-  mosi_pin: GPIO7
-  miso_pin: GPIO5
-  dc_pin: GPIO21
-  cs_pin: GPIO18
-  enable_pin: GPIO19
+  dc_pin: GPIO14
+  cs_pin: GPIO13
+  enable_pin: GPIO4
   reset_pin: GPIO20
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
+  display: !include common.yaml
 
-<<: !include common.yaml
+display:
+  - platform: mipi_spi
+    model: LANBON-L8
