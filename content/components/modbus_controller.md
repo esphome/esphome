@@ -68,7 +68,18 @@ On the bus side, you need 120 Ohm termination resistors at the ends of the bus c
 
 - **max_cmd_retries** (*Optional*, integer): How many times a command will be retried if no response is received. It doesn't include the initial transmition. Defaults to 4.
 
+- **server_courtesy_response** (*Optional*): Configuration block to enable the courtesy response feature when the device is acting as a Modbus server.
+
+  - **enabled** (*Optional*, boolean): Whether to enable the courtesy response feature.
+    Defaults to `false`.
+  - **register_last_address** (*Optional*, integer): The highest Modbus register address (inclusive) up to which undefined registers are allowed to be read and will be padded with a default value.
+    Any read request that includes undefined registers within this range will return the value specified by `register_value` instead of triggering an exception.
+    Defaults to `65535`
+  - **register_value** (*Optional*, integer): The 16-bit value (range: 0–65535) to return for undefined registers within the address range defined by `register_last_address`.
+    Defaults to `0`.
+
 - **server_registers** (*Optional*): A list of registers that are responded to when acting as a server.
+
   - **address** (**Required**, integer): start address of the first register in a range
   - **value_type** (*Optional*): datatype of the mod_bus register data. The default data type for ModBUS is a 16 bit integer in **big endian** format (network byte order, MSB first)
 
@@ -215,20 +226,20 @@ Some devices use decimal values in read registers to show multiple binary states
 | ---------- | ---------------- | --------- | --------- |
 | bit 0      | Binary Sensor 0  | 1         | 1         |
 | bit 1      | Binary Sensor 1  | 2         | 2         |
-| bit 2 | Binary Sensor 2 | 4 | 4 |
-| bit 3 | Binary Sensor 3 | 8 | 8 |
-| bit 4 | Binary Sensor 4 | 16 | 10 |
-| bit 5 | Binary Sensor 5 | 32 | 20 |
-| bit 6 | Binary Sensor 6 | 64 | 40 |
-| bit 7 | Binary Sensor 7 | 128 | 80 |
-| bit 8 | Binary Sensor 8 | 256 | 100 |
-| bit 9 | Binary Sensor 9 | 512 | 200 |
-| bit 10 | Binary Sensor 10 | 1024 | 400 |
-| bit 11 | Binary Sensor 11 | 2048 | 800 |
-| bit 12 | Binary Sensor 12 | 4096 | 1000 |
-| bit 13 | Binary Sensor 13 | 8192 | 2000 |
-| bit 14 | Binary Sensor 14 | 16384 | 4000 |
-| bit 15 | Binary Sensor 15 | 32768 | 8000 |
+| bit 2      | Binary Sensor 2  | 4         | 4         |
+| bit 3      | Binary Sensor 3  | 8         | 8         |
+| bit 4      | Binary Sensor 4  | 16        | 10        |
+| bit 5      | Binary Sensor 5  | 32        | 20        |
+| bit 6      | Binary Sensor 6  | 64        | 40        |
+| bit 7      | Binary Sensor 7  | 128       | 80        |
+| bit 8      | Binary Sensor 8  | 256       | 100       |
+| bit 9      | Binary Sensor 9  | 512       | 200       |
+| bit 10     | Binary Sensor 10 | 1024      | 400       |
+| bit 11     | Binary Sensor 11 | 2048      | 800       |
+| bit 12     | Binary Sensor 12 | 4096      | 1000      |
+| bit 13     | Binary Sensor 13 | 8192      | 2000      |
+| bit 14     | Binary Sensor 14 | 16384     | 4000      |
+| bit 15     | Binary Sensor 15 | 32768     | 8000      |
 
 In the example below, register `15`, holds several binary values. It stores the decimal value `12288`, which is the sum of `4096` + `8192`, meaning the corresponding bits `12` and `13` are `1`, the other bits are `0`.
 
@@ -492,12 +503,12 @@ The response is mapped to the sensor based on `register_count` and offset in byt
 | --------- | -------------------------------------- |
 | 0x1  (01) | device address                         |
 | 0x4  (04) | function code 4 (Read Input Registers) |
-| 0x30 (48) | start address high byte |
-| 0x0 (00) | start address low byte |
-| 0x0 (00) | number of registers to read high byte |
-| 0x9 (09) | number of registers to read low byte |
-| 0x3f (63) | crc |
-| 0xc (12) | crc |
+| 0x30 (48) | start address high byte                |
+| 0x0 (00)  | start address low byte                 |
+| 0x0 (00)  | number of registers to read high byte  |
+| 0x9 (09)  | number of registers to read low byte   |
+| 0x3f (63) | crc                                    |
+| 0xc (12)  | crc                                    |
 
 **Response:**
 
@@ -505,27 +516,27 @@ The response is mapped to the sensor based on `register_count` and offset in byt
 | ------ | ---------- | ------------------ | ------------------------------------------ |
 | H      | 0x1  (01)  |                    | device address                             |
 | H      | 0x4  (04)  |                    | function code                              |
-| H | 0x12 (18) | | byte count |
-| 0 | 0x27 (39) | U_WORD | array_rated_voltage high byte |
-| 1 | 0x10 (16) | 0x2710 (100000) | array_rated_voltage low byte |
-| 2 | 0x7 (7) | U_WORD | array_rated_current high byte |
-| 3 | 0xd0 (208) | 0x7d0 (2000) | array_rated_current low byte |
-| 4 | 0xcb (203) | U_DWORD_R | array_rated_power high byte of low word |
-| 5 | 0x20 (32) | spans 2 register | array_rated_power low byte of low word |
-| 6 | 0x0 (0) | | array_rated_power high byte of high word |
-| 7 | 0x0 (0) | 0x0000CB20 (52000) | array_rated_power low byte of high word |
-| 8 | 0x9 (09) | U_WORD | battery_rated_voltage high byte |
-| 9 | 0x60 (96) | 0x960 (2400) | battery_rated_voltage low byte |
-| 10 | 0x7 (07) | U_WORD | battery_rated_current high word |
-| 11 | 0xd0 (208) | 0x7d0 (2000) | battery_rated_current high word |
-| 12 | 0xcb (203) | U_DWORD_R | battery_rated_power high byte of low word |
-| 13 | 0x20 (32) | spans 2 register | battery_rated_power low byte of low word |
-| 14 | 0x0 (0) | | battery_rated_power high byte of high word |
-| 15 | 0x0 (0) | 0x0000CB20 (52000) | battery_rated_power low byte of high word |
-| 16 | 0x0 (0) | U_WORD | charging_mode high byte |
-| 17 | 0x2 (02) | 0x2 (MPPT) | charging_mode low byte |
-| C | 0x2f (47) | | crc |
-| C | 0x31 (49) | | crc |
+| H      | 0x12 (18)  |                    | byte count                                 |
+| 0      | 0x27 (39)  | U_WORD             | array_rated_voltage high byte              |
+| 1      | 0x10 (16)  | 0x2710 (100000)    | array_rated_voltage low byte               |
+| 2      | 0x7 (7)    | U_WORD             | array_rated_current high byte              |
+| 3      | 0xd0 (208) | 0x7d0 (2000)       | array_rated_current low byte               |
+| 4      | 0xcb (203) | U_DWORD_R          | array_rated_power high byte of low word    |
+| 5      | 0x20 (32)  | spans 2 register   | array_rated_power low byte of low word     |
+| 6      | 0x0 (0)    |                    | array_rated_power high byte of high word   |
+| 7      | 0x0 (0)    | 0x0000CB20 (52000) | array_rated_power low byte of high word    |
+| 8      | 0x9 (09)   | U_WORD             | battery_rated_voltage high byte            |
+| 9      | 0x60 (96)  | 0x960 (2400)       | battery_rated_voltage low byte             |
+| 10     | 0x7 (07)   | U_WORD             | battery_rated_current high word            |
+| 11     | 0xd0 (208) | 0x7d0 (2000)       | battery_rated_current high word            |
+| 12     | 0xcb (203) | U_DWORD_R          | battery_rated_power high byte of low word  |
+| 13     | 0x20 (32)  | spans 2 register   | battery_rated_power low byte of low word   |
+| 14     | 0x0 (0)    |                    | battery_rated_power high byte of high word |
+| 15     | 0x0 (0)    | 0x0000CB20 (52000) | battery_rated_power low byte of high word  |
+| 16     | 0x0 (0)    | U_WORD             | charging_mode high byte                    |
+| 17     | 0x2 (02)   | 0x2 (MPPT)         | charging_mode low byte                     |
+| C      | 0x2f (47)  |                    | crc                                        |
+| C      | 0x31 (49)  |                    | crc                                        |
 
 > [!NOTE]
 > Write support is only implemented for switches and selects; however, the C++ code provides the required API to write to a Modbus device.
