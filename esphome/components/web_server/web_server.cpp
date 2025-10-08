@@ -1177,11 +1177,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_value(root, obj, "text", value, start_config);
+  std::string state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value;
+  set_json_icon_state_value(root, obj, "text", state, value, start_config);
   root["min_length"] = obj->traits.get_min_length();
   root["max_length"] = obj->traits.get_max_length();
   root["pattern"] = obj->traits.get_pattern();
-  root["state"] = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value;
   if (start_config == DETAIL_ALL) {
     root["mode"] = (int) obj->traits.get_mode();
     this->add_sorting_info_(root, obj);
