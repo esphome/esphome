@@ -453,9 +453,9 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
   const auto uom_ref = obj->get_unit_of_measurement_ref();
 
-  set_json_value(root, obj, "sensor", value, start_config);
-  root["state"] =
+  std::string state =
       std::isnan(value) ? "NA" : value_accuracy_with_uom_to_string(value, obj->get_accuracy_decimals(), uom_ref);
+  set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
@@ -942,13 +942,13 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
   const auto uom_ref = obj->traits.get_unit_of_measurement_ref();
 
-  set_json_id(root, obj, "number", start_config);
-  root["value"] = std::isnan(value)
-                      ? "\"NaN\""
-                      : value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
-  root["state"] = std::isnan(value) ? "NA"
-                                    : value_accuracy_with_uom_to_string(
-                                          value, step_to_accuracy_decimals(obj->traits.get_step()), uom_ref);
+  std::string val_str = std::isnan(value)
+                            ? "\"NaN\""
+                            : value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
+  std::string state_str = std::isnan(value) ? "NA"
+                                            : value_accuracy_with_uom_to_string(
+                                                  value, step_to_accuracy_decimals(obj->traits.get_step()), uom_ref);
+  set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
     root["min_value"] =
         value_accuracy_to_string(obj->traits.get_min_value(), step_to_accuracy_decimals(obj->traits.get_step()));
