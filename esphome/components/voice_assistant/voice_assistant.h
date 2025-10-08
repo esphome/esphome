@@ -171,9 +171,6 @@ class VoiceAssistant : public Component {
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
   void on_set_configuration(const std::vector<std::string> &active_wake_words);
-
-  // Returns cached configuration reference. Only rebuilds when config_needs_rebuild_ is true
-  // to prevent use-after-free with StringRef and avoid wasteful rebuilding.
   const Configuration &get_configuration();
 
   bool is_running() const { return this->state_ != State::IDLE; }
