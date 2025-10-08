@@ -921,7 +921,7 @@ class WaveshareEPaper7P5InBV3BWRalt : public WaveshareEPaperBWR {
       delay(200);  // NOLINT
     }
   };
-
+uint32_t idle_timeout_() override;
   void init_display_();
 };
 
