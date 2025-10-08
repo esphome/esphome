@@ -21,10 +21,8 @@ void Ain420maComponent::update() {
     ESP_LOGE(TAG, "Error reading data from AIN4-20mA");
     this->publish_state(NAN);
   } else {
-    uint16_t value;
-    value = data[0] | (data[1] << 8);
-    float current;
-    current = value / 100.0;
+    uint16_t value = data[0] | (data[1] << 8);
+    float current = value / 100.0;
     this->publish_state(current);
   }
 }
