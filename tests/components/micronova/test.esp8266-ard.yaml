@@ -1,9 +1,7 @@
 substitutions:
-  tx_pin: GPIO0
-  rx_pin: GPIO2
   enable_rx_pin: GPIO15
 
 packages:
-  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
 <<: !include common.yaml

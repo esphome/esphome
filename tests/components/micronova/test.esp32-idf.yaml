@@ -1,9 +1,7 @@
 substitutions:
-  tx_pin: GPIO12
-  rx_pin: GPIO14
   enable_rx_pin: GPIO13
 
 packages:
-  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
 
 <<: !include common.yaml
