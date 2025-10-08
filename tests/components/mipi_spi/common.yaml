@@ -22,8 +22,5 @@ display:
     dimensions:
       width: 100
       height: 200
-    enable_pin:
-      - number: ${clk_pin}
-        allow_other_uses: true
-      - number: ${enable_pin}
+    enable_pin: ${enable_pin}
     bus_mode: single
