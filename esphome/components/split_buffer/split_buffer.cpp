@@ -111,7 +111,7 @@ uint8_t &SplitBuffer::operator[](size_t index) {
   }
 
   size_t buffer_index = index / this->buffer_size_;
-  size_t offset_in_buffer = index % this->buffer_size_;
+  size_t offset_in_buffer = index - this->buffer_size_ * buffer_index;
 
   return this->buffers_[buffer_index][offset_in_buffer];
 }
