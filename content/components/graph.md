@@ -169,5 +169,5 @@ color:
 > - Setting `y_grid` will expand any specified range to the nearest multiple of grid spacings.
 > - Axis labels are currently not possible without manually placing them.
 > - The grid and border color is set with `it.graph()`, while the traces are defined separately.
-> - Legends are drawn separately using `it.graph_legend()` and can be positioned independently of the graph.
+> - Legends are drawn separately using `it.legend()` and can be positioned independently of the graph.
 > - Legend dimensions are automatically calculated if not specified, based on font sizes and trace count.
