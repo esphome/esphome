@@ -2,6 +2,6 @@ substitutions:
   pin: GPIO2
 
 packages:
-  uart: \!include ../../test_build_components/common/uart/esp32-c3-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp32-c3-ard.yaml
 
-<<: \!include common.yaml
+<<: !include common.yaml

@@ -2,6 +2,6 @@ substitutions:
   pin: GPIO15
 
 packages:
-  uart: \!include ../../test_build_components/common/uart/esp8266-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
-<<: \!include common.yaml
+<<: !include common.yaml
