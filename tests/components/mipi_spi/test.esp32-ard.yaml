@@ -1,6 +1,7 @@
 substitutions:
   dc_pin: GPIO14
   cs_pin: GPIO13
+  clk_pin: GPIO5
   enable_pin: GPIO4
   reset_pin: GPIO20
 
