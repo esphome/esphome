@@ -3,4 +3,7 @@ substitutions:
   rx_pin: GPIO16
   status_pin: GPIO12
 
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
+
 <<: !include common.yaml

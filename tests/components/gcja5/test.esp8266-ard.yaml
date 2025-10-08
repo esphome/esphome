@@ -2,4 +2,7 @@ substitutions:
   tx_pin: GPIO0
   rx_pin: GPIO2
 
+packages:
+  uart: !include ../../test_build_components/common/uart_9600_even/esp8266-ard.yaml
+
 <<: !include common.yaml
