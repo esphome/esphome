@@ -1045,15 +1045,18 @@ std::string WebServer::date_all_json_generator(WebServer *web_server, void *sour
   return web_server->date_json((datetime::DateEntity *) (source), DETAIL_ALL);
 }
 std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
-  return json::build_json([this, obj, start_config](JsonObject root) {
-    set_json_id(root, obj, "date-" + obj->get_object_id(), start_config);
-    std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
-    root["value"] = value;
-    root["state"] = value;
-    if (start_config == DETAIL_ALL) {
-      this->add_sorting_info_(root, obj);
-    }
-  });
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  set_json_id(root, obj, "date", start_config);
+  std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
+  root["value"] = value;
+  root["state"] = value;
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
 }
 #endif  // USE_DATETIME_DATE
 
