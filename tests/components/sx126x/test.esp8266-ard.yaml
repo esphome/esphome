@@ -7,4 +7,7 @@ substitutions:
   busy_pin: GPIO4
   dio1_pin: GPIO3
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
 <<: !include common.yaml

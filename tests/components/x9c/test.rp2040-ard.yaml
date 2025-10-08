@@ -3,4 +3,7 @@ substitutions:
   inc_pin: GPIO4
   ud_pin: GPIO5
 
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
 <<: !include common.yaml

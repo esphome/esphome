@@ -8,4 +8,7 @@ substitutions:
   dc_pin2: GPIO26
   reset_pin2: GPIO27
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
+
 <<: !include common.yaml

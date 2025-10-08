@@ -6,4 +6,7 @@ substitutions:
   irq_pin: GPIO13
   ven_pin: GPIO14
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
+
 <<: !include common.yaml

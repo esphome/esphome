@@ -7,4 +7,7 @@ substitutions:
   enable_pin: GPIO19
   reset_pin: GPIO20
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
+
 <<: !include common.yaml

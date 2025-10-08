@@ -6,4 +6,7 @@ substitutions:
   rst_pin: GPIO2
   dio0_pin: GPIO3
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
+
 <<: !include common.yaml

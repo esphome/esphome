@@ -4,4 +4,7 @@ substitutions:
   miso_pin: GPIO16
   cs_pin: GPIO15
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
 <<: !include common.yaml

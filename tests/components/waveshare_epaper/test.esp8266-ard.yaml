@@ -6,4 +6,7 @@ substitutions:
   busy_pin: GPIO15
   reset_pin: GPIO16
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
 <<: !include common.yaml

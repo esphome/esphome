@@ -9,4 +9,7 @@ substitutions:
   dc_pin2: GPIO3
   reset_pin2: GPIO4
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
+
 <<: !include common.yaml

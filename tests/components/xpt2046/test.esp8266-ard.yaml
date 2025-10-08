@@ -8,4 +8,7 @@ substitutions:
   interrupt_pin: GPIO5
   reset_pin: GPIO2
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
 <<: !include common.yaml

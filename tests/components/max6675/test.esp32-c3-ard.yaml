@@ -4,4 +4,7 @@ substitutions:
   miso_pin: GPIO5
   cs_pin: GPIO8
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
+
 <<: !include common.yaml

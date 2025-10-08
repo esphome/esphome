@@ -4,4 +4,8 @@ substitutions:
   mosi_pin: GPIO13
   cs_pin: GPIO5
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
+
 <<: !include common.yaml

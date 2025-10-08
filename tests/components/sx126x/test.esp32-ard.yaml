@@ -7,4 +7,7 @@ substitutions:
   busy_pin: GPIO25
   dio1_pin: GPIO26
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
+
 <<: !include common.yaml
