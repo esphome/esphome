@@ -1,21 +1,21 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c, sensor
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_HEATER,
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_LEVEL,
     CONF_MODEL,
+    CONF_STATUS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PERCENT,
-    CONF_HEATER,
     UNIT_EMPTY,
-    CONF_LEVEL,
-    CONF_STATUS,
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["i2c"]

@@ -1,0 +1,12 @@
+esphome:
+  on_boot:
+    - pcf8563.read_time
+    - pcf8563.write_time
+
+i2c:
+  - id: i2c_pcf8563
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+time:
+  - platform: pcf8563

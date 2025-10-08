@@ -4,13 +4,13 @@ spi:
   - id: spi_main_lcd
     clk_pin: 16
     mosi_pin: 17
-    miso_pin: 15
+    miso_pin: 18
 
 display:
   - platform: ili9xxx
     id: main_lcd
     model: ili9342
-    cs_pin: 12
+    cs_pin: 20
     dc_pin: 13
     reset_pin: 21
     invert_colors: true

@@ -10,7 +10,7 @@ sensor:
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: encoder
-    pin_a: 2
+    pin_a: 3
     pin_b: 1
     internal: true
 
@@ -71,5 +71,6 @@ lvgl:
     sensor: encoder
     enter_button: pushbutton
     group: general
+    initial_focus: lv_roller
 
 <<: !include common.yaml

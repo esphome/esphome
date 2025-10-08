@@ -1,0 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - max17043.sleep_mode: max17043_id
+
+i2c:
+  - id: i2c_id
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: max17043
+    id: max17043_id
+    i2c_id: i2c_id
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_level:
+      name: Battery
+    update_interval: 10s

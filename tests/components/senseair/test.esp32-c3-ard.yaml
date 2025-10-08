@@ -1,19 +1,5 @@
-uart:
-  - id: uart_senseair
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-sensor:
-  - platform: senseair
-    id: senseair0
-    co2:
-      name: SenseAir CO2 Value
-      on_value:
-        then:
-          - senseair.background_calibration: senseair0
-          - senseair.background_calibration_result: senseair0
-          - senseair.abc_get_period: senseair0
-          - senseair.abc_enable: senseair0
-          - senseair.abc_disable: senseair0
-    update_interval: 15s
+<<: !include common.yaml

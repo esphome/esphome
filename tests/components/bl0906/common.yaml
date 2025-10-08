@@ -1,13 +1,12 @@
 uart:
   - id: uart_bl0906
-    tx_pin:
-      number: ${tx_pin}
-    rx_pin:
-      number: ${rx_pin}
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
     baud_rate: 19200
 
 sensor:
   - platform: bl0906
+    id: bl
     frequency:
       name: 'Frequency'
     temperature:
@@ -60,3 +59,9 @@ sensor:
       name: 'Total_Energy'
     total_power:
       name: 'Total_Power'
+
+button:
+  - platform: template
+    id: reset
+    on_press:
+      - bl0906.reset_energy: bl

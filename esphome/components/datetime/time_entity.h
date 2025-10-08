@@ -16,8 +16,8 @@ namespace datetime {
 #define LOG_DATETIME_TIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    if (!(obj)->get_icon_ref().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
     } \
   }
 
@@ -113,6 +113,7 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
   }
 };
 
+#ifdef USE_TIME
 class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
   void loop() override;
@@ -122,6 +123,7 @@ class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEn
 
   optional<ESPTime> last_check_;
 };
+#endif
 
 }  // namespace datetime
 }  // namespace esphome

@@ -1,0 +1,5 @@
+esphome:
+  name: host-test
+host:
+api:
+logger:

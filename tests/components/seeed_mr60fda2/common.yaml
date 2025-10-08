@@ -1,0 +1,34 @@
+uart:
+  - id: seeed_mr60fda2_uart
+    tx_pin: ${uart_tx_pin}
+    rx_pin: ${uart_rx_pin}
+    baud_rate: 115200
+    parity: NONE
+    stop_bits: 1
+
+seeed_mr60fda2:
+  id: my_seeed_mr60fda2
+  uart_id: seeed_mr60fda2_uart
+
+binary_sensor:
+  - platform: seeed_mr60fda2
+    people_exist:
+      name: "Person Information"
+    fall_detected:
+      name: "Falling Information"
+
+button:
+  - platform: seeed_mr60fda2
+    get_radar_parameters:
+      name: "Get Radar Parameters"
+    factory_reset:
+      name: "Reset"
+
+select:
+  - platform: seeed_mr60fda2
+    install_height:
+      name: "Set Install Height"
+    height_threshold:
+      name: "Set Height Threshold"
+    sensitivity:
+      name: "Set Sensitivity"

@@ -15,11 +15,10 @@ static const char *const TAG = "improv_serial";
 
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
-#ifdef USE_ARDUINO
-  this->hw_serial_ = logger::global_logger->get_hw_serial();
-#endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   this->uart_num_ = logger::global_logger->get_uart_num();
+#elif defined(USE_ARDUINO)
+  this->hw_serial_ = logger::global_logger->get_hw_serial();
 #endif
 
   if (wifi::global_wifi_component->has_sta()) {
@@ -34,13 +33,7 @@ void ImprovSerialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Improv Serial:")
 optional<uint8_t> ImprovSerialComponent::read_byte_() {
   optional<uint8_t> byte;
   uint8_t data = 0;
-#ifdef USE_ARDUINO
-  if (this->hw_serial_->available()) {
-    this->hw_serial_->readBytes(&data, 1);
-    byte = data;
-  }
-#endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
@@ -59,11 +52,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
       break;
 #if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
     case logger::UART_SELECTION_USB_CDC:
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
       if (esp_usb_console_available_for_read()) {
-#else
-      if (esp_usb_console_read_available()) {
-#endif
         esp_usb_console_read_buf((char *) &data, 1);
         byte = data;
       }
@@ -80,16 +69,18 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
     default:
       break;
   }
+#elif defined(USE_ARDUINO)
+  if (this->hw_serial_->available()) {
+    this->hw_serial_->readBytes(&data, 1);
+    byte = data;
+  }
 #endif
   return byte;
 }
 
 void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
   data.push_back('\n');
-#ifdef USE_ARDUINO
-  this->hw_serial_->write(data.data(), data.size());
-#endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
@@ -116,6 +107,8 @@ void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
     default:
       break;
   }
+#elif defined(USE_ARDUINO)
+  this->hw_serial_->write(data.data(), data.size());
 #endif
 }
 

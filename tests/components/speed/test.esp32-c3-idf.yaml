@@ -1,9 +1,5 @@
-output:
-  - platform: ledc
-    id: fan_output_1
-    pin: 2
+substitutions:
+  output_platform: ledc
+  pin: GPIO4
 
-fan:
-  - platform: speed
-    id: fan_speed
-    output: fan_output_1
+<<: !include common.yaml
