@@ -115,6 +115,10 @@ api:
 Before using any of the actions below, you'll need to tell Home Assistant to allow your device to
 perform actions.
 
+> [!NOTE]
+> Starting with ESPHome 2025.10.0, you can configure actions to receive and process responses from
+> Home Assistant using `capture_response`, `on_success`, and `on_error`. See [Action Response Handling](#action-response-handling) for details.
+
 Open the ESPHome integration page on your Home Assistant instance:
 
 [![Open your Home Assistant instance and show the ESPHome integration.](https://my.home-assistant.io/badges/integration.svg)](https://my.home-assistant.io/redirect/integration/?domain=esphome)
@@ -202,6 +206,20 @@ on_...:
 - **variables** (*Optional*, mapping): Optional variables that can be used in the `data_template`.
   Values are [lambdas](#config-lambda) and will be evaluated before sending the request.
 
+- **capture_response** (*Optional*, boolean): Enable capturing the response from the Home Assistant action call.
+  When enabled, `on_success` must be configured. Defaults to `false`.
+
+- **response_template** (*Optional*, [templatable](#config-templatable), string): Optional Jinja template to process
+  the action response data. This template is evaluated on the Home Assistant side with Home Assistant's templating engine.
+  Requires `capture_response: true`.
+
+- **on_success** (*Optional*, [Automation](#automation)): Optional automation to execute when the Home Assistant action
+  call succeeds. When `capture_response: true`, the response data is available as a `response` variable of type `JsonObjectConst`.
+  See [Action Response Handling](#action-response-handling).
+
+- **on_error** (*Optional*, [Automation](#automation)): Optional automation to execute when the Home Assistant action
+  call fails. See [Action Response Handling](#action-response-handling).
+
 Data structures are not possible, but you can create a script in Home Assistant and call with all
 the parameters in plain format.
 
@@ -234,6 +252,74 @@ on_...:
         green: '199'
         blue: '71'
 ```
+
+#### Action Response Handling
+
+> [!NOTE]
+> Action response handling is available in ESPHome 2025.10.0 and later.
+
+You can configure actions to receive and process responses from Home Assistant. This enables bidirectional
+communication where ESPHome can not only call Home Assistant actions but also handle their responses.
+
+##### Basic Success/Error Handling
+
+Use `on_success` and `on_error` to respond to action completion:
+
+```yaml
+on_...:
+  - homeassistant.action:
+      action: light.toggle
+      data:
+        entity_id: light.demo_light
+      on_success:
+        - logger.log: "Toggled demo light"
+      on_error:
+        - logger.log: "Failed to toggle demo light"
+```
+
+##### Capturing Response Data
+
+To capture and process response data from actions, set `capture_response: true`. When enabled, `on_success` must be configured
+and the response data is available as a [`JsonObjectConst`](https://arduinojson.org/v7/api/jsonobjectconst/) variable named `response`.
+
+```yaml
+# Example: Get weather forecast and parse JSON response
+on_...:
+  - homeassistant.action:
+      action: weather.get_forecasts
+      data:
+        entity_id: weather.forecast_home
+        type: hourly
+      capture_response: true
+      on_success:
+        - lambda: |-
+            JsonObjectConst next_hour = response["response"]["weather.forecast_home"]["forecast"][0];
+            float next_temperature = next_hour["temperature"].as<float>();
+            ESP_LOGI("weather", "Temperature next hour: %.1f", next_temperature);
+```
+
+##### Using Response Templates
+
+Use `response_template` to extract and format data from complex responses using Home Assistant's Jinja templating engine.
+This requires `capture_response: true`.
+
+```yaml
+# Example: Extract temperature using a template
+on_...:
+  - homeassistant.action:
+      action: weather.get_forecasts
+      data:
+        entity_id: weather.forecast_home
+        type: hourly
+      capture_response: true
+      response_template: "{{ response['weather.forecast_home']['forecast'][0]['temperature'] }}"
+      on_success:
+        - lambda: |-
+            float temperature = response["response"].as<float>();
+            ESP_LOGI("weather", "Temperature next hour: %.1f", temperature);
+```
+
+When `response_template` is used, the processed result is available in `response["response"]`.
 
 {{< anchor "api-homeassistant_tag_scanned_action" >}}
 
