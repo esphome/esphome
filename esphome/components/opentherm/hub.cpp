@@ -134,6 +134,14 @@ void OpenthermHub::process_response(OpenthermData &data) {
            this->opentherm_->message_id_to_str((MessageId) data.id));
   this->opentherm_->debug_data(data);
 
+  if (this->last_request_.id != data.id) {
+    ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s), while expecting %d (%s). Skip message",
+       data.id, this->opentherm_->message_id_to_str((MessageId) data.id),
+       this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
+       
+    return;
+  }
+
   switch (data.id) {
     OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
                                       OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
@@ -344,6 +352,7 @@ void OpenthermHub::start_conversation_() {
   this->opentherm_->debug_data(request);
   // Send the request
   this->last_conversation_start_ = millis();
+  this->last_request_ = request;
   this->opentherm_->send(request);
 }
 
