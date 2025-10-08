@@ -1,7 +1,5 @@
 substitutions:
+  clk_pin: GPIO4
   dout_pin: GPIO5
-
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml

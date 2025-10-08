@@ -1,5 +1,4 @@
-substitutions:
 packages:
-  uart: !include ../../test_build_components/common/uart_1200/esp32-c3-idf.yaml
+  uart: !include ../../test_build_components/common/uart_1200_even/esp32-c3-idf.yaml
 
 <<: !include common.yaml

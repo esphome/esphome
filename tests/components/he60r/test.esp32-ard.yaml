@@ -1,7 +1,3 @@
-substitutions:
-  tx_pin: GPIO17
-  rx_pin: GPIO16
-
 packages:
   uart: !include ../../test_build_components/common/uart_1200_even/esp32-ard.yaml
 
