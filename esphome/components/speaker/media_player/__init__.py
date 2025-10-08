@@ -290,7 +290,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(CONF_CODEC_SUPPORT_ENABLED, psram.supported()): cv.boolean,
+            cv.Optional(
+                CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
+            ): cv.boolean,
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
