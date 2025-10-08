@@ -130,7 +130,7 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
 OpenthermHub::OpenthermHub() : Component(), in_pin_{}, out_pin_{} {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
-  ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s). Requested id %d", 
+  ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s). Requested id %d (%s)", 
     data.id, this->opentherm_->message_id_to_str((MessageId) data.id), 
     this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
   this->opentherm_->debug_data(data);
