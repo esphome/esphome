@@ -955,7 +955,7 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
     }
 
     // Mark configuration dirty to trigger rebuild on next get_configuration() call.
-    this->mark_configuration_needs_rebuild_();
+    this->config_needs_rebuild_ = true;
   }
 #endif
 };

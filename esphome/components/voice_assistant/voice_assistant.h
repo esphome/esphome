@@ -114,7 +114,7 @@ class VoiceAssistant : public Component {
 #ifdef USE_MICRO_WAKE_WORD
   void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) {
     this->micro_wake_word_ = mww;
-    this->mark_configuration_needs_rebuild_();
+    this->config_needs_rebuild_ = true;
   }
 #endif
 #ifdef USE_SPEAKER
@@ -175,9 +175,6 @@ class VoiceAssistant : public Component {
   // Returns cached configuration reference. Only rebuilds when config_needs_rebuild_ is true
   // to prevent use-after-free with StringRef and avoid wasteful rebuilding.
   const Configuration &get_configuration();
-
-  // Mark configuration dirty so it gets rebuilt on next get_configuration() call.
-  void mark_configuration_needs_rebuild_() { this->config_needs_rebuild_ = true; }
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
