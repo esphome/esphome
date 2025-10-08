@@ -137,8 +137,8 @@ void MDNSComponent::compile_records_() {
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
-    txt_records.push_back({MDNS_STR(TXT_PACKAGE_IMPORT_URL),
-                           MDNS_STR(this->add_dynamic_txt_value(dashboard_import::get_package_import_url()))});
+    txt_records.push_back(
+        {MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url().c_str())});
 #endif
   }
 #endif  // USE_API

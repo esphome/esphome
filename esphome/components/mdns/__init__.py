@@ -123,9 +123,6 @@ async def to_code(config):
     if "api" in CORE.config:
         # Always: get_mac_address()
         dynamic_txt_count += 1
-        # Conditional: dashboard_import_url
-        if "dashboard_import" in CORE.config:
-            dynamic_txt_count += 1
     # User-provided templatable TXT values (only lambdas, not static strings)
     dynamic_txt_count += sum(
         1
