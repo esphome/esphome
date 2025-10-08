@@ -70,9 +70,10 @@ bool ESPNowTransport::on_received(const ESPNowRecvInfo &info, const uint8_t *dat
     return false;
   }
 
-  std::vector<uint8_t> packet_data(data, data + size);
-  this->process_(packet_data);
-  return false;  // Allow other handlers to run
+  this->packet_buffer_.resize(size);
+  memcpy(this->packet_buffer_.data(), data, size);
+  this->process_(this->packet_buffer_);
+  return false;
 }
 
 bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) {
@@ -83,6 +84,12 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
     ESP_LOGW(TAG, "Received empty or null broadcast packet");
     return false;
   }
+
+  this->packet_buffer_.resize(size);
+  memcpy(this->packet_buffer_.data(), data, size);
+  this->process_(this->packet_buffer_);
+  return false;
+}
 
   std::vector<uint8_t> packet_data(data, data + size);
   this->process_(packet_data);
