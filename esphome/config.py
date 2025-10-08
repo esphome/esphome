@@ -647,7 +647,7 @@ class AddDynamicAutoLoadsValidationStep(ConfigValidationStep):
     """
 
     # Has to happen after normal schema is validated and before final schema validation
-    priority = -10.0
+    priority = -5.0
 
     def __init__(self, path: ConfigPath, comp: ComponentManifest) -> None:
         self.path = path

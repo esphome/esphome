@@ -386,6 +386,10 @@ def _check_versions(value):
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
+        if value[CONF_SOURCE].startswith("http"):
+            value[CONF_SOURCE] = (
+                f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
+            )
     else:
         if version < cv.Version(5, 0, 0):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
@@ -395,6 +399,8 @@ def _check_versions(value):
             CONF_SOURCE,
             _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
         )
+        if value[CONF_SOURCE].startswith("http"):
+            value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
 
     if CONF_PLATFORM_VERSION not in value:
         if platform_lookup is None:

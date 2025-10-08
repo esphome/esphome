@@ -529,7 +529,16 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
             new_components.update(dep.split(".")[0] for dep in comp.dependencies)
 
             # Add auto_load components
-            new_components.update(comp.auto_load)
+            auto_load = comp.auto_load
+            if callable(auto_load):
+                import inspect
+
+                if inspect.signature(auto_load).parameters:
+                    auto_load = auto_load(None)
+                else:
+                    auto_load = auto_load()
+
+            new_components.update(auto_load)
 
         # Check if we found any new components
         new_components -= all_components
