@@ -42,7 +42,7 @@ def test_is_file_recent_with_recent_file(setup_core: Path) -> None:
 
     refresh = TimePeriod(seconds=3600)
 
-    result = external_files.is_file_recent(str(test_file), refresh)
+    result = external_files.is_file_recent(test_file, refresh)
 
     assert result is True
 
@@ -53,11 +53,13 @@ def test_is_file_recent_with_old_file(setup_core: Path) -> None:
     test_file.write_text("content")
 
     old_time = time.time() - 7200
+    mock_stat = MagicMock()
+    mock_stat.st_ctime = old_time
 
-    with patch("os.path.getctime", return_value=old_time):
+    with patch.object(Path, "stat", return_value=mock_stat):
         refresh = TimePeriod(seconds=3600)
 
-        result = external_files.is_file_recent(str(test_file), refresh)
+        result = external_files.is_file_recent(test_file, refresh)
 
         assert result is False
 
@@ -67,7 +69,7 @@ def test_is_file_recent_nonexistent_file(setup_core: Path) -> None:
     test_file = setup_core / "nonexistent.txt"
     refresh = TimePeriod(seconds=3600)
 
-    result = external_files.is_file_recent(str(test_file), refresh)
+    result = external_files.is_file_recent(test_file, refresh)
 
     assert result is False
 
@@ -77,10 +79,12 @@ def test_is_file_recent_with_zero_refresh(setup_core: Path) -> None:
     test_file = setup_core / "test.txt"
     test_file.write_text("content")
 
-    # Mock getctime to return a time 10 seconds ago
-    with patch("os.path.getctime", return_value=time.time() - 10):
+    # Mock stat to return a time 10 seconds ago
+    mock_stat = MagicMock()
+    mock_stat.st_ctime = time.time() - 10
+    with patch.object(Path, "stat", return_value=mock_stat):
         refresh = TimePeriod(seconds=0)
-        result = external_files.is_file_recent(str(test_file), refresh)
+        result = external_files.is_file_recent(test_file, refresh)
         assert result is False
 
 
@@ -97,7 +101,7 @@ def test_has_remote_file_changed_not_modified(
     mock_head.return_value = mock_response
 
     url = "https://example.com/file.txt"
-    result = external_files.has_remote_file_changed(url, str(test_file))
+    result = external_files.has_remote_file_changed(url, test_file)
 
     assert result is False
     mock_head.assert_called_once()
@@ -121,7 +125,7 @@ def test_has_remote_file_changed_modified(
     mock_head.return_value = mock_response
 
     url = "https://example.com/file.txt"
-    result = external_files.has_remote_file_changed(url, str(test_file))
+    result = external_files.has_remote_file_changed(url, test_file)
 
     assert result is True
 
@@ -131,7 +135,7 @@ def test_has_remote_file_changed_no_local_file(setup_core: Path) -> None:
     test_file = setup_core / "nonexistent.txt"
 
     url = "https://example.com/file.txt"
-    result = external_files.has_remote_file_changed(url, str(test_file))
+    result = external_files.has_remote_file_changed(url, test_file)
 
     assert result is True
 
@@ -149,7 +153,7 @@ def test_has_remote_file_changed_network_error(
     url = "https://example.com/file.txt"
 
     with pytest.raises(Invalid, match="Could not check if.*Network error"):
-        external_files.has_remote_file_changed(url, str(test_file))
+        external_files.has_remote_file_changed(url, test_file)
 
 
 @patch("esphome.external_files.requests.head")
@@ -165,7 +169,7 @@ def test_has_remote_file_changed_timeout(
     mock_head.return_value = mock_response
 
     url = "https://example.com/file.txt"
-    external_files.has_remote_file_changed(url, str(test_file))
+    external_files.has_remote_file_changed(url, test_file)
 
     call_args = mock_head.call_args
     assert call_args[1]["timeout"] == external_files.NETWORK_TIMEOUT
@@ -191,6 +195,6 @@ def test_is_file_recent_handles_float_seconds(setup_core: Path) -> None:
 
     refresh = TimePeriod(seconds=3600.5)
 
-    result = external_files.is_file_recent(str(test_file), refresh)
+    result = external_files.is_file_recent(test_file, refresh)
 
     assert result is True

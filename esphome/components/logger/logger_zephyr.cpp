@@ -12,8 +12,8 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-void Logger::loop() {
 #ifdef USE_LOGGER_USB_CDC
+void Logger::loop() {
   if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == this->uart_dev_) {
     return;
   }
@@ -30,9 +30,8 @@ void Logger::loop() {
     App.schedule_dump_config();
   }
   opened = !opened;
-#endif
-  this->process_messages_();
 }
+#endif
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {

@@ -2,25 +2,41 @@
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
 #include <string>
-#include <vector>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mdns {
 
+// Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
+struct MDNSString;
+
+// Macro to cast string literals to MDNSString* (works on all platforms)
+#define MDNS_STR(name) (reinterpret_cast<const esphome::mdns::MDNSString *>(name))
+
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#define MDNS_STR_ARG(s) ((PGM_P) (s))
+#else
+#define MDNS_STR_ARG(s) (reinterpret_cast<const char *>(s))
+#endif
+
+// Service count is calculated at compile time by Python codegen
+// MDNS_SERVICE_COUNT will always be defined
+
 struct MDNSTXTRecord {
-  std::string key;
+  const MDNSString *key;
   TemplatableValue<std::string> value;
 };
 
 struct MDNSService {
   // service name _including_ underscore character prefix
   // as defined in RFC6763 Section 7
-  std::string service_type;
+  const MDNSString *service_type;
   // second label indicating protocol _including_ underscore character prefix
   // as defined in RFC6763 Section 7, like "_tcp" or "_udp"
-  std::string proto;
+  const MDNSString *proto;
   TemplatableValue<uint16_t> port;
   std::vector<MDNSTXTRecord> txt_records;
 };
@@ -36,18 +52,15 @@ class MDNSComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
 #ifdef USE_MDNS_EXTRA_SERVICES
-  void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
+  void add_extra_service(MDNSService service) { this->services_.emplace_next() = std::move(service); }
 #endif
 
-  std::vector<MDNSService> get_services();
+  const StaticVector<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return this->services_; }
 
   void on_shutdown() override;
 
  protected:
-#ifdef USE_MDNS_EXTRA_SERVICES
-  std::vector<MDNSService> services_extra_{};
-#endif
-  std::vector<MDNSService> services_{};
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
   std::string hostname_;
   void compile_records_();
 };

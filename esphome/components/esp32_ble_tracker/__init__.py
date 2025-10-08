@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable, MutableMapping
 import logging
-from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import (
+    IDF_MAX_CONNECTIONS,
     BTLoggers,
     bt_uuid,
     bt_uuid16_format,
@@ -24,6 +23,7 @@ from esphome.const import (
     CONF_INTERVAL,
     CONF_MAC_ADDRESS,
     CONF_MANUFACTURER_ID,
+    CONF_MAX_CONNECTIONS,
     CONF_ON_BLE_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
@@ -38,18 +38,11 @@ AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
-KEY_ESP32_BLE_TRACKER = "esp32_ble_tracker"
-KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
-
-CONF_MAX_CONNECTIONS = "max_connections"
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
 CONF_ON_SCAN_END = "on_scan_end"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
-
-DEFAULT_MAX_CONNECTIONS = 3
-IDF_MAX_CONNECTIONS = 9
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -128,6 +121,15 @@ def validate_scan_parameters(config):
     return config
 
 
+def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
+    if CONF_MAX_CONNECTIONS in config:
+        _LOGGER.warning(
+            "The 'max_connections' option in 'esp32_ble_tracker' is deprecated. "
+            "Please move it to the 'esp32_ble' component instead."
+        )
+    return config
+
+
 def as_hex(value):
     return cg.RawExpression(f"0x{value}ULL")
 
@@ -150,29 +152,13 @@ def as_reversed_hex_array(value):
     )
 
 
-def max_connections() -> int:
-    return IDF_MAX_CONNECTIONS if CORE.using_esp_idf else DEFAULT_MAX_CONNECTIONS
-
-
-def consume_connection_slots(
-    value: int, consumer: str
-) -> Callable[[MutableMapping], MutableMapping]:
-    def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
-        data: dict[str, Any] = CORE.data.setdefault(KEY_ESP32_BLE_TRACKER, {})
-        slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
-        slots.extend([consumer] * value)
-        return config
-
-    return _consume_connection_slots
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESP32BLETracker),
             cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
-            cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
-                cv.positive_int, cv.Range(min=0, max=max_connections())
+            cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
+                cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
             cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(
                 cv.Schema(
@@ -228,49 +214,11 @@ CONFIG_SCHEMA = cv.All(
             cv.OnlyWith(CONF_SOFTWARE_COEXISTENCE, "wifi", default=True): bool,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_max_connections_deprecated,
 )
 
 
-def validate_remaining_connections(config):
-    data: dict[str, Any] = CORE.data.get(KEY_ESP32_BLE_TRACKER, {})
-    slots: list[str] = data.get(KEY_USED_CONNECTION_SLOTS, [])
-    used_slots = len(slots)
-    if used_slots <= config[CONF_MAX_CONNECTIONS]:
-        return config
-    slot_users = ", ".join(slots)
-    hard_limit = max_connections()
-
-    if used_slots < hard_limit:
-        _LOGGER.warning(
-            "esp32_ble_tracker exceeded `%s`: components attempted to consume %d "
-            "connection slot(s) out of available configured maximum %d connection "
-            "slot(s); The system automatically increased `%s` to %d to match the "
-            "number of used connection slot(s) by components: %s.",
-            CONF_MAX_CONNECTIONS,
-            used_slots,
-            config[CONF_MAX_CONNECTIONS],
-            CONF_MAX_CONNECTIONS,
-            used_slots,
-            slot_users,
-        )
-        config[CONF_MAX_CONNECTIONS] = used_slots
-        return config
-
-    msg = (
-        f"esp32_ble_tracker exceeded `{CONF_MAX_CONNECTIONS}`: "
-        f"components attempted to consume {used_slots} connection slot(s) "
-        f"out of available configured maximum {config[CONF_MAX_CONNECTIONS]} "
-        f"connection slot(s); Decrease the number of BLE clients ({slot_users})"
-    )
-    if config[CONF_MAX_CONNECTIONS] < hard_limit:
-        msg += f" or increase {CONF_MAX_CONNECTIONS}` to {used_slots}"
-    msg += f" to stay under the {hard_limit} connection slot(s) limit."
-    raise cv.Invalid(msg)
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(
-    validate_remaining_connections, esp32_ble.validate_variant
-)
+FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 ESP_BLE_DEVICE_SCHEMA = cv.Schema(
     {
@@ -342,19 +290,16 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        if config.get(CONF_SOFTWARE_COEXISTENCE):
-            add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
-        # https://github.com/espressif/esp-idf/issues/4101
-        # https://github.com/espressif/esp-idf/issues/2503
-        # Match arduino CONFIG_BTU_TASK_STACK_SIZE
-        # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
-        add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
-        add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", 9)
-        add_idf_sdkconfig_option(
-            "CONFIG_BTDM_CTRL_BLE_MAX_CONN", config[CONF_MAX_CONNECTIONS]
-        )
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    if config.get(CONF_SOFTWARE_COEXISTENCE):
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
+    # https://github.com/espressif/esp-idf/issues/4101
+    # https://github.com/espressif/esp-idf/issues/2503
+    # Match arduino CONFIG_BTU_TASK_STACK_SIZE
+    # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
+    add_idf_sdkconfig_option("CONFIG_BT_BTU_TASK_STACK_SIZE", 8192)
+    # Note: CONFIG_BT_ACL_CONNECTIONS and CONFIG_BTDM_CTRL_BLE_MAX_CONN are now
+    # configured in esp32_ble component based on max_connections setting
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
     cg.add_define("USE_ESP32_BLE_CLIENT")

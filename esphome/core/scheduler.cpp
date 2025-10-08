@@ -118,7 +118,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   item->type = type;
   item->callback = std::move(func);
   // Initialize remove to false (though it should already be from constructor)
-  // Not using mark_item_removed_ helper since we're setting to false, not true
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   item->remove.store(false, std::memory_order_relaxed);
 #else
@@ -345,7 +344,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Execute callback without holding lock to prevent deadlocks
     // if the callback tries to call defer() again
     if (!this->should_skip_item_(item.get())) {
-      this->execute_item_(item.get(), now);
+      now = this->execute_item_(item.get(), now);
     }
     // Recycle the defer item after execution
     this->recycle_item_(std::move(item));
@@ -483,7 +482,7 @@ void HOT Scheduler::call(uint32_t now) {
     // Warning: During callback(), a lot of stuff can happen, including:
     //  - timeouts/intervals get added, potentially invalidating vector pointers
     //  - timeouts/intervals get cancelled
-    this->execute_item_(item.get(), now);
+    now = this->execute_item_(item.get(), now);
 
     LockGuard guard{this->lock_};
 
@@ -568,11 +567,11 @@ void HOT Scheduler::pop_raw_() {
 }
 
 // Helper to execute a scheduler item
-void HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
+uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
-  guard.finish();
+  return guard.finish();
 }
 
 // Common implementation for cancel operations
@@ -600,12 +599,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
 #ifndef ESPHOME_THREAD_SINGLE
   // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
-    for (auto &item : this->defer_queue_) {
-      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-        this->mark_item_removed_(item.get());
-        total_cancelled++;
-      }
-    }
+    total_cancelled += this->mark_matching_items_removed_(this->defer_queue_, component, name_cstr, type, match_retry);
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -620,23 +614,13 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, const char *name_c
       total_cancelled++;
     }
     // For other items in heap, we can only mark for removal (can't remove from middle of heap)
-    for (auto &item : this->items_) {
-      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-        this->mark_item_removed_(item.get());
-        total_cancelled++;
-        this->to_remove_++;  // Track removals for heap items
-      }
-    }
+    size_t heap_cancelled = this->mark_matching_items_removed_(this->items_, component, name_cstr, type, match_retry);
+    total_cancelled += heap_cancelled;
+    this->to_remove_ += heap_cancelled;  // Track removals for heap items
   }
 
   // Cancel items in to_add_
-  for (auto &item : this->to_add_) {
-    if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
-      this->mark_item_removed_(item.get());
-      total_cancelled++;
-      // Don't track removals for to_add_ items
-    }
-  }
+  total_cancelled += this->mark_matching_items_removed_(this->to_add_, component, name_cstr, type, match_retry);
 
   return total_cancelled > 0;
 }

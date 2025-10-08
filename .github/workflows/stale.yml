@@ -15,36 +15,52 @@ concurrency:
 
 jobs:
   stale:
+    if: github.repository_owner == 'esphome'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v10.0.0
+      - name: Stale
+        uses: actions/stale@5f858e3efba33a5ca4407a664cc011ad407f2008 # v10.1.0
         with:
+          debug-only: ${{ github.ref != 'refs/heads/dev' }} # Dry-run when not run on dev branch
+          remove-stale-when-updated: true
+          operations-per-run: 150
+
+          # The 90 day stale policy for PRs
+          # - PRs
+          # - No PRs marked as "not-stale"
+          # - No Issues (see below)
           days-before-pr-stale: 90
           days-before-pr-close: 7
-          days-before-issue-stale: -1
-          days-before-issue-close: -1
-          remove-stale-when-updated: true
           stale-pr-label: "stale"
           exempt-pr-labels: "not-stale"
           stale-pr-message: >
             There hasn't been any activity on this pull request recently. This
             pull request has been automatically marked as stale because of that
             and will be closed if no further activity occurs within 7 days.
-            Thank you for your contributions.
 
-  # Use stale to automatically close issues with a
-  # reference to the issue tracker
-  close-issues:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/stale@v10.0.0
-        with:
-          days-before-pr-stale: -1
-          days-before-pr-close: -1
-          days-before-issue-stale: 1
-          days-before-issue-close: 1
-          remove-stale-when-updated: true
+            If you are the author of this PR, please leave a comment if you want
+            to keep it open. Also, please rebase your PR onto the latest dev
+            branch to ensure that it's up to date with the latest changes.
+
+            Thank you for your contribution!
+
+          # The 90 day stale policy for Issues
+          # - Issues
+          # - No Issues marked as "not-stale"
+          # - No PRs (see above)
+          days-before-issue-stale: 90
+          days-before-issue-close: 7
           stale-issue-label: "stale"
           exempt-issue-labels: "not-stale"
           stale-issue-message: >
-            https://github.com/esphome/esphome/issues/430
+            There hasn't been any activity on this issue recently. Due to the
+            high number of incoming GitHub notifications, we have to clean some
+            of the old issues, as many of them have already been resolved with
+            the latest updates.
+
+            Please make sure to update to the latest ESPHome version and
+            check if that solves the issue. Let us know if that works for you by
+            adding a comment 👍
+
+            This issue has now been marked as stale and will be closed if no
+            further activity occurs. Thank you for your contributions.
