@@ -1,5 +1,5 @@
 substitutions:
-packages:
-  uart: !include ../../test_build_components/common/uart/esp32-c3-idf.yaml
+  tx_pin: GPIO7
+  rx_pin: GPIO9
 
 <<: !include common.yaml
