@@ -1,4 +1,5 @@
 substitutions:
+  display_reset_pin: "10"
   interrupt_pin: "15"
   reset_pin: "25"
 
