@@ -3486,7 +3486,7 @@ void WaveshareEPaper7P5InBV3BWR::dump_config() {
 }
 
 /* WaveshareEPaper7P5InBV3BWRalt */
-
+uint32_t WaveshareEPaper7P5InBV3BWRalt::idle_timeout_() { return 30000; }
 bool WaveshareEPaper7P5InBV3BWRalt::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
