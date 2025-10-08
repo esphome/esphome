@@ -1,0 +1,17 @@
+spi:
+  - id: spi_main_lcd
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin: 12
+
+display:
+  - platform: ili9xxx
+    id: main_lcd
+    model: ili9342
+    cs_pin: 5
+    dc_pin: 15
+    reset_pin: 16
+    invert_colors: false
+
+packages:
+  animation: !include common.yaml

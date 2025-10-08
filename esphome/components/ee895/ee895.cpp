@@ -1,6 +1,6 @@
 #include "ee895.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ee895 {
@@ -16,7 +16,6 @@ static const uint16_t PRESSURE_ADDRESS = 0x04B0;
 
 void EE895Component::setup() {
   uint16_t crc16_check = 0;
-  ESP_LOGCONFIG(TAG, "Setting up EE895...");
   write_command_(SERIAL_NUMBER, 8);
   uint8_t serial_number[20];
   this->read(serial_number, 20);
@@ -35,7 +34,7 @@ void EE895Component::dump_config() {
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with EE895 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case CRC_CHECK_FAILED:
       ESP_LOGE(TAG, "The crc check failed");
@@ -84,7 +83,7 @@ void EE895Component::write_command_(uint16_t addr, uint16_t reg_cnt) {
   crc16 = calc_crc16_(address, 6);
   address[5] = crc16 & 0xFF;
   address[6] = (crc16 >> 8) & 0xFF;
-  this->write(address, 7, true);
+  this->write(address, 7);
 }
 
 float EE895Component::read_float_() {

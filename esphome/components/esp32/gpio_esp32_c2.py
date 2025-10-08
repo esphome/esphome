@@ -1,9 +1,8 @@
 import logging
 
+import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
-
-import esphome.config_validation as cv
 
 _ESP32C2_STRAPPING_PINS = {8, 9}
 
@@ -23,7 +22,7 @@ def esp32_c2_validate_supports(value):
     is_input = mode[CONF_INPUT]
 
     if num < 0 or num > 20:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-20)")
+        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-20)")
 
     if is_input:
         # All ESP32 pins support input mode

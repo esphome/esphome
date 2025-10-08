@@ -1,22 +1,21 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
-
 from esphome.const import (
-    CONF_ID,
     CONF_FORMALDEHYDE,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_RADIATOR,
-    ICON_WATER_PERCENT,
     ICON_THERMOMETER,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
     UNIT_PARTS_PER_BILLION,
     UNIT_PERCENT,
-    UNIT_CELSIUS,
 )
 
 CODEOWNERS = ["@ghsensdev"]

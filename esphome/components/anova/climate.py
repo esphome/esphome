@@ -1,7 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, climate
 import esphome.config_validation as cv
-from esphome.components import climate, ble_client
-from esphome.const import CONF_ID, CONF_UNIT_OF_MEASUREMENT
+from esphome.const import CONF_UNIT_OF_MEASUREMENT
 
 UNITS = {
     "f": "f",
@@ -17,9 +17,9 @@ Anova = anova_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(Anova)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(Anova),
             cv.Required(CONF_UNIT_OF_MEASUREMENT): cv.enum(UNITS),
         }
     )
@@ -29,8 +29,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
     await ble_client.register_ble_node(var, config)
     cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))

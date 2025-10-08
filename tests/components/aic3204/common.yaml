@@ -1,0 +1,15 @@
+esphome:
+  on_boot:
+    then:
+      - audio_dac.mute_off:
+      - audio_dac.mute_on:
+      - audio_dac.set_volume:
+          volume: 50%
+
+i2c:
+  - id: i2c_aic3204
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+audio_dac:
+  - platform: aic3204

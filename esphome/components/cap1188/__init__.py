@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_RESET_PIN
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import i2c
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_RESET_PIN
 
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_ALLOW_MULTIPLE_TOUCHES = "allow_multiple_touches"

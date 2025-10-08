@@ -1,12 +1,5 @@
-i2c:
-  - id: i2c_ags10
-    scl: 5
-    sda: 4
-    frequency: 10kHz
+substitutions:
+  scl_pin: GPIO5
+  sda_pin: GPIO4
 
-sensor:
-  - platform: ags10
-    id: ags10_1
-    tvoc:
-      name: AGS10 TVOC
-    update_interval: 60s
+<<: !include common.yaml

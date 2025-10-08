@@ -13,8 +13,10 @@ float bedjet_temp_to_f(const uint8_t temp) {
 
 /** Cleans up the packet before sending. */
 BedjetPacket *BedjetCodec::clean_packet_() {
-  // So far no commands require more than 2 bytes of data.
-  assert(this->packet_.data_length <= 2);
+  // So far no commands require more than 2 bytes of data
+  if (this->packet_.data_length > 2) {
+    ESP_LOGW(TAG, "Packet may be malformed");
+  }
   for (int i = this->packet_.data_length; i < 2; i++) {
     this->packet_.data[i] = '\0';
   }

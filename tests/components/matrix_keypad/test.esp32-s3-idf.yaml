@@ -1,0 +1,15 @@
+packages:
+  common: !include common.yaml
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 10
+    - pin: 11
+  columns:
+    - pin: 12
+    - pin: 13
+  keys: "1234"
+  has_pulldowns: true
+  on_key:
+    - lambda: ESP_LOGI("KEY", "key %d pressed", x);

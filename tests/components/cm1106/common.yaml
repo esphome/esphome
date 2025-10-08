@@ -1,0 +1,11 @@
+uart:
+  - id: uart_cm1106
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+sensor:
+  - platform: cm1106
+    co2:
+      name: CM1106 CO2 Value
+    update_interval: 15s

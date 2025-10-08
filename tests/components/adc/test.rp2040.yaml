@@ -1,4 +1,0 @@
-sensor:
-  - platform: adc
-    pin: VCC
-    name: VSYS

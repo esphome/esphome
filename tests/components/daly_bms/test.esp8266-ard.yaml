@@ -1,0 +1,5 @@
+substitutions:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+
+<<: !include common.yaml

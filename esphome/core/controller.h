@@ -61,6 +61,9 @@
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
+#ifdef USE_UPDATE
+#include "esphome/components/update/update_entity.h"
+#endif
 
 namespace esphome {
 
@@ -68,7 +71,7 @@ class Controller {
  public:
   void setup_controller(bool include_internal = false);
 #ifdef USE_BINARY_SENSOR
-  virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
+  virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj){};
 #endif
 #ifdef USE_FAN
   virtual void on_fan_update(fan::Fan *obj){};
@@ -123,6 +126,9 @@ class Controller {
 #endif
 #ifdef USE_EVENT
   virtual void on_event(event::Event *obj, const std::string &event_type){};
+#endif
+#ifdef USE_UPDATE
+  virtual void on_update(update::UpdateEntity *obj){};
 #endif
 };
 

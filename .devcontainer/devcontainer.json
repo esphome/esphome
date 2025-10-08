@@ -1,16 +1,17 @@
 {
   "name": "ESPHome Dev",
-  "image": "ghcr.io/esphome/esphome-lint:dev",
-  "postCreateCommand": ["script/devcontainer-post-create"],
-  "containerEnv": {
-    "DEVCONTAINER": "1",
-    "PIP_BREAK_SYSTEM_PACKAGES": "1",
-    "PIP_ROOT_USER_ACTION": "ignore"
+  "context": "..",
+  "dockerFile": "Dockerfile",
+  "postCreateCommand": [
+    "script/devcontainer-post-create"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "runArgs": [
     "--privileged",
     "-e",
-    "ESPHOME_DASHBOARD_USE_PING=1"
+    "GIT_EDITOR=code --wait"
     // uncomment and edit the path in order to pass though local USB serial to the conatiner
     // , "--device=/dev/ttyACM0"
   ],
@@ -27,6 +28,9 @@
       "extensions": [
         // python
         "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.flake8",
+        "charliermarsh.ruff",
         "visualstudioexptteam.vscodeintellicode",
         // yaml
         "redhat.vscode-yaml",
@@ -38,9 +42,18 @@
       "settings": {
         "python.languageServer": "Pylance",
         "python.pythonPath": "/usr/bin/python3",
-        "python.linting.pylintEnabled": true,
-        "python.linting.enabled": true,
-        "python.formatting.provider": "black",
+        "pylint.args": [
+          "--rcfile=${workspaceFolder}/pyproject.toml"
+        ],
+        "flake8.args": [
+          "--config=${workspaceFolder}/.flake8"
+        ],
+        "ruff.configuration": "${workspaceFolder}/pyproject.toml",
+        "[python]": {
+          // VS will say "Value is not accepted" before building the devcontainer, but the warning
+          // should go away after build is completed.
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
         "editor.formatOnPaste": false,
         "editor.formatOnSave": true,
         "editor.formatOnType": true,

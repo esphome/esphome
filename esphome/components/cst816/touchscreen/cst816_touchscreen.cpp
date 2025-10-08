@@ -1,4 +1,5 @@
 #include "cst816_touchscreen.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace cst816 {
@@ -8,44 +9,35 @@ void CST816Touchscreen::continue_setup_() {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  if (!this->read_byte(REG_CHIP_ID, &this->chip_id_)) {
+  if (this->read_byte(REG_CHIP_ID, &this->chip_id_)) {
+    switch (this->chip_id_) {
+      case CST820_CHIP_ID:
+      case CST826_CHIP_ID:
+      case CST716_CHIP_ID:
+      case CST816S_CHIP_ID:
+      case CST816D_CHIP_ID:
+      case CST816T_CHIP_ID:
+        break;
+      default:
+        this->mark_failed();
+        this->status_set_error(str_sprintf("Unknown chip ID 0x%02X", this->chip_id_).c_str());
+        return;
+    }
+    this->write_byte(REG_IRQ_CTL, IRQ_EN_MOTION);
+  } else if (!this->skip_probe_) {
+    this->status_set_error("Failed to read chip id");
     this->mark_failed();
-    esph_log_e(TAG, "Failed to read chip id");
     return;
   }
-  switch (this->chip_id_) {
-    case CST820_CHIP_ID:
-    case CST826_CHIP_ID:
-    case CST716_CHIP_ID:
-    case CST816S_CHIP_ID:
-    case CST816D_CHIP_ID:
-    case CST816T_CHIP_ID:
-      break;
-    default:
-      this->mark_failed();
-      esph_log_e(TAG, "Unknown chip ID 0x%02X", this->chip_id_);
-      return;
-  }
-  this->write_byte(REG_IRQ_CTL, IRQ_EN_MOTION);
   if (this->x_raw_max_ == this->x_raw_min_) {
     this->x_raw_max_ = this->display_->get_native_width();
   }
   if (this->y_raw_max_ == this->y_raw_min_) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-  esph_log_config(TAG, "CST816 Touchscreen setup complete");
-}
-
-void CST816Touchscreen::update_button_state_(bool state) {
-  if (this->button_touched_ == state)
-    return;
-  this->button_touched_ = state;
-  for (auto *listener : this->button_listeners_)
-    listener->update_button(state);
 }
 
 void CST816Touchscreen::setup() {
-  esph_log_config(TAG, "Setting up CST816 Touchscreen...");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
@@ -67,18 +59,13 @@ void CST816Touchscreen::update_touches() {
   }
   uint8_t num_of_touches = data[REG_TOUCH_NUM] & 3;
   if (num_of_touches == 0) {
-    this->update_button_state_(false);
     return;
   }
 
   uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
   uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
-  esph_log_v(TAG, "Read touch %d/%d", x, y);
-  if (x >= this->x_raw_max_) {
-    this->update_button_state_(true);
-  } else {
-    this->add_raw_touch_position_(0, x, y);
-  }
+  ESP_LOGV(TAG, "Read touch %d/%d", x, y);
+  this->add_raw_touch_position_(0, x, y);
 }
 
 void CST816Touchscreen::dump_config() {
@@ -86,6 +73,10 @@ void CST816Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG,
+                "  X Raw Min: %d, X Raw Max: %d\n"
+                "  Y Raw Min: %d, Y Raw Max: %d",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   const char *name;
   switch (this->chip_id_) {
     case CST820_CHIP_ID:

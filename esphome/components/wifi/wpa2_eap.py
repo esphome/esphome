@@ -7,16 +7,15 @@ so that it doesn't crash if it's not installed.
 import logging
 from pathlib import Path
 
-from esphome.core import CORE
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_USERNAME,
-    CONF_IDENTITY,
-    CONF_PASSWORD,
     CONF_CERTIFICATE,
+    CONF_IDENTITY,
     CONF_KEY,
+    CONF_PASSWORD,
+    CONF_USERNAME,
 )
-
+from esphome.core import CORE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,8 +48,8 @@ def wrapped_load_pem_x509_certificate(value):
 def wrapped_load_pem_private_key(value, password):
     validate_cryptography_installed()
 
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
     from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
     if password:
         password = password.encode("UTF-8")
@@ -91,7 +90,7 @@ def _validate_load_private_key(key, cert_pw):
 
 
 def _check_private_key_cert_match(key, cert):
-    from cryptography.hazmat.primitives.asymmetric import rsa, ec
+    from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
     def check_match_a():
         return key.public_key().public_numbers() == cert.public_key().public_numbers()

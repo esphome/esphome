@@ -1,6 +1,7 @@
 #include "mlx90614.h"
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -30,8 +31,8 @@ void MLX90614Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
   this->emissivity_write_ec_ = this->write_emissivity_();
   if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed!");
-    this->mark_failed();
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning("Setup failed to set emissivity. Will retry later");
     return;
   }
 }
@@ -55,20 +56,7 @@ i2c::ErrorCode MLX90614Component::write_emissivity_() {
   return this->write_register_(MLX90614_EMISSIVITY, desired_emissivity);
 }
 
-uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
-  uint8_t crc = 0;
-  for (uint8_t i = 0; i < len; i++) {
-    uint8_t in = data[i];
-    for (uint8_t j = 0; j < 8; j++) {
-      bool carry = (crc ^ in) & 0x80;
-      crc <<= 1;
-      if (carry)
-        crc ^= 0x07;
-      in <<= 1;
-    }
-  }
-  return crc;
-}
+uint8_t crc8_pec(const uint8_t *data, uint8_t len) { return crc8(data, len, 0x00, 0x07, true); }
 
 i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
   uint8_t buf[5];
@@ -82,7 +70,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
 
   // 2. Write 0x0000 into the cell of interest (effectively erasing the cell)
   buf[2] = buf[3] = 0;
-  buf[4] = this->crc8_pec_(buf, 4);
+  buf[4] = crc8_pec(buf, 4);
   ec = this->write_register(reg, buf + 2, 3);
   if (i2c::ERROR_OK != ec) {
     ESP_LOGW(TAG, "Can't clean register %x, error %d", reg, ec);
@@ -96,7 +84,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
   if (data != 0) {
     buf[2] = data & 0xFF;
     buf[3] = data >> 8;
-    buf[4] = this->crc8_pec_(buf, 4);
+    buf[4] = crc8_pec(buf, 4);
     ec = this->write_register(reg, buf + 2, 3);
     if (i2c::ERROR_OK != ec) {
       ESP_LOGW(TAG, "Can't write register %x, error %d", reg, ec);
@@ -138,7 +126,7 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
     return ec;
   }
 
-  const auto expected_pec = this->crc8_pec_(buf, 5);
+  const auto expected_pec = crc8_pec(buf, 5);
   if (buf[5] != expected_pec) {
     ESP_LOGW(TAG, "i2c CRC error. Expected %x. Actual %x", expected_pec, buf[4]);
     return i2c::ERROR_CRC;
@@ -152,7 +140,7 @@ void MLX90614Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MLX90614:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 
   if (i2c::ERROR_OK != this->emissivity_write_ec_) {
@@ -175,7 +163,13 @@ void MLX90614Component::dump_config() {
 float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90614Component::update() {
-  this->emissivity_write_ec_ = this->write_emissivity_();
+  if (i2c::ERROR_OK != this->emissivity_write_ec_) {
+    this->emissivity_write_ec_ = this->write_emissivity_();
+    if (i2c::ERROR_OK != this->emissivity_write_ec_) {
+      this->status_set_warning("Failed to write emissivity");
+      return
+    }
+  }
 
   auto publish_sensor = [&](sensor::Sensor *sensor, uint8_t reg) {
     if (nullptr == sensor) {
@@ -195,7 +189,7 @@ void MLX90614Component::update() {
       this->emissivity_write_ec_ == i2c::ERROR_OK) {
     this->status_clear_warning();
   } else {
-    this->status_set_warning();
+    this->status_set_warning("Failed to read some sensors");
   }
 }
 

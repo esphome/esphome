@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import light
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_OUTPUT_ID,
-    CONF_NUM_LEDS,
-    CONF_RGB_ORDER,
     CONF_MAX_REFRESH_RATE,
+    CONF_NUM_LEDS,
+    CONF_OUTPUT_ID,
+    CONF_RGB_ORDER,
 )
 
 CODEOWNERS = ["@OttoWinter"]
@@ -40,9 +40,6 @@ async def new_fastled_light(config):
     if CONF_MAX_REFRESH_RATE in config:
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
+    cg.add_library("fastled/FastLED", "3.9.16")
     await light.register_light(var, config)
-    # https://github.com/FastLED/FastLED/blob/master/library.json
-    # 3.3.3 has an issue on ESP32 with RMT and fastled_clockless:
-    # https://github.com/esphome/issues/issues/1375
-    cg.add_library("fastled/FastLED", "3.3.2")
     return var

@@ -2,7 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "LD2420.number";
+static const char *const TAG = "ld2420.number";
 
 namespace esphome {
 namespace ld2420 {

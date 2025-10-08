@@ -1,0 +1,34 @@
+esphome:
+  name: scheduler-defer-cancel-regular
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  services:
+    - service: test_defer_cancels_regular
+      then:
+        - lambda: |-
+            ESP_LOGI("TEST", "Starting defer cancels regular timeout test");
+
+            // Schedule a regular timeout with 100ms delay
+            App.scheduler.set_timeout(nullptr, "test_timeout", 100, []() {
+              ESP_LOGE("TEST", "ERROR: Regular timeout executed - should have been cancelled!");
+            });
+
+            ESP_LOGI("TEST", "Scheduled regular timeout with 100ms delay");
+
+            // Immediately schedule a deferred timeout (0 delay) with the same name
+            // This should cancel the regular timeout
+            App.scheduler.set_timeout(nullptr, "test_timeout", 0, []() {
+              ESP_LOGI("TEST", "SUCCESS: Deferred timeout executed");
+            });
+
+            ESP_LOGI("TEST", "Scheduled deferred timeout - should cancel regular timeout");
+
+            // Schedule test completion after 200ms (after regular timeout would have fired)
+            App.scheduler.set_timeout(nullptr, "test_complete", 200, []() {
+              ESP_LOGI("TEST", "Test complete");
+            });

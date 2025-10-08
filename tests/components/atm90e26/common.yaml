@@ -1,0 +1,26 @@
+spi:
+  - id: spi_atm90e26
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}
+
+sensor:
+  - platform: atm90e26
+    cs_pin: ${cs_pin}
+    voltage:
+      name: Line Voltage
+    current:
+      name: CT Amps
+    power:
+      name: Active Watts
+    power_factor:
+      name: Power Factor
+    frequency:
+      name: Line Frequency
+    line_frequency: 50Hz
+    meter_constant: 1000
+    pl_const: 1429876
+    gain_pga: 1X
+    gain_metering: 7481
+    gain_voltage: 26400
+    gain_ct: 31251

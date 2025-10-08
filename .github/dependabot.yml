@@ -9,16 +9,31 @@ updates:
       # Hypotehsis is only used for testing and is updated quite often
       - dependency-name: hypothesis
   - package-ecosystem: github-actions
+    labels:
+      - "dependencies"
+      - "github-actions"
     directory: "/"
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    groups:
+      docker-actions:
+        applies-to: version-updates
+        patterns:
+          - "docker/login-action"
+          - "docker/setup-buildx-action"
   - package-ecosystem: github-actions
+    labels:
+      - "dependencies"
+      - "github-actions"
     directory: "/.github/actions/build-image"
     schedule:
       interval: daily
     open-pull-requests-limit: 10
   - package-ecosystem: github-actions
+    labels:
+      - "dependencies"
+      - "github-actions"
     directory: "/.github/actions/restore-python"
     schedule:
       interval: daily

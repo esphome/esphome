@@ -13,6 +13,7 @@
 #include <hardware/pio.h>
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
+#include <pico/sem.h>
 #include <map>
 
 namespace esphome {
@@ -95,6 +96,8 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
   size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
 
+  static void dma_write_complete_handler_();
+
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
 
@@ -120,6 +123,8 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   inline static int num_instance_[2];
   inline static std::map<Chipset, bool> conf_count_;
   inline static std::map<Chipset, int> chipset_offsets_;
+  inline static bool dma_chan_active_[12];
+  inline static struct semaphore dma_write_complete_sem_[12];
 };
 
 }  // namespace rp2040_pio_led_strip

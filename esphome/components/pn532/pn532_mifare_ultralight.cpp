@@ -80,8 +80,8 @@ bool PN532::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_t
   const uint8_t p4_offset = nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;  // page 4 will begin 4 bytes into the vector
 
   return (page_3_to_6.size() > p4_offset + 3) &&
-         !((page_3_to_6[p4_offset + 0] == 0xFF) && (page_3_to_6[p4_offset + 1] == 0xFF) &&
-           (page_3_to_6[p4_offset + 2] == 0xFF) && (page_3_to_6[p4_offset + 3] == 0xFF));
+         ((page_3_to_6[p4_offset + 0] != 0xFF) || (page_3_to_6[p4_offset + 1] != 0xFF) ||
+          (page_3_to_6[p4_offset + 2] != 0xFF) || (page_3_to_6[p4_offset + 3] != 0xFF));
 }
 
 uint16_t PN532::read_mifare_ultralight_capacity_() {

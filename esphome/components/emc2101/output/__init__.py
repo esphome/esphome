@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from .. import EMC2101_COMPONENT_SCHEMA, CONF_EMC2101_ID, emc2101_ns
+
+from .. import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA, emc2101_ns
 
 DEPENDENCIES = ["emc2101"]
 

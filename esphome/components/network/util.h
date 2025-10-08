@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <string>
 #include "ip_address.h"
 
@@ -16,3 +17,4 @@ IPAddresses get_ip_addresses();
 
 }  // namespace network
 }  // namespace esphome
+#endif
