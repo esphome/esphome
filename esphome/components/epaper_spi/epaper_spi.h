@@ -28,7 +28,7 @@ class EPaperBase : public display::DisplayBuffer,
                                          spi::DATA_RATE_2MHZ> {
  public:
   EPaperBase(const uint8_t *init_sequence, const size_t init_sequence_length)
-      : init_sequence_(init_sequence), init_sequence_length_(init_sequence_length) {}
+      : init_sequence_length_(init_sequence_length), init_sequence_(init_sequence) {}
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
