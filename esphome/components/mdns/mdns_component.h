@@ -12,6 +12,9 @@ namespace mdns {
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
 struct MDNSString;
 
+// Macro to cast string literals to MDNSString* (works on all platforms)
+#define MDNS_STR(name) (reinterpret_cast<const MDNSString *>(name))
+
 #ifdef USE_ESP8266
 #include <pgmspace.h>
 #define MDNS_STR_ARG(s) ((PGM_P) (s))
