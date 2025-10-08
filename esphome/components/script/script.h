@@ -48,14 +48,14 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   }
 
   // Internal function to give scripts readable names.
-  void set_name(const std::string &name) { name_ = name; }
+  void set_name(const LogString *name) { name_ = name; }
 
  protected:
   template<int... S> void execute_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     this->execute(std::get<S>(tuple)...);
   }
 
-  std::string name_;
+  const LogString *name_{nullptr};
 };
 
 /** A script type for which only a single instance at a time is allowed.
@@ -68,7 +68,7 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
   void execute(Ts... x) override {
     if (this->is_action_running()) {
       this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' is already running! (mode: single)"),
-                      this->name_.c_str());
+                      LOG_STR_ARG(this->name_));
       return;
     }
 
@@ -85,7 +85,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
  public:
   void execute(Ts... x) override {
     if (this->is_action_running()) {
-      this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), this->name_.c_str());
+      this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), LOG_STR_ARG(this->name_));
       this->stop_action();
     }
 
@@ -105,12 +105,12 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // num_runs_ + 1
       if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
         this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of queued runs exceeded!"),
-                        this->name_.c_str());
+                        LOG_STR_ARG(this->name_));
         return;
       }
 
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
-                      this->name_.c_str());
+                      LOG_STR_ARG(this->name_));
       this->num_runs_++;
       this->var_queue_.push(std::make_tuple(x...));
       return;
@@ -157,7 +157,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
   void execute(Ts... x) override {
     if (this->max_runs_ != 0 && this->automation_parent_->num_running() >= this->max_runs_) {
       this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of parallel runs exceeded!"),
-                      this->name_.c_str());
+                      LOG_STR_ARG(this->name_));
       return;
     }
     this->trigger(x...);

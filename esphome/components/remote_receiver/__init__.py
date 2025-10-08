@@ -5,6 +5,8 @@ from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_CARRIER_DUTY_PERCENT,
+    CONF_CARRIER_FREQUENCY,
     CONF_CLOCK_RESOLUTION,
     CONF_DUMP,
     CONF_FILTER,
@@ -149,6 +151,14 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 ),
                 cv.boolean,
             ),
+            cv.SplitDefault(CONF_CARRIER_DUTY_PERCENT, esp32=100): cv.All(
+                cv.only_on_esp32,
+                cv.percentage_int,
+                cv.Range(min=1, max=100),
+            ),
+            cv.SplitDefault(CONF_CARRIER_FREQUENCY, esp32="0Hz"): cv.All(
+                cv.only_on_esp32, cv.frequency, cv.int_
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -168,6 +178,8 @@ async def to_code(config):
             cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
         if CONF_FILTER_SYMBOLS in config:
             cg.add(var.set_filter_symbols(config[CONF_FILTER_SYMBOLS]))
+        cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
+        cg.add(var.set_carrier_frequency(config[CONF_CARRIER_FREQUENCY]))
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 
@@ -196,8 +208,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "remote_receiver_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "remote_receiver_libretiny.cpp": {
+        "remote_receiver.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,

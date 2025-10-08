@@ -24,7 +24,8 @@ static const char *const PROLOGUE_INIT = "NoiseAPIInit";
 #endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, this->client_info_->get_combined_info().c_str(), ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())
@@ -131,26 +132,16 @@ APIError APINoiseFrameHelper::loop() {
   return APIFrameHelper::loop();
 }
 
-/** Read a packet into the rx_buf_. If successful, stores frame data in the frame parameter
+/** Read a packet into the rx_buf_.
  *
- * @param frame: The struct to hold the frame information in.
- *   msg_start: points to the start of the payload - this pointer is only valid until the next
- *     try_receive_raw_ call
- *
- * @return 0 if a full packet is in rx_buf_
- * @return -1 if error, check errno.
+ * @return APIError::OK if a full packet is in rx_buf_
  *
  * errno EWOULDBLOCK: Packet could not be read without blocking. Try again later.
  * errno ENOMEM: Not enough memory for reading packet.
  * errno API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  * errno API_ERROR_HANDSHAKE_PACKET_LEN: Packet too big for this phase.
  */
-APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
-  if (frame == nullptr) {
-    HELPER_LOG("Bad argument for try_read_frame_");
-    return APIError::BAD_ARG;
-  }
-
+APIError APINoiseFrameHelper::try_read_frame_() {
   // read header
   if (rx_header_buf_len_ < 3) {
     // no header information yet
@@ -177,16 +168,17 @@ APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
   // read body
   uint16_t msg_size = (((uint16_t) rx_header_buf_[1]) << 8) | rx_header_buf_[2];
 
-  if (state_ != State::DATA && msg_size > 128) {
-    // for handshake message only permit up to 128 bytes
+  // Check against size limits to prevent OOM: MAX_HANDSHAKE_SIZE for handshake, MAX_MESSAGE_SIZE for data
+  uint16_t limit = (state_ == State::DATA) ? MAX_MESSAGE_SIZE : MAX_HANDSHAKE_SIZE;
+  if (msg_size > limit) {
     state_ = State::FAILED;
-    HELPER_LOG("Bad packet len for handshake: %d", msg_size);
-    return APIError::BAD_HANDSHAKE_PACKET_LEN;
+    HELPER_LOG("Bad packet: message size %u exceeds maximum %u", msg_size, limit);
+    return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
-  // reserve space for body
-  if (rx_buf_.size() != msg_size) {
-    rx_buf_.resize(msg_size);
+  // Reserve space for body
+  if (this->rx_buf_.size() != msg_size) {
+    this->rx_buf_.resize(msg_size);
   }
 
   if (rx_buf_len_ < msg_size) {
@@ -204,12 +196,12 @@ APIError APINoiseFrameHelper::try_read_frame_(std::vector<uint8_t> *frame) {
     }
   }
 
-  LOG_PACKET_RECEIVED(rx_buf_);
-  *frame = std::move(rx_buf_);
-  // consume msg
-  rx_buf_ = {};
-  rx_buf_len_ = 0;
-  rx_header_buf_len_ = 0;
+  LOG_PACKET_RECEIVED(this->rx_buf_);
+
+  // Clear state for next frame (rx_buf_ still contains data for caller)
+  this->rx_buf_len_ = 0;
+  this->rx_header_buf_len_ = 0;
+
   return APIError::OK;
 }
 
@@ -231,18 +223,17 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::CLIENT_HELLO) {
     // waiting for client hello
-    std::vector<uint8_t> frame;
-    aerr = try_read_frame_(&frame);
+    aerr = this->try_read_frame_();
     if (aerr != APIError::OK) {
       return handle_handshake_frame_error_(aerr);
     }
     // ignore contents, may be used in future for flags
     // Resize for: existing prologue + 2 size bytes + frame data
-    size_t old_size = prologue_.size();
-    prologue_.resize(old_size + 2 + frame.size());
-    prologue_[old_size] = (uint8_t) (frame.size() >> 8);
-    prologue_[old_size + 1] = (uint8_t) frame.size();
-    std::memcpy(prologue_.data() + old_size + 2, frame.data(), frame.size());
+    size_t old_size = this->prologue_.size();
+    this->prologue_.resize(old_size + 2 + this->rx_buf_.size());
+    this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
+    this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
+    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
 
     state_ = State::SERVER_HELLO;
   }
@@ -284,24 +275,23 @@ APIError APINoiseFrameHelper::state_action_() {
     int action = noise_handshakestate_get_action(handshake_);
     if (action == NOISE_ACTION_READ_MESSAGE) {
       // waiting for handshake msg
-      std::vector<uint8_t> frame;
-      aerr = try_read_frame_(&frame);
+      aerr = this->try_read_frame_();
       if (aerr != APIError::OK) {
         return handle_handshake_frame_error_(aerr);
       }
 
-      if (frame.empty()) {
+      if (this->rx_buf_.empty()) {
         send_explicit_handshake_reject_(LOG_STR("Empty handshake message"));
         return APIError::BAD_HANDSHAKE_ERROR_BYTE;
-      } else if (frame[0] != 0x00) {
-        HELPER_LOG("Bad handshake error byte: %u", frame[0]);
+      } else if (this->rx_buf_[0] != 0x00) {
+        HELPER_LOG("Bad handshake error byte: %u", this->rx_buf_[0]);
         send_explicit_handshake_reject_(LOG_STR("Bad handshake error byte"));
         return APIError::BAD_HANDSHAKE_ERROR_BYTE;
       }
 
       NoiseBuffer mbuf;
       noise_buffer_init(mbuf);
-      noise_buffer_set_input(mbuf, frame.data() + 1, frame.size() - 1);
+      noise_buffer_set_input(mbuf, this->rx_buf_.data() + 1, this->rx_buf_.size() - 1);
       err = noise_handshakestate_read_message(handshake_, &mbuf, nullptr);
       if (err != 0) {
         // Special handling for MAC failure
@@ -378,35 +368,33 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  int err;
-  APIError aerr;
-  aerr = state_action_();
+  APIError aerr = this->state_action_();
   if (aerr != APIError::OK) {
     return aerr;
   }
 
-  if (state_ != State::DATA) {
+  if (this->state_ != State::DATA) {
     return APIError::WOULD_BLOCK;
   }
 
-  std::vector<uint8_t> frame;
-  aerr = try_read_frame_(&frame);
+  aerr = this->try_read_frame_();
   if (aerr != APIError::OK)
     return aerr;
 
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, frame.data(), frame.size(), frame.size());
-  err = noise_cipherstate_decrypt(recv_cipher_, &mbuf);
+  noise_buffer_set_inout(mbuf, this->rx_buf_.data(), this->rx_buf_.size(), this->rx_buf_.size());
+  int err = noise_cipherstate_decrypt(this->recv_cipher_, &mbuf);
   APIError decrypt_err =
       handle_noise_error_(err, LOG_STR("noise_cipherstate_decrypt"), APIError::CIPHERSTATE_DECRYPT_FAILED);
-  if (decrypt_err != APIError::OK)
+  if (decrypt_err != APIError::OK) {
     return decrypt_err;
+  }
 
   uint16_t msg_size = mbuf.size;
-  uint8_t *msg_data = frame.data();
+  uint8_t *msg_data = this->rx_buf_.data();
   if (msg_size < 4) {
-    state_ = State::FAILED;
+    this->state_ = State::FAILED;
     HELPER_LOG("Bad data packet: size %d too short", msg_size);
     return APIError::BAD_DATA_PACKET;
   }
@@ -414,12 +402,12 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   uint16_t type = (((uint16_t) msg_data[0]) << 8) | msg_data[1];
   uint16_t data_len = (((uint16_t) msg_data[2]) << 8) | msg_data[3];
   if (data_len > msg_size - 4) {
-    state_ = State::FAILED;
+    this->state_ = State::FAILED;
     HELPER_LOG("Bad data packet: data_len %u greater than msg_size %u", data_len, msg_size);
     return APIError::BAD_DATA_PACKET;
   }
 
-  buffer->container = std::move(frame);
+  buffer->container = std::move(this->rx_buf_);
   buffer->data_offset = 4;
   buffer->data_len = data_len;
   buffer->type = type;
