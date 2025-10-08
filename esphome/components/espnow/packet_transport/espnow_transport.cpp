@@ -91,9 +91,9 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
   return false;
 }
 
-  std::vector<uint8_t> packet_data(data, data + size);
-  this->process_(packet_data);
-  return false;  // Allow other handlers to run
+std::vector<uint8_t> packet_data(data, data + size);
+this->process_(packet_data);
+return false;  // Allow other handlers to run
 }
 
 }  // namespace espnow
