@@ -2,7 +2,6 @@
 #if defined(USE_ESP32) && defined(USE_MDNS)
 
 #include <mdns.h>
-#include <cstring>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
@@ -30,19 +29,14 @@ void MDNSComponent::setup() {
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
       // key and value are either compile-time string literals in flash or pointers to dynamic_txt_values_
-      // ESP-IDF requires strdup for both to keep them alive during mdns operation
+      // Both remain valid for the lifetime of this function, and ESP-IDF makes internal copies
       it.key = MDNS_STR_ARG(record.key);
-      it.value = strdup(MDNS_STR_ARG(record.value));
+      it.value = MDNS_STR_ARG(record.value);
       txt_records.push_back(it);
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
     err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
                            txt_records.data(), txt_records.size());
-
-    // free records
-    for (const auto &it : txt_records) {
-      free((void *) it.value);  // NOLINT(cppcoreguidelines-no-malloc)
-    }
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
