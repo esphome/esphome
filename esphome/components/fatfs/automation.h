@@ -3,12 +3,12 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esp_log.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace fatfs {
 
-const char *TAG = "fatfs_automation";
+static const char *const TAG = "fatfs_automation";
 
 template<typename... Ts> class FatIsExistCondition : public Condition<Ts...> {
  public:

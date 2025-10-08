@@ -16,7 +16,7 @@ namespace fatfs_esp32 {
 using namespace esphome::fatfs;
 static const char *const TAG = "fatfs_esp32";
 
-std::map<std::uint8_t, StorageIO *> db;
+std::map<std::uint8_t, StorageIO *> db;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 using enum fatfs::StorageState;
 
 //--------------------------------------------------------------------------------

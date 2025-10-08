@@ -192,7 +192,7 @@ class StorageIO {
 class FatESP32 : public fatfs::FatFs {
  public:
   bool set_io_driver(StorageIO *io_class);
-  void set_mount_point(std::string path) { path_ = std::move(path); };
+  void set_mount_point(std::string &path) { path_ = std::move(path); };
   std::string get_mount_point() { return path_; };
 
   /**
@@ -247,7 +247,7 @@ class FatESP32 : public fatfs::FatFs {
   fatfs::FatError error_ = fatfs::FatError::FR_OK;
 };
 
-extern std::map<std::uint8_t, StorageIO *> db;
+extern std::map<std::uint8_t, StorageIO *> db;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace fatfs_esp32
 }  // namespace esphome
