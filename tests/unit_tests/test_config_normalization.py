@@ -11,13 +11,6 @@ from esphome.core import CORE
 
 
 @pytest.fixture
-def mock_get_component() -> Generator[Mock, None, None]:
-    """Fixture for mocking get_component."""
-    with patch("esphome.config.get_component") as mock_get_component:
-        yield mock_get_component
-
-
-@pytest.fixture
 def mock_get_platform() -> Generator[Mock, None, None]:
     """Fixture for mocking get_platform."""
     with patch("esphome.config.get_platform") as mock_get_platform:

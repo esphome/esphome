@@ -1104,7 +1104,7 @@ class HomeassistantServiceMap final : public ProtoMessage {
 class HomeassistantActionRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 35;
-  static constexpr uint8_t ESTIMATED_SIZE = 113;
+  static constexpr uint8_t ESTIMATED_SIZE = 128;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
@@ -1114,6 +1114,15 @@ class HomeassistantActionRequest final : public ProtoMessage {
   std::vector<HomeassistantServiceMap> data_template{};
   std::vector<HomeassistantServiceMap> variables{};
   bool is_event{false};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  uint32_t call_id{0};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  bool wants_response{false};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  std::string response_template{};
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1121,6 +1130,30 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #endif
 
  protected:
+};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+class HomeassistantActionResponse final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 130;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "homeassistant_action_response"; }
+#endif
+  uint32_t call_id{0};
+  bool success{false};
+  std::string error_message{};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  const uint8_t *response_data{nullptr};
+  uint16_t response_data_len{0};
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
