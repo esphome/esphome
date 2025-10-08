@@ -1,7 +1,7 @@
 substitutions:
-  cs_pin: GPIO4
-  dc_pin: GPIO5
-  disp_reset_pin: GPIO6
+  cs_pin: GPIO7
+  dc_pin: GPIO9
+  disp_reset_pin: GPIO18
   interrupt_pin: GPIO2
   reset_pin: GPIO3
 packages:
