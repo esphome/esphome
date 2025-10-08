@@ -76,6 +76,7 @@ void UDPComponent::setup() {
     int8_t err;
     if (this->listen_address_.has_value()) {
 #if USE_HOST
+#if USE_NETWORK_IPV6
       server.sin6_port = htons(this->listen_port_);
       this->listen_socket_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IPV6);
 
@@ -85,7 +86,16 @@ void UDPComponent::setup() {
       group.ipv6mr_interface = 0;
       inet_pton(AF_INET6, this->listen_address_.value().str().c_str(), &group.ipv6mr_multiaddr);
       this->listen_socket_->setsockopt(IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &group, sizeof(group));
-#elif USE_NETWORK_IPV6
+#else  /* USE_NETWORK_IPV6 */
+      server.sin_port = htons(this->listen_port_);
+      this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+      this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
+      ip_mreq group = {};
+      inet_pton(AF_INET, this->listen_address_.value().str().c_str(), &group.imr_multiaddr);
+      this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &group, sizeof(group));
+#endif /* USE_NETWORK_IPV6 */
+#else  /* USE_HOST */
+#if USE_NETWORK_IPV6
       server.sin6_port = htons(this->listen_port_);
       struct ipv6_mreq v6imreq {};
 
@@ -148,7 +158,7 @@ void UDPComponent::setup() {
           return;
         }
       }
-#else
+#else  /* USE_NETWORK_IPV6 */
       this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
       server.sin_family = AF_INET;
       server.sin_port = htons(this->listen_port_);
@@ -162,7 +172,8 @@ void UDPComponent::setup() {
         this->status_set_error("Failed to set IP_ADD_MEMBERSHIP");
         return;
       }
-#endif
+#endif /* USE_NETWORK_IPV6 */
+#endif /* USE_HOST */
     }
     err = this->listen_socket_->setblocking(false);
     if (err < 0) {
