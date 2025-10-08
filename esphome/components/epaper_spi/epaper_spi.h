@@ -71,22 +71,23 @@ class EPaperBase : public display::DisplayBuffer,
   void start_data_();
   void end_data_();
 
+  const size_t init_sequence_length_{0};
+
+  size_t current_data_index_{0};
+  uint32_t reset_duration_{200};
+  uint32_t waiting_for_idle_last_print_{0};
+
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
 
   const uint8_t *init_sequence_{nullptr};
-  const size_t init_sequence_length_{0};
-
-  uint32_t reset_duration_{200};
-
-  split_buffer::SplitBuffer buffer_;
-  size_t current_data_index_{0};
-
-  std::queue<EPaperState> state_queue_{{EPaperState::IDLE}};
 
   bool waiting_for_idle_{false};
-  uint32_t waiting_for_idle_last_print_{0};
+
+  split_buffer::SplitBuffer buffer_;
+
+  std::queue<EPaperState> state_queue_{{EPaperState::IDLE}};
 };
 
 }  // namespace esphome::epaper_spi

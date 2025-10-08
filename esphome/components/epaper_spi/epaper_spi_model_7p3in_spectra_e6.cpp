@@ -5,27 +5,27 @@ namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.7.3in-spectra-e6";
 
 void EPaper7p3InSpectraE6::power_on() {
-  ESP_LOGI(TAG, "Power on the display");
+  ESP_LOGI(TAG, "Power on");
   this->command(0x04);
   this->waiting_for_idle_ = true;
 }
 
 void EPaper7p3InSpectraE6::power_off() {
-  ESP_LOGI(TAG, "Power off the display");
+  ESP_LOGI(TAG, "Power off");
   this->command(0x02);
   this->data(0x00);
   this->waiting_for_idle_ = true;
 }
 
 void EPaper7p3InSpectraE6::refresh_screen() {
-  ESP_LOGI(TAG, "Refresh the display");
+  ESP_LOGI(TAG, "Refresh");
   this->command(0x12);
   this->data(0x00);
   this->waiting_for_idle_ = true;
 }
 
 void EPaper7p3InSpectraE6::deep_sleep() {
-  ESP_LOGI(TAG, "Set the display to deep sleep");
+  ESP_LOGI(TAG, "Deep sleep");
   this->command(0x07);
   this->data(0xA5);
 }
