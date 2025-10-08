@@ -1,11 +1,7 @@
 substitutions:
-  client_tx_pin: GPIO1
-  client_rx_pin: GPIO3
-  server_tx_pin: GPIO0
-  server_rx_pin: GPIO2
   flow_control_pin: GPIO15
 
 packages:
-  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
 <<: !include common.yaml
