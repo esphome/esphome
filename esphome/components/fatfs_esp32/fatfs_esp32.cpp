@@ -168,7 +168,7 @@ void FatESP32::relese_driver() {
  */
 bool FatESP32::mount() {
   FATFS *local_fs;
-  const char *ldrv = this->get_drive_name().c_str();
+  const char *ldrv = strdup(this->get_drive_name().c_str());
 
   esp_err_t err = esp_vfs_fat_register(path_.c_str(), ldrv, FAT_MAX_FILES, &local_fs);
   if (err == ESP_ERR_INVALID_STATE) {
@@ -211,18 +211,18 @@ void FatESP32::unmount() {
 
 //--------------------------------------------------------------------------------
 
-fatfs::FatInfo *FatESP32::get_info(std::string path) { return new FatESP32Info(path); }
+fatfs::FatInfo *FatESP32::get_info(std::string &path) { return new FatESP32Info(path); }
 
 //--------------------------------------------------------------------------------
 
-bool FatESP32::is_exist(std::string path) {
+bool FatESP32::is_exist(std::string &path) {
   auto fs = FatESP32Info(path);
   return fs.is_exist();
 }
 
 //--------------------------------------------------------------------------------
 
-fatfs::FileObject *FatESP32::open_file(std::string path, uint8_t mode) {
+fatfs::FileObject *FatESP32::open_file(std::string &path, uint8_t mode) {
   FatESP32File *fl = new FatESP32File(path, mode);
   error_ = fl->file_error();
   // if (fl->error() != fatfs::FatError::FR_OK) {
@@ -244,7 +244,7 @@ fatfs::FileObject *FatESP32::open_file(fatfs::FatInfo *obj, uint8_t mode) {
 
 //--------------------------------------------------------------------------------
 
-fatfs::DirObject *FatESP32::open_dir(std::string path) {
+fatfs::DirObject *FatESP32::open_dir(std::string &path) {
   ESP_LOGV(TAG, "Open dir from path %s", path.c_str());
   FatESP32Dir *d_obj = new FatESP32Dir(path);
   error_ = d_obj->file_error();
@@ -262,7 +262,7 @@ fatfs::DirObject *FatESP32::open_dir(fatfs::FatInfo *obj) {
 
 //--------------------------------------------------------------------------------
 
-fatfs::DirObject *FatESP32::mk_dir(const std::string path) {
+fatfs::DirObject *FatESP32::mk_dir(std::string &path) {
   error_ = static_cast<fatfs::FatError>(f_mkdir(path.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
     ESP_LOGE(TAG, "f_mkdir  %s failled (0x%x) %s", path.c_str(), static_cast<int>(error_),
@@ -276,16 +276,17 @@ fatfs::DirObject *FatESP32::mk_dir(const std::string path) {
 
 //--------------------------------------------------------------------------------
 
-fatfs::DirObject *FatESP32::mk_dir(fatfs::FatInfo *obj, const std::string name) {
-  return this->mk_dir(obj->get_full_path() + "/" + std::string(name));
+fatfs::DirObject *FatESP32::mk_dir(fatfs::FatInfo *obj, std::string &name) {
+  std::string dir = obj->get_full_path() + "/" + name;
+  return this->mk_dir(dir);
 }
 
 //--------------------------------------------------------------------------------
 
-bool FatESP32::del(const std::string path) {
+bool FatESP32::del(std::string &path) {
   error_ = static_cast<fatfs::FatError>(f_unlink(path.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
-    ESP_LOGE(TAG, "f_unlink  %s failled (0x%x) %s", path, static_cast<int>(error_),
+    ESP_LOGE(TAG, "f_unlink  %s failled (0x%x) %s", path.c_str(), static_cast<int>(error_),
              fs_errstr(static_cast<int>(error_)));
     return false;
   }
@@ -294,10 +295,10 @@ bool FatESP32::del(const std::string path) {
 
 //--------------------------------------------------------------------------------
 
-bool FatESP32::rename(const std::string path_from, const std::string path_to) {
+bool FatESP32::rename(std::string &path_from, std::string &path_to) {
   error_ = static_cast<fatfs::FatError>(f_rename(path_from.c_str(), path_to.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
-    ESP_LOGE(TAG, "f_rename %s - %s failled (0x%x) %s", path_from, path_to, static_cast<int>(error_),
+    ESP_LOGE(TAG, "f_rename %s - %s failled (0x%x) %s", path_from.c_str(), path_to.c_str(), static_cast<int>(error_),
              fs_errstr(static_cast<int>(error_)));
     return false;
   }

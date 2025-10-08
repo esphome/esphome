@@ -226,16 +226,16 @@ class FatESP32 : public fatfs::FatFs {
    */
   bool is_mount() override { return fs_ != NULL; };
 
-  fatfs::FatInfo *get_info(std::string path) override;
-  bool is_exist(std::string path) override;
-  fatfs::FileObject *open_file(std::string path, uint8_t mode) override;
+  fatfs::FatInfo *get_info(std::string &path) override;
+  bool is_exist(std::string &path) override;
+  fatfs::FileObject *open_file(std::string &path, uint8_t mode) override;
   fatfs::FileObject *open_file(fatfs::FatInfo *obj, uint8_t mode) override;
-  fatfs::DirObject *open_dir(std::string path) override;
+  fatfs::DirObject *open_dir(std::string &path) override;
   fatfs::DirObject *open_dir(fatfs::FatInfo *obj) override;
-  fatfs::DirObject *mk_dir(std::string path) override;
-  fatfs::DirObject *mk_dir(fatfs::FatInfo *obj, std::string name) override;
-  bool del(std::string path) override;
-  bool rename(std::string path_from, std::string path_to) override;
+  fatfs::DirObject *mk_dir(std::string &path) override;
+  fatfs::DirObject *mk_dir(fatfs::FatInfo *obj, std::string &name) override;
+  bool del(std::string &path) override;
+  bool rename(std::string &path_from, std::string &path_to) override;
   fatfs::FatError file_error() override { return error_; };
   const char *print_file_error() override { return fs_errstr(static_cast<int>(error_)); };
 

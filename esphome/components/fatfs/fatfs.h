@@ -316,7 +316,7 @@ class FatFs {
    * @param path  Path to object (file or directory)
    * @return FatInfo*
    */
-  virtual FatInfo *get_info(std::string path) { return NULL; };
+  virtual FatInfo *get_info(std::string &path) { return NULL; };
   /**
    * @brief Check if object exist in fs
    *
@@ -324,7 +324,7 @@ class FatFs {
    * @return true
    * @return false
    */
-  virtual bool is_exist(std::string path) { return false; };
+  virtual bool is_exist(std::string &path) { return false; };
   /**
    * @brief Open object as file otherwise return NULL pointer
    *
@@ -332,7 +332,7 @@ class FatFs {
    * @param mode open mode (see @ref FileObject::open)
    * @return FileObject*
    */
-  virtual FileObject *open_file(std::string path, uint8_t mode) { return NULL; };
+  virtual FileObject *open_file(std::string &path, uint8_t mode) { return NULL; };
   /**
    * @brief Open object as file otherwise return NULL pointer
    *
@@ -347,7 +347,7 @@ class FatFs {
    * @param path path to directory
    * @return DirObject*
    */
-  virtual DirObject *open_dir(std::string path) { return NULL; };
+  virtual DirObject *open_dir(std::string &path) { return NULL; };
   /**
    * @brief
    *
@@ -361,7 +361,7 @@ class FatFs {
    * @param path path to new directory
    * @return DirObject*
    */
-  virtual DirObject *mk_dir(const std::string path) { return NULL; };
+  virtual DirObject *mk_dir(std::string &path) { return NULL; };
   /**
    * @brief Create directory as children or specifyed obj with name
    *
@@ -369,7 +369,7 @@ class FatFs {
    * @param name name of new directory
    * @return DirObject*
    */
-  virtual DirObject *mk_dir(FatInfo *obj, const std::string name) { return NULL; };
+  virtual DirObject *mk_dir(FatInfo *obj, std::string &name) { return NULL; };
   /**
    * @brief Removes a file or sub-directory from the volume.
    *
@@ -377,7 +377,7 @@ class FatFs {
    * @return true
    * @return false
    */
-  virtual bool del(const std::string path) { return false; };
+  virtual bool del(std::string &path) { return false; };
   /**
    * @brief Renames and/or moves a file or sub-directory.
    *
@@ -386,7 +386,7 @@ class FatFs {
    * @return true
    * @return false
    */
-  virtual bool rename(const std::string path_from, const std::string path_to) { return false; };
+  virtual bool rename(std::string &path_from, std::string &path_to) { return false; };
   /**
    * @brief error of last FS operation
    *

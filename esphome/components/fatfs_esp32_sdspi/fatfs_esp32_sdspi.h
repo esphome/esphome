@@ -141,7 +141,7 @@ class FatESP32sdspi : private FatESP32, public PollingComponent {
    * @return true
    * @return false
    */
-  bool test_fs(std::string path);
+  bool test_fs(std::string &path);
 
  private:
   SdspiIO *io_driver_{NULL};

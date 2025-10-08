@@ -96,7 +96,8 @@ void FatESP32sdspi::setup() {
       return;
     } else {
 #ifdef FATFS_FS_TEST
-      this->test_fs("/");
+      std::string test_path = "/";
+      this->test_fs(test_path);
 #endif
     }
   }
@@ -152,7 +153,8 @@ bool FatESP32sdspi::is_card() {
   ESP_LOGD(TAG, "Check storage present = %s", TRUEFALSE(ret));
 #ifdef FATFS_FS_TEST
   if ((ret) && (this->is_mount())) {
-    this->test_fs("0:/pic");
+    std::string test_path = "0:/pic";
+    this->test_fs(test_path);
   }
 #endif
   return ret;
@@ -204,7 +206,7 @@ bool FatESP32sdspi::reinit_driver(StorageState state) {
  * @return true
  * @return false
  */
-bool FatESP32sdspi::test_fs(const std::string path) {
+bool FatESP32sdspi::test_fs(std::string &path) {
   uint8_t res;
 
   ESP_LOGD(TAG, "TEST FS for path %s", path.c_str());
