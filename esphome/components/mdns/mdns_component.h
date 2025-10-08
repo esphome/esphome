@@ -62,7 +62,7 @@ class MDNSComponent : public Component {
   /// Add a dynamic TXT value and return pointer to it for use in MDNSTXTRecord
   const char *add_dynamic_txt_value(const std::string &value) {
     this->dynamic_txt_values_.push_back(value);
-    return this->dynamic_txt_values_.back().c_str();
+    return this->dynamic_txt_values_[this->dynamic_txt_values_.size() - 1].c_str();
   }
 
   /// Storage for runtime-generated TXT values (MAC address, user lambdas)

@@ -146,15 +146,6 @@ template<typename T, size_t N> class StaticVector {
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 
-  T &back() {
-    assert(count_ > 0 && "back() called on empty StaticVector");
-    return data_[count_ - 1];
-  }
-  const T &back() const {
-    assert(count_ > 0 && "back() called on empty StaticVector");
-    return data_[count_ - 1];
-  }
-
   // For range-based for loops
   iterator begin() { return data_.begin(); }
   iterator end() { return data_.begin() + count_; }
