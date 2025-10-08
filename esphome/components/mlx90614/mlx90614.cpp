@@ -167,7 +167,7 @@ void MLX90614Component::update() {
     this->emissivity_write_ec_ = this->write_emissivity_();
     if (i2c::ERROR_OK != this->emissivity_write_ec_) {
       this->status_set_warning("Failed to write emissivity");
-      return
+      return;
     }
   }
 
