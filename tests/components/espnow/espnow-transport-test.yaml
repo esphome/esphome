@@ -19,7 +19,7 @@ packet_transport:
   - platform: espnow
     id: transport1
     espnow_id: espnow_component
-    broadcast_address: "FF:FF:FF:FF:FF:FF"
+    peer_address: "FF:FF:FF:FF:FF:FF"
     encryption:
       key: "0123456789abcdef0123456789abcdef"
     sensors:
