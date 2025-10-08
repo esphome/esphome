@@ -97,7 +97,7 @@ void MDNSComponent::compile_records_() {
     txt_records.reserve(txt_count);
 
     if (!friendly_name_empty) {
-      txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(this->add_dynamic_txt_value(friendly_name))});
+      txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(ESPHOME_VERSION)});
     txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
