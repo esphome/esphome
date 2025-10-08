@@ -58,24 +58,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def mdns_txt_record_static(key: str, value: str):
-    """Create a TXT record with a static (compile-time) value stored in flash."""
-    return cg.StructInitializer(
-        MDNSTXTRecord,
-        ("key", cg.RawExpression(f"MDNS_STR({cg.safe_exp(key)})")),
-        ("value", cg.RawExpression(f"MDNS_STR({cg.safe_exp(value)})")),
-    )
-
-
-def mdns_txt_record_dynamic(key: str, value_expr: str):
-    """Create a TXT record with a dynamic value (will be evaluated and stored in vector)."""
-    return cg.StructInitializer(
-        MDNSTXTRecord,
-        ("key", cg.RawExpression(f"MDNS_STR({cg.safe_exp(key)})")),
-        ("value", cg.RawExpression(f"MDNS_STR({value_expr})")),
-    )
-
-
 def mdns_service(
     service: str, proto: str, port: int, txt_records: list[dict[str, str]]
 ):
