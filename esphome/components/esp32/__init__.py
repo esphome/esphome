@@ -789,6 +789,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+        add_idf_sdkconfig_option("CONFIG_MODEL_IN_FLASH", False)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
