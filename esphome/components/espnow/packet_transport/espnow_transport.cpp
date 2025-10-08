@@ -73,7 +73,7 @@ bool ESPNowTransport::on_received(const ESPNowRecvInfo &info, const uint8_t *dat
   this->packet_buffer_.resize(size);
   memcpy(this->packet_buffer_.data(), data, size);
   this->process_(this->packet_buffer_);
-  return false;
+  return false;  // Allow other handlers to run
 }
 
 bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) {
@@ -88,15 +88,11 @@ bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *
   this->packet_buffer_.resize(size);
   memcpy(this->packet_buffer_.data(), data, size);
   this->process_(this->packet_buffer_);
-  return false;
-}
-
-std::vector<uint8_t> packet_data(data, data + size);
-this->process_(packet_data);
-return false;  // Allow other handlers to run
+  return false;  // Allow other handlers to run
 }
 
 }  // namespace espnow
 }  // namespace esphome
 
 #endif  // USE_ESP32
+
