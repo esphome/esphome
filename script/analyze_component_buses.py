@@ -78,6 +78,38 @@ def uses_local_file_references(component_dir: Path) -> bool:
     return bool(re.search(r"\$\{?component_dir\}?", content))
 
 
+def is_platform_component(component_dir: Path) -> bool:
+    """Check if a component is a platform component (abstract base class).
+
+    Platform components have IS_PLATFORM_COMPONENT = True and cannot be
+    instantiated without a platform-specific implementation. These components
+    define abstract methods and cause linker errors if compiled standalone.
+
+    Examples: canbus, mcp23x08_base, mcp23x17_base
+
+    Args:
+        component_dir: Path to the component's test directory
+
+    Returns:
+        True if this is a platform component
+    """
+    # Check in the actual component source, not tests
+    # tests/components/X -> tests/components -> tests -> repo root
+    repo_root = component_dir.parent.parent.parent
+    comp_init = (
+        repo_root / "esphome" / "components" / component_dir.name / "__init__.py"
+    )
+
+    if not comp_init.exists():
+        return False
+
+    try:
+        content = comp_init.read_text()
+        return "IS_PLATFORM_COMPONENT = True" in content
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
+
+
 def extract_common_buses(yaml_file: Path) -> set[str]:
     """Extract which common bus configs are included in a YAML test file.
 
@@ -149,7 +181,7 @@ def analyze_all_components(
     Returns:
         Tuple of:
         - Dictionary mapping component name to platform->buses mapping
-        - Set of component names that use local files (cannot be grouped)
+        - Set of component names that cannot be grouped (use local files or are platform components)
     """
     if tests_dir is None:
         tests_dir = Path("tests/components")
@@ -173,6 +205,11 @@ def analyze_all_components(
 
         # Check if component uses local file references
         if uses_local_file_references(component_dir):
+            non_groupable.add(component_name)
+
+        # Check if component is a platform component (abstract base class)
+        # Platform components define abstract methods and cause linker errors
+        if is_platform_component(component_dir):
             non_groupable.add(component_name)
 
     return components, non_groupable
@@ -279,6 +316,8 @@ def main() -> None:
             if platform_buses:
                 components[comp] = platform_buses
             if uses_local_file_references(comp_dir):
+                non_groupable.add(comp)
+            if is_platform_component(comp_dir):
                 non_groupable.add(comp)
     else:
         # Analyze all components

@@ -10,6 +10,7 @@ display:
 
 touchscreen:
   - platform: ft63x6
+    id: ft63x6_touchscreen
     interrupt_pin: ${interrupt_pin}
     transform:
       swap_xy: true
