@@ -6,6 +6,5 @@ substitutions:
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-s3-ard.yaml
-  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
 
 <<: !include common.yaml
