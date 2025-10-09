@@ -30,7 +30,7 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
 
 #ifdef USE_UART_DEBUGGER
   // return settings string or empty if not desired
-  std::string get_debug_settings_string(bool debug_add_settings_) {
+  std::string UARTComponent::get_debug_settings_string(bool debug_add_settings_) {
     this->debug_add_settings_ = true;
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
