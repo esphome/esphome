@@ -11,7 +11,7 @@ void CopyLock::setup() {
 
   traits.set_assumed_state(source_->traits.get_assumed_state());
   traits.set_requires_code(source_->traits.get_requires_code());
-  traits.set_supported_states(source_->traits.get_supported_states());
+  traits.set_supported_states_mask(source_->traits.get_supported_states_mask());
   traits.set_supports_open(source_->traits.get_supports_open());
 
   this->publish_state(source_->state);

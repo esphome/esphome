@@ -1,0 +1,12 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# Workaround whole archive issue
+if "__LIB_DEPS" in env and "libespressif__esp_hosted.a" in env["__LIB_DEPS"]:
+    env.Append(
+        LINKFLAGS=[
+            "-Wl,--whole-archive",
+            env["BUILD_DIR"] + "/esp-idf/espressif__esp_hosted/libespressif__esp_hosted.a",
+            "-Wl,--no-whole-archive",
+        ]
+    )

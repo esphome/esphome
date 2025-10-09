@@ -1,7 +1,5 @@
 import esphome.codegen as cg
-
 from esphome.components import i2c
-
 
 CODEOWNERS = ["@martgras"]
 

@@ -1,13 +1,13 @@
+import logging
 from typing import Any
 
-import logging
-from esphome import automation
+from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266, CONF_TRIGGER_ID
-from . import const, schema, validate, generate
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, PLATFORM_ESP32, PLATFORM_ESP8266
+
+from . import const, generate, schema, validate
 
 CODEOWNERS = ["@olegtarasov"]
 MULTI_CONF = True

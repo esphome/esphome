@@ -1,10 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_OCCUPANCY,
-    CONF_HAS_TARGET,
-)
+from esphome.const import CONF_HAS_TARGET, DEVICE_CLASS_OCCUPANCY
+
 from . import CONF_MR60BHA2_ID, MR60BHA2Component
 
 DEPENDENCIES = ["seeed_mr60bha2"]

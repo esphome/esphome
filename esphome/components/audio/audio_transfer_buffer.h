@@ -60,6 +60,7 @@ class AudioTransferBuffer {
 
  protected:
   /// @brief Allocates the transfer buffer in external memory, if available.
+  /// @param buffer_size The number of bytes to allocate
   /// @return True is successful, false otherwise.
   bool allocate_buffer_(size_t buffer_size);
 
@@ -89,8 +90,10 @@ class AudioSinkTransferBuffer : public AudioTransferBuffer {
 
   /// @brief Writes any available data in the transfer buffer to the sink.
   /// @param ticks_to_wait FreeRTOS ticks to block while waiting for the sink to have enough space
+  /// @param post_shift If true, all remaining data is moved to the start of the buffer after transferring to the sink.
+  ///                   Defaults to true.
   /// @return Number of bytes written
-  size_t transfer_data_to_sink(TickType_t ticks_to_wait);
+  size_t transfer_data_to_sink(TickType_t ticks_to_wait, bool post_shift = true);
 
   /// @brief Adds a ring buffer as the transfer buffer's sink.
   /// @param ring_buffer weak_ptr to the allocated ring buffer
@@ -125,8 +128,10 @@ class AudioSourceTransferBuffer : public AudioTransferBuffer {
 
   /// @brief Reads any available data from the sink into the transfer buffer.
   /// @param ticks_to_wait FreeRTOS ticks to block while waiting for the source to have enough data
+  /// @param pre_shift If true, any unwritten data is moved to the start of the buffer before transferring from the
+  ///                  source. Defaults to true.
   /// @return Number of bytes read
-  size_t transfer_data_from_source(TickType_t ticks_to_wait);
+  size_t transfer_data_from_source(TickType_t ticks_to_wait, bool pre_shift = true);
 
   /// @brief Adds a ring buffer as the transfer buffer's source.
   /// @param ring_buffer weak_ptr to the allocated ring buffer

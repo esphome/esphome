@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_CURRENT
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNEL, CONF_CURRENT, CONF_ID
+
 from . import BP5758D
 
 DEPENDENCIES = ["bp5758d"]

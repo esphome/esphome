@@ -29,22 +29,6 @@ namespace am2315c {
 
 static const char *const TAG = "am2315c";
 
-uint8_t AM2315C::crc8_(uint8_t *data, uint8_t len) {
-  uint8_t crc = 0xFF;
-  while (len--) {
-    crc ^= *data++;
-    for (uint8_t i = 0; i < 8; i++) {
-      if (crc & 0x80) {
-        crc <<= 1;
-        crc ^= 0x31;
-      } else {
-        crc <<= 1;
-      }
-    }
-  }
-  return crc;
-}
-
 bool AM2315C::reset_register_(uint8_t reg) {
   //  code based on demo code sent by www.aosong.com
   //  no further documentation.
@@ -86,12 +70,10 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
   humidity = raw * 9.5367431640625e-5;
   raw = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   temperature = raw * 1.9073486328125e-4 - 50;
-  return this->crc8_(data, 6) == data[6];
+  return crc8(data, 6, 0xFF, 0x31, true) == data[6];
 }
 
 void AM2315C::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AM2315C...");
-
   // get status
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
@@ -128,7 +110,7 @@ void AM2315C::update() {
   data[2] = 0x00;
   if (this->write(data, 3) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Write failed!");
-    this->mark_failed();
+    this->status_set_warning();
     return;
   }
 
@@ -138,12 +120,12 @@ void AM2315C::update() {
     uint8_t status = 0;
     if (this->read(&status, 1) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read failed!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
     if ((status & 0x80) == 0x80) {
       ESP_LOGE(TAG, "HW still busy!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
 
@@ -151,7 +133,7 @@ void AM2315C::update() {
     uint8_t data[7];
     if (this->read(data, 7) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Read failed!");
-      this->mark_failed();
+      this->status_set_warning();
       return;
     }
 
@@ -188,7 +170,7 @@ void AM2315C::dump_config() {
   ESP_LOGCONFIG(TAG, "AM2315C:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AM2315C failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

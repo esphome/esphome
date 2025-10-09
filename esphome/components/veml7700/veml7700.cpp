@@ -1,6 +1,7 @@
 #include "veml7700.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include <limits>
 
 namespace esphome {
 namespace veml7700 {
@@ -12,30 +13,30 @@ static float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
   size_t i = 0;
-  size_t idx = -1;
-  while (idx == -1 && i < size) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i < size) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i++;
   }
-  if (idx == -1 || i + 1 >= size)
+  if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
   return array[i + 1];
 }
 
 template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
   size_t i = size - 1;
-  size_t idx = -1;
-  while (idx == -1 && i > 0) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i > 0) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i--;
   }
-  if (idx == -1 || i == 0)
+  if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
   return array[i - 1];
 }
@@ -78,8 +79,6 @@ static const char *get_gain_str(Gain gain) {
 }
 
 void VEML7700Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up VEML7700/6030...");
-
   auto err = this->configure_();
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Sensor configuration failed");
@@ -93,11 +92,15 @@ void VEML7700Component::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Automatic gain/time: %s", YESNO(this->automatic_mode_enabled_));
   if (!this->automatic_mode_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Gain: %s", get_gain_str(this->gain_));
-    ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
+    ESP_LOGCONFIG(TAG,
+                  "  Gain: %s\n"
+                  "  Integration time: %d ms",
+                  get_gain_str(this->gain_), get_itime_ms(this->integration_time_));
   }
-  ESP_LOGCONFIG(TAG, "  Lux compensation: %s", YESNO(this->lux_compensation_enabled_));
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG,
+                "  Lux compensation: %s\n"
+                "  Glass attenuation factor: %f",
+                YESNO(this->lux_compensation_enabled_), this->glass_attenuation_factor_);
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "ALS channel lux", this->ambient_light_sensor_);
@@ -109,7 +112,7 @@ void VEML7700Component::dump_config() {
   LOG_SENSOR("  ", "Actual integration time", this->actual_integration_time_sensor_);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with I2C VEML7700/6030 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 
@@ -277,20 +280,18 @@ ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Ga
 }
 
 ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
-  auto als_err =
-      this->read_register((uint8_t) CommandRegisters::ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE, false);
+  auto als_err = this->read_register((uint8_t) CommandRegisters::ALS, (uint8_t *) &data.als_counts, VEML_REG_SIZE);
   if (als_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS register, err = %d", als_err);
   }
   auto white_err =
-      this->read_register((uint8_t) CommandRegisters::WHITE, (uint8_t *) &data.white_counts, VEML_REG_SIZE, false);
+      this->read_register((uint8_t) CommandRegisters::WHITE, (uint8_t *) &data.white_counts, VEML_REG_SIZE);
   if (white_err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading WHITE register, err = %d", white_err);
   }
 
   ConfigurationRegister conf{0};
-  auto err =
-      this->read_register((uint8_t) CommandRegisters::ALS_CONF_0, (uint8_t *) conf.raw_bytes, VEML_REG_SIZE, false);
+  auto err = this->read_register((uint8_t) CommandRegisters::ALS_CONF_0, (uint8_t *) conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error reading ALS_CONF_0 register, err = %d", white_err);
   }

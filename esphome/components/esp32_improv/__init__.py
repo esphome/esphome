@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import binary_sensor, output
+from esphome.components import binary_sensor, esp32_ble, output
+from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
 
@@ -94,6 +95,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

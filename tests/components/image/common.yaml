@@ -69,3 +69,18 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
+  - file: mdil:arrange-bring-to-front
+    id: mdil_id
+    resize: 50x50
+    type: binary
+    transparency: chroma_key
+  - file: mdi:beer
+    id: mdi_id
+    resize: 50x50
+    type: binary
+    transparency: chroma_key
+  - file: memory:alert-octagon
+    id: memory_id
+    resize: 50x50
+    type: binary
+    transparency: chroma_key

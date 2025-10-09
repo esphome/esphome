@@ -1,8 +1,8 @@
 #ifdef USE_ARDUINO
 
 #include "wled_light_effect.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 #include <WiFi.h>

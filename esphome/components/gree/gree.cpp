@@ -22,13 +22,21 @@ void GreeClimate::transmit_state() {
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
   remote_state[1] = this->temperature_();
 
-  if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
+  if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF || this->model_ == GREE_YAG) {
     remote_state[2] = 0x60;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
   }
 
-  if (this->model_ == GREE_YAC) {
+  if (this->model_ == GREE_YAG) {
+    remote_state[5] = 0x40;
+
+    if (this->vertical_swing_() == GREE_VDIR_SWING || this->horizontal_swing_() == GREE_HDIR_SWING) {
+      remote_state[0] |= (1 << 6);
+    }
+  }
+
+  if (this->model_ == GREE_YAC || this->model_ == GREE_YAG) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
   }
 
@@ -57,6 +65,12 @@ void GreeClimate::transmit_state() {
   // Calculate the checksum
   if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
+  } else if (this->model_ == GREE_YAG) {
+    remote_state[7] =
+        ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
+           ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+          0x0F)
+         << 4);
   } else {
     remote_state[7] =
         ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +

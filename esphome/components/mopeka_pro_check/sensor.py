@@ -1,25 +1,25 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
+    CONF_BATTERY_LEVEL,
     CONF_DISTANCE,
-    CONF_MAC_ADDRESS,
     CONF_ID,
+    CONF_LEVEL,
+    CONF_MAC_ADDRESS,
+    CONF_TEMPERATURE,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_COUNTER,
-    ICON_THERMOMETER,
     ICON_RULER,
     ICON_SIGNAL,
-    UNIT_PERCENT,
-    UNIT_EMPTY,
-    CONF_LEVEL,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
-    UNIT_CELSIUS,
-    UNIT_MILLIMETER,
+    ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    CONF_BATTERY_LEVEL,
-    DEVICE_CLASS_BATTERY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_MILLIMETER,
+    UNIT_PERCENT,
 )
 
 CONF_TANK_TYPE = "tank_type"

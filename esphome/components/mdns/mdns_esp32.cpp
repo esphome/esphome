@@ -2,7 +2,6 @@
 #if defined(USE_ESP32) && defined(USE_MDNS)
 
 #include <mdns.h>
-#include <cstring>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
@@ -17,7 +16,7 @@ void MDNSComponent::setup() {
 
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "mDNS init failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "Init failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
@@ -29,22 +28,18 @@ void MDNSComponent::setup() {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
-      // dup strings to ensure the pointer is valid even after the record loop
-      it.key = strdup(record.key.c_str());
-      it.value = strdup(record.value.c_str());
+      // key and value are either compile-time string literals in flash or pointers to dynamic_txt_values_
+      // Both remain valid for the lifetime of this function, and ESP-IDF makes internal copies
+      it.key = MDNS_STR_ARG(record.key);
+      it.value = MDNS_STR_ARG(record.value);
       txt_records.push_back(it);
     }
-    err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), service.port,
+    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
                            txt_records.data(), txt_records.size());
 
-    // free records
-    for (const auto &it : txt_records) {
-      delete it.key;    // NOLINT(cppcoreguidelines-owning-memory)
-      delete it.value;  // NOLINT(cppcoreguidelines-owning-memory)
-    }
-
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to register mDNS service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
+      ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
     }
   }
 }

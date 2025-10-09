@@ -3,86 +3,70 @@
 #include "api_connection.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
+// Generate entity handler implementations using macros
 #ifdef USE_BINARY_SENSOR
-bool InitialStateIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-  return this->client_->send_binary_sensor_state(binary_sensor, binary_sensor->state);
-}
+INITIAL_STATE_HANDLER(binary_sensor, binary_sensor::BinarySensor)
 #endif
 #ifdef USE_COVER
-bool InitialStateIterator::on_cover(cover::Cover *cover) { return this->client_->send_cover_state(cover); }
+INITIAL_STATE_HANDLER(cover, cover::Cover)
 #endif
 #ifdef USE_FAN
-bool InitialStateIterator::on_fan(fan::Fan *fan) { return this->client_->send_fan_state(fan); }
+INITIAL_STATE_HANDLER(fan, fan::Fan)
 #endif
 #ifdef USE_LIGHT
-bool InitialStateIterator::on_light(light::LightState *light) { return this->client_->send_light_state(light); }
+INITIAL_STATE_HANDLER(light, light::LightState)
 #endif
 #ifdef USE_SENSOR
-bool InitialStateIterator::on_sensor(sensor::Sensor *sensor) {
-  return this->client_->send_sensor_state(sensor, sensor->state);
-}
+INITIAL_STATE_HANDLER(sensor, sensor::Sensor)
 #endif
 #ifdef USE_SWITCH
-bool InitialStateIterator::on_switch(switch_::Switch *a_switch) {
-  return this->client_->send_switch_state(a_switch, a_switch->state);
-}
+INITIAL_STATE_HANDLER(switch, switch_::Switch)
 #endif
 #ifdef USE_TEXT_SENSOR
-bool InitialStateIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
-  return this->client_->send_text_sensor_state(text_sensor, text_sensor->state);
-}
+INITIAL_STATE_HANDLER(text_sensor, text_sensor::TextSensor)
 #endif
 #ifdef USE_CLIMATE
-bool InitialStateIterator::on_climate(climate::Climate *climate) { return this->client_->send_climate_state(climate); }
+INITIAL_STATE_HANDLER(climate, climate::Climate)
 #endif
 #ifdef USE_NUMBER
-bool InitialStateIterator::on_number(number::Number *number) {
-  return this->client_->send_number_state(number, number->state);
-}
+INITIAL_STATE_HANDLER(number, number::Number)
 #endif
 #ifdef USE_DATETIME_DATE
-bool InitialStateIterator::on_date(datetime::DateEntity *date) { return this->client_->send_date_state(date); }
+INITIAL_STATE_HANDLER(date, datetime::DateEntity)
 #endif
 #ifdef USE_DATETIME_TIME
-bool InitialStateIterator::on_time(datetime::TimeEntity *time) { return this->client_->send_time_state(time); }
+INITIAL_STATE_HANDLER(time, datetime::TimeEntity)
 #endif
 #ifdef USE_DATETIME_DATETIME
-bool InitialStateIterator::on_datetime(datetime::DateTimeEntity *datetime) {
-  return this->client_->send_datetime_state(datetime);
-}
+INITIAL_STATE_HANDLER(datetime, datetime::DateTimeEntity)
 #endif
 #ifdef USE_TEXT
-bool InitialStateIterator::on_text(text::Text *text) { return this->client_->send_text_state(text, text->state); }
+INITIAL_STATE_HANDLER(text, text::Text)
 #endif
 #ifdef USE_SELECT
-bool InitialStateIterator::on_select(select::Select *select) {
-  return this->client_->send_select_state(select, select->state);
-}
+INITIAL_STATE_HANDLER(select, select::Select)
 #endif
 #ifdef USE_LOCK
-bool InitialStateIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_state(a_lock, a_lock->state); }
+INITIAL_STATE_HANDLER(lock, lock::Lock)
 #endif
 #ifdef USE_VALVE
-bool InitialStateIterator::on_valve(valve::Valve *valve) { return this->client_->send_valve_state(valve); }
+INITIAL_STATE_HANDLER(valve, valve::Valve)
 #endif
 #ifdef USE_MEDIA_PLAYER
-bool InitialStateIterator::on_media_player(media_player::MediaPlayer *media_player) {
-  return this->client_->send_media_player_state(media_player);
-}
+INITIAL_STATE_HANDLER(media_player, media_player::MediaPlayer)
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-bool InitialStateIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
-  return this->client_->send_alarm_control_panel_state(a_alarm_control_panel);
-}
+INITIAL_STATE_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel)
 #endif
 #ifdef USE_UPDATE
-bool InitialStateIterator::on_update(update::UpdateEntity *update) { return this->client_->send_update_state(update); }
+INITIAL_STATE_HANDLER(update, update::UpdateEntity)
 #endif
+
+// Special cases (button and event) are already defined inline in subscribe_state.h
+
 InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

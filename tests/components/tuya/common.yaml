@@ -60,8 +60,15 @@ number:
 
 select:
   - platform: tuya
-    id: tuya_select
+    id: tuya_select_enum
     enum_datapoint: 42
+    options:
+      0: Internal
+      1: Floor
+      2: Both
+  - platform: tuya
+    id: tuya_select_int
+    int_datapoint: 43
     options:
       0: Internal
       1: Floor

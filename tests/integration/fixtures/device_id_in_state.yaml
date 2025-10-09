@@ -1,0 +1,84 @@
+esphome:
+  name: device-id-state-test
+  # Define areas
+  areas:
+    - id: living_room
+      name: Living Room
+    - id: bedroom
+      name: Bedroom
+  # Define devices
+  devices:
+    - id: temperature_monitor
+      name: Temperature Monitor
+      area_id: living_room
+    - id: humidity_monitor
+      name: Humidity Monitor
+      area_id: bedroom
+    - id: motion_sensor
+      name: Motion Sensor
+      area_id: living_room
+
+host:
+api:
+logger:
+
+# Test different entity types with device assignments
+sensor:
+  - platform: template
+    name: Temperature
+    device_id: temperature_monitor
+    lambda: return 25.5;
+    update_interval: 0.1s
+    unit_of_measurement: "°C"
+
+  - platform: template
+    name: Humidity
+    device_id: humidity_monitor
+    lambda: return 65.0;
+    update_interval: 0.1s
+    unit_of_measurement: "%"
+
+  # Test entity without device_id (should have device_id 0)
+  - platform: template
+    name: No Device Sensor
+    lambda: return 100.0;
+    update_interval: 0.1s
+
+binary_sensor:
+  - platform: template
+    name: Motion Detected
+    device_id: motion_sensor
+    lambda: return true;
+
+switch:
+  - platform: template
+    name: Temperature Monitor Power
+    device_id: temperature_monitor
+    lambda: return true;
+    turn_on_action:
+      - lambda: |-
+          ESP_LOGD("test", "Turning on");
+    turn_off_action:
+      - lambda: |-
+          ESP_LOGD("test", "Turning off");
+
+text_sensor:
+  - platform: template
+    name: Temperature Status
+    device_id: temperature_monitor
+    lambda: return {"Normal"};
+    update_interval: 0.1s
+
+light:
+  - platform: binary
+    name: Motion Light
+    device_id: motion_sensor
+    output: motion_light_output
+
+output:
+  - platform: template
+    id: motion_light_output
+    type: binary
+    write_action:
+      - lambda: |-
+          ESP_LOGD("test", "Light output: %d", state);
