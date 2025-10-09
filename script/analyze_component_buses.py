@@ -48,6 +48,16 @@ PACKAGE_DEPENDENCIES = {
     # Add more package dependencies here as needed
 }
 
+# Base bus components - these ARE the bus implementations and should not
+# be flagged as needing migration since they are the platform/base components
+BASE_BUS_COMPONENTS = {
+    "i2c",
+    "spi",
+    "uart",
+    "modbus",
+    "canbus",
+}
+
 # Components that must be tested in isolation (not grouped or batched with others)
 # These have known build issues that prevent grouping
 # NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
@@ -323,7 +333,8 @@ def analyze_all_components(
 
         # Check if component defines buses directly in test files
         # These create unique bus IDs and cause conflicts when merged
-        if has_direct_bus_config:
+        # Exclude base bus components (i2c, spi, uart, etc.) since they ARE the platform
+        if has_direct_bus_config and component_name not in BASE_BUS_COMPONENTS:
             non_groupable.add(component_name)
             direct_bus_components.add(component_name)
 
@@ -439,7 +450,7 @@ def main() -> None:
                 non_groupable.add(comp)
             if has_extend_remove:
                 non_groupable.add(comp)
-            if has_direct_bus_config:
+            if has_direct_bus_config and comp not in BASE_BUS_COMPONENTS:
                 non_groupable.add(comp)
                 direct_bus_components.add(comp)
     else:
