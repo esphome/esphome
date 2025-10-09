@@ -17,7 +17,7 @@ void UponorSmatrixSensor::dump_config() {
   LOG_SENSOR("  ", "Target Temperature", this->target_temperature_sensor_);
 }
 
-void UponorSmatrixClimate::loop() {
+void UponorSmatrixSensor::loop() {
   if (this->target_temperature_sensor_ == nullptr)
     return;
 
