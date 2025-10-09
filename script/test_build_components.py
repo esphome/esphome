@@ -24,6 +24,7 @@ import sys
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# pylint: disable=wrong-import-position
 from script.analyze_component_buses import (
     analyze_all_components,
     create_grouping_signature,
@@ -235,7 +236,7 @@ def run_grouped_test(
             tests_dir=tests_dir,
             output_file=merged_config_file,
         )
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error merging configs for {components}: {e}")
         if not continue_on_fail:
             raise

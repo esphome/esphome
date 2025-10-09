@@ -91,7 +91,7 @@ def uses_local_file_references(component_dir: Path) -> bool:
 
     try:
         content = common_yaml.read_text()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return False
 
     # Pattern to match $component_dir or ${component_dir} references
@@ -113,7 +113,7 @@ def extract_common_buses(yaml_file: Path) -> set[str]:
 
     try:
         content = yaml_file.read_text()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return set()
 
     buses = set()
