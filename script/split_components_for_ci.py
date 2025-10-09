@@ -65,9 +65,9 @@ def create_intelligent_batches(
             # No buses found
             signature_groups[("none", "none")].append(component)
 
-    # Create batches by grouping components with same signature
+    # Create batches by keeping signature groups together
+    # Components with the same signature stay in the same batches
     batches = []
-    current_batch = []
 
     # Sort signature groups by size (largest first) for better packing
     sorted_groups = sorted(
@@ -77,17 +77,13 @@ def create_intelligent_batches(
     )
 
     for (platform, signature), group_components in sorted_groups:
-        # Add components from this signature group to batches
-        for component in sorted(group_components):  # Sort for determinism
-            current_batch.append(component)
+        # Split this signature group into batches of batch_size
+        # This keeps components with the same signature together
+        sorted_components = sorted(group_components)  # Sort for determinism
 
-            if len(current_batch) >= batch_size:
-                batches.append(current_batch)
-                current_batch = []
-
-    # Add remaining components
-    if current_batch:
-        batches.append(current_batch)
+        for i in range(0, len(sorted_components), batch_size):
+            batch = sorted_components[i : i + batch_size]
+            batches.append(batch)
 
     return batches
 
