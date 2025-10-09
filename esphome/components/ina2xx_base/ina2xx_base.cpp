@@ -258,7 +258,7 @@ bool INA2XX::reset_config_() {
   ESP_LOGV(TAG, "Reset");
   ConfigurationRegister cfg{0};
   if (!this->reset_on_boot_) {
-    ESP_LOGI(TAG, "Skipping on-boot device reset due to reset_on_boot->no");
+    ESP_LOGI(TAG, "Skipping on-boot device reset");
     cfg.RST = false;
   } else {
     cfg.RST = true;

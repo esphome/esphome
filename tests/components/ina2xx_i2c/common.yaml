@@ -12,7 +12,7 @@ sensor:
     max_current: 40 A
     adc_range: 1
     temperature_coefficient: 50
-    reset_on_boot: yes
+    reset_on_boot: true
     shunt_voltage: "INA2xx Shunt Voltage"
     bus_voltage: "INA2xx Bus Voltage"
     current: "INA2xx Current"
