@@ -9,12 +9,11 @@
 namespace esphome {
 namespace web_server {
 
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32
+ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
+#elif USE_ARDUINO
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es)
     : web_server_(ws), events_(es) {}
-#endif
-#ifdef USE_ESP_IDF
-ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
 #endif
 ListEntitiesIterator::~ListEntitiesIterator() {}
 

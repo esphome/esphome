@@ -11,10 +11,16 @@ from esphome.const import (
     CONF_SERVICES,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+
+# Components that create mDNS services at runtime
+# IMPORTANT: If you add a new component here, you must also update the corresponding
+# #ifdef blocks in mdns_component.cpp compile_records_() method
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -52,27 +58,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def mdns_txt_record(key: str, value: str):
-    return cg.StructInitializer(
-        MDNSTXTRecord,
-        ("key", key),
-        ("value", value),
-    )
-
-
 def mdns_service(
     service: str, proto: str, port: int, txt_records: list[dict[str, str]]
 ):
     return cg.StructInitializer(
         MDNSService,
-        ("service_type", service),
-        ("proto", proto),
+        ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
+        ("proto", cg.RawExpression(f"MDNS_STR({cg.safe_exp(proto)})")),
         ("port", port),
         ("txt_records", txt_records),
     )
 
 
-@coroutine_with_priority(CoroPriority.COMMUNICATION)
+@coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config):
     if config[CONF_DISABLED] is True:
         return
@@ -90,26 +88,64 @@ async def to_code(config):
 
     cg.add_define("USE_MDNS")
 
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    # Calculate compile-time service count
+    service_count = sum(
+        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
+    ) + len(config[CONF_SERVICES])
 
     if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
 
+    # Ensure at least 1 service (fallback service)
+    cg.add_define("MDNS_SERVICE_COUNT", max(1, service_count))
+
+    # Calculate compile-time dynamic TXT value count
+    # Dynamic values are those that cannot be stored in flash at compile time
+    dynamic_txt_count = 0
+    if "api" in CORE.config:
+        # Always: get_mac_address()
+        dynamic_txt_count += 1
+    # User-provided templatable TXT values (only lambdas, not static strings)
+    dynamic_txt_count += sum(
+        1
+        for service in config[CONF_SERVICES]
+        for txt_value in service[CONF_TXT].values()
+        if cg.is_template(txt_value)
+    )
+
+    # Ensure at least 1 to avoid zero-size array
+    cg.add_define("MDNS_DYNAMIC_TXT_COUNT", max(1, dynamic_txt_count))
+
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
     for service in config[CONF_SERVICES]:
-        txt = [
-            cg.StructInitializer(
-                MDNSTXTRecord,
-                ("key", txt_key),
-                ("value", await cg.templatable(txt_value, [], cg.std_string)),
-            )
-            for txt_key, txt_value in service[CONF_TXT].items()
-        ]
+        # Build the txt records list for the service
+        txt_records = []
+        for txt_key, txt_value in service[CONF_TXT].items():
+            if cg.is_template(txt_value):
+                # It's a lambda - evaluate and store using helper
+                templated_value = await cg.templatable(txt_value, [], cg.std_string)
+                safe_key = cg.safe_exp(txt_key)
+                dynamic_call = f"{var}->add_dynamic_txt_value(({templated_value})())"
+                txt_records.append(
+                    cg.RawExpression(
+                        f"{{MDNS_STR({safe_key}), MDNS_STR({dynamic_call})}}"
+                    )
+                )
+            else:
+                # It's a static string - use directly in flash, no need to store in vector
+                txt_records.append(
+                    cg.RawExpression(
+                        f"{{MDNS_STR({cg.safe_exp(txt_key)}), MDNS_STR({cg.safe_exp(txt_value)})}}"
+                    )
+                )
+
         exp = mdns_service(
             service[CONF_SERVICE],
             service[CONF_PROTOCOL],
             await cg.templatable(service[CONF_PORT], [], cg.uint16),
-            txt,
+            txt_records,
         )
 
         cg.add(var.add_extra_service(exp))
