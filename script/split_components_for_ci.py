@@ -93,18 +93,18 @@ def create_intelligent_batches(
     # Key: signature, Value: list of components
     signature_groups: dict[str, list[str]] = defaultdict(list)
 
-    # Track isolated components separately (they get their own batches)
-    isolated_components = []
-
     for component in components_with_tests:
-        # Check if component must be tested in isolation
+        # Components in ISOLATED_COMPONENTS can share a batch/runner with others
+        # but won't be grouped/merged - they're tested individually
+        # Give each one a unique signature so they can be batched but not grouped
         if component in ISOLATED_COMPONENTS:
-            isolated_components.append(component)
+            signature_groups[f"isolated_{component}"].append(component)
             continue
 
-        # Skip components that can't be grouped (use local files)
+        # Components that can't be grouped (use local files, etc.)
+        # Also get unique signatures
         if component in non_groupable:
-            signature_groups["isolated"].append(component)
+            signature_groups[f"isolated_{component}"].append(component)
             continue
 
         if component not in component_buses:
@@ -130,13 +130,13 @@ def create_intelligent_batches(
     batches = []
 
     # Sort signature groups to prioritize groupable components
-    # 1. Put "isolated" signature last (can't be grouped with others)
+    # 1. Put "isolated_*" signatures last (can't be grouped with others)
     # 2. Sort groupable signatures by size (largest first)
     # 3. "no_buses" components CAN be grouped together
     def sort_key(item):
         signature, components = item
-        is_isolated = signature == "isolated"
-        # Put "isolated" last (1), groupable first (0)
+        is_isolated = signature.startswith("isolated_")
+        # Put "isolated_*" last (1), groupable first (0)
         # Within each category, sort by size (largest first)
         return (is_isolated, -len(components))
 
@@ -154,13 +154,11 @@ def create_intelligent_batches(
         all_components.extend(group_components)
 
     # Split into batches of batch_size
+    # Isolated components are included in all_components (in "isolated" group)
+    # and will be batched together - they just won't be merged during testing
     for i in range(0, len(all_components), batch_size):
         batch = all_components[i : i + batch_size]
         batches.append(batch)
-
-    # Add isolated components as individual batches (one component per batch)
-    # These must be tested alone due to known build issues
-    batches.extend([component] for component in isolated_components)
 
     return batches
 
