@@ -33,29 +33,9 @@ import sys
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
 
 # Valid common bus config directories
+# All bus types support component grouping for config validation since
+# --testing-mode bypasses runtime conflicts (we only care that configs compile)
 VALID_BUS_CONFIGS = {
-    "ble",
-    "i2c",
-    "i2c_low_freq",
-    "qspi",
-    "spi",
-    "uart",
-    "uart_115200",
-    "uart_1200",
-    "uart_1200_even",
-    "uart_19200",
-    "uart_38400",
-    "uart_4800",
-    "uart_4800_even",
-    "uart_9600_even",
-}
-
-# Bus types that support component grouping for config validation
-# I2C and SPI are shared buses with addressing/CS pins
-# BLE sensors scan independently and don't conflict
-# UART is point-to-point but can be grouped for testing since --testing-mode
-# bypasses the conflict validation (we only care that configs compile)
-GROUPABLE_BUS_TYPES = {
     "ble",
     "i2c",
     "i2c_low_freq",
@@ -204,26 +184,26 @@ def create_grouping_signature(
     """Create a signature string for grouping components.
 
     Components with the same signature can be grouped together for testing.
-    Includes groupable bus types (I2C, SPI, BLE, UART) that can be validated
-    together using --testing-mode to bypass runtime conflicts.
+    All valid bus types can be grouped since --testing-mode bypasses runtime
+    conflicts during config validation.
 
     Args:
         platform_buses: Mapping of platform to list of buses
         platform: The specific platform to create signature for
 
     Returns:
-        Signature string (e.g., "i2c" or "uart") or empty if no groupable buses
+        Signature string (e.g., "i2c" or "uart") or empty if no valid buses
     """
     buses = platform_buses.get(platform, [])
     if not buses:
         return ""
 
-    # Only include groupable bus types in signature
-    groupable_buses = [b for b in buses if b in GROUPABLE_BUS_TYPES]
-    if not groupable_buses:
+    # Only include valid bus types in signature
+    valid_buses = [b for b in buses if b in VALID_BUS_CONFIGS]
+    if not valid_buses:
         return ""
 
-    return "+".join(sorted(groupable_buses))
+    return "+".join(sorted(valid_buses))
 
 
 def group_components_by_signature(

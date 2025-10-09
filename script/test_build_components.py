@@ -333,11 +333,11 @@ def run_grouped_component_tests(
             if platform_filter and not platform.startswith(platform_filter):
                 continue
 
-            # Only group if component has groupable bus configs
+            # Only group if component has valid bus configs
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
                 # Only add to grouped_components if signature is non-empty
-                # (empty means component has no groupable bus configurations)
+                # (empty means component has no valid bus configurations)
                 if signature:
                     grouped_components[(platform, signature)].append(component)
 
