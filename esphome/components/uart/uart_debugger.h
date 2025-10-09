@@ -93,6 +93,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
+  UARTComponent* parent_;
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
