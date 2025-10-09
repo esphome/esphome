@@ -10,11 +10,15 @@ namespace light {
 static const char *const TAG = "light";
 
 // Helper functions to reduce code size for logging
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-static void log_validation_warning(const char *name, const LogString *param_name, float val, float min, float max) {
-  ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), val, min, max);
+static void clamp_and_log_if_invalid(const char *name, float &value, const LogString *param_name, float min = 0.0f,
+                                     float max = 1.0f) {
+  if (value < min || value > max) {
+    ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
+    value = clamp(value, min, max);
+  }
 }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 static void log_feature_not_supported(const char *name, const LogString *feature) {
   ESP_LOGW(TAG, "'%s': %s not supported", name, LOG_STR_ARG(feature));
 }
@@ -27,7 +31,6 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
   ESP_LOGW(TAG, "'%s': %s", name, LOG_STR_ARG(message));
 }
 #else
-#define log_validation_warning(name, param_name, val, min, max)
 #define log_feature_not_supported(name, feature)
 #define log_color_mode_not_supported(name, feature)
 #define log_invalid_parameter(name, message)
@@ -44,7 +47,7 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
   } \
   LightCall &LightCall::set_##name(type name) { \
     this->name##_ = name; \
-    this->set_flag_(flag, true); \
+    this->set_flag_(flag); \
     return *this; \
   }
 
@@ -181,6 +184,16 @@ void LightCall::perform() {
   }
 }
 
+void LightCall::log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log) {
+  auto *name = this->parent_->get_name().c_str();
+  if (use_color_mode_log) {
+    log_color_mode_not_supported(name, feature);
+  } else {
+    log_feature_not_supported(name, feature);
+  }
+  this->clear_flag_(flag);
+}
+
 LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
@@ -188,141 +201,108 @@ LightColorValues LightCall::validate_() {
   // Color mode check
   if (this->has_color_mode() && !traits.supports_color_mode(this->color_mode_)) {
     ESP_LOGW(TAG, "'%s' does not support color mode %s", name, LOG_STR_ARG(color_mode_to_human(this->color_mode_)));
-    this->set_flag_(FLAG_HAS_COLOR_MODE, false);
+    this->clear_flag_(FLAG_HAS_COLOR_MODE);
   }
 
   // Ensure there is always a color mode set
   if (!this->has_color_mode()) {
     this->color_mode_ = this->compute_color_mode_();
-    this->set_flag_(FLAG_HAS_COLOR_MODE, true);
+    this->set_flag_(FLAG_HAS_COLOR_MODE);
   }
   auto color_mode = this->color_mode_;
 
   // Transform calls that use non-native parameters for the current mode.
   this->transform_parameters_();
 
-  // Brightness exists check
-  if (this->has_brightness() && this->brightness_ > 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
-    log_feature_not_supported(name, LOG_STR("brightness"));
-    this->set_flag_(FLAG_HAS_BRIGHTNESS, false);
-  }
-
-  // Transition length possible check
-  if (this->has_transition_() && this->transition_length_ != 0 && !(color_mode & ColorCapability::BRIGHTNESS)) {
-    log_feature_not_supported(name, LOG_STR("transitions"));
-    this->set_flag_(FLAG_HAS_TRANSITION, false);
-  }
-
-  // Color brightness exists check
-  if (this->has_color_brightness() && this->color_brightness_ > 0.0f && !(color_mode & ColorCapability::RGB)) {
-    log_color_mode_not_supported(name, LOG_STR("RGB brightness"));
-    this->set_flag_(FLAG_HAS_COLOR_BRIGHTNESS, false);
-  }
-
-  // RGB exists check
-  if ((this->has_red() && this->red_ > 0.0f) || (this->has_green() && this->green_ > 0.0f) ||
-      (this->has_blue() && this->blue_ > 0.0f)) {
-    if (!(color_mode & ColorCapability::RGB)) {
-      log_color_mode_not_supported(name, LOG_STR("RGB color"));
-      this->set_flag_(FLAG_HAS_RED, false);
-      this->set_flag_(FLAG_HAS_GREEN, false);
-      this->set_flag_(FLAG_HAS_BLUE, false);
-    }
-  }
-
-  // White value exists check
-  if (this->has_white() && this->white_ > 0.0f &&
-      !(color_mode & ColorCapability::WHITE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
-    log_color_mode_not_supported(name, LOG_STR("white value"));
-    this->set_flag_(FLAG_HAS_WHITE, false);
-  }
-
-  // Color temperature exists check
-  if (this->has_color_temperature() &&
-      !(color_mode & ColorCapability::COLOR_TEMPERATURE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
-    log_color_mode_not_supported(name, LOG_STR("color temperature"));
-    this->set_flag_(FLAG_HAS_COLOR_TEMPERATURE, false);
-  }
-
-  // Cold/warm white value exists check
-  if ((this->has_cold_white() && this->cold_white_ > 0.0f) || (this->has_warm_white() && this->warm_white_ > 0.0f)) {
-    if (!(color_mode & ColorCapability::COLD_WARM_WHITE)) {
-      log_color_mode_not_supported(name, LOG_STR("cold/warm white value"));
-      this->set_flag_(FLAG_HAS_COLD_WHITE, false);
-      this->set_flag_(FLAG_HAS_WARM_WHITE, false);
-    }
-  }
-
-#define VALIDATE_RANGE_(name_, upper_name, min, max) \
-  if (this->has_##name_()) { \
-    auto val = this->name_##_; \
-    if (val < (min) || val > (max)) { \
-      log_validation_warning(name, LOG_STR(upper_name), val, (min), (max)); \
-      this->name_##_ = clamp(val, (min), (max)); \
-    } \
-  }
-#define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name, 0.0f, 1.0f)
-
-  // Range checks
-  VALIDATE_RANGE(brightness, "Brightness")
-  VALIDATE_RANGE(color_brightness, "Color brightness")
-  VALIDATE_RANGE(red, "Red")
-  VALIDATE_RANGE(green, "Green")
-  VALIDATE_RANGE(blue, "Blue")
-  VALIDATE_RANGE(white, "White")
-  VALIDATE_RANGE(cold_white, "Cold white")
-  VALIDATE_RANGE(warm_white, "Warm white")
-  VALIDATE_RANGE_(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
-
+  // Business logic adjustments before validation
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 
   // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
   if (this->has_brightness() && this->brightness_ == 0.0f) {
     this->state_ = false;
-    this->set_flag_(FLAG_HAS_STATE, true);
+    this->set_flag_(FLAG_HAS_STATE);
     this->brightness_ = 1.0f;
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
-  if (this->has_red() || this->has_green() || this->has_blue()) {
-    if (!this->has_color_brightness() && this->parent_->remote_values.get_color_brightness() == 0.0f) {
-      this->color_brightness_ = 1.0f;
-      this->set_flag_(FLAG_HAS_COLOR_BRIGHTNESS, true);
-    }
+  if ((this->has_red() || this->has_green() || this->has_blue()) && !this->has_color_brightness() &&
+      this->parent_->remote_values.get_color_brightness() == 0.0f) {
+    this->color_brightness_ = 1.0f;
+    this->set_flag_(FLAG_HAS_COLOR_BRIGHTNESS);
   }
 
-  // Create color values for the light with this call applied.
+  // Capability validation
+  if (this->has_brightness() && this->brightness_ > 0.0f && !(color_mode & ColorCapability::BRIGHTNESS))
+    this->log_and_clear_unsupported_(FLAG_HAS_BRIGHTNESS, LOG_STR("brightness"), false);
+
+  // Transition length possible check
+  if (this->has_transition_() && this->transition_length_ != 0 && !(color_mode & ColorCapability::BRIGHTNESS))
+    this->log_and_clear_unsupported_(FLAG_HAS_TRANSITION, LOG_STR("transitions"), false);
+
+  if (this->has_color_brightness() && this->color_brightness_ > 0.0f && !(color_mode & ColorCapability::RGB))
+    this->log_and_clear_unsupported_(FLAG_HAS_COLOR_BRIGHTNESS, LOG_STR("RGB brightness"), true);
+
+  // RGB exists check
+  if (((this->has_red() && this->red_ > 0.0f) || (this->has_green() && this->green_ > 0.0f) ||
+       (this->has_blue() && this->blue_ > 0.0f)) &&
+      !(color_mode & ColorCapability::RGB)) {
+    log_color_mode_not_supported(name, LOG_STR("RGB color"));
+    this->clear_flag_(FLAG_HAS_RED);
+    this->clear_flag_(FLAG_HAS_GREEN);
+    this->clear_flag_(FLAG_HAS_BLUE);
+  }
+
+  // White value exists check
+  if (this->has_white() && this->white_ > 0.0f &&
+      !(color_mode & ColorCapability::WHITE || color_mode & ColorCapability::COLD_WARM_WHITE))
+    this->log_and_clear_unsupported_(FLAG_HAS_WHITE, LOG_STR("white value"), true);
+
+  // Color temperature exists check
+  if (this->has_color_temperature() &&
+      !(color_mode & ColorCapability::COLOR_TEMPERATURE || color_mode & ColorCapability::COLD_WARM_WHITE))
+    this->log_and_clear_unsupported_(FLAG_HAS_COLOR_TEMPERATURE, LOG_STR("color temperature"), true);
+
+  // Cold/warm white value exists check
+  if (((this->has_cold_white() && this->cold_white_ > 0.0f) || (this->has_warm_white() && this->warm_white_ > 0.0f)) &&
+      !(color_mode & ColorCapability::COLD_WARM_WHITE)) {
+    log_color_mode_not_supported(name, LOG_STR("cold/warm white value"));
+    this->clear_flag_(FLAG_HAS_COLD_WHITE);
+    this->clear_flag_(FLAG_HAS_WARM_WHITE);
+  }
+
+  // Create color values and validate+apply ranges in one step to eliminate duplicate checks
   auto v = this->parent_->remote_values;
   if (this->has_color_mode())
     v.set_color_mode(this->color_mode_);
   if (this->has_state())
     v.set_state(this->state_);
-  if (this->has_brightness())
-    v.set_brightness(this->brightness_);
-  if (this->has_color_brightness())
-    v.set_color_brightness(this->color_brightness_);
-  if (this->has_red())
-    v.set_red(this->red_);
-  if (this->has_green())
-    v.set_green(this->green_);
-  if (this->has_blue())
-    v.set_blue(this->blue_);
-  if (this->has_white())
-    v.set_white(this->white_);
-  if (this->has_color_temperature())
-    v.set_color_temperature(this->color_temperature_);
-  if (this->has_cold_white())
-    v.set_cold_white(this->cold_white_);
-  if (this->has_warm_white())
-    v.set_warm_white(this->warm_white_);
+
+#define VALIDATE_AND_APPLY(field, setter, name_str, ...) \
+  if (this->has_##field()) { \
+    clamp_and_log_if_invalid(name, this->field##_, LOG_STR(name_str), ##__VA_ARGS__); \
+    v.setter(this->field##_); \
+  }
+
+  VALIDATE_AND_APPLY(brightness, set_brightness, "Brightness")
+  VALIDATE_AND_APPLY(color_brightness, set_color_brightness, "Color brightness")
+  VALIDATE_AND_APPLY(red, set_red, "Red")
+  VALIDATE_AND_APPLY(green, set_green, "Green")
+  VALIDATE_AND_APPLY(blue, set_blue, "Blue")
+  VALIDATE_AND_APPLY(white, set_white, "White")
+  VALIDATE_AND_APPLY(cold_white, set_cold_white, "Cold white")
+  VALIDATE_AND_APPLY(warm_white, set_warm_white, "Warm white")
+  VALIDATE_AND_APPLY(color_temperature, set_color_temperature, "Color temperature", traits.get_min_mireds(),
+                     traits.get_max_mireds())
+
+#undef VALIDATE_AND_APPLY
 
   v.normalize_color();
 
   // Flash length check
   if (this->has_flash_() && this->flash_length_ == 0) {
-    log_invalid_parameter(name, LOG_STR("flash length must be greater than zero"));
-    this->set_flag_(FLAG_HAS_FLASH, false);
+    log_invalid_parameter(name, LOG_STR("flash length must be >0"));
+    this->clear_flag_(FLAG_HAS_FLASH);
   }
 
   // validate transition length/flash length/effect not used at the same time
@@ -330,42 +310,40 @@ LightColorValues LightCall::validate_() {
 
   // If effect is already active, remove effect start
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
-    this->set_flag_(FLAG_HAS_EFFECT, false);
+    this->clear_flag_(FLAG_HAS_EFFECT);
   }
 
   // validate effect index
   if (this->has_effect_() && this->effect_ > this->parent_->effects_.size()) {
     ESP_LOGW(TAG, "'%s': invalid effect index %" PRIu32, name, this->effect_);
-    this->set_flag_(FLAG_HAS_EFFECT, false);
+    this->clear_flag_(FLAG_HAS_EFFECT);
   }
 
   if (this->has_effect_() && (this->has_transition_() || this->has_flash_())) {
     log_invalid_parameter(name, LOG_STR("effect cannot be used with transition/flash"));
-    this->set_flag_(FLAG_HAS_TRANSITION, false);
-    this->set_flag_(FLAG_HAS_FLASH, false);
+    this->clear_flag_(FLAG_HAS_TRANSITION);
+    this->clear_flag_(FLAG_HAS_FLASH);
   }
 
   if (this->has_flash_() && this->has_transition_()) {
     log_invalid_parameter(name, LOG_STR("flash cannot be used with transition"));
-    this->set_flag_(FLAG_HAS_TRANSITION, false);
+    this->clear_flag_(FLAG_HAS_TRANSITION);
   }
 
   if (!this->has_transition_() && !this->has_flash_() && (!this->has_effect_() || this->effect_ == 0) &&
       supports_transition) {
     // nothing specified and light supports transitions, set default transition length
     this->transition_length_ = this->parent_->default_transition_length_;
-    this->set_flag_(FLAG_HAS_TRANSITION, true);
+    this->set_flag_(FLAG_HAS_TRANSITION);
   }
 
   if (this->has_transition_() && this->transition_length_ == 0) {
     // 0 transition is interpreted as no transition (instant change)
-    this->set_flag_(FLAG_HAS_TRANSITION, false);
+    this->clear_flag_(FLAG_HAS_TRANSITION);
   }
 
-  if (this->has_transition_() && !supports_transition) {
-    log_feature_not_supported(name, LOG_STR("transitions"));
-    this->set_flag_(FLAG_HAS_TRANSITION, false);
-  }
+  if (this->has_transition_() && !supports_transition)
+    this->log_and_clear_unsupported_(FLAG_HAS_TRANSITION, LOG_STR("transitions"), false);
 
   // If not a flash and turning the light off, then disable the light
   // Do not use light color values directly, so that effects can set 0% brightness
@@ -374,17 +352,17 @@ LightColorValues LightCall::validate_() {
   if (!this->has_flash_() && !target_state) {
     if (this->has_effect_()) {
       log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
-      this->set_flag_(FLAG_HAS_EFFECT, false);
+      this->clear_flag_(FLAG_HAS_EFFECT);
     } else if (this->parent_->active_effect_index_ != 0 && explicit_turn_off_request) {
       // Auto turn off effect
       this->effect_ = 0;
-      this->set_flag_(FLAG_HAS_EFFECT, true);
+      this->set_flag_(FLAG_HAS_EFFECT);
     }
   }
 
   // Disable saving for flashes
   if (this->has_flash_())
-    this->set_flag_(FLAG_SAVE, false);
+    this->clear_flag_(FLAG_SAVE);
 
   return v;
 }
@@ -418,12 +396,12 @@ void LightCall::transform_parameters_() {
       const float gamma = this->parent_->get_gamma_correct();
       this->cold_white_ = gamma_uncorrect(cw_fraction / max_cw_ww, gamma);
       this->warm_white_ = gamma_uncorrect(ww_fraction / max_cw_ww, gamma);
-      this->set_flag_(FLAG_HAS_COLD_WHITE, true);
-      this->set_flag_(FLAG_HAS_WARM_WHITE, true);
+      this->set_flag_(FLAG_HAS_COLD_WHITE);
+      this->set_flag_(FLAG_HAS_WARM_WHITE);
     }
     if (this->has_white()) {
       this->brightness_ = this->white_;
-      this->set_flag_(FLAG_HAS_BRIGHTNESS, true);
+      this->set_flag_(FLAG_HAS_BRIGHTNESS);
     }
   }
 }
@@ -630,7 +608,7 @@ LightCall &LightCall::set_effect(optional<std::string> effect) {
 }
 LightCall &LightCall::set_effect(uint32_t effect_number) {
   this->effect_ = effect_number;
-  this->set_flag_(FLAG_HAS_EFFECT, true);
+  this->set_flag_(FLAG_HAS_EFFECT);
   return *this;
 }
 LightCall &LightCall::set_effect(optional<uint32_t> effect_number) {

@@ -74,6 +74,9 @@ FILTER_PLATFORMIO_LINES = [
     r"Creating BIN file .*",
     r"Warning! Could not find file \".*.crt\"",
     r"Warning! Arduino framework as an ESP-IDF component doesn't handle the `variant` field! The default `esp32` variant will be used.",
+    r"Warning: DEPRECATED: 'esptool.py' is deprecated. Please use 'esptool' instead. The '.py' suffix will be removed in a future major release.",
+    r"Warning: esp-idf-size exited with code 2",
+    r"esp_idf_size: error: unrecognized arguments: --ng",
 ]
 
 
