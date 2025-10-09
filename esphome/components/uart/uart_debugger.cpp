@@ -13,8 +13,8 @@ static const char *const TAG = "uart_debug";
 
 const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
    if (!debug_add_settings)
-     return debug_prefix;
-   std::string res = "|" + baud_rate;
+     return debug_prefix.c_str();
+   const char* res = "|" + baud_rate;
    res += ":" + data_bits;
    res += ":" + stop_bits;
    switch (parity) {
@@ -31,7 +31,7 @@ const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, 
      res += "UNKNOWN";
      break;
    }
-   return res + "|" + debug_prefix;
+   return res + "|" + debug_prefix.c_str();
 }
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
