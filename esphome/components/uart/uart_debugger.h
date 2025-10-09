@@ -100,6 +100,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   std::string debug_prefix_{""};
   bool debug_add_settings_{false};
 #ifdef UART_DEBUGGER_ADD_SETTINGS
+  std::string final_debug_prefix_{""};
   uint32_t baud_rate_;
   uint8_t stop_bits_;
   uint8_t data_bits_;
