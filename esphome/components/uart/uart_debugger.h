@@ -42,12 +42,6 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
   
-  // add user defined prefix
-  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
-
-  // set bool if uart channel settings shall be added
-  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
-
  protected:
   UARTDirection for_direction_;
   UARTDirection last_direction_{};
@@ -58,9 +52,6 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   std::vector<uint8_t> after_delimiter_{};
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
-  std::string debug_prefix_{""};
-  std::string debug_settings_string_{""};
-  bool debug_add_settings_{false};
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
