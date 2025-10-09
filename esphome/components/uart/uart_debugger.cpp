@@ -16,6 +16,8 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
+    this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
+                                          this->data_bits_, this->stop_bits_, this->polarity_);
     this->trigger_after_direction_change_(direction);
     this->store_byte_(direction, byte);
     this->trigger_after_delimiter_(byte);
@@ -73,13 +75,13 @@ void UARTDebugger::trigger_after_timeout_() {
 
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
-std::string UARTDebugger::get_debug_prefix(std::string debug_prefix, bool debug_add_settings) {
+const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t polarity) {
    if (!debug_add_settings)
      return debug_prefix;
-   std::string res = "|" + this->parent_->get_baud_rate();
-   res += ":" + this->parent_->get_data_bits();
-   res += ":" + this->parent_->get_stop_bits();
-   switch (this->parent_->get_parity()) {
+   std::string res = "|" + baud_rate;
+   res += ":" + data_bits;
+   res += ":" + stop_bits;
+   switch (parity) {
      case UART_CONFIG_PARITY_NONE:
        res += "NONE";
        break;
@@ -97,7 +99,6 @@ std::string UARTDebugger::get_debug_prefix(std::string debug_prefix, bool debug_
 }
 
 void UARTDebugger::fire_trigger_() {
-  this->debug_prefix_= this->get_debug_prefix(this->debug_prefix_, this->debug_add_settings_);
   this->is_triggering_ = true;
   trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
   this->bytes_.clear();
