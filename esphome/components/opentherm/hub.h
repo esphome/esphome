@@ -79,7 +79,7 @@ class OpenthermHub : public Component {
   bool sync_mode_ = false;
 
   // delay between message being send.
-  int message_loop_delay_ = 100;
+  uint32_t message_loop_delay_ = 100;
 
   CallbackManager<void(OpenthermData &)> before_send_callback_;
   CallbackManager<void(OpenthermData &)> before_process_response_callback_;
