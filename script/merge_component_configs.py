@@ -16,7 +16,6 @@ The merger handles:
 from __future__ import annotations
 
 import argparse
-from functools import lru_cache
 from pathlib import Path
 import re
 import sys
@@ -27,24 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from esphome import yaml_util
 from esphome.config_helpers import merge_config
-
-
-@lru_cache(maxsize=1)
-def get_common_bus_packages() -> frozenset[str]:
-    """Get the list of common bus package names.
-
-    Reads from tests/test_build_components/common/ directory
-    and caches the result.
-
-    Returns:
-        Frozenset of common bus package names (i2c, spi, uart, etc.)
-    """
-    common_dir = Path("tests/test_build_components/common")
-    if not common_dir.exists():
-        return frozenset()
-
-    # List all directories in common/ - these are the bus package names
-    return frozenset(d.name for d in common_dir.iterdir() if d.is_dir())
+from script.analyze_component_buses import get_common_bus_packages
 
 
 def load_yaml_file(yaml_file: Path) -> dict:

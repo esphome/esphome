@@ -24,6 +24,7 @@ Example output:
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -32,25 +33,23 @@ import sys
 # Path to common bus configs
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
 
-# Valid common bus config directories
-# All bus types support component grouping for config validation since
-# --testing-mode bypasses runtime conflicts (we only care that configs compile)
-VALID_BUS_CONFIGS = {
-    "ble",
-    "i2c",
-    "i2c_low_freq",
-    "qspi",
-    "spi",
-    "uart",
-    "uart_115200",
-    "uart_1200",
-    "uart_1200_even",
-    "uart_19200",
-    "uart_38400",
-    "uart_4800",
-    "uart_4800_even",
-    "uart_9600_even",
-}
+
+@lru_cache(maxsize=1)
+def get_common_bus_packages() -> frozenset[str]:
+    """Get the list of common bus package names.
+
+    Reads from tests/test_build_components/common/ directory
+    and caches the result. All bus types support component grouping
+    for config validation since --testing-mode bypasses runtime conflicts.
+
+    Returns:
+        Frozenset of common bus package names (i2c, spi, uart, etc.)
+    """
+    if not COMMON_BUS_PATH.exists():
+        return frozenset()
+
+    # List all directories in common/ - these are the bus package names
+    return frozenset(d.name for d in COMMON_BUS_PATH.iterdir() if d.is_dir())
 
 
 def uses_local_file_references(component_dir: Path) -> bool:
@@ -97,6 +96,7 @@ def extract_common_buses(yaml_file: Path) -> set[str]:
         return set()
 
     buses = set()
+    valid_buses = get_common_bus_packages()
 
     # Pattern to match package includes for common bus configs
     # Matches: !include ../../test_build_components/common/{bus}/{platform}.yaml
@@ -104,7 +104,7 @@ def extract_common_buses(yaml_file: Path) -> set[str]:
 
     for match in re.finditer(pattern, content):
         bus_name = match.group(1)
-        if bus_name in VALID_BUS_CONFIGS:
+        if bus_name in valid_buses:
             buses.add(bus_name)
 
     return buses
@@ -199,7 +199,8 @@ def create_grouping_signature(
         return ""
 
     # Only include valid bus types in signature
-    valid_buses = [b for b in buses if b in VALID_BUS_CONFIGS]
+    common_buses = get_common_bus_packages()
+    valid_buses = [b for b in buses if b in common_buses]
     if not valid_buses:
         return ""
 
