@@ -6,15 +6,15 @@ display:
     reset_pin: ${reset_pin}
     backlight_pin: ${backlight_pin}
     pages:
-      - id: page1
+      - id: st7789v_page1
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
+      - id: st7789v_page2
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
     on_page_change:
-      from: page1
-      to: page2
+      from: st7789v_page1
+      to: st7789v_page2
       then:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");

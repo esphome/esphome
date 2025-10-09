@@ -1,6 +1,6 @@
 #  component declaration
 wk2212_i2c:
-  - id: bridge_i2c
+  - id: wk2212_i2c_bridge
     address: 0x70
     uart:
       - id: uart_i2c_id0
@@ -25,14 +25,14 @@ binary_sensor:
   - platform: gpio
     name: "pin_0"
     pin:
-      wk2212_i2c: bridge_i2c
+      wk2212_i2c: wk2212_i2c_bridge
       number: 0
       mode:
         input: true
   - platform: gpio
     name: "pin_1"
     pin:
-      wk2212_i2c: bridge_i2c
+      wk2212_i2c: wk2212_i2c_bridge
       number: 1
       mode:
         input: true
@@ -43,14 +43,14 @@ switch:
   - platform: gpio
     name: "pin_2"
     pin:
-      wk2212_i2c: bridge_i2c
+      wk2212_i2c: wk2212_i2c_bridge
       number: 2
       mode:
         output: true
   - platform: gpio
     name: "pin_3"
     pin:
-      wk2212_i2c: bridge_i2c
+      wk2212_i2c: wk2212_i2c_bridge
       number: 3
       mode:
         output: true

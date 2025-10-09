@@ -1,5 +1,5 @@
 display:
-  - id: my_display
+  - id: cst816_display
     platform: ili9xxx
     dimensions: 480x320
     model: ST7796

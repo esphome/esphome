@@ -1,5 +1,5 @@
 display:
-  - id: my_display
+  - id: cst226_display
     platform: ili9xxx
     model: ili9342
     cs_pin: ${cs_pin}

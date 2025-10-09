@@ -4,15 +4,15 @@ display:
     height: 128
     width: 64
     pages:
-      - id: page1
+      - id: st7920_page1
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
+      - id: st7920_page2
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
     on_page_change:
-      from: page1
-      to: page2
+      from: st7920_page1
+      to: st7920_page2
       then:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");
