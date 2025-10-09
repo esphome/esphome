@@ -340,8 +340,40 @@ datetime:
             - x.second
 
 time:
-  - platform: sntp  # Required for datetime
+  - platform: sntp # Required for datetime
     id: sntp_time
 
-wifi:  # Required for sntp time
+wifi: # Required for sntp time
   ap:
+
+text_sensor:
+  - platform: template
+    name: "Template Text Sensor"
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return {"Open"};
+      } else {
+        return {"Closed"};
+      }
+    update_interval: 60s
+    filters:
+      - distinct:
+      - to_upper:
+      - to_lower:
+      - append: " +APPEND"
+      - prepend: "PREPEND+ "
+      - substitute:
+          - from: "open"
+            to: "opn"
+          - from: "closed"
+            to: "cls"
+      - map:
+          - from: "opn"
+            to: "MappedOpen"
+          - from: "cls"
+            to: "MappedClosed"
+      - lambda: |-
+          if (!x.empty()) {
+            return x + " [OK]";
+          }
+          return {};
