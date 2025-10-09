@@ -152,7 +152,7 @@ class UARTComponent {
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
   std::string get_debug_prefix() const { return this->debug_prefix_; }
 
-  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings__ = debug_add_settings; }
+  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
   // return settings string or empty if not desired
   std::string get_debug_settings_string();
 #endif
