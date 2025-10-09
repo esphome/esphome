@@ -184,6 +184,20 @@ class UARTComponent {
     std::string res = "|" + this->baud_rate_;
     res += ":" + this->data_bits_;
     res += ":" + this->stop_bits_;
+    switch (this->parity_) {
+      case UART_CONFIG_PARITY_NONE:
+        res += "NONE";
+        break;
+      case UART_CONFIG_PARITY_EVEN:
+        res += "EVEN";
+        break;
+      case UART_CONFIG_PARITY_ODD:
+        res += "ODD";
+        break;
+    default:
+      res += "UNKNOWN";
+      break;
+    }
     res += ":" + static_cast<std::string>(esphome::uart::parity_to_str(this->parity_));
     return res + "|" + debug_prefix;
 }
