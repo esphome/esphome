@@ -11,18 +11,6 @@
 namespace esphome {
 namespace uart {
 
-enum UARTParityOptions {
-  UART_CONFIG_PARITY_NONE,
-  UART_CONFIG_PARITY_EVEN,
-  UART_CONFIG_PARITY_ODD,
-};
-
-enum UARTDirection {
-  UART_DIRECTION_RX,
-  UART_DIRECTION_TX,
-  UART_DIRECTION_BOTH,
-};
-
 /// The UARTDebugger class adds debugging support to a UART bus.
 ///
 /// It accumulates bytes that travel over the UART bus and triggers one or
