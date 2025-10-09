@@ -1,5 +1,6 @@
 display:
   - platform: st7567_i2c
+    i2c_id: i2c_bus
     reset_pin: ${reset_pin}
     address: 0x3C
     id: display1

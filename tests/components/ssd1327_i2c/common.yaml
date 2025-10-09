@@ -1,5 +1,6 @@
 display:
   - platform: ssd1327_i2c
+    i2c_id: i2c_bus
     model: SSD1327_128x128
     reset_pin: ${reset_pin}
     address: 0x3C

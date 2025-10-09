@@ -1,5 +1,6 @@
 tca9555:
   - id: tca9555_hub
+    i2c_id: i2c_bus
     address: 0x21
 
 binary_sensor:
