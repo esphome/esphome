@@ -42,7 +42,7 @@ def create_intelligent_batches(
         List of component batches (lists of component names)
     """
     # Analyze all components to get their bus signatures
-    component_buses = analyze_all_components(tests_dir)
+    component_buses, _ = analyze_all_components(tests_dir)
 
     # Group components by their bus signature
     # Key: (platform, signature), Value: list of components
@@ -81,16 +81,27 @@ def create_intelligent_batches(
 
     sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
-    # Flatten all components while preserving priority order
-    # This allows us to fill batches to batch_size by mixing signature groups
-    all_components_ordered = []
-    for (platform, signature), group_components in sorted_groups:
-        all_components_ordered.extend(sorted(group_components))
+    # Strategy: Keep all components with the same bus signature together
+    # Each signature group becomes ONE batch that will be merged into a single build
+    # Only ungroupable components (signature "none") get split into multiple batches
 
-    # Create batches of exactly batch_size (except possibly the last one)
-    for i in range(0, len(all_components_ordered), batch_size):
-        batch = all_components_ordered[i : i + batch_size]
-        batches.append(batch)
+    for (platform, signature), group_components in sorted_groups:
+        sorted_components = sorted(group_components)
+
+        # Check if this is the ungroupable "none" signature
+        is_ungroupable = platform == "none" and signature == "none"
+
+        if is_ungroupable:
+            # Split ungroupable components into batches of batch_size
+            # These can't benefit from grouping anyway
+            for i in range(0, len(sorted_components), batch_size):
+                batch = sorted_components[i : i + batch_size]
+                batches.append(batch)
+        else:
+            # Keep the entire signature group together in ONE batch
+            # All components will be merged into a single build by test_build_components.py
+            # This maximizes grouping efficiency even if the batch is large
+            batches.append(sorted_components)
 
     return batches
 
