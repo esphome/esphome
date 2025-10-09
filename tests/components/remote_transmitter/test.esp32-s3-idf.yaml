@@ -3,9 +3,15 @@ substitutions:
   clock_resolution: "2000000"
   rmt_symbols: "64"
 
-packages:
-  common: !include esp32-common.yaml
-
+# Configuration is inlined instead of using !extend to make this component groupable.
+# Using !extend prevents automatic component grouping in CI, requiring individual builds.
 remote_transmitter:
-  - id: !extend xmitr
+  - id: xmitr
+    pin: ${pin}
+    carrier_duty_percent: 50%
+    clock_resolution: ${clock_resolution}
+    rmt_symbols: ${rmt_symbols}
     use_dma: "true"
+
+packages:
+  buttons: !include common-buttons.yaml
