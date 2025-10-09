@@ -12,6 +12,7 @@ namespace uart {
 static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
+  this->parent_ = parent;
   this->baud_rate_ = parent->get_baud_rate();
   this->data_bits_ = parent->get_data_bits();
   this->stop_bits_ = parent->get_stop_bits();
@@ -27,10 +28,13 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
   });
 }
 
-void UARTDebugger::loop() { this->trigger_after_timeout_(); }
+void UARTDebugger::loop() { 
+  this->trigger_after_timeout_();
+  if (this->parent_->debugger_needs_reload())
+    this->reload();
+}
 
 void UARTDebugger::reload(UARTComponent* parent) {
-  parent->set_debugger(this);
   this->baud_rate_ = parent->get_baud_rate();
   this->data_bits_ = parent->get_data_bits();
   this->stop_bits_ = parent->get_stop_bits();
