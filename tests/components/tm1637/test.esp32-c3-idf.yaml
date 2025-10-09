@@ -1,4 +1,5 @@
 substitutions:
+  clk_pin: GPIO7
   dio_pin: GPIO3
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
