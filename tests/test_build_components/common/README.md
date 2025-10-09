@@ -1,26 +1,41 @@
 # Common Bus Configurations for Component Tests
 
-This directory contains standardized bus configurations (I2C, SPI, UART, BLE) that component tests use, enabling multiple components to be tested together in Phase 2.
+This directory contains standardized bus configurations (I2C, SPI, UART, Modbus, BLE) that component tests use, enabling multiple components to be tested together with intelligent grouping.
 
 ## Purpose
 
-These common configs allow multiple components to **share a single bus**, dramatically reducing CI time from ~12 hours to ~2-3 hours by compiling multiple compatible components together.
+These common configs allow multiple components to **share a single bus**, dramatically reducing CI time by compiling multiple compatible components together. Components with identical bus configurations are automatically grouped and tested together.
 
 ## Structure
 
 ```
 common/
-├── i2c/
+├── i2c/              # Standard I2C (50kHz)
 │   ├── esp32-idf.yaml
 │   ├── esp32-ard.yaml
 │   ├── esp32-c3-idf.yaml
 │   ├── esp32-c3-ard.yaml
+│   ├── esp32-s2-idf.yaml
+│   ├── esp32-s2-ard.yaml
+│   ├── esp32-s3-idf.yaml
+│   ├── esp32-s3-ard.yaml
+│   ├── esp8266-ard.yaml
+│   ├── rp2040-ard.yaml
+│   └── bk72xx-ard.yaml
+├── i2c_low_freq/     # Low frequency I2C (10kHz)
+│   └── (same platform variants)
+├── spi/
+│   └── (same platform variants)
+├── uart/
+│   ├── esp32-idf.yaml
+│   ├── esp32-c3-idf.yaml
 │   ├── esp8266-ard.yaml
 │   └── rp2040-ard.yaml
-├── spi/
-│   └── esp32-idf.yaml
-├── uart/
-│   └── esp32-idf.yaml
+├── modbus/           # Modbus (includes uart via packages)
+│   ├── esp32-idf.yaml
+│   ├── esp32-c3-idf.yaml
+│   ├── esp8266-ard.yaml
+│   └── rp2040-ard.yaml
 └── ble/
     ├── esp32-idf.yaml
     ├── esp32-ard.yaml
@@ -29,7 +44,7 @@ common/
 
 ## How It Works
 
-### Current State (Phase 1)
+### Component Test Structure
 Each component test includes the common bus config:
 
 ```yaml
@@ -42,61 +57,93 @@ packages:
 
 The common config provides:
 - Standardized pin assignments
-- A shared bus instance (`i2c_bus`, `spi_bus`, etc.)
+- A shared bus instance (`i2c_bus`, `spi_bus`, `uart_bus`, `modbus_bus`, etc.)
 
-The component's `common.yaml` just defines the sensor:
+The component's `common.yaml` references the shared bus:
 ```yaml
 # tests/components/bh1750/common.yaml
 sensor:
   - platform: bh1750
+    i2c_id: i2c_bus
     name: Living Room Brightness
     address: 0x23
 ```
 
-The component **auto-detects** the shared bus - no need to specify `i2c_id`.
-
-### Future State (Phase 2)
-Create merged test YAMLs combining multiple compatible components:
+### Intelligent Grouping (Implemented)
+Components with identical bus configurations are automatically grouped and tested together:
 
 ```yaml
-# tests/merged_components/i2c_sensors_group_1.esp32-idf.yaml
-esphome:
-  name: test_i2c_group_1
-
-esp32:
-  board: nodemcu-32s
-  framework:
-    type: esp-idf
-
+# Auto-generated merged config (created by test_build_components.py)
 packages:
-  # Shared I2C bus
-  i2c: !include ../test_build_components/common/i2c/esp32-idf.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-  # Multiple components sharing the same bus
-  component_bme280: !include ../components/bme280_i2c/common.yaml
-  component_bh1750: !include ../components/bh1750/common.yaml
-  component_sht3xd: !include ../components/sht3xd/common.yaml
-  component_ags10: !include ../components/ags10/common.yaml  # Different I2C address
-  component_aht10: !include ../components/aht10/common.yaml
+sensor:
+  - platform: bme280_i2c
+    i2c_id: i2c_bus
+    temperature:
+      name: BME280 Temperature
+  - platform: bh1750
+    i2c_id: i2c_bus
+    name: BH1750 Illuminance
+  - platform: sht3xd
+    i2c_id: i2c_bus
+    temperature:
+      name: SHT3xD Temperature
 ```
 
-**Result**: 5 components compile in one test instead of 5 separate tests!
+**Result**: 3 components compile in one test instead of 3 separate tests!
+
+### Package Dependencies
+Some packages include other packages to avoid duplication:
+
+```yaml
+# tests/test_build_components/common/modbus/esp32-idf.yaml
+packages:
+  uart: !include ../uart/esp32-idf.yaml  # Modbus requires UART
+
+substitutions:
+  flow_control_pin: GPIO4
+
+modbus:
+  - id: modbus_bus
+    uart_id: uart_bus
+    flow_control_pin: ${flow_control_pin}
+```
+
+Components using `modbus` packages automatically get `uart` as well.
 
 ## Pin Allocations
 
-### I2C
+### I2C (Standard - 50kHz)
 - **ESP32 IDF**: SCL=GPIO16, SDA=GPIO17
 - **ESP32 Arduino**: SCL=GPIO22, SDA=GPIO21
+- **ESP32-C3**: SCL=GPIO5, SDA=GPIO4
+- **ESP32-S2/S3**: SCL=GPIO9, SDA=GPIO8
 - **ESP8266**: SCL=GPIO5, SDA=GPIO4
 - **RP2040**: SCL=GPIO5, SDA=GPIO4
+- **BK72xx**: SCL=P20, SDA=P21
+
+### I2C Low Frequency (10kHz)
+Same pin allocations as standard I2C, but with 10kHz frequency for components requiring slower speeds.
 
 ### SPI
-- **ESP32 IDF**: CLK=GPIO18, MOSI=GPIO23, MISO=GPIO19
+- **ESP32**: CLK=GPIO18, MOSI=GPIO23, MISO=GPIO19
+- **ESP32-C3**: CLK=GPIO6, MOSI=GPIO7, MISO=GPIO5
+- **ESP32-S2**: CLK=GPIO36, MOSI=GPIO35, MISO=GPIO37
+- **ESP32-S3**: CLK=GPIO40, MOSI=GPIO6, MISO=GPIO41
+- **ESP8266**: CLK=GPIO14, MOSI=GPIO13, MISO=GPIO12
+- **RP2040**: CLK=GPIO18, MOSI=GPIO19, MISO=GPIO16
 - CS pins are component-specific (each SPI device needs unique CS)
 
 ### UART
-- **ESP32 IDF**: TX=GPIO17, RX=GPIO16
-- Components define unique baud rates as needed
+- **ESP32 IDF**: TX=GPIO17, RX=GPIO16 (baud: 19200)
+- **ESP32-C3 IDF**: TX=GPIO7, RX=GPIO6 (baud: 19200)
+- **ESP8266**: TX=GPIO1, RX=GPIO3 (baud: 19200)
+- **RP2040**: TX=GPIO0, RX=GPIO1 (baud: 19200)
+
+### Modbus (includes UART)
+Same UART pins as above, plus:
+- **flow_control_pin**: GPIO4 (all platforms)
 
 ### BLE
 - **ESP32**: Shared `esp32_ble_tracker` infrastructure
@@ -105,32 +152,53 @@ packages:
 ## Benefits
 
 1. **Shared bus = less duplication**
-   - 171 I2C components removed duplicate bus definitions
-   - 59 SPI components removed duplicate bus definitions
-   - 75 UART components removed duplicate bus definitions
+   - 200+ I2C components use common bus configs
+   - 60+ SPI components use common bus configs
+   - 80+ UART components use common bus configs
+   - 6 Modbus components use common modbus configs (which include UART)
 
-2. **Phase 2 merging enabled**
-   - Compatible components can compile together
-   - **Expected reduction: ~500 tests → ~50-100 tests (80-90%)**
-   - **Expected CI time: 12 hours → 2-3 hours**
+2. **Intelligent grouping reduces CI time**
+   - Components with identical bus configs are automatically grouped
+   - Typical reduction: 80-90% fewer builds
+   - Example: 3 I2C components → 1 merged build (saves 2 builds)
+   - CI runs 5 component batches in parallel (configurable via `max-parallel` in `.github/workflows/ci.yml`)
 
 3. **Easier maintenance**
-   - Change I2C pins for a platform once, affects all tests
+   - Change bus pins for a platform once, affects all component tests
    - Consistent pin assignments across all components
+   - Centralized bus configuration
 
 ## Component Compatibility
 
-Most components auto-detect and use the shared bus. Some edge cases:
+### Groupable Components
+Components are automatically grouped when they have:
+- Identical bus package references (e.g., all use `i2c/esp32-idf.yaml`)
+- No local file references (`$component_dir`)
+- No `!extend` or `!remove` directives
+- Proper bus ID references (`i2c_id: i2c_bus`, `spi_id: spi_bus`, etc.)
 
-- **Special frequency requirements**: Some components (like ags10) need custom I2C frequencies. These can't be merged with standard frequency components.
-- **Multiple buses needed**: Rare, but some tests might need multiple UART ports.
+### Non-Groupable Components
+Components tested individually when they:
+- Use different bus frequencies (e.g., `i2c` vs `i2c_low_freq`)
+- Reference local files with `$component_dir`
+- Are platform components (abstract base classes with `IS_PLATFORM_COMPONENT = True`)
+- Define buses directly (not migrated to packages yet)
+- Are in `ISOLATED_COMPONENTS` list (known build conflicts)
 
-These special cases will be handled individually in Phase 2.
+### Bus Variants
+- **i2c** (50kHz): Standard I2C frequency for most sensors
+- **i2c_low_freq** (10kHz): For sensors requiring slower I2C speeds
+- **modbus**: Includes UART via package dependencies
 
-## Migration Summary
+## Implementation Details
 
-- **11 common bus config files** created
-- **1,459 component test files** migrated to use common configs
-- **346 bus definitions** removed from component files
-- **41 explicit bus ID references** removed (components now auto-detect)
-- All sample tests validate successfully ✓
+### Scripts
+- `script/analyze_component_buses.py`: Analyzes components to detect bus usage and grouping compatibility
+- `script/merge_component_configs.py`: Merges multiple component configs into a single test file
+- `script/test_build_components.py`: Main test runner with intelligent grouping
+- `script/split_components_for_ci.py`: Splits components into batches for parallel CI execution
+
+### Configuration
+- `.github/workflows/ci.yml`: CI workflow with `max-parallel: 5` for component testing
+- Package dependencies defined in `PACKAGE_DEPENDENCIES` (e.g., modbus → uart)
+- Base bus components excluded from migration warnings: `i2c`, `spi`, `uart`, `modbus`, `canbus`
