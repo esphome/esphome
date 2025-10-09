@@ -1,9 +1,9 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
 substitutions:
-  clk_pin: GPIO15
-  mosi_pin: GPIO16
-  miso_pin: GPIO12
   clock_pin: GPIO5
-  data_pin: GPIO4
+  data_pin: GPIO12
   latch_pin1: GPIO2
   oe_pin1: GPIO0
   latch_pin2: GPIO3
