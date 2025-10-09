@@ -14,7 +14,7 @@ static const char *const TAG = "uart_debug";
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   this->parent_ = parent;
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
-    this->debug_prefix_ = debug_prefix;
+    this->set_debug_prefix(debug_prefix);
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
