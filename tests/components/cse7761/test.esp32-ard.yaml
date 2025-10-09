@@ -1,8 +1,0 @@
-substitutions:
-  tx_pin: GPIO12
-  rx_pin: GPIO14
-
-packages:
-  uart_38400: !include ../../test_build_components/common/uart_38400/esp32-ard.yaml
-
-<<: !include common.yaml

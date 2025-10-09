@@ -1,9 +1,0 @@
-substitutions:
-  cs_pin: GPIO3
-  inc_pin: GPIO7
-  ud_pin: GPIO8
-
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
-
-<<: !include common.yaml

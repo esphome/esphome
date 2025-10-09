@@ -1,8 +1,0 @@
-substitutions:
-  tx_pin: GPIO7
-  rx_pin: GPIO8
-
-packages:
-  uart_19200: !include ../../test_build_components/common/uart_19200/esp32-c3-ard.yaml
-
-<<: !include common.yaml
