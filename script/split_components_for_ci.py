@@ -31,6 +31,7 @@ from script.analyze_component_buses import (
 ISOLATED_COMPONENTS = {
     "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component",
     "camera": "Uses relative include paths that break when merged with other components",
+    "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
 }
 
 
