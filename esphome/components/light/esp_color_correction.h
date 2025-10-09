@@ -17,19 +17,19 @@ class ESPColorCorrection {
                  this->color_correct_blue(color.blue), this->color_correct_white(color.white));
   }
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(red, this->max_brightness_.red), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(red, this->max_brightness_.red, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline uint8_t color_correct_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(green, this->max_brightness_.green), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(green, this->max_brightness_.green, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline uint8_t color_correct_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(blue, this->max_brightness_.blue), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(blue, this->max_brightness_.blue, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline uint8_t color_correct_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(white, this->max_brightness_.white), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(white, this->max_brightness_.white, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline Color color_uncorrect(Color color) const ESPHOME_ALWAYS_INLINE {

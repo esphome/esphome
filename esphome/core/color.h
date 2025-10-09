@@ -14,6 +14,10 @@ inline static constexpr uint8_t esp_scale8(uint8_t i, uint8_t scale) {
   return (uint16_t(i) * (1 + uint16_t(scale))) / 256;
 }
 
+inline static constexpr uint8_t esp_scale8_twice(uint8_t i, uint8_t scale1, uint8_t scale2) {
+  return (uint32_t(i) * (1 + uint32_t(scale1)) * (1 + uint32_t(scale2))) >> 16;
+}
+
 struct Color {
   union {
     struct {
