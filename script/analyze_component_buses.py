@@ -40,6 +40,14 @@ from esphome.config_helpers import Extend, Remove
 # Path to common bus configs
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
 
+# Package dependencies - maps packages to the packages they include
+# When a component uses a package on the left, it automatically gets
+# the packages on the right as well
+PACKAGE_DEPENDENCIES = {
+    "modbus": ["uart"],  # modbus packages include uart packages
+    # Add more package dependencies here as needed
+}
+
 # Components that must be tested in isolation (not grouped or batched with others)
 # These have known build issues that prevent grouping
 # NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
@@ -208,6 +216,11 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
             for pkg_name in packages:
                 if pkg_name in valid_buses:
                     result["buses"].add(pkg_name)
+                    # Add any package dependencies (e.g., modbus includes uart)
+                    if pkg_name in PACKAGE_DEPENDENCIES:
+                        for dep in PACKAGE_DEPENDENCIES[pkg_name]:
+                            if dep in valid_buses:
+                                result["buses"].add(dep)
 
     return result
 

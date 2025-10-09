@@ -1,8 +1,6 @@
-modbus:
-  flow_control_pin: ${flow_control_pin}
-
 sensor:
   - platform: kuntze
+    modbus_id: modbus_bus
     ph:
       name: Kuntze pH
     temperature:

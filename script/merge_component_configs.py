@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from esphome import yaml_util
 from esphome.config_helpers import merge_config
-from script.analyze_component_buses import get_common_bus_packages
+from script.analyze_component_buses import PACKAGE_DEPENDENCIES, get_common_bus_packages
 
 
 def load_yaml_file(yaml_file: Path) -> dict:
@@ -68,6 +68,13 @@ def extract_packages_from_yaml(data: dict) -> dict[str, str]:
         # Only include common bus packages, ignore component-specific ones
         if name in common_bus_packages:
             packages[name] = str(value)
+            # Also track package dependencies (e.g., modbus includes uart)
+            # This ensures components using modbus are grouped with uart
+            if name in PACKAGE_DEPENDENCIES:
+                for dep in PACKAGE_DEPENDENCIES[name]:
+                    if dep in common_bus_packages:
+                        # Mark as included via dependency
+                        packages[f"_dep_{dep}"] = f"(included via {name})"
 
     return packages
 
