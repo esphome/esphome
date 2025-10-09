@@ -40,6 +40,15 @@ from esphome.config_helpers import Extend, Remove
 # Path to common bus configs
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
 
+# Components that must be tested in isolation (not grouped or batched with others)
+# These have known build issues that prevent grouping
+# NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
+ISOLATED_COMPONENTS = {
+    "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component",
+    "camera": "Uses relative include paths that break when merged with other components",
+    "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
+}
+
 
 @lru_cache(maxsize=1)
 def get_common_bus_packages() -> frozenset[str]:

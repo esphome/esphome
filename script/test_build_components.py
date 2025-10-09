@@ -27,20 +27,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from script.analyze_component_buses import (
+    ISOLATED_COMPONENTS,
     analyze_all_components,
     create_grouping_signature,
     is_platform_component,
     uses_local_file_references,
 )
 from script.merge_component_configs import merge_component_configs
-
-# Components that must be tested in isolation (not grouped)
-# These have known build issues that prevent grouping
-ISOLATED_COMPONENTS = {
-    "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component (buffer_impl.cpp symbols defined in both src/camera/ and src/esphome/components/camera/)",
-    "camera": "Uses relative include paths that break when merged with other components",
-    "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
-}
 
 
 def find_component_tests(
