@@ -39,7 +39,7 @@ void UARTDebugger::reload() {
   this->data_bits_ = this->parent_->get_data_bits();
   this->stop_bits_ = this->parent_->get_stop_bits();
   this->parity_ = this->parent_->get_parity();
-  this->debug_prefix_ = get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
+  this->final_debug_prefix_ = get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
                                           this->data_bits_, this->stop_bits_, this->parity_);
 }
 
