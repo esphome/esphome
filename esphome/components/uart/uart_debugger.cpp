@@ -34,11 +34,11 @@ void UARTDebugger::loop() {
   this->trigger_after_timeout_();
 }
 
-void UARTDebugger::reload(UARTComponent* parent) {
-  this->baud_rate_ = parent->get_baud_rate();
-  this->data_bits_ = parent->get_data_bits();
-  this->stop_bits_ = parent->get_stop_bits();
-  this->parity_ = parent->get_parity();
+void UARTDebugger::reload() {
+  this->baud_rate_ = this->parent_->get_baud_rate();
+  this->data_bits_ = this->parent_->get_data_bits();
+  this->stop_bits_ = this->parent_->get_stop_bits();
+  this->parity_ = this->parent_->get_parity();
   this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
                                           this->data_bits_, this->stop_bits_, this->parity_);
 }
