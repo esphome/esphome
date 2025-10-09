@@ -63,6 +63,7 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+DistinctFilter = text_sensor_ns.class_("DistinctFilter", Filter)
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -121,6 +122,11 @@ async def map_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config])
     )
+
+
+@FILTER_REGISTRY.register("distinct", DistinctFilter, {})
+async def distinct_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")

@@ -77,5 +77,24 @@ optional<std::string> MapFilter::new_value(std::string value) {
   return item == mappings_.end() ? value : item->second;
 }
 
+// Distinct
+optional<std::string> DistinctFilter::new_value(std::string value) {
+  // First value always passes
+  if (!this->has_last_) {
+    this->last_ = std::move(value);
+    this->has_last_ = true;
+    return this->last_;
+  }
+
+  if (value == this->last_) {
+    // No change -> suppress output
+    ESP_LOGVV(TAG, "DistinctFilter: duplicate '%s' -> suppressed", value.c_str());
+    return {};
+  }
+
+  this->last_ = std::move(value);
+  return this->last_;
+}
+
 }  // namespace text_sensor
 }  // namespace esphome
