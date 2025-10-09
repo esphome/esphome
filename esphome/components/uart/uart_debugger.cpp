@@ -28,10 +28,10 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
   });
 }
 
-void UARTDebugger::loop() { 
-  this->trigger_after_timeout_();
+void UARTDebugger::loop() {
   if (this->parent_->debugger_needs_reload())
     this->reload();
+  this->trigger_after_timeout_();
 }
 
 void UARTDebugger::reload(UARTComponent* parent) {
