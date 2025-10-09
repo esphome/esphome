@@ -75,8 +75,8 @@ def create_intelligent_batches(
     # 1. Put "none" signature last (can't be grouped)
     # 2. Sort groupable signatures by size (largest first)
     def sort_key(item):
-        (platform, signature), components = item
-        is_none = platform == "none" and signature == "none"
+        signature, components = item
+        is_none = signature == "none"
         # Put "none" last (1), groupable first (0)
         # Within each category, sort by size (largest first)
         return (is_none, -len(components))
@@ -87,11 +87,11 @@ def create_intelligent_batches(
     # Each signature group becomes ONE batch that will be merged into a single build
     # Only ungroupable components (signature "none") get split into multiple batches
 
-    for (platform, signature), group_components in sorted_groups:
+    for signature, group_components in sorted_groups:
         sorted_components = sorted(group_components)
 
         # Check if this is the ungroupable "none" signature
-        is_ungroupable = platform == "none" and signature == "none"
+        is_ungroupable = signature == "none"
 
         if is_ungroupable:
             # Split ungroupable components into batches of batch_size
