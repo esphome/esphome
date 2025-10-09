@@ -318,6 +318,7 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(3, 3, 1),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 2): cv.Version(55, 3, 31, "1"),
     cv.Version(3, 3, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
@@ -353,7 +354,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 PLATFORM_VERSION_LOOKUP = {
     "recommended": cv.Version(54, 3, 21, "2"),
     "latest": cv.Version(55, 3, 31, "1"),
-    "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
+    "dev": cv.Version(55, 3, 31, "1"),
 }
 
 
