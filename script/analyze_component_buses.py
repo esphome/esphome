@@ -50,16 +50,26 @@ VALID_BUS_CONFIGS = {
     "uart_9600_even",
 }
 
-# Bus types that support component grouping
+# Bus types that support component grouping for config validation
 # I2C and SPI are shared buses with addressing/CS pins
 # BLE sensors scan independently and don't conflict
-# UART is point-to-point and components would conflict on the same bus
+# UART is point-to-point but can be grouped for testing since --testing-mode
+# bypasses the conflict validation (we only care that configs compile)
 GROUPABLE_BUS_TYPES = {
     "ble",
     "i2c",
     "i2c_low_freq",
     "qspi",
     "spi",
+    "uart",
+    "uart_115200",
+    "uart_1200",
+    "uart_1200_even",
+    "uart_19200",
+    "uart_38400",
+    "uart_4800",
+    "uart_4800_even",
+    "uart_9600_even",
 }
 
 
@@ -194,15 +204,15 @@ def create_grouping_signature(
     """Create a signature string for grouping components.
 
     Components with the same signature can be grouped together for testing.
-    Only includes groupable bus types (I2C, SPI, BLE) - excludes point-to-point
-    protocols like UART that can't be shared.
+    Includes groupable bus types (I2C, SPI, BLE, UART) that can be validated
+    together using --testing-mode to bypass runtime conflicts.
 
     Args:
         platform_buses: Mapping of platform to list of buses
         platform: The specific platform to create signature for
 
     Returns:
-        Signature string (e.g., "i2c" or "spi") or empty if no groupable buses
+        Signature string (e.g., "i2c" or "uart") or empty if no groupable buses
     """
     buses = platform_buses.get(platform, [])
     if not buses:

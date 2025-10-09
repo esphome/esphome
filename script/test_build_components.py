@@ -336,7 +336,7 @@ def run_grouped_component_tests(
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
                 # Only add to grouped_components if signature is non-empty
-                # (empty means only non-groupable buses like UART)
+                # (empty means component has no groupable bus configurations)
                 if signature:
                     grouped_components[(platform, signature)].append(component)
 
