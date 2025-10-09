@@ -9,7 +9,6 @@
 #include "esphome/core/helpers.h"
 #ifdef USE_UART_DEBUGGER
 #include "esphome/core/automation.h"
-#include "esphome/components/uart/uart_debugger.h"
 #endif
 
 namespace esphome {
