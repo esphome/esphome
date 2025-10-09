@@ -43,9 +43,6 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
-    this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
-                                          this->data_bits_, this->stop_bits_, this->parity_);
-    this->trigger_after_direction_change_(direction);
     this->store_byte_(direction, byte);
     this->trigger_after_delimiter_(byte);
     this->trigger_after_bytes_();
