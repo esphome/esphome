@@ -82,18 +82,27 @@ esp32:
 
 - **version** (*Optional*, string): The base framework version number to use, from
   [ESP32 ESP-IDF releases](https://github.com/espressif/esp-idf/releases) or
-  [ESP32 arduino releases](https://github.com/espressif/arduino-esp32/releases). Defaults to `recommended`.
+  [ESP32 Arduino releases](https://github.com/espressif/arduino-esp32/releases). Defaults to `recommended`.
   Additional values are:
 
   - `dev`  : Use the latest commit, note this may break at any time
   - `latest`  : Use the latest *release*, even if it hasn't been recommended yet.
   - `recommended`  : Use the recommended framework version.
 
-- **source** (*Optional*, string): The PlatformIO package or repository to use for the framework. This can be used to
-  use a custom or patched version of the framework.
+- **source** (*Optional*, string): The PlatformIO package to use for the framework. This variable provides
+  the URL of the git repository or file archive of a custom or patched version of the
+  [pioarduino/framework-arduinoespressif32](https://github.com/espressif/arduino-esp32) or
+  [pioarduino/framework-espidf](https://github.com/pioarduino/esp-idf) package for the framework type. Refer to
+  [PlatformIO package specifications](https://docs.platformio.org/en/latest/core/userguide/pkg/cmd_install.html#package-specifications)
+  for the supported URL schemes. Examples:
+
+  - `https://github.com/user/arduino-esp32/releases/download/archive.zip`
+  - `https://github.com/user/esp-idf.git#branch`
+  - `symlink:///path/to/esp-idf`
 
 - **platform_version** (*Optional*, string): The version of the
-  [pioarduino/espressif32](https://github.com/pioarduino/platform-espressif32/releases/) package to use.
+  [pioarduino/espressif32](https://github.com/pioarduino/platform-espressif32/releases/) package to use. For known framework versions
+  this value will be set automatically.
 
 - **sdkconfig_options** (*Optional*, mapping): Custom sdkconfig
   [compiler options](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#compiler-options)
