@@ -198,7 +198,6 @@ class UARTComponent {
       res += "UNKNOWN";
       break;
     }
-    res += ":" + static_cast<std::string>(esphome::uart::parity_to_str(this->parity_));
     return res + "|" + debug_prefix;
 }
 #endif
