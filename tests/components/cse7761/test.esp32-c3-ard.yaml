@@ -3,6 +3,6 @@ substitutions:
   rx_pin: GPIO8
 
 packages:
-  uart: !include ../../test_build_components/common/uart_38400/esp32-c3-ard.yaml
+  uart_38400: !include ../../test_build_components/common/uart_38400/esp32-c3-ard.yaml
 
 <<: !include common.yaml

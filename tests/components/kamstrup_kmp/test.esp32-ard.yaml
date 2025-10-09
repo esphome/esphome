@@ -3,6 +3,6 @@ substitutions:
   uart_rx_pin: GPIO3
 
 packages:
-  uart: !include ../../test_build_components/common/uart_1200/esp32-ard.yaml
+  uart_1200: !include ../../test_build_components/common/uart_1200/esp32-ard.yaml
 
 <<: !include common.yaml

@@ -3,6 +3,6 @@ substitutions:
   rx_pin: GPIO5
 
 packages:
-  uart: !include ../../test_build_components/common/uart_19200/esp32-c3-ard.yaml
+  uart_19200: !include ../../test_build_components/common/uart_19200/esp32-c3-ard.yaml
 
 <<: !include common.yaml
