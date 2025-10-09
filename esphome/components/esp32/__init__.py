@@ -313,11 +313,12 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 1),
-    "latest": cv.Version(3, 3, 1),
-    "dev": cv.Version(3, 3, 1),
+    "recommended": cv.Version(3, 3, 2),
+    "latest": cv.Version(3, 3, 2),
+    "dev": cv.Version(3, 3, 2),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 2): cv.Version(55, 3, 32, "esphome"),
     cv.Version(3, 3, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
@@ -336,8 +337,8 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 1),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
-    cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 5, 1): cv.Version(55, 3, 32, "esphome"),
+    cv.Version(5, 5, 0): cv.Version(55, 3, 32, "esphome"),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
@@ -351,9 +352,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 31, "1"),
-    "latest": cv.Version(55, 3, 31, "1"),
-    "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
+    "recommended": cv.Version(55, 3, 32, "esphome"),
+    "latest": cv.Version(55, 3, 32, "esphome"),
+    "dev": cv.Version(55, 3, 32, "esphome"),
 }
 
 
@@ -789,7 +790,6 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-        add_idf_sdkconfig_option("CONFIG_MODEL_IN_FLASH", False)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
