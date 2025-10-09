@@ -33,7 +33,6 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
     // return settings string or empty if not desired
     if (!debug_add_settings)
       return "";
-    this->debug_add_settings_ = true;
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
