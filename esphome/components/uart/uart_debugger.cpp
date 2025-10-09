@@ -13,7 +13,7 @@ static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   this->parent_ = parent;
-  parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {
+  parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
@@ -74,9 +74,29 @@ void UARTDebugger::trigger_after_timeout_() {
 
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
+std::string UARTDebugger::get_debug_prefix() {
+  if (!this->debug_add_prefix_)
+    return this->debug_prefix_;
+  std::string res = "|" + this->parent_->get_baud_rate();
+  res + = ":" + this->parent_->get_data_bits();
+  res + = ":" + this->parent_->get_stop_bits();
+  switch(this->parent_->get_polarity()) {
+    case 0:
+      res + = "none|";
+      break;
+    case 1:
+      res + = "even|";
+      break;
+    case 2:
+      res + = "odd|";
+      break;
+  }
+  return res + this->debug_prefix_;
+}
+
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
-  trigger(this->last_direction_, this->bytes_);
+  trigger(this->last_direction_, this->bytes_, this->get_debug_prefix());
   this->bytes_.clear();
   this->is_triggering_ = false;
 }
