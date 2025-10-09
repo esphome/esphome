@@ -170,7 +170,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-#ifdef USE_UART_DEBUGGER
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   this->debugger_reload_required_ = true;
 #endif
   
