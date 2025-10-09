@@ -304,6 +304,17 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
 
 
+def _is_framework_url(source: str) -> str:
+    # platformio accepts many URL schemes for framework repositories and archives including http, https, git, file, and symlink
+    import urllib.parse
+
+    try:
+        parsed = urllib.parse.urlparse(source)
+    except ValueError:
+        return False
+    return bool(parsed.scheme)
+
+
 # NOTE: Keep this in mind when updating the recommended version:
 #  * New framework historically have had some regressions, especially for WiFi.
 #    The new version needs to be thoroughly validated before changing the
@@ -386,7 +397,7 @@ def _check_versions(value):
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
-        if value[CONF_SOURCE].startswith("http"):
+        if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = (
                 f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
             )
@@ -399,7 +410,7 @@ def _check_versions(value):
             CONF_SOURCE,
             _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
         )
-        if value[CONF_SOURCE].startswith("http"):
+        if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
 
     if CONF_PLATFORM_VERSION not in value:
