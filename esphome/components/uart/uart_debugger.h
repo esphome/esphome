@@ -44,7 +44,8 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
 
   void reload();
   
-  static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
+  static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate,
+                                      uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
     if (!debug_add_settings)
        return debug_prefix;
      std::string res = "|" + std::to_string(baud_rate);
