@@ -39,6 +39,7 @@ from script.merge_component_configs import merge_component_configs
 ISOLATED_COMPONENTS = {
     "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component (buffer_impl.cpp symbols defined in both src/camera/ and src/esphome/components/camera/)",
     "camera": "Uses relative include paths that break when merged with other components",
+    "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
 }
 
 
