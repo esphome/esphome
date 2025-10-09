@@ -19,17 +19,11 @@ CODEOWNERS = ["@abel-msk"]
 # _LOGGER = logging.getLogger(__name__)
 
 FatESP32_ns = cg.esphome_ns.namespace("fatfs_esp32")
-# FatESP32 = FatESP32_ns.class_("FatESP32", fatfs.FatFS, cg.PollingComponent)
 FatESP32 = FatESP32_ns.class_("FatESP32", fatfs.FatFS)
 
 #
 #   Validators
 #
-
-
-def validate_esp32(config):
-    if CORE.target_platform != PLATFORM_ESP32:
-        raise cv.Invalid("This platform can be used only with ESP32 any variants.")
 
 
 #
@@ -43,8 +37,6 @@ def fatfs_esp32_schema(
     return fatfs.fatfs_schema(class_)
 
 
-# .add_extra(validate_esp32)
-
 #
 #   To code
 #
@@ -53,6 +45,11 @@ def fatfs_esp32_schema(
 
 
 async def new_esp32_driver(config, *args):
+    if CORE.target_platform != PLATFORM_ESP32:
+        raise NotImplementedError(
+            "This component can be used only on ESP32 platform any variants."
+        )
     return await fatfs.new_fatfs(config, *args)
+
     # await register_esp32_driver(var, config)
     # return var
