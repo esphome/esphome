@@ -259,7 +259,11 @@ async def debug_to_code(config, parent):
     for action in config[CONF_SEQUENCE]:
         await automation.build_automation(
             trigger,
-            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes"), (cg.std_string, "debug_prefix")],
+            [
+                (UARTDirection, "direction"),
+                (cg.std_vector.template(cg.uint8), "bytes"),
+                (cg.std_string, "debug_prefix"),
+            ],
             action,
         )
     cg.add(trigger.set_direction(config[CONF_DIRECTION]))

@@ -43,10 +43,8 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
   // debug prefix setter
-  void set_debug_prefix(std::string debug_prefix) { 
-    this->debug_prefix_ = debug_prefix;
-  }
-  
+  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
+
  protected:
   UARTDirection for_direction_;
   UARTDirection last_direction_{};
@@ -88,18 +86,21 @@ class UARTDebug {
  public:
   /// Log the bytes as hex values, separated by the provided separator
   /// character.
-  static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, std::string debug_prefix = "");
+  static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+                      std::string debug_prefix = "");
 
   /// Log the bytes as string values, escaping unprintable characters.
   static void log_string(UARTDirection direction, std::vector<uint8_t> bytes, std::string debug_prefix = "");
 
   /// Log the bytes as integer values, separated by the provided separator
   /// character.
-  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, std::string debug_prefix = "");
+  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+                      std::string debug_prefix = "");
 
   /// Log the bytes as '<binary> (<hex>)' values, separated by the provided
   /// separator.
-  static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, std::string debug_prefix = "");
+  static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+                         std::string debug_prefix = "");
 };
 
 }  // namespace uart

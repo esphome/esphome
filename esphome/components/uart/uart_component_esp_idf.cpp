@@ -169,7 +169,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  
+
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
     this->dump_config();
