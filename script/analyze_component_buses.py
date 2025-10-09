@@ -51,6 +51,32 @@ VALID_BUS_CONFIGS = {
 }
 
 
+def uses_local_file_references(component_dir: Path) -> bool:
+    """Check if a component uses local file references via $component_dir.
+
+    Components that reference local files cannot be grouped because each needs
+    a unique component_dir path pointing to their specific directory.
+
+    Args:
+        component_dir: Path to the component's test directory
+
+    Returns:
+        True if the component uses $component_dir for local file references
+    """
+    common_yaml = component_dir / "common.yaml"
+    if not common_yaml.exists():
+        return False
+
+    try:
+        content = common_yaml.read_text()
+    except Exception:
+        return False
+
+    # Pattern to match $component_dir or ${component_dir} references
+    # These indicate local file usage that prevents grouping
+    return bool(re.search(r"\$\{?component_dir\}?", content))
+
+
 def extract_common_buses(yaml_file: Path) -> set[str]:
     """Extract which common bus configs are included in a YAML test file.
 
@@ -110,23 +136,28 @@ def analyze_component(component_dir: Path) -> dict[str, list[str]]:
     return platform_buses
 
 
-def analyze_all_components(tests_dir: Path = None) -> dict[str, dict[str, list[str]]]:
+def analyze_all_components(
+    tests_dir: Path = None,
+) -> tuple[dict[str, dict[str, list[str]]], set[str]]:
     """Analyze all component test directories.
 
     Args:
         tests_dir: Path to tests/components directory (defaults to auto-detect)
 
     Returns:
-        Dictionary mapping component name to platform->buses mapping
+        Tuple of:
+        - Dictionary mapping component name to platform->buses mapping
+        - Set of component names that use local files (cannot be grouped)
     """
     if tests_dir is None:
         tests_dir = Path("tests/components")
 
     if not tests_dir.exists():
         print(f"Error: {tests_dir} does not exist", file=sys.stderr)
-        return {}
+        return {}, set()
 
     components = {}
+    non_groupable = set()
 
     for component_dir in sorted(tests_dir.iterdir()):
         if not component_dir.is_dir():
@@ -138,7 +169,11 @@ def analyze_all_components(tests_dir: Path = None) -> dict[str, dict[str, list[s
         if platform_buses:
             components[component_name] = platform_buses
 
-    return components
+        # Check if component uses local file references
+        if uses_local_file_references(component_dir):
+            non_groupable.add(component_name)
+
+    return components, non_groupable
 
 
 def create_grouping_signature(
@@ -226,14 +261,17 @@ def main() -> None:
     if args.components:
         # Analyze only specified components
         components = {}
+        non_groupable = set()
         for comp in args.components:
             comp_dir = tests_dir / comp
             platform_buses = analyze_component(comp_dir)
             if platform_buses:
                 components[comp] = platform_buses
+            if uses_local_file_references(comp_dir):
+                non_groupable.add(comp)
     else:
         # Analyze all components
-        components = analyze_all_components(tests_dir)
+        components, non_groupable = analyze_all_components(tests_dir)
 
     # Output results
     if args.group and args.platform:
@@ -256,12 +294,19 @@ def main() -> None:
     else:
         # Human-readable output
         for component, platform_buses in sorted(components.items()):
-            print(f"{component}:")
+            non_groupable_marker = (
+                " [NON-GROUPABLE]" if component in non_groupable else ""
+            )
+            print(f"{component}{non_groupable_marker}:")
             for platform, buses in sorted(platform_buses.items()):
                 bus_str = ", ".join(buses)
                 print(f"  {platform}: {bus_str}")
         print()
         print(f"Total components analyzed: {len(components)}")
+        if non_groupable:
+            print(f"Non-groupable components (use local files): {len(non_groupable)}")
+            for comp in sorted(non_groupable):
+                print(f"  - {comp}")
 
 
 if __name__ == "__main__":

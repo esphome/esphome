@@ -331,11 +331,15 @@ def test_components(
         print("\n" + "=" * 80)
         print("Analyzing components for intelligent grouping...")
         print("=" * 80)
-        component_buses = analyze_all_components(tests_dir)
+        component_buses, non_groupable = analyze_all_components(tests_dir)
 
         # Group by (platform, bus_signature)
         for component, platforms in component_buses.items():
             if component not in all_tests:
+                continue
+
+            # Skip components that use local file references
+            if component in non_groupable:
                 continue
 
             for platform, buses in platforms.items():
@@ -351,6 +355,18 @@ def test_components(
         # Print detailed grouping plan
         print("\nGrouping Plan:")
         print("-" * 80)
+
+        # Show excluded components
+        if non_groupable:
+            excluded_in_tests = [c for c in non_groupable if c in all_tests]
+            if excluded_in_tests:
+                print(
+                    f"\n⚠ {len(excluded_in_tests)} components excluded from grouping (use local file references):"
+                )
+                for comp in sorted(excluded_in_tests[:5]):
+                    print(f"  - {comp}")
+                if len(excluded_in_tests) > 5:
+                    print(f"  ... and {len(excluded_in_tests) - 5} more")
 
         groups_to_test = []
         individual_tests = []
