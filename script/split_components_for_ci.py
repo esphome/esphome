@@ -69,12 +69,17 @@ def create_intelligent_batches(
     # Components with the same signature stay in the same batches
     batches = []
 
-    # Sort signature groups by size (largest first) for better packing
-    sorted_groups = sorted(
-        signature_groups.items(),
-        key=lambda x: len(x[1]),
-        reverse=True,
-    )
+    # Sort signature groups to prioritize groupable components
+    # 1. Put "none" signature last (can't be grouped)
+    # 2. Sort groupable signatures by size (largest first)
+    def sort_key(item):
+        (platform, signature), components = item
+        is_none = platform == "none" and signature == "none"
+        # Put "none" last (1), groupable first (0)
+        # Within each category, sort by size (largest first)
+        return (is_none, -len(components))
+
+    sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
     for (platform, signature), group_components in sorted_groups:
         # Split this signature group into batches of batch_size
