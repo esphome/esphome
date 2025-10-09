@@ -50,6 +50,18 @@ VALID_BUS_CONFIGS = {
     "uart_9600_even",
 }
 
+# Bus types that support component grouping
+# I2C and SPI are shared buses with addressing/CS pins
+# BLE sensors scan independently and don't conflict
+# UART is point-to-point and components would conflict on the same bus
+GROUPABLE_BUS_TYPES = {
+    "ble",
+    "i2c",
+    "i2c_low_freq",
+    "qspi",
+    "spi",
+}
+
 
 def uses_local_file_references(component_dir: Path) -> bool:
     """Check if a component uses local file references via $component_dir.
@@ -182,18 +194,26 @@ def create_grouping_signature(
     """Create a signature string for grouping components.
 
     Components with the same signature can be grouped together for testing.
+    Only includes groupable bus types (I2C, SPI, BLE) - excludes point-to-point
+    protocols like UART that can't be shared.
 
     Args:
         platform_buses: Mapping of platform to list of buses
         platform: The specific platform to create signature for
 
     Returns:
-        Signature string (e.g., "i2c+uart_19200" or "spi")
+        Signature string (e.g., "i2c" or "spi") or empty if no groupable buses
     """
     buses = platform_buses.get(platform, [])
     if not buses:
         return ""
-    return "+".join(sorted(buses))
+
+    # Only include groupable bus types in signature
+    groupable_buses = [b for b in buses if b in GROUPABLE_BUS_TYPES]
+    if not groupable_buses:
+        return ""
+
+    return "+".join(sorted(groupable_buses))
 
 
 def group_components_by_signature(

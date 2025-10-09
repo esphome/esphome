@@ -332,10 +332,13 @@ def run_grouped_component_tests(
             if platform_filter and not platform.startswith(platform_filter):
                 continue
 
-            # Only group if component has common bus configs
+            # Only group if component has groupable bus configs
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
-                grouped_components[(platform, signature)].append(component)
+                # Only add to grouped_components if signature is non-empty
+                # (empty means only non-groupable buses like UART)
+                if signature:
+                    grouped_components[(platform, signature)].append(component)
 
     # Print detailed grouping plan
     print("\nGrouping Plan:")
