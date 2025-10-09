@@ -178,6 +178,9 @@ class UARTComponent {
   void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
+#endif
+
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   bool debugger_needs_reload() {
     if(this->debugger_reload_required_) {
       this->debugger_reload_required_ = false;
