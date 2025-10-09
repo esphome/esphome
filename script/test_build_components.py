@@ -9,7 +9,7 @@ Features:
 - Analyzes components for shared common bus configs
 - Groups compatible components together
 - Merges configs for grouped components
-- Uses --ignore-pin-conflicts for grouped tests
+- Uses --testing-mode for grouped tests
 - Maintains backward compatibility with single component testing
 """
 
@@ -119,7 +119,7 @@ def run_esphome_test(
     build_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
-    use_ignore_pin_conflicts: bool = False,
+    use_testing_mode: bool = False,
 ) -> bool:
     """Run esphome test for a single component.
 
@@ -132,7 +132,7 @@ def run_esphome_test(
         build_dir: Path to build directory
         esphome_command: ESPHome command (config/compile)
         continue_on_fail: Whether to continue on failure
-        use_ignore_pin_conflicts: Whether to use --ignore-pin-conflicts flag
+        use_testing_mode: Whether to use --testing-mode flag
 
     Returns:
         True if test passed, False otherwise
@@ -157,9 +157,9 @@ def run_esphome_test(
         "esphome",
     ]
 
-    # Add --ignore-pin-conflicts if needed (must be before subcommand)
-    if use_ignore_pin_conflicts:
-        cmd.append("--ignore-pin-conflicts")
+    # Add --testing-mode if needed (must be before subcommand)
+    if use_testing_mode:
+        cmd.append("--testing-mode")
 
     # Add substitutions
     cmd.extend(
@@ -184,8 +184,8 @@ def run_esphome_test(
 
     # Run command
     print(f"> [{component}] [{test_name}] [{platform_with_version}]")
-    if use_ignore_pin_conflicts:
-        print("  (using --ignore-pin-conflicts)")
+    if use_testing_mode:
+        print("  (using --testing-mode)")
 
     try:
         result = subprocess.run(cmd, check=not continue_on_fail)
@@ -248,12 +248,12 @@ def run_grouped_test(
     output_content = base_content.replace("$component_test_file", merged_ref)
     output_file.write_text(output_content)
 
-    # Build esphome command with --ignore-pin-conflicts
+    # Build esphome command with --testing-mode
     cmd = [
         sys.executable,
         "-m",
         "esphome",
-        "--ignore-pin-conflicts",  # Required for grouped tests
+        "--testing-mode",  # Required for grouped tests
         "-s",
         "component_name",
         group_name,
@@ -273,7 +273,7 @@ def run_grouped_test(
     # Run command
     components_str = ", ".join(components)
     print(f"> [GROUPED: {components_str}] [{platform_with_version}]")
-    print("  (using --ignore-pin-conflicts)")
+    print("  (using --testing-mode)")
 
     try:
         result = subprocess.run(cmd, check=not continue_on_fail)

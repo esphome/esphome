@@ -1003,8 +1003,8 @@ def parse_args(argv):
         default=[],
     )
     options_parser.add_argument(
-        "--ignore-pin-conflicts",
-        help="Disable pin conflict validation (for testing grouped components)",
+        "--testing-mode",
+        help="Enable testing mode (disables validation checks for grouped component testing)",
         action="store_true",
         default=False,
     )
@@ -1266,7 +1266,7 @@ def run_esphome(argv):
 
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
-    CORE.ignore_pin_conflicts = args.ignore_pin_conflicts
+    CORE.testing_mode = args.testing_mode
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(
