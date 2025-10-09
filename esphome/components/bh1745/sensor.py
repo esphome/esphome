@@ -1,18 +1,18 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor, switch
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
+    CONF_ID,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
+    DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_ILLUMINANCE,
     UNIT_KELVIN,
     UNIT_LUX,
 )
