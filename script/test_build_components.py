@@ -357,21 +357,18 @@ def run_grouped_component_tests(
                 print(f"  ... and {len(excluded_in_tests) - 5} more")
 
     groups_to_test = []
-    individual_tests = []
+    individual_tests = set()  # Use set to avoid duplicates
 
     for (platform, signature), components in sorted(grouped_components.items()):
         if len(components) > 1:
             groups_to_test.append((platform, signature, components))
-        elif len(components) == 1:
-            individual_tests.extend(components)
+        # Note: Don't add single-component groups to individual_tests here
+        # They'll be added below when we check for ungrouped components
 
-    # Add components without grouping signatures
+    # Add components that weren't grouped on any platform
     for component in all_tests:
-        if (
-            component not in [c for _, _, comps in groups_to_test for c in comps]
-            and component not in individual_tests
-        ):
-            individual_tests.append(component)
+        if component not in [c for _, _, comps in groups_to_test for c in comps]:
+            individual_tests.add(component)
 
     if groups_to_test:
         print(f"\n✓ {len(groups_to_test)} groups will be tested together:")
@@ -384,23 +381,40 @@ def run_grouped_component_tests(
 
     if individual_tests:
         print(f"\n○ {len(individual_tests)} components will be tested individually:")
-        for comp in sorted(individual_tests[:10]):
+        sorted_individual = sorted(individual_tests)
+        for comp in sorted_individual[:10]:
             print(f"  - {comp}")
         if len(individual_tests) > 10:
             print(f"  ... and {len(individual_tests) - 10} more")
 
-    total_grouped = sum(len(comps) for _, _, comps in groups_to_test)
-    total_builds_without_grouping = len(all_tests)
-    total_builds_with_grouping = len(groups_to_test) + len(individual_tests)
-    builds_saved = total_builds_without_grouping - total_builds_with_grouping
+    # Calculate actual build counts based on test files, not component counts
+    # Without grouping: every test file would be built separately
+    total_test_files = sum(len(test_files) for test_files in all_tests.values())
+
+    # With grouping:
+    # - 1 build per group (regardless of how many components)
+    # - Individual components still need all their platform builds
+    individual_test_file_count = sum(
+        len(all_tests[comp]) for comp in individual_tests if comp in all_tests
+    )
+
+    total_grouped_components = sum(len(comps) for _, _, comps in groups_to_test)
+    total_builds_with_grouping = len(groups_to_test) + individual_test_file_count
+    builds_saved = total_test_files - total_builds_with_grouping
 
     print(f"\n{'=' * 80}")
-    print(f"Summary: {total_builds_with_grouping} builds total")
-    print(f"  • {len(groups_to_test)} grouped builds ({total_grouped} components)")
-    print(f"  • {len(individual_tests)} individual builds")
     print(
-        f"  • Saves {builds_saved} builds ({builds_saved / total_builds_without_grouping * 100:.1f}% reduction)"
+        f"Summary: {total_builds_with_grouping} builds total (vs {total_test_files} without grouping)"
     )
+    print(
+        f"  • {len(groups_to_test)} grouped builds ({total_grouped_components} components)"
+    )
+    print(
+        f"  • {individual_test_file_count} individual builds ({len(individual_tests)} components)"
+    )
+    if total_test_files > 0:
+        reduction_pct = (builds_saved / total_test_files) * 100
+        print(f"  • Saves {builds_saved} builds ({reduction_pct:.1f}% reduction)")
     print("=" * 80 + "\n")
 
     # Execute grouped tests
