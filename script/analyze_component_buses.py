@@ -245,7 +245,7 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 
 def analyze_all_components(
     tests_dir: Path = None,
-) -> tuple[dict[str, dict[str, list[str]]], set[str]]:
+) -> tuple[dict[str, dict[str, list[str]]], set[str], set[str]]:
     """Analyze all component test directories.
 
     Args:
@@ -254,17 +254,19 @@ def analyze_all_components(
     Returns:
         Tuple of:
         - Dictionary mapping component name to platform->buses mapping
-        - Set of component names that cannot be grouped (use local files, define buses directly, or are platform components)
+        - Set of component names that cannot be grouped
+        - Set of component names that define buses directly (need migration warning)
     """
     if tests_dir is None:
         tests_dir = Path("tests/components")
 
     if not tests_dir.exists():
         print(f"Error: {tests_dir} does not exist", file=sys.stderr)
-        return {}, set()
+        return {}, set(), set()
 
     components = {}
     non_groupable = set()
+    direct_bus_components = set()
 
     for component_dir in sorted(tests_dir.iterdir()):
         if not component_dir.is_dir():
@@ -296,8 +298,9 @@ def analyze_all_components(
         # These create unique bus IDs and cause conflicts when merged
         if has_direct_bus_config:
             non_groupable.add(component_name)
+            direct_bus_components.add(component_name)
 
-    return components, non_groupable
+    return components, non_groupable, direct_bus_components
 
 
 def create_grouping_signature(
@@ -395,9 +398,12 @@ def main() -> None:
         # Analyze only specified components
         components = {}
         non_groupable = set()
+        direct_bus_components = set()
         for comp in args.components:
             comp_dir = tests_dir / comp
-            platform_buses, has_extend_remove = analyze_component(comp_dir)
+            platform_buses, has_extend_remove, has_direct_bus_config = (
+                analyze_component(comp_dir)
+            )
             if platform_buses:
                 components[comp] = platform_buses
             if uses_local_file_references(comp_dir):
@@ -406,9 +412,14 @@ def main() -> None:
                 non_groupable.add(comp)
             if has_extend_remove:
                 non_groupable.add(comp)
+            if has_direct_bus_config:
+                non_groupable.add(comp)
+                direct_bus_components.add(comp)
     else:
         # Analyze all components
-        components, non_groupable = analyze_all_components(tests_dir)
+        components, non_groupable, direct_bus_components = analyze_all_components(
+            tests_dir
+        )
 
     # Output results
     if args.group and args.platform:

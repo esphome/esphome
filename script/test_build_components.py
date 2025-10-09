@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from script.analyze_component_buses import (
     analyze_all_components,
     create_grouping_signature,
+    is_platform_component,
+    uses_local_file_references,
 )
 from script.merge_component_configs import merge_component_configs
 
@@ -331,19 +333,45 @@ def run_grouped_component_tests(
     print("\n" + "=" * 80)
     print("Analyzing components for intelligent grouping...")
     print("=" * 80)
-    component_buses, non_groupable = analyze_all_components(tests_dir)
+    component_buses, non_groupable, direct_bus_components = analyze_all_components(
+        tests_dir
+    )
+
+    # Track why components can't be grouped (for detailed output)
+    non_groupable_reasons = {}
 
     # Group by (platform, bus_signature)
     for component, platforms in component_buses.items():
         if component not in all_tests:
             continue
 
-        # Skip components that use local file references
+        # Skip components that use local file references or direct bus configs
         if component in non_groupable:
+            # Track the reason (using pre-calculated results to avoid expensive re-analysis)
+            if component not in non_groupable_reasons:
+                if component in direct_bus_components:
+                    non_groupable_reasons[component] = (
+                        "Defines buses directly (not via packages) - NEEDS MIGRATION"
+                    )
+                elif uses_local_file_references(tests_dir / component):
+                    non_groupable_reasons[component] = (
+                        "Uses local file references ($component_dir)"
+                    )
+                elif is_platform_component(tests_dir / component):
+                    non_groupable_reasons[component] = (
+                        "Platform component (abstract base class)"
+                    )
+                else:
+                    non_groupable_reasons[component] = (
+                        "Uses !extend or !remove directives"
+                    )
             continue
 
         # Skip components that must be tested in isolation
         if component in ISOLATED_COMPONENTS:
+            non_groupable_reasons[component] = (
+                f"Known build issue: {ISOLATED_COMPONENTS[component]}"
+            )
             continue
 
         for platform, buses in platforms.items():
@@ -376,17 +404,40 @@ def run_grouped_component_tests(
             reason = ISOLATED_COMPONENTS[comp]
             print(f"  - {comp}: {reason}")
 
-    # Show excluded components
-    if non_groupable:
-        excluded_in_tests = [c for c in non_groupable if c in all_tests]
+    # Show excluded components with detailed reasons
+    if non_groupable_reasons:
+        excluded_in_tests = [c for c in non_groupable_reasons if c in all_tests]
         if excluded_in_tests:
             print(
-                f"\n⚠ {len(excluded_in_tests)} components excluded from grouping (use local file references):"
+                f"\n⚠ {len(excluded_in_tests)} components excluded from grouping (each needs individual build):"
             )
-            for comp in sorted(excluded_in_tests[:5]):
-                print(f"  - {comp}")
-            if len(excluded_in_tests) > 5:
-                print(f"  ... and {len(excluded_in_tests) - 5} more")
+            # Group by reason to show summary
+            direct_bus = [
+                c
+                for c in excluded_in_tests
+                if "NEEDS MIGRATION" in non_groupable_reasons.get(c, "")
+            ]
+            if direct_bus:
+                print(
+                    f"\n  ⚠⚠⚠ {len(direct_bus)} DEFINE BUSES DIRECTLY - NEED MIGRATION TO PACKAGES:"
+                )
+                for comp in sorted(direct_bus):
+                    print(f"    - {comp}")
+
+            other_reasons = [
+                c
+                for c in excluded_in_tests
+                if "NEEDS MIGRATION" not in non_groupable_reasons.get(c, "")
+            ]
+            if other_reasons and len(other_reasons) <= 10:
+                print("\n  Other non-groupable components:")
+                for comp in sorted(other_reasons):
+                    reason = non_groupable_reasons[comp]
+                    print(f"    - {comp}: {reason}")
+            elif other_reasons:
+                print(
+                    f"\n  Other non-groupable components: {len(other_reasons)} components"
+                )
 
     groups_to_test = []
     individual_tests = set()  # Use set to avoid duplicates
