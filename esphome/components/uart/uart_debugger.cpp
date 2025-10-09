@@ -76,7 +76,7 @@ bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 std::string UARTDebugger::get_debug_prefix(std::string debug_prefix, bool debug_add_settings) {
    if (!debug_add_settings)
      return debug_prefix;
-   std::string res = "|" + this->baud_rate_;
+   std::string res = "|" + this->parent_->get_baud_rate();
    res += ":" + this->parent_->get_data_bits();
    res += ":" + this->parent_->get_stop_bits();
    switch (this->parent_->get_parity()) {
