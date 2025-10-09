@@ -150,6 +150,12 @@ class UARTComponent {
 #ifdef USE_UART_DEBUGGER
   // return settings string or empty if not desired
   std::string get_debug_settings_string();
+  void set_debug_prefix(std::string debug_prefix) { 
+    this->debug_prefix_ = debug_prefix;
+  }
+  void set_debug_add_settings(bool debug_add_settings) { 
+    this->debug_add_settings_ = debug_add_settings;
+  }
 #endif
 
 #if defined(USE_ESP8266) || defined(USE_ESP32)
