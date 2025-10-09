@@ -181,11 +181,11 @@ class UARTComponent {
   std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings) {
     if (!debug_add_settings)
       return debug_prefix;
-    std::string res = "|" + this->get_baud_rate();
-    res += ":" + this->get_data_bits();
-    res += ":" + this->get_stop_bits();
-    //res += ":" + static_cast<std::string>(esphome::uart::parity_to_str(this->parent_->get_parity()));
-    return res + debug_prefix;
+    std::string res = "|" + this->baud_rate_;
+    res += ":" + this->data_bits_;
+    res += ":" + this->stop_bits_;
+    res += ":" + static_cast<std::string>(esphome::uart::parity_to_str(this->parity_));
+    return res + "|" + debug_prefix;
 }
 #endif
 
