@@ -10,6 +10,7 @@ display:
 touchscreen:
   - id: ts_cst226
     platform: cst226
+    display: cst226_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
 

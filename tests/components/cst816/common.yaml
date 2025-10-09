@@ -16,6 +16,7 @@ display:
 touchscreen:
   - id: ts_cst816
     platform: cst816
+    display: cst816_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
     skip_probe: false
