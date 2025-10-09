@@ -23,7 +23,6 @@ the MAC address of a device and track it using ESPHome.
 ```yaml
 # Example configuration entry
 esp32_ble_tracker:
-  max_connections: 3
 
 binary_sensor:
   - platform: ble_presence
@@ -94,13 +93,8 @@ sensor:
     Defaults to `true`.
 
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID for this ESP32 BLE Hub.
-- **max_connections** (*Optional*, int): The maximum number of BLE connection slots to use.
-  Each configured slot consumes ~1KB of RAM. It is recommended not to exceed `5`
-  connection slots to avoid memory issues. Defaults to `3`.
-  This can only be adjusted when using the `esp-idf` framework up to a maximum of `9`.
-  This value cannot exceed the total number of `connection_slots` for the
-  {{< docref "bluetooth_proxy/" >}} component combined with the total
-  configured {{< docref "ble_client/" >}} instances.
+- **max_connections** (*Optional*, int): **DEPRECATED** - This option has been moved to the {{< docref "esp32_ble/" >}} component.
+  Please configure `max_connections` there instead. This option is kept for backward compatibility only. This option will be removed in ESPHome 2026.10.0.
 
 Automations:
 
