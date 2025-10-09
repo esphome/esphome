@@ -42,49 +42,9 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-  void reload();
-  
-  static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate,
-                                      uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
-    if (!debug_add_settings)
-       return debug_prefix;
-     std::string res = "|" + std::to_string(baud_rate);
-     res += ":" + std::to_string(data_bits);
-     res += ":" + std::to_string(stop_bits);
-     switch (parity) {
-       case UART_CONFIG_PARITY_NONE:
-         res += ":NONE";
-         break;
-       case UART_CONFIG_PARITY_EVEN:
-         res += ":EVEN";
-         break;
-       case UART_CONFIG_PARITY_ODD:
-         res += ":ODD";
-         break;
-     default:
-       res += ":UNKNOWN";
-       break;
-     }
-     return res + "|" + debug_prefix;
-  }
-#endif
-
-  // debug setting setters
+  // debug prefix setter
   void set_debug_prefix(std::string debug_prefix) { 
     this->debug_prefix_ = debug_prefix;
-  }
-  void set_debug_add_settings(bool debug_add_settings) {
-    this->debug_add_settings_ = debug_add_settings;
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-    if (debug_add_settings)
-      this->final_debug_prefix_= get_debug_prefix(this->debug_prefix_,
-                                                  this->debug_add_settings_,
-                                                  this->baud_rate_,
-                                                  this->data_bits_,
-                                                  this->stop_bits_,
-                                                  this->parity_);
-#endif
   }
   
  protected:
@@ -98,15 +58,6 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
   std::string debug_prefix_{""};
-  bool debug_add_settings_{false};
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-  std::string final_debug_prefix_{""};
-  uint32_t baud_rate_;
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
-  UARTComponent* parent_;
-#endif
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
