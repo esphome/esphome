@@ -155,7 +155,7 @@ void OpenThreadSrpComponent::setup() {
 
     // Set service name
     char *string = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
-    std::string full_service = service.service_type + "." + service.proto;
+    std::string full_service = std::string(MDNS_STR_ARG(service.service_type)) + "." + MDNS_STR_ARG(service.proto);
     if (full_service.size() > size) {
       ESP_LOGW(TAG, "Service name too long: %s", full_service.c_str());
       continue;
@@ -181,7 +181,7 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       auto value = const_cast<TemplatableValue<std::string> &>(txt.value).value();
-      txt_entries[i].mKey = strdup(txt.key.c_str());
+      txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
       txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value.c_str()));
       txt_entries[i].mValueLength = value.size();
     }
