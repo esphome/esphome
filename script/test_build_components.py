@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+import hashlib
 from pathlib import Path
 import subprocess
 import sys
@@ -227,6 +228,13 @@ def run_grouped_test(
     if len(components) > 3:
         group_name += f"_plus_{len(components) - 3}"
 
+    # Create unique device name by hashing sorted component list + platform
+    # This prevents conflicts when different component groups are tested
+    sorted_components = sorted(components)
+    hash_input = "_".join(sorted_components) + "_" + platform
+    group_hash = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+    device_name = f"comptest{platform.replace('-', '')}{group_hash}"
+
     merged_config_file = build_dir / f"merged_{group_name}.{platform_with_version}.yaml"
 
     try:
@@ -257,7 +265,7 @@ def run_grouped_test(
         "--testing-mode",  # Required for grouped tests
         "-s",
         "component_name",
-        group_name,
+        device_name,  # Use unique hash-based device name
         "-s",
         "component_dir",
         "../../components",
