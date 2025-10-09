@@ -494,13 +494,31 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_target_humidity()) {
     call.set_target_humidity(this->target_humidity);
   }
-  if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
-    call.set_fan_mode(this->fan_mode);
+  if (this->uses_custom_fan_mode) {
+    if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
+      auto it = traits.get_supported_custom_fan_modes().cbegin();
+      for (size_t i = this->custom_fan_mode; i > 0; i--)
+        it++;
+      call.set_fan_mode(*it);
+    }
+  } else {
+    if (traits.supports_fan_mode(this->fan_mode)) {
+      call.set_fan_mode(this->fan_mode);
+    }
   }
-  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    call.set_preset(this->preset);
+  if (this->uses_custom_preset) {
+    if (this->custom_preset < traits.get_supported_custom_presets().size()) {
+      auto it = traits.get_supported_custom_presets().cbegin();
+      for (size_t i = this->custom_preset; i > 0; i--)
+        it++;
+      call.set_preset(*it);
+    }
+  } else {
+    if (traits.supports_preset(this->preset)) {
+      call.set_preset(this->preset);
+    }
   }
-  if (traits.get_supports_swing_modes()) {
+  if (traits.supports_swing_mode(this->swing_mode)) {
     call.set_swing_mode(this->swing_mode);
   }
   return call;
@@ -517,29 +535,35 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (traits.get_supports_target_humidity()) {
     climate->target_humidity = this->target_humidity;
   }
-  if (traits.get_supports_fan_modes() && !this->uses_custom_fan_mode) {
-    climate->fan_mode = this->fan_mode;
-  }
-  if (!traits.get_supported_custom_fan_modes().empty() && this->uses_custom_fan_mode) {
-    // std::set has consistent order (lexicographic for strings), so this is ok
-    const auto &modes = traits.get_supported_custom_fan_modes();
-    std::vector<std::string> modes_vec{modes.begin(), modes.end()};
-    if (custom_fan_mode < modes_vec.size()) {
-      climate->custom_fan_mode = modes_vec[this->custom_fan_mode];
+  if (this->uses_custom_fan_mode) {
+    if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
+      auto it = traits.get_supported_custom_fan_modes().cbegin();
+      for (size_t i = this->custom_fan_mode; i > 0; i--)
+        it++;
+      climate->fan_mode.reset();
+      climate->custom_fan_mode = *it;
+    }
+  } else {
+    if (traits.supports_fan_mode(this->fan_mode)) {
+      climate->fan_mode = this->fan_mode;
+      climate->custom_fan_mode.reset();
     }
   }
-  if (traits.get_supports_presets() && !this->uses_custom_preset) {
-    climate->preset = this->preset;
-  }
-  if (!traits.get_supported_custom_presets().empty() && uses_custom_preset) {
-    // std::set has consistent order (lexicographic for strings), so this is ok
-    const auto &presets = traits.get_supported_custom_presets();
-    std::vector<std::string> presets_vec{presets.begin(), presets.end()};
-    if (custom_preset < presets_vec.size()) {
-      climate->custom_preset = presets_vec[this->custom_preset];
+  if (this->uses_custom_preset) {
+    if (this->custom_preset < traits.get_supported_custom_presets().size()) {
+      auto it = traits.get_supported_custom_presets().cbegin();
+      for (size_t i = this->custom_preset; i > 0; i--)
+        it++;
+      climate->preset.reset();
+      climate->custom_preset = *it;
+    }
+  } else {
+    if (traits.supports_preset(this->preset)) {
+      climate->preset = this->preset;
+      climate->custom_preset.reset();
     }
   }
-  if (traits.get_supports_swing_modes()) {
+  if (traits.supports_swing_mode(this->swing_mode)) {
     climate->swing_mode = this->swing_mode;
   }
   climate->publish_state();
