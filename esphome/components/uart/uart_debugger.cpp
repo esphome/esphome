@@ -74,6 +74,7 @@ void UARTDebugger::trigger_after_timeout_() {
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 void UARTDebugger::fire_trigger_() {
+  this->debug_prefix_= this->parent_->get_debug_prefix(this->debug_prefix_, debug_add_settings);
   this->is_triggering_ = true;
   trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
   this->bytes_.clear();
