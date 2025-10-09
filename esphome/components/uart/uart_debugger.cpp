@@ -35,6 +35,10 @@ const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, 
 }
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
+  this->baud_rate_ = parent->get_baud_rate();
+  this->data_bits_ = parent->get_data_bits();
+  this->stop_bits_ = parent->get_stop_bits();
+  this->polarity_ = parent->get_polarity();
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
