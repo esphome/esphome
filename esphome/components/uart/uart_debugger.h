@@ -11,6 +11,12 @@
 namespace esphome {
 namespace uart {
 
+enum UARTDirection {
+  UART_DIRECTION_RX,
+  UART_DIRECTION_TX,
+  UART_DIRECTION_BOTH,
+};
+
 /// The UARTDebugger class adds debugging support to a UART bus.
 ///
 /// It accumulates bytes that travel over the UART bus and triggers one or
