@@ -180,16 +180,6 @@ class UARTComponent {
   }
 #endif
 
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-  bool debugger_needs_reload() {
-    if(this->debugger_reload_required_) {
-      this->debugger_reload_required_ = false;
-      return true;
-    }
-    return false;
-  }
-#endif
-
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
@@ -206,9 +196,6 @@ class UARTComponent {
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string)> debug_callback_{};
-#endif
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-  bool debugger_reload_required_{false};
 #endif
 };
 
