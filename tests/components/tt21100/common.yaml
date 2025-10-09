@@ -17,6 +17,6 @@ touchscreen:
 
 binary_sensor:
   - platform: tt21100
-    id: tt21100_touchscreen
+    id: tt21100_button
     name: Home Button
     index: 1
