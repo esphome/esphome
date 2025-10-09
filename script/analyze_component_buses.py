@@ -155,11 +155,13 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
         Dictionary with keys:
         - buses: set of common bus package names
         - has_extend_remove: bool indicating if Extend/Remove objects are present
+        - has_direct_bus_config: bool indicating if buses are defined directly (not via packages)
         - loaded: bool indicating if file was successfully loaded
     """
     result = {
         "buses": set(),
         "has_extend_remove": False,
+        "has_direct_bus_config": False,
         "loaded": False,
     }
 
@@ -175,6 +177,15 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
     # Check for Extend/Remove objects
     result["has_extend_remove"] = _contains_extend_or_remove(data)
 
+    # Check if buses are defined directly (not via packages)
+    # Components that define i2c, spi, or uart directly in test files
+    # cannot be grouped because they create unique bus IDs
+    if isinstance(data, dict):
+        for bus_type in ("i2c", "spi", "uart"):
+            if bus_type in data:
+                result["has_direct_bus_config"] = True
+                break
+
     # Extract common bus packages
     valid_buses = get_common_bus_packages()
     if isinstance(data, dict) and "packages" in data:
@@ -187,7 +198,7 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
     return result
 
 
-def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool]:
+def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, bool]:
     """Analyze a component directory to find which buses each platform uses.
 
     Args:
@@ -198,12 +209,14 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool]:
         - Dictionary mapping platform to list of bus configs
           Example: {"esp32-ard": ["i2c", "spi"], "esp32-idf": ["i2c"]}
         - Boolean indicating if component uses !extend or !remove
+        - Boolean indicating if component defines buses directly (not via packages)
     """
     if not component_dir.is_dir():
-        return {}, False
+        return {}, False, False
 
     platform_buses = {}
     has_extend_remove = False
+    has_direct_bus_config = False
 
     # Analyze all YAML files in the component directory
     for yaml_file in component_dir.glob("*.yaml"):
@@ -212,6 +225,10 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool]:
         # Track if any file uses extend/remove
         if analysis["has_extend_remove"]:
             has_extend_remove = True
+
+        # Track if any file defines buses directly
+        if analysis["has_direct_bus_config"]:
+            has_direct_bus_config = True
 
         # For test.*.yaml files, extract platform and buses
         if yaml_file.name.startswith("test.") and yaml_file.suffix == ".yaml":
@@ -223,7 +240,7 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool]:
                 sorted(analysis["buses"]) if analysis["buses"] else []
             )
 
-    return platform_buses, has_extend_remove
+    return platform_buses, has_extend_remove, has_direct_bus_config
 
 
 def analyze_all_components(
@@ -237,7 +254,7 @@ def analyze_all_components(
     Returns:
         Tuple of:
         - Dictionary mapping component name to platform->buses mapping
-        - Set of component names that cannot be grouped (use local files or are platform components)
+        - Set of component names that cannot be grouped (use local files, define buses directly, or are platform components)
     """
     if tests_dir is None:
         tests_dir = Path("tests/components")
@@ -254,7 +271,9 @@ def analyze_all_components(
             continue
 
         component_name = component_dir.name
-        platform_buses, has_extend_remove = analyze_component(component_dir)
+        platform_buses, has_extend_remove, has_direct_bus_config = analyze_component(
+            component_dir
+        )
 
         if platform_buses:
             components[component_name] = platform_buses
@@ -271,6 +290,11 @@ def analyze_all_components(
         # Check if component uses !extend or !remove directives
         # These rely on specific config structure and cannot be merged
         if has_extend_remove:
+            non_groupable.add(component_name)
+
+        # Check if component defines buses directly in test files
+        # These create unique bus IDs and cause conflicts when merged
+        if has_direct_bus_config:
             non_groupable.add(component_name)
 
     return components, non_groupable
