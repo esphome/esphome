@@ -190,6 +190,43 @@ Components tested individually when they:
 - **i2c_low_freq** (10kHz): For sensors requiring slower I2C speeds
 - **modbus**: Includes UART via package dependencies
 
+### Making Components Groupable
+
+Some components originally used `!extend` directives to add platform-specific parameters. These have been refactored to inline the full configuration, making them groupable:
+
+**Before (non-groupable)**:
+```yaml
+# test.esp32-s3-idf.yaml
+packages:
+  common: !include common.yaml
+
+light:
+  - id: !extend led_strip1
+    use_dma: "true"  # ESP32-S3 specific parameter
+```
+
+**After (groupable)**:
+```yaml
+# test.esp32-s3-idf.yaml
+# Configuration is inlined instead of using !extend to make this component groupable.
+# Using !extend prevents automatic component grouping in CI, requiring individual builds.
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip1
+    pin: ${pin1}
+    num_leds: 60
+    rgb_order: GRB
+    chipset: ws2812
+    use_dma: "true"  # ESP32-S3 specific parameter inlined
+```
+
+**Migrated components**:
+- `remote_receiver/test.esp32-s3-idf.yaml` - Inlined DMA configuration
+- `remote_transmitter/test.esp32-s3-idf.yaml` - Inlined DMA configuration
+- `esp32_rmt_led_strip/test.esp32-s3-idf.yaml` - Inlined DMA configuration for two LED strips
+
+**Note**: Some components legitimately require `!extend` or `!remove` for platform-specific features (e.g., `adc` removing ESP32-only `attenuation` parameter on ESP8266). These are correctly identified as non-groupable.
+
 ## Implementation Details
 
 ### Scripts
