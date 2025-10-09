@@ -2,7 +2,7 @@ packages:
   spi: !include ../../test_build_components/common/spi/esp32-c3-ard.yaml
 
 substitutions:
-  clock_pin: GPIO5
+  clock_pin: GPIO7
   data_pin: GPIO10
   latch_pin1: GPIO1
   oe_pin1: GPIO2
