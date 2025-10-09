@@ -11,6 +11,29 @@ namespace uart {
 
 static const char *const TAG = "uart_debug";
 
+const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t polarity) {
+   if (!debug_add_settings)
+     return debug_prefix;
+   std::string res = "|" + baud_rate;
+   res += ":" + data_bits;
+   res += ":" + stop_bits;
+   switch (parity) {
+     case UART_CONFIG_PARITY_NONE:
+       res += "NONE";
+       break;
+     case UART_CONFIG_PARITY_EVEN:
+       res += "EVEN";
+       break;
+     case UART_CONFIG_PARITY_ODD:
+       res += "ODD";
+       break;
+   default:
+     res += "UNKNOWN";
+     break;
+   }
+   return res + "|" + debug_prefix;
+}
+
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
@@ -74,29 +97,6 @@ void UARTDebugger::trigger_after_timeout_() {
 }
 
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
-
-const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t polarity) {
-   if (!debug_add_settings)
-     return debug_prefix;
-   std::string res = "|" + baud_rate;
-   res += ":" + data_bits;
-   res += ":" + stop_bits;
-   switch (parity) {
-     case UART_CONFIG_PARITY_NONE:
-       res += "NONE";
-       break;
-     case UART_CONFIG_PARITY_EVEN:
-       res += "EVEN";
-       break;
-     case UART_CONFIG_PARITY_ODD:
-       res += "ODD";
-       break;
-   default:
-     res += "UNKNOWN";
-     break;
-   }
-   return res + "|" + debug_prefix;
-}
 
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
