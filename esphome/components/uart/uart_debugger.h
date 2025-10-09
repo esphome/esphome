@@ -42,6 +42,30 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
+  
+  static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
+    if (!debug_add_settings)
+       return debug_prefix;
+     std::string res = "|" + baud_rate;
+     res += ":" + data_bits;
+     res += ":" + stop_bits;
+     switch (parity) {
+       case UART_CONFIG_PARITY_NONE:
+         res += "NONE";
+         break;
+       case UART_CONFIG_PARITY_EVEN:
+         res += "EVEN";
+         break;
+       case UART_CONFIG_PARITY_ODD:
+         res += "ODD";
+         break;
+     default:
+       res += "UNKNOWN";
+       break;
+     }
+     return res + "|" + debug_prefix;
+  }
+
   // debug settings setters
   void set_debug_prefix(std::string debug_prefix) { 
     this->debug_prefix_ = debug_prefix;
