@@ -29,6 +29,13 @@ import json
 from pathlib import Path
 import re
 import sys
+from typing import Any
+
+# Add esphome to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from esphome import yaml_util
+from esphome.config_helpers import Extend, Remove
 
 # Path to common bus configs
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
@@ -110,64 +117,111 @@ def is_platform_component(component_dir: Path) -> bool:
         return False
 
 
-def extract_common_buses(yaml_file: Path) -> set[str]:
-    """Extract which common bus configs are included in a YAML test file.
+def _contains_extend_or_remove(data: Any) -> bool:
+    """Recursively check if data contains Extend or Remove objects.
 
     Args:
-        yaml_file: Path to the component test YAML file
+        data: Parsed YAML data structure
 
     Returns:
-        Set of common bus config names (e.g., {'i2c', 'uart_19200'})
+        True if any Extend or Remove objects are found
     """
+    if isinstance(data, (Extend, Remove)):
+        return True
+
+    if isinstance(data, dict):
+        for value in data.values():
+            if _contains_extend_or_remove(value):
+                return True
+
+    if isinstance(data, list):
+        for item in data:
+            if _contains_extend_or_remove(item):
+                return True
+
+    return False
+
+
+def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
+    """Load a YAML file once and extract all needed information.
+
+    This loads the YAML file a single time and extracts all information needed
+    for component analysis, avoiding multiple file reads.
+
+    Args:
+        yaml_file: Path to the YAML file to analyze
+
+    Returns:
+        Dictionary with keys:
+        - buses: set of common bus package names
+        - has_extend_remove: bool indicating if Extend/Remove objects are present
+        - loaded: bool indicating if file was successfully loaded
+    """
+    result = {
+        "buses": set(),
+        "has_extend_remove": False,
+        "loaded": False,
+    }
+
     if not yaml_file.exists():
-        return set()
+        return result
 
     try:
-        content = yaml_file.read_text()
+        data = yaml_util.load_yaml(yaml_file)
+        result["loaded"] = True
     except Exception:  # pylint: disable=broad-exception-caught
-        return set()
+        return result
 
-    buses = set()
+    # Check for Extend/Remove objects
+    result["has_extend_remove"] = _contains_extend_or_remove(data)
+
+    # Extract common bus packages
     valid_buses = get_common_bus_packages()
+    if isinstance(data, dict) and "packages" in data:
+        packages = data["packages"]
+        if isinstance(packages, dict):
+            for pkg_name in packages:
+                if pkg_name in valid_buses:
+                    result["buses"].add(pkg_name)
 
-    # Pattern to match package includes for common bus configs
-    # Matches: !include ../../test_build_components/common/{bus}/{platform}.yaml
-    pattern = r"!include\s+\.\./\.\./test_build_components/common/([^/]+)/"
-
-    for match in re.finditer(pattern, content):
-        bus_name = match.group(1)
-        if bus_name in valid_buses:
-            buses.add(bus_name)
-
-    return buses
+    return result
 
 
-def analyze_component(component_dir: Path) -> dict[str, list[str]]:
+def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool]:
     """Analyze a component directory to find which buses each platform uses.
 
     Args:
         component_dir: Path to the component's test directory
 
     Returns:
-        Dictionary mapping platform to list of bus configs
-        Example: {"esp32-ard": ["i2c", "spi"], "esp32-idf": ["i2c"]}
+        Tuple of:
+        - Dictionary mapping platform to list of bus configs
+          Example: {"esp32-ard": ["i2c", "spi"], "esp32-idf": ["i2c"]}
+        - Boolean indicating if component uses !extend or !remove
     """
     if not component_dir.is_dir():
-        return {}
+        return {}, False
 
     platform_buses = {}
+    has_extend_remove = False
 
-    # Find all test.*.yaml files
-    for test_file in component_dir.glob("test.*.yaml"):
-        # Extract platform name from filename (e.g., test.esp32-ard.yaml -> esp32-ard)
-        platform = test_file.stem.replace("test.", "")
+    # Analyze all YAML files in the component directory
+    for yaml_file in component_dir.glob("*.yaml"):
+        analysis = analyze_yaml_file(yaml_file)
 
-        buses = extract_common_buses(test_file)
-        if buses:
-            # Sort for consistent comparison
-            platform_buses[platform] = sorted(buses)
+        # Track if any file uses extend/remove
+        if analysis["has_extend_remove"]:
+            has_extend_remove = True
 
-    return platform_buses
+        # For test.*.yaml files, extract platform and buses
+        if yaml_file.name.startswith("test.") and yaml_file.suffix == ".yaml":
+            # Extract platform name (e.g., test.esp32-ard.yaml -> esp32-ard)
+            platform = yaml_file.stem.replace("test.", "")
+            if analysis["buses"]:
+                # Sort for consistent comparison
+                platform_buses[platform] = sorted(analysis["buses"])
+
+    return platform_buses, has_extend_remove
 
 
 def analyze_all_components(
@@ -198,7 +252,7 @@ def analyze_all_components(
             continue
 
         component_name = component_dir.name
-        platform_buses = analyze_component(component_dir)
+        platform_buses, has_extend_remove = analyze_component(component_dir)
 
         if platform_buses:
             components[component_name] = platform_buses
@@ -210,6 +264,11 @@ def analyze_all_components(
         # Check if component is a platform component (abstract base class)
         # Platform components define abstract methods and cause linker errors
         if is_platform_component(component_dir):
+            non_groupable.add(component_name)
+
+        # Check if component uses !extend or !remove directives
+        # These rely on specific config structure and cannot be merged
+        if has_extend_remove:
             non_groupable.add(component_name)
 
     return components, non_groupable
@@ -312,12 +371,14 @@ def main() -> None:
         non_groupable = set()
         for comp in args.components:
             comp_dir = tests_dir / comp
-            platform_buses = analyze_component(comp_dir)
+            platform_buses, has_extend_remove = analyze_component(comp_dir)
             if platform_buses:
                 components[comp] = platform_buses
             if uses_local_file_references(comp_dir):
                 non_groupable.add(comp)
             if is_platform_component(comp_dir):
+                non_groupable.add(comp)
+            if has_extend_remove:
                 non_groupable.add(comp)
     else:
         # Analyze all components

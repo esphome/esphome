@@ -3,8 +3,12 @@ esphome:
     then:
       - pzemdc.reset_energy: pzemdc1
 
+modbus:
+  - id: pzemdc_modbus
+
 sensor:
   - platform: pzemdc
+    modbus_id: pzemdc_modbus
     id: pzemdc1
     voltage:
       name: PZEMDC Voltage

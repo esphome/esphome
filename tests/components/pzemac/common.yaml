@@ -4,9 +4,11 @@ esphome:
       - pzemac.reset_energy: pzemac1
 
 modbus:
+  - id: pzemac_modbus
 
 sensor:
   - platform: pzemac
+    modbus_id: pzemac_modbus
     id: pzemac1
     voltage:
       name: PZEMAC Voltage
