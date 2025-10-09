@@ -233,7 +233,7 @@ def merge_component_configs(
             del comp_data["packages"]
 
         # Prefix substitutions in component data
-        if "substitutions" in comp_data:
+        if "substitutions" in comp_data and comp_data["substitutions"] is not None:
             prefixed_subs = {}
             for sub_name, sub_value in comp_data["substitutions"].items():
                 prefixed_subs[f"{comp_name}_{sub_name}"] = sub_value
