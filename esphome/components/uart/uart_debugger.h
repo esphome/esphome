@@ -67,14 +67,19 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
      return res + "|" + debug_prefix;
   }
 
-  // debug settings setters
+  // debug setting setters
   void set_debug_prefix(std::string debug_prefix) { 
     this->debug_prefix_ = debug_prefix;
   }
   void set_debug_add_settings(bool debug_add_settings) { 
     this->debug_add_settings_ = debug_add_settings;
-    this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
-                                          this->data_bits_, this->stop_bits_, this->parity_);
+    if (debug_add_settings)
+      this->final_debug_prefix_= get_debug_prefix(this->debug_prefix_,
+                                                  this->debug_add_settings_,
+                                                  this->baud_rate_,
+                                                  this->data_bits_,
+                                                  this->stop_bits_,
+                                                  this->parity_);
   }
   
  protected:
@@ -88,6 +93,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
   std::string debug_prefix_{""};
+  std::final_debug_prefix_{""};
   bool debug_add_settings_{false};
   uint32_t baud_rate_;
   uint8_t stop_bits_;
