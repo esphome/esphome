@@ -153,26 +153,7 @@ class UARTComponent {
   std::string get_debug_prefix() const { return this->debug_prefix_; }
 
   // return settings string or empty if not desired
-  std::string get_debug_settings_string(bool debug_add_settings_) {
-    if(!debug_add_settings_)
-      return "";
-    this->debug_add_settings_ = true;
-    std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
-    res += std::to_string(this->get_data_bits()) + ":";
-    res += std::to_string(this->get_stop_bits()) + ":";
-    switch(this->get_parity()) {
-      case 0:
-        res += "none|";
-        return res;
-      case 1:
-        res += "even|";
-        return res;
-      case 2:
-        res += "odd|";
-        return res;
-    }
-    return res;
-  }
+  std::string get_debug_settings_string(bool debug_add_settings_);
 #endif
 
 #if defined(USE_ESP8266) || defined(USE_ESP32)
