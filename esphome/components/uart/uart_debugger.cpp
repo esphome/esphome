@@ -73,8 +73,31 @@ void UARTDebugger::trigger_after_timeout_() {
 
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
+std::string UARTDebugger::get_debug_prefix(std::string debug_prefix, bool debug_add_settings) {
+   if (!debug_add_settings)
+     return debug_prefix;
+   std::string res = "|" + this->baud_rate_;
+   res += ":" + this->parent_->get_data_bits();
+   res += ":" + this->parent_->get_stop_bits();
+   switch (this->parent_->get_parity()) {
+     case UART_CONFIG_PARITY_NONE:
+       res += "NONE";
+       break;
+     case UART_CONFIG_PARITY_EVEN:
+       res += "EVEN";
+       break;
+     case UART_CONFIG_PARITY_ODD:
+       res += "ODD";
+       break;
+   default:
+     res += "UNKNOWN";
+     break;
+   }
+   return res + "|" + debug_prefix;
+}
+
 void UARTDebugger::fire_trigger_() {
-  this->debug_prefix_= this->parent_->get_debug_prefix(this->debug_prefix_, this->debug_add_settings_);
+  this->debug_prefix_= this->get_debug_prefix(this->debug_prefix_, this->debug_add_settings_);
   this->is_triggering_ = true;
   trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
   this->bytes_.clear();
