@@ -147,17 +147,6 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
-#ifdef USE_UART_DEBUGGER
-  // return settings string or empty if not desired
-  std::string get_debug_settings_string();
-  void set_debug_prefix(std::string debug_prefix) { 
-    this->debug_prefix_ = debug_prefix;
-  }
-  void set_debug_add_settings(bool debug_add_settings) { 
-    this->debug_add_settings_ = debug_add_settings;
-  }
-#endif
-
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -186,7 +175,7 @@ class UARTComponent {
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
-  void add_debug_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
+  void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string debug_prefix)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
 #endif
@@ -206,9 +195,7 @@ class UARTComponent {
   uint8_t data_bits_;
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
-  CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
-  std::string debug_prefix_{""};
-  bool debug_add_settings_{false};
+  CallbackManager<void(UARTDirection, uint8_t, std::string debug_prefix)> debug_callback_{};
 #endif
 };
 
