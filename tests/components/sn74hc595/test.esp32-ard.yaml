@@ -6,7 +6,7 @@ substitutions:
   data_pin: GPIO14
   latch_pin1: GPIO21
   oe_pin1: GPIO22
-  latch_pin2: GPIO23
+  latch_pin2: GPIO27
   oe_pin2: GPIO25
 
 <<: !include common.yaml
