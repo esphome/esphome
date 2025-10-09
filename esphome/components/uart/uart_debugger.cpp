@@ -18,10 +18,10 @@ UARTDebugger::UARTDebugger(UARTComponent *parent, bool debug_add_settings) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
-    this->trigger_after_direction_change_(direction, debug_add_settings);
+    this->trigger_after_direction_change_(direction, true);
     this->store_byte_(direction, byte);
-    this->trigger_after_delimiter_(byte, debug_add_settings);
-    this->trigger_after_bytes_(debug_add_settings);
+    this->trigger_after_delimiter_(byte, true);
+    this->trigger_after_bytes_(true);
   });
 }
 
