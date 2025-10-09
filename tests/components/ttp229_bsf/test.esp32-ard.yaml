@@ -1,4 +1,5 @@
 substitutions:
+  scl_pin: GPIO14
   sdo_pin: GPIO17
 
 packages:
