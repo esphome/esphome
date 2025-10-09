@@ -42,6 +42,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
+  void reload();
   
   static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
     if (!debug_add_settings)
