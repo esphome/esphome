@@ -256,7 +256,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def debug_to_code(config, parent):
-    trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent, config[CONF_DEBUG_ADD_SETTINGS])
+    trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
     await cg.register_component(trigger, config)
     for action in config[CONF_SEQUENCE]:
         await automation.build_automation(
@@ -279,6 +279,8 @@ async def debug_to_code(config, parent):
         await cg.register_component(dummy, {})
     if CONF_DEBUG_PREFIX in config:
         cg.add(trigger.set_debug_prefix(config[CONF_DEBUG_PREFIX]))
+    if config[CONF_DEBUG_ADD_SETTINGS]:
+        cg.add(trigger.set_debug_add_settings(config[CONF_DEBUG_PREFIX]))
     cg.add_define("USE_UART_DEBUGGER")
 
 
