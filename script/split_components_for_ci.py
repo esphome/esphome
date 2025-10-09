@@ -33,6 +33,24 @@ ISOLATED_COMPONENTS = {
 }
 
 
+def has_test_files(component_name: str, tests_dir: Path) -> bool:
+    """Check if a component has test files.
+
+    Args:
+        component_name: Name of the component
+        tests_dir: Path to tests/components directory
+
+    Returns:
+        True if the component has test.*.yaml files
+    """
+    component_dir = tests_dir / component_name
+    if not component_dir.exists() or not component_dir.is_dir():
+        return False
+
+    # Check for test.*.yaml files
+    return any(component_dir.glob("test.*.yaml"))
+
+
 def create_intelligent_batches(
     components: list[str],
     tests_dir: Path,
@@ -48,6 +66,21 @@ def create_intelligent_batches(
     Returns:
         List of component batches (lists of component names)
     """
+    # Filter out components without test files
+    # Platform components like 'climate' and 'climate_ir' don't have test files
+    components_with_tests = [
+        comp for comp in components if has_test_files(comp, tests_dir)
+    ]
+
+    # Log filtered components to stderr for debugging
+    if len(components_with_tests) < len(components):
+        filtered_out = set(components) - set(components_with_tests)
+        print(
+            f"Note: Filtered {len(filtered_out)} components without test files: "
+            f"{', '.join(sorted(filtered_out))}",
+            file=sys.stderr,
+        )
+
     # Analyze all components to get their bus signatures
     component_buses, non_groupable, _direct_bus_components = analyze_all_components(
         tests_dir
@@ -61,7 +94,7 @@ def create_intelligent_batches(
     # Track isolated components separately (they get their own batches)
     isolated_components = []
 
-    for component in components:
+    for component in components_with_tests:
         # Check if component must be tested in isolation
         if component in ISOLATED_COMPONENTS:
             isolated_components.append(component)
@@ -194,11 +227,24 @@ def main() -> int:
         print(f"components={output_json}")
 
     # Print summary to stderr so it shows in CI logs
+    # Count actual components being batched
+    actual_components = sum(len(batch.split()) for batch in batch_strings)
+
     print("\n=== Intelligent Batch Summary ===", file=sys.stderr)
-    print(f"Total components: {len(components)}", file=sys.stderr)
+    print(f"Total components requested: {len(components)}", file=sys.stderr)
+    print(f"Components with test files: {actual_components}", file=sys.stderr)
+    if actual_components < len(components):
+        print(
+            f"Components skipped (no test files): {len(components) - actual_components}",
+            file=sys.stderr,
+        )
     print(f"Number of batches: {len(batches)}", file=sys.stderr)
     print(f"Batch size target: {args.batch_size}", file=sys.stderr)
-    print(f"Average batch size: {len(components) / len(batches):.1f}", file=sys.stderr)
+    if len(batches) > 0:
+        print(
+            f"Average batch size: {actual_components / len(batches):.1f}",
+            file=sys.stderr,
+        )
     print(file=sys.stderr)
 
     return 0
