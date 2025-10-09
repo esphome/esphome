@@ -78,19 +78,9 @@ std::string UARTDebugger::get_debug_prefix() {
   if (!this->debug_add_prefix_)
     return this->debug_prefix_;
   std::string res = "|" + this->parent_->get_baud_rate();
-  res + = ":" + this->parent_->get_data_bits();
-  res + = ":" + this->parent_->get_stop_bits();
-  switch(this->parent_->get_polarity()) {
-    case 0:
-      res + = "none|";
-      break;
-    case 1:
-      res + = "even|";
-      break;
-    case 2:
-      res + = "odd|";
-      break;
-  }
+  res += ":" + this->parent_->get_data_bits();
+  res += ":" + this->parent_->get_stop_bits();
+  res += ":" + (reinterpret_cast<std::string>(*esphome::uart::parity_to_str(this->parent_->get_parity()));
   return res + this->debug_prefix_;
 }
 
