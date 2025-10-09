@@ -65,7 +65,6 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   std::string debug_prefix_{""};
   bool debug_add_settings_{false};
   std::string debug_settings_string_{""};
-  UARTComponent* parent_;
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
