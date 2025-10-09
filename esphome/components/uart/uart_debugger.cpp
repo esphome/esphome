@@ -19,13 +19,13 @@ const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, 
    res += ":" + stop_bits;
    switch (parity) {
      case UART_CONFIG_PARITY_NONE:
-       res += "NONE";
+       res &= "NONE";
        break;
      case UART_CONFIG_PARITY_EVEN:
-       res += "EVEN";
+       res &= "EVEN";
        break;
      case UART_CONFIG_PARITY_ODD:
-       res += "ODD";
+       res &= "ODD";
        break;
    default:
      res += "UNKNOWN";
