@@ -325,13 +325,15 @@ def test_components(
     print(f"Found {len(all_tests)} components to test")
 
     # Group components by platform and bus signature
+    grouped_components: dict[tuple[str, str], list[str]] = defaultdict(list)
+
     if enable_grouping:
-        print("Analyzing components for grouping opportunities...")
+        print("\n" + "=" * 80)
+        print("Analyzing components for intelligent grouping...")
+        print("=" * 80)
         component_buses = analyze_all_components(tests_dir)
 
         # Group by (platform, bus_signature)
-        grouped_components: dict[tuple[str, str], list[str]] = defaultdict(list)
-
         for component, platforms in component_buses.items():
             if component not in all_tests:
                 continue
@@ -346,11 +348,58 @@ def test_components(
                     signature = create_grouping_signature({platform: buses}, platform)
                     grouped_components[(platform, signature)].append(component)
 
-        # Print grouping analysis
-        total_grouped = sum(
-            len(comps) for comps in grouped_components.values() if len(comps) > 1
+        # Print detailed grouping plan
+        print("\nGrouping Plan:")
+        print("-" * 80)
+
+        groups_to_test = []
+        individual_tests = []
+
+        for (platform, signature), components in sorted(grouped_components.items()):
+            if len(components) > 1:
+                groups_to_test.append((platform, signature, components))
+            elif len(components) == 1:
+                individual_tests.extend(components)
+
+        # Add components without grouping signatures
+        for component in all_tests:
+            if (
+                component not in [c for _, _, comps in groups_to_test for c in comps]
+                and component not in individual_tests
+            ):
+                individual_tests.append(component)
+
+        if groups_to_test:
+            print(f"\n✓ {len(groups_to_test)} groups will be tested together:")
+            for platform, signature, components in groups_to_test:
+                component_list = ", ".join(sorted(components))
+                print(f"  [{platform}] [{signature}]: {component_list}")
+                print(
+                    f"    → {len(components)} components in 1 build (saves {len(components) - 1} builds)"
+                )
+
+        if individual_tests:
+            print(
+                f"\n○ {len(individual_tests)} components will be tested individually:"
+            )
+            for comp in sorted(individual_tests[:10]):
+                print(f"  - {comp}")
+            if len(individual_tests) > 10:
+                print(f"  ... and {len(individual_tests) - 10} more")
+
+        total_grouped = sum(len(comps) for _, _, comps in groups_to_test)
+        total_builds_without_grouping = len(all_tests)
+        total_builds_with_grouping = len(groups_to_test) + len(individual_tests)
+        builds_saved = total_builds_without_grouping - total_builds_with_grouping
+
+        print(f"\n{'=' * 80}")
+        print(f"Summary: {total_builds_with_grouping} builds total")
+        print(f"  • {len(groups_to_test)} grouped builds ({total_grouped} components)")
+        print(f"  • {len(individual_tests)} individual builds")
+        print(
+            f"  • Saves {builds_saved} builds ({builds_saved / total_builds_without_grouping * 100:.1f}% reduction)"
         )
-        print(f"Grouping analysis: {total_grouped} components can be grouped")
+        print("=" * 80 + "\n")
 
     # Run tests
     failed_tests = []

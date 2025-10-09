@@ -381,17 +381,17 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: test_build_components -e config -c ${{ matrix.file }}
+      - name: Validate config for ${{ matrix.file }}
         run: |
           . venv/bin/activate
-          ./script/test_build_components -e config -c ${{ matrix.file }}
-      - name: test_build_components -e compile -c ${{ matrix.file }}
+          python3 script/test_build_components.py -e config -c ${{ matrix.file }}
+      - name: Compile config for ${{ matrix.file }}
         run: |
           . venv/bin/activate
-          ./script/test_build_components -e compile -c ${{ matrix.file }}
+          python3 script/test_build_components.py -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for testing into 10 components per group
+    name: Split components for intelligent grouping (10 per batch)
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -402,14 +402,26 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Split components into groups of 10
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Split components intelligently based on bus configurations
         id: split
         run: |
-          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(10) | join(" ")]')
-          echo "components=$components" >> $GITHUB_OUTPUT
+          . venv/bin/activate
+
+          # Use intelligent splitter that groups components with same bus configs
+          components='${{ needs.determine-jobs.outputs.changed-components }}'
+
+          echo "Splitting components intelligently..."
+          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 10 --output github)
+
+          echo "$output" >> $GITHUB_OUTPUT
 
   test-build-components-split:
-    name: Test split components
+    name: Test components with intelligent grouping
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -437,20 +449,27 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Validate config
+      - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
-          for component in ${{ matrix.components }}; do
-            ./script/test_build_components -e config -c $component
-          done
-      - name: Compile config
-        run: |
-          . venv/bin/activate
-          mkdir build_cache
+          mkdir -p build_cache
           export PLATFORMIO_BUILD_CACHE_DIR=$PWD/build_cache
-          for component in ${{ matrix.components }}; do
-            ./script/test_build_components -e compile -c $component
-          done
+
+          # Convert space-separated components to comma-separated for Python script
+          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+
+          echo "Testing components: $components_csv"
+          echo ""
+
+          # Run config validation with grouping
+          python3 script/test_build_components.py -e config -c "$components_csv" -f
+
+          echo ""
+          echo "Config validation passed! Starting compilation..."
+          echo ""
+
+          # Run compilation with grouping
+          python3 script/test_build_components.py -e compile -c "$components_csv" -f
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite
