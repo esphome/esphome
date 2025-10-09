@@ -178,7 +178,7 @@ class UARTComponent {
   void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
-  std::string UARTDebugger::get_debug_prefix(debug_prefix, bool debug_add_settings) {
+  std::string get_debug_prefix(debug_prefix, bool debug_add_settings) {
     if (!debug_add_settings)
       return debug_prefix;
     std::string res = "|" + this->get_baud_rate();
