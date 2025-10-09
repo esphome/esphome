@@ -118,7 +118,11 @@ class PinRegistry(dict):
                         parent_config = fconf.get_config_for_path(parent_path)
                         final_val_fun(pin_config, parent_config)
                     allow_others = pin_config.get(CONF_ALLOW_OTHER_USES, False)
-                    if count != 1 and not allow_others:
+                    if (
+                        count != 1
+                        and not allow_others
+                        and not CORE.ignore_pin_conflicts
+                    ):
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} is used in multiple places"
                         )

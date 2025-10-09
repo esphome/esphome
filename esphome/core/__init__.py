@@ -529,6 +529,8 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        # True if pin conflict validation should be ignored
+        self.ignore_pin_conflicts = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
