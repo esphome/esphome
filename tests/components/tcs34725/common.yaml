@@ -1,5 +1,6 @@
 sensor:
   - platform: tcs34725
+    i2c_id: i2c_bus
     red_channel:
       name: Red Channel
     green_channel:
