@@ -32,6 +32,12 @@ from script.analyze_component_buses import (
 )
 from script.merge_component_configs import merge_component_configs
 
+# Components that must be tested in isolation (not grouped)
+# These have known build issues that prevent grouping
+ISOLATED_COMPONENTS = {
+    "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component (buffer_impl.cpp symbols defined in both src/camera/ and src/esphome/components/camera/)",
+}
+
 
 def find_component_tests(
     components_dir: Path, component_pattern: str = "*"
@@ -336,6 +342,10 @@ def run_grouped_component_tests(
         if component in non_groupable:
             continue
 
+        # Skip components that must be tested in isolation
+        if component in ISOLATED_COMPONENTS:
+            continue
+
         for platform, buses in platforms.items():
             # Skip if platform doesn't match filter
             if platform_filter and not platform.startswith(platform_filter):
@@ -352,6 +362,16 @@ def run_grouped_component_tests(
     # Print detailed grouping plan
     print("\nGrouping Plan:")
     print("-" * 80)
+
+    # Show isolated components (must test individually due to known issues)
+    isolated_in_tests = [c for c in ISOLATED_COMPONENTS if c in all_tests]
+    if isolated_in_tests:
+        print(
+            f"\n⚠ {len(isolated_in_tests)} components must be tested in isolation (known build issues):"
+        )
+        for comp in sorted(isolated_in_tests):
+            reason = ISOLATED_COMPONENTS[comp]
+            print(f"  - {comp}: {reason}")
 
     # Show excluded components
     if non_groupable:
