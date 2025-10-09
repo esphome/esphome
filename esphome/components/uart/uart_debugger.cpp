@@ -11,29 +11,6 @@ namespace uart {
 
 static const char *const TAG = "uart_debug";
 
-static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
-   if (!debug_add_settings)
-     return debug_prefix;
-   std::string res = "|" + baud_rate;
-   res += ":" + data_bits;
-   res += ":" + stop_bits;
-   switch (parity) {
-     case UART_CONFIG_PARITY_NONE:
-       res += "NONE";
-       break;
-     case UART_CONFIG_PARITY_EVEN:
-       res += "EVEN";
-       break;
-     case UART_CONFIG_PARITY_ODD:
-       res += "ODD";
-       break;
-   default:
-     res += "UNKNOWN";
-     break;
-   }
-   return res + "|" + debug_prefix;
-}
-
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   this->baud_rate_ = parent->get_baud_rate();
   this->data_bits_ = parent->get_data_bits();
