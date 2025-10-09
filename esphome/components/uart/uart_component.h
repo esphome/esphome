@@ -15,12 +15,6 @@
 namespace esphome {
 namespace uart {
 
-enum UARTParityOptions {
-  UART_CONFIG_PARITY_NONE,
-  UART_CONFIG_PARITY_EVEN,
-  UART_CONFIG_PARITY_ODD,
-};
-
 const LogString *parity_to_str(UARTParityOptions parity);
 
 class UARTComponent {
