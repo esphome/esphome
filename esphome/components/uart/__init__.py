@@ -285,6 +285,7 @@ async def debug_to_code(config, parent):
         cg.add(trigger.set_debug_prefix(config[CONF_DEBUG_PREFIX]))
     if config[CONF_DEBUG_ADD_SETTINGS]:
         cg.add(trigger.set_debug_add_settings(config[CONF_DEBUG_PREFIX]))
+        cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
     cg.add_define("USE_UART_DEBUGGER")
 
 
