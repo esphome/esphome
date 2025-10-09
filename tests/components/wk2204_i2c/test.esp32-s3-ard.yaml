@@ -1,0 +1,5 @@
+substitutions:
+  scl_pin: GPIO40
+  sda_pin: GPIO41
+
+<<: !include common.yaml

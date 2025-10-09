@@ -1,0 +1,7 @@
+substitutions:
+  i2c_scl: GPIO5
+  i2c_sda: GPIO4
+  display_reset_pin: GPIO3
+
+packages:
+  common: !include common.yaml
