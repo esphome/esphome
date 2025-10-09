@@ -49,7 +49,9 @@ def create_intelligent_batches(
         List of component batches (lists of component names)
     """
     # Analyze all components to get their bus signatures
-    component_buses, non_groupable = analyze_all_components(tests_dir)
+    component_buses, non_groupable, _direct_bus_components = analyze_all_components(
+        tests_dir
+    )
 
     # Group components by their bus signature ONLY (ignore platform)
     # All platforms will be tested by test_build_components.py for each batch
