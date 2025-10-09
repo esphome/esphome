@@ -5,12 +5,6 @@ esphome:
       - voice_assistant.start_continuous
       - voice_assistant.stop
 
-wifi:
-  ssid: MySSID
-  password: password1
-
-api:
-
 i2s_audio:
   i2s_lrclk_pin: ${i2s_lrclk_pin}
   i2s_bclk_pin: ${i2s_bclk_pin}
