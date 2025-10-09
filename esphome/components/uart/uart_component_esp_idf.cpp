@@ -224,8 +224,8 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   uart_write_bytes(this->uart_num_, data, len);
   xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
-  if (this->debug_add_settings_)
-    debug_prefix.insert(0, this->get_debug_settings_string());
+  std::string:: debug_prefix = this->get_debug_settings_string(this->debug_add_settings_)
+                              + this->debug_prefix_;
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_TX, data[i], debug_prefix);
   }
@@ -267,8 +267,8 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
   std::string debug_prefix = this->debug_prefix_;
-  if (this->debug_add_settings_)
-    debug_prefix.insert(0, this->get_debug_settings_string());
+  std::string:: debug_prefix = this->get_debug_settings_string(this->debug_add_settings_)
+                              + this->debug_prefix_;
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i], debug_prefix);
   }
