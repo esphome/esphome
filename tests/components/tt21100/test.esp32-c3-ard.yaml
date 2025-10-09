@@ -1,5 +1,5 @@
 substitutions:
-  disp_reset_pin: GPIO10
+  disp_reset_pin: GPIO7
   interrupt_pin: GPIO2
   reset_pin: GPIO3
 
