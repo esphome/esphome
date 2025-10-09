@@ -352,7 +352,7 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        
+
         if CONF_INTERFACE in config:
             spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
             map = {
