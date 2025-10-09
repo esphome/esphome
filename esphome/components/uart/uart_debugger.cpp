@@ -30,6 +30,14 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
 
 void UARTDebugger::loop() { this->trigger_after_timeout_(); }
 
+void UARTDebugger::reload(UARTComponent* parent) {
+  parent->set_debugger(this);
+  this->baud_rate_ = parent->get_baud_rate();
+  this->data_bits_ = parent->get_data_bits();
+  this->stop_bits_ = parent->get_stop_bits();
+  this->parity_ = parent->get_parity();
+}
+
 bool UARTDebugger::is_my_direction_(UARTDirection direction) {
   return this->for_direction_ == UART_DIRECTION_BOTH || this->for_direction_ == direction;
 }
