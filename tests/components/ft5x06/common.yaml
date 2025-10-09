@@ -10,6 +10,7 @@ display:
 
 touchscreen:
   - platform: ft5x06
+    id: ft5x06_touchscreen
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)

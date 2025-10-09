@@ -26,6 +26,7 @@ touchscreen:
 
 binary_sensor:
   - platform: touchscreen
+    touchscreen_id: ts_cst816
     name: Home Button
     use_raw: true
     x_min: 0

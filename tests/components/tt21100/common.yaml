@@ -10,11 +10,13 @@ display:
 
 touchscreen:
   - platform: tt21100
+    id: tt21100_touchscreen
     display: ssd1306_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
 
 binary_sensor:
   - platform: tt21100
+    id: tt21100_touchscreen
     name: Home Button
     index: 1

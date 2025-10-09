@@ -10,6 +10,7 @@ display:
 
 touchscreen:
   - platform: gt911
+    id: gt911_touchscreen
     display: ssd1306_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
