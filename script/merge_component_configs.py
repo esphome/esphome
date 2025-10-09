@@ -16,6 +16,7 @@ The merger handles:
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 from pathlib import Path
 import re
 import sys
@@ -26,6 +27,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from esphome import yaml_util
 from esphome.config_helpers import merge_config
+
+
+@lru_cache(maxsize=1)
+def get_common_bus_packages() -> frozenset[str]:
+    """Get the list of common bus package names.
+
+    Reads from tests/test_build_components/common/ directory
+    and caches the result.
+
+    Returns:
+        Frozenset of common bus package names (i2c, spi, uart, etc.)
+    """
+    common_dir = Path("tests/test_build_components/common")
+    if not common_dir.exists():
+        return frozenset()
+
+    # List all directories in common/ - these are the bus package names
+    return frozenset(d.name for d in common_dir.iterdir() if d.is_dir())
 
 
 def load_yaml_file(yaml_file: Path) -> dict:
@@ -44,21 +63,29 @@ def load_yaml_file(yaml_file: Path) -> dict:
 
 
 def extract_packages_from_yaml(data: dict) -> dict[str, str]:
-    """Extract package includes from parsed YAML.
+    """Extract COMMON BUS package includes from parsed YAML.
+
+    Only extracts packages that are from test_build_components/common/,
+    ignoring component-specific packages.
 
     Args:
         data: Parsed YAML dictionary
 
     Returns:
         Dictionary mapping package name to include path (as string representation)
+        Only includes common bus packages (i2c, spi, uart, etc.)
     """
     if "packages" not in data:
         return {}
 
+    # Get common bus package names (cached)
+    common_bus_packages = get_common_bus_packages()
+
     packages = {}
     for name, value in data["packages"].items():
-        # Store package info for comparison
-        packages[name] = str(value)
+        # Only include common bus packages, ignore component-specific ones
+        if name in common_bus_packages:
+            packages[name] = str(value)
 
     return packages
 

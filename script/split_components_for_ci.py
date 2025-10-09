@@ -81,14 +81,16 @@ def create_intelligent_batches(
 
     sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
+    # Flatten all components while preserving priority order
+    # This allows us to fill batches to batch_size by mixing signature groups
+    all_components_ordered = []
     for (platform, signature), group_components in sorted_groups:
-        # Split this signature group into batches of batch_size
-        # This keeps components with the same signature together
-        sorted_components = sorted(group_components)  # Sort for determinism
+        all_components_ordered.extend(sorted(group_components))
 
-        for i in range(0, len(sorted_components), batch_size):
-            batch = sorted_components[i : i + batch_size]
-            batches.append(batch)
+    # Create batches of exactly batch_size (except possibly the last one)
+    for i in range(0, len(all_components_ordered), batch_size):
+        batch = all_components_ordered[i : i + batch_size]
+        batches.append(batch)
 
     return batches
 
