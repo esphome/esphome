@@ -1,0 +1,34 @@
+esphome:
+  name: test-espnow
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+espnow:
+  id: espnow_component
+
+packet_transport:
+  - platform: espnow
+    id: transport1
+    espnow_id: espnow_component
+    peer_address: "FF:FF:FF:FF:FF:FF"
+    encryption:
+      key: "0123456789abcdef0123456789abcdef"
+    sensors:
+      - temp_sensor
+    providers:
+      - name: test_provider
+        encryption:
+          key: "0123456789abcdef0123456789abcdef"
+
+sensor:
+  - platform: internal_temperature
+    id: temp_sensor
+    name: "Test Temperature"
+
+  - platform: packet_transport
+    provider: test_provider
+    remote_id: temp_sensor
+    id: remote_temp
+    name: "Remote Temperature"
