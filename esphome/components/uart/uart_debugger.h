@@ -11,6 +11,12 @@
 namespace esphome {
 namespace uart {
 
+enum UARTParityOptions {
+  UART_CONFIG_PARITY_NONE,
+  UART_CONFIG_PARITY_EVEN,
+  UART_CONFIG_PARITY_ODD,
+};
+
 enum UARTDirection {
   UART_DIRECTION_RX,
   UART_DIRECTION_TX,
