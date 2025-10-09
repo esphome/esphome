@@ -15,7 +15,7 @@ async def test_oversized_payload_plaintext(
     run_compiled: RunCompiledFunction,
     api_client_connected_with_disconnect: APIClientConnectedWithDisconnectFactory,
 ) -> None:
-    """Test that oversized payloads (>2304 bytes) from client cause disconnection without crashing."""
+    """Test that oversized payloads (>32768 bytes) from client cause disconnection without crashing."""
     process_exited = False
     helper_log_found = False
 
@@ -39,8 +39,8 @@ async def test_oversized_payload_plaintext(
             assert device_info is not None
             assert device_info.name == "oversized-plaintext"
 
-            # Create an oversized payload (>2304 bytes which is our new limit)
-            oversized_data = b"X" * 3000  # ~3KiB, exceeds the 2304 byte limit
+            # Create an oversized payload (>32768 bytes which is our new limit)
+            oversized_data = b"X" * 40000  # ~40KiB, exceeds the 32768 byte limit
 
             # Access the internal connection to send raw data
             frame_helper = client._connection._frame_helper
@@ -161,8 +161,8 @@ async def test_oversized_payload_noise(
             assert device_info is not None
             assert device_info.name == "oversized-noise"
 
-            # Create an oversized payload (>2304 bytes which is our new limit)
-            oversized_data = b"Y" * 3000  # ~3KiB, exceeds the 2304 byte limit
+            # Create an oversized payload (>32768 bytes which is our new limit)
+            oversized_data = b"Y" * 40000  # ~40KiB, exceeds the 32768 byte limit
 
             # Access the internal connection to send raw data
             frame_helper = client._connection._frame_helper
