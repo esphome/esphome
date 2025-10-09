@@ -474,6 +474,56 @@ def run_grouped_component_tests(
     return tested_components, passed_tests, failed_tests
 
 
+def run_individual_component_test(
+    component: str,
+    test_file: Path,
+    platform: str,
+    platform_with_version: str,
+    base_file: Path,
+    build_dir: Path,
+    esphome_command: str,
+    continue_on_fail: bool,
+    tested_components: set[tuple[str, str]],
+    passed_tests: list[str],
+    failed_tests: list[str],
+) -> None:
+    """Run an individual component test if not already tested in a group.
+
+    Args:
+        component: Component name
+        test_file: Test file path
+        platform: Platform name
+        platform_with_version: Platform with version
+        base_file: Base file for platform
+        build_dir: Build directory
+        esphome_command: ESPHome command
+        continue_on_fail: Whether to continue on failure
+        tested_components: Set of already tested components
+        passed_tests: List to append passed test IDs
+        failed_tests: List to append failed test IDs
+    """
+    # Skip if already tested in a group
+    if (component, platform_with_version) in tested_components:
+        return
+
+    test_name = test_file.stem.split(".")[0]
+    success = run_esphome_test(
+        component=component,
+        test_file=test_file,
+        platform=platform,
+        platform_with_version=platform_with_version,
+        base_file=base_file,
+        build_dir=build_dir,
+        esphome_command=esphome_command,
+        continue_on_fail=continue_on_fail,
+    )
+    test_id = f"{component}.{test_name}.{platform_with_version}"
+    if success:
+        passed_tests.append(test_id)
+    else:
+        failed_tests.append(test_id)
+
+
 def test_components(
     component_patterns: list[str],
     platform_filter: str | None,
@@ -545,12 +595,7 @@ def test_components(
 
                     for base_file in base_files:
                         platform_with_version = extract_platform_with_version(base_file)
-
-                        # Skip if already tested in a group
-                        if (component, platform_with_version) in tested_components:
-                            continue
-
-                        success = run_esphome_test(
+                        run_individual_component_test(
                             component=component,
                             test_file=test_file,
                             platform=plat,
@@ -559,12 +604,10 @@ def test_components(
                             build_dir=build_dir,
                             esphome_command=esphome_command,
                             continue_on_fail=continue_on_fail,
+                            tested_components=tested_components,
+                            passed_tests=passed_tests,
+                            failed_tests=failed_tests,
                         )
-                        test_id = f"{component}.{test_name}.{platform_with_version}"
-                        if success:
-                            passed_tests.append(test_id)
-                        else:
-                            failed_tests.append(test_id)
             else:
                 # Platform-specific test
                 if platform_filter and platform != platform_filter:
@@ -585,11 +628,7 @@ def test_components(
                     ):
                         continue
 
-                    # Skip if already tested in a group
-                    if (component, platform_with_version) in tested_components:
-                        continue
-
-                    success = run_esphome_test(
+                    run_individual_component_test(
                         component=component,
                         test_file=test_file,
                         platform=platform,
@@ -598,12 +637,10 @@ def test_components(
                         build_dir=build_dir,
                         esphome_command=esphome_command,
                         continue_on_fail=continue_on_fail,
+                        tested_components=tested_components,
+                        passed_tests=passed_tests,
+                        failed_tests=failed_tests,
                     )
-                    test_id = f"{component}.{test_name}.{platform_with_version}"
-                    if success:
-                        passed_tests.append(test_id)
-                    else:
-                        failed_tests.append(test_id)
 
     # Print summary
     print("\n" + "=" * 80)
