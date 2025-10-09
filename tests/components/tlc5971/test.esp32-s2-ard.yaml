@@ -1,0 +1,6 @@
+substitutions:
+  clock_pin: GPIO36
+  data_pin: GPIO35
+
+packages:
+  common: !include common.yaml
