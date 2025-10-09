@@ -66,7 +66,7 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            cv.Optional(CONF_MESSAGE_LOOP_DELAY, 100): cv.int
+            cv.Optional(CONF_MESSAGE_LOOP_DELAY, 100): cv.int_
         }
     )
     .extend(
