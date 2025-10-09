@@ -80,7 +80,7 @@ std::string UARTDebugger::get_debug_prefix() {
   std::string res = "|" + this->parent_->get_baud_rate();
   res += ":" + this->parent_->get_data_bits();
   res += ":" + this->parent_->get_stop_bits();
-  res += ":" + esphome::uart::parity_to_str(this->parent_->get_parity());
+  res += ":" + static_cast<std::string>(esphome::uart::parity_to_str(this->parent_->get_parity()));
   return res + this->debug_prefix_;
 }
 
