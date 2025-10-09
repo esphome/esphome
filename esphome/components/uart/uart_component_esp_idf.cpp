@@ -265,7 +265,6 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
     uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
   xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
-  std::string debug_prefix = this->debug_prefix_;
   std::string debug_prefix = this->get_debug_settings_string() + this->debug_prefix_;
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i], debug_prefix);
