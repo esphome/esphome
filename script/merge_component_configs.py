@@ -242,6 +242,9 @@ def merge_component_configs(
         # Prefix substitution references throughout the config
         comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
 
+        # Prefix all IDs and ID references to avoid conflicts
+        comp_data = prefix_ids_in_dict(comp_data, comp_name)
+
         # Use ESPHome's merge_config to merge this component into the result
         # merge_config handles list merging with ID-based deduplication automatically
         merged_config_data = merge_config(merged_config_data, comp_data)
