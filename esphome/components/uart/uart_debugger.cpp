@@ -36,6 +36,8 @@ void UARTDebugger::reload(UARTComponent* parent) {
   this->data_bits_ = parent->get_data_bits();
   this->stop_bits_ = parent->get_stop_bits();
   this->parity_ = parent->get_parity();
+  this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
+                                          this->data_bits_, this->stop_bits_, this->parity_);
 }
 
 bool UARTDebugger::is_my_direction_(UARTDirection direction) {
