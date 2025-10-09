@@ -18,9 +18,9 @@ namespace uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, std::string, bool> {
+class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>> {
  public:
-  explicit UARTDebugger(UARTComponent *parent, bool debug_add_settings);
+  explicit UARTDebugger(UARTComponent *parent);
   void loop() override;
 
   /// Set the direction in which to inspect the bytes: incoming, outgoing
