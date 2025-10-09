@@ -14,6 +14,20 @@
 namespace esphome {
 namespace uart {
 
+enum UARTParityOptions {
+  UART_CONFIG_PARITY_NONE,
+  UART_CONFIG_PARITY_EVEN,
+  UART_CONFIG_PARITY_ODD,
+};
+
+#ifdef USE_UART_DEBUGGER
+enum UARTDirection {
+  UART_DIRECTION_RX,
+  UART_DIRECTION_TX,
+  UART_DIRECTION_BOTH,
+};
+#endif
+
 const LogString *parity_to_str(UARTParityOptions parity);
 
 class UARTComponent {
