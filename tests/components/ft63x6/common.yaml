@@ -33,6 +33,7 @@ touchscreen:
 
 binary_sensor:
   - platform: touchscreen
+    touchscreen_id: ft63x6_touchscreen
     name: Bottom Left Touch
     use_raw: true
     x_min: 0
