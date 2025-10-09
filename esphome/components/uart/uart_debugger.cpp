@@ -75,7 +75,7 @@ void UARTDebugger::trigger_after_timeout_() {
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 std::string UARTDebugger::get_debug_prefix() {
-  if (!this->debug_add_prefix_)
+  if (!this->debug_add_settings_)
     return this->debug_prefix_;
   std::string res = "|" + this->parent_->get_baud_rate();
   res += ":" + this->parent_->get_data_bits();
