@@ -1,5 +1,6 @@
 sensor:
   - platform: ens160_i2c
+    i2c_id: i2c_bus
     address: 0x53
     eco2:
       name: "ENS160 eCO2"

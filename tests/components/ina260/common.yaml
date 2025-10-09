@@ -1,5 +1,6 @@
 sensor:
   - platform: ina260
+    i2c_id: i2c_bus
     address: 0x40
     current:
       name: INA260 Current

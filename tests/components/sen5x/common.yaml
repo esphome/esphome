@@ -1,5 +1,6 @@
 sensor:
   - platform: sen5x
+    i2c_id: i2c_bus
     id: sen54
     temperature:
       name: Temperature

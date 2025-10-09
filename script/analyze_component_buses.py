@@ -46,7 +46,12 @@ COMMON_BUS_PATH = Path("tests/test_build_components/common")
 ISOLATED_COMPONENTS = {
     "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component",
     "camera": "Uses relative include paths that break when merged with other components",
+    "esp32_camera": "Leaks config into other components",
+    "esp32_camera_web_server": "Leaks config into other components",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
+    "matrix_keypad": "Needs isolation due to keypad",
+    "mcp4725": "no YAML config to specify i2c bus id",
+    "mcp47a1": "no YAML config to specify i2c bus id",
 }
 
 

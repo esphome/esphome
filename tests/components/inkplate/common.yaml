@@ -3,6 +3,7 @@ esp32:
 
 display:
   - platform: inkplate
+    i2c_id: i2c_bus
     id: inkplate_display
     greyscale: false
     partial_updating: false

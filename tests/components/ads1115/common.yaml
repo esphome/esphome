@@ -1,4 +1,5 @@
 ads1115:
+  i2c_id: i2c_bus
   address: 0x48
 
 sensor:

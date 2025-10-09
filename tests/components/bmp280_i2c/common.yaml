@@ -1,5 +1,6 @@
 sensor:
   - platform: bmp280_i2c
+    i2c_id: i2c_bus
     address: 0x77
     temperature:
       id: bmp280_temperature

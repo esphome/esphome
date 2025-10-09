@@ -1,5 +1,6 @@
 sensor:
   - platform: bmp085
+    i2c_id: i2c_bus
     temperature:
       name: Outside Temperature
     pressure:

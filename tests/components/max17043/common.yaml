@@ -5,6 +5,7 @@ esphome:
 
 sensor:
   - platform: max17043
+    i2c_id: i2c_bus
     id: max17043_id
     battery_voltage:
       name: "Battery Voltage"

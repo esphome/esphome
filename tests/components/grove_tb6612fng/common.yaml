@@ -15,4 +15,5 @@ esphome:
 
 grove_tb6612fng:
   id: test_motor
+  i2c_id: i2c_bus
   address: 0x14

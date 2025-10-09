@@ -1,5 +1,6 @@
 sensor:
   - platform: scd30
+    i2c_id: i2c_bus
     co2:
       name: SCD30 CO2
     temperature:

@@ -1,5 +1,6 @@
 sensor:
   - platform: ina3221
+    i2c_id: i2c_bus
     address: 0x40
     channel_1:
       shunt_resistance: 0.1 ohm

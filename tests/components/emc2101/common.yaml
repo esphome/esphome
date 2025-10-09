@@ -1,4 +1,5 @@
 emc2101:
+  i2c_id: i2c_bus
   pwm:
     resolution: 8
 

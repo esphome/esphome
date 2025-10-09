@@ -1,5 +1,6 @@
 sensor:
   - platform: dht12
+    i2c_id: i2c_bus
     temperature:
       name: DHT12 Temperature
     humidity:

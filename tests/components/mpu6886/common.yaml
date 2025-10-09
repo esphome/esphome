@@ -1,5 +1,6 @@
 sensor:
   - platform: mpu6886
+    i2c_id: i2c_bus
     address: 0x68
     accel_x:
       name: MPU6886 Accel X

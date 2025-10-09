@@ -1,5 +1,6 @@
 sensor:
   - platform: qmp6988
+    i2c_id: i2c_bus
     temperature:
       name: QMP6988 Temperature
       oversampling: 32x

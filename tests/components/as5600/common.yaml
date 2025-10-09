@@ -1,4 +1,5 @@
 as5600:
+  i2c_id: i2c_bus
   dir_pin: ${dir_pin}
   direction: clockwise
   start_position: 90deg

@@ -1,5 +1,6 @@
 sensor:
   - platform: shtcx
+    i2c_id: i2c_bus
     temperature:
       name: SHTCX Temperature
     humidity:

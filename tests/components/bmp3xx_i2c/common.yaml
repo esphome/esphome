@@ -1,5 +1,6 @@
 sensor:
   - platform: bmp3xx_i2c
+    i2c_id: i2c_bus
     address: 0x77
     temperature:
       name: BMP Temperature

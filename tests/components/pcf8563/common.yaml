@@ -5,3 +5,4 @@ esphome:
 
 time:
   - platform: pcf8563
+    i2c_id: i2c_bus

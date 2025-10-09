@@ -16,6 +16,7 @@ esphome:
           id: waveradar
 
 at581x:
+  i2c_id: i2c_bus
   id: waveradar
 
 switch:

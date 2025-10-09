@@ -1,5 +1,6 @@
 sensor:
   - platform: sgp30
+    i2c_id: i2c_bus
     eco2:
       name: Workshop eCO2
       accuracy_decimals: 1

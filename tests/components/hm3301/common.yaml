@@ -1,5 +1,6 @@
 sensor:
   - platform: hm3301
+    i2c_id: i2c_bus
     pm_1_0:
       name: PM1.0
     pm_2_5:

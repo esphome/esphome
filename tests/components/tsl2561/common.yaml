@@ -1,5 +1,6 @@
 sensor:
   - platform: tsl2561
+    i2c_id: i2c_bus
     name: TSL2561 Ambient Light
     address: 0x39
     is_cs_package: true

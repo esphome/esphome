@@ -1,5 +1,6 @@
 pca6416a:
   - id: pca6416a_hub
+    i2c_id: i2c_bus
     address: 0x21
 
 binary_sensor:

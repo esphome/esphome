@@ -1,4 +1,5 @@
 dac7678:
+  i2c_id: i2c_bus
   address: 0x4A
   id: dac7678_hub
   internal_reference: true

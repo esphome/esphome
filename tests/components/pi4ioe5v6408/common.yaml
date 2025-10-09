@@ -1,4 +1,5 @@
 pi4ioe5v6408:
+  i2c_id: i2c_bus
   id: pi4ioe1
   address: 0x44
 

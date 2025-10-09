@@ -1,5 +1,6 @@
 sensor:
   - platform: xgzp68xx
+    i2c_id: i2c_bus
     k_value: 4096
     temperature:
       name: Pressure Temperature

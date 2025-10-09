@@ -1,4 +1,5 @@
 gdk101:
+  i2c_id: i2c_bus
   id: my_gdk101
 
 sensor:

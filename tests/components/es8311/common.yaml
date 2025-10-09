@@ -8,3 +8,4 @@ esphome:
 
 audio_dac:
   - platform: es8311
+    i2c_id: i2c_bus

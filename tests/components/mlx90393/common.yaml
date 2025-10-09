@@ -1,5 +1,6 @@
 sensor:
   - platform: mlx90393
+    i2c_id: i2c_bus
     oversampling: 3
     gain: 1X
     temperature_compensation: true

@@ -1,5 +1,6 @@
 display:
   - platform: lcd_pcf8574
+    i2c_id: i2c_bus
     dimensions: 18x4
     address: 0x3F
     user_characters:

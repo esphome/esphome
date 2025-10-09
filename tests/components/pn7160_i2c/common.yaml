@@ -18,6 +18,7 @@ esphome:
 
 pn7150_i2c:
   id: nfcc_pn7160
+  i2c_id: i2c_bus
   irq_pin: ${irq_pin}
   ven_pin: ${ven_pin}
   emulation_message: https://www.home-assistant.io/tag/pulse_ce

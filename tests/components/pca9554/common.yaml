@@ -1,5 +1,6 @@
 pca9554:
   - id: pca9554_hub
+    i2c_id: i2c_bus
     pin_count: 8
     address: 0x3F
 

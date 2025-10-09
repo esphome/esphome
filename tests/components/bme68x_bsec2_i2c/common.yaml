@@ -1,4 +1,5 @@
 bme68x_bsec2_i2c:
+  i2c_id: i2c_bus
   address: 0x76
   model: bme688
   algorithm_output: classification

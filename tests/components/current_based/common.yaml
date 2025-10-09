@@ -1,5 +1,6 @@
 sensor:
   - platform: ade7953_i2c
+    i2c_id: i2c_bus
     irq_pin: ${irq_pin}
     voltage:
       name: ADE7953 Voltage

@@ -1,5 +1,6 @@
 max6956:
   - id: max6956_1
+    i2c_id: i2c_bus
     address: 0x40
 
 binary_sensor:

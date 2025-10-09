@@ -1,5 +1,6 @@
 sensor:
   - platform: max9611
+    i2c_id: i2c_bus
     shunt_resistance: 0.2 ohm
     gain: 1X
     voltage:

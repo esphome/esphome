@@ -1,4 +1,5 @@
 ezo_pmp:
+  i2c_id: i2c_bus
   id: hcl_pump
   update_interval: 1s
 

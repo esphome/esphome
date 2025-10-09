@@ -8,3 +8,4 @@ esphome:
 
 audio_dac:
   - platform: aic3204
+    i2c_id: i2c_bus

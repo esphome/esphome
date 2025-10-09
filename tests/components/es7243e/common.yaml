@@ -6,4 +6,5 @@ esphome:
 
 audio_adc:
   - platform: es7243e
+    i2c_id: i2c_bus
     id: es7243e_adc

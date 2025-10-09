@@ -1,4 +1,5 @@
 as3935_i2c:
+  i2c_id: i2c_bus
   irq_pin: ${irq_pin}
 
 binary_sensor:

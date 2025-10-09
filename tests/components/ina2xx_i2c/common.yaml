@@ -1,5 +1,6 @@
 sensor:
   - platform: ina2xx_i2c
+    i2c_id: i2c_bus
     address: 0x40
     model: INA228
     shunt_resistance: 0.001130 ohm

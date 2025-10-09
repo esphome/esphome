@@ -1,5 +1,6 @@
 sensor:
   - platform: ccs811
+    i2c_id: i2c_bus
     eco2:
       name: CCS811 eCO2
     tvoc:

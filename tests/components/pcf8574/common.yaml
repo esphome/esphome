@@ -1,5 +1,6 @@
 pcf8574:
   - id: pcf8574_hub
+    i2c_id: i2c_bus
     address: 0x21
     pcf8575: false
 

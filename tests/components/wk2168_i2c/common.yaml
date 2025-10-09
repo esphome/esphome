@@ -1,6 +1,7 @@
 #  component declaration
 wk2168_i2c:
   - id: wk2168_i2c_bridge
+    i2c_id: i2c_bus
     address: 0x70
     uart:
       - id: wk2168_i2c_uart0

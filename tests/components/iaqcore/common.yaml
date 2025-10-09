@@ -1,5 +1,6 @@
 sensor:
   - platform: iaqcore
+    i2c_id: i2c_bus
     co2:
       name: iAQ Core CO2 Sensor
     tvoc:

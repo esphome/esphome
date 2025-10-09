@@ -1,5 +1,6 @@
 sensor:
   - platform: scd4x
+    i2c_id: i2c_bus
     id: scd40
     co2:
       name: SCD4X CO2

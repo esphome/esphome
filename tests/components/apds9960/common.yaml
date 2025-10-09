@@ -1,4 +1,5 @@
 apds9960:
+  i2c_id: i2c_bus
   address: 0x20
   update_interval: 60s
 

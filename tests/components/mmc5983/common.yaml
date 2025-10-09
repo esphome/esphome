@@ -1,5 +1,6 @@
 sensor:
   - platform: mmc5983
+    i2c_id: i2c_bus
     field_strength_x:
       name: "Magnet X"
       id: magnet_x

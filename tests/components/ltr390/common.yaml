@@ -1,5 +1,6 @@
 sensor:
   - platform: ltr390
+    i2c_id: i2c_bus
     uv:
       name: LTR390 UV 1
     uv_index:

@@ -1,4 +1,5 @@
 pn532_i2c:
+  i2c_id: i2c_bus
   id: pn532_nfcc
 
 binary_sensor:

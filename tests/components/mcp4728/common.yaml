@@ -1,5 +1,6 @@
 mcp4728:
   - id: mcp4728_dac
+    i2c_id: i2c_bus
 
 output:
   - platform: mcp4728

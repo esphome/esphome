@@ -1,5 +1,6 @@
 sensor:
   - platform: grove_gas_mc_v2
+    i2c_id: i2c_bus
     nitrogen_dioxide:
       name: "Nitrogen Dioxide"
     ethanol:

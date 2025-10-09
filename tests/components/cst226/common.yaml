@@ -9,6 +9,7 @@ display:
 
 touchscreen:
   - id: ts_cst226
+    i2c_id: i2c_bus
     platform: cst226
     display: cst226_display
     interrupt_pin: ${interrupt_pin}

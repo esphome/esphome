@@ -1,5 +1,6 @@
 sensor:
   - platform: sgp4x
+    i2c_id: i2c_bus
     voc:
       name: VOC Index
       id: sgp40_voc_index

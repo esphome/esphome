@@ -1,5 +1,6 @@
 sensor:
   - platform: veml3235
+    i2c_id: i2c_bus
     id: veml3235_sensor
     name: VEML3235 Light Sensor
     auto_gain: true
