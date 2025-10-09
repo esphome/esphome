@@ -74,16 +74,6 @@ void UARTDebugger::trigger_after_timeout_() {
 
 bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
-std::string UARTDebugger::get_debug_prefix() {
-  if (!this->debug_add_settings_)
-    return this->debug_prefix_;
-  std::string res = "|" + this->parent_->get_baud_rate();
-  res += ":" + this->parent_->get_data_bits();
-  res += ":" + this->parent_->get_stop_bits();
-  //res += ":" + static_cast<std::string>(esphome::uart::parity_to_str(this->parent_->get_parity()));
-  return res + this->debug_prefix_;
-}
-
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
   trigger(this->last_direction_, this->bytes_, this->get_debug_prefix());
