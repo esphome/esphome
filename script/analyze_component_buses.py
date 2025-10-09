@@ -321,9 +321,9 @@ def analyze_all_components(
         if uses_local_file_references(component_dir):
             non_groupable.add(component_name)
 
-        # Check if component is a platform component (abstract base class)
-        # Platform components define abstract methods and cause linker errors
-        if is_platform_component(component_dir):
+        # Check if component is a base bus component
+        # These are platform implementations and must be tested separately
+        if component_name in BASE_BUS_COMPONENTS:
             non_groupable.add(component_name)
 
         # Check if component uses !extend or !remove directives
@@ -446,7 +446,7 @@ def main() -> None:
                 components[comp] = platform_buses
             if uses_local_file_references(comp_dir):
                 non_groupable.add(comp)
-            if is_platform_component(comp_dir):
+            if comp in BASE_BUS_COMPONENTS:
                 non_groupable.add(comp)
             if has_extend_remove:
                 non_groupable.add(comp)
