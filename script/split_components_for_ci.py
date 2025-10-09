@@ -44,26 +44,28 @@ def create_intelligent_batches(
     # Analyze all components to get their bus signatures
     component_buses, _ = analyze_all_components(tests_dir)
 
-    # Group components by their bus signature
-    # Key: (platform, signature), Value: list of components
-    signature_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    # Group components by their bus signature ONLY (ignore platform)
+    # All platforms will be tested by test_build_components.py for each batch
+    # Key: signature, Value: list of components
+    signature_groups: dict[str, list[str]] = defaultdict(list)
 
     for component in components:
         if component not in component_buses:
             # Component has no bus configs, put in special group
-            signature_groups[("none", "none")].append(component)
+            signature_groups["none"].append(component)
             continue
 
-        # Group by platform and signature
+        # Get signature from any platform (they should all have the same buses)
         comp_platforms = component_buses[component]
         for platform, buses in comp_platforms.items():
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
-                signature_groups[(platform, signature)].append(component)
+                # Group by signature only - platform doesn't matter for batching
+                signature_groups[signature].append(component)
                 break  # Only use first platform for grouping
         else:
             # No buses found
-            signature_groups[("none", "none")].append(component)
+            signature_groups["none"].append(component)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches
