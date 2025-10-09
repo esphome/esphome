@@ -130,10 +130,10 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
 OpenthermHub::OpenthermHub() : Component(), in_pin_{}, out_pin_{} {}
 
 void OpenthermHub::process_response(OpenthermData &data) {
-  ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s). Requested id %d (%s)", 
-    data.id, this->opentherm_->message_id_to_str((MessageId) data.id), 
-    this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
-  
+  ESP_LOGD(TAG, "Received OpenTherm response with id %d (%s). Requested id %d (%s)", data.id,
+           this->opentherm_->message_id_to_str((MessageId) data.id), this->last_request_.id,
+           this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
+
   this->opentherm_->debug_data(data);
 
   if (data.type == MessageType::UNKNOWN_DATAID || data.type == MessageType::DATA_INVALID) {
@@ -142,16 +142,16 @@ void OpenthermHub::process_response(OpenthermData &data) {
   }
 
   if (this->last_request_.id != data.id) {
-    ESP_LOGE(TAG, "Received OpenTherm response with id %d (%s), while expecting %d (%s). Skip message",
-       data.id, this->opentherm_->message_id_to_str((MessageId) data.id),
-       this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
+    ESP_LOGE(TAG, "Received OpenTherm response with id %d (%s), while expecting %d (%s). Skip message", data.id,
+             this->opentherm_->message_id_to_str((MessageId) data.id), this->last_request_.id,
+             this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
     return;
   }
 
   if (data.id == 0 && data.valueHB != this->last_request_.valueHB) {
-    ESP_LOGE(TAG, "Received OpenTherm malformed STATUS response with id %d (%s). Skip message",
-       data.id, this->opentherm_->message_id_to_str((MessageId) data.id),
-       this->last_request_.id, this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
+    ESP_LOGE(TAG, "Received OpenTherm malformed STATUS response with id %d (%s). Skip message", data.id,
+             this->opentherm_->message_id_to_str((MessageId) data.id), this->last_request_.id,
+             this->opentherm_->message_id_to_str((MessageId) this->last_request_.id));
     return;
   }
 
@@ -428,10 +428,10 @@ void OpenthermHub::dump_config() {
                 "  Input sensors: %s\n"
                 "  Outputs: %s\n"
                 "  Numbers: %s",
-                "  Message Loop Delay: %d ms",
-                YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )), SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )),
-                SHOW(OPENTHERM_SWITCH_LIST(ID, )), SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )),
-                SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )), this->message_loop_delay_);
+                "  Message Loop Delay: %d ms", YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )),
+                SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )), SHOW(OPENTHERM_SWITCH_LIST(ID, )),
+                SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )), SHOW(OPENTHERM_OUTPUT_LIST(ID, )),
+                SHOW(OPENTHERM_NUMBER_LIST(ID, )), this->message_loop_delay_);
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : initial_messages) {
     ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));
