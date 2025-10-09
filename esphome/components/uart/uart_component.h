@@ -206,6 +206,8 @@ class UARTComponent {
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string)> debug_callback_{};
+#endif
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   bool debugger_reload_required_{false};
 #endif
 };
