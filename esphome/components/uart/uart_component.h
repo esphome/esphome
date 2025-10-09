@@ -178,28 +178,6 @@ class UARTComponent {
   void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
-  std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings) {
-    if (!debug_add_settings)
-      return debug_prefix;
-    std::string res = "|" + this->baud_rate_;
-    res += ":" + this->data_bits_;
-    res += ":" + this->stop_bits_;
-    switch (this->parity_) {
-      case UART_CONFIG_PARITY_NONE:
-        res += "NONE";
-        break;
-      case UART_CONFIG_PARITY_EVEN:
-        res += "EVEN";
-        break;
-      case UART_CONFIG_PARITY_ODD:
-        res += "ODD";
-        break;
-    default:
-      res += "UNKNOWN";
-      break;
-    }
-    return res + "|" + debug_prefix;
-}
 #endif
 
  protected:
