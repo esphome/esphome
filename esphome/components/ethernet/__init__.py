@@ -10,8 +10,8 @@ from esphome.components.esp32 import (
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
-    VARIANT_ESP32P4,
     VARIANT_ESP32C6,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
