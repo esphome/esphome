@@ -169,10 +169,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-  this->debugger_reload_required_ = true;
-#endif
   
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
