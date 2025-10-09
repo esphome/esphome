@@ -13,6 +13,7 @@ static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
+    this->debug_prefix_ = debug_prefix;
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
@@ -75,7 +76,7 @@ bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
-  trigger(this->last_direction_, this->bytes_);
+  trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
   this->bytes_.clear();
   this->is_triggering_ = false;
 }
