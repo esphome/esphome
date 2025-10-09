@@ -12,6 +12,7 @@ namespace uart {
 static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
+  parent->set_debugger(this);
   this->baud_rate_ = parent->get_baud_rate();
   this->data_bits_ = parent->get_data_bits();
   this->stop_bits_ = parent->get_stop_bits();
