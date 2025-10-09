@@ -656,6 +656,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Why change? ESP-IDF offers:\n"
         + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
         + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
         + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
         + color(
             AnsiFore.GREEN,
@@ -663,7 +664,6 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         )
         + "\n"
         + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  ⏱️  Compile times are ~25% longer\n")
         + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
         + "\n"
         + "What should I do?\n"
