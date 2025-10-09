@@ -1,5 +1,5 @@
 substitutions:
-  cs_pin: GPIO6
+  cs_pin: GPIO8
   data_pin: GPIO7
   read_pin: GPIO2
   write_pin: GPIO3
