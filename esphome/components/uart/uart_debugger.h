@@ -50,7 +50,6 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
     this->debug_add_settings_ = debug_add_settings;
     this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
                                           this->data_bits_, this->stop_bits_, this->parity_);
-    this->trigger_after_direction_change_(direction);
   }
   
  protected:
