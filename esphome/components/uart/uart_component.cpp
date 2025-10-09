@@ -32,22 +32,22 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
   std::string UARTComponent::get_debug_settings_string() {
     // return settings string or empty if not desired
     if (!this->debug_add_settings_)
-      return "";
+      return this->debug_prefix_;
     std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
     res += std::to_string(this->get_data_bits()) + ":";
     res += std::to_string(this->get_stop_bits()) + ":";
     switch(this->get_parity()) {
       case 0:
         res += "none|";
-        return res;
+        break;
       case 1:
         res += "even|";
-        return res;
+        break;
       case 2:
         res += "odd|";
-        return res;
+        break;
     }
-    return res;
+    return res + this->debug_prefix_;
   }
 #endif
 
