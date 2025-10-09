@@ -278,6 +278,12 @@ def merge_component_configs(
     # Deduplicate items with same ID (keeps first occurrence)
     merged_config_data = deduplicate_by_id(merged_config_data)
 
+    # Remove esphome section since it will be provided by the wrapper file
+    # The wrapper file includes this merged config via packages and provides
+    # the proper esphome: section with name, platform, etc.
+    if "esphome" in merged_config_data:
+        del merged_config_data["esphome"]
+
     # Write merged config
     output_file.parent.mkdir(parents=True, exist_ok=True)
     yaml_content = yaml_util.dump(merged_config_data)
