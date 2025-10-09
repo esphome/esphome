@@ -12,11 +12,13 @@ namespace uart {
 static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   this->parent_ = parent;
   this->baud_rate_ = parent->get_baud_rate();
   this->data_bits_ = parent->get_data_bits();
   this->stop_bits_ = parent->get_stop_bits();
   this->parity_ = parent->get_parity();
+#endif
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
@@ -29,11 +31,14 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
 }
 
 void UARTDebugger::loop() {
-  if (this->debug_add_settings_ && this->parent_->debugger_needs_reload())
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+  if (this->parent_->debugger_needs_reload())
     this->reload();
+#endif
   this->trigger_after_timeout_();
 }
 
+#ifdef UART_DEBUGGER_ADD_SETTINGS
 void UARTDebugger::reload() {
   this->baud_rate_ = this->parent_->get_baud_rate();
   this->data_bits_ = this->parent_->get_data_bits();
@@ -42,6 +47,7 @@ void UARTDebugger::reload() {
   this->final_debug_prefix_ = get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
                                           this->data_bits_, this->stop_bits_, this->parity_);
 }
+#endif
 
 bool UARTDebugger::is_my_direction_(UARTDirection direction) {
   return this->for_direction_ == UART_DIRECTION_BOTH || this->for_direction_ == direction;
@@ -93,7 +99,11 @@ bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   trigger(this->last_direction_, this->bytes_, this->final_debug_prefix_);
+#else
+  trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
+#endif
   this->bytes_.clear();
   this->is_triggering_ = false;
 }
