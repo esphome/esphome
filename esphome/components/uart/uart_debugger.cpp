@@ -11,7 +11,7 @@ namespace uart {
 
 static const char *const TAG = "uart_debug";
 
-const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t polarity) {
+const char* get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate, uint8_t data_bits, uint8_t stop_bits, uint8_t parity) {
    if (!debug_add_settings)
      return debug_prefix;
    std::string res = "|" + baud_rate;
@@ -38,13 +38,13 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
   this->baud_rate_ = parent->get_baud_rate();
   this->data_bits_ = parent->get_data_bits();
   this->stop_bits_ = parent->get_stop_bits();
-  this->polarity_ = parent->get_polarity();
+  this->parity_ = parent->get_parity();
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, std::string debug_prefix) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
     this->debug_prefix_= get_debug_prefix(this->debug_prefix_, this->debug_add_settings_, this->baud_rate_,
-                                          this->data_bits_, this->stop_bits_, this->polarity_);
+                                          this->data_bits_, this->stop_bits_, this->parity_);
     this->trigger_after_direction_change_(direction);
     this->store_byte_(direction, byte);
     this->trigger_after_delimiter_(byte);
