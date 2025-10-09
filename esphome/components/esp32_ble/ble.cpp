@@ -15,10 +15,6 @@
 #include <freertos/task.h>
 #include <nvs_flash.h>
 
-#ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
-#endif
-
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
@@ -136,12 +132,6 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
-#ifdef USE_ARDUINO
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -166,7 +156,6 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
-#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
@@ -258,12 +247,6 @@ bool ESP32BLE::ble_dismantle_() {
     return false;
   }
 
-#ifdef USE_ARDUINO
-  if (!btStop()) {
-    ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -287,7 +270,6 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#endif
   return true;
 }
 
