@@ -1,3 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
 sensor:
   - platform: wifi_signal
     name: WiFi Signal Sensor
