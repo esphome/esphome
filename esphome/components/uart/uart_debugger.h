@@ -42,6 +42,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   void reload();
   
   static std::string get_debug_prefix(std::string debug_prefix, bool debug_add_settings, uint32_t baud_rate,
@@ -67,13 +68,15 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
      }
      return res + "|" + debug_prefix;
   }
+#endif
 
   // debug setting setters
   void set_debug_prefix(std::string debug_prefix) { 
     this->debug_prefix_ = debug_prefix;
   }
-  void set_debug_add_settings(bool debug_add_settings) { 
+  void set_debug_add_settings(bool debug_add_settings) {
     this->debug_add_settings_ = debug_add_settings;
+#ifdef UART_DEBUGGER_ADD_SETTINGS
     if (debug_add_settings)
       this->final_debug_prefix_= get_debug_prefix(this->debug_prefix_,
                                                   this->debug_add_settings_,
@@ -81,6 +84,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
                                                   this->data_bits_,
                                                   this->stop_bits_,
                                                   this->parity_);
+#endif
   }
   
  protected:
@@ -94,13 +98,14 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
   std::string debug_prefix_{""};
-  std::string final_debug_prefix_{""};
   bool debug_add_settings_{false};
+#ifdef UART_DEBUGGER_ADD_SETTINGS
   uint32_t baud_rate_;
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
   UARTComponent* parent_;
+#endif
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
