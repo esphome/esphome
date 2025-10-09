@@ -28,28 +28,5 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
   this->set_rx_full_threshold(val);
 }
 
-#ifdef USE_UART_DEBUGGER
-  std::string UARTComponent::get_debug_settings_string() {
-    // return settings string or empty if not desired
-    if (!this->debug_add_settings_)
-      return this->debug_prefix_;
-    std::string res = "|" + std::to_string(this->get_baud_rate()) + ":";
-    res += std::to_string(this->get_data_bits()) + ":";
-    res += std::to_string(this->get_stop_bits()) + ":";
-    switch(this->get_parity()) {
-      case 0:
-        res += "none|";
-        break;
-      case 1:
-        res += "even|";
-        break;
-      case 2:
-        res += "odd|";
-        break;
-    }
-    return res + this->debug_prefix_;
-  }
-#endif
-
 }  // namespace uart
 }  // namespace esphome
