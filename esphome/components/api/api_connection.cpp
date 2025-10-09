@@ -8,9 +8,9 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
-#include <utility>
 #include <functional>
 #include <limits>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -1548,6 +1548,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
     ESP_LOGV(TAG, "Could not find service");
   }
 }
+#endif
+
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  if (msg.response_data_len > 0) {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
+                                          msg.response_data_len);
+  } else
+#endif
+  {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message);
+  }
+};
 #endif
 #ifdef USE_API_NOISE
 bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
