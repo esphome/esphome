@@ -78,6 +78,9 @@ class OpenthermHub : public Component {
   // Very likely to happen while using Dallas temperature sensors.
   bool sync_mode_ = false;
 
+  // delay between message being send.
+  int message_loop_delay_ = 100;
+
   CallbackManager<void(OpenthermData &)> before_send_callback_;
   CallbackManager<void(OpenthermData &)> before_process_response_callback_;
 
@@ -159,6 +162,7 @@ class OpenthermHub : public Component {
   void set_summer_mode_active(bool value) { this->summer_mode_active = value; }
   void set_dhw_block(bool value) { this->dhw_block = value; }
   void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
+  void set_message_loop_delay(int message_loop_delay) { this->message_loop_delay_ = message_loop_delay; }
 
   void add_on_before_send_callback(std::function<void(OpenthermData &)> &&callback) {
     this->before_send_callback_.add(std::move(callback));

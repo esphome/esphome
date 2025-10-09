@@ -25,6 +25,7 @@ CONF_SYNC_MODE = "sync_mode"
 CONF_OPENTHERM_VERSION = "opentherm_version"  # Deprecated, will be removed
 CONF_BEFORE_SEND = "before_send"
 CONF_BEFORE_PROCESS_RESPONSE = "before_process_response"
+CONF_MESSAGE_LOOP_DELAY = "message_loop_delay"
 
 # Triggers
 BeforeSendTrigger = generate.opentherm_ns.class_(
@@ -65,6 +66,7 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
+            cv.Optional(CONF_MESSAGE_LOOP_DELAY: 100): cv.int
         }
     )
     .extend(

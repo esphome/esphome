@@ -339,8 +339,8 @@ void OpenthermHub::check_timings_(uint32_t cur_time) {
 }
 
 bool OpenthermHub::should_skip_loop_(uint32_t cur_time) const {
-  if (this->last_conversation_end_ > 0 && (cur_time - this->last_conversation_end_) < 100) {
-    ESP_LOGV(TAG, "Less than 100 ms elapsed since last convo, skipping this iteration");
+  if (this->last_conversation_end_ > 0 && (cur_time - this->last_conversation_end_) < this->message_loop_delay_) {
+    ESP_LOGV(TAG, "Less than %d ms elapsed since last convo, skipping this iteration", this->message_loop_delay_);
     return true;
   }
 
@@ -428,9 +428,10 @@ void OpenthermHub::dump_config() {
                 "  Input sensors: %s\n"
                 "  Outputs: %s\n"
                 "  Numbers: %s",
+                "  Message Loop Delay: %d ms",
                 YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )), SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )),
                 SHOW(OPENTHERM_SWITCH_LIST(ID, )), SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )),
-                SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )));
+                SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )), this->message_loop_delay_);
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : initial_messages) {
     ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));
