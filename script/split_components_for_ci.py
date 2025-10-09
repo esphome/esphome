@@ -83,27 +83,21 @@ def create_intelligent_batches(
 
     sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
-    # Strategy: Keep all components with the same bus signature together
-    # Each signature group becomes ONE batch that will be merged into a single build
-    # Only ungroupable components (signature "none") get split into multiple batches
+    # Strategy: Sort all components by signature group, then take batch_size at a time
+    # - Components with the same signature stay together (sorted first by signature)
+    # - Simply split into batches of batch_size for CI parallelization
+    # - Natural grouping occurs because components with same signature are consecutive
 
+    # Flatten all groups in signature-sorted order
+    # Components within each signature group stay in their natural order
+    all_components = []
     for signature, group_components in sorted_groups:
-        sorted_components = sorted(group_components)
+        all_components.extend(group_components)
 
-        # Check if this is the ungroupable "none" signature
-        is_ungroupable = signature == "none"
-
-        if is_ungroupable:
-            # Split ungroupable components into batches of batch_size
-            # These can't benefit from grouping anyway
-            for i in range(0, len(sorted_components), batch_size):
-                batch = sorted_components[i : i + batch_size]
-                batches.append(batch)
-        else:
-            # Keep the entire signature group together in ONE batch
-            # All components will be merged into a single build by test_build_components.py
-            # This maximizes grouping efficiency even if the batch is large
-            batches.append(sorted_components)
+    # Split into batches of batch_size
+    for i in range(0, len(all_components), batch_size):
+        batch = all_components[i : i + batch_size]
+        batches.append(batch)
 
     return batches
 
