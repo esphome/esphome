@@ -352,18 +352,16 @@ async def to_code(config):
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
-        if CORE.using_esp_idf:
-            if CONF_INTERFACE in config:
-                spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
-                map = {
-                    "spi2": spi_host_device_t.SPI2_HOST,
-                    "spi3": spi_host_device_t.SPI3_HOST,
-                }
-                cg.add(var.set_interface(map[config[CONF_INTERFACE]]))
-            add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-            add_idf_sdkconfig_option(
-                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
-            )
+        
+        if CONF_INTERFACE in config:
+            spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
+            map = {
+                "spi2": spi_host_device_t.SPI2_HOST,
+                "spi3": spi_host_device_t.SPI3_HOST,
+            }
+            cg.add(var.set_interface(map[config[CONF_INTERFACE]]))
+        add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
+        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
