@@ -451,8 +451,10 @@ def test_components(
                 for comp in components_to_group:
                     tested_components.add((comp, platform_with_version))
 
-                # Record result for each component
-                test_id = f"GROUPED[{','.join(components_to_group[:3])}{'...' if len(components_to_group) > 3 else ''}].{platform_with_version}"
+                # Record result for each component - show all components in grouped tests
+                test_id = (
+                    f"GROUPED[{','.join(components_to_group)}].{platform_with_version}"
+                )
                 if success:
                     passed_tests.append(test_id)
                 else:
