@@ -155,34 +155,6 @@ def deduplicate_by_id(data: dict) -> dict:
     return result
 
 
-def prefix_ids_in_dict(data: Any, prefix: str) -> Any:
-    """Recursively prefix all 'id' fields and ID references in a data structure.
-
-    Args:
-        data: YAML data structure (dict, list, or scalar)
-        prefix: Prefix to add to IDs
-
-    Returns:
-        Data structure with prefixed IDs and ID references
-    """
-    if isinstance(data, dict):
-        result = {}
-        for key, value in data.items():
-            if key == "id" and isinstance(value, str):
-                # Prefix the ID value
-                result[key] = f"{prefix}_{value}"
-            elif key.endswith("_id") and isinstance(value, str):
-                # Prefix ID references (uart_id, spi_id, i2c_id, etc.)
-                result[key] = f"{prefix}_{value}"
-            else:
-                # Recursively process the value
-                result[key] = prefix_ids_in_dict(value, prefix)
-        return result
-    if isinstance(data, list):
-        return [prefix_ids_in_dict(item, prefix) for item in data]
-    return data
-
-
 def merge_component_configs(
     component_names: list[str],
     platform: str,
@@ -241,9 +213,6 @@ def merge_component_configs(
 
         # Prefix substitution references throughout the config
         comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
-
-        # Prefix all IDs and ID references to avoid conflicts
-        comp_data = prefix_ids_in_dict(comp_data, comp_name)
 
         # Use ESPHome's merge_config to merge this component into the result
         # merge_config handles list merging with ID-based deduplication automatically
