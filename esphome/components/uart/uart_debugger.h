@@ -45,6 +45,9 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   // add user defined prefix
   void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
 
+  // set bool if uart channel settings shall be added
+  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
+
  protected:
   UARTDirection for_direction_;
   UARTDirection last_direction_{};
