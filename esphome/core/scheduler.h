@@ -280,19 +280,30 @@ class Scheduler {
 #endif
   }
 
-  // Helper to mark item for removal (platform-specific)
+  // Helper to mark matching items in a container as removed
+  // Returns the number of items marked for removal
   // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
   // function.
-  void mark_item_removed_(SchedulerItem *item) {
+  template<typename Container>
+  size_t mark_matching_items_removed_(Container &container, Component *component, const char *name_cstr,
+                                      SchedulerItem::Type type, bool match_retry) {
+    size_t count = 0;
+    for (auto &item : container) {
+      if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
+        // Mark item for removal (platform-specific)
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    // Multi-threaded with atomics: use atomic store
-    item->remove.store(true, std::memory_order_release);
+        // Multi-threaded with atomics: use atomic store
+        item->remove.store(true, std::memory_order_release);
 #else
-    // Single-threaded (ESPHOME_THREAD_SINGLE) or
-    // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
-    // For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller MUST hold lock!
-    item->remove = true;
+        // Single-threaded (ESPHOME_THREAD_SINGLE) or
+        // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
+        // For ESPHOME_THREAD_MULTI_NO_ATOMICS, caller MUST hold lock!
+        item->remove = true;
 #endif
+        count++;
+      }
+    }
+    return count;
   }
 
   // Template helper to check if any item in a container matches our criteria

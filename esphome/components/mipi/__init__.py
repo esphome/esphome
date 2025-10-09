@@ -343,11 +343,7 @@ class DriverChip:
             )
             offset_height = native_height - height - offset_height
         # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
-        rotated = not requires_buffer(config) and config.get(CONF_ROTATION, 0) in (
-            90,
-            270,
-        )
-        if transform.get(CONF_SWAP_XY) is True or rotated:
+        if transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
         return width, height, offset_width, offset_height

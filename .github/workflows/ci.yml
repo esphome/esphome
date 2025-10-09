@@ -391,7 +391,7 @@ jobs:
           ./script/test_build_components -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for testing into 20 groups maximum
+    name: Split components for testing into 10 components per group
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -402,10 +402,10 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Split components into 20 groups
+      - name: Split components into groups of 10
         id: split
         run: |
-          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
+          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(10) | join(" ")]')
           echo "components=$components" >> $GITHUB_OUTPUT
 
   test-build-components-split:
@@ -466,7 +466,7 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - uses: esphome/action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
         env:
           SKIP: pylint,clang-tidy-hash
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
