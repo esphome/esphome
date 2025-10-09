@@ -391,7 +391,7 @@ jobs:
           ./script/test_build_components -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for testing into 14 components per group
+    name: Split components for testing into 10 components per group
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -402,10 +402,10 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Split components into groups of 14
+      - name: Split components into groups of 10
         id: split
         run: |
-          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(14) | join(" ")]')
+          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(10) | join(" ")]')
           echo "components=$components" >> $GITHUB_OUTPUT
 
   test-build-components-split:
