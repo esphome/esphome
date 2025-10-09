@@ -284,6 +284,178 @@ def run_grouped_test(
         return False
 
 
+def run_grouped_component_tests(
+    all_tests: dict[str, list[Path]],
+    platform_filter: str | None,
+    platform_bases: dict[str, list[Path]],
+    tests_dir: Path,
+    build_dir: Path,
+    esphome_command: str,
+    continue_on_fail: bool,
+) -> tuple[set[tuple[str, str]], list[str], list[str]]:
+    """Run grouped component tests.
+
+    Args:
+        all_tests: Dictionary mapping component names to test files
+        platform_filter: Optional platform to filter by
+        platform_bases: Platform base files mapping
+        tests_dir: Path to tests/components directory
+        build_dir: Path to build directory
+        esphome_command: ESPHome command (config/compile)
+        continue_on_fail: Whether to continue on failure
+
+    Returns:
+        Tuple of (tested_components, passed_tests, failed_tests)
+    """
+    tested_components = set()
+    passed_tests = []
+    failed_tests = []
+
+    # Group components by platform and bus signature
+    grouped_components: dict[tuple[str, str], list[str]] = defaultdict(list)
+    print("\n" + "=" * 80)
+    print("Analyzing components for intelligent grouping...")
+    print("=" * 80)
+    component_buses, non_groupable = analyze_all_components(tests_dir)
+
+    # Group by (platform, bus_signature)
+    for component, platforms in component_buses.items():
+        if component not in all_tests:
+            continue
+
+        # Skip components that use local file references
+        if component in non_groupable:
+            continue
+
+        for platform, buses in platforms.items():
+            # Skip if platform doesn't match filter
+            if platform_filter and not platform.startswith(platform_filter):
+                continue
+
+            # Only group if component has common bus configs
+            if buses:
+                signature = create_grouping_signature({platform: buses}, platform)
+                grouped_components[(platform, signature)].append(component)
+
+    # Print detailed grouping plan
+    print("\nGrouping Plan:")
+    print("-" * 80)
+
+    # Show excluded components
+    if non_groupable:
+        excluded_in_tests = [c for c in non_groupable if c in all_tests]
+        if excluded_in_tests:
+            print(
+                f"\n⚠ {len(excluded_in_tests)} components excluded from grouping (use local file references):"
+            )
+            for comp in sorted(excluded_in_tests[:5]):
+                print(f"  - {comp}")
+            if len(excluded_in_tests) > 5:
+                print(f"  ... and {len(excluded_in_tests) - 5} more")
+
+    groups_to_test = []
+    individual_tests = []
+
+    for (platform, signature), components in sorted(grouped_components.items()):
+        if len(components) > 1:
+            groups_to_test.append((platform, signature, components))
+        elif len(components) == 1:
+            individual_tests.extend(components)
+
+    # Add components without grouping signatures
+    for component in all_tests:
+        if (
+            component not in [c for _, _, comps in groups_to_test for c in comps]
+            and component not in individual_tests
+        ):
+            individual_tests.append(component)
+
+    if groups_to_test:
+        print(f"\n✓ {len(groups_to_test)} groups will be tested together:")
+        for platform, signature, components in groups_to_test:
+            component_list = ", ".join(sorted(components))
+            print(f"  [{platform}] [{signature}]: {component_list}")
+            print(
+                f"    → {len(components)} components in 1 build (saves {len(components) - 1} builds)"
+            )
+
+    if individual_tests:
+        print(f"\n○ {len(individual_tests)} components will be tested individually:")
+        for comp in sorted(individual_tests[:10]):
+            print(f"  - {comp}")
+        if len(individual_tests) > 10:
+            print(f"  ... and {len(individual_tests) - 10} more")
+
+    total_grouped = sum(len(comps) for _, _, comps in groups_to_test)
+    total_builds_without_grouping = len(all_tests)
+    total_builds_with_grouping = len(groups_to_test) + len(individual_tests)
+    builds_saved = total_builds_without_grouping - total_builds_with_grouping
+
+    print(f"\n{'=' * 80}")
+    print(f"Summary: {total_builds_with_grouping} builds total")
+    print(f"  • {len(groups_to_test)} grouped builds ({total_grouped} components)")
+    print(f"  • {len(individual_tests)} individual builds")
+    print(
+        f"  • Saves {builds_saved} builds ({builds_saved / total_builds_without_grouping * 100:.1f}% reduction)"
+    )
+    print("=" * 80 + "\n")
+
+    # Execute grouped tests
+    for (platform, signature), components in grouped_components.items():
+        # Only group if we have multiple components with same signature
+        if len(components) <= 1:
+            continue
+
+        # Filter out components not in our test list
+        components_to_group = [c for c in components if c in all_tests]
+        if len(components_to_group) <= 1:
+            continue
+
+        # Get platform base files
+        if platform not in platform_bases:
+            continue
+
+        for base_file in platform_bases[platform]:
+            platform_with_version = extract_platform_with_version(base_file)
+
+            # Skip if platform filter doesn't match
+            if platform_filter and platform != platform_filter:
+                continue
+            if (
+                platform_filter
+                and platform_with_version != platform_filter
+                and not platform_with_version.startswith(f"{platform_filter}-")
+            ):
+                continue
+
+            # Run grouped test
+            success = run_grouped_test(
+                components=components_to_group,
+                platform=platform,
+                platform_with_version=platform_with_version,
+                base_file=base_file,
+                build_dir=build_dir,
+                tests_dir=tests_dir,
+                esphome_command=esphome_command,
+                continue_on_fail=continue_on_fail,
+            )
+
+            # Mark all components as tested
+            for comp in components_to_group:
+                tested_components.add((comp, platform_with_version))
+
+            # Record result for each component - show all components in grouped tests
+            test_id = (
+                f"GROUPED[{','.join(components_to_group)}].{platform_with_version}"
+            )
+            if success:
+                passed_tests.append(test_id)
+            else:
+                failed_tests.append(test_id)
+
+    return tested_components, passed_tests, failed_tests
+
+
 def test_components(
     component_patterns: list[str],
     platform_filter: str | None,
@@ -324,99 +496,6 @@ def test_components(
 
     print(f"Found {len(all_tests)} components to test")
 
-    # Group components by platform and bus signature
-    grouped_components: dict[tuple[str, str], list[str]] = defaultdict(list)
-
-    if enable_grouping:
-        print("\n" + "=" * 80)
-        print("Analyzing components for intelligent grouping...")
-        print("=" * 80)
-        component_buses, non_groupable = analyze_all_components(tests_dir)
-
-        # Group by (platform, bus_signature)
-        for component, platforms in component_buses.items():
-            if component not in all_tests:
-                continue
-
-            # Skip components that use local file references
-            if component in non_groupable:
-                continue
-
-            for platform, buses in platforms.items():
-                # Skip if platform doesn't match filter
-                if platform_filter and not platform.startswith(platform_filter):
-                    continue
-
-                # Only group if component has common bus configs
-                if buses:
-                    signature = create_grouping_signature({platform: buses}, platform)
-                    grouped_components[(platform, signature)].append(component)
-
-        # Print detailed grouping plan
-        print("\nGrouping Plan:")
-        print("-" * 80)
-
-        # Show excluded components
-        if non_groupable:
-            excluded_in_tests = [c for c in non_groupable if c in all_tests]
-            if excluded_in_tests:
-                print(
-                    f"\n⚠ {len(excluded_in_tests)} components excluded from grouping (use local file references):"
-                )
-                for comp in sorted(excluded_in_tests[:5]):
-                    print(f"  - {comp}")
-                if len(excluded_in_tests) > 5:
-                    print(f"  ... and {len(excluded_in_tests) - 5} more")
-
-        groups_to_test = []
-        individual_tests = []
-
-        for (platform, signature), components in sorted(grouped_components.items()):
-            if len(components) > 1:
-                groups_to_test.append((platform, signature, components))
-            elif len(components) == 1:
-                individual_tests.extend(components)
-
-        # Add components without grouping signatures
-        for component in all_tests:
-            if (
-                component not in [c for _, _, comps in groups_to_test for c in comps]
-                and component not in individual_tests
-            ):
-                individual_tests.append(component)
-
-        if groups_to_test:
-            print(f"\n✓ {len(groups_to_test)} groups will be tested together:")
-            for platform, signature, components in groups_to_test:
-                component_list = ", ".join(sorted(components))
-                print(f"  [{platform}] [{signature}]: {component_list}")
-                print(
-                    f"    → {len(components)} components in 1 build (saves {len(components) - 1} builds)"
-                )
-
-        if individual_tests:
-            print(
-                f"\n○ {len(individual_tests)} components will be tested individually:"
-            )
-            for comp in sorted(individual_tests[:10]):
-                print(f"  - {comp}")
-            if len(individual_tests) > 10:
-                print(f"  ... and {len(individual_tests) - 10} more")
-
-        total_grouped = sum(len(comps) for _, _, comps in groups_to_test)
-        total_builds_without_grouping = len(all_tests)
-        total_builds_with_grouping = len(groups_to_test) + len(individual_tests)
-        builds_saved = total_builds_without_grouping - total_builds_with_grouping
-
-        print(f"\n{'=' * 80}")
-        print(f"Summary: {total_builds_with_grouping} builds total")
-        print(f"  • {len(groups_to_test)} grouped builds ({total_grouped} components)")
-        print(f"  • {len(individual_tests)} individual builds")
-        print(
-            f"  • Saves {builds_saved} builds ({builds_saved / total_builds_without_grouping * 100:.1f}% reduction)"
-        )
-        print("=" * 80 + "\n")
-
     # Run tests
     failed_tests = []
     passed_tests = []
@@ -424,57 +503,15 @@ def test_components(
 
     # First, run grouped tests if grouping is enabled
     if enable_grouping:
-        for (platform, signature), components in grouped_components.items():
-            # Only group if we have multiple components with same signature
-            if len(components) <= 1:
-                continue
-
-            # Filter out components not in our test list
-            components_to_group = [c for c in components if c in all_tests]
-            if len(components_to_group) <= 1:
-                continue
-
-            # Get platform base files
-            if platform not in platform_bases:
-                continue
-
-            for base_file in platform_bases[platform]:
-                platform_with_version = extract_platform_with_version(base_file)
-
-                # Skip if platform filter doesn't match
-                if platform_filter and platform != platform_filter:
-                    continue
-                if (
-                    platform_filter
-                    and platform_with_version != platform_filter
-                    and not platform_with_version.startswith(f"{platform_filter}-")
-                ):
-                    continue
-
-                # Run grouped test
-                success = run_grouped_test(
-                    components=components_to_group,
-                    platform=platform,
-                    platform_with_version=platform_with_version,
-                    base_file=base_file,
-                    build_dir=build_dir,
-                    tests_dir=tests_dir,
-                    esphome_command=esphome_command,
-                    continue_on_fail=continue_on_fail,
-                )
-
-                # Mark all components as tested
-                for comp in components_to_group:
-                    tested_components.add((comp, platform_with_version))
-
-                # Record result for each component - show all components in grouped tests
-                test_id = (
-                    f"GROUPED[{','.join(components_to_group)}].{platform_with_version}"
-                )
-                if success:
-                    passed_tests.append(test_id)
-                else:
-                    failed_tests.append(test_id)
+        tested_components, passed_tests, failed_tests = run_grouped_component_tests(
+            all_tests=all_tests,
+            platform_filter=platform_filter,
+            platform_bases=platform_bases,
+            tests_dir=tests_dir,
+            build_dir=build_dir,
+            esphome_command=esphome_command,
+            continue_on_fail=continue_on_fail,
+        )
 
     # Then run individual tests for components not in groups
     for component, test_files in sorted(all_tests.items()):
