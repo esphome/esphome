@@ -29,7 +29,7 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
 }
 
 void UARTDebugger::loop() {
-  if (this->parent_->debugger_needs_reload())
+  if (this->debug_add_settings_ && this->parent_->debugger_needs_reload())
     this->reload();
   this->trigger_after_timeout_();
 }
