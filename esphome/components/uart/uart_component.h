@@ -178,6 +178,13 @@ class UARTComponent {
   void add_debug_callback(std::function<void(UARTDirection, uint8_t, std::string)> &&callback) {
     this->debug_callback_.add(std::move(callback));
   }
+  bool debugger_needs_reload() {
+    if(this->debugger_reload_required_) {
+      this->debugger_reload_required_ = false;
+      return true;
+    }
+    return false;
+  }
 #endif
 
  protected:
@@ -196,6 +203,7 @@ class UARTComponent {
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t, std::string)> debug_callback_{};
+  bool debugger_reload_required_{false};
 #endif
 };
 
