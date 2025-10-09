@@ -217,9 +217,11 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool]:
         if yaml_file.name.startswith("test.") and yaml_file.suffix == ".yaml":
             # Extract platform name (e.g., test.esp32-ard.yaml -> esp32-ard)
             platform = yaml_file.stem.replace("test.", "")
-            if analysis["buses"]:
-                # Sort for consistent comparison
-                platform_buses[platform] = sorted(analysis["buses"])
+            # Always add platform, even if it has no buses (empty list)
+            # This allows grouping components that don't use any shared buses
+            platform_buses[platform] = (
+                sorted(analysis["buses"]) if analysis["buses"] else []
+            )
 
     return platform_buses, has_extend_remove
 
