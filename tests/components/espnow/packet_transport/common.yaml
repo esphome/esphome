@@ -32,3 +32,4 @@ sensor:
     remote_id: temp_sensor
     id: remote_temp
     name: "Remote Temperature"
+
