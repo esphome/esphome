@@ -102,21 +102,68 @@ def prefix_substitutions_in_dict(
     return data
 
 
+def deduplicate_by_id(data: dict) -> dict:
+    """Deduplicate list items with the same ID.
+
+    Keeps only the first occurrence of each ID. If items with the same ID
+    are identical, this silently deduplicates. If they differ, the first
+    one is kept (ESPHome's validation will catch if this causes issues).
+
+    Args:
+        data: Parsed config dictionary
+
+    Returns:
+        Config with deduplicated lists
+    """
+    if not isinstance(data, dict):
+        return data
+
+    result = {}
+    for key, value in data.items():
+        if isinstance(value, list):
+            # Check for items with 'id' field
+            seen_ids = set()
+            deduped_list = []
+
+            for item in value:
+                if isinstance(item, dict) and "id" in item:
+                    item_id = item["id"]
+                    if item_id not in seen_ids:
+                        seen_ids.add(item_id)
+                        deduped_list.append(item)
+                    # else: skip duplicate ID (keep first occurrence)
+                else:
+                    # No ID, just add it
+                    deduped_list.append(item)
+
+            result[key] = deduped_list
+        elif isinstance(value, dict):
+            # Recursively deduplicate nested dicts
+            result[key] = deduplicate_by_id(value)
+        else:
+            result[key] = value
+
+    return result
+
+
 def prefix_ids_in_dict(data: Any, prefix: str) -> Any:
-    """Recursively prefix all 'id' fields in a data structure.
+    """Recursively prefix all 'id' fields and ID references in a data structure.
 
     Args:
         data: YAML data structure (dict, list, or scalar)
         prefix: Prefix to add to IDs
 
     Returns:
-        Data structure with prefixed IDs
+        Data structure with prefixed IDs and ID references
     """
     if isinstance(data, dict):
         result = {}
         for key, value in data.items():
             if key == "id" and isinstance(value, str):
                 # Prefix the ID value
+                result[key] = f"{prefix}_{value}"
+            elif key.endswith("_id") and isinstance(value, str):
+                # Prefix ID references (uart_id, spi_id, i2c_id, etc.)
                 result[key] = f"{prefix}_{value}"
             else:
                 # Recursively process the value
@@ -186,12 +233,8 @@ def merge_component_configs(
         # Prefix substitution references throughout the config
         comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
 
-        # Note: We don't prefix IDs because that requires updating all ID references
-        # throughout the config, which is complex. Instead, we rely on components
-        # already having unique IDs (which they should if properly designed).
-        # ESPHome's merge_config will handle ID conflicts by replacing duplicates.
-
         # Use ESPHome's merge_config to merge this component into the result
+        # merge_config handles list merging with ID-based deduplication automatically
         merged_config_data = merge_config(merged_config_data, comp_data)
 
     # Add packages back (only once, since they're identical)
@@ -204,6 +247,9 @@ def merge_component_configs(
         )
         if "packages" in first_comp_data:
             merged_config_data["packages"] = first_comp_data["packages"]
+
+    # Deduplicate items with same ID (keeps first occurrence)
+    merged_config_data = deduplicate_by_id(merged_config_data)
 
     # Write merged config
     output_file.parent.mkdir(parents=True, exist_ok=True)

@@ -355,7 +355,61 @@ def test_components(
     # Run tests
     failed_tests = []
     passed_tests = []
+    tested_components = set()  # Track which components were tested in groups
 
+    # First, run grouped tests if grouping is enabled
+    if enable_grouping:
+        for (platform, signature), components in grouped_components.items():
+            # Only group if we have multiple components with same signature
+            if len(components) <= 1:
+                continue
+
+            # Filter out components not in our test list
+            components_to_group = [c for c in components if c in all_tests]
+            if len(components_to_group) <= 1:
+                continue
+
+            # Get platform base files
+            if platform not in platform_bases:
+                continue
+
+            for base_file in platform_bases[platform]:
+                platform_with_version = extract_platform_with_version(base_file)
+
+                # Skip if platform filter doesn't match
+                if platform_filter and platform != platform_filter:
+                    continue
+                if (
+                    platform_filter
+                    and platform_with_version != platform_filter
+                    and not platform_with_version.startswith(f"{platform_filter}-")
+                ):
+                    continue
+
+                # Run grouped test
+                success = run_grouped_test(
+                    components=components_to_group,
+                    platform=platform,
+                    platform_with_version=platform_with_version,
+                    base_file=base_file,
+                    build_dir=build_dir,
+                    tests_dir=tests_dir,
+                    esphome_command=esphome_command,
+                    continue_on_fail=continue_on_fail,
+                )
+
+                # Mark all components as tested
+                for comp in components_to_group:
+                    tested_components.add((comp, platform_with_version))
+
+                # Record result for each component
+                test_id = f"GROUPED[{','.join(components_to_group[:3])}{'...' if len(components_to_group) > 3 else ''}].{platform_with_version}"
+                if success:
+                    passed_tests.append(test_id)
+                else:
+                    failed_tests.append(test_id)
+
+    # Then run individual tests for components not in groups
     for component, test_files in sorted(all_tests.items()):
         for test_file in test_files:
             test_name, platform = parse_test_filename(test_file)
@@ -369,6 +423,11 @@ def test_components(
 
                     for base_file in base_files:
                         platform_with_version = extract_platform_with_version(base_file)
+
+                        # Skip if already tested in a group
+                        if (component, platform_with_version) in tested_components:
+                            continue
+
                         success = run_esphome_test(
                             component=component,
                             test_file=test_file,
@@ -402,6 +461,10 @@ def test_components(
                         and platform_with_version != platform_filter
                         and not platform_with_version.startswith(f"{platform_filter}-")
                     ):
+                        continue
+
+                    # Skip if already tested in a group
+                    if (component, platform_with_version) in tested_components:
                         continue
 
                     success = run_esphome_test(
