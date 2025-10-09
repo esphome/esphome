@@ -93,7 +93,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
   std::string debug_prefix_{""};
-  std::final_debug_prefix_{""};
+  std::string final_debug_prefix_{""};
   bool debug_add_settings_{false};
   uint32_t baud_rate_;
   uint8_t stop_bits_;
