@@ -13,7 +13,7 @@
 #include "esphome/core/log.h"
 
 #if defined(ESP32) || defined(USE_ESP_IDF)
-#include "driver/timer.h"
+#include "driver/gptimer.h"
 #endif
 
 namespace esphome {
