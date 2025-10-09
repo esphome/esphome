@@ -5,8 +5,7 @@ substitutions:
   receive_symbols: "4"
   rmt_symbols: "64"
 
-# Configuration is inlined instead of using !extend to make this component groupable.
-# Using !extend prevents automatic component grouping in CI, requiring individual builds.
+# WARNING: Using !extend or !remove prevents automatic component grouping in CI, making builds slower.
 remote_receiver:
   - id: rcvr
     pin: ${pin}

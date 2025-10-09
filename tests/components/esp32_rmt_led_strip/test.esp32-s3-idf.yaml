@@ -2,8 +2,7 @@ substitutions:
   pin1: GPIO3
   pin2: GPIO4
 
-# Configuration is inlined instead of using !extend to make this component groupable.
-# Using !extend prevents automatic component grouping in CI, requiring individual builds.
+# WARNING: Using !extend or !remove prevents automatic component grouping in CI, making builds slower.
 light:
   - platform: esp32_rmt_led_strip
     id: led_strip1
