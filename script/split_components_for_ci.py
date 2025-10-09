@@ -25,6 +25,13 @@ from script.analyze_component_buses import (
     create_grouping_signature,
 )
 
+# Components that must be tested in isolation (not grouped or batched with others)
+# These have known build issues that prevent grouping
+# NOTE: This should be kept in sync with ISOLATED_COMPONENTS in test_build_components
+ISOLATED_COMPONENTS = {
+    "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component",
+}
+
 
 def create_intelligent_batches(
     components: list[str],
@@ -42,17 +49,31 @@ def create_intelligent_batches(
         List of component batches (lists of component names)
     """
     # Analyze all components to get their bus signatures
-    component_buses, _ = analyze_all_components(tests_dir)
+    component_buses, non_groupable = analyze_all_components(tests_dir)
 
     # Group components by their bus signature ONLY (ignore platform)
     # All platforms will be tested by test_build_components.py for each batch
     # Key: signature, Value: list of components
     signature_groups: dict[str, list[str]] = defaultdict(list)
 
+    # Track isolated components separately (they get their own batches)
+    isolated_components = []
+
     for component in components:
+        # Check if component must be tested in isolation
+        if component in ISOLATED_COMPONENTS:
+            isolated_components.append(component)
+            continue
+
+        # Skip components that can't be grouped (use local files)
+        if component in non_groupable:
+            signature_groups["isolated"].append(component)
+            continue
+
         if component not in component_buses:
-            # Component has no bus configs, put in special group
-            signature_groups["none"].append(component)
+            # Component has no bus configs, put in "no_buses" group
+            # These components CAN be grouped together
+            signature_groups["no_buses"].append(component)
             continue
 
         # Get signature from any platform (they should all have the same buses)
@@ -64,22 +85,23 @@ def create_intelligent_batches(
                 signature_groups[signature].append(component)
                 break  # Only use first platform for grouping
         else:
-            # No buses found
-            signature_groups["none"].append(component)
+            # No buses found for any platform - can be grouped together
+            signature_groups["no_buses"].append(component)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches
     batches = []
 
     # Sort signature groups to prioritize groupable components
-    # 1. Put "none" signature last (can't be grouped)
+    # 1. Put "isolated" signature last (can't be grouped with others)
     # 2. Sort groupable signatures by size (largest first)
+    # 3. "no_buses" components CAN be grouped together
     def sort_key(item):
         signature, components = item
-        is_none = signature == "none"
-        # Put "none" last (1), groupable first (0)
+        is_isolated = signature == "isolated"
+        # Put "isolated" last (1), groupable first (0)
         # Within each category, sort by size (largest first)
-        return (is_none, -len(components))
+        return (is_isolated, -len(components))
 
     sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
@@ -98,6 +120,10 @@ def create_intelligent_batches(
     for i in range(0, len(all_components), batch_size):
         batch = all_components[i : i + batch_size]
         batches.append(batch)
+
+    # Add isolated components as individual batches (one component per batch)
+    # These must be tested alone due to known build issues
+    batches.extend([component] for component in isolated_components)
 
     return batches
 
