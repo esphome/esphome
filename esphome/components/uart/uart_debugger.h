@@ -43,8 +43,14 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
   // debug settings setters
-  void set_debug_prefix(std::string debug_prefix) { this->debug_prefix_ = debug_prefix; }
-  void set_debug_add_settings(bool debug_add_settings) { this->debug_add_settings_ = debug_add_settings; }
+  void set_debug_prefix(std::string debug_prefix) { 
+    this->debug_prefix_ = debug_prefix;
+    this->parent_->set_debug_prefix(debug_prefix)
+  }
+  void set_debug_add_settings(bool debug_add_settings) { 
+    this->debug_add_settings_ = debug_add_settings;
+    this->parent_->set_debug_add_settings(debug_add_settings);
+  }
   
  protected:
   UARTDirection for_direction_;
