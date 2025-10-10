@@ -6,13 +6,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#include <esp_bt.h>
+#else
 extern "C" {
 #include <esp_hosted_misc.h>
 #include <esp_hosted_bluedroid.h>
 }
-#else
-#include <esp_bt.h>
 #endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -318,7 +318,16 @@ bool ESP32BLE::ble_dismantle_() {
   }
 #endif
 #else
-  // Close ESP-Hosted HCI transport after deinitializing Bluedroid
+  if (esp_hosted_bt_controller_disable() != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_disable failed");
+    return false;
+  }
+
+  if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_deinit failed");
+    return false;
+  }
+
   hosted_hci_bluedroid_close();
 #endif
   return true;
