@@ -88,7 +88,7 @@ void SN74HC595SPIComponent::write_gpio() {
   auto inverted = this->inverted_bytes_.rbegin();
   while (value != this->value_bytes_.rend() && inverted != this->inverted_bytes_.rend()) {
     this->enable();
-    this->transfer_byte((*byte) ^ (*inverted));
+    this->transfer_byte((*value) ^ (*inverted));
     this->disable();
     value++;
     inverted++;
