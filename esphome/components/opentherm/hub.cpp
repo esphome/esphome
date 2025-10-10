@@ -426,7 +426,7 @@ void OpenthermHub::dump_config() {
                 "  Switches: %s\n"
                 "  Input sensors: %s\n"
                 "  Outputs: %s\n"
-                "  Numbers: %s",
+                "  Numbers: %s"
                 "  Message Loop Delay: %d ms", YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )),
                 SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )), SHOW(OPENTHERM_SWITCH_LIST(ID, )),
                 SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )), SHOW(OPENTHERM_OUTPUT_LIST(ID, )),
