@@ -392,7 +392,7 @@ jobs:
           python3 script/test_build_components.py -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for intelligent grouping (15 per batch)
+    name: Split components for intelligent grouping (20 per batch)
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -417,7 +417,7 @@ jobs:
           components='${{ needs.determine-jobs.outputs.changed-components }}'
 
           echo "Splitting components intelligently..."
-          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 15 --output github)
+          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 20 --output github)
 
           echo "$output" >> $GITHUB_OUTPUT
 
@@ -435,6 +435,14 @@ jobs:
       matrix:
         components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
+        with:
+          remove-android: 'true'
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
       - name: List components
         run: echo ${{ matrix.components }}
 
