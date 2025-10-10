@@ -1,33 +1,33 @@
 i2c:
   scl: GPIOXX
-  sda: GPIOXX 
+  sda: GPIOXX
   frequency: 400khz  # The sensor expects a 400khz i2c bus.
 
 sensor:
   - platform: vl53l1x
     name: "All Configuration Options"
 
-    # Conditionally required: Must be set when multiple VL53L1X Sensors 
+    # Conditionally required: Must be set when multiple VL53L1X Sensors
     # are connected. All sensors must have a unique address, even when
     # connected to multiple buses.
     address: 0x29 # Default: 0x29
 
-    # Conditionally required: Must be set if address is not 
+    # Conditionally required: Must be set if address is not
     # 0x29 or there are multiple VL53L1X Sensors connected on the same bus.
     enable_pin: GPIOXX
 
-    # Optional: If set, the sensor will operate in interrupt mode, 
+    # Optional: If set, the sensor will operate in interrupt mode,
     # if not set, it will operate in polling mode.
     interrupt_pin: GPIOXX
-    
+
     # Optional: How often the sensor will update its value.
     update_interval: 60s # Default: 60s
 
-    # Optional: 
+    # Optional:
     #   short: Higher precision, but can only measure values < 0.5m
-    #   long:  Lower precision, but can measure values < 4.0m 
+    #   long:  Lower precision, but can measure values < 4.0m
     distance_mode: long # Default: short
-    
+
     # Optional: How long the sensor will spend per measurement, longer timing budget generally
     # means more accurate results.
     # Valid values are: (15ms, 20ms, 33ms, 50ms, 100ms, 200ms, 500ms)
@@ -39,15 +39,15 @@ sensor:
     # geometries.
     # The region is specified by the bottom-left corner (x, y) of a detection rectangle (w x h).
     # The smallest region allowed is a 4x4 rectangle. The full rectangle must specified be within
-    # the bounds. 
-    region_of_interest: 
+    # the bounds.
+    region_of_interest:
       x: 0
       y: 0
-      w: 16 
+      w: 16
       h: 16
 
-    # Optional: When operating in interrupt mode, the sensor can be configured to only trigger interrupts 
-    # for measurements within the given bounds. 
+    # Optional: When operating in interrupt mode, the sensor can be configured to only trigger interrupts
+    # for measurements within the given bounds.
     distance_threshold:
       # Required: When to interrupt
       #  below_min - only interrupt when the measurement is below 'min'.
@@ -55,11 +55,11 @@ sensor:
       #  inside_window - only interrupt when the measurement is between 'min' and 'max'.
       #  outside_window - only interrupt when the measurement is outside 'min' and 'max'.
       interrupt_when: inside_window
-    
+
       # Conditional, as required by 'interrupt_when'.
       min: 0.5m
       # Conditional, as required by 'interrupt_when'.
-      max: 1m 
+      max: 1m
 
     # Optional: Offset the value reported by the sensor.
     offset: 0.0m  # Default: 0m
@@ -67,8 +67,8 @@ sensor:
     # Optional: This is the number of photons reflected back from any added cover glass in cps (count per second).
     xtalk_correction: 0  # Default: 0
 
-    # Optional: Set a new signal threshold in kcps (count per second)  
+    # Optional: Set a new signal threshold in kcps (count per second)
     signal_threshold: 1024 # Default: 1024
 
-    # Optional: Set a new sigma threshold in mm 
+    # Optional: Set a new sigma threshold in mm
     sigma_threshold: 15 # Default: 15
