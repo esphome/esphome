@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # pylint: disable=wrong-import-position
 from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
+    NO_BUSES_SIGNATURE,
     analyze_all_components,
     create_grouping_signature,
     is_platform_component,
@@ -403,11 +404,11 @@ def run_grouped_component_tests(
                 continue
 
             # Create signature for this component's bus configuration
-            # Components with no buses get a signature of "no_buses" so they can be grouped together
+            # Components with no buses get NO_BUSES_SIGNATURE so they can be grouped together
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
             else:
-                signature = "no_buses"
+                signature = NO_BUSES_SIGNATURE
 
             # Add to grouped components (including those with no buses)
             if signature:
@@ -461,6 +462,33 @@ def run_grouped_component_tests(
                 print(
                     f"\n  Other non-groupable components: {len(other_reasons)} components"
                 )
+
+    # Distribute no_buses components into other groups to maximize efficiency
+    # Components with no buses can merge with any bus group since they have no conflicting requirements
+    no_buses_by_platform: dict[str, list[str]] = {}
+    for (platform, signature), components in list(grouped_components.items()):
+        if signature == NO_BUSES_SIGNATURE:
+            no_buses_by_platform[platform] = components
+            # Remove from grouped_components - we'll distribute them
+            del grouped_components[(platform, signature)]
+
+    # Distribute no_buses components into existing groups for each platform
+    for platform, no_buses_comps in no_buses_by_platform.items():
+        # Find all non-empty groups for this platform (excluding no_buses)
+        platform_groups = [
+            (sig, comps)
+            for (plat, sig), comps in grouped_components.items()
+            if plat == platform and sig != NO_BUSES_SIGNATURE
+        ]
+
+        if platform_groups:
+            # Distribute no_buses components round-robin across existing groups
+            for i, comp in enumerate(no_buses_comps):
+                sig, _ = platform_groups[i % len(platform_groups)]
+                grouped_components[(platform, sig)].append(comp)
+        else:
+            # No other groups for this platform - keep no_buses components together
+            grouped_components[(platform, NO_BUSES_SIGNATURE)] = no_buses_comps
 
     groups_to_test = []
     individual_tests = set()  # Use set to avoid duplicates

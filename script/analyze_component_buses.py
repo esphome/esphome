@@ -52,6 +52,10 @@ PACKAGE_DEPENDENCIES = {
 # Components defining these directly cannot be grouped (they create unique bus IDs)
 DIRECT_BUS_TYPES = ("i2c", "spi", "uart", "modbus")
 
+# Signature for components with no bus requirements
+# These components can be merged with any other group
+NO_BUSES_SIGNATURE = "no_buses"
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {

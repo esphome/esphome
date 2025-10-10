@@ -206,11 +206,21 @@ def merge_component_configs(
         # Load the component's test file
         comp_data = load_yaml_file(test_file)
 
-        # Validate packages are identical
+        # Validate packages are compatible
+        # Components with no packages (no_buses) can merge with any group
         comp_packages = extract_packages_from_yaml(comp_data)
+
         if all_packages is None:
+            # First component - set the baseline
+            all_packages = comp_packages
+        elif not comp_packages:
+            # This component has no packages (no_buses) - it can merge with any group
+            pass
+        elif not all_packages:
+            # Previous components had no packages, but this one does - adopt these packages
             all_packages = comp_packages
         elif comp_packages != all_packages:
+            # Both have packages but they differ - this is an error
             raise ValueError(
                 f"Component {comp_name} has different packages than previous components. "
                 f"Expected: {all_packages}, Got: {comp_packages}. "

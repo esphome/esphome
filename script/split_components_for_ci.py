@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
+    NO_BUSES_SIGNATURE,
     analyze_all_components,
     create_grouping_signature,
 )
@@ -105,7 +106,7 @@ def create_intelligent_batches(
                 break  # Only use first platform for grouping
         else:
             # No buses found for any platform - can be grouped together
-            signature_groups["no_buses"].append(component)
+            signature_groups[NO_BUSES_SIGNATURE].append(component)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches
