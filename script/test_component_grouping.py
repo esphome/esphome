@@ -24,6 +24,7 @@ from script.analyze_component_buses import (
 def test_component_group(
     components: list[str],
     platform: str,
+    esphome_command: str = "compile",
     dry_run: bool = False,
 ) -> bool:
     """Test a group of components together.
@@ -31,13 +32,22 @@ def test_component_group(
     Args:
         components: List of component names to test together
         platform: Platform to test on (e.g., "esp32-idf")
+        esphome_command: ESPHome command to run (config/compile/clean)
         dry_run: If True, only print the command without running it
 
     Returns:
         True if test passed, False otherwise
     """
     components_str = ",".join(components)
-    cmd = ["./script/test_build_components", "-c", components_str, "-t", platform]
+    cmd = [
+        "./script/test_build_components",
+        "-c",
+        components_str,
+        "-t",
+        platform,
+        "-e",
+        esphome_command,
+    ]
 
     print(f"\n{'=' * 80}")
     print(f"Testing {len(components)} components on {platform}:")
@@ -70,6 +80,18 @@ def main() -> None:
         help="Platform to test (default: esp32-idf)",
     )
     parser.add_argument(
+        "-e",
+        "--esphome-command",
+        default="compile",
+        choices=["config", "compile", "clean"],
+        help="ESPHome command to run (default: compile)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Test all components (sets --min-size=1, --max-size=10000, --max-groups=10000)",
+    )
+    parser.add_argument(
         "--min-size",
         type=int,
         default=3,
@@ -99,6 +121,35 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # If --all is specified, test all components without grouping
+    if args.all:
+        # Get all components from tests/components directory
+        components_dir = Path("tests/components")
+        all_components = sorted(
+            [d.name for d in components_dir.iterdir() if d.is_dir()]
+        )
+
+        if not all_components:
+            print(f"\nNo components found in {components_dir}")
+            return
+
+        print(f"\nTesting all {len(all_components)} components together")
+
+        success = test_component_group(
+            all_components, args.platform, args.esphome_command, args.dry_run
+        )
+
+        # Print summary
+        print(f"\n{'=' * 80}")
+        print("TEST SUMMARY")
+        print(f"{'=' * 80}")
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} All components: {len(all_components)} components")
+
+        if not args.dry_run and not success:
+            sys.exit(1)
+        return
 
     print("Analyzing all components...")
     components, non_groupable, _ = analyze_all_components(Path("tests/components"))
@@ -150,7 +201,9 @@ def main() -> None:
         if len(comp_list) > args.max_size:
             comp_list = comp_list[: args.max_size]
 
-        success = test_component_group(comp_list, args.platform, args.dry_run)
+        success = test_component_group(
+            comp_list, args.platform, args.esphome_command, args.dry_run
+        )
         results.append((signature, comp_list, success))
 
         if not args.dry_run and not success:

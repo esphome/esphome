@@ -198,12 +198,48 @@ When platform-specific parameters are needed, inline the full configuration rath
 
 **Note**: Some components legitimately require `!extend` or `!remove` for platform-specific features (e.g., `adc` removing ESP32-only `attenuation` parameter on ESP8266). These are correctly identified as non-groupable.
 
+## Testing Components
+
+### Testing Individual Components
+Test specific components using `test_build_components`:
+```bash
+# Test a single component
+./script/test_build_components -c bme280_i2c -t esp32-idf -e config
+
+# Test multiple components
+./script/test_build_components -c bme280_i2c,bh1750,sht3xd -t esp32-idf -e compile
+```
+
+### Testing All Components Together
+To verify that all components can be tested together without ID conflicts or configuration issues:
+```bash
+./script/test_component_grouping.py -e config --all
+```
+
+This tests all components in a single build to catch conflicts that might not appear when testing components individually. This is useful for:
+- Detecting ID conflicts between components
+- Validating that components can coexist in the same configuration
+- Ensuring proper `i2c_id`, `spi_id`, `uart_id` specifications
+
+Use `-e config` for fast configuration validation, or `-e compile` for full compilation testing.
+
+### Testing Component Groups
+Test specific groups of components by bus signature:
+```bash
+# Test all I2C components together
+./script/test_component_grouping.py -s i2c -e config
+
+# Test with custom group sizes
+./script/test_component_grouping.py --min-size 5 --max-size 20 --max-groups 3
+```
+
 ## Implementation Details
 
 ### Scripts
 - `script/analyze_component_buses.py`: Analyzes components to detect bus usage and grouping compatibility
 - `script/merge_component_configs.py`: Merges multiple component configs into a single test file
 - `script/test_build_components.py`: Main test runner with intelligent grouping
+- `script/test_component_grouping.py`: Test component groups or all components together
 - `script/split_components_for_ci.py`: Splits components into batches for parallel CI execution
 
 ### Configuration
