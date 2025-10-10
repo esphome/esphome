@@ -67,6 +67,7 @@ ISOLATED_COMPONENTS = {
     "esp32_camera": "Leaks config into other components",
     "esp32_camera_web_server": "Leaks config into other components",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
+    "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
     "mcp47a1": "no YAML config to specify i2c bus id",
@@ -317,9 +318,8 @@ def analyze_all_components(
         if platform_buses:
             components[component_name] = platform_buses
 
-        # Check if component uses local file references
-        if uses_local_file_references(component_dir):
-            non_groupable.add(component_name)
+        # Note: Components using $component_dir are now groupable because the merge
+        # script rewrites these to absolute paths with component-specific substitutions
 
         # Check if component is a base bus component
         # These are platform implementations and must be tested separately
@@ -444,8 +444,7 @@ def main() -> None:
             )
             if platform_buses:
                 components[comp] = platform_buses
-            if uses_local_file_references(comp_dir):
-                non_groupable.add(comp)
+            # Note: Components using $component_dir are now groupable
             if comp in BASE_BUS_COMPONENTS:
                 non_groupable.add(comp)
             if has_extend_remove:

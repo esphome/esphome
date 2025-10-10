@@ -102,9 +102,11 @@ def prefix_substitutions_in_dict(
             sub_name = match.group(1)
             if sub_name in exclude:
                 return match.group(0)
+            # Always use braced format in output for consistency
             return f"${{{prefix}_{sub_name}}}"
 
-        return re.sub(r"\$\{(\w+)\}", replace_match, text)
+        # Match both ${substitution} and $substitution formats
+        return re.sub(r"\$\{?(\w+)\}?", replace_match, text)
 
     if isinstance(data, dict):
         result = {}
@@ -207,9 +209,9 @@ def merge_component_configs(
                 f"All components must use the same common bus configs to be merged."
             )
 
-        # Remove packages from component data (we'll add them back once)
-        if "packages" in comp_data:
-            del comp_data["packages"]
+        # Handle $component_dir by replacing with absolute path
+        # This allows components that use local file references to be grouped
+        comp_abs_dir = str(comp_dir.absolute())
 
         # Prefix substitutions in component data
         if "substitutions" in comp_data and comp_data["substitutions"] is not None:
@@ -218,23 +220,46 @@ def merge_component_configs(
                 prefixed_subs[f"{comp_name}_{sub_name}"] = sub_value
             comp_data["substitutions"] = prefixed_subs
 
-        # Prefix substitution references throughout the config
+        # Add component_dir substitution with absolute path for this component
+        if "substitutions" not in comp_data or comp_data["substitutions"] is None:
+            comp_data["substitutions"] = {}
+        comp_data["substitutions"][f"{comp_name}_component_dir"] = comp_abs_dir
+
+        # Prefix substitution references throughout the config (including in packages)
         comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
+
+        # Now handle packages: remove common bus packages, expand component-specific ones
+        if "packages" in comp_data:
+            common_bus_packages = get_common_bus_packages()
+            for pkg_name, pkg_value in list(comp_data["packages"].items()):
+                if pkg_name not in common_bus_packages and isinstance(pkg_value, dict):
+                    # Component-specific package - expand its content into top level
+                    # Merge package content using ESPHome's merge_config
+                    comp_data = merge_config(comp_data, pkg_value)
+                # Remove all packages (common will be re-added at the end)
+            del comp_data["packages"]
 
         # Use ESPHome's merge_config to merge this component into the result
         # merge_config handles list merging with ID-based deduplication automatically
         merged_config_data = merge_config(merged_config_data, comp_data)
 
     # Add packages back (only once, since they're identical)
-    if all_packages and "packages" in list(
-        load_yaml_file(tests_dir / component_names[0] / f"test.{platform}.yaml")
-    ):
-        # Re-read first component to get original packages with !include
+    # IMPORTANT: Only re-add common bus packages (spi, i2c, uart, etc.)
+    # Do NOT re-add component-specific packages as they contain unprefixed $component_dir refs
+    if all_packages:
         first_comp_data = load_yaml_file(
             tests_dir / component_names[0] / f"test.{platform}.yaml"
         )
         if "packages" in first_comp_data:
-            merged_config_data["packages"] = first_comp_data["packages"]
+            # Filter to only include common bus packages
+            common_bus_packages = get_common_bus_packages()
+            filtered_packages = {
+                name: value
+                for name, value in first_comp_data["packages"].items()
+                if name in common_bus_packages
+            }
+            if filtered_packages:
+                merged_config_data["packages"] = filtered_packages
 
     # Deduplicate items with same ID (keeps first occurrence)
     merged_config_data = deduplicate_by_id(merged_config_data)
