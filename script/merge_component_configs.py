@@ -231,38 +231,15 @@ def merge_component_configs(
         # This allows components that use local file references to be grouped
         comp_abs_dir = str(comp_dir.absolute())
 
-        # Prefix substitutions in component data (including those in packages)
-        # Must do this recursively before expanding packages
-        def prefix_all_substitutions(data, prefix):
-            """Recursively prefix substitution definitions in data structure."""
-            if isinstance(data, dict):
-                # Prefix substitutions at this level
-                if "substitutions" in data and data["substitutions"] is not None:
-                    prefixed_subs = {}
-                    for sub_name, sub_value in data["substitutions"].items():
-                        prefixed_subs[f"{prefix}_{sub_name}"] = sub_value
-                    data["substitutions"] = prefixed_subs
+        # Save top-level substitutions BEFORE expanding packages
+        # In ESPHome, top-level substitutions override package substitutions
+        top_level_subs = (
+            comp_data["substitutions"].copy()
+            if "substitutions" in comp_data and comp_data["substitutions"] is not None
+            else {}
+        )
 
-                # Recursively process nested dicts (like packages)
-                for key, value in data.items():
-                    if key != "substitutions":  # Already handled above
-                        data[key] = prefix_all_substitutions(value, prefix)
-            elif isinstance(data, list):
-                return [prefix_all_substitutions(item, prefix) for item in data]
-
-            return data
-
-        comp_data = prefix_all_substitutions(comp_data, comp_name)
-
-        # Add component_dir substitution with absolute path for this component
-        if "substitutions" not in comp_data or comp_data["substitutions"] is None:
-            comp_data["substitutions"] = {}
-        comp_data["substitutions"][f"{comp_name}_component_dir"] = comp_abs_dir
-
-        # Prefix substitution references throughout the config (including in packages)
-        comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
-
-        # Now handle packages: remove common bus packages, expand component-specific ones
+        # Expand packages - but we'll restore substitution priority after
         if "packages" in comp_data:
             packages_value = comp_data["packages"]
 
@@ -285,6 +262,26 @@ def merge_component_configs(
 
             # Remove all packages (common will be re-added at the end)
             del comp_data["packages"]
+
+        # Restore top-level substitution priority
+        # Top-level substitutions override any from packages
+        if "substitutions" not in comp_data or comp_data["substitutions"] is None:
+            comp_data["substitutions"] = {}
+
+        # Merge: package subs as base, top-level subs override
+        comp_data["substitutions"].update(top_level_subs)
+
+        # Now prefix the final merged substitutions
+        comp_data["substitutions"] = {
+            f"{comp_name}_{sub_name}": sub_value
+            for sub_name, sub_value in comp_data["substitutions"].items()
+        }
+
+        # Add component_dir substitution with absolute path for this component
+        comp_data["substitutions"][f"{comp_name}_component_dir"] = comp_abs_dir
+
+        # Prefix substitution references throughout the config
+        comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
 
         # Use ESPHome's merge_config to merge this component into the result
         # merge_config handles list merging with ID-based deduplication automatically
