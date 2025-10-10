@@ -1,7 +1,7 @@
 sensor:
   - id: my_sensor
     platform: adc
-    pin: P10
+    pin: P23
     name: ADC Test sensor
     update_interval: "1:01"
     unit_of_measurement: "°C"

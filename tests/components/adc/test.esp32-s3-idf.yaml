@@ -1,7 +1,7 @@
 sensor:
   - id: my_sensor
     platform: adc
-    pin: A0
+    pin: GPIO1
     name: ADC Test sensor
     update_interval: "1:01"
     attenuation: 2.5db
