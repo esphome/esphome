@@ -23,11 +23,7 @@ extern "C" {
 #include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_hosted_bt.h>
-#else
 #include <esp32-hal-bt.h>
-#endif
 #endif
 
 namespace esphome::esp32_ble {
@@ -147,13 +143,13 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #ifdef USE_ARDUINO
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
     return false;
   }
 #else
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -178,12 +174,10 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-#endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#endif  // USE_ARDUINO
-
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#else
   // Open ESP-Hosted HCI transport before initializing Bluedroid
   hosted_hci_bluedroid_open();
   esp_bluedroid_hci_driver_operations_t operations = {
@@ -287,13 +281,13 @@ bool ESP32BLE::ble_dismantle_() {
   hosted_hci_bluedroid_close();
 #endif
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #ifdef USE_ARDUINO
   if (!btStop()) {
     ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
     return false;
   }
 #else
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -317,8 +311,8 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #endif  // USE_ARDUINO
+#endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   return true;
 }
 
