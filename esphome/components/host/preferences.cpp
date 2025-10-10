@@ -14,7 +14,12 @@ static const char *const TAG = "host.preferences";
 void HostPreferences::setup_() {
   if (this->setup_complete_)
     return;
-  this->filename_.append(getenv("HOME"));
+  auto home = getenv("HOME");
+  if (home == nullptr) {
+    ESP_LOGW(TAG, "HOME environment variable not set, which is needed for saving preferences");
+    exit(1);
+  }
+  this->filename_.append(home);
   this->filename_.append("/.esphome");
   this->filename_.append("/prefs");
   fs::create_directories(this->filename_);
