@@ -49,7 +49,7 @@ def has_test_files(component_name: str, tests_dir: Path) -> bool:
 def create_intelligent_batches(
     components: list[str],
     tests_dir: Path,
-    batch_size: int = 20,
+    batch_size: int = 30,
 ) -> list[list[str]]:
     """Create batches optimized for component grouping.
 
@@ -161,8 +161,8 @@ def main() -> int:
         "--batch-size",
         "-b",
         type=int,
-        default=20,
-        help="Target batch size (default: 20)",
+        default=30,
+        help="Target batch size (default: 30)",
     )
     parser.add_argument(
         "--tests-dir",

@@ -392,7 +392,7 @@ jobs:
           python3 script/test_build_components.py -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for intelligent grouping (20 per batch)
+    name: Split components for intelligent grouping (30 per batch)
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -417,7 +417,7 @@ jobs:
           components='${{ needs.determine-jobs.outputs.changed-components }}'
 
           echo "Splitting components intelligently..."
-          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 20 --output github)
+          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 30 --output github)
 
           echo "$output" >> $GITHUB_OUTPUT
 
