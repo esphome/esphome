@@ -35,6 +35,22 @@ from .common import load_config_from_fixture
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
 
+@pytest.fixture
+def mock_cg_with_include_capture() -> tuple[Mock, list[str]]:
+    """Mock code generation with include capture."""
+    includes_added: list[str] = []
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_raw_statement = MagicMock()
+
+        def capture_include(text: str) -> MagicMock:
+            includes_added.append(text)
+            return mock_raw_statement
+
+        mock_cg.RawStatement.side_effect = capture_include
+        yield mock_cg, includes_added
+
+
 def test_validate_area_config_with_string() -> None:
     """Test that string area config is converted to structured format."""
     result = validate_area_config("Living Room")
@@ -273,7 +289,7 @@ def test_valid_include_with_angle_brackets() -> None:
 
 def test_valid_include_with_valid_file(tmp_path: Path) -> None:
     """Test valid_include accepts valid include files."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     include_file = tmp_path / "include.h"
     include_file.touch()
 
@@ -282,7 +298,7 @@ def test_valid_include_with_valid_file(tmp_path: Path) -> None:
 
 def test_valid_include_with_valid_directory(tmp_path: Path) -> None:
     """Test valid_include accepts valid directories."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     include_dir = tmp_path / "includes"
     include_dir.mkdir()
 
@@ -291,7 +307,7 @@ def test_valid_include_with_valid_directory(tmp_path: Path) -> None:
 
 def test_valid_include_invalid_extension(tmp_path: Path) -> None:
     """Test valid_include rejects files with invalid extensions."""
-    CORE.config_path = str(tmp_path / "test.yaml")
+    CORE.config_path = tmp_path / "test.yaml"
     invalid_file = tmp_path / "file.txt"
     invalid_file.touch()
 
@@ -465,7 +481,7 @@ def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) ->
     src_file = tmp_path / "source.h"
     src_file.write_text("// Header content")
 
-    CORE.build_path = str(tmp_path / "build")
+    CORE.build_path = tmp_path / "build"
 
     with patch("esphome.core.config.cg") as mock_cg:
         # Mock RawStatement to capture the text
@@ -478,7 +494,7 @@ def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) ->
 
         mock_cg.RawStatement.side_effect = raw_statement_side_effect
 
-        config.include_file(str(src_file), "test.h")
+        config.include_file(src_file, Path("test.h"))
 
         mock_copy_file_if_changed.assert_called_once()
         mock_cg.add_global.assert_called_once()
@@ -491,10 +507,10 @@ def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> No
     src_file = tmp_path / "source.cpp"
     src_file.write_text("// CPP content")
 
-    CORE.build_path = str(tmp_path / "build")
+    CORE.build_path = tmp_path / "build"
 
     with patch("esphome.core.config.cg") as mock_cg:
-        config.include_file(str(src_file), "test.cpp")
+        config.include_file(src_file, Path("test.cpp"))
 
         mock_copy_file_if_changed.assert_called_once()
         # Should not add include statement for .cpp files
@@ -577,3 +593,262 @@ def test_is_target_platform() -> None:
     assert config._is_target_platform("rp2040") is True
     assert config._is_target_platform("invalid_platform") is False
     assert config._is_target_platform("api") is False  # Component but not platform
+
+
+@pytest.mark.asyncio
+async def test_add_includes_with_single_file(
+    tmp_path: Path,
+    mock_copy_file_if_changed: Mock,
+    mock_cg_with_include_capture: tuple[Mock, list[str]],
+) -> None:
+    """Test add_includes copies a single header file to build directory."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create include file
+    include_file = tmp_path / "my_header.h"
+    include_file.write_text("#define MY_CONSTANT 42")
+
+    mock_cg, includes_added = mock_cg_with_include_capture
+
+    await config.add_includes([str(include_file)])
+
+    # Verify copy_file_if_changed was called to copy the file
+    # Note: add_includes adds files to a src/ subdirectory
+    mock_copy_file_if_changed.assert_called_once_with(
+        include_file, CORE.build_path / "src" / "my_header.h"
+    )
+
+    # Verify include statement was added
+    assert any('#include "my_header.h"' in inc for inc in includes_added)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+async def test_add_includes_with_directory_unix(
+    tmp_path: Path,
+    mock_copy_file_if_changed: Mock,
+    mock_cg_with_include_capture: tuple[Mock, list[str]],
+) -> None:
+    """Test add_includes copies all files from a directory on Unix."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create include directory with files
+    include_dir = tmp_path / "includes"
+    include_dir.mkdir()
+    (include_dir / "header1.h").write_text("#define HEADER1")
+    (include_dir / "header2.hpp").write_text("#define HEADER2")
+    (include_dir / "source.cpp").write_text("// Implementation")
+    (include_dir / "README.md").write_text(
+        "# Documentation"
+    )  # Should be copied but not included
+
+    # Create subdirectory with files
+    subdir = include_dir / "subdir"
+    subdir.mkdir()
+    (subdir / "nested.h").write_text("#define NESTED")
+
+    mock_cg, includes_added = mock_cg_with_include_capture
+
+    await config.add_includes([str(include_dir)])
+
+    # Verify copy_file_if_changed was called for all files
+    assert mock_copy_file_if_changed.call_count == 5  # 4 code files + 1 README
+
+    # Verify include statements were added for valid extensions
+    include_strings = " ".join(includes_added)
+    assert "includes/header1.h" in include_strings
+    assert "includes/header2.hpp" in include_strings
+    assert "includes/subdir/nested.h" in include_strings
+    # CPP files are copied but not included
+    assert "source.cpp" not in include_strings or "#include" not in include_strings
+    # README.md should not have an include statement
+    assert "README.md" not in include_strings
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+async def test_add_includes_with_directory_windows(
+    tmp_path: Path,
+    mock_copy_file_if_changed: Mock,
+    mock_cg_with_include_capture: tuple[Mock, list[str]],
+) -> None:
+    """Test add_includes copies all files from a directory on Windows."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create include directory with files
+    include_dir = tmp_path / "includes"
+    include_dir.mkdir()
+    (include_dir / "header1.h").write_text("#define HEADER1")
+    (include_dir / "header2.hpp").write_text("#define HEADER2")
+    (include_dir / "source.cpp").write_text("// Implementation")
+    (include_dir / "README.md").write_text(
+        "# Documentation"
+    )  # Should be copied but not included
+
+    # Create subdirectory with files
+    subdir = include_dir / "subdir"
+    subdir.mkdir()
+    (subdir / "nested.h").write_text("#define NESTED")
+
+    mock_cg, includes_added = mock_cg_with_include_capture
+
+    await config.add_includes([str(include_dir)])
+
+    # Verify copy_file_if_changed was called for all files
+    assert mock_copy_file_if_changed.call_count == 5  # 4 code files + 1 README
+
+    # Verify include statements were added for valid extensions
+    include_strings = " ".join(includes_added)
+    assert "includes\\header1.h" in include_strings
+    assert "includes\\header2.hpp" in include_strings
+    assert "includes\\subdir\\nested.h" in include_strings
+    # CPP files are copied but not included
+    assert "source.cpp" not in include_strings or "#include" not in include_strings
+    # README.md should not have an include statement
+    assert "README.md" not in include_strings
+
+
+@pytest.mark.asyncio
+async def test_add_includes_with_multiple_sources(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test add_includes with multiple files and directories."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create various include sources
+    single_file = tmp_path / "single.h"
+    single_file.write_text("#define SINGLE")
+
+    dir1 = tmp_path / "dir1"
+    dir1.mkdir()
+    (dir1 / "file1.h").write_text("#define FILE1")
+
+    dir2 = tmp_path / "dir2"
+    dir2.mkdir()
+    (dir2 / "file2.cpp").write_text("// File2")
+
+    with patch("esphome.core.config.cg"):
+        await config.add_includes([str(single_file), str(dir1), str(dir2)])
+
+    # Verify copy_file_if_changed was called for all files
+    assert mock_copy_file_if_changed.call_count == 3  # 3 files total
+
+
+@pytest.mark.asyncio
+async def test_add_includes_empty_directory(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test add_includes with an empty directory doesn't fail."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create empty directory
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    with patch("esphome.core.config.cg"):
+        # Should not raise any errors
+        await config.add_includes([str(empty_dir)])
+
+    # No files to copy from empty directory
+    mock_copy_file_if_changed.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+async def test_add_includes_preserves_directory_structure_unix(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test that add_includes preserves relative directory structure on Unix."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create nested directory structure
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    src_dir = lib_dir / "src"
+    src_dir.mkdir()
+    (src_dir / "core.h").write_text("#define CORE")
+
+    utils_dir = lib_dir / "utils"
+    utils_dir.mkdir()
+    (utils_dir / "helper.h").write_text("#define HELPER")
+
+    with patch("esphome.core.config.cg"):
+        await config.add_includes([str(lib_dir)])
+
+    # Verify copy_file_if_changed was called with correct paths
+    calls = mock_copy_file_if_changed.call_args_list
+    dest_paths = [call[0][1] for call in calls]
+
+    # Check that relative paths are preserved
+    assert any("lib/src/core.h" in str(path) for path in dest_paths)
+    assert any("lib/utils/helper.h" in str(path) for path in dest_paths)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+async def test_add_includes_preserves_directory_structure_windows(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test that add_includes preserves relative directory structure on Windows."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create nested directory structure
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    src_dir = lib_dir / "src"
+    src_dir.mkdir()
+    (src_dir / "core.h").write_text("#define CORE")
+
+    utils_dir = lib_dir / "utils"
+    utils_dir.mkdir()
+    (utils_dir / "helper.h").write_text("#define HELPER")
+
+    with patch("esphome.core.config.cg"):
+        await config.add_includes([str(lib_dir)])
+
+    # Verify copy_file_if_changed was called with correct paths
+    calls = mock_copy_file_if_changed.call_args_list
+    dest_paths = [call[0][1] for call in calls]
+
+    # Check that relative paths are preserved
+    assert any("lib\\src\\core.h" in str(path) for path in dest_paths)
+    assert any("lib\\utils\\helper.h" in str(path) for path in dest_paths)
+
+
+@pytest.mark.asyncio
+async def test_add_includes_overwrites_existing_files(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test that add_includes overwrites existing files in build directory."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    os.makedirs(CORE.build_path, exist_ok=True)
+
+    # Create include file
+    include_file = tmp_path / "header.h"
+    include_file.write_text("#define NEW_VALUE 42")
+
+    with patch("esphome.core.config.cg"):
+        await config.add_includes([str(include_file)])
+
+    # Verify copy_file_if_changed was called (it handles overwriting)
+    # Note: add_includes adds files to a src/ subdirectory
+    mock_copy_file_if_changed.assert_called_once_with(
+        include_file, CORE.build_path / "src" / "header.h"
+    )

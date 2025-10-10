@@ -57,7 +57,6 @@ class OpenThreadSrpComponent : public Component {
 
  protected:
   esphome::mdns::MDNSComponent *mdns_{nullptr};
-  std::vector<esphome::mdns::MDNSService> mdns_services_;
   std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
   void *pool_alloc_(size_t size);
 };

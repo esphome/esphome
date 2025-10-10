@@ -1,0 +1,32 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        // Test SHA256 functionality
+        #ifdef USE_SHA256
+        using esphome::sha256::SHA256;
+        SHA256 hasher;
+        hasher.init();
+
+        // Test with "Hello World" - known SHA256
+        const char* test_string = "Hello World";
+        hasher.add(test_string, strlen(test_string));
+        hasher.calculate();
+
+        char hex_output[65];
+        hasher.get_hex(hex_output);
+        hex_output[64] = '\0';
+
+        ESP_LOGD("SHA256", "SHA256('Hello World') = %s", hex_output);
+
+        // Expected: a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e
+        const char* expected = "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e";
+        if (strcmp(hex_output, expected) == 0) {
+          ESP_LOGI("SHA256", "Test PASSED");
+        } else {
+          ESP_LOGE("SHA256", "Test FAILED. Expected %s", expected);
+        }
+        #else
+        ESP_LOGW("SHA256", "SHA256 not available on this platform");
+        #endif
+
+sha256:

@@ -28,6 +28,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
+  ETHERNET_TYPE_LAN8670,
 };
 
 struct ManualIP {
@@ -83,6 +84,7 @@ class EthernetComponent : public Component {
 #endif
   void set_type(EthernetType type);
   void set_manual_ip(const ManualIP &manual_ip);
+  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
@@ -104,6 +106,7 @@ class EthernetComponent : public Component {
   void start_connect_();
   void finish_connect_();
   void dump_connect_params_();
+  void log_error_and_mark_failed_(esp_err_t err, const char *message);
 #ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
@@ -154,12 +157,13 @@ class EthernetComponent : public Component {
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
+  optional<std::array<uint8_t, 6>> fixed_mac_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 

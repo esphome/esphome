@@ -22,9 +22,12 @@ bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->client_info = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->client_info = value.data();
+      this->client_info_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -42,18 +45,23 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->server_info_ref_.size());
   size.add_length(1, this->name_ref_.size());
 }
-bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+#ifdef USE_API_PASSWORD
+bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->password = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->password = value.data();
+      this->password_len = value.size();
       break;
+    }
     default:
       return false;
   }
   return true;
 }
-void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
-void ConnectResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
+void AuthenticationResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
+void AuthenticationResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
+#endif
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
@@ -127,6 +135,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_AREAS
   buffer.encode_message(22, this->area);
 #endif
+#ifdef USE_ZWAVE_PROXY
+  buffer.encode_uint32(23, this->zwave_proxy_feature_flags);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  buffer.encode_uint32(24, this->zwave_home_id);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
@@ -178,6 +192,12 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_AREAS
   size.add_message_object(2, this->area);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  size.add_uint32(2, this->zwave_proxy_feature_flags);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  size.add_uint32(2, this->zwave_home_id);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -852,7 +872,7 @@ void HomeassistantServiceMap::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->key_ref_.size());
   size.add_length(1, this->value.size());
 }
-void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
+void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service_ref_);
   for (auto &it : this->data) {
     buffer.encode_message(2, it, true);
@@ -864,13 +884,64 @@ void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_message(4, it, true);
   }
   buffer.encode_bool(5, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  buffer.encode_uint32(6, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  buffer.encode_bool(7, this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  buffer.encode_string(8, this->response_template);
+#endif
 }
-void HomeassistantServiceResponse::calculate_size(ProtoSize &size) const {
+void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
   size.add_repeated_message(1, this->data);
   size.add_repeated_message(1, this->data_template);
   size.add_repeated_message(1, this->variables);
   size.add_bool(1, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  size.add_uint32(1, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  size.add_bool(1, this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  size.add_length(1, this->response_template.size());
+#endif
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->call_id = value.as_uint32();
+      break;
+    case 2:
+      this->success = value.as_bool();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3:
+      this->error_message = value.as_string();
+      break;
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->response_data = value.data();
+      this->response_data_len = value.size();
+      break;
+    }
+#endif
+    default:
+      return false;
+  }
+  return true;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -903,9 +974,12 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 #endif
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->timezone = value.as_string();
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->timezone = value.data();
+      this->timezone_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -2014,9 +2088,12 @@ bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt val
 }
 bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->data = value.as_string();
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -2050,9 +2127,12 @@ bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, Proto
 }
 bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->data = value.as_string();
+    case 3: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -2367,6 +2447,52 @@ void VoiceAssistantWakeWord::calculate_size(ProtoSize &size) const {
       size.add_length_force(1, it.size());
     }
   }
+}
+bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 5:
+      this->model_size = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->id = value.as_string();
+      break;
+    case 2:
+      this->wake_word = value.as_string();
+      break;
+    case 3:
+      this->trained_languages.push_back(value.as_string());
+      break;
+    case 4:
+      this->model_type = value.as_string();
+      break;
+    case 6:
+      this->model_hash = value.as_string();
+      break;
+    case 7:
+      this->url = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->external_wake_words.emplace_back();
+      value.decode_to_message(this->external_wake_words.back());
+      break;
+    default:
+      return false;
+  }
+  return true;
 }
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->available_wake_words) {
@@ -3009,6 +3135,54 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
   return true;
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZWaveProxyFrame::encode(ProtoWriteBuffer buffer) const { buffer.encode_bytes(1, this->data, this->data_len); }
+void ZWaveProxyFrame::calculate_size(ProtoSize &size) const { size.add_length(1, this->data_len); }
+bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->type = static_cast<enums::ZWaveProxyRequestType>(value.as_uint32());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, static_cast<uint32_t>(this->type));
+  buffer.encode_bytes(2, this->data, this->data_len);
+}
+void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, static_cast<uint32_t>(this->type));
+  size.add_length(2, this->data_len);
 }
 #endif
 

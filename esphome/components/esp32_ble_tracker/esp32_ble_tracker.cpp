@@ -25,10 +25,6 @@
 #include <esp_coexist.h>
 #endif
 
-#ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
-#endif
-
 #define MBEDTLS_AES_ALT
 #include <aes_alt.h>
 
@@ -51,8 +47,6 @@ const char *client_state_to_string(ClientState state) {
       return "IDLE";
     case ClientState::DISCOVERED:
       return "DISCOVERED";
-    case ClientState::READY_TO_CONNECT:
-      return "READY_TO_CONNECT";
     case ClientState::CONNECTING:
       return "CONNECTING";
     case ClientState::CONNECTED:
@@ -297,7 +291,7 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 void ESP32BLETracker::gap_scan_event_handler(const BLEScanResult &scan_result) {
   // Note: This handler is called from the main loop context via esp32_ble's event queue.
   // We process advertisements immediately instead of buffering them.
-  ESP_LOGV(TAG, "gap_scan_result - event %d", scan_result.search_evt);
+  ESP_LOGVV(TAG, "gap_scan_result - event %d", scan_result.search_evt);
 
   if (scan_result.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     // Process the scan result immediately
@@ -794,7 +788,7 @@ void ESP32BLETracker::try_promote_discovered_clients_() {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(true);
 #endif
-    client->set_state(ClientState::READY_TO_CONNECT);
+    client->connect();
     break;
   }
 }

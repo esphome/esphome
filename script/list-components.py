@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 import sys
 
@@ -13,7 +14,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE
-from esphome.loader import get_component, get_platform
+from esphome.loader import ComponentManifest, get_component, get_platform
 
 
 def filter_component_files(str):
@@ -45,12 +46,35 @@ def add_item_to_components_graph(components_graph, parent, child):
             components_graph[parent].append(child)
 
 
+def resolve_auto_load(
+    auto_load: list[str] | Callable[[], list[str]] | Callable[[dict | None], list[str]],
+    config: dict | None = None,
+) -> list[str]:
+    """Resolve AUTO_LOAD to a list, handling callables with or without config parameter.
+
+    Args:
+        auto_load: The AUTO_LOAD value (list or callable)
+        config: Optional config to pass to callable AUTO_LOAD functions
+
+    Returns:
+        List of component names to auto-load
+    """
+    if not callable(auto_load):
+        return auto_load
+
+    import inspect
+
+    if inspect.signature(auto_load).parameters:
+        return auto_load(config)
+    return auto_load()
+
+
 def create_components_graph():
     # The root directory of the repo
     root = Path(__file__).parent.parent
     components_dir = root / "esphome" / "components"
     # Fake some directory so that get_component works
-    CORE.config_path = str(root)
+    CORE.config_path = root
     # Various configuration to capture different outcomes used by `AUTO_LOAD` function.
     TARGET_CONFIGURATIONS = [
         {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None},
@@ -63,7 +87,7 @@ def create_components_graph():
 
     components_graph = {}
     platforms = []
-    components = []
+    components: list[tuple[ComponentManifest, str, Path]] = []
 
     for path in components_dir.iterdir():
         if not path.is_dir():
@@ -92,8 +116,8 @@ def create_components_graph():
 
         for target_config in TARGET_CONFIGURATIONS:
             CORE.data[KEY_CORE] = target_config
-            for auto_load in comp.auto_load:
-                add_item_to_components_graph(components_graph, auto_load, name)
+            for item in resolve_auto_load(comp.auto_load, config=None):
+                add_item_to_components_graph(components_graph, item, name)
         # restore config
         CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
@@ -114,8 +138,8 @@ def create_components_graph():
 
             for target_config in TARGET_CONFIGURATIONS:
                 CORE.data[KEY_CORE] = target_config
-                for auto_load in platform.auto_load:
-                    add_item_to_components_graph(components_graph, auto_load, name)
+                for item in resolve_auto_load(platform.auto_load, config={}):
+                    add_item_to_components_graph(components_graph, item, name)
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 

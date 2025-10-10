@@ -7,7 +7,7 @@ service APIConnection {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc connect (ConnectRequest) returns (ConnectResponse) {
+  rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
@@ -66,6 +66,9 @@ service APIConnection {
   rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
 
   rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
+
+  rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
+  rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 }
 
 
@@ -99,7 +102,7 @@ message HelloRequest {
   // For example "Home Assistant"
   // Not strictly necessary to send but nice for debugging
   // purposes.
-  string client_info = 1;
+  string client_info = 1 [(pointer_to_buffer) = true];
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
 }
@@ -129,21 +132,23 @@ message HelloResponse {
 
 // Message sent at the beginning of each connection to authenticate the client
 // Can only be sent by the client and only at the beginning of the connection
-message ConnectRequest {
+message AuthenticationRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_PASSWORD";
 
   // The password to log in with
-  string password = 1;
+  string password = 1 [(pointer_to_buffer) = true];
 }
 
 // Confirmation of successful connection. After this the connection is available for all traffic.
 // Can only be sent by the server and only at the beginning of the connection
-message ConnectResponse {
+message AuthenticationResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
+  option (ifdef) = "USE_API_PASSWORD";
 
   bool invalid_password = 1;
 }
@@ -252,6 +257,10 @@ message DeviceInfoResponse {
 
   // Top-level area info to phase out suggested_area
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];
+
+  // Indicates if Z-Wave proxy support is available and features supported
+  uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+  uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -760,7 +769,7 @@ message HomeassistantServiceMap {
   string value = 2 [(no_zero_copy) = true];
 }
 
-message HomeassistantServiceResponse {
+message HomeassistantActionRequest {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
@@ -771,6 +780,22 @@ message HomeassistantServiceResponse {
   repeated HomeassistantServiceMap data_template = 3;
   repeated HomeassistantServiceMap variables = 4;
   bool is_event = 5;
+  uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
+  bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  string response_template = 8 [(no_zero_copy) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+}
+
+// Message sent by Home Assistant to ESPHome with service call response data
+message HomeassistantActionResponse {
+  option (id) = 130;
+  option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
+  bool success = 2; // Whether the service call succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
@@ -815,7 +840,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2;
+  string timezone = 2 [(pointer_to_buffer) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -1456,7 +1481,7 @@ message BluetoothDeviceRequest {
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
-  bool has_address_type = 3;
+  bool has_address_type = 3;  // Deprecated, should be removed in 2027.8 - https://github.com/esphome/esphome/pull/10318
   uint32 address_type = 4;
 }
 
@@ -1562,7 +1587,7 @@ message BluetoothGATTWriteRequest {
   uint32 handle = 2;
   bool response = 3;
 
-  bytes data = 4;
+  bytes data = 4 [(pointer_to_buffer) = true];
 }
 
 message BluetoothGATTReadDescriptorRequest {
@@ -1582,7 +1607,7 @@ message BluetoothGATTWriteDescriptorRequest {
   uint64 address = 1;
   uint32 handle = 2;
 
-  bytes data = 3;
+  bytes data = 3 [(pointer_to_buffer) = true];
 }
 
 message BluetoothGATTNotifyRequest {
@@ -1856,10 +1881,22 @@ message VoiceAssistantWakeWord {
   repeated string trained_languages = 3;
 }
 
+message VoiceAssistantExternalWakeWord {
+  string id = 1;
+  string wake_word = 2;
+  repeated string trained_languages = 3;
+  string model_type = 4;
+  uint32 model_size = 5;
+  string model_hash = 6;
+  string url = 7;
+}
+
 message VoiceAssistantConfigurationRequest {
   option (id) = 121;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  repeated VoiceAssistantExternalWakeWord external_wake_words = 1;
 }
 
 message VoiceAssistantConfigurationResponse {
@@ -2273,4 +2310,29 @@ message UpdateCommandRequest {
   fixed32 key = 1;
   UpdateCommand command = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
+}
+
+// ==================== Z-WAVE ====================
+
+message ZWaveProxyFrame {
+  option (id) = 128;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+  option (no_delay) = true;
+
+  bytes data = 1 [(pointer_to_buffer) = true];
+}
+
+enum ZWaveProxyRequestType {
+  ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;
+  ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1;
+  ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2;
+}
+message ZWaveProxyRequest {
+  option (id) = 129;
+  option (source) = SOURCE_BOTH;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+
+  ZWaveProxyRequestType type = 1;
+  bytes data = 2 [(pointer_to_buffer) = true];
 }

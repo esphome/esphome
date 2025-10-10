@@ -8,9 +8,9 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
-#include <utility>
 #include <functional>
 #include <limits>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -29,6 +29,9 @@
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #include "esphome/components/voice_assistant/voice_assistant.h"
+#endif
+#ifdef USE_ZWAVE_PROXY
+#include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
 
 namespace esphome::api {
@@ -113,8 +116,7 @@ void APIConnection::start() {
 
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Helper init failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
   this->client_info_.peername = helper_->getpeername();
@@ -144,8 +146,7 @@ void APIConnection::loop() {
 
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return;
   }
 
@@ -160,17 +161,13 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
-        on_fatal_error();
-        this->log_warning_(LOG_STR("Reading failed"), err);
+        this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
         // read a packet
-        if (buffer.data_len > 0) {
-          this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-        } else {
-          this->read_message(0, buffer.type, nullptr);
-        }
+        this->read_message(buffer.data_len, buffer.type,
+                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
         if (this->flags_.remove)
           return;
       }
@@ -202,7 +199,8 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s is unresponsive; disconnecting", this->get_client_combined_info().c_str());
+      ESP_LOGW(TAG, "%s (%s) is unresponsive; disconnecting", this->client_info_.name.c_str(),
+               this->client_info_.peername.c_str());
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
     // Only send ping if we're not disconnecting
@@ -252,7 +250,7 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s disconnected", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) disconnected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
   this->flags_.next_close = true;
   DisconnectResponse resp;
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
@@ -1075,8 +1073,14 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
-    if (!value.timezone.empty() && value.timezone != homeassistant::global_homeassistant_time->get_timezone()) {
-      homeassistant::global_homeassistant_time->set_timezone(value.timezone);
+    if (value.timezone_len > 0) {
+      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
+      // Compare without allocating a string
+      if (current_tz.length() != value.timezone_len ||
+          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
+        homeassistant::global_homeassistant_time->set_timezone(
+            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
+      }
     }
 #endif
   }
@@ -1193,6 +1197,23 @@ bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceA
       resp_wake_word.trained_languages.push_back(lang);
     }
   }
+
+  // Filter external wake words
+  for (auto &wake_word : msg.external_wake_words) {
+    if (wake_word.model_type != "micro") {
+      // microWakeWord only
+      continue;
+    }
+
+    resp.available_wake_words.emplace_back();
+    auto &resp_wake_word = resp.available_wake_words.back();
+    resp_wake_word.set_id(StringRef(wake_word.id));
+    resp_wake_word.set_wake_word(StringRef(wake_word.wake_word));
+    for (const auto &lang : wake_word.trained_languages) {
+      resp_wake_word.trained_languages.push_back(lang);
+    }
+  }
+
   resp.active_wake_words = &config.active_wake_words;
   resp.max_active_wake_words = config.max_active_wake_words;
   return this->send_message(resp, VoiceAssistantConfigurationResponse::MESSAGE_TYPE);
@@ -1203,7 +1224,16 @@ void APIConnection::voice_assistant_set_configuration(const VoiceAssistantSetCon
     voice_assistant::global_voice_assistant->on_set_configuration(msg.active_wake_words);
   }
 }
+#endif
 
+#ifdef USE_ZWAVE_PROXY
+void APIConnection::zwave_proxy_frame(const ZWaveProxyFrame &msg) {
+  zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
+}
+
+void APIConnection::zwave_proxy_request(const ZWaveProxyRequest &msg) {
+  zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+}
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -1350,7 +1380,7 @@ void APIConnection::complete_authentication_() {
   }
 
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
-  ESP_LOGD(TAG, "%s connected", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) connected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   this->parent_->get_client_connected_trigger()->trigger(this->client_info_.name, this->client_info_.peername);
 #endif
@@ -1359,10 +1389,15 @@ void APIConnection::complete_authentication_() {
     this->send_time_request();
   }
 #endif
+#ifdef USE_ZWAVE_PROXY
+  if (zwave_proxy::global_zwave_proxy != nullptr) {
+    zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
+  }
+#endif
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name = msg.client_info;
+  this->client_info_.name.assign(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
   this->client_info_.peername = this->helper_->getpeername();
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
@@ -1386,20 +1421,17 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
-bool APIConnection::send_connect_response(const ConnectRequest &msg) {
-  bool correct = true;
 #ifdef USE_API_PASSWORD
-  correct = this->parent_->check_password(msg.password);
-#endif
-
-  ConnectResponse resp;
+bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
+  AuthenticationResponse resp;
   // bool invalid_password = 1;
-  resp.invalid_password = !correct;
-  if (correct) {
+  resp.invalid_password = !this->parent_->check_password(msg.password, msg.password_len);
+  if (!resp.invalid_password) {
     this->complete_authentication_();
   }
-  return this->send_message(resp, ConnectResponse::MESSAGE_TYPE);
+  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
 }
+#endif  // USE_API_PASSWORD
 
 bool APIConnection::send_ping_response(const PingRequest &msg) {
   PingResponse resp;
@@ -1463,6 +1495,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_VOICE_ASSISTANT
   resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
 #endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
 #endif
@@ -1513,6 +1549,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   }
 }
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  if (msg.response_data_len > 0) {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
+                                          msg.response_data_len);
+  } else
+#endif
+  {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message);
+  }
+};
+#endif
 #ifdef USE_API_NOISE
 bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
@@ -1543,8 +1593,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return false;
   }
   if (this->helper_->can_write_without_blocking())
@@ -1563,8 +1612,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   if (err == APIError::WOULD_BLOCK)
     return false;
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Packet write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Packet write failed"), err);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1573,12 +1621,12 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
 #ifdef USE_API_PASSWORD
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s access without authentication", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) no authentication", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
 }
 #endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s access without full connection", this->get_client_combined_info().c_str());
+  ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
@@ -1750,8 +1798,7 @@ void APIConnection::process_batch_() {
   APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
                                                        std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Batch write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1830,12 +1877,8 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  ESP_LOGW(TAG, "%s: %s %s errno=%d", this->get_client_combined_info().c_str(), LOG_STR_ARG(message),
-           LOG_STR_ARG(api_error_to_logstr(err)), errno);
-}
-
-void APIConnection::log_socket_operation_failed_(APIError err) {
-  this->log_warning_(LOG_STR("Socket operation failed"), err);
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
+           LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
 }  // namespace esphome::api

@@ -6,6 +6,7 @@ import getpass
 import importlib
 import logging
 import os
+from pathlib import Path
 import re
 import sys
 import time
@@ -13,9 +14,11 @@ from typing import Protocol
 
 import argcomplete
 
+# Note: Do not import modules from esphome.components here, as this would
+# cause them to be loaded before external components are processed, resulting
+# in the built-in version being used instead of the external component one.
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
@@ -114,6 +117,14 @@ class Purpose(StrEnum):
     LOGGING = "logging"
 
 
+def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
+    """Resolve an address using cache if available, otherwise return the address itself."""
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(address)):
+        _LOGGER.debug("Using cached addresses for %s: %s", purpose.value, cached)
+        return cached
+    return [address]
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -142,7 +153,7 @@ def choose_upload_log_host(
                     (purpose == Purpose.LOGGING and has_api())
                     or (purpose == Purpose.UPLOADING and has_ota())
                 ):
-                    resolved.append(CORE.address)
+                    resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 if purpose == Purpose.LOGGING:
                     if has_api() and has_mqtt_ip_lookup():
@@ -152,15 +163,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address():
-                        resolved.append(CORE.address)
+                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address():
-                        resolved.append(CORE.address)
-
+                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -232,6 +242,8 @@ def has_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
+    from esphome.components.mqtt import CONF_DISCOVER_IP
+
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -445,7 +457,7 @@ def upload_using_esptool(
             "detect",
         ]
         for img in flash_images:
-            cmd += [img.offset, img.path]
+            cmd += [img.offset, str(img.path)]
 
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
@@ -531,7 +543,10 @@ def upload_program(
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD, "")
-    binary = args.file if getattr(args, "file", None) is not None else CORE.firmware_bin
+    if getattr(args, "file", None) is not None:
+        binary = Path(args.file)
+    else:
+        binary = CORE.firmware_bin
 
     # MQTT address resolution
     if get_port_type(host) in ("MQTT", "MQTTIP"):
@@ -598,7 +613,7 @@ def clean_mqtt(config: ConfigType, args: ArgsProtocol) -> int | None:
 def command_wizard(args: ArgsProtocol) -> int | None:
     from esphome import wizard
 
-    return wizard.wizard(args.configuration)
+    return wizard.wizard(Path(args.configuration))
 
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -720,6 +735,16 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
+def command_clean_all(args: ArgsProtocol) -> int | None:
+    try:
+        writer.clean_all(args.configuration)
+    except OSError as err:
+        _LOGGER.error("Error cleaning all files: %s", err)
+        return 1
+    _LOGGER.info("Done!")
+    return 0
+
+
 def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import mqtt
 
@@ -761,7 +786,7 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, f)}")
+        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
         if CORE.dashboard:
@@ -773,10 +798,10 @@ def command_update_all(args: ArgsProtocol) -> int | None:
                 "esphome", "run", f, "--no-logs", "--device", "OTA"
             )
         if rc == 0:
-            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
         else:
-            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {f}")
+            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {str(f)}")
             success[f] = False
 
         safe_print()
@@ -787,9 +812,9 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     failed = 0
     for f in files:
         if success[f]:
-            safe_print(f"  - {f}: {color(AnsiFore.GREEN, 'SUCCESS')}")
+            safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
-            safe_print(f"  - {f}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
+            safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 
@@ -811,7 +836,8 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
-    for c in args.name:
+    new_name = args.name
+    for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
             print(
                 color(
@@ -822,8 +848,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             return 1
     # Load existing yaml file
-    with open(CORE.config_path, mode="r+", encoding="utf-8") as raw_file:
-        raw_contents = raw_file.read()
+    raw_contents = CORE.config_path.read_text(encoding="utf-8")
 
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
@@ -838,7 +863,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     if match is None:
         new_raw = re.sub(
             rf"name:\s+[\"']?{old_name}[\"']?",
-            f'name: "{args.name}"',
+            f'name: "{new_name}"',
             raw_contents,
         )
     else:
@@ -858,29 +883,28 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
         new_raw = re.sub(
             rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
-            f'\\1: "{args.name}"',
+            f'\\1: "{new_name}"',
             raw_contents,
             flags=re.MULTILINE,
         )
 
-    new_path = os.path.join(CORE.config_dir, args.name + ".yaml")
+    new_path: Path = CORE.config_dir / (new_name + ".yaml")
     print(
-        f"Updating {color(AnsiFore.CYAN, CORE.config_path)} to {color(AnsiFore.CYAN, new_path)}"
+        f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
     print()
 
-    with open(new_path, mode="w", encoding="utf-8") as new_file:
-        new_file.write(new_raw)
+    new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", new_path)
+    rc = run_external_process("esphome", "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
-        os.remove(new_path)
+        new_path.unlink()
         return 1
 
     cli_args = [
         "run",
-        new_path,
+        str(new_path),
         "--no-logs",
         "--device",
         CORE.address,
@@ -894,11 +918,11 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
-        os.remove(new_path)
+        new_path.unlink()
         return 1
 
     if CORE.config_path != new_path:
-        os.remove(CORE.config_path)
+        CORE.config_path.unlink()
 
     print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
@@ -911,6 +935,7 @@ PRE_CONFIG_ACTIONS = {
     "dashboard": command_dashboard,
     "vscode": command_vscode,
     "update-all": command_update_all,
+    "clean-all": command_clean_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -919,9 +944,9 @@ POST_CONFIG_ACTIONS = {
     "upload": command_upload,
     "logs": command_logs,
     "run": command_run,
+    "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
-    "clean": command_clean,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -964,6 +989,18 @@ def parse_args(argv):
         action="append",
         help="Add a substitution",
         metavar=("key", "value"),
+    )
+    options_parser.add_argument(
+        "--mdns-address-cache",
+        help="mDNS address cache mapping in format 'hostname=ip1,ip2'",
+        action="append",
+        default=[],
+    )
+    options_parser.add_argument(
+        "--dns-address-cache",
+        help="DNS address cache mapping in format 'hostname=ip1,ip2'",
+        action="append",
+        default=[],
     )
 
     parser = argparse.ArgumentParser(
@@ -1122,6 +1159,13 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_clean_all = subparsers.add_parser(
+        "clean-all", help="Clean all build and platform files."
+    )
+    parser_clean_all.add_argument(
+        "configuration", help="Your YAML configuration directory.", nargs="*"
+    )
+
     parser_dashboard = subparsers.add_parser(
         "dashboard", help="Create a simple web server for a dashboard."
     )
@@ -1168,7 +1212,7 @@ def parse_args(argv):
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directories.", nargs="+"
+        "configuration", help="Your YAML configuration file or directory.", nargs="+"
     )
 
     parser_idedata = subparsers.add_parser("idedata")
@@ -1212,9 +1256,15 @@ def parse_args(argv):
 
 
 def run_esphome(argv):
+    from esphome.address_cache import AddressCache
+
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
+    # Create address cache from command-line arguments
+    CORE.address_cache = AddressCache.from_cli_args(
+        args.mdns_address_cache, args.dns_address_cache
+    )
     # Override log level if verbose is set
     if args.verbose:
         args.log_level = "DEBUG"
@@ -1237,14 +1287,20 @@ def run_esphome(argv):
     _LOGGER.info("ESPHome %s", const.__version__)
 
     for conf_path in args.configuration:
-        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+        conf_path = Path(conf_path)
+        if any(conf_path.name == x for x in SECRETS_FILES):
             _LOGGER.warning("Skipping secrets file %s", conf_path)
             continue
 
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config(dict(args.substitution) if args.substitution else {})
+        # For logs command, skip updating external components
+        skip_external = args.command == "logs"
+        config = read_config(
+            dict(args.substitution) if args.substitution else {},
+            skip_external_update=skip_external,
+        )
         if config is None:
             return 2
         CORE.config = config
