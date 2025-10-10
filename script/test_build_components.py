@@ -43,6 +43,7 @@ from script.merge_component_configs import merge_component_configs
 PLATFORM_MAX_GROUP_SIZE = {
     "esp8266-ard": 10,  # ESP8266 Arduino has limited IRAM
     "esp8266-idf": 10,  # ESP8266 IDF also has limited IRAM
+    # BK72xx now uses BK7252 board (1.62MB flash vs 1.03MB) - no limit needed
     # Other platforms can handle larger groups
 }
 
