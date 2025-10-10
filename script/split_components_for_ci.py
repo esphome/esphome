@@ -27,6 +27,12 @@ from script.analyze_component_buses import (
     create_grouping_signature,
 )
 
+# Weighting for batch creation
+# Isolated components can't be grouped/merged, so they count as 10x
+# Groupable components can be merged into single builds, so they count as 1x
+ISOLATED_WEIGHT = 10
+GROUPABLE_WEIGHT = 1
+
 
 def has_test_files(component_name: str, tests_dir: Path) -> bool:
     """Check if a component has test files.
@@ -49,7 +55,7 @@ def has_test_files(component_name: str, tests_dir: Path) -> bool:
 def create_intelligent_batches(
     components: list[str],
     tests_dir: Path,
-    batch_size: int = 30,
+    batch_size: int = 40,
 ) -> list[list[str]]:
     """Create batches optimized for component grouping.
 
@@ -125,23 +131,34 @@ def create_intelligent_batches(
 
     sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
-    # Strategy: Sort all components by signature group, then take batch_size at a time
-    # - Components with the same signature stay together (sorted first by signature)
-    # - Simply split into batches of batch_size for CI parallelization
-    # - Natural grouping occurs because components with same signature are consecutive
+    # Strategy: Create batches using weighted sizes
+    # - Isolated components count as 10x (since they can't be grouped/merged)
+    # - Groupable components count as 1x (can be merged into single builds)
+    # - This distributes isolated components across more runners
+    # - Ensures each runner has a good mix of groupable vs isolated components
 
-    # Flatten all groups in signature-sorted order
-    # Components within each signature group stay in their natural order
-    all_components = [
-        comp for _, group_components in sorted_groups for comp in group_components
-    ]
+    current_batch = []
+    current_weight = 0
 
-    # Split into batches of batch_size
-    # Isolated components are included in all_components (in "isolated" group)
-    # and will be batched together - they just won't be merged during testing
-    for i in range(0, len(all_components), batch_size):
-        batch = all_components[i : i + batch_size]
-        batches.append(batch)
+    for signature, group_components in sorted_groups:
+        is_isolated = signature.startswith("isolated_")
+        weight_per_component = ISOLATED_WEIGHT if is_isolated else GROUPABLE_WEIGHT
+
+        for component in group_components:
+            # Check if adding this component would exceed the batch size
+            if current_weight + weight_per_component > batch_size and current_batch:
+                # Start a new batch
+                batches.append(current_batch)
+                current_batch = []
+                current_weight = 0
+
+            # Add component to current batch
+            current_batch.append(component)
+            current_weight += weight_per_component
+
+    # Don't forget the last batch
+    if current_batch:
+        batches.append(current_batch)
 
     return batches
 
@@ -161,8 +178,8 @@ def main() -> int:
         "--batch-size",
         "-b",
         type=int,
-        default=30,
-        help="Target batch size (default: 30)",
+        default=40,
+        help="Target batch size (default: 40, weighted)",
     )
     parser.add_argument(
         "--tests-dir",
@@ -213,19 +230,33 @@ def main() -> int:
     # Count actual components being batched
     actual_components = sum(len(batch.split()) for batch in batch_strings)
 
+    # Re-analyze to get isolated component counts for summary
+    _, non_groupable, _ = analyze_all_components(args.tests_dir)
+
+    # Count isolated vs groupable components
+    all_batched_components = [comp for batch in batches for comp in batch]
+    isolated_count = sum(
+        1
+        for comp in all_batched_components
+        if comp in ISOLATED_COMPONENTS or comp in non_groupable
+    )
+    groupable_count = actual_components - isolated_count
+
     print("\n=== Intelligent Batch Summary ===", file=sys.stderr)
     print(f"Total components requested: {len(components)}", file=sys.stderr)
     print(f"Components with test files: {actual_components}", file=sys.stderr)
+    print(f"  - Groupable (weight=1): {groupable_count}", file=sys.stderr)
+    print(f"  - Isolated (weight=10): {isolated_count}", file=sys.stderr)
     if actual_components < len(components):
         print(
             f"Components skipped (no test files): {len(components) - actual_components}",
             file=sys.stderr,
         )
     print(f"Number of batches: {len(batches)}", file=sys.stderr)
-    print(f"Batch size target: {args.batch_size}", file=sys.stderr)
+    print(f"Batch size target (weighted): {args.batch_size}", file=sys.stderr)
     if len(batches) > 0:
         print(
-            f"Average batch size: {actual_components / len(batches):.1f}",
+            f"Average components per batch: {actual_components / len(batches):.1f}",
             file=sys.stderr,
         )
     print(file=sys.stderr)
