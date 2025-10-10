@@ -3851,7 +3851,6 @@ bool WaveshareEPaper7P3InE::wait_until_idle_() {
   return true;
 }
 
-
 // Waveshare 5.65F ========================================================
 
 namespace cmddata_5P65InF {
