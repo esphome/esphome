@@ -64,17 +64,27 @@ def extract_packages_from_yaml(data: dict) -> dict[str, str]:
     common_bus_packages = get_common_bus_packages()
 
     packages = {}
-    for name, value in data["packages"].items():
-        # Only include common bus packages, ignore component-specific ones
-        if name in common_bus_packages:
-            packages[name] = str(value)
-            # Also track package dependencies (e.g., modbus includes uart)
-            # This ensures components using modbus are grouped with uart
-            if name in PACKAGE_DEPENDENCIES:
-                for dep in PACKAGE_DEPENDENCIES[name]:
-                    if dep in common_bus_packages:
-                        # Mark as included via dependency
-                        packages[f"_dep_{dep}"] = f"(included via {name})"
+
+    # Handle both dict and list formats for packages
+    packages_value = data["packages"]
+    if isinstance(packages_value, dict):
+        # Dictionary format: packages: {name: value}
+        for name, value in packages_value.items():
+            # Only include common bus packages, ignore component-specific ones
+            if name in common_bus_packages:
+                packages[name] = str(value)
+                # Also track package dependencies (e.g., modbus includes uart)
+                # This ensures components using modbus are grouped with uart
+                if name in PACKAGE_DEPENDENCIES:
+                    for dep in PACKAGE_DEPENDENCIES[name]:
+                        if dep in common_bus_packages:
+                            # Mark as included via dependency
+                            packages[f"_dep_{dep}"] = f"(included via {name})"
+    elif isinstance(packages_value, list):
+        # List format: packages: [!include file]
+        # This format doesn't include common bus packages (those use dict format)
+        # so we just return empty dict
+        pass
 
     return packages
 
@@ -231,12 +241,25 @@ def merge_component_configs(
         # Now handle packages: remove common bus packages, expand component-specific ones
         if "packages" in comp_data:
             common_bus_packages = get_common_bus_packages()
-            for pkg_name, pkg_value in list(comp_data["packages"].items()):
-                if pkg_name not in common_bus_packages and isinstance(pkg_value, dict):
-                    # Component-specific package - expand its content into top level
-                    # Merge package content using ESPHome's merge_config
-                    comp_data = merge_config(comp_data, pkg_value)
-                # Remove all packages (common will be re-added at the end)
+            packages_value = comp_data["packages"]
+
+            if isinstance(packages_value, dict):
+                # Dict format - check each package
+                for pkg_name, pkg_value in list(packages_value.items()):
+                    if pkg_name not in common_bus_packages and isinstance(
+                        pkg_value, dict
+                    ):
+                        # Component-specific package - expand its content into top level
+                        # Merge package content using ESPHome's merge_config
+                        comp_data = merge_config(comp_data, pkg_value)
+            elif isinstance(packages_value, list):
+                # List format - expand all package includes
+                for pkg_value in packages_value:
+                    if isinstance(pkg_value, dict):
+                        # Package content - merge it into top level
+                        comp_data = merge_config(comp_data, pkg_value)
+
+            # Remove all packages (common will be re-added at the end)
             del comp_data["packages"]
 
         # Use ESPHome's merge_config to merge this component into the result
@@ -250,8 +273,11 @@ def merge_component_configs(
         first_comp_data = load_yaml_file(
             tests_dir / component_names[0] / f"test.{platform}.yaml"
         )
-        if "packages" in first_comp_data:
+        if "packages" in first_comp_data and isinstance(
+            first_comp_data["packages"], dict
+        ):
             # Filter to only include common bus packages
+            # Only dict format can contain common bus packages
             common_bus_packages = get_common_bus_packages()
             filtered_packages = {
                 name: value
