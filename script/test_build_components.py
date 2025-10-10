@@ -125,7 +125,7 @@ def run_esphome_test(
     esphome_command: str,
     continue_on_fail: bool,
     use_testing_mode: bool = False,
-) -> bool:
+) -> tuple[bool, str]:
     """Run esphome test for a single component.
 
     Args:
@@ -140,7 +140,7 @@ def run_esphome_test(
         use_testing_mode: Whether to use --testing-mode flag
 
     Returns:
-        True if test passed, False otherwise
+        Tuple of (success status, command string)
     """
     test_name = test_file.stem.split(".")[0]
 
@@ -187,6 +187,9 @@ def run_esphome_test(
     # Add command and config file
     cmd.extend([esphome_command, str(output_file)])
 
+    # Build command string for display/logging
+    cmd_str = " ".join(cmd)
+
     # Run command
     print(f"> [{component}] [{test_name}] [{platform_with_version}]")
     if use_testing_mode:
@@ -194,11 +197,11 @@ def run_esphome_test(
 
     try:
         result = subprocess.run(cmd, check=not continue_on_fail)
-        return result.returncode == 0
+        return result.returncode == 0, cmd_str
     except subprocess.CalledProcessError:
         if not continue_on_fail:
             raise
-        return False
+        return False, cmd_str
 
 
 def run_grouped_test(
@@ -210,7 +213,7 @@ def run_grouped_test(
     tests_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
-) -> bool:
+) -> tuple[bool, str]:
     """Run esphome test for a group of components with shared bus configs.
 
     Args:
@@ -224,7 +227,7 @@ def run_grouped_test(
         continue_on_fail: Whether to continue on failure
 
     Returns:
-        True if test passed, False otherwise
+        Tuple of (success status, command string)
     """
     # Create merged config
     group_name = "_".join(components[:3])  # Use first 3 components for name
@@ -251,7 +254,8 @@ def run_grouped_test(
         print(f"Error merging configs for {components}: {e}")
         if not continue_on_fail:
             raise
-        return False
+        # Return empty command string since we failed before building the command
+        return False, f"# Failed during config merge: {e}"
 
     # Create test file that includes merged config
     output_file = build_dir / f"test_{group_name}.{platform_with_version}.yaml"
@@ -282,6 +286,9 @@ def run_grouped_test(
         str(output_file),
     ]
 
+    # Build command string for display/logging
+    cmd_str = " ".join(cmd)
+
     # Run command
     components_str = ", ".join(components)
     print(f"> [GROUPED: {components_str}] [{platform_with_version}]")
@@ -289,11 +296,11 @@ def run_grouped_test(
 
     try:
         result = subprocess.run(cmd, check=not continue_on_fail)
-        return result.returncode == 0
+        return result.returncode == 0, cmd_str
     except subprocess.CalledProcessError:
         if not continue_on_fail:
             raise
-        return False
+        return False, cmd_str
 
 
 def run_grouped_component_tests(
@@ -304,7 +311,7 @@ def run_grouped_component_tests(
     build_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
-) -> tuple[set[tuple[str, str]], list[str], list[str]]:
+) -> tuple[set[tuple[str, str]], list[str], list[str], dict[str, str]]:
     """Run grouped component tests.
 
     Args:
@@ -317,11 +324,12 @@ def run_grouped_component_tests(
         continue_on_fail: Whether to continue on failure
 
     Returns:
-        Tuple of (tested_components, passed_tests, failed_tests)
+        Tuple of (tested_components, passed_tests, failed_tests, failed_commands)
     """
     tested_components = set()
     passed_tests = []
     failed_tests = []
+    failed_commands = {}  # Map test_id to command string
 
     # Group components by platform and bus signature
     grouped_components: dict[tuple[str, str], list[str]] = defaultdict(list)
@@ -524,7 +532,7 @@ def run_grouped_component_tests(
                 continue
 
             # Run grouped test
-            success = run_grouped_test(
+            success, cmd_str = run_grouped_test(
                 components=components_to_group,
                 platform=platform,
                 platform_with_version=platform_with_version,
@@ -547,8 +555,9 @@ def run_grouped_component_tests(
                 passed_tests.append(test_id)
             else:
                 failed_tests.append(test_id)
+                failed_commands[test_id] = cmd_str
 
-    return tested_components, passed_tests, failed_tests
+    return tested_components, passed_tests, failed_tests, failed_commands
 
 
 def run_individual_component_test(
@@ -563,6 +572,7 @@ def run_individual_component_test(
     tested_components: set[tuple[str, str]],
     passed_tests: list[str],
     failed_tests: list[str],
+    failed_commands: dict[str, str],
 ) -> None:
     """Run an individual component test if not already tested in a group.
 
@@ -578,13 +588,14 @@ def run_individual_component_test(
         tested_components: Set of already tested components
         passed_tests: List to append passed test IDs
         failed_tests: List to append failed test IDs
+        failed_commands: Dict to store failed test commands
     """
     # Skip if already tested in a group
     if (component, platform_with_version) in tested_components:
         return
 
     test_name = test_file.stem.split(".")[0]
-    success = run_esphome_test(
+    success, cmd_str = run_esphome_test(
         component=component,
         test_file=test_file,
         platform=platform,
@@ -599,6 +610,7 @@ def run_individual_component_test(
         passed_tests.append(test_id)
     else:
         failed_tests.append(test_id)
+        failed_commands[test_id] = cmd_str
 
 
 def test_components(
@@ -645,10 +657,16 @@ def test_components(
     failed_tests = []
     passed_tests = []
     tested_components = set()  # Track which components were tested in groups
+    failed_commands = {}  # Track commands for failed tests
 
     # First, run grouped tests if grouping is enabled
     if enable_grouping:
-        tested_components, passed_tests, failed_tests = run_grouped_component_tests(
+        (
+            tested_components,
+            passed_tests,
+            failed_tests,
+            failed_commands,
+        ) = run_grouped_component_tests(
             all_tests=all_tests,
             platform_filter=platform_filter,
             platform_bases=platform_bases,
@@ -684,6 +702,7 @@ def test_components(
                             tested_components=tested_components,
                             passed_tests=passed_tests,
                             failed_tests=failed_tests,
+                            failed_commands=failed_commands,
                         )
             else:
                 # Platform-specific test
@@ -717,6 +736,7 @@ def test_components(
                         tested_components=tested_components,
                         passed_tests=passed_tests,
                         failed_tests=failed_tests,
+                        failed_commands=failed_commands,
                     )
 
     # Print summary
@@ -728,6 +748,17 @@ def test_components(
         print("\nFailed tests:")
         for test in failed_tests:
             print(f"  - {test}")
+
+        # Print failed commands at the end for easy copy-paste from CI logs
+        print("\n" + "=" * 80)
+        print("Failed test commands (copy-paste to reproduce locally):")
+        print("=" * 80)
+        for test in failed_tests:
+            if test in failed_commands:
+                print(f"\n# {test}")
+                print(failed_commands[test])
+        print()
+
         return 1
 
     return 0
