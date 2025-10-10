@@ -306,7 +306,7 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#endif  // USE_ARDUINO
+#endif
 #else
   // Close ESP-Hosted HCI transport after deinitializing Bluedroid
   hosted_hci_bluedroid_close();
