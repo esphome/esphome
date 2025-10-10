@@ -128,7 +128,7 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
 
   const auto expected_pec = crc8_pec(buf, 5);
   if (buf[5] != expected_pec) {
-    ESP_LOGW(TAG, "i2c CRC error. Expected %x. Actual %x", expected_pec, buf[4]);
+    ESP_LOGW(TAG, "i2c CRC error. Expected %x. Actual %x", expected_pec, buf[5]);
     return i2c::ERROR_CRC;
   }
 
