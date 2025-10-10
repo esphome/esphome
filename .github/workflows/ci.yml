@@ -435,13 +435,10 @@ jobs:
       matrix:
         components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
     steps:
-      - name: Free up disk space
+      - name: Show disk space
         run: |
-          echo "Disk space before cleanup:"
+          echo "Available disk space:"
           df -h
-          echo "Starting background cleanup process..."
-          python3 -c "import os; os.fork() or os.execvp('sudo', ['sudo', 'rm', '-rf', '/usr/share/dotnet', '/usr/local/lib/android', '/opt/ghc', '/opt/hostedtoolcache/CodeQL'])"
-          echo "Cleanup running in background, continuing with workflow..."
 
       - name: List components
         run: echo ${{ matrix.components }}
@@ -462,8 +459,13 @@ jobs:
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
-          mkdir -p build_cache
-          export PLATFORMIO_BUILD_CACHE_DIR=$PWD/build_cache
+          # Use /mnt for build files (70GB available vs ~29GB on /)
+          mkdir -p /mnt/build_cache
+          export PLATFORMIO_BUILD_CACHE_DIR=/mnt/build_cache
+
+          # Also move test_build_components/build to /mnt
+          mkdir -p /mnt/test_build_components_build
+          ln -s /mnt/test_build_components_build tests/test_build_components/build
 
           # Convert space-separated components to comma-separated for Python script
           components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')

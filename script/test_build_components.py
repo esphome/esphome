@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -36,6 +37,20 @@ from script.analyze_component_buses import (
     uses_local_file_references,
 )
 from script.merge_component_configs import merge_component_configs
+
+
+def show_disk_space_if_ci(esphome_command: str) -> None:
+    """Show disk space usage if running in CI during compile.
+
+    Args:
+        esphome_command: The esphome command being run (config/compile/clean)
+    """
+    if os.environ.get("GITHUB_ACTIONS") and esphome_command == "compile":
+        print("\n" + "=" * 80)
+        print("Disk Space After Build:")
+        print("=" * 80)
+        subprocess.run(["df", "-h"], check=False)
+        print("=" * 80 + "\n")
 
 
 def find_component_tests(
@@ -200,6 +215,10 @@ def run_esphome_test(
     try:
         result = subprocess.run(cmd, check=False)
         success = result.returncode == 0
+
+        # Show disk space after build in CI during compile
+        show_disk_space_if_ci(esphome_command)
+
         if not success and not continue_on_fail:
             # Print command immediately for failed tests
             print(f"\n{'=' * 80}")
@@ -309,6 +328,10 @@ def run_grouped_test(
     try:
         result = subprocess.run(cmd, check=False)
         success = result.returncode == 0
+
+        # Show disk space after build in CI during compile
+        show_disk_space_if_ci(esphome_command)
+
         if not success and not continue_on_fail:
             # Print command immediately for failed tests
             print(f"\n{'=' * 80}")
