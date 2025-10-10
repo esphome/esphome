@@ -6,4 +6,5 @@ substitutions:
 
 packages:
   spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
-  display: !include common.yaml
+
+<<: !include common.yaml
