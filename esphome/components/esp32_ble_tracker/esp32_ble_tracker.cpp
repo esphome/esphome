@@ -7,9 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_hosted_bt.h>
-#else
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
 #include <esp_bt_defs.h>

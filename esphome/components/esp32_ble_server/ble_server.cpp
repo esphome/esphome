@@ -10,9 +10,7 @@
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_hosted_bt.h>
-#else
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #endif
 #include <freertos/task.h>

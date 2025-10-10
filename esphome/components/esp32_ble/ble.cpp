@@ -7,7 +7,6 @@
 #include "esphome/core/log.h"
 
 #ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_hosted_bt.h>
 extern "C" {
 #include <esp_hosted_misc.h>
 #include <esp_hosted_bluedroid.h>
