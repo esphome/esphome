@@ -172,9 +172,9 @@ void FatESP32::relese_driver() {
  */
 bool FatESP32::mount() {
   FATFS *local_fs;
-  const char *ldrv = this->get_drive_name().c_str();
+  // char *ldrv = strdup(this->get_drive_name().c_str());
 
-  esp_err_t err = esp_vfs_fat_register(path_.c_str(), ldrv, FAT_MAX_FILES, &local_fs);
+  esp_err_t err = esp_vfs_fat_register(path_.c_str(), this->get_drive_name().c_str(), FAT_MAX_FILES, &local_fs);
   if (err == ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG, "esp_vfs_fat_register failed (0x%x)%s: SD is registered.", err, esp_err_to_name(err));
     return false;
@@ -183,7 +183,7 @@ bool FatESP32::mount() {
     return false;
   }
 
-  FRESULT res = f_mount(local_fs, ldrv, 1);
+  FRESULT res = f_mount(local_fs, this->get_drive_name().c_str(), 1);
   if (res != FR_OK) {
     ESP_LOGE(TAG, "f_mount failed: (0x%x)%s", res, fs_errstr(res));
     esp_vfs_fat_unregister_path(path_.c_str());
