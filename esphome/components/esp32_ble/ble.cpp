@@ -186,6 +186,12 @@ bool ESP32BLE::ble_setup_() {
 #ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   // Open ESP-Hosted HCI transport before initializing Bluedroid
   hosted_hci_bluedroid_open();
+  esp_bluedroid_hci_driver_operations_t operations = {
+      .send = hosted_hci_bluedroid_send,
+      .check_send_available = hosted_hci_bluedroid_check_send_available,
+      .register_host_callback = hosted_hci_bluedroid_register_host_callback,
+  };
+  esp_bluedroid_attach_hci_driver(&operations);
 #endif
 
   err = esp_bluedroid_init();
