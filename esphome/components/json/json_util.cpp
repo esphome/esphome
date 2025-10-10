@@ -11,6 +11,7 @@ static const char *const TAG = "json";
 #ifdef USE_PSRAM
 // Global allocator that outlives all JsonDocuments returned by parse_json()
 // This prevents dangling pointer issues when JsonDocuments are returned from functions
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - Must be mutable for ArduinoJson::Allocator
 static SpiRamAllocator global_json_allocator;
 #endif
 
