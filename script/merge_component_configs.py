@@ -60,31 +60,26 @@ def extract_packages_from_yaml(data: dict) -> dict[str, str]:
     if "packages" not in data:
         return {}
 
+    packages_value = data["packages"]
+    if not isinstance(packages_value, dict):
+        # List format doesn't include common bus packages (those use dict format)
+        return {}
+
     # Get common bus package names (cached)
     common_bus_packages = get_common_bus_packages()
-
     packages = {}
 
-    # Handle both dict and list formats for packages
-    packages_value = data["packages"]
-    if isinstance(packages_value, dict):
-        # Dictionary format: packages: {name: value}
-        for name, value in packages_value.items():
-            # Only include common bus packages, ignore component-specific ones
-            if name in common_bus_packages:
-                packages[name] = str(value)
-                # Also track package dependencies (e.g., modbus includes uart)
-                # This ensures components using modbus are grouped with uart
-                if name in PACKAGE_DEPENDENCIES:
-                    for dep in PACKAGE_DEPENDENCIES[name]:
-                        if dep in common_bus_packages:
-                            # Mark as included via dependency
-                            packages[f"_dep_{dep}"] = f"(included via {name})"
-    elif isinstance(packages_value, list):
-        # List format: packages: [!include file]
-        # This format doesn't include common bus packages (those use dict format)
-        # so we just return empty dict
-        pass
+    # Dictionary format: packages: {name: value}
+    for name, value in packages_value.items():
+        # Only include common bus packages, ignore component-specific ones
+        if name in common_bus_packages:
+            packages[name] = str(value)
+            # Also track package dependencies (e.g., modbus includes uart)
+            if name in PACKAGE_DEPENDENCIES:
+                for dep in PACKAGE_DEPENDENCIES[name]:
+                    if dep in common_bus_packages:
+                        # Mark as included via dependency
+                        packages[f"_dep_{dep}"] = f"(included via {name})"
 
     return packages
 
@@ -240,24 +235,24 @@ def merge_component_configs(
 
         # Now handle packages: remove common bus packages, expand component-specific ones
         if "packages" in comp_data:
-            common_bus_packages = get_common_bus_packages()
             packages_value = comp_data["packages"]
 
             if isinstance(packages_value, dict):
                 # Dict format - check each package
+                common_bus_packages = get_common_bus_packages()
                 for pkg_name, pkg_value in list(packages_value.items()):
-                    if pkg_name not in common_bus_packages and isinstance(
-                        pkg_value, dict
-                    ):
-                        # Component-specific package - expand its content into top level
-                        # Merge package content using ESPHome's merge_config
-                        comp_data = merge_config(comp_data, pkg_value)
+                    if pkg_name in common_bus_packages:
+                        continue
+                    if not isinstance(pkg_value, dict):
+                        continue
+                    # Component-specific package - expand its content into top level
+                    comp_data = merge_config(comp_data, pkg_value)
             elif isinstance(packages_value, list):
                 # List format - expand all package includes
                 for pkg_value in packages_value:
-                    if isinstance(pkg_value, dict):
-                        # Package content - merge it into top level
-                        comp_data = merge_config(comp_data, pkg_value)
+                    if not isinstance(pkg_value, dict):
+                        continue
+                    comp_data = merge_config(comp_data, pkg_value)
 
             # Remove all packages (common will be re-added at the end)
             del comp_data["packages"]
