@@ -460,11 +460,13 @@ jobs:
         run: |
           . venv/bin/activate
           # Use /mnt for build files (70GB available vs ~29GB on /)
-          # Bind mount /mnt directories to preserve relative paths
-          sudo mkdir -p /mnt/build_cache
-          sudo chown $USER:$USER /mnt/build_cache
-          export PLATFORMIO_BUILD_CACHE_DIR=/mnt/build_cache
+          # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
+          sudo mkdir -p /mnt/platformio
+          sudo chown $USER:$USER /mnt/platformio
+          mkdir -p ~/.platformio
+          sudo mount --bind /mnt/platformio ~/.platformio
 
+          # Bind mount test build directory to /mnt
           sudo mkdir -p /mnt/test_build_components_build
           sudo chown $USER:$USER /mnt/test_build_components_build
           mkdir -p tests/test_build_components/build
