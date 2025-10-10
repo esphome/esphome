@@ -122,7 +122,7 @@ class PinRegistry(dict):
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} is used in multiple places"
                         )
-                    if count == 1 and allow_others:
+                    if count == 1 and allow_others and not CORE.testing_mode:
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} incorrectly sets {CONF_ALLOW_OTHER_USES}: true"
                         )
