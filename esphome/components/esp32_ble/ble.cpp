@@ -276,11 +276,6 @@ bool ESP32BLE::ble_dismantle_() {
     return false;
   }
 
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-  // Close ESP-Hosted HCI transport after deinitializing Bluedroid
-  hosted_hci_bluedroid_close();
-#endif
-
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #ifdef USE_ARDUINO
   if (!btStop()) {
@@ -312,6 +307,9 @@ bool ESP32BLE::ble_dismantle_() {
     }
   }
 #endif  // USE_ARDUINO
+#else
+  // Close ESP-Hosted HCI transport after deinitializing Bluedroid
+  hosted_hci_bluedroid_close();
 #endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   return true;
 }
