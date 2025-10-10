@@ -82,6 +82,7 @@ ISOLATED_COMPONENTS = {
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
     "mcp47a1": "no YAML config to specify i2c bus id",
+    "packages": "cannot merge packages",
 }
 
 
