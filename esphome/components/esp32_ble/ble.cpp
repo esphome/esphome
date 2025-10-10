@@ -10,6 +10,7 @@
 #include <esp_bt.h>
 #else
 extern "C" {
+#include <esp_hosted.h>
 #include <esp_hosted_misc.h>
 #include <esp_hosted_bluedroid.h>
 }
@@ -178,6 +179,8 @@ bool ESP32BLE::ble_setup_() {
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
+  esp_hosted_connect_to_slave();
+
   if (esp_hosted_bt_controller_init() != ESP_OK) {
     ESP_LOGW(TAG, "esp_hosted_bt_controller_init failed");
     return false;
