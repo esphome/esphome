@@ -285,6 +285,10 @@ def consume_connection_slots(
 
 def validate_connection_slots(max_connections: int) -> None:
     """Validate that BLE connection slots don't exceed the configured maximum."""
+    # Skip validation in testing mode to allow component grouping
+    if CORE.testing_mode:
+        return
+
     ble_data = CORE.data.get(KEY_ESP32_BLE, {})
     used_slots = ble_data.get(KEY_USED_CONNECTION_SLOTS, [])
     num_used = len(used_slots)
