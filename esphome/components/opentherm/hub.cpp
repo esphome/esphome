@@ -427,10 +427,10 @@ void OpenthermHub::dump_config() {
                 "  Input sensors: %s\n"
                 "  Outputs: %s\n"
                 "  Numbers: %s"
-                "  Message Loop Delay: %d ms", YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )),
-                SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )), SHOW(OPENTHERM_SWITCH_LIST(ID, )),
-                SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )), SHOW(OPENTHERM_OUTPUT_LIST(ID, )),
-                SHOW(OPENTHERM_NUMBER_LIST(ID, )), this->message_loop_delay_);
+                "  Message Loop Delay: %d ms",
+                YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )), SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )),
+                SHOW(OPENTHERM_SWITCH_LIST(ID, )), SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )),
+                SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )), this->message_loop_delay_);
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : initial_messages) {
     ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));
