@@ -250,6 +250,7 @@ lock:
 
 valve:
   - platform: template
+    id: template_valve
     name: "Template Valve"
     lambda: |-
       if (id(some_binary_sensor).state) {
@@ -262,6 +263,7 @@ valve:
     close_action:
       - logger.log: close_action
       - valve.template.publish:
+          id: template_valve
           state: CLOSED
     stop_action:
       - logger.log: stop_action
