@@ -15,8 +15,7 @@
  * @brief Those platform functions are platform dependent and have to be implemented by the user
  */
 
-#ifndef _VL53L1_PLATFORM_H_
-#define _VL53L1_PLATFORM_H_
+#pragma once
 
 #include "vl53l1_types.h"
 
@@ -69,4 +68,3 @@ int8_t VL53L1_WaitMs(uint16_t dev, int32_t wait_ms);
 }  // namespace vl53l1x
 }  // namespace esphome
 
-#endif

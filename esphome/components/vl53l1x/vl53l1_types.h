@@ -15,8 +15,7 @@
  * @brief VL53L1 types definition
  */
 
-#ifndef _VL53L1_TYPES_H_
-#define _VL53L1_TYPES_H_
+#pragma once 
 
 /** @defgroup porting_type  Basic type definition
  *  @ingroup  api_platform
@@ -35,7 +34,7 @@
 #include <stdlib.h>
 
 namespace esphome {
-namespace vl53l1 {
+namespace vl53l1x {
 
 #ifndef NULL
 #error "Error NULL definition should be done. Please add required include "
@@ -96,7 +95,6 @@ typedef signed char int8_t;
  * Given a floating point value f it's .16 bit point is (int)(f*(1<<16))*/
 typedef uint32_t FixPoint1616_t;
 
-}  // namespace vl53l1
+}  // namespace vl53l1x
 }  // namespace esphome
 
-#endif /* VL53L1_TYPES_H_ */

@@ -6,6 +6,9 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
     CONF_INTERRUPT_PIN,
+    CONF_OFFSET,
+    CONF_X,
+    CONF_Y,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DISTANCE,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -23,17 +26,16 @@ VL53L1xSensor = vl53l1x_ns.class_(
 
 CONF_TIMING_BUDGET = "timing_budget"
 CONF_DISTANCE_MODE = "distance_mode"
-CONF_OFFSET = "offset"
 CONF_XTALK_CORRECTION = "xtalk_correction"
 CONF_DISTANCE_THRESHOLD = "distance_threshold"
 CONF_MIN = "min"
 CONF_MAX = "max"
 CONF_INTERRUPT_WHEN = "interrupt_when"
-CONF_ROI = "region_of_interest"
-CONF_ROI_X = "x"
-CONF_ROI_Y = "y"
-CONF_ROI_W = "w"
-CONF_ROI_H = "h"
+CONF_REGION_OF_INTEREST = "region_of_interest"
+CONF_X = "x"
+CONF_Y = "y"
+CONF_W = "w"
+CONF_H = "h"
 CONF_SIGNAL_THRESHOLD = "signal_threshold"
 CONF_SIGMA_THRESHOLD = "sigma_threshold"
 
@@ -85,13 +87,14 @@ def check_keys(obj):
             "The update interval has to be at least as long the timing budget."
         )
 
-    if CONF_ROI in obj:
-        if (
-            obj[CONF_ROI][CONF_ROI_X] + obj[CONF_ROI][CONF_ROI_W] > 16
-            or obj[CONF_ROI][CONF_ROI_Y] + obj[CONF_ROI][CONF_ROI_H] > 16
-        ):
-            msg = "Region of interest coordinates cannot exceed 16 in either axis."
-            raise cv.Invalid(msg)
+    if (CONF_REGION_OF_INTEREST in obj 
+        and (
+            obj[CONF_REGION_OF_INTEREST][CONF_X] + obj[CONF_REGION_OF_INTEREST][CONF_W] > 16
+            or obj[CONF_REGION_OF_INTEREST][CONF_Y] + obj[CONF_REGION_OF_INTEREST][CONF_H] > 16
+        )
+    ):
+        msg = "Region of interest coordinates cannot exceed 16 in either axis."
+        raise cv.Invalid(msg)
 
     if CONF_DISTANCE_THRESHOLD in obj:
         if CONF_INTERRUPT_PIN not in obj:
@@ -151,12 +154,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_OFFSET): cv.All(cv.distance, cv.float_range(-4.0, 12.0)),
             cv.Optional(CONF_XTALK_CORRECTION): cv.uint16_t,
-            cv.Optional(CONF_ROI): cv.Schema(
+            cv.Optional(CONF_REGION_OF_INTEREST): cv.Schema(
                 {
-                    cv.Required(CONF_ROI_X): cv.int_range(min=0, max=12),
-                    cv.Required(CONF_ROI_Y): cv.int_range(min=0, max=12),
-                    cv.Required(CONF_ROI_W): cv.int_range(min=4, max=16),
-                    cv.Required(CONF_ROI_H): cv.int_range(min=4, max=16),
+                    cv.Required(CONF_X): cv.int_range(min=0, max=12),
+                    cv.Required(CONF_Y): cv.int_range(min=0, max=12),
+                    cv.Required(CONF_W): cv.int_range(min=4, max=16),
+                    cv.Required(CONF_H): cv.int_range(min=4, max=16),
                 }
             ),
             cv.Optional(CONF_SIGNAL_THRESHOLD): cv.uint16_t,
@@ -216,14 +219,14 @@ async def to_code(config):
             )
         )
 
-    if CONF_ROI in config:
-        roi_obj = config[CONF_ROI]
+    if CONF_REGION_OF_INTEREST in config:
+        roi_obj = config[CONF_REGION_OF_INTEREST]
         cg.add(
             var.set_roi(
-                roi_obj[CONF_ROI_X],
-                roi_obj[CONF_ROI_Y],
-                roi_obj[CONF_ROI_W],
-                roi_obj[CONF_ROI_H],
+                roi_obj[CONF_X],
+                roi_obj[CONF_Y],
+                roi_obj[CONF_W],
+                roi_obj[CONF_H],
             )
         )
 

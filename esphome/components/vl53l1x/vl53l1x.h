@@ -39,23 +39,23 @@ class VL53L1xSensor : public sensor::Sensor, public Component, public i2c::I2CDe
   void set_distance_mode(DistanceMode mode) { this->distance_mode_ = mode; }
   void set_update_interval(uint32_t update_interval_ms) { this->update_interval_ms_ = update_interval_ms; }
   void set_distance_threshold(uint16_t min, uint16_t max, InterruptWhenMode interrupt_when) {
-    this->distance_threshold.min = min != 0xff ? min : 0;
-    this->distance_threshold.max = max != 0xff ? max : 0;
-    this->distance_threshold.interrupt_when = interrupt_when;
+    this->distance_threshold_.min = min != 0xff ? min : 0;
+    this->distance_threshold_.max = max != 0xff ? max : 0;
+    this->distance_threshold_.interrupt_when = interrupt_when;
   }
-  void set_offset(int16_t offset) { this->offset = offset; }
-  void set_xtalk_correction(uint16_t xtalk_correction) { this->xtalk_correction = xtalk_correction; }
-  void set_sigma_threshold(uint16_t sigma_threshold) { this->sigma_threshold = sigma_threshold; }
-  void set_signal_threshold(uint16_t signal_threshold) { this->signal_threshold = signal_threshold; }
+  void set_offset(int16_t offset) { this->offset_ = offset; }
+  void set_xtalk_correction(uint16_t xtalk_correction) { this->xtalk_correction_ = xtalk_correction; }
+  void set_sigma_threshold(uint16_t sigma_threshold) { this->sigma_threshold_ = sigma_threshold; }
+  void set_signal_threshold(uint16_t signal_threshold) { this->signal_threshold_ = signal_threshold; }
   /**
    * Origo is upper left corner, region is coordinates 0-15.
    */
   void set_roi(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
-    this->roi.x = x;
-    this->roi.y = y;
-    this->roi.w = w;
-    this->roi.h = h;
-    this->roi.isSet = true;
+    this->roi_.x = x;
+    this->roi_.y = y;
+    this->roi_.w = w;
+    this->roi_.h = h;
+    this->roi_.isSet = true;
   }
 
   static void schedule_update_from_isr(VL53L1xSensor *sensor) { sensor->enable_loop_soon_any_context(); }
@@ -87,18 +87,18 @@ class VL53L1xSensor : public sensor::Sensor, public Component, public i2c::I2CDe
   uint32_t measurement_timing_budget_ms_{50};
   uint32_t update_interval_ms_{60000};
   DistanceMode distance_mode_{DistanceMode::SHORT};
-  int16_t offset{0};
-  uint16_t xtalk_correction{0};
-  uint16_t sigma_threshold{0xffff};
-  uint16_t signal_threshold{0xffff};
+  int16_t offset_{0};
+  uint16_t xtalk_correction_{0};
+  uint16_t sigma_threshold_{0xffff};
+  uint16_t signal_threshold_{0xffff};
   struct {
     uint16_t min{0xff}, max{0xff};
     InterruptWhenMode interrupt_when{NOT_SET};
-  } distance_threshold;
+  } distance_threshold_;
   struct {
     uint8_t x{0}, y{0}, w{0}, h{0};
     bool isSet{false};
-  } roi;
+  } roi_;
   bool initialized_{false};
 
   static std::list<VL53L1xSensor *> all_sensors;

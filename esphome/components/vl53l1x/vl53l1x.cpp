@@ -143,26 +143,26 @@ void VL53L1xSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Update interval: %u ms", (unsigned) this->update_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Timing Budget: %u ms", (unsigned) this->measurement_timing_budget_ms_);
   ESP_LOGCONFIG(TAG, "  Distance Mode: %u", (unsigned) this->distance_mode_);
-  ESP_LOGCONFIG(TAG, "  Offset: %d mm", this->offset);
-  ESP_LOGCONFIG(TAG, "  XTalk Correction: %u cps", this->xtalk_correction);
-  if (this->sigma_threshold != 0xffff) {
-    ESP_LOGCONFIG(TAG, "  Sigma Threshold: %u mm", (unsigned) this->sigma_threshold);
+  ESP_LOGCONFIG(TAG, "  Offset: %d mm", this->offset_);
+  ESP_LOGCONFIG(TAG, "  XTalk Correction: %u cps", this->xtalk_correction_);
+  if (this->sigma_threshold_ != 0xffff) {
+    ESP_LOGCONFIG(TAG, "  Sigma Threshold: %u mm", (unsigned) this->sigma_threshold_);
   }
-  if (this->signal_threshold != 0xffff) {
-    ESP_LOGCONFIG(TAG, "  Signal Threshold: %u kcps", (unsigned) this->signal_threshold);
+  if (this->signal_threshold_ != 0xffff) {
+    ESP_LOGCONFIG(TAG, "  Signal Threshold: %u kcps", (unsigned) this->signal_threshold_);
   }
 
-  if (this->distance_threshold.interrupt_when != NOT_SET) {
+  if (this->distance_threshold_.interrupt_when != NOT_SET) {
     ESP_LOGCONFIG(TAG, "  Distance Threshold:");
-    ESP_LOGCONFIG(TAG, "     min: %u mm", this->distance_threshold.min);
-    ESP_LOGCONFIG(TAG, "     max: %u mm", this->distance_threshold.max);
-    ESP_LOGCONFIG(TAG, "     interrupt_when: %d", this->distance_threshold.interrupt_when);
+    ESP_LOGCONFIG(TAG, "     min: %u mm", this->distance_threshold_.min);
+    ESP_LOGCONFIG(TAG, "     max: %u mm", this->distance_threshold_.max);
+    ESP_LOGCONFIG(TAG, "     interrupt_when: %d", this->distance_threshold_.interrupt_when);
   }
 
-  if (this->roi.isSet) {
+  if (this->roi_.isSet) {
     ESP_LOGCONFIG(TAG, "  Region of Interest:");
-    ESP_LOGCONFIG(TAG, "     BottomLeft: (%u,%u)", this->roi.x, this->roi.y);
-    ESP_LOGCONFIG(TAG, "     W/H: %u/%u", this->roi.w, this->roi.h);
+    ESP_LOGCONFIG(TAG, "     BottomLeft: (%u,%u)", this->roi_.x, this->roi_.y);
+    ESP_LOGCONFIG(TAG, "     W/H: %u/%u", this->roi_.w, this->roi_.h);
   }
 
   if (this->enable_pin_ != nullptr) {
@@ -341,10 +341,10 @@ bool VL53L1xSensor::apply_update_interval() {
 }
 
 bool VL53L1xSensor::apply_distance_threshold() {
-  if (this->distance_threshold.interrupt_when != NOT_SET) {
+  if (this->distance_threshold_.interrupt_when != NOT_SET) {
     uint8_t err = 0;
-    if ((err = VL53L1X_SetDistanceThreshold(this->address_, this->distance_threshold.min, this->distance_threshold.max,
-                                            this->distance_threshold.interrupt_when, 0)) != VL53L1X_ERROR_NONE) {
+    if ((err = VL53L1X_SetDistanceThreshold(this->address_, this->distance_threshold_.min, this->distance_threshold_.max,
+                                            this->distance_threshold_.interrupt_when, 0)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetDistanceThreshold failed: %d", err);
       return false;
     }
@@ -374,13 +374,13 @@ static const uint8_t SPAD_INDEX_TABLE[16][16] = {
 };
 
 bool VL53L1xSensor::apply_roi() {
-  if (this->roi.isSet) {
+  if (this->roi_.isSet) {
     uint8_t err = 0;
 
-    uint8_t center_x = this->roi.x + this->roi.w / 2;
-    uint8_t center_y = this->roi.y + this->roi.h / 2;
+    uint8_t center_x = this->roi_.x + this->roi_.w / 2;
+    uint8_t center_y = this->roi_.y + this->roi_.h / 2;
 
-    if ((err = VL53L1X_SetROI(this->address_, this->roi.w, this->roi.h)) != VL53L1X_ERROR_NONE) {
+    if ((err = VL53L1X_SetROI(this->address_, this->roi_.w, this->roi_.h)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetROI failed: %d", err);
       return false;
     }
@@ -394,9 +394,9 @@ bool VL53L1xSensor::apply_roi() {
 }
 
 bool VL53L1xSensor::apply_offset() {
-  if (this->offset != 0) {
+  if (this->offset_ != 0) {
     uint8_t err = 0;
-    if ((err = VL53L1X_SetOffset(this->address_, this->offset)) != VL53L1X_ERROR_NONE) {
+    if ((err = VL53L1X_SetOffset(this->address_, this->offset_)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetOffset failed: %d", err);
       return false;
     }
@@ -405,9 +405,9 @@ bool VL53L1xSensor::apply_offset() {
 }
 
 bool VL53L1xSensor::apply_xtalk_correction() {
-  if (this->xtalk_correction != 0) {
+  if (this->xtalk_correction_ != 0) {
     uint8_t err = 0;
-    if ((err = VL53L1X_SetXtalk(this->address_, this->xtalk_correction)) != VL53L1X_ERROR_NONE) {
+    if ((err = VL53L1X_SetXtalk(this->address_, this->xtalk_correction_)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetXtalk failed: %d", err);
       return false;
     }
@@ -416,9 +416,9 @@ bool VL53L1xSensor::apply_xtalk_correction() {
 }
 
 bool VL53L1xSensor::apply_sigma_threshold() {
-  if (this->sigma_threshold != 0xffff) {
+  if (this->sigma_threshold_ != 0xffff) {
     uint8_t err = 0;
-    if ((err = VL53L1X_SetSigmaThreshold(this->address_, this->sigma_threshold)) != VL53L1X_ERROR_NONE) {
+    if ((err = VL53L1X_SetSigmaThreshold(this->address_, this->sigma_threshold_)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetSigmaThreshold failed: %d", err);
       return false;
     }
@@ -427,9 +427,9 @@ bool VL53L1xSensor::apply_sigma_threshold() {
 }
 
 bool VL53L1xSensor::apply_signal_threshold() {
-  if (this->signal_threshold != 0xffff) {
+  if (this->signal_threshold_ != 0xffff) {
     uint8_t err = 0;
-    if ((err = VL53L1X_SetSignalThreshold(this->address_, this->signal_threshold)) != VL53L1X_ERROR_NONE) {
+    if ((err = VL53L1X_SetSignalThreshold(this->address_, this->signal_threshold_)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetSignalThreshold failed: %d", err);
       return false;
     }

@@ -1,6 +1,4 @@
 i2c:
-
-i2c:
   - id: i2c_vl53l1x
     scl: ${scl_pin}
     sda: ${sda_pin}
