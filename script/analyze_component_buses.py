@@ -78,6 +78,7 @@ ISOLATED_COMPONENTS = {
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
     "mcp47a1": "no YAML config to specify i2c bus id",
+    "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "packages": "cannot merge packages",
 }
 
@@ -342,7 +343,8 @@ def analyze_all_components(
             non_groupable.add(component_name)
 
         # Check if component is a base bus component
-        # These are platform implementations and must be tested separately
+        # These ARE the bus platform implementations and define buses directly for testing
+        # They cannot be grouped with components that use bus packages (causes ID conflicts)
         if component_name in BASE_BUS_COMPONENTS:
             non_groupable.add(component_name)
 

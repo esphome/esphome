@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from script.analyze_component_buses import (
+    BASE_BUS_COMPONENTS,
     ISOLATED_COMPONENTS,
     NO_BUSES_SIGNATURE,
     analyze_all_components,
@@ -369,6 +370,15 @@ def run_grouped_component_tests(
         if component not in all_tests:
             continue
 
+        # Skip components that must be tested in isolation
+        # These are shown separately and should not be in non_groupable_reasons
+        if component in ISOLATED_COMPONENTS:
+            continue
+
+        # Skip base bus components (these test the bus platforms themselves)
+        if component in BASE_BUS_COMPONENTS:
+            continue
+
         # Skip components that use local file references or direct bus configs
         if component in non_groupable:
             # Track the reason (using pre-calculated results to avoid expensive re-analysis)
@@ -389,13 +399,6 @@ def run_grouped_component_tests(
                     non_groupable_reasons[component] = (
                         "Uses !extend or !remove directives"
                     )
-            continue
-
-        # Skip components that must be tested in isolation
-        if component in ISOLATED_COMPONENTS:
-            non_groupable_reasons[component] = (
-                f"Known build issue: {ISOLATED_COMPONENTS[component]}"
-            )
             continue
 
         for platform, buses in platforms.items():
@@ -427,6 +430,15 @@ def run_grouped_component_tests(
         for comp in sorted(isolated_in_tests):
             reason = ISOLATED_COMPONENTS[comp]
             print(f"  - {comp}: {reason}")
+
+    # Show base bus components (test the bus platform implementations)
+    base_bus_in_tests = [c for c in BASE_BUS_COMPONENTS if c in all_tests]
+    if base_bus_in_tests:
+        print(
+            f"\n○ {len(base_bus_in_tests)} base bus platform components (tested individually):"
+        )
+        for comp in sorted(base_bus_in_tests):
+            print(f"  - {comp}")
 
     # Show excluded components with detailed reasons
     if non_groupable_reasons:
