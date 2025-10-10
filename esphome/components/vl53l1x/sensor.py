@@ -17,7 +17,6 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@stian-svedenborg"]
 
 vl53l1x_ns = cg.esphome_ns.namespace("vl53l1x")
 VL53L1xSensor = vl53l1x_ns.class_(
@@ -180,7 +179,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    # .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x29)),
     check_keys,
 )

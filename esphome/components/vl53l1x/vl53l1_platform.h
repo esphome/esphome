@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "vl53l1_types.h"
+#include <cstdint>
 
 namespace esphome {
 namespace vl53l1x {
