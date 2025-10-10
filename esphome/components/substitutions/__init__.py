@@ -240,7 +240,7 @@ def do_substitution_pass(
     config.move_to_end(CONF_SUBSTITUTIONS, False)
 
     # Create a Jinja environment that will consider substitutions in scope:
-    jinja = Jinja(config, substitutions)
+    jinja = Jinja(config, substitutions, ignore_missing)
     jinja_config = None
     if CONF_JINJA in config:
         jinja_config = config[CONF_JINJA]
