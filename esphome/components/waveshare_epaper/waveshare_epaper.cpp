@@ -3761,29 +3761,45 @@ void HOT WaveshareEPaper7P3InE::display() {
   // COMMAND DATA START TRANSMISSION
   ESP_LOGI(TAG, "Sending data to the display");
   this->command(0x10);
+  this->start_data_();
+
+  const int chunk_size = 512;
+  uint8_t temp_buffer[chunk_size];
+  int temp_buffer_index = 0;
+
   uint32_t small_buffer_length = this->get_buffer_length_() / NUM_BUFFERS;
-  uint8_t byte_to_send;
+  int buffer_index = 0;
   for (auto &buffer : this->buffers_) {
+    ESP_LOGD(TAG, "Sending buffer %d/%d", buffer_index + 1, NUM_BUFFERS);
     for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
+      if (buffer_pos % 3000 == 0) {
+        App.feed_wdt();
+      }
       std::bitset<24> triplet =
           buffer[buffer_pos + 0] << 16 | buffer[buffer_pos + 1] << 8 | buffer[buffer_pos + 2] << 0;
-      // 8 bitset<3> are stored in 3 bytes
-      // |aaabbbaa|abbbaaab|bbaaabbb|
-      // | byte 1 | byte 2 | byte 3 |
-      byte_to_send = ((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
 
-      byte_to_send = ((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
+      auto add_byte_to_buffer = [&](uint8_t byte) {
+        temp_buffer[temp_buffer_index++] = byte;
+        if (temp_buffer_index == chunk_size) {
+          this->write_array(temp_buffer, chunk_size);
+          temp_buffer_index = 0;
+        }
+      };
 
-      byte_to_send = ((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
-
-      byte_to_send = ((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111);
-      this->data(byte_to_send);
+      add_byte_to_buffer(((triplet >> 17).to_ulong() & 0b01110000) | ((triplet >> 18).to_ulong() & 0b00000111));
+      add_byte_to_buffer(((triplet >> 11).to_ulong() & 0b01110000) | ((triplet >> 12).to_ulong() & 0b00000111));
+      add_byte_to_buffer(((triplet >> 5).to_ulong() & 0b01110000) | ((triplet >> 6).to_ulong() & 0b00000111));
+      add_byte_to_buffer(((triplet << 1).to_ulong() & 0b01110000) | ((triplet << 0).to_ulong() & 0b00000111));
     }
-    App.feed_wdt();
+    ESP_LOGD(TAG, "Finished processing buffer %d", buffer_index + 1);
+    buffer_index++;
   }
+
+  if (temp_buffer_index > 0) {
+    this->write_array(temp_buffer, temp_buffer_index);
+  }
+
+  this->end_data_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display");
