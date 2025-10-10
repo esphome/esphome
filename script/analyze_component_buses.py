@@ -333,6 +333,13 @@ def analyze_all_components(
         if component_name in BASE_BUS_COMPONENTS:
             non_groupable.add(component_name)
 
+        # Check if component uses !extend or !remove directives
+        # These rely on specific config structure and cannot be merged with other components
+        # The directives work within a component's own package hierarchy but break when
+        # merging independent components together
+        if has_extend_remove:
+            non_groupable.add(component_name)
+
         # Check if component defines buses directly in test files
         # These create unique bus IDs and cause conflicts when merged
         # Exclude base bus components (i2c, spi, uart, etc.) since they ARE the platform
