@@ -3,7 +3,7 @@
 
 #ifdef USE_ESP32
 
-#include <esp_bt.h>
+#include <esp_hosted_bt.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>

@@ -10,7 +10,7 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_ADVERTISING
 
-#include <esp_bt.h>
+#include <esp_hosted_bt.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 

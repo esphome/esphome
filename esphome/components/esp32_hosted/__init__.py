@@ -90,11 +90,20 @@ async def to_code(config):
     )
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS", True)
 
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     os.environ["ESP_IDF_VERSION"] = f"{framework_ver.major}.{framework_ver.minor}"
-    esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.10.2")
+    esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
     esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.0.11")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.5.11")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
