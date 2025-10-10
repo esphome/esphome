@@ -60,8 +60,8 @@ void BH1745Component::setup() {
   // only for pimoroni boards for now - there are LEDs connected to interrupt pin
   uint16_t th_high[1] = {0xFFFF};
   uint16_t th_low[1] = {0x0000};
-  this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, th_low, 1);
-  this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, th_high, 1);
+  this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, th_high, 1);
+  this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, th_low, 1);
   this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG) = 0x00;
 
   this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() {
@@ -199,7 +199,7 @@ bool BH1745Component::is_data_ready_(Readings &data) {
 }
 
 void BH1745Component::read_data_(BH1745Component::Readings &data) {
-  static uint8_t buffer[BH1745_CHANNELS * 2];
+  uint8_t buffer[BH1745_CHANNELS * 2];
 
   this->read_bytes((uint8_t) Bh1745Registers::RED_DATA_LSB, buffer, BH1745_CHANNELS * 2);
   data.red = ((buffer[1] << 8) + buffer[0]) & 0xffff;
