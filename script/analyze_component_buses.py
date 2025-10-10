@@ -73,7 +73,7 @@ ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
     "camera_encoder": "Multiple definition errors: esp32-camera IDF component conflicts with ESPHome camera component",
     "camera": "Uses relative include paths that break when merged with other components",
-    "esp32_camera": "Leaks config into other components",
+    "esp32_camera": "Auto-loads camera which causes source path conflicts, and leaks config into other components",
     "esp32_camera_web_server": "Leaks config into other components",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
