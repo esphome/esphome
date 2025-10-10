@@ -1,6 +1,7 @@
 #pragma once
-#include "esphome/core/gpio.h"
 #include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#include "esphome/core/gpio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include <map>
@@ -110,3 +111,4 @@ class FatESP32Dir : public fatfs::DirObject, public FatESP32Info {
 
 }  // namespace fatfs_esp32
 }  // namespace esphome
+#endif

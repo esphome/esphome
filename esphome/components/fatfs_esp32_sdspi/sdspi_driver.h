@@ -1,6 +1,7 @@
 
 #pragma once
 #include "esphome/core/defines.h"
+#ifdef USE_ESP32
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 #include "esphome/components/spi/spi.h"
@@ -322,3 +323,4 @@ class SDSPIDriver : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_P
 
 }  // namespace fatfs_esp32_sdspi
 }  // namespace esphome
+#endif

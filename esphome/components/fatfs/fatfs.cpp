@@ -1,15 +1,6 @@
 #include "fatfs.h"
 #include "esphome/core/log.h"
 
-extern "C" {
-#include "ff.h"
-#include "diskio.h"
-#if ESP_IDF_VERSION_MAJOR > 3
-#include "diskio_impl.h"
-#endif
-#include "esp_vfs_fat.h"
-}
-
 namespace esphome {
 namespace fatfs {
 

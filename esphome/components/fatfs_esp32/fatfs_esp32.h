@@ -1,6 +1,7 @@
 #pragma once
-#include "esphome/core/gpio.h"
 #include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#include "esphome/core/gpio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include <map>
@@ -251,3 +252,4 @@ extern std::map<std::uint8_t, StorageIO *> db;  // NOLINT(cppcoreguidelines-avoi
 
 }  // namespace fatfs_esp32
 }  // namespace esphome
+#endif

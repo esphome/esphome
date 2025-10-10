@@ -1,8 +1,9 @@
 // #include "fatfs_esp32.h"
+#include "fatfs_esp32_file.h"
+#ifdef USE_ESP32
 #include "esphome/core/log.h"
 #include "esphome/core/time.h"
 
-#include "fatfs_esp32_file.h"
 #include <utility>
 
 extern "C" {
@@ -385,3 +386,4 @@ bool FatESP32Dir::reset() {
 
 }  // namespace fatfs_esp32
 }  // namespace esphome
+#endif

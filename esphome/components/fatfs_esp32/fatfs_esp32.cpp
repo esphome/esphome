@@ -1,6 +1,6 @@
 #include "fatfs_esp32.h"
+#ifdef USE_ESP32
 #include "esphome/core/log.h"
-
 extern "C" {
 #include "ff.h"
 #include "diskio.h"
@@ -307,3 +307,4 @@ bool FatESP32::rename(std::string &path_from, std::string &path_to) {
 
 }  // namespace fatfs_esp32
 }  // namespace esphome
+#endif

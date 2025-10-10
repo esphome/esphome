@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
 #include "sdspi_defines.h"
 #include "sdspi_driver.h"
 
@@ -600,10 +602,11 @@ bool SDSPIDriver::read_register(uint8_t cmd, void *buf) {
 
   response_ = this->read_data(dst, 16);
   spi_stop();
-  if (!response_) {
-    return false;
-  }
-  return true;
+  return response_ != 0;
+  // if (!response_) {
+  //   return false;
+  // }
+  // return true;
 }
 
 //------------------------------------------------------------------------------
@@ -618,7 +621,7 @@ uint32_t SDSPIDriver::sector_count() {
 //------------------------------------------------------------------------------
 
 uint32_t SDSPIDriver::sector_size() {
-  csd_t csd;
+  // csd_t csd;
   uint32_t s_size = 512;
   return s_size;
 }
@@ -687,7 +690,7 @@ bool SDSPIDriver::is_busy() {
 //------------------------------------------------------------------------------
 bool SDSPIDriver::is_ready() {
   if (state_ != IDLE_STATE) {
-    for (uint8_t i; i < 3; i++) {
+    for (uint8_t i = 0; i < 3; i++) {
       if (wait(SD_READ_TIMEOUT))
         break;
     }
@@ -732,3 +735,4 @@ uint8_t SDSPIDriver::ioctl(uint8_t cmd, void *buff) {
 
 }  // namespace fatfs_esp32_sdspi
 }  // namespace esphome
+#endif

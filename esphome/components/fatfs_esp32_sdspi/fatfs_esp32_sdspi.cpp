@@ -1,5 +1,6 @@
 #include "fatfs_esp32_sdspi.h"
 #include "esphome/core/defines.h"
+#ifdef USE_ESP32
 #include "esphome/core/log.h"
 #include "esphome/components/fatfs_esp32/fatfs_esp32.h"
 #include "esphome/components/spi/spi.h"
@@ -243,3 +244,4 @@ bool FatESP32sdspi::test_fs(std::string &path) {
 
 }  // namespace fatfs_esp32_sdspi
 }  // namespace esphome
+#endif
