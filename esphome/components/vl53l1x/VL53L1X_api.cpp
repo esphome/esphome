@@ -197,8 +197,7 @@ VL53L1X_ERROR VL53L1X_CheckForDataReady(uint16_t dev, uint8_t *is_data_ready) {
   if (status == 0) {
     if ((temp & 1) == interrupt_polarity) {
       *is_data_ready = 1;
-    }
-    else {
+    } else {
       *is_data_ready = 0;
     }
   }
@@ -212,8 +211,7 @@ VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t timing_budget_i
   status |= VL53L1X_GetDistanceMode(dev, &distance_mode);
   if (distance_mode == 0) {
     return 1;
-  }
-  else if (distance_mode == 1) { /* Short DistanceMode */
+  } else if (distance_mode == 1) { /* Short DistanceMode */
     switch (timing_budget_in_ms) {
       case 15: /* only available in short distance mode */
         VL53L1_WrWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_A_HI, 0x01D);
@@ -427,14 +425,15 @@ VL53L1X_ERROR VL53L1X_SetXtalk(uint16_t dev, uint16_t xtalk_value) {
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_SetDistanceThreshold(uint16_t dev, uint16_t threshold_low, uint16_t threshold_high, uint8_t window) {
+VL53L1X_ERROR VL53L1X_SetDistanceThreshold(uint16_t dev, uint16_t threshold_low, uint16_t threshold_high,
+                                           uint8_t window) {
   VL53L1X_ERROR status = 0;
   uint8_t temp = 0;
 
   status |= VL53L1_RdByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, &temp);
   temp = temp & (~0x6F);
   temp = temp | window;
-  
+
   status = VL53L1_WrByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, temp);
   status |= VL53L1_WrWord(dev, SYSTEM__THRESH_HIGH, threshold_high);
   status |= VL53L1_WrWord(dev, SYSTEM__THRESH_LOW, threshold_low);
