@@ -74,6 +74,7 @@ ISOLATED_COMPONENTS = {
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
+    "http_request": "Defines multiple ota.http_request configurations that create ID conflicts when merged",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
