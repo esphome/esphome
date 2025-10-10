@@ -72,14 +72,17 @@ def extract_packages_from_yaml(data: dict) -> dict[str, str]:
     # Dictionary format: packages: {name: value}
     for name, value in packages_value.items():
         # Only include common bus packages, ignore component-specific ones
-        if name in common_bus_packages:
-            packages[name] = str(value)
-            # Also track package dependencies (e.g., modbus includes uart)
-            if name in PACKAGE_DEPENDENCIES:
-                for dep in PACKAGE_DEPENDENCIES[name]:
-                    if dep in common_bus_packages:
-                        # Mark as included via dependency
-                        packages[f"_dep_{dep}"] = f"(included via {name})"
+        if name not in common_bus_packages:
+            continue
+        packages[name] = str(value)
+        # Also track package dependencies (e.g., modbus includes uart)
+        if name not in PACKAGE_DEPENDENCIES:
+            continue
+        for dep in PACKAGE_DEPENDENCIES[name]:
+            if dep not in common_bus_packages:
+                continue
+            # Mark as included via dependency
+            packages[f"_dep_{dep}"] = f"(included via {name})"
 
     return packages
 

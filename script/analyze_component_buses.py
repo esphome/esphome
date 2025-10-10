@@ -48,6 +48,10 @@ PACKAGE_DEPENDENCIES = {
     # Add more package dependencies here as needed
 }
 
+# Bus types that can be defined directly in config files
+# Components defining these directly cannot be grouped (they create unique bus IDs)
+DIRECT_BUS_TYPES = ("i2c", "spi", "uart", "modbus")
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {
@@ -213,10 +217,10 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
     result["has_extend_remove"] = _contains_extend_or_remove(data)
 
     # Check if buses are defined directly (not via packages)
-    # Components that define i2c, spi, or uart directly in test files
+    # Components that define i2c, spi, uart, or modbus directly in test files
     # cannot be grouped because they create unique bus IDs
     if isinstance(data, dict):
-        for bus_type in ("i2c", "spi", "uart"):
+        for bus_type in DIRECT_BUS_TYPES:
             if bus_type in data:
                 result["has_direct_bus_config"] = True
                 break
