@@ -369,10 +369,11 @@ jobs:
       matrix:
         file: ${{ fromJson(needs.determine-jobs.outputs.changed-components) }}
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsdl2-dev
+      - name: Cache apt packages
+        uses: awalsh128/cache-apt-pkgs-action@a6c3917cc929dd0345bfb2d3feaf9101823370ad # v1.4.2
+        with:
+          packages: libsdl2-dev
+          version: 1.0
 
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -437,10 +438,11 @@ jobs:
       - name: List components
         run: echo ${{ matrix.components }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsdl2-dev
+      - name: Cache apt packages
+        uses: awalsh128/cache-apt-pkgs-action@a6c3917cc929dd0345bfb2d3feaf9101823370ad # v1.4.2
+        with:
+          packages: libsdl2-dev
+          version: 1.0
 
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
