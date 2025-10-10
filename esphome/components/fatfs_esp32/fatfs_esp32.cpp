@@ -25,7 +25,11 @@ DSTATUS ff_sd_initialize(uint8_t pdrv) {
   if (db.find(pdrv) != db.end()) {
     io_class = db.at(pdrv);
   } else {
-    ESP_LOGE(TAG, "IO driver not initilized, drv=%d, rc=%d", pdrv, io_class->storage_error());
+    ESP_LOGE(TAG, "IO driver not initilized, drv=%d", pdrv);
+    return RES_ERROR;
+  }
+  if (io_class == NULL) {
+    ESP_LOGE(TAG, "Cannot obtain driver drv=%d", pdrv);
     return RES_ERROR;
   }
   io_class->storage_init();
@@ -168,7 +172,7 @@ void FatESP32::relese_driver() {
  */
 bool FatESP32::mount() {
   FATFS *local_fs;
-  const char *ldrv = strdup(this->get_drive_name().c_str());
+  const char *ldrv = this->get_drive_name().c_str();
 
   esp_err_t err = esp_vfs_fat_register(path_.c_str(), ldrv, FAT_MAX_FILES, &local_fs);
   if (err == ESP_ERR_INVALID_STATE) {

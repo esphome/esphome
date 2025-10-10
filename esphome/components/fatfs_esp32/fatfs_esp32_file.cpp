@@ -28,7 +28,7 @@ FatESP32Info::FatESP32Info(std::string path) {
 
   // Cut off drive part
   //
-  if (path.length() > 2 && path[1] == ':') {
+  if ((path.length() > 2) && (path[1] == ':')) {
     drive_ = path.substr(0, 2);
     path_ = path.substr(2, path.length() - 1);
   } else {
@@ -62,19 +62,19 @@ FatESP32Info::FatESP32Info(std::string path) {
   if (path_.empty() && name_.empty()) {
     return;
   }
+  std::string fpath = drive_ + path_ + name_;
 
-  //   Get infot object
+  //   Get info object
 
   FILINFO finfo;
-  FRESULT res = f_stat(this->get_full_path().c_str(), &finfo);
-  ESP_LOGV(TAG, "f_stat for  %s, rc=%d", this->get_full_path().c_str(), res);
+  FRESULT res = f_stat(fpath.c_str(), &finfo);
+  ESP_LOGV(TAG, "f_stat for  %s, rc=%d", fpath.c_str(), res);
   if (res == FR_NO_FILE || res == FR_NO_PATH) {
     return;
   }
 
   else if (res != FR_OK) {
-    ESP_LOGE(TAG, "f_stat %s error: (0x%x) %s", (drive_ + path_ + name_).c_str(), res, fs_errstr(res));
-    // throw std::runtime_error(err_str);
+    ESP_LOGE(TAG, "f_stat %s error: (0x%x) %s", fpath.c_str(), res, fs_errstr(res));
     return;
   }
 
@@ -186,11 +186,15 @@ std::string FatESP32Info::get_full_path() { return drive_ + path_ + name_; };
 
 // --------------------------------------------------------------------------------
 
-FatESP32File::FatESP32File(std::string path, uint16_t mode) : FatESP32Info{std::move(path)} { this->open(mode); }
+FatESP32File::FatESP32File(std::string path, uint16_t mode) : FatESP32Info{std::move(path)} {
+  this->FatESP32File::open(mode);
+}
 
 // --------------------------------------------------------------------------------
 
-FatESP32File::FatESP32File(fatfs::FatInfo &finfo, uint16_t mode) : FatESP32Info{finfo} { this->open(mode); }
+FatESP32File::FatESP32File(fatfs::FatInfo &finfo, uint16_t mode) : FatESP32Info{finfo} {
+  this->FatESP32File::open(mode);
+}
 
 // --------------------------------------------------------------------------------
 
