@@ -520,6 +520,19 @@ optional<float> RoundMultipleFilter::new_value(float value) {
   return value;
 }
 
+RoundSigfigFilter::RoundSigfigFilter(uint8_t digits) : digits_(digits) {}
+optional<float> RoundSigfigFilter::new_value(float value) {
+  if (std::isfinite(value)) {
+    // Based on https://stackoverflow.com/a/13094362/120080
+    if (value == 0.0)
+      return 0.0;
+
+    double factor = pow(10.0, this->digits_ - ceil(log10(fabs(value))));
+    return round(value * factor) / factor;
+  }
+  return value;
+}
+
 optional<float> ToNTCResistanceFilter::new_value(float value) {
   if (!std::isfinite(value)) {
     return NAN;

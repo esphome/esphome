@@ -4,6 +4,7 @@ import math
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.components.const import CONF_DIGITS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -108,6 +109,7 @@ from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -272,6 +274,7 @@ SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
+RoundSigfigFilter = sensor_ns.class_("RoundSigfigFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -816,6 +819,23 @@ async def round_multiple_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
         config[CONF_MULTIPLE],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round_to_sigfig",
+    RoundSigfigFilter,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_DIGITS): cv.positive_not_null_int,
+        },
+        key=CONF_DIGITS,
+    ),
+)
+async def round_sigfig_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_DIGITS],
     )
 
 

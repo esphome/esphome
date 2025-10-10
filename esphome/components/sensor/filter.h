@@ -454,6 +454,15 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
+class RoundSigfigFilter : public Filter {
+ public:
+  explicit RoundSigfigFilter(uint8_t digits);
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint8_t digits_;
+};
+
 class ToNTCResistanceFilter : public Filter {
  public:
   ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
