@@ -460,11 +460,13 @@ jobs:
         run: |
           . venv/bin/activate
           # Use /mnt for build files (70GB available vs ~29GB on /)
-          mkdir -p /mnt/build_cache
+          sudo mkdir -p /mnt/build_cache
+          sudo chown $USER:$USER /mnt/build_cache
           export PLATFORMIO_BUILD_CACHE_DIR=/mnt/build_cache
 
           # Also move test_build_components/build to /mnt
-          mkdir -p /mnt/test_build_components_build
+          sudo mkdir -p /mnt/test_build_components_build
+          sudo chown $USER:$USER /mnt/test_build_components_build
           ln -s /mnt/test_build_components_build tests/test_build_components/build
 
           # Convert space-separated components to comma-separated for Python script
