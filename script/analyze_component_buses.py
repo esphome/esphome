@@ -77,6 +77,7 @@ ISOLATED_COMPONENTS = {
     "esp32_camera_web_server": "Leaks config into other components",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
+    "ethernet_info": "Related to ethernet component which conflicts with wifi",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
