@@ -343,8 +343,9 @@ bool VL53L1xSensor::apply_update_interval() {
 bool VL53L1xSensor::apply_distance_threshold() {
   if (this->distance_threshold_.interrupt_when != NOT_SET) {
     uint8_t err = 0;
-    if ((err = VL53L1X_SetDistanceThreshold(this->address_, this->distance_threshold_.min, this->distance_threshold_.max,
-                                            this->distance_threshold_.interrupt_when, 0)) != VL53L1X_ERROR_NONE) {
+    if ((err =
+             VL53L1X_SetDistanceThreshold(this->address_, this->distance_threshold_.min, this->distance_threshold_.max,
+                                          this->distance_threshold_.interrupt_when, 0)) != VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetDistanceThreshold failed: %d", err);
       return false;
     }

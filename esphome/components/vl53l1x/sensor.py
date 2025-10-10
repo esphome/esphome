@@ -7,9 +7,9 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_INTERRUPT_PIN,
     CONF_OFFSET,
+    CONF_UPDATE_INTERVAL,
     CONF_X,
     CONF_Y,
-    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DISTANCE,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
@@ -87,11 +87,10 @@ def check_keys(obj):
             "The update interval has to be at least as long the timing budget."
         )
 
-    if (CONF_REGION_OF_INTEREST in obj 
-        and (
-            obj[CONF_REGION_OF_INTEREST][CONF_X] + obj[CONF_REGION_OF_INTEREST][CONF_W] > 16
-            or obj[CONF_REGION_OF_INTEREST][CONF_Y] + obj[CONF_REGION_OF_INTEREST][CONF_H] > 16
-        )
+    if CONF_REGION_OF_INTEREST in obj and (
+        obj[CONF_REGION_OF_INTEREST][CONF_X] + obj[CONF_REGION_OF_INTEREST][CONF_W] > 16
+        or obj[CONF_REGION_OF_INTEREST][CONF_Y] + obj[CONF_REGION_OF_INTEREST][CONF_H]
+        > 16
     ):
         msg = "Region of interest coordinates cannot exceed 16 in either axis."
         raise cv.Invalid(msg)

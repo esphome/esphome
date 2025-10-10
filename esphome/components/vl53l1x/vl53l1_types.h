@@ -15,7 +15,7 @@
  * @brief VL53L1 types definition
  */
 
-#pragma once 
+#pragma once
 
 /** @defgroup porting_type  Basic type definition
  *  @ingroup  api_platform
@@ -97,4 +97,3 @@ typedef uint32_t FixPoint1616_t;
 
 }  // namespace vl53l1x
 }  // namespace esphome
-

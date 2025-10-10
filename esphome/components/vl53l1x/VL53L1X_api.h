@@ -379,4 +379,3 @@ VL53L1X_ERROR VL53L1X_StartTemperatureUpdate(uint16_t dev);
 }  // namespace st_vl53l1x_uld
 }  // namespace vl53l1x
 }  // namespace esphome
-
