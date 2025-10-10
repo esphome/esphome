@@ -93,9 +93,8 @@ async def to_code(config):
     esp32.add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
     esp32.add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
     esp32.add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
-    esp32.add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
-    esp32.add_idf_sdkconfig_option("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", True)
-    esp32.add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
+    esp32.add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
