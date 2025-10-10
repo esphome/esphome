@@ -115,7 +115,6 @@ class AddressableLightTransformer : public LightTransitionTransformer {
  protected:
   AddressableLight &light_;
   float last_transition_progress_{0.0f};
-  float accumulated_alpha_{0.0f};
   Color target_color_{};
 };
 
