@@ -51,6 +51,7 @@ script:
 
 ota:
   - platform: http_request
+    id: http_request_ota
     on_begin:
       then:
         - logger.log: "OTA start"
@@ -77,10 +78,12 @@ button:
     on_press:
       then:
         - ota.http_request.flash:
+            id: http_request_ota
             md5_url: http://my.ha.net:8123/local/esphome/firmware.md5
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
         - ota.http_request.flash:
+            id: http_request_ota
             md5: 0123456789abcdef0123456789abcdef
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
@@ -90,6 +93,7 @@ update:
   - platform: http_request
     name: OTA Update
     id: ota_update
+    ota_id: http_request_ota
     source: http://my.ha.net:8123/local/esphome/manifest.json
     on_update_available:
       - logger.log: "A new update is available"
