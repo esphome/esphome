@@ -310,7 +310,7 @@ bool ESP32BLE::ble_dismantle_() {
 #else
   // Close ESP-Hosted HCI transport after deinitializing Bluedroid
   hosted_hci_bluedroid_close();
-#endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#endif
   return true;
 }
 
