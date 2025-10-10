@@ -196,9 +196,19 @@ def run_esphome_test(
         print("  (using --testing-mode)")
 
     try:
-        result = subprocess.run(cmd, check=not continue_on_fail)
-        return result.returncode == 0, cmd_str
+        result = subprocess.run(cmd, check=False)
+        success = result.returncode == 0
+        if not success and not continue_on_fail:
+            # Print command immediately for failed tests
+            print(f"\n{'=' * 80}")
+            print("FAILED - Command to reproduce:")
+            print(f"{'=' * 80}")
+            print(cmd_str)
+            print()
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+        return success, cmd_str
     except subprocess.CalledProcessError:
+        # Re-raise if we're not continuing on fail
         if not continue_on_fail:
             raise
         return False, cmd_str
@@ -295,9 +305,19 @@ def run_grouped_test(
     print("  (using --testing-mode)")
 
     try:
-        result = subprocess.run(cmd, check=not continue_on_fail)
-        return result.returncode == 0, cmd_str
+        result = subprocess.run(cmd, check=False)
+        success = result.returncode == 0
+        if not success and not continue_on_fail:
+            # Print command immediately for failed tests
+            print(f"\n{'=' * 80}")
+            print("FAILED - Command to reproduce:")
+            print(f"{'=' * 80}")
+            print(cmd_str)
+            print()
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+        return success, cmd_str
     except subprocess.CalledProcessError:
+        # Re-raise if we're not continuing on fail
         if not continue_on_fail:
             raise
         return False, cmd_str
