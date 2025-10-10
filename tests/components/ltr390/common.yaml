@@ -15,6 +15,7 @@ sensor:
     address: 0x53
     update_interval: 60s
   - platform: ltr390
+    i2c_id: i2c_bus
     uv:
       name: LTR390 UV 2
     uv_index:

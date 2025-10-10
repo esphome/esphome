@@ -11,6 +11,7 @@ display:
 
 touchscreen:
   - platform: ft5x06
+    i2c_id: i2c_bus
     display: ft5x06_display
     id: ft5x06_touchscreen
     on_touch:

@@ -11,6 +11,7 @@ display:
 
 touchscreen:
   - platform: ft63x6
+    i2c_id: i2c_bus
     display: ft63x6_display
     id: ft63x6_touchscreen
     interrupt_pin: ${interrupt_pin}

@@ -14,6 +14,7 @@ sensor:
     id: test_sensor
     lambda: "return 21;"
   - platform: ufire_ise
+    i2c_id: i2c_bus
     id: ufire_ise_sensor
     temperature_sensor: test_sensor
     ph:

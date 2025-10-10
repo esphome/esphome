@@ -11,6 +11,7 @@ display:
 
 touchscreen:
   - platform: axs15231
+    i2c_id: i2c_bus
     id: axs15231_touchscreen
     display: ssd1306_display
     interrupt_pin: 20

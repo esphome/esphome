@@ -12,6 +12,7 @@ sensor:
     id: test_sensor
     lambda: "return 21;"
   - platform: ufire_ec
+    i2c_id: i2c_bus
     id: ufire_ec_board
     ec:
       name: Ufire EC

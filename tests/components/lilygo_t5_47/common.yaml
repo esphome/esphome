@@ -11,6 +11,7 @@ display:
 
 touchscreen:
   - platform: lilygo_t5_47
+    i2c_id: i2c_bus
     id: lilygo_touchscreen
     interrupt_pin: ${interrupt_pin}
     display: ssd1306_display

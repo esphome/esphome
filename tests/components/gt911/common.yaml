@@ -11,6 +11,7 @@ display:
 
 touchscreen:
   - platform: gt911
+    i2c_id: i2c_bus
     id: gt911_touchscreen
     display: ssd1306_display
     interrupt_pin: ${interrupt_pin}
