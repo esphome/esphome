@@ -1,7 +1,4 @@
-substitutions:
-  flow_control_pin: GPIO6
-
 packages:
-  uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml
+  modbus: !include ../../test_build_components/common/modbus/rp2040-ard.yaml
 
 <<: !include common.yaml
