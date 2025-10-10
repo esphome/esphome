@@ -112,21 +112,6 @@ sensor:
       w: 16
       h: 16
 
-    # Optional: When operating in interrupt mode, the sensor can be configured to only trigger interrupts
-    # for measurements within the given bounds.
-    distance_threshold:
-      # Required: When to interrupt
-      #  below_min - only interrupt when the measurement is below 'min'.
-      #  above_max - only interrupt when the measurement is above 'max'.
-      #  inside_window - only interrupt when the measurement is between 'min' and 'max'.
-      #  outside_window - only interrupt when the measurement is outside 'min' and 'max'.
-      interrupt_when: inside_window
-
-      # Conditional, as required by 'interrupt_when'.
-      min: 0.5m
-      # Conditional, as required by 'interrupt_when'.
-      max: 1m
-
     # Optional: Offset the value reported by the sensor.
     offset: 0.0m  # Default: 0m
 
