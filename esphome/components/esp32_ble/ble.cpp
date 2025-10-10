@@ -9,6 +9,7 @@
 #ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_hosted_bt.h>
 extern "C" {
+#include <esp_hosted_misc.h>
 #include <esp_hosted_bluedroid.h>
 }
 #else
@@ -178,8 +179,18 @@ bool ESP32BLE::ble_setup_() {
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
-  // Open ESP-Hosted HCI transport before initializing Bluedroid
+  if (esp_hosted_bt_controller_init() != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_init failed");
+    return false;
+  }
+
+  if (esp_hosted_bt_controller_enable() != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_enable failed");
+    return false;
+  }
+
   hosted_hci_bluedroid_open();
+
   esp_bluedroid_hci_driver_operations_t operations = {
       .send = hosted_hci_bluedroid_send,
       .check_send_available = hosted_hci_bluedroid_check_send_available,
