@@ -6,11 +6,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <esp_hosted_bt.h>
 #ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#include <esp_hosted_bt.h>
 extern "C" {
 #include <esp_hosted_bluedroid.h>
 }
+#else
+#include <esp_bt.h>
 #endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -21,7 +23,11 @@ extern "C" {
 #include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_hosted_bt.h>
+#else
+#include <esp32-hal-bt.h>
+#endif
 #endif
 
 namespace esphome::esp32_ble {

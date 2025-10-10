@@ -16,7 +16,11 @@
 
 #include "bluetooth_connection.h"
 
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_hosted_bt.h>
+#else
+#include <esp_bt.h>
+#endif
 #include <esp_bt_device.h>
 
 namespace esphome::bluetooth_proxy {

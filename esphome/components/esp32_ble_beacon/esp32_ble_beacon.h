@@ -5,7 +5,11 @@
 
 #ifdef USE_ESP32
 
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_hosted_bt.h>
+#else
+#include <esp_bt.h>
+#endif
 #include <esp_gap_ble_api.h>
 
 namespace esphome {
