@@ -100,13 +100,15 @@ def check_keys(obj):
             )
 
         threshold_obj = obj[CONF_DISTANCE_THRESHOLD]
-        if (CONF_MIN in threshold_obj and CONF_MAX in threshold_obj and
-             to_uint16_mm(threshold_obj[CONF_MIN]) >=
-             to_uint16_mm(threshold_obj[CONF_MAX])
+        if (
+            CONF_MIN in threshold_obj
+            and CONF_MAX in threshold_obj
+            and to_uint16_mm(threshold_obj[CONF_MIN])
+            >= to_uint16_mm(threshold_obj[CONF_MAX])
         ):
-                raise cv.Invalid(
-                    "min must be less than max", [CONF_DISTANCE_THRESHOLD, CONF_MIN]
-                )
+            raise cv.Invalid(
+                "min must be less than max", [CONF_DISTANCE_THRESHOLD, CONF_MIN]
+            )
         if (
             threshold_obj[CONF_INTERRUPT_WHEN]
             in ("below_min", "outside_window", "inside_window")
