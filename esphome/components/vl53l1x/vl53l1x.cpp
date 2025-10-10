@@ -31,8 +31,8 @@ void VL53L1xSensor::setup() {
     ESP_LOGCONFIG(TAG, "Bootstrapping VL53L1x enable-pins...");
     // Disable all sensors that have enable_pins set.
     for (auto sensor : this->all_sensors) {
-      sensor->setup_enable_pin();
-      sensor->disable();
+      sensor->setup_enable_pin_();
+      sensor->disable_();
     }
     this->pin_setup_complete = true;
   }
@@ -41,7 +41,7 @@ void VL53L1xSensor::setup() {
   ::esphome::delay(2);
 
   // Powercycle this sensor to reset firmware address to DEFAULT_I2C_ADDRESS
-  this->enable();
+  this->enable_();
   ::esphome::delay(2);
 
   uint16_t final_i2c_address = this->get_i2c_address();
@@ -71,11 +71,11 @@ void VL53L1xSensor::setup() {
   clear_bootstrap_device();
 
   // Apply configuration
-  this->apply_distance_mode();
-  this->apply_timing_budget();
-  this->apply_update_interval();
-  this->apply_distance_threshold();
-  this->apply_roi();
+  this->apply_distance_mode_();
+  this->apply_timing_budget_();
+  this->apply_update_interval_();
+  this->apply_distance_threshold_();
+  this->apply_roi_();
 
   if (interrupt_pin_ == nullptr) {
     // If interrupt_pin is null, then we are in polling mode and should schedule an
@@ -199,13 +199,13 @@ RetryResult VL53L1xSensor::update() {
   return RetryResult::DONE;
 }
 
-void VL53L1xSensor::setup_enable_pin() {
+void VL53L1xSensor::setup_enable_pin_() {
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
   }
 }
 
-bool VL53L1xSensor::enable() {
+bool VL53L1xSensor::enable_() {
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->digital_write(true);
     return true;
@@ -213,7 +213,7 @@ bool VL53L1xSensor::enable() {
   return false;
 }
 
-void VL53L1xSensor::disable() {
+void VL53L1xSensor::disable_() {
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->digital_write(false);
   }
@@ -312,7 +312,7 @@ read_distance_error:
   return ReadResult::FAILURE;
 }
 
-bool VL53L1xSensor::apply_distance_mode() {
+bool VL53L1xSensor::apply_distance_mode_() {
   uint8_t err = 0;
   uint16_t vendor_mode = (this->distance_mode_ == DistanceMode::SHORT) ? 1 : 2;  // ULD supports short/long
   if ((err = VL53L1X_SetDistanceMode(this->address_, vendor_mode)) != VL53L1X_ERROR_NONE) {
@@ -322,7 +322,7 @@ bool VL53L1xSensor::apply_distance_mode() {
   return true;
 }
 
-bool VL53L1xSensor::apply_timing_budget() {
+bool VL53L1xSensor::apply_timing_budget_() {
   uint8_t err = 0;
   if ((err = VL53L1X_SetTimingBudgetInMs(this->address_, this->measurement_timing_budget_ms_)) != VL53L1X_ERROR_NONE) {
     ESP_LOGW(TAG, "SetTimingBudgetInMs failed: %d", err);
@@ -331,7 +331,7 @@ bool VL53L1xSensor::apply_timing_budget() {
   return true;
 }
 
-bool VL53L1xSensor::apply_update_interval() {
+bool VL53L1xSensor::apply_update_interval_() {
   uint8_t err = 0;
   if ((err = VL53L1X_SetInterMeasurementInMs(this->address_, this->update_interval_ms_)) != VL53L1X_ERROR_NONE) {
     ESP_LOGW(TAG, "SetInterMeasurementInMs failed: %d", err);
@@ -340,7 +340,7 @@ bool VL53L1xSensor::apply_update_interval() {
   return true;
 }
 
-bool VL53L1xSensor::apply_distance_threshold() {
+bool VL53L1xSensor::apply_distance_threshold_() {
   if (this->distance_threshold_.interrupt_when != NOT_SET) {
     uint8_t err = 0;
     if ((err =
@@ -374,7 +374,7 @@ static const uint8_t SPAD_INDEX_TABLE[16][16] = {
     /*origo*/
 };
 
-bool VL53L1xSensor::apply_roi() {
+bool VL53L1xSensor::apply_roi_() {
   if (this->roi_.isSet) {
     uint8_t err = 0;
 
@@ -394,7 +394,7 @@ bool VL53L1xSensor::apply_roi() {
   return true;
 }
 
-bool VL53L1xSensor::apply_offset() {
+bool VL53L1xSensor::apply_offset_() {
   if (this->offset_ != 0) {
     uint8_t err = 0;
     if ((err = VL53L1X_SetOffset(this->address_, this->offset_)) != VL53L1X_ERROR_NONE) {
@@ -405,7 +405,7 @@ bool VL53L1xSensor::apply_offset() {
   return true;
 }
 
-bool VL53L1xSensor::apply_xtalk_correction() {
+bool VL53L1xSensor::apply_xtalk_correction_() {
   if (this->xtalk_correction_ != 0) {
     uint8_t err = 0;
     if ((err = VL53L1X_SetXtalk(this->address_, this->xtalk_correction_)) != VL53L1X_ERROR_NONE) {
@@ -416,7 +416,7 @@ bool VL53L1xSensor::apply_xtalk_correction() {
   return true;
 }
 
-bool VL53L1xSensor::apply_sigma_threshold() {
+bool VL53L1xSensor::apply_sigma_threshold_() {
   if (this->sigma_threshold_ != 0xffff) {
     uint8_t err = 0;
     if ((err = VL53L1X_SetSigmaThreshold(this->address_, this->sigma_threshold_)) != VL53L1X_ERROR_NONE) {
@@ -427,7 +427,7 @@ bool VL53L1xSensor::apply_sigma_threshold() {
   return true;
 }
 
-bool VL53L1xSensor::apply_signal_threshold() {
+bool VL53L1xSensor::apply_signal_threshold_() {
   if (this->signal_threshold_ != 0xffff) {
     uint8_t err = 0;
     if ((err = VL53L1X_SetSignalThreshold(this->address_, this->signal_threshold_)) != VL53L1X_ERROR_NONE) {

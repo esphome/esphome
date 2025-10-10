@@ -16,49 +16,11 @@
  */
 
 #include "VL53L1X_api.h"
-#include <string.h>
+#include <cstring>
 
 namespace esphome {
 namespace vl53l1x {
 namespace st_vl53l1x_uld {
-#if 0
-uint8_t VL51L1X_NVM_CONFIGURATION[] = {
-0x00, /* 0x00 : not user-modifiable */
-0x29, /* 0x01 : 7 bits I2C address (default=0x29), use SetI2CAddress(). Warning: after changing the register value to a new I2C address, the device will only answer to the new address */
-0x00, /* 0x02 : not user-modifiable */
-0x00, /* 0x03 : not user-modifiable */
-0x00, /* 0x04 : not user-modifiable */
-0x00, /* 0x05 : not user-modifiable */
-0x00, /* 0x06 : not user-modifiable */
-0x00, /* 0x07 : not user-modifiable */
-0x00, /* 0x08 : not user-modifiable */
-0x50, /* 0x09 : not user-modifiable */
-0x00, /* 0x0A : not user-modifiable */
-0x00, /* 0x0B : not user-modifiable */
-0x00, /* 0x0C : not user-modifiable */
-0x00, /* 0x0D : not user-modifiable */
-0x0a, /* 0x0E : not user-modifiable */
-0x00, /* 0x0F : not user-modifiable */
-0x00, /* 0x10 : not user-modifiable */
-0x00, /* 0x11 : not user-modifiable */
-0x00, /* 0x12 : not user-modifiable */
-0x00, /* 0x13 : not user-modifiable */
-0x00, /* 0x14 : not user-modifiable */
-0x00, /* 0x15 : not user-modifiable */
-0x00, /* 0x16 : Xtalk calibration value MSB (7.9 format in kcps), use SetXtalk() */
-0x00, /* 0x17 : Xtalk calibration value LSB */
-0x00, /* 0x18 : not user-modifiable */
-0x00, /* 0x19 : not user-modifiable */
-0x00, /* 0x1a : not user-modifiable */
-0x00, /* 0x1b : not user-modifiable */
-0x00, /* 0x1e : Part to Part offset x4 MSB (in mm), use SetOffset() */
-0x50, /* 0x1f : Part to Part offset x4 LSB */
-0x00, /* 0x20 : not user-modifiable */
-0x00, /* 0x21 : not user-modifiable */
-0x00, /* 0x22 : not user-modifiable */
-0x00, /* 0x23 : not user-modifiable */
-}
-#endif
 
 const uint8_t VL51L1X_DEFAULT_CONFIGURATION[] = {
     0x00, /* 0x2d : set bit 2 and 5 to 1 for fast plus mode (1MHz I2C), else don't touch */
@@ -158,20 +120,8 @@ const uint8_t VL51L1X_DEFAULT_CONFIGURATION[] = {
              VL53L1X_init() call, put 0x40 in location 0x87 */
 };
 
-static const uint8_t status_rtn[24] = {255, 255, 255, 5,   2,   4,   1,  7, 3,   0,   255, 255,
+static const uint8_t STATUS_RTN[24] = {255, 255, 255, 5,   2,   4,   1,  7, 3,   0,   255, 255,
                                        9,   13,  255, 255, 255, 255, 10, 6, 255, 255, 11,  12};
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetSWVersion(VL53L1X_Version_t *pVersion) {
-  VL53L1X_ERROR Status = 0;
-
-  pVersion->major = VL53L1X_IMPLEMENTATION_VER_MAJOR;
-  pVersion->minor = VL53L1X_IMPLEMENTATION_VER_MINOR;
-  pVersion->build = VL53L1X_IMPLEMENTATION_VER_SUB;
-  pVersion->revision = VL53L1X_IMPLEMENTATION_VER_REVISION;
-  return Status;
-}
-#endif
 
 VL53L1X_ERROR VL53L1X_SetI2CAddress(uint16_t dev, uint8_t new_address) {
   VL53L1X_ERROR status = 0;
@@ -182,11 +132,11 @@ VL53L1X_ERROR VL53L1X_SetI2CAddress(uint16_t dev, uint8_t new_address) {
 
 VL53L1X_ERROR VL53L1X_SensorInit(uint16_t dev) {
   VL53L1X_ERROR status = 0;
-  uint8_t Addr = 0x00, tmp = 0;
+  uint8_t addr = 0x00, tmp = 0;
   uint16_t timeout_counter = 0;
 
-  for (Addr = 0x2D; Addr <= 0x87; Addr++) {
-    status |= VL53L1_WrByte(dev, Addr, VL51L1X_DEFAULT_CONFIGURATION[Addr - 0x2D]);
+  for (addr = 0x2D; addr <= 0x87; addr++) {
+    status |= VL53L1_WrByte(dev, addr, VL51L1X_DEFAULT_CONFIGURATION[addr - 0x2D]);
   }
   status |= VL53L1X_StartRanging(dev);
   while (tmp == 0) {
@@ -212,23 +162,13 @@ VL53L1X_ERROR VL53L1X_ClearInterrupt(uint16_t dev) {
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_SetInterruptPolarity(uint16_t dev, uint8_t NewPolarity) {
-  uint8_t Temp;
+VL53L1X_ERROR VL53L1X_GetInterruptPolarity(uint16_t dev, uint8_t *interrupt_polarity) {
+  uint8_t temp = 0;
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1_RdByte(dev, GPIO_HV_MUX__CTRL, &Temp);
-  Temp = Temp & 0xEF;
-  status |= VL53L1_WrByte(dev, GPIO_HV_MUX__CTRL, Temp | (!(NewPolarity & 1)) << 4);
-  return status;
-}
-
-VL53L1X_ERROR VL53L1X_GetInterruptPolarity(uint16_t dev, uint8_t *pInterruptPolarity) {
-  uint8_t Temp;
-  VL53L1X_ERROR status = 0;
-
-  status |= VL53L1_RdByte(dev, GPIO_HV_MUX__CTRL, &Temp);
-  Temp = Temp & 0x10;
-  *pInterruptPolarity = !(Temp >> 4);
+  status |= VL53L1_RdByte(dev, GPIO_HV_MUX__CTRL, &temp);
+  temp = temp & 0x10;
+  *interrupt_polarity = !(temp >> 4);
   return status;
 }
 
@@ -246,32 +186,35 @@ VL53L1X_ERROR VL53L1X_StopRanging(uint16_t dev) {
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_CheckForDataReady(uint16_t dev, uint8_t *isDataReady) {
-  uint8_t Temp;
-  uint8_t IntPol;
+VL53L1X_ERROR VL53L1X_CheckForDataReady(uint16_t dev, uint8_t *is_data_ready) {
+  uint8_t temp;
+  uint8_t interrupt_polarity;
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1X_GetInterruptPolarity(dev, &IntPol);
-  status |= VL53L1_RdByte(dev, GPIO__TIO_HV_STATUS, &Temp);
+  status |= VL53L1X_GetInterruptPolarity(dev, &interrupt_polarity);
+  status |= VL53L1_RdByte(dev, GPIO__TIO_HV_STATUS, &temp);
   /* Read in the register to check if a new value is available */
   if (status == 0) {
-    if ((Temp & 1) == IntPol)
-      *isDataReady = 1;
-    else
-      *isDataReady = 0;
+    if ((temp & 1) == interrupt_polarity) {
+      *is_data_ready = 1;
+    }
+    else {
+      *is_data_ready = 0;
+    }
   }
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t TimingBudgetInMs) {
-  uint16_t DM;
+VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t timing_budget_in_ms) {
+  uint16_t distance_mode;
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1X_GetDistanceMode(dev, &DM);
-  if (DM == 0)
+  status |= VL53L1X_GetDistanceMode(dev, &distance_mode);
+  if (distance_mode == 0) {
     return 1;
-  else if (DM == 1) { /* Short DistanceMode */
-    switch (TimingBudgetInMs) {
+  }
+  else if (distance_mode == 1) { /* Short DistanceMode */
+    switch (timing_budget_in_ms) {
       case 15: /* only available in short distance mode */
         VL53L1_WrWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_A_HI, 0x01D);
         VL53L1_WrWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_B_HI, 0x0027);
@@ -305,7 +248,7 @@ VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t TimingBudgetInM
         break;
     }
   } else {
-    switch (TimingBudgetInMs) {
+    switch (timing_budget_in_ms) {
       case 20:
         VL53L1_WrWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_A_HI, 0x001E);
         VL53L1_WrWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_B_HI, 0x0022);
@@ -338,54 +281,54 @@ VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t TimingBudgetInM
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_GetTimingBudgetInMs(uint16_t dev, uint16_t *pTimingBudget) {
-  uint16_t Temp;
+VL53L1X_ERROR VL53L1X_GetTimingBudgetInMs(uint16_t dev, uint16_t *timing_budget) {
+  uint16_t temp;
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1_RdWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_A_HI, &Temp);
-  switch (Temp) {
+  status |= VL53L1_RdWord(dev, RANGE_CONFIG__TIMEOUT_MACROP_A_HI, &temp);
+  switch (temp) {
     case 0x001D:
-      *pTimingBudget = 15;
+      *timing_budget = 15;
       break;
     case 0x0051:
     case 0x001E:
-      *pTimingBudget = 20;
+      *timing_budget = 20;
       break;
     case 0x00D6:
     case 0x0060:
-      *pTimingBudget = 33;
+      *timing_budget = 33;
       break;
     case 0x1AE:
     case 0x00AD:
-      *pTimingBudget = 50;
+      *timing_budget = 50;
       break;
     case 0x02E1:
     case 0x01CC:
-      *pTimingBudget = 100;
+      *timing_budget = 100;
       break;
     case 0x03E1:
     case 0x02D9:
-      *pTimingBudget = 200;
+      *timing_budget = 200;
       break;
     case 0x0591:
     case 0x048F:
-      *pTimingBudget = 500;
+      *timing_budget = 500;
       break;
     default:
       status = 1;
-      *pTimingBudget = 0;
+      *timing_budget = 0;
   }
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_SetDistanceMode(uint16_t dev, uint16_t DM) {
-  uint16_t TB;
+VL53L1X_ERROR VL53L1X_SetDistanceMode(uint16_t dev, uint16_t distance_mode) {
+  uint16_t timing_budget;
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1X_GetTimingBudgetInMs(dev, &TB);
+  status |= VL53L1X_GetTimingBudgetInMs(dev, &timing_budget);
   if (status != 0)
     return 1;
-  switch (DM) {
+  switch (distance_mode) {
     case 1:
       status = VL53L1_WrByte(dev, PHASECAL_CONFIG__TIMEOUT_MACROP, 0x14);
       status = VL53L1_WrByte(dev, RANGE_CONFIG__VCSEL_PERIOD_A, 0x07);
@@ -408,45 +351,30 @@ VL53L1X_ERROR VL53L1X_SetDistanceMode(uint16_t dev, uint16_t DM) {
   }
 
   if (status == 0)
-    status |= VL53L1X_SetTimingBudgetInMs(dev, TB);
+    status |= VL53L1X_SetTimingBudgetInMs(dev, timing_budget);
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_GetDistanceMode(uint16_t dev, uint16_t *DM) {
-  uint8_t TempDM, status = 0;
+VL53L1X_ERROR VL53L1X_GetDistanceMode(uint16_t dev, uint16_t *distance_mode) {
+  uint8_t temp, status = 0;
 
-  status |= VL53L1_RdByte(dev, PHASECAL_CONFIG__TIMEOUT_MACROP, &TempDM);
-  if (TempDM == 0x14)
-    *DM = 1;
-  if (TempDM == 0x0A)
-    *DM = 2;
+  status |= VL53L1_RdByte(dev, PHASECAL_CONFIG__TIMEOUT_MACROP, &temp);
+  if (temp == 0x14)
+    *distance_mode = 1;
+  if (temp == 0x0A)
+    *distance_mode = 2;
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_SetInterMeasurementInMs(uint16_t dev, uint32_t InterMeasMs) {
-  uint16_t ClockPLL;
+VL53L1X_ERROR VL53L1X_SetInterMeasurementInMs(uint16_t dev, uint32_t intermeasurement_in_ms) {
+  uint16_t clock_pll = 0;
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__OSC_CALIBRATE_VAL, &ClockPLL);
-  ClockPLL = ClockPLL & 0x3FF;
-  VL53L1_WrDWord(dev, VL53L1_SYSTEM__INTERMEASUREMENT_PERIOD, (uint32_t) (ClockPLL * InterMeasMs * 1.075));
+  status |= VL53L1_RdWord(dev, VL53L1_RESULT__OSC_CALIBRATE_VAL, &clock_pll);
+  clock_pll = clock_pll & 0x3FF;
+  VL53L1_WrDWord(dev, VL53L1_SYSTEM__INTERMEASUREMENT_PERIOD, (uint32_t) (clock_pll * intermeasurement_in_ms * 1.075));
   return status;
 }
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetInterMeasurementInMs(uint16_t dev, uint16_t *pIM) {
-  uint16_t ClockPLL;
-  VL53L1X_ERROR status = 0;
-  uint32_t tmp;
-
-  status |= VL53L1_RdDWord(dev, VL53L1_SYSTEM__INTERMEASUREMENT_PERIOD, &tmp);
-  *pIM = (uint16_t) tmp;
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__OSC_CALIBRATE_VAL, &ClockPLL);
-  ClockPLL = ClockPLL & 0x3FF;
-  *pIM = (uint16_t) (*pIM / (ClockPLL * 1.065));
-  return status;
-}
-#endif
 
 VL53L1X_ERROR VL53L1X_BootState(uint16_t dev, uint8_t *state) {
   VL53L1X_ERROR status = 0;
@@ -456,18 +384,6 @@ VL53L1X_ERROR VL53L1X_BootState(uint16_t dev, uint8_t *state) {
   *state = tmp;
   return status;
 }
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetSensorId(uint16_t dev, uint16_t *sensorId) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp = 0;
-
-  status |= VL53L1_RdWord(dev, VL53L1_IDENTIFICATION__MODEL_ID, &tmp);
-  *sensorId = tmp;
-  return status;
-}
-#endif
-
 VL53L1X_ERROR VL53L1X_GetDistance(uint16_t dev, uint16_t *distance) {
   VL53L1X_ERROR status = 0;
   uint16_t tmp;
@@ -477,267 +393,94 @@ VL53L1X_ERROR VL53L1X_GetDistance(uint16_t dev, uint16_t *distance) {
   return status;
 }
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetSignalPerSpad(uint16_t dev, uint16_t *signalRate) {
+VL53L1X_ERROR VL53L1X_GetRangeStatus(uint16_t dev, uint8_t *range_status) {
   VL53L1X_ERROR status = 0;
-  uint16_t SpNb = 1, signal;
+  uint8_t temp = 0;
 
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__PEAK_SIGNAL_COUNT_RATE_CROSSTALK_CORRECTED_MCPS_SD0, &signal);
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__DSS_ACTUAL_EFFECTIVE_SPADS_SD0, &SpNb);
-  *signalRate = (uint16_t) (200.0 * signal / SpNb);
+  *range_status = 255;
+  status |= VL53L1_RdByte(dev, VL53L1_RESULT__RANGE_STATUS, &temp);
+  temp = temp & 0x1F;
+  if (temp < 24)
+    *range_status = STATUS_RTN[temp];
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_GetAmbientPerSpad(uint16_t dev, uint16_t *ambPerSp) {
+VL53L1X_ERROR VL53L1X_SetOffset(uint16_t dev, int16_t offset_value) {
   VL53L1X_ERROR status = 0;
-  uint16_t AmbientRate, SpNb = 1;
+  int16_t temp = 0;
 
-  status |= VL53L1_RdWord(dev, RESULT__AMBIENT_COUNT_RATE_MCPS_SD, &AmbientRate);
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__DSS_ACTUAL_EFFECTIVE_SPADS_SD0, &SpNb);
-  *ambPerSp = (uint16_t) (200.0 * AmbientRate / SpNb);
-  return status;
-}
-
-VL53L1X_ERROR VL53L1X_GetSignalRate(uint16_t dev, uint16_t *signal) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__PEAK_SIGNAL_COUNT_RATE_CROSSTALK_CORRECTED_MCPS_SD0, &tmp);
-  *signal = tmp * 8;
-  return status;
-}
-
-VL53L1X_ERROR VL53L1X_GetSpadNb(uint16_t dev, uint16_t *spNb) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, VL53L1_RESULT__DSS_ACTUAL_EFFECTIVE_SPADS_SD0, &tmp);
-  *spNb = tmp >> 8;
-  return status;
-}
-
-VL53L1X_ERROR VL53L1X_GetAmbientRate(uint16_t dev, uint16_t *ambRate) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, RESULT__AMBIENT_COUNT_RATE_MCPS_SD, &tmp);
-  *ambRate = tmp * 8;
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_GetRangeStatus(uint16_t dev, uint8_t *rangeStatus) {
-  VL53L1X_ERROR status = 0;
-  uint8_t RgSt;
-
-  *rangeStatus = 255;
-  status |= VL53L1_RdByte(dev, VL53L1_RESULT__RANGE_STATUS, &RgSt);
-  RgSt = RgSt & 0x1F;
-  if (RgSt < 24)
-    *rangeStatus = status_rtn[RgSt];
-  return status;
-}
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetResult(uint16_t dev, VL53L1X_Result_t *pResult) {
-  VL53L1X_ERROR status = 0;
-  uint8_t Temp[17];
-  uint8_t RgSt = 255;
-
-  status |= VL53L1_ReadMulti(dev, VL53L1_RESULT__RANGE_STATUS, Temp, 17);
-  RgSt = Temp[0] & 0x1F;
-  if (RgSt < 24)
-    RgSt = status_rtn[RgSt];
-  pResult->Status = RgSt;
-  pResult->Ambient = (Temp[7] << 8 | Temp[8]) * 8;
-  pResult->NumSPADs = Temp[3];
-  pResult->SigPerSPAD = (Temp[15] << 8 | Temp[16]) * 8;
-  pResult->Distance = Temp[13] << 8 | Temp[14];
-
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_SetOffset(uint16_t dev, int16_t OffsetValue) {
-  VL53L1X_ERROR status = 0;
-  int16_t Temp;
-
-  Temp = (OffsetValue * 4);
-  status |= VL53L1_WrWord(dev, ALGO__PART_TO_PART_RANGE_OFFSET_MM, (uint16_t) Temp);
+  temp = (offset_value * 4);
+  status |= VL53L1_WrWord(dev, ALGO__PART_TO_PART_RANGE_OFFSET_MM, (uint16_t) temp);
   status |= VL53L1_WrWord(dev, MM_CONFIG__INNER_OFFSET_MM, 0x0);
   status |= VL53L1_WrWord(dev, MM_CONFIG__OUTER_OFFSET_MM, 0x0);
   return status;
 }
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetOffset(uint16_t dev, int16_t *offset) {
-  VL53L1X_ERROR status = 0;
-  uint16_t Temp;
-
-  status |= VL53L1_RdWord(dev, ALGO__PART_TO_PART_RANGE_OFFSET_MM, &Temp);
-  Temp = Temp << 3;
-  Temp = Temp >> 5;
-  *offset = (int16_t) (Temp);
-
-  if (*offset > 1024) {
-    *offset = *offset - 2048;
-  }
-
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_SetXtalk(uint16_t dev, uint16_t XtalkValue) {
+VL53L1X_ERROR VL53L1X_SetXtalk(uint16_t dev, uint16_t xtalk_value) {
   /* XTalkValue in count per second to avoid float type */
   VL53L1X_ERROR status = 0;
 
   status |= VL53L1_WrWord(dev, ALGO__CROSSTALK_COMPENSATION_X_PLANE_GRADIENT_KCPS, 0x0000);
   status |= VL53L1_WrWord(dev, ALGO__CROSSTALK_COMPENSATION_Y_PLANE_GRADIENT_KCPS, 0x0000);
   status |= VL53L1_WrWord(dev, ALGO__CROSSTALK_COMPENSATION_PLANE_OFFSET_KCPS,
-                          (XtalkValue << 9) / 1000); /* * << 9 (7.9 format) and /1000 to convert cps to kpcs */
+                          (xtalk_value << 9) / 1000); /* * << 9 (7.9 format) and /1000 to convert cps to kpcs */
   return status;
 }
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetXtalk(uint16_t dev, uint16_t *xtalk) {
+VL53L1X_ERROR VL53L1X_SetDistanceThreshold(uint16_t dev, uint16_t threshold_low, uint16_t threshold_high, uint8_t window) {
   VL53L1X_ERROR status = 0;
+  uint8_t temp = 0;
 
-  status |= VL53L1_RdWord(dev, ALGO__CROSSTALK_COMPENSATION_PLANE_OFFSET_KCPS, xtalk);
-  *xtalk = (uint16_t) ((*xtalk * 1000) >> 9); /* * 1000 to convert kcps to cps and >> 9 (7.9 format) */
+  status |= VL53L1_RdByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, &temp);
+  temp = temp & (~0x6F);
+  temp = temp | window;
+  
+  status = VL53L1_WrByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, temp);
+  status |= VL53L1_WrWord(dev, SYSTEM__THRESH_HIGH, threshold_high);
+  status |= VL53L1_WrWord(dev, SYSTEM__THRESH_LOW, threshold_low);
   return status;
 }
-#endif
 
-VL53L1X_ERROR VL53L1X_SetDistanceThreshold(uint16_t dev, uint16_t ThreshLow, uint16_t ThreshHigh, uint8_t Window,
-                                           uint8_t IntOnNoTarget) {
+VL53L1X_ERROR VL53L1X_SetROICenter(uint16_t dev, uint8_t roi_center) {
   VL53L1X_ERROR status = 0;
-  uint8_t Temp = 0;
+  status |= VL53L1_WrByte(dev, ROI_CONFIG__USER_ROI_CENTRE_SPAD, roi_center);
+  return status;
+}
 
-  status |= VL53L1_RdByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, &Temp);
-  Temp = Temp & (~0x6F);
-  Temp = Temp | Window;
-  if (IntOnNoTarget == 0) {
-    status = VL53L1_WrByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, Temp);
-  } else {
-    status = VL53L1_WrByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, (Temp | 0x40));
+VL53L1X_ERROR VL53L1X_SetROI(uint16_t dev, uint16_t x, uint16_t y) {
+  uint8_t optical_center = 0;
+  VL53L1X_ERROR status = 0;
+
+  status |= VL53L1_RdByte(dev, VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD, &optical_center);
+  if (x > 16)
+    x = 16;
+  if (y > 16)
+    y = 16;
+  if (x > 10 || y > 10) {
+    optical_center = 199;
   }
-  status |= VL53L1_WrWord(dev, SYSTEM__THRESH_HIGH, ThreshHigh);
-  status |= VL53L1_WrWord(dev, SYSTEM__THRESH_LOW, ThreshLow);
+  status |= VL53L1_WrByte(dev, ROI_CONFIG__USER_ROI_CENTRE_SPAD, optical_center);
+  status |= VL53L1_WrByte(dev, ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, (y - 1) << 4 | (x - 1));
   return status;
 }
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetDistanceThresholdWindow(uint16_t dev, uint16_t *window) {
+VL53L1X_ERROR VL53L1X_SetSignalThreshold(uint16_t dev, uint16_t signal_threshold) {
   VL53L1X_ERROR status = 0;
-  uint8_t tmp;
-  status |= VL53L1_RdByte(dev, SYSTEM__INTERRUPT_CONFIG_GPIO, &tmp);
-  *window = (uint16_t) (tmp & 0x7);
+
+  status |= VL53L1_WrWord(dev, RANGE_CONFIG__MIN_COUNT_RATE_RTN_LIMIT_MCPS, signal_threshold >> 3);
   return status;
 }
 
-VL53L1X_ERROR VL53L1X_GetDistanceThresholdLow(uint16_t dev, uint16_t *low) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, SYSTEM__THRESH_LOW, &tmp);
-  *low = tmp;
-  return status;
-}
-
-VL53L1X_ERROR VL53L1X_GetDistanceThresholdHigh(uint16_t dev, uint16_t *high) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, SYSTEM__THRESH_HIGH, &tmp);
-  *high = tmp;
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_SetROICenter(uint16_t dev, uint8_t ROICenter) {
-  VL53L1X_ERROR status = 0;
-  status |= VL53L1_WrByte(dev, ROI_CONFIG__USER_ROI_CENTRE_SPAD, ROICenter);
-  return status;
-}
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetROICenter(uint16_t dev, uint8_t *ROICenter) {
-  VL53L1X_ERROR status = 0;
-  uint8_t tmp;
-  status |= VL53L1_RdByte(dev, ROI_CONFIG__USER_ROI_CENTRE_SPAD, &tmp);
-  *ROICenter = tmp;
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_SetROI(uint16_t dev, uint16_t X, uint16_t Y) {
-  uint8_t OpticalCenter;
+VL53L1X_ERROR VL53L1X_SetSigmaThreshold(uint16_t dev, uint16_t sigma_threshold) {
   VL53L1X_ERROR status = 0;
 
-  status |= VL53L1_RdByte(dev, VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD, &OpticalCenter);
-  if (X > 16)
-    X = 16;
-  if (Y > 16)
-    Y = 16;
-  if (X > 10 || Y > 10) {
-    OpticalCenter = 199;
-  }
-  status |= VL53L1_WrByte(dev, ROI_CONFIG__USER_ROI_CENTRE_SPAD, OpticalCenter);
-  status |= VL53L1_WrByte(dev, ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, (Y - 1) << 4 | (X - 1));
-  return status;
-}
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetROI_XY(uint16_t dev, uint16_t *ROI_X, uint16_t *ROI_Y) {
-  VL53L1X_ERROR status = 0;
-  uint8_t tmp;
-
-  status = VL53L1_RdByte(dev, ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, &tmp);
-  *ROI_X = ((uint16_t) tmp & 0x0F) + 1;
-  *ROI_Y = (((uint16_t) tmp & 0xF0) >> 4) + 1;
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_SetSignalThreshold(uint16_t dev, uint16_t Signal) {
-  VL53L1X_ERROR status = 0;
-
-  status |= VL53L1_WrWord(dev, RANGE_CONFIG__MIN_COUNT_RATE_RTN_LIMIT_MCPS, Signal >> 3);
-  return status;
-}
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetSignalThreshold(uint16_t dev, uint16_t *signal) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, RANGE_CONFIG__MIN_COUNT_RATE_RTN_LIMIT_MCPS, &tmp);
-  *signal = tmp << 3;
-  return status;
-}
-#endif
-
-VL53L1X_ERROR VL53L1X_SetSigmaThreshold(uint16_t dev, uint16_t Sigma) {
-  VL53L1X_ERROR status = 0;
-
-  if (Sigma > (0xFFFF >> 2)) {
+  if (sigma_threshold > (0xFFFF >> 2)) {
     return 1;
   }
   /* 16 bits register 14.2 format */
-  status |= VL53L1_WrWord(dev, RANGE_CONFIG__SIGMA_THRESH, Sigma << 2);
+  status |= VL53L1_WrWord(dev, RANGE_CONFIG__SIGMA_THRESH, sigma_threshold << 2);
   return status;
 }
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-VL53L1X_ERROR VL53L1X_GetSigmaThreshold(uint16_t dev, uint16_t *sigma) {
-  VL53L1X_ERROR status = 0;
-  uint16_t tmp;
-
-  status |= VL53L1_RdWord(dev, RANGE_CONFIG__SIGMA_THRESH, &tmp);
-  *sigma = tmp >> 2;
-  return status;
-}
-#endif
 
 VL53L1X_ERROR VL53L1X_StartTemperatureUpdate(uint16_t dev) {
   VL53L1X_ERROR status = 0;

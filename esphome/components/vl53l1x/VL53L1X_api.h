@@ -77,39 +77,6 @@ const uint16_t VL53L1_FIRMWARE__SYSTEM_STATUS = 0x00E5;
 const uint16_t VL53L1_IDENTIFICATION__MODEL_ID = 0x010F;
 const uint16_t VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD = 0x013E;
 
-/****************************************
- * PRIVATE define do not edit
- ****************************************/
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-
-/**
- *  @brief defines SW Version
- */
-typedef struct {
-  uint8_t major;     /*!< major number */
-  uint8_t minor;     /*!< minor number */
-  uint8_t build;     /*!< build number */
-  uint32_t revision; /*!< revision number */
-} VL53L1X_Version_t;
-
-/**
- *  @brief defines packed reading results type
- */
-typedef struct {
-  uint8_t Status;      /*!< ResultStatus */
-  uint16_t Distance;   /*!< ResultDistance */
-  uint16_t Ambient;    /*!< ResultAmbient */
-  uint16_t SigPerSPAD; /*!< ResultSignalPerSPAD */
-  uint16_t NumSPADs;   /*!< ResultNumSPADs */
-} VL53L1X_Result_t;
-
-/**
- * @brief This function returns the SW driver version
- */
-VL53L1X_ERROR VL53L1X_GetSWVersion(VL53L1X_Version_t *pVersion);
-#endif
-
 /**
  * @brief This function sets the sensor I2C address used in case multiple devices application, default address 0x52
  */
@@ -129,19 +96,6 @@ VL53L1X_ERROR VL53L1X_SensorInit(uint16_t dev);
 VL53L1X_ERROR VL53L1X_ClearInterrupt(uint16_t dev);
 
 /**
- * @brief This function programs the interrupt polarity\n
- * 1=active high (default), 0=active low
- */
-VL53L1X_ERROR VL53L1X_SetInterruptPolarity(uint16_t dev, uint8_t IntPol);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the current interrupt polarity\n
- * 1=active high (default), 0=active low
- */
-VL53L1X_ERROR VL53L1X_GetInterruptPolarity(uint16_t dev, uint8_t *pIntPol);
-#endif
-/**
  * @brief This function starts the ranging distance operation\n
  * The ranging operation is continuous. The clear interrupt has to be done after each get data to allow the interrupt to
  * raise when the next data is ready\n 1=active high (default), 0=active low, use SetInterruptPolarity() to change the
@@ -156,131 +110,62 @@ VL53L1X_ERROR VL53L1X_StopRanging(uint16_t dev);
 
 /**
  * @brief This function checks if the new ranging data is available by polling the dedicated register.
- * @param : isDataReady==0 -> not ready; isDataReady==1 -> ready
+ * @param : is_data_ready==0 -> not ready; is_data_ready==1 -> ready
  */
-VL53L1X_ERROR VL53L1X_CheckForDataReady(uint16_t dev, uint8_t *isDataReady);
+VL53L1X_ERROR VL53L1X_CheckForDataReady(uint16_t dev, uint8_t *is_data_ready);
 
 /**
  * @brief This function programs the timing budget in ms.
  * Predefined values = 15, 20, 33, 50, 100(default), 200, 500.
  */
-VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t TimingBudgetInMs);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the current timing budget in ms.
- */
-VL53L1X_ERROR VL53L1X_GetTimingBudgetInMs(uint16_t dev, uint16_t *pTimingBudgetInMs);
-#endif
+VL53L1X_ERROR VL53L1X_SetTimingBudgetInMs(uint16_t dev, uint16_t timing_budget_in_ms);
 
 /**
  * @brief This function programs the distance mode (1=short, 2=long(default)).
  * Short mode max distance is limited to 1.3 m but better ambient immunity.\n
  * Long mode can range up to 4 m in the dark with 200 ms timing budget.
  */
-VL53L1X_ERROR VL53L1X_SetDistanceMode(uint16_t dev, uint16_t DistanceMode);
+VL53L1X_ERROR VL53L1X_SetDistanceMode(uint16_t dev, uint16_t distance_mode);
 
 /**
  * @brief This function returns the current distance mode (1=short, 2=long).
  */
-VL53L1X_ERROR VL53L1X_GetDistanceMode(uint16_t dev, uint16_t *pDistanceMode);
+VL53L1X_ERROR VL53L1X_GetDistanceMode(uint16_t dev, uint16_t *distance_mode);
 
 /**
  * @brief This function programs the Intermeasurement period in ms\n
  * Intermeasurement period must be >/= timing budget. This condition is not checked by the API,
  * the customer has the duty to check the condition. Default = 100 ms
  */
-VL53L1X_ERROR VL53L1X_SetInterMeasurementInMs(uint16_t dev, uint32_t InterMeasurementInMs);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the Intermeasurement period in ms.
- */
-VL53L1X_ERROR VL53L1X_GetInterMeasurementInMs(uint16_t dev, uint16_t *pIM);
-#endif
+VL53L1X_ERROR VL53L1X_SetInterMeasurementInMs(uint16_t dev, uint32_t intermeasurement_in_ms);
 
 /**
  * @brief This function returns the boot state of the device (1:booted, 0:not booted)
  */
 VL53L1X_ERROR VL53L1X_BootState(uint16_t dev, uint8_t *state);
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the sensor id, sensor Id must be 0xEEAC
- */
-VL53L1X_ERROR VL53L1X_GetSensorId(uint16_t dev, uint16_t *id);
-#endif
-
 /**
  * @brief This function returns the distance measured by the sensor in mm
  */
 VL53L1X_ERROR VL53L1X_GetDistance(uint16_t dev, uint16_t *distance);
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the returned signal per SPAD in kcps/SPAD.
- * With kcps stands for Kilo Count Per Second
- */
-VL53L1X_ERROR VL53L1X_GetSignalPerSpad(uint16_t dev, uint16_t *signalPerSp);
-
-/**
- * @brief This function returns the ambient per SPAD in kcps/SPAD
- */
-VL53L1X_ERROR VL53L1X_GetAmbientPerSpad(uint16_t dev, uint16_t *amb);
-
-/**
- * @brief This function returns the returned signal in kcps.
- */
-VL53L1X_ERROR VL53L1X_GetSignalRate(uint16_t dev, uint16_t *signalRate);
-
-/**
- * @brief This function returns the current number of enabled SPADs
- */
-VL53L1X_ERROR VL53L1X_GetSpadNb(uint16_t dev, uint16_t *spNb);
-
-/**
- * @brief This function returns the ambient rate in kcps
- */
-VL53L1X_ERROR VL53L1X_GetAmbientRate(uint16_t dev, uint16_t *ambRate);
-#endif
 /**
  * @brief This function returns the ranging status error \n
  * (0:no error, 1:sigma failed, 2:signal failed, ..., 7:wrap-around)
  */
-VL53L1X_ERROR VL53L1X_GetRangeStatus(uint16_t dev, uint8_t *rangeStatus);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns measurements and the range status in a single read access
- */
-VL53L1X_ERROR VL53L1X_GetResult(uint16_t dev, VL53L1X_Result_t *pResult);
-#endif
+VL53L1X_ERROR VL53L1X_GetRangeStatus(uint16_t dev, uint8_t *range_status);
 
 /**
  * @brief This function programs the offset correction in mm
- * @param OffsetValue:the offset correction value to program in mm
+ * @param offset_value:the offset correction value to program in mm
  */
-VL53L1X_ERROR VL53L1X_SetOffset(uint16_t dev, int16_t OffsetValue);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the programmed offset correction value in mm
- */
-VL53L1X_ERROR VL53L1X_GetOffset(uint16_t dev, int16_t *Offset);
-#endif
+VL53L1X_ERROR VL53L1X_SetOffset(uint16_t dev, int16_t offset_value);
 
 /**
  * @brief This function programs the xtalk correction value in cps (Count Per Second).\n
  * This is the number of photons reflected back from the cover glass in cps.
  */
-VL53L1X_ERROR VL53L1X_SetXtalk(uint16_t dev, uint16_t XtalkValue);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the current programmed xtalk correction value in cps
- */
-VL53L1X_ERROR VL53L1X_GetXtalk(uint16_t dev, uint16_t *Xtalk);
-#endif
+VL53L1X_ERROR VL53L1X_SetXtalk(uint16_t dev, uint16_t xtalk_value);
 
 /**
  * @brief This function programs the threshold detection mode\n
@@ -298,76 +183,29 @@ VL53L1X_ERROR VL53L1X_GetXtalk(uint16_t dev, uint16_t *Xtalk);
 VL53L1X_ERROR VL53L1X_SetDistanceThreshold(uint16_t dev, uint16_t ThreshLow, uint16_t ThreshHigh, uint8_t Window,
                                            uint8_t IntOnNoTarget);
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the window detection mode (0=below; 1=above; 2=out; 3=in)
- */
-VL53L1X_ERROR VL53L1X_GetDistanceThresholdWindow(uint16_t dev, uint16_t *window);
-
-/**
- * @brief This function returns the low threshold in mm
- */
-VL53L1X_ERROR VL53L1X_GetDistanceThresholdLow(uint16_t dev, uint16_t *low);
-
-/**
- * @brief This function returns the high threshold in mm
- */
-VL53L1X_ERROR VL53L1X_GetDistanceThresholdHigh(uint16_t dev, uint16_t *high);
-
-#endif
-
 /**
  * @brief This function programs the ROI (Region of Interest)\n
  * The ROI position is centered, only the ROI size can be reprogrammed.\n
  * The smallest acceptable ROI size = 4\n
- * @param X:ROI Width; Y=ROI Height
+ * @param x:ROI Width; y=ROI Height
  */
-VL53L1X_ERROR VL53L1X_SetROI(uint16_t dev, uint16_t X, uint16_t Y);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- *@brief This function returns width X and height Y
- */
-VL53L1X_ERROR VL53L1X_GetROI_XY(uint16_t dev, uint16_t *ROI_X, uint16_t *ROI_Y);
-
-#endif
+VL53L1X_ERROR VL53L1X_SetROI(uint16_t dev, uint16_t x, uint16_t y);
 
 /**
  *@brief This function programs the new user ROI center, please to be aware that there is no check in this function.
  *if the ROI center vs ROI size is out of border the ranging function return error #13
  */
-VL53L1X_ERROR VL53L1X_SetROICenter(uint16_t dev, uint8_t ROICenter);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- *@brief This function returns the current user ROI center
- */
-VL53L1X_ERROR VL53L1X_GetROICenter(uint16_t dev, uint8_t *ROICenter);
-#endif
+VL53L1X_ERROR VL53L1X_SetROICenter(uint16_t dev, uint8_t roi_center);
 
 /**
  * @brief This function programs a new signal threshold in kcps (default=1024 kcps\n
  */
 VL53L1X_ERROR VL53L1X_SetSignalThreshold(uint16_t dev, uint16_t signal);
 
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the current signal threshold in kcps
- */
-VL53L1X_ERROR VL53L1X_GetSignalThreshold(uint16_t dev, uint16_t *signal);
-#endif
-
 /**
  * @brief This function programs a new sigma threshold in mm (default=15 mm)
  */
 VL53L1X_ERROR VL53L1X_SetSigmaThreshold(uint16_t dev, uint16_t sigma);
-
-#ifdef VL53L1X_INCLUDE_READ_FUNCTIONS
-/**
- * @brief This function returns the current sigma threshold in mm
- */
-VL53L1X_ERROR VL53L1X_GetSigmaThreshold(uint16_t dev, uint16_t *signal);
-#endif
 
 /**
  * @brief This function performs the temperature calibration.

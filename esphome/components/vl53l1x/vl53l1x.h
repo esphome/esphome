@@ -62,25 +62,25 @@ class VL53L1xSensor : public sensor::Sensor, public Component, public i2c::I2CDe
 
  protected:
   /** Enable the device. Will pull the enable pin high, if configured. */
-  bool enable();
+  bool enable_();
   /** Disable the device. Will pull the enable pin low, if configured. */
-  void disable();
+  void disable_();
 
   bool init_sensor_();
-  void setup_enable_pin();
+  void setup_enable_pin_();
 
   enum ReadResult { SUCCESS, FAILURE, RETRY };
   ReadResult read_distance_mm_(uint16_t &distance_mm);
 
-  bool apply_distance_mode();
-  bool apply_timing_budget();
-  bool apply_update_interval();
-  bool apply_distance_threshold();
-  bool apply_roi();
-  bool apply_offset();
-  bool apply_xtalk_correction();
-  bool apply_sigma_threshold();
-  bool apply_signal_threshold();
+  bool apply_distance_mode_();
+  bool apply_timing_budget_();
+  bool apply_update_interval_();
+  bool apply_distance_threshold_();
+  bool apply_roi_();
+  bool apply_offset_();
+  bool apply_xtalk_correction_();
+  bool apply_sigma_threshold_();
+  bool apply_signal_threshold_();
 
   GPIOPin *enable_pin_{nullptr};
   InternalGPIOPin *interrupt_pin_{nullptr};
