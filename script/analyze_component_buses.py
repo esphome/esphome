@@ -222,18 +222,25 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
                 break
 
     # Extract common bus packages
+    if not isinstance(data, dict) or "packages" not in data:
+        return result
+
+    packages = data["packages"]
+    if not isinstance(packages, dict):
+        return result
+
     valid_buses = get_common_bus_packages()
-    if isinstance(data, dict) and "packages" in data:
-        packages = data["packages"]
-        if isinstance(packages, dict):
-            for pkg_name in packages:
-                if pkg_name in valid_buses:
-                    result["buses"].add(pkg_name)
-                    # Add any package dependencies (e.g., modbus includes uart)
-                    if pkg_name in PACKAGE_DEPENDENCIES:
-                        for dep in PACKAGE_DEPENDENCIES[pkg_name]:
-                            if dep in valid_buses:
-                                result["buses"].add(dep)
+    for pkg_name in packages:
+        if pkg_name not in valid_buses:
+            continue
+        result["buses"].add(pkg_name)
+        # Add any package dependencies (e.g., modbus includes uart)
+        if pkg_name not in PACKAGE_DEPENDENCIES:
+            continue
+        for dep in PACKAGE_DEPENDENCIES[pkg_name]:
+            if dep not in valid_buses:
+                continue
+            result["buses"].add(dep)
 
     return result
 
