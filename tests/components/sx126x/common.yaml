@@ -1,8 +1,3 @@
-spi:
-  clk_pin: ${clk_pin}
-  mosi_pin: ${mosi_pin}
-  miso_pin: ${miso_pin}
-
 sx126x:
   dio1_pin: ${dio1_pin}
   cs_pin: ${cs_pin}
@@ -11,6 +6,10 @@ sx126x:
   pa_power: 3
   bandwidth: 125_0kHz
   crc_enable: true
+  crc_initial: 0x1D0F
+  crc_polynomial: 0x1021
+  crc_size: 2
+  crc_inverted: true
   frequency: 433920000
   modulation: LORA
   rx_start: true

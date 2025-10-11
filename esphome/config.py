@@ -32,7 +32,7 @@ from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
-from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +67,31 @@ ConfigPath = list[str | int]
 path_context = contextvars.ContextVar("Config path")
 
 
+def _add_auto_load_steps(result: Config, loads: list[str]) -> None:
+    """Add AutoLoadValidationStep for each component in loads that isn't already loaded."""
+    for load in loads:
+        if load not in result:
+            result.add_validation_step(AutoLoadValidationStep(load))
+
+
+def _process_auto_load(
+    result: Config, platform: ComponentManifest, path: ConfigPath
+) -> None:
+    # Process platform's AUTO_LOAD
+    auto_load = platform.auto_load
+    if isinstance(auto_load, list):
+        _add_auto_load_steps(result, auto_load)
+    elif callable(auto_load):
+        import inspect
+
+        if inspect.signature(auto_load).parameters:
+            result.add_validation_step(
+                AddDynamicAutoLoadsValidationStep(path, platform)
+            )
+        else:
+            _add_auto_load_steps(result, auto_load())
+
+
 def _process_platform_config(
     result: Config,
     component_name: str,
@@ -91,9 +116,7 @@ def _process_platform_config(
     CORE.loaded_platforms.add(f"{component_name}/{platform_name}")
 
     # Process platform's AUTO_LOAD
-    for load in platform.auto_load:
-        if load not in result:
-            result.add_validation_step(AutoLoadValidationStep(load))
+    _process_auto_load(result, platform, path)
 
     # Add validation steps for the platform
     p_domain = f"{component_name}.{platform_name}"
@@ -306,7 +329,7 @@ def recursive_check_replaceme(value):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPForceValue):
+    if isinstance(value, ESPLiteralValue):
         pass
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
@@ -314,7 +337,7 @@ def recursive_check_replaceme(value):
             "Please make sure you have replaced all fields from the sample "
             "configuration.\n"
             "If you want to use the literal REPLACEME string, "
-            'please use "!force REPLACEME"'
+            'please use "!literal REPLACEME"'
         )
     return value
 
@@ -382,11 +405,15 @@ class LoadValidationStep(ConfigValidationStep):
             result.add_str_error(f"Component not found: {self.domain}", path)
             return
         CORE.loaded_integrations.add(self.domain)
+        # For platform components, normalize conf before creating MetadataValidationStep
+        if component.is_platform_component:
+            if not self.conf:
+                result[self.domain] = self.conf = []
+            elif not isinstance(self.conf, list):
+                result[self.domain] = self.conf = [self.conf]
 
         # Process AUTO_LOAD
-        for load in component.auto_load:
-            if load not in result:
-                result.add_validation_step(AutoLoadValidationStep(load))
+        _process_auto_load(result, component, path)
 
         result.add_validation_step(
             MetadataValidationStep([self.domain], self.domain, self.conf, component)
@@ -398,12 +425,6 @@ class LoadValidationStep(ConfigValidationStep):
         # This is a platform component, proceed to reading platform entries
         # Remove this is as an output path
         result.remove_output_path([self.domain], self.domain)
-
-        # Ensure conf is a list
-        if not self.conf:
-            result[self.domain] = self.conf = []
-        elif not isinstance(self.conf, list):
-            result[self.domain] = self.conf = [self.conf]
 
         for i, p_config in enumerate(self.conf):
             path = [self.domain, i]
@@ -616,6 +637,34 @@ class MetadataValidationStep(ConfigValidationStep):
             SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
         )
         result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
+
+
+class AddDynamicAutoLoadsValidationStep(ConfigValidationStep):
+    """Add dynamic auto loads step.
+
+    This step is used to auto-load components where one component can alter its
+    AUTO_LOAD based on its configuration.
+    """
+
+    # Has to happen after normal schema is validated and before final schema validation
+    priority = -5.0
+
+    def __init__(self, path: ConfigPath, comp: ComponentManifest) -> None:
+        self.path = path
+        self.comp = comp
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+
+        conf = result.get_nested_item(self.path)
+        with result.catch_error(self.path):
+            auto_load = self.comp.auto_load
+            if not callable(auto_load):
+                return
+            loads = auto_load(conf)
+            _add_auto_load_steps(result, loads)
 
 
 class SchemaValidationStep(ConfigValidationStep):
@@ -846,7 +895,9 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 
 def validate_config(
-    config: dict[str, Any], command_line_substitutions: dict[str, Any]
+    config: dict[str, Any],
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
 ) -> Config:
     result = Config()
 
@@ -859,7 +910,7 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config)
+            config = do_packages_pass(config, skip_update=skip_external_update)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -896,7 +947,7 @@ def validate_config(
 
         result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
         try:
-            do_external_components_pass(config)
+            do_external_components_pass(config, skip_update=skip_external_update)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -1020,7 +1071,9 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
+def _load_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config:
     """Load the configuration file."""
     try:
         config = yaml_util.load_yaml(CORE.config_path)
@@ -1028,7 +1081,7 @@ def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
         raise InvalidYAMLError(e) from e
 
     try:
-        return validate_config(config, command_line_substitutions)
+        return validate_config(config, command_line_substitutions, skip_external_update)
     except EsphomeError:
         raise
     except Exception:
@@ -1036,9 +1089,11 @@ def _load_config(command_line_substitutions: dict[str, Any]) -> Config:
         raise
 
 
-def load_config(command_line_substitutions: dict[str, Any]) -> Config:
+def load_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config:
     try:
-        return _load_config(command_line_substitutions)
+        return _load_config(command_line_substitutions, skip_external_update)
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
@@ -1178,10 +1233,10 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(command_line_substitutions):
+def read_config(command_line_substitutions, skip_external_update=False):
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
-        res = load_config(command_line_substitutions)
+        res = load_config(command_line_substitutions, skip_external_update)
     except EsphomeError as err:
         _LOGGER.error("Error while reading config: %s", err)
         return None

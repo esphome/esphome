@@ -237,6 +237,16 @@ def main() -> None:
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     changed_components = parse_list_components_output(result.stdout)
 
+    # Filter to only components that have test files
+    # Components without tests shouldn't generate CI test jobs
+    tests_dir = Path(root_path) / "tests" / "components"
+    changed_components_with_tests = [
+        component
+        for component in changed_components
+        if (component_test_dir := tests_dir / component).exists()
+        and any(component_test_dir.glob("test.*.yaml"))
+    ]
+
     # Build output
     output: dict[str, Any] = {
         "integration_tests": run_integration,
@@ -244,7 +254,8 @@ def main() -> None:
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
         "changed_components": changed_components,
-        "component_test_count": len(changed_components),
+        "changed_components_with_tests": changed_components_with_tests,
+        "component_test_count": len(changed_components_with_tests),
     }
 
     # Output as JSON

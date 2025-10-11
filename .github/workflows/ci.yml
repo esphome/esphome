@@ -36,18 +36,18 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.6.0
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -70,7 +70,7 @@ jobs:
     if: needs.determine-jobs.outputs.python-linters == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -91,7 +91,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -105,6 +105,7 @@ jobs:
           script/ci-custom.py
           script/build_codeowners.py --check
           script/build_language_schema.py --check
+          script/generate-esp32-boards.py --check
 
   pytest:
     name: Run pytest
@@ -136,7 +137,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         id: restore-python
         uses: ./.github/actions/restore-python
@@ -156,12 +157,12 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.5.0
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Save Python virtual environment cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@v4.2.4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
@@ -176,10 +177,11 @@ jobs:
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
+      changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           # Fetch enough history to find the merge base
           fetch-depth: 2
@@ -203,6 +205,7 @@ jobs:
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
+          echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
 
   integration-tests:
@@ -214,15 +217,15 @@ jobs:
     if: needs.determine-jobs.outputs.integration-tests == 'true'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Set up Python 3.13
         id: python
-        uses: actions/setup-python@v5.6.0
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: "3.13"
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
@@ -287,7 +290,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -300,14 +303,14 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@v4.2.4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
@@ -366,31 +369,32 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: ${{ fromJson(needs.determine-jobs.outputs.changed-components) }}
+        file: ${{ fromJson(needs.determine-jobs.outputs.changed-components-with-tests) }}
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsdl2-dev
+      - name: Cache apt packages
+        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
+        with:
+          packages: libsdl2-dev
+          version: 1.0
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: test_build_components -e config -c ${{ matrix.file }}
+      - name: Validate config for ${{ matrix.file }}
         run: |
           . venv/bin/activate
-          ./script/test_build_components -e config -c ${{ matrix.file }}
-      - name: test_build_components -e compile -c ${{ matrix.file }}
+          python3 script/test_build_components.py -e config -c ${{ matrix.file }}
+      - name: Compile config for ${{ matrix.file }}
         run: |
           . venv/bin/activate
-          ./script/test_build_components -e compile -c ${{ matrix.file }}
+          python3 script/test_build_components.py -e compile -c ${{ matrix.file }}
 
   test-build-components-splitter:
-    name: Split components for testing into 20 groups maximum
+    name: Split components for intelligent grouping (40 weighted per batch)
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -400,15 +404,27 @@ jobs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
-      - name: Split components into 20 groups
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Split components intelligently based on bus configurations
         id: split
         run: |
-          components=$(echo '${{ needs.determine-jobs.outputs.changed-components }}' | jq -c '.[]' | shuf | jq -s -c '[_nwise(20) | join(" ")]')
-          echo "components=$components" >> $GITHUB_OUTPUT
+          . venv/bin/activate
+
+          # Use intelligent splitter that groups components with same bus configs
+          components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
+
+          echo "Splitting components intelligently..."
+          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 40 --output github)
+
+          echo "$output" >> $GITHUB_OUTPUT
 
   test-build-components-split:
-    name: Test split components
+    name: Test components batch (${{ matrix.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -417,39 +433,62 @@ jobs:
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) >= 100
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 5
       matrix:
         components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
     steps:
+      - name: Show disk space
+        run: |
+          echo "Available disk space:"
+          df -h
+
       - name: List components
         run: echo ${{ matrix.components }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsdl2-dev
+      - name: Cache apt packages
+        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
+        with:
+          packages: libsdl2-dev
+          version: 1.0
 
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Validate config
+      - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
-          for component in ${{ matrix.components }}; do
-            ./script/test_build_components -e config -c $component
-          done
-      - name: Compile config
-        run: |
-          . venv/bin/activate
-          mkdir build_cache
-          export PLATFORMIO_BUILD_CACHE_DIR=$PWD/build_cache
-          for component in ${{ matrix.components }}; do
-            ./script/test_build_components -e compile -c $component
-          done
+          # Use /mnt for build files (70GB available vs ~29GB on /)
+          # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
+          sudo mkdir -p /mnt/platformio
+          sudo chown $USER:$USER /mnt/platformio
+          mkdir -p ~/.platformio
+          sudo mount --bind /mnt/platformio ~/.platformio
+
+          # Bind mount test build directory to /mnt
+          sudo mkdir -p /mnt/test_build_components_build
+          sudo chown $USER:$USER /mnt/test_build_components_build
+          mkdir -p tests/test_build_components/build
+          sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+
+          # Convert space-separated components to comma-separated for Python script
+          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+
+          echo "Testing components: $components_csv"
+          echo ""
+
+          # Run config validation with grouping
+          python3 script/test_build_components.py -e config -c "$components_csv" -f
+
+          echo ""
+          echo "Config validation passed! Starting compilation..."
+          echo ""
+
+          # Run compilation with grouping
+          python3 script/test_build_components.py -e compile -c "$components_csv" -f
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite
@@ -459,16 +498,16 @@ jobs:
     if: github.event_name == 'pull_request' && github.base_ref != 'beta' && github.base_ref != 'release'
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - uses: pre-commit/action@v3.0.1
+      - uses: esphome/action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
         env:
           SKIP: pylint,clang-tidy-hash
-      - uses: pre-commit-ci/lite-action@v1.1.0
+      - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
   ci-status:

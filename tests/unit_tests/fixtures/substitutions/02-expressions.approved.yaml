@@ -22,3 +22,6 @@ test_list:
   - The pin number is 18
   - The square root is: 5.0
   - The number is 80
+  - ord("a") = 97
+  - chr(97) = a
+  - len([1,2,3]) = 3
