@@ -70,11 +70,8 @@ def check_keys(obj):
         msg += "i2c bus, then all VL53 devices must have enable_pin defined."
         raise cv.Invalid(msg)
 
-    if obj[CONF_DISTANCE_MODE] == "long" and obj[CONF_TIMING_BUDGET] not in (
-        "200ms",
-        "500ms",
-    ):
-        msg = "When 'distance_mode' = long) the sensor requires a timing budget of at least 200ms"
+    if obj[CONF_DISTANCE_MODE] == "long" and obj[CONF_TIMING_BUDGET] == "15ms":
+        msg = "When 'distance_mode' = long) the sensor requires a timing budget of at least 20ms"
         raise cv.Invalid(msg)
 
     if cv.time_period(obj[CONF_UPDATE_INTERVAL]) < cv.time_period(

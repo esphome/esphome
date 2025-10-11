@@ -131,7 +131,8 @@ static const uint8_t STATUS_RTN[24] = {255, 255, 255, 5,   2,   4,   1,  7, 3,  
 int8_t i2c_write_multi(i2c::I2CDevice *dev, uint16_t index, uint8_t *pdata, uint32_t count) {
   uint8_t status = VL53L1X_ERROR_TIMEOUT;
   uint8_t err = 0;
-  if ((err = dev->write_register16(index, pdata, count)) == 0) {
+  err = dev->write_register16(index, pdata, count);
+  if (err == 0) {
     status = VL53L1X_ERROR_NONE;
   }
   return status;
@@ -140,7 +141,8 @@ int8_t i2c_write_multi(i2c::I2CDevice *dev, uint16_t index, uint8_t *pdata, uint
 int8_t i2c_read_multi(i2c::I2CDevice *dev, uint16_t index, uint8_t *pdata, uint32_t count) {
   uint8_t status = VL53L1X_ERROR_TIMEOUT;
   uint8_t err = 0;
-  if ((err = dev->read_register16(index, pdata, count)) == 0) {
+  err = dev->read_register16(index, pdata, count);
+  if (err == 0) {
     status = VL53L1X_ERROR_NONE;
   }
 
@@ -168,8 +170,8 @@ int8_t i2c_read_byte(i2c::I2CDevice *dev, uint16_t index, uint8_t *data) {
 int8_t i2c_read_word(i2c::I2CDevice *dev, uint16_t index, uint16_t *data) {
   int8_t status = VL53L1X_ERROR_NONE;
   uint16_t tmp_data = 0;
-  if ((status = i2c_read_multi(dev, index, reinterpret_cast<uint8_t *>(&tmp_data), sizeof(tmp_data))) ==
-      VL53L1X_ERROR_NONE) {
+  status = i2c_read_multi(dev, index, reinterpret_cast<uint8_t *>(&tmp_data), sizeof(tmp_data));
+  if (status == VL53L1X_ERROR_NONE) {
     *data = byteswap(tmp_data);
   }
   return status;
@@ -178,8 +180,8 @@ int8_t i2c_read_word(i2c::I2CDevice *dev, uint16_t index, uint16_t *data) {
 int8_t i2c_read_double_word(i2c::I2CDevice *dev, uint16_t index, uint32_t *data) {
   int8_t status = VL53L1X_ERROR_NONE;
   uint32_t tmp_data = 0;
-  if ((status = i2c_read_multi(dev, index, reinterpret_cast<uint8_t *>(&tmp_data), sizeof(tmp_data))) ==
-      VL53L1X_ERROR_NONE) {
+  status = i2c_read_multi(dev, index, reinterpret_cast<uint8_t *>(&tmp_data), sizeof(tmp_data));
+  if (status == VL53L1X_ERROR_NONE) {
     *data = byteswap(tmp_data);
   }
   return status;
@@ -206,14 +208,16 @@ VL53L1X_ERROR sensor_init(i2c::I2CDevice *dev) {
     status |= i2c_write_byte(dev, addr, VL51L1X_DEFAULT_CONFIGURATION[addr - 0x2D]);
   }
   status |= start_ranging(dev);
-  while (tmp == 0) {
-    status = check_for_data_ready(dev, &tmp);
-    timeout_counter++;
-    if (timeout_counter >= 1000) {
-      status = (uint8_t) VL53L1X_ERROR_TIMEOUT;
-      return status;
+  if (status == 0) {
+    while (tmp == 0) {
+      status = check_for_data_ready(dev, &tmp);
+      timeout_counter++;
+      if (timeout_counter >= 1000) {
+        status = (uint8_t) VL53L1X_ERROR_TIMEOUT;
+        return status;
+      }
+      status |= wait_ms(dev, 1);
     }
-    status = wait_ms(dev, 1);
   }
   status |= clear_interrupt(dev);
   status |= stop_ranging(dev);
@@ -254,8 +258,8 @@ VL53L1X_ERROR stop_ranging(i2c::I2CDevice *dev) {
 }
 
 VL53L1X_ERROR check_for_data_ready(i2c::I2CDevice *dev, uint8_t *is_data_ready) {
-  uint8_t temp;
-  uint8_t interrupt_polarity;
+  uint8_t temp = 0;
+  uint8_t interrupt_polarity = 0;
   VL53L1X_ERROR status = 0;
 
   status |= get_interrupt_polarity(dev, &interrupt_polarity);
@@ -272,7 +276,7 @@ VL53L1X_ERROR check_for_data_ready(i2c::I2CDevice *dev, uint8_t *is_data_ready) 
 }
 
 VL53L1X_ERROR set_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t timing_budget_in_ms) {
-  uint16_t distance_mode;
+  uint16_t distance_mode = 0;
   VL53L1X_ERROR status = 0;
 
   status |= get_distance_mode(dev, &distance_mode);
@@ -280,7 +284,7 @@ VL53L1X_ERROR set_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t timing_budge
     return 1;
   } else if (distance_mode == 1) { /* Short DistanceMode */
     switch (timing_budget_in_ms) {
-      case 15: /* only available in short distance mode */
+      case 15: /* only available in short distance mode */  // NOLINT(bugprone-branch-clone)
         i2c_write_word(dev, RANGE_CONFIG_TIMEOUT_MACROP_A_HI, 0x01D);
         i2c_write_word(dev, RANGE_CONFIG_TIMEOUT_MACROP_B_HI, 0x0027);
         break;
@@ -314,7 +318,7 @@ VL53L1X_ERROR set_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t timing_budge
     }
   } else {
     switch (timing_budget_in_ms) {
-      case 20:
+      case 20:  // NOLINT(bugprone-branch-clone)
         i2c_write_word(dev, RANGE_CONFIG_TIMEOUT_MACROP_A_HI, 0x001E);
         i2c_write_word(dev, RANGE_CONFIG_TIMEOUT_MACROP_B_HI, 0x0022);
         break;
@@ -347,7 +351,7 @@ VL53L1X_ERROR set_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t timing_budge
 }
 
 VL53L1X_ERROR get_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t *timing_budget) {
-  uint16_t temp;
+  uint16_t temp = 0;
   VL53L1X_ERROR status = 0;
 
   status |= i2c_read_word(dev, RANGE_CONFIG_TIMEOUT_MACROP_A_HI, &temp);
@@ -387,28 +391,27 @@ VL53L1X_ERROR get_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t *timing_budg
 }
 
 VL53L1X_ERROR set_distance_mode(i2c::I2CDevice *dev, uint16_t distance_mode) {
-  uint16_t timing_budget;
+  uint16_t timing_budget = 0;
   VL53L1X_ERROR status = 0;
-
   status |= get_timing_budget_in_ms(dev, &timing_budget);
   if (status != 0)
     return 1;
   switch (distance_mode) {
-    case 1:
-      status = i2c_write_byte(dev, PHASECAL_CONFIG_TIMEOUT_MACROP, 0x14);
-      status = i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_A, 0x07);
-      status = i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_B, 0x05);
-      status = i2c_write_byte(dev, RANGE_CONFIG_VALID_PHASE_HIGH, 0x38);
-      status = i2c_write_word(dev, SD_CONFIG_WOI_SD0, 0x0705);
-      status = i2c_write_word(dev, SD_CONFIG_INITIAL_PHASE_SD0, 0x0606);
+    case 1:  // NOLINT(bugprone-branch-clone)
+      status |= i2c_write_byte(dev, PHASECAL_CONFIG_TIMEOUT_MACROP, 0x14);
+      status |= i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_A, 0x07);
+      status |= i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_B, 0x05);
+      status |= i2c_write_byte(dev, RANGE_CONFIG_VALID_PHASE_HIGH, 0x38);
+      status |= i2c_write_word(dev, SD_CONFIG_WOI_SD0, 0x0705);
+      status |= i2c_write_word(dev, SD_CONFIG_INITIAL_PHASE_SD0, 0x0606);
       break;
-    case 2:
-      status = i2c_write_byte(dev, PHASECAL_CONFIG_TIMEOUT_MACROP, 0x0A);
-      status = i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_A, 0x0F);
-      status = i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_B, 0x0D);
-      status = i2c_write_byte(dev, RANGE_CONFIG_VALID_PHASE_HIGH, 0xB8);
-      status = i2c_write_word(dev, SD_CONFIG_WOI_SD0, 0x0F0D);
-      status = i2c_write_word(dev, SD_CONFIG_INITIAL_PHASE_SD0, 0x0E0E);
+    case 2:  // NOLINT(bugprone-branch-clone)
+      status |= i2c_write_byte(dev, PHASECAL_CONFIG_TIMEOUT_MACROP, 0x0A);
+      status |= i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_A, 0x0F);
+      status |= i2c_write_byte(dev, RANGE_CONFIG_VCSEL_PERIOD_B, 0x0D);
+      status |= i2c_write_byte(dev, RANGE_CONFIG_VALID_PHASE_HIGH, 0xB8);
+      status |= i2c_write_word(dev, SD_CONFIG_WOI_SD0, 0x0F0D);
+      status |= i2c_write_word(dev, SD_CONFIG_INITIAL_PHASE_SD0, 0x0E0E);
       break;
     default:
       status = 1;
@@ -451,7 +454,7 @@ VL53L1X_ERROR boot_state(i2c::I2CDevice *dev, uint8_t *state) {
 }
 VL53L1X_ERROR get_distance(i2c::I2CDevice *dev, uint16_t *distance) {
   VL53L1X_ERROR status = 0;
-  uint16_t tmp;
+  uint16_t tmp = 0;
 
   status |= (i2c_read_word(dev, RESULT_FINAL_CROSSTALK_CORRECTED_RANGE_MM_SD0, &tmp));
   *distance = tmp;
@@ -501,7 +504,7 @@ VL53L1X_ERROR set_distance_threshold(i2c::I2CDevice *dev, uint16_t threshold_low
   temp = temp & (~0x6F);
   temp = temp | window;
 
-  status = i2c_write_byte(dev, SYSTEM_INTERRUPT_CONFIG_GPIO, temp);
+  status |= i2c_write_byte(dev, SYSTEM_INTERRUPT_CONFIG_GPIO, temp);
   status |= i2c_write_word(dev, SYSTEM_THRESH_HIGH, threshold_high);
   status |= i2c_write_word(dev, SYSTEM_THRESH_LOW, threshold_low);
   return status;
@@ -556,14 +559,16 @@ VL53L1X_ERROR start_temperature_update(i2c::I2CDevice *dev) {
   status |= i2c_write_byte(dev, VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x81); /* full VHV */
   status |= i2c_write_byte(dev, 0x0B, 0x92);
   status |= start_ranging(dev);
-  while (tmp == 0) {
-    status = check_for_data_ready(dev, &tmp);
-    timeout_counter++;
-    if (timeout_counter >= 1000) {
-      status = (uint8_t) VL53L1X_ERROR_TIMEOUT;
-      return status;
+  if (status == 0) {
+    while (tmp == 0) {
+      status = check_for_data_ready(dev, &tmp);
+      timeout_counter++;
+      if (timeout_counter >= 1000) {
+        status = (uint8_t) VL53L1X_ERROR_TIMEOUT;
+        return status;
+      }
+      status |= wait_ms(dev, 1);
     }
-    status = wait_ms(dev, 1);
   }
   status |= clear_interrupt(dev);
   status |= stop_ranging(dev);

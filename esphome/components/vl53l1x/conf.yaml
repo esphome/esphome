@@ -30,7 +30,7 @@ sensor:
     # Optional: How long the sensor will spend per measurement, longer timing budget generally
     # means more accurate results.
     # Valid values are: (15ms, 20ms, 33ms, 50ms, 100ms, 200ms, 500ms)
-    # If 'distanse_mode' = long, then 200ms or 500ms must be used.
+    # If 'distanse_mode' = long, then 'timing_budget' must be >= 20ms.
     timing_budget: 50ms  # Default: 50ms
 
     # Optional: The sensor has a 27 degree detection region divided into a 16x16 grid.

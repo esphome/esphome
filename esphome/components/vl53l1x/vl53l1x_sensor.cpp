@@ -59,7 +59,8 @@ void VL53L1xSensor::setup() {
 
   if (this->address_ != final_i2c_address) {
     // The first address argument is used to hook the currently configured the I2CDevice in the platform bridge.
-    if ((err = driver::set_i2c_address(this, final_i2c_address << 1)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_i2c_address(this, final_i2c_address << 1);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGE(TAG, "set_i2c_address failed: %d", err);
       this->mark_failed();
       return;
@@ -110,7 +111,8 @@ void VL53L1xSensor::setup() {
   }
 
   // Start measurements
-  if ((err = driver::start_ranging(this)) != driver::VL53L1X_ERROR_NONE) {
+  err = driver::start_ranging(this);
+  if (err != driver::VL53L1X_ERROR_NONE) {
     ESP_LOGE(TAG, "start_ranging failed: %d", err);
     this->mark_failed();
   }
@@ -128,7 +130,8 @@ void VL53L1xSensor::loop() {
 
   if (this->interrupt_pin_ != nullptr) {
     VL53L1X_ERROR err = 0;
-    if ((err = driver::clear_interrupt(this)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::clear_interrupt(this);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "clear_interrupt failed %d", err);
     }
   }
@@ -219,11 +222,11 @@ void VL53L1xSensor::disable_() {
 bool VL53L1xSensor::init_sensor_() {
   uint8_t boot = 0;
   VL53L1X_ERROR err = 0;
-  const char *failing_call = "";
 
   const uint32_t start_us = micros();
   while ((micros() - start_us) < 200000) {
-    if ((err = driver::boot_state(this, &boot)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::boot_state(this, &boot);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "boot_state failed %d", err);
     }
     if (boot)
@@ -237,20 +240,18 @@ bool VL53L1xSensor::init_sensor_() {
     return false;
   }
 
-  if ((err = driver::sensor_init(this)) != 0) {
-    failing_call = "sensor_init";
-    goto setup_error;
+  err = driver::sensor_init(this);
+  if (err != 0) {
+    ESP_LOGE(TAG, "sensor_init failed: %hhu", err);
+    return false;
   }
 
-  if ((err = driver::start_temperature_update(this)) != 0) {
-    failing_call = "start_temperature_update";
-    goto setup_error;
+  err = driver::start_temperature_update(this);
+  if (err != 0) {
+    ESP_LOGE(TAG, "start_temperature_update failed: %hhu", err);
+    return false;
   }
   return true;
-
-setup_error:
-  ESP_LOGE(TAG, "%s failed: %d", failing_call, err);
-  return false;
 }
 
 static const char *range_status_to_str(uint8_t range_status) {
@@ -273,43 +274,42 @@ static const char *range_status_to_str(uint8_t range_status) {
 }
 
 VL53L1xSensor::ReadResult VL53L1xSensor::read_distance_mm_(uint16_t &distance_mm) {
-  const char *failing_call = "";
   uint8_t err = 0, ready = 0, range_status = 0;
   uint16_t tmp_distance = 0;
 
-  if ((err = driver::check_for_data_ready(this, &ready) != driver::VL53L1X_ERROR_NONE)) {
-    failing_call = "check_for_data_ready";
-    goto read_distance_error;
+  err = driver::check_for_data_ready(this, &ready);
+  if (err != driver::VL53L1X_ERROR_NONE) {
+    ESP_LOGE(TAG, "check_for_data_ready failed: %hhu", err);
+    return ReadResult::FAILURE;
   }
   if (!ready) {
     return ReadResult::RETRY;
   }
 
-  if ((err = driver::get_range_status(this, &range_status)) != driver::VL53L1X_ERROR_NONE) {
-    failing_call = "get_range_status";
-    goto read_distance_error;
+  err = driver::get_range_status(this, &range_status);
+  if (err != driver::VL53L1X_ERROR_NONE) {
+    ESP_LOGE(TAG, "get_range_status failed: %hhu", err);
+    return ReadResult::FAILURE;
   }
   if (range_status != 0) {
     ESP_LOGW(TAG, "Range failure: %s", range_status_to_str(range_status));
     return ReadResult::FAILURE;
   }
 
-  if ((err = driver::get_distance(this, &tmp_distance)) != driver::VL53L1X_ERROR_NONE) {
-    failing_call = "get_distance";
-    goto read_distance_error;
+  err = driver::get_distance(this, &tmp_distance);
+  if (err != driver::VL53L1X_ERROR_NONE) {
+    ESP_LOGE(TAG, "get_distance failed: %hhu", err);
+    return ReadResult::FAILURE;
   }
   distance_mm = tmp_distance;
   return ReadResult::SUCCESS;
-
-read_distance_error:
-  ESP_LOGE(TAG, "%s failed: %d", failing_call, err);
-  return ReadResult::FAILURE;
 }
 
 bool VL53L1xSensor::apply_distance_mode_() {
   uint8_t err = 0;
   uint16_t vendor_mode = (this->distance_mode_ == DistanceMode::SHORT) ? 1 : 2;  // ULD supports short/long
-  if ((err = driver::set_distance_mode(this, vendor_mode)) != driver::VL53L1X_ERROR_NONE) {
+  err = driver::set_distance_mode(this, vendor_mode);
+  if (err != driver::VL53L1X_ERROR_NONE) {
     ESP_LOGW(TAG, "set_distance_mode failed: %d", err);
     return false;
   }
@@ -318,8 +318,8 @@ bool VL53L1xSensor::apply_distance_mode_() {
 
 bool VL53L1xSensor::apply_timing_budget_() {
   uint8_t err = 0;
-  if ((err = driver::set_timing_budget_in_ms(this, this->measurement_timing_budget_ms_)) !=
-      driver::VL53L1X_ERROR_NONE) {
+  err = driver::set_timing_budget_in_ms(this, this->measurement_timing_budget_ms_);
+  if (err != driver::VL53L1X_ERROR_NONE) {
     ESP_LOGW(TAG, "set_timing_budget_in_ms failed: %d", err);
     return false;
   }
@@ -328,7 +328,8 @@ bool VL53L1xSensor::apply_timing_budget_() {
 
 bool VL53L1xSensor::apply_update_interval_() {
   uint8_t err = 0;
-  if ((err = driver::set_inter_measurement_in_ms(this, this->update_interval_ms_)) != driver::VL53L1X_ERROR_NONE) {
+  err = driver::set_inter_measurement_in_ms(this, this->update_interval_ms_);
+  if (err != driver::VL53L1X_ERROR_NONE) {
     ESP_LOGW(TAG, "set_inter_measurement_in_ms failed: %d", err);
     return false;
   }
@@ -338,9 +339,9 @@ bool VL53L1xSensor::apply_update_interval_() {
 bool VL53L1xSensor::apply_distance_threshold_() {
   if (this->distance_threshold_.interrupt_when != NOT_SET) {
     uint8_t err = 0;
-    if ((err = driver::set_distance_threshold(this, this->distance_threshold_.min, this->distance_threshold_.max,
-                                              this->distance_threshold_.interrupt_when)) !=
-        driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_distance_threshold(this, this->distance_threshold_.min, this->distance_threshold_.max,
+                                         this->distance_threshold_.interrupt_when);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetDistanceThreshold failed: %d", err);
       return false;
     }
@@ -376,12 +377,14 @@ bool VL53L1xSensor::apply_roi_() {
     uint8_t center_x = this->roi_.x + this->roi_.w / 2;
     uint8_t center_y = this->roi_.y + this->roi_.h / 2;
 
-    if ((err = driver::set_roi(this, this->roi_.w, this->roi_.h)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_roi(this, this->roi_.w, this->roi_.h);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "set_roi failed: %d", err);
       return false;
     }
 
-    if ((err = driver::set_roi_center(this, SPAD_INDEX_TABLE[center_y][center_x])) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_roi_center(this, SPAD_INDEX_TABLE[center_y][center_x]);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "set_roi_center failed: %d", err);
       return false;
     }
@@ -392,7 +395,8 @@ bool VL53L1xSensor::apply_roi_() {
 bool VL53L1xSensor::apply_offset_() {
   if (this->offset_ != 0) {
     uint8_t err = 0;
-    if ((err = driver::set_offset(this, this->offset_)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_offset(this, this->offset_);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "set_offset failed: %d", err);
       return false;
     }
@@ -403,7 +407,8 @@ bool VL53L1xSensor::apply_offset_() {
 bool VL53L1xSensor::apply_xtalk_correction_() {
   if (this->xtalk_correction_ != 0) {
     uint8_t err = 0;
-    if ((err = driver::set_xtalk(this, this->xtalk_correction_)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_xtalk(this, this->xtalk_correction_);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "set_xtalk failed: %d", err);
       return false;
     }
@@ -414,7 +419,8 @@ bool VL53L1xSensor::apply_xtalk_correction_() {
 bool VL53L1xSensor::apply_sigma_threshold_() {
   if (this->sigma_threshold_ != 0xffff) {
     uint8_t err = 0;
-    if ((err = driver::set_sigma_threshold(this, this->sigma_threshold_)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_sigma_threshold(this, this->sigma_threshold_);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "set_sigma_threshold failed: %d", err);
       return false;
     }
@@ -425,7 +431,8 @@ bool VL53L1xSensor::apply_sigma_threshold_() {
 bool VL53L1xSensor::apply_signal_threshold_() {
   if (this->signal_threshold_ != 0xffff) {
     uint8_t err = 0;
-    if ((err = driver::set_signal_threshold(this, this->signal_threshold_)) != driver::VL53L1X_ERROR_NONE) {
+    err = driver::set_signal_threshold(this, this->signal_threshold_);
+    if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "set_signal_threshold failed: %d", err);
       return false;
     }
