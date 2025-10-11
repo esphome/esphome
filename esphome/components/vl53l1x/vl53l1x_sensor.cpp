@@ -37,9 +37,9 @@ void VL53L1xSensor::setup() {
       sensor->disable_();
     }
     esphome::vl53l1x::VL53L1xSensor::pin_setup_complete = true;
+    ::esphome::delay(2);
   }
   ESP_LOGCONFIG(TAG, "Setting up VL53L1X...");
-  ::esphome::delay(2);
 
   // Powercycle this sensor to reset firmware address to DEFAULT_I2C_ADDRESS
   this->enable_();
@@ -58,7 +58,6 @@ void VL53L1xSensor::setup() {
   }
 
   if (this->address_ != final_i2c_address) {
-    // The first address argument is used to hook the currently configured the I2CDevice in the platform bridge.
     err = driver::set_i2c_address(this, final_i2c_address << 1);
     if (err != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGE(TAG, "set_i2c_address failed: %d", err);
@@ -307,8 +306,7 @@ VL53L1xSensor::ReadResult VL53L1xSensor::read_distance_mm_(uint16_t &distance_mm
 
 bool VL53L1xSensor::apply_distance_mode_() {
   uint8_t err = 0;
-  uint16_t vendor_mode = (this->distance_mode_ == DistanceMode::SHORT) ? 1 : 2;  // ULD supports short/long
-  err = driver::set_distance_mode(this, vendor_mode);
+  err = driver::set_distance_mode(this, static_cast<uint16_t>(this->distance_mode_));
   if (err != driver::VL53L1X_ERROR_NONE) {
     ESP_LOGW(TAG, "set_distance_mode failed: %d", err);
     return false;
@@ -342,7 +340,7 @@ bool VL53L1xSensor::apply_distance_threshold_() {
     err = driver::set_distance_threshold(this, this->distance_threshold_.min, this->distance_threshold_.max,
                                          this->distance_threshold_.interrupt_when);
     if (err != driver::VL53L1X_ERROR_NONE) {
-      ESP_LOGW(TAG, "SetDistanceThreshold failed: %d", err);
+      ESP_LOGW(TAG, "set_distance_threshold failed: %d", err);
       return false;
     }
   }

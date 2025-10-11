@@ -45,7 +45,7 @@ class VL53L1xSensor : public sensor::Sensor, public Component, public i2c::I2CDe
   void set_sigma_threshold(uint16_t sigma_threshold) { this->sigma_threshold_ = sigma_threshold; }
   void set_signal_threshold(uint16_t signal_threshold) { this->signal_threshold_ = signal_threshold; }
   /**
-   * Origo is upper left corner, region is coordinates 0-15.
+   * Origo is lower left corner, region is coordinates 0-15.
    */
   void set_roi(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
     this->roi_.x = x;
