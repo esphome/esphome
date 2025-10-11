@@ -40,9 +40,6 @@ void ESP32ImprovComponent::setup() {
 #endif
   global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 
-  // Listen for WiFi connections to detect when provisioning happens via captive portal or other means
-  wifi::global_wifi_component->get_connect_trigger()->add_callback([this]() { this->on_wifi_connected_(); });
-
   // Start with loop disabled - will be enabled by start() when needed
   this->disable_loop();
 }
@@ -146,6 +143,7 @@ void ESP32ImprovComponent::loop() {
 #else
       this->set_state_(improv::STATE_AUTHORIZED);
 #endif
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_AUTHORIZED: {
@@ -159,10 +157,12 @@ void ESP32ImprovComponent::loop() {
       if (!this->check_identify_()) {
         this->set_status_indicator_state_((now % 1000) < 500);
       }
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_PROVISIONING: {
       this->set_status_indicator_state_((now % 200) < 100);
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_PROVISIONED: {
@@ -372,6 +372,12 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
+}
+
+void ESP32ImprovComponent::check_wifi_connection_() {
+  if (wifi::global_wifi_component->is_connected()) {
+    this->on_wifi_connected_();
+  }
 }
 
 void ESP32ImprovComponent::on_wifi_connected_() {
