@@ -177,6 +177,7 @@ jobs:
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
+      changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
     steps:
       - name: Check out code from GitHub
@@ -204,6 +205,7 @@ jobs:
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
+          echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
 
   integration-tests:
@@ -367,7 +369,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: ${{ fromJson(needs.determine-jobs.outputs.changed-components) }}
+        file: ${{ fromJson(needs.determine-jobs.outputs.changed-components-with-tests) }}
     steps:
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
@@ -414,7 +416,7 @@ jobs:
           . venv/bin/activate
 
           # Use intelligent splitter that groups components with same bus configs
-          components='${{ needs.determine-jobs.outputs.changed-components }}'
+          components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
 
           echo "Splitting components intelligently..."
           output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 40 --output github)
