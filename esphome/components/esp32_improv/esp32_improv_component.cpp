@@ -402,7 +402,6 @@ void ESP32ImprovComponent::on_wifi_connected_() {
     ESP_LOGD(TAG, "WiFi provisioned externally");
   }
 
-  // Common actions for both cases
   this->set_state_(improv::STATE_PROVISIONED);
   this->stop();
 }
