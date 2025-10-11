@@ -58,8 +58,12 @@ static const size_t SETUP_PACKET_SIZE = 8;
 static const size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
 
-// Select appropriate bitmask type based on MAX_REQUESTS
-// uint16_t for <= 16 requests, uint32_t for 17-32 requests
+// Select appropriate bitmask type for tracking allocation of TransferRequest slots.
+// The bitmask must have at least as many bits as MAX_REQUESTS, so:
+// - Use uint16_t for up to 16 requests (MAX_REQUESTS <= 16)
+// - Use uint32_t for 17-32 requests (MAX_REQUESTS > 16)
+// This is tied to the static_assert above, which enforces MAX_REQUESTS is between 1 and 32.
+// If MAX_REQUESTS is increased above 32, this logic and the static_assert must be updated.
 using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
 
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
