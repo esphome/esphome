@@ -40,6 +40,9 @@ void ESP32ImprovComponent::setup() {
 #endif
   global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 
+  // Listen for WiFi connections to detect when provisioning happens via captive portal or other means
+  wifi::global_wifi_component->get_connect_trigger()->add_callback([this]() { this->on_wifi_connected_(); });
+
   // Start with loop disabled - will be enabled by start() when needed
   this->disable_loop();
 }
@@ -161,25 +164,7 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_PROVISIONING: {
       this->set_status_indicator_state_((now % 200) < 100);
       if (wifi::global_wifi_component->is_connected()) {
-        wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
-                                                   this->connecting_sta_.get_password());
-        this->connecting_sta_ = {};
-        this->cancel_timeout("wifi-connect-timeout");
-        this->set_state_(improv::STATE_PROVISIONED);
-
-        std::vector<std::string> urls = {ESPHOME_MY_LINK};
-#ifdef USE_WEBSERVER
-        for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
-          if (ip.is_ip4()) {
-            std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-            urls.push_back(webserver_url);
-            break;
-          }
-        }
-#endif
-        std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
-        this->send_response_(data);
-        this->stop();
+        this->on_wifi_connected_();
       }
       break;
     }
@@ -390,6 +375,36 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
+}
+
+void ESP32ImprovComponent::on_wifi_connected_() {
+  // Handle WiFi connection, whether from Improv provisioning or external (e.g., captive portal)
+  if (this->state_ == improv::STATE_PROVISIONING) {
+    // WiFi provisioned via Improv - save credentials and send response
+    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+    this->connecting_sta_ = {};
+    this->cancel_timeout("wifi-connect-timeout");
+
+    std::vector<std::string> urls = {ESPHOME_MY_LINK};
+#ifdef USE_WEBSERVER
+    for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+      if (ip.is_ip4()) {
+        std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
+        urls.push_back(webserver_url);
+        break;
+      }
+    }
+#endif
+    std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
+    this->send_response_(data);
+  } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
+    // WiFi provisioned externally (e.g., captive portal) - just transition to provisioned
+    ESP_LOGD(TAG, "WiFi provisioned externally, transitioning to provisioned state");
+  }
+
+  // Common actions for both cases
+  this->set_state_(improv::STATE_PROVISIONED);
+  this->stop();
 }
 
 void ESP32ImprovComponent::advertise_service_data_() {
