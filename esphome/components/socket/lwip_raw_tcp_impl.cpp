@@ -561,7 +561,7 @@ class LWIPRawListenImpl : public LWIPRawImpl {
     LWIP_LOG("init(%p)", pcb_);
     tcp_arg(pcb_, this);
     tcp_accept(pcb_, LWIPRawListenImpl::s_accept_fn);
-    tcp_err(pcb_, LWIPRawListenImpl::s_err_fn);
+    tcp_err(pcb_, LWIPRawImpl::s_err_fn);  // Use base class error handler
   }
 
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
