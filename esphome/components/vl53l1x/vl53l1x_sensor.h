@@ -98,7 +98,7 @@ class VL53L1xSensor : public sensor::Sensor, public Component, public i2c::I2CDe
   } roi_;
   bool initialized_{false};
 
-  static std::list<VL53L1xSensor *> all_sensors;
+  static ::std::list<VL53L1xSensor *> all_sensors;
   static bool pin_setup_complete;
 };
 

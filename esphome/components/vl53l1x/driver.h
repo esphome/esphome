@@ -85,137 +85,135 @@ const uint16_t ROI_CONFIG_MODE_ROI_CENTRE_SPAD = 0x013E;
 /**
  * @brief This function sets the sensor I2C address used in case multiple devices application, default address 0x52
  */
-VL53L1X_ERROR SetI2CAddress(i2c::I2CDevice *dev, uint8_t new_address);
+VL53L1X_ERROR set_i2c_address(i2c::I2CDevice *dev, uint8_t new_address);
 
 /**
  * @brief This function loads the 135 bytes default values to initialize the sensor.
  * @param dev Device address
  * @return 0:success, != 0:failed
  */
-VL53L1X_ERROR SensorInit(i2c::I2CDevice *dev);
+VL53L1X_ERROR sensor_init(i2c::I2CDevice *dev);
 
 /**
  * @brief This function clears the interrupt, to be called after a ranging data reading
  * to arm the interrupt for the next data ready event.
  */
-VL53L1X_ERROR ClearInterrupt(i2c::I2CDevice *dev);
+VL53L1X_ERROR clear_interrupt(i2c::I2CDevice *dev);
 
 /**
- * @brief This function starts the ranging distance operation\n
- * The ranging operation is continuous. The clear interrupt has to be done after each get data to allow the interrupt to
- * raise when the next data is ready\n 1=active high (default), 0=active low, use SetInterruptPolarity() to change the
- * interrupt polarity if required.
+ * @brief This function starts the ranging distance operation\n * The ranging operation is continuous. The clear
+ * interrupt has to be done after each get data to allow the interrupt to raise when the next data is ready\n 1=active
+ * high (default), 0=active low, use SetInterruptPolarity() to change the interrupt polarity if required.
  */
-VL53L1X_ERROR StartRanging(i2c::I2CDevice *dev);
+VL53L1X_ERROR start_ranging(i2c::I2CDevice *dev);
 
 /**
  * @brief This function stops the ranging.
  */
-VL53L1X_ERROR StopRanging(i2c::I2CDevice *dev);
+VL53L1X_ERROR stop_ranging(i2c::I2CDevice *dev);
 
 /**
  * @brief This function checks if the new ranging data is available by polling the dedicated register.
  * @param : is_data_ready==0 -> not ready; is_data_ready==1 -> ready
  */
-VL53L1X_ERROR CheckForDataReady(i2c::I2CDevice *dev, uint8_t *is_data_ready);
+VL53L1X_ERROR check_for_data_ready(i2c::I2CDevice *dev, uint8_t *is_data_ready);
 
 /**
  * @brief This function programs the timing budget in ms.
  * Predefined values = 15, 20, 33, 50, 100(default), 200, 500.
  */
-VL53L1X_ERROR SetTimingBudgetInMs(i2c::I2CDevice *dev, uint16_t timing_budget_in_ms);
+VL53L1X_ERROR set_timing_budget_in_ms(i2c::I2CDevice *dev, uint16_t timing_budget_in_ms);
 
 /**
  * @brief This function programs the distance mode (1=short, 2=long(default)).
  * Short mode max distance is limited to 1.3 m but better ambient immunity.\n
  * Long mode can range up to 4 m in the dark with 200 ms timing budget.
  */
-VL53L1X_ERROR SetDistanceMode(i2c::I2CDevice *dev, uint16_t distance_mode);
+VL53L1X_ERROR set_distance_mode(i2c::I2CDevice *dev, uint16_t distance_mode);
 
 /**
  * @brief This function returns the current distance mode (1=short, 2=long).
  */
-VL53L1X_ERROR GetDistanceMode(i2c::I2CDevice *dev, uint16_t *distance_mode);
+VL53L1X_ERROR get_distance_mode(i2c::I2CDevice *dev, uint16_t *distance_mode);
 
 /**
  * @brief This function programs the Intermeasurement period in ms\n
  * Intermeasurement period must be >/= timing budget. This condition is not checked by the API,
  * the customer has the duty to check the condition. Default = 100 ms
  */
-VL53L1X_ERROR SetInterMeasurementInMs(i2c::I2CDevice *dev, uint32_t intermeasurement_in_ms);
+VL53L1X_ERROR set_inter_measurement_in_ms(i2c::I2CDevice *dev, uint32_t intermeasurement_in_ms);
 
 /**
  * @brief This function returns the boot state of the device (1:booted, 0:not booted)
  */
-VL53L1X_ERROR BootState(i2c::I2CDevice *dev, uint8_t *state);
+VL53L1X_ERROR boot_state(i2c::I2CDevice *dev, uint8_t *state);
 
 /**
  * @brief This function returns the distance measured by the sensor in mm
  */
-VL53L1X_ERROR GetDistance(i2c::I2CDevice *dev, uint16_t *distance);
+VL53L1X_ERROR get_distance(i2c::I2CDevice *dev, uint16_t *distance);
 
 /**
  * @brief This function returns the ranging status error \n
  * (0:no error, 1:sigma failed, 2:signal failed, ..., 7:wrap-around)
  */
-VL53L1X_ERROR GetRangeStatus(i2c::I2CDevice *dev, uint8_t *range_status);
+VL53L1X_ERROR get_range_status(i2c::I2CDevice *dev, uint8_t *range_status);
 
 /**
  * @brief This function programs the offset correction in mm
  * @param offset_value:the offset correction value to program in mm
  */
-VL53L1X_ERROR SetOffset(i2c::I2CDevice *dev, int16_t offset_value);
+VL53L1X_ERROR set_offset(i2c::I2CDevice *dev, int16_t offset_value);
 
 /**
  * @brief This function programs the xtalk correction value in cps (Count Per Second).\n
  * This is the number of photons reflected back from the cover glass in cps.
  */
-VL53L1X_ERROR SetXtalk(i2c::I2CDevice *dev, uint16_t xtalk_value);
+VL53L1X_ERROR set_xtalk(i2c::I2CDevice *dev, uint16_t xtalk_value);
 
 /**
- * @brief This function programs the threshold detection mode\n
- * Example:\n
- * SetDistanceThreshold(dev,100,300,0): Below 100 \n
- * SetDistanceThreshold(dev,100,300,1): Above 300 \n
- * SetDistanceThreshold(dev,100,300,2): Out of window \n
- * SetDistanceThreshold(dev,100,300,3): In window \n
+ * @brief This function programs the threshold detection mode\n * Example:\n
+ * set_distance_threshold(dev,100,300,0): Below 100 \n
+ * set_distance_threshold(dev,100,300,1): Above 300 \n
+ * set_distance_threshold(dev,100,300,2): Out of window \n
+ * set_distance_threshold(dev,100,300,3): In window \n
  * @param   dev : device address
- * @param   ThreshLow(in mm) : the threshold under which one the device raises an interrupt if Window = 0
- * @param   ThreshHigh(in mm) :  the threshold above which one the device raises an interrupt if Window = 1
- * @param   Window detection mode : 0=below, 1=above, 2=out, 3=in
+ * @param   threshold_low (in mm) : the threshold under which one the device raises an interrupt if window = 0
+ * @param   threshold_high (in mm) :  the threshold above which one the device raises an interrupt if window = 1
+ * @param   window detection mode : 0=below, 1=above, 2=out, 3=in
  */
-VL53L1X_ERROR SetDistanceThreshold(i2c::I2CDevice *dev, uint16_t ThreshLow, uint16_t ThreshHigh, uint8_t Window);
+VL53L1X_ERROR set_distance_threshold(i2c::I2CDevice *dev, uint16_t threshold_low, uint16_t threshold_high,
+                                     uint8_t window);
 
 /**
- * @brief This function programs the ROI (Region of Interest)\n
- * The ROI position is centered, only the ROI size can be reprogrammed.\n
- * The smallest acceptable ROI size = 4\n
+ * @brief This function programs the ROI (Region of Interest)\n * The ROI position is centered, only the ROI size can be
+ * reprogrammed.\n The smallest acceptable ROI size = 4\n
  * @param x:ROI Width; y=ROI Height
  */
-VL53L1X_ERROR SetROI(i2c::I2CDevice *dev, uint16_t x, uint16_t y);
+VL53L1X_ERROR set_roi(i2c::I2CDevice *dev, uint16_t x, uint16_t y);
 
 /**
  *@brief This function programs the new user ROI center, please to be aware that there is no check in this function.
  *if the ROI center vs ROI size is out of border the ranging function return error #13
  */
-VL53L1X_ERROR SetROICenter(i2c::I2CDevice *dev, uint8_t roi_center);
+VL53L1X_ERROR set_roi_center(i2c::I2CDevice *dev, uint8_t roi_center);
 
 /**
  * @brief This function programs a new signal threshold in kcps (default=1024 kcps\n
  */
-VL53L1X_ERROR SetSignalThreshold(i2c::I2CDevice *dev, uint16_t signal);
+VL53L1X_ERROR set_signal_threshold(i2c::I2CDevice *dev, uint16_t signal);
 
 /**
  * @brief This function programs a new sigma threshold in mm (default=15 mm)
  */
-VL53L1X_ERROR SetSigmaThreshold(i2c::I2CDevice *dev, uint16_t sigma);
+VL53L1X_ERROR set_sigma_threshold(i2c::I2CDevice *dev, uint16_t sigma);
 
 /**
  * @brief This function performs the temperature calibration.
  * It is recommended to call this function any time the temperature might have changed by more than 8 deg C
  * without sensor ranging activity for an extended period.
  */
-VL53L1X_ERROR StartTemperatureUpdate(i2c::I2CDevice *dev);
+VL53L1X_ERROR start_temperature_update(i2c::I2CDevice *dev);
 
 }  // namespace driver
 }  // namespace vl53l1x
