@@ -5,6 +5,8 @@
 #include "esphome/components/fatfs_esp32/fatfs_esp32.h"
 #include "esphome/components/spi/spi.h"
 
+// #define FATFS_FS_TEST
+
 namespace esphome {
 namespace fatfs_esp32_sdspi {
 // using namespace esphome::fatfs_esp32;
@@ -102,7 +104,6 @@ void FatESP32sdspi::setup() {
 #endif
     }
   }
-  { ESP_LOGD(TAG, "Storage media not present."); }
 }
 
 //========================================================================================
@@ -232,7 +233,7 @@ bool FatESP32sdspi::test_fs(std::string &path) {
       fl->close();
     }
 
-    ESP_LOGV(TAG, "Read next object in directory");
+    ESP_LOGD(TAG, "Read next object in directory");
     fat_obj = dir_ptr->get_next();
     if ((uint8_t) dir_ptr->file_error() != FR_OK) {
       ESP_LOGE(TAG, "Read dir entry error: %s", fs_errstr(res));

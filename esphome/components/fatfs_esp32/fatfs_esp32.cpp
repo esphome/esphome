@@ -227,22 +227,19 @@ bool FatESP32::is_exist(std::string &path) {
 //--------------------------------------------------------------------------------
 
 fatfs::FileObject *FatESP32::open_file(std::string &path, uint8_t mode) {
-  FatESP32File *fl = new FatESP32File(path, mode);
+  FatESP32File *fl = new FatESP32File(path);
+  fl->open(mode);
   error_ = fl->file_error();
-  // if (fl->error() != fatfs::FatError::FR_OK) {
-  //   return NULL;
-  // }
   return fl;
 }
 
 //--------------------------------------------------------------------------------
 
 fatfs::FileObject *FatESP32::open_file(fatfs::FatInfo *obj, uint8_t mode) {
-  FatESP32File *fl = new FatESP32File(*obj, mode);
+  FatESP32File *fl = new FatESP32File(*obj);
+  // ESP_LOGV(TAG,"Create file object for file.");
+  fl->open(mode);
   error_ = fl->file_error();
-  // if (fl->error() != fatfs::FatError::FR_OK) {
-  //   return NULL;
-  // }
   return fl;
 }
 
@@ -251,6 +248,7 @@ fatfs::FileObject *FatESP32::open_file(fatfs::FatInfo *obj, uint8_t mode) {
 fatfs::DirObject *FatESP32::open_dir(std::string &path) {
   ESP_LOGV(TAG, "Open dir from path %s", path.c_str());
   FatESP32Dir *d_obj = new FatESP32Dir(path);
+  d_obj->open();
   error_ = d_obj->file_error();
   return d_obj;
 }
@@ -260,6 +258,7 @@ fatfs::DirObject *FatESP32::open_dir(std::string &path) {
 fatfs::DirObject *FatESP32::open_dir(fatfs::FatInfo *obj) {
   ESP_LOGV(TAG, "Open dir from FatInfo %s", obj->get_full_path().c_str());
   FatESP32Dir *d_obj = new FatESP32Dir(*obj);
+  d_obj->open();
   error_ = d_obj->file_error();
   return d_obj;
 }

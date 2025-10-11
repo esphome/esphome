@@ -44,13 +44,13 @@ FatESP32Info::FatESP32Info(std::string path) {
     ESP_LOGV(TAG, "Subst trail space |%s|", path_.c_str());
   }
 
-  //  Devide for path and name
+  //  Divide for path and name
   size_t pos = path_.rfind('/');
   if (pos == std::string::npos) {
     name_ = path_;
     path_ = std::string("");
   } else {
-    //  Devide for path and name
+    //  Divide for path and name
     name_ = path_.substr(pos + 1);
     path_ = path_.substr(0, pos + 1);
   }
@@ -71,9 +71,12 @@ FatESP32Info::FatESP32Info(std::string path) {
   ESP_LOGV(TAG, "f_stat for  %s, rc=%d", fpath.c_str(), res);
   if (res == FR_NO_FILE || res == FR_NO_PATH) {
     return;
-  }
-
-  else if (res != FR_OK) {
+  } else if ((res == FR_INVALID_NAME) && (path_ == "/")) {
+    res = FR_OK;
+    exist_ = true;
+    is_dir_ = true;
+    return;
+  } else if (res != FR_OK) {
     ESP_LOGE(TAG, "f_stat %s error: (0x%x) %s", fpath.c_str(), res, fs_errstr(res));
     return;
   }
@@ -104,7 +107,7 @@ FatESP32Info::FatESP32Info(std::string path) {
 // --------------------------------------------------------------------------------
 
 FatESP32Info::FatESP32Info(fatfs::FatInfo &source) {
-  *this = source;
+  // *this = source;
   drive_ = source.get_drive();
   path_ = source.get_path();
   name_ = source.get_name();
@@ -120,43 +123,7 @@ FatESP32Info::FatESP32Info(fatfs::FatInfo &source) {
     is_ro_ = source.is_readonly();
     create_date_ = *(source.get_cr_date());
   }
-
-  // drive_ = source->get_drive();
-  // path_ = source->get_path();
-  // name_ = source->get_name();
-
-  // ESP_LOGVV(TAG, "Get FatInfo Object. d=%s, p=%s, n=%s", drive_.c_str(), path_.c_str(), name_.c_str());
-
-  // if (source->is_exist()) {
-  //   exist_ = true;
-  //   size_ = source->size();
-  //   is_dir_ = source->is_dir();
-  //   is_hidden_ = source->is_hidden();
-  //   is_system_ = source->is_sys();
-  //   is_ro_ = source->is_readonly();
-  //   create_date_ = std::move(*(source->get_cr_date()));
-  // }
 }
-
-// --------------------------------------------------------------------------------
-
-// void FatESP32Info::load(const std::string path, FILINFO *finfo) {
-//   size_ = finfo->fsize;
-//   name_ = std::string(finfo->fname);
-//   is_dir_ = finfo->fattrib & AM_DIR;
-//   is_hidden_ = finfo->fattrib & AM_HID;
-//   is_system_ = finfo->fattrib & AM_SYS;
-//   is_ro_ = finfo->fattrib & AM_RDO;
-
-//   create_date_.year = (finfo->fdate >> 9) + 1980;
-//   create_date_.month = finfo->fdate >> 5 & 15;
-//   create_date_.day_of_month = finfo->fdate & 31;
-//   create_date_.hour = finfo->ftime >> 11;
-//   create_date_.minute = finfo->ftime >> 5 & 63;
-//   create_date_.second = 0;
-
-//   ESP_LOGV(TAG, "Load %s info %s, size=%d", is_dir_ ? "DIR" : "FILE", name_.c_str(), size_);
-// }
 
 // --------------------------------------------------------------------------------
 
@@ -186,15 +153,11 @@ std::string FatESP32Info::get_full_path() { return drive_ + path_ + name_; };
 
 // --------------------------------------------------------------------------------
 
-FatESP32File::FatESP32File(std::string path, uint16_t mode) : FatESP32Info{std::move(path)} {
-  this->FatESP32File::open(mode);
-}
+FatESP32File::FatESP32File(std::string path) : FatESP32Info{std::move(path)} {}
 
 // --------------------------------------------------------------------------------
 
-FatESP32File::FatESP32File(fatfs::FatInfo &finfo, uint16_t mode) : FatESP32Info{finfo} {
-  this->FatESP32File::open(mode);
-}
+FatESP32File::FatESP32File(fatfs::FatInfo &finfo) : FatESP32Info{finfo} {}
 
 // --------------------------------------------------------------------------------
 
@@ -209,17 +172,22 @@ FatESP32File::~FatESP32File() {
 
 bool FatESP32File::open(uint16_t mode) {
   bool ret = false;
+  ESP_LOGV(TAG, "Open file %s open mode= 0b " BYTE_TO_BINARY_PATTERN " " BYTE_TO_BINARY_PATTERN,
+           this->get_full_path().c_str(), BYTE_TO_BINARY((uint8_t) (mode >> 8)), BYTE_TO_BINARY((uint8_t) (mode)));
   if (this->is_open_) {
     ret = true;
   } else if (this->FatESP32Info::is_exist() || mode & FAT_F_CREATE_ALWAYS) {
     error_ = f_open(&fptr_, this->FatESP32Info::get_full_path().c_str(), mode);
     if (error_ != FR_OK) {
-      ESP_LOGE(TAG, "Open %s error (0x%x) %s", this->FatESP32Info::get_full_path().c_str(), error_, fs_errstr(error_));
+      ESP_LOGE(TAG, "File %s open error (0x%x) %s", this->FatESP32Info::get_full_path().c_str(), error_,
+               fs_errstr(error_));
     } else {
-      ESP_LOGV(TAG, "Open file %s ...", this->FatESP32Info::get_full_path().c_str());
+      ESP_LOGVV(TAG, "File  %s open OK", this->FatESP32Info::get_full_path().c_str());
       is_open_ = true;
       ret = true;
     }
+  } else {
+    error_ = FR_NO_FILE;
   }
   return ret;
 }
@@ -230,9 +198,9 @@ void FatESP32File::close() {
   if (is_open_) {
     error_ = f_close(&fptr_);
     if (error_ != FR_OK)
-      ESP_LOGE(TAG, "Close error (0x%x) %s", error_, fs_errstr(error_));
+      ESP_LOGE(TAG, "File close error (0x%x) %s", error_, fs_errstr(error_));
     is_open_ = false;
-    ESP_LOGV(TAG, "Close file %s, OK", this->FatESP32Info::get_full_path().c_str());
+    ESP_LOGVV(TAG, "File close file %s, OK", this->FatESP32Info::get_full_path().c_str());
   }
 }
 
@@ -317,11 +285,11 @@ bool FatESP32File::is_eof() { return f_eof(&fptr_); }
 
 // --------------------------------------------------------------------------------
 
-FatESP32Dir::FatESP32Dir(std::string path) : FatESP32Info{std::move(path)} { this->open(); }
+FatESP32Dir::FatESP32Dir(std::string path) : FatESP32Info{std::move(path)} {}
 
 // --------------------------------------------------------------------------------
 
-FatESP32Dir::FatESP32Dir(fatfs::FatInfo &finfo) : FatESP32Info{finfo} { this->open(); }
+FatESP32Dir::FatESP32Dir(fatfs::FatInfo &finfo) : FatESP32Info{finfo} {}
 
 // --------------------------------------------------------------------------------
 
@@ -334,15 +302,20 @@ FatESP32Dir::~FatESP32Dir() {
 // --------------------------------------------------------------------------------
 
 bool FatESP32Dir::open() {
-  ESP_LOGV(TAG, "Open dir %s", this->FatESP32Info::get_full_path().c_str());
-
-  error_ = f_opendir(&dptr_, this->FatESP32Info::get_full_path().c_str());
-
-  // if (error_ != FR_OK) {
-  //   is_open_ = false;
-  // } else {
-  //   is_open_ = true;
-  // }
+  ESP_LOGVV(TAG, "Open dir %s", this->FatESP32Info::get_full_path().c_str());
+  if (is_open_) {
+    return true;
+  }
+  if (!this->is_dir()) {
+    ESP_LOGVV(TAG, "Trying open file as directory. %s", this->FatESP32Info::get_full_path().c_str());
+    error_ = FR_INVALID_NAME;
+    return false;
+  }
+  if (this->FatESP32Info::is_exist()) {
+    error_ = f_opendir(&dptr_, this->FatESP32Info::get_full_path().c_str());
+  } else {
+    error_ = FR_NO_PATH;
+  }
   is_open_ = error_ == FR_OK;
   return is_open_;
 }
@@ -380,12 +353,15 @@ fatfs::FatInfo *FatESP32Dir::get_next() {
 bool FatESP32Dir::reset() {
   if (is_open_) {
     error_ = f_closedir(&dptr_);
+    is_open_ = false;
     if (error_ != FR_OK) {
       return false;
     }
   }
+
   error_ = f_opendir(&dptr_, this->FatESP32Info::get_full_path().c_str());
-  return error_ == FR_OK;
+  is_open_ = error_ == FR_OK;
+  return is_open_;
 }
 
 }  // namespace fatfs_esp32

@@ -69,7 +69,7 @@ enum class FatError : uint8_t {
 const char *fs_errstr(uint8_t);
 
 /**
- * @brief  When created it contains addition information about filesystem's object
+ * @brief  Return file or directory attributes.
  *
  *
  */
@@ -104,7 +104,7 @@ class FatInfo {
    */
   virtual bool is_sys() { return false; };
   /**
-   * @brief Returns flag is object hiddent object
+   * @brief Returns flag is object a hiddent object
    *
    * @return true
    * @return false
@@ -116,6 +116,11 @@ class FatInfo {
    * @return size_t
    */
   virtual size_t size() = 0;
+  /**
+   * @brief Returns object creation date
+   *
+   * @return std::string
+   */
   virtual ESPTime *get_cr_date() { return NULL; };
   /**
    * @brief Returns objects name
@@ -136,7 +141,7 @@ class FatInfo {
    */
   virtual std::string get_drive() { return std::string(); };
   /**
-   * @brief Get the full path to object includinf object name
+   * @brief Get the full path to object including object name
    *
    * @return std::string
    */
@@ -145,7 +150,7 @@ class FatInfo {
 
 /**
  * @brief Represent file object. Provide access to object contents.
- * Cover FF_function from fatfs @ref https://elm-chan.org/fsw/ff/
+ * Cover FF_functions from fatfs lib. See @ref https://elm-chan.org/fsw/ff/
  *
  */
 class FileObject {
@@ -230,14 +235,14 @@ class FileObject {
   /**
    * @brief Test for end-of-file
    *
-   * @return true
+   * @return true the r/w pointer at the end of file
    * @return false
    */
   virtual bool is_eof() { return false; };
   /**
-   * @brief Gets the current read/write pointer of a file.
+   * @brief Gets the current read/write pointer position in the file.
    *
-   * @return uint32_t
+   * @return uint32_t pointer position in bytes
    */
   virtual uint32_t get_pos() = 0;
   /**
@@ -249,11 +254,18 @@ class FileObject {
 };
 
 /**
- * @brief Open directory object. and set content read pointer to first object
+ * @brief Open directory object and set content read pointer to first object
  *
  */
 class DirObject {
  public:
+  /**
+   * @brief Open directory for reading its content.
+   *
+   * @return true if success. False if directory not exist or any error occured.
+   * Check error with @ref file_error
+   */
+  virtual bool open() { return false; };
   /**
    * @brief Subsequently reads an item of the directory. Directory item return as FatInfo object
    * If end of dir content list reached return NULL pointer.

@@ -25,17 +25,14 @@ using fatfs::fs_errstr;
 
 /** --------------------------------------------------------------------------------
  *
- * @brief Provde implementation for @ref fatfs::FatInfo API
+ * @brief Provide implementation for @ref fatfs::FatInfo API
  *
  */
 class FatESP32Info : public fatfs::FatInfo {
-  // class FatESP32Info : virtual public fatfs::FatInfo {
  public:
-  FatESP32Info() = default;
   FatESP32Info(fatfs::FatInfo &source);
   FatESP32Info(std::string path);
   FatESP32Info &operator=(const FatESP32Info &source);
-  // void load(std::string path, FILINFO *finfo);
   bool is_exist() override { return exist_; };
   bool is_dir() override { return is_dir_; };
   bool is_readonly() override { return is_ro_; };
@@ -63,13 +60,13 @@ class FatESP32Info : public fatfs::FatInfo {
 
 /** --------------------------------------------------------------------------------
  *
- * @brief Provde implementation for @ref fatfs::FileObject API
+ * @brief Provide implementation for @ref fatfs::FileObject API
  *
  */
 class FatESP32File : public fatfs::FileObject, public FatESP32Info {
  public:
-  FatESP32File(std::string path, uint16_t mode);
-  FatESP32File(fatfs::FatInfo &finfo, uint16_t mode);
+  FatESP32File(std::string path);
+  FatESP32File(fatfs::FatInfo &finfo);
   ~FatESP32File();
   bool open(uint16_t mode) override;
   void close() override;
@@ -90,7 +87,7 @@ class FatESP32File : public fatfs::FileObject, public FatESP32Info {
 
 /** --------------------------------------------------------------------------------
  *
- * @brief Provde implementation for @ref fatfs::DirObject API
+ * @brief Provide implementation for @ref fatfs::DirObject API
  *
  */
 class FatESP32Dir : public fatfs::DirObject, public FatESP32Info {
@@ -98,7 +95,7 @@ class FatESP32Dir : public fatfs::DirObject, public FatESP32Info {
   FatESP32Dir(std::string path);
   FatESP32Dir(fatfs::FatInfo &finfo);
   ~FatESP32Dir();
-  bool open();
+  bool open() override;
   fatfs::FatInfo *get_next() override;
   bool reset() override;
   fatfs::FatError file_error() override { return static_cast<fatfs::FatError>(error_); };
