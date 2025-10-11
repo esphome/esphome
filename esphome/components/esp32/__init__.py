@@ -304,6 +304,17 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
 
 
+def _is_framework_url(source: str) -> str:
+    # platformio accepts many URL schemes for framework repositories and archives including http, https, git, file, and symlink
+    import urllib.parse
+
+    try:
+        parsed = urllib.parse.urlparse(source)
+    except ValueError:
+        return False
+    return bool(parsed.scheme)
+
+
 # NOTE: Keep this in mind when updating the recommended version:
 #  * New framework historically have had some regressions, especially for WiFi.
 #    The new version needs to be thoroughly validated before changing the
@@ -318,7 +329,8 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(3, 3, 1),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(3, 3, 1): cv.Version(55, 3, 31),
+    cv.Version(3, 3, 2): cv.Version(55, 3, 31, "1"),
+    cv.Version(3, 3, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(3, 2, 0): cv.Version(54, 3, 20),
@@ -336,8 +348,8 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 1),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(5, 5, 1): cv.Version(55, 3, 31),
-    cv.Version(5, 5, 0): cv.Version(55, 3, 31),
+    cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
@@ -352,8 +364,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
     "recommended": cv.Version(54, 3, 21, "2"),
-    "latest": cv.Version(55, 3, 31),
-    "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
+    "latest": cv.Version(55, 3, 31, "1"),
+    "dev": cv.Version(55, 3, 31, "1"),
 }
 
 
@@ -386,7 +398,7 @@ def _check_versions(value):
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
-        if value[CONF_SOURCE].startswith("http"):
+        if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = (
                 f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
             )
@@ -399,7 +411,7 @@ def _check_versions(value):
             CONF_SOURCE,
             _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
         )
-        if value[CONF_SOURCE].startswith("http"):
+        if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
 
     if CONF_PLATFORM_VERSION not in value:
@@ -645,6 +657,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Why change? ESP-IDF offers:\n"
         + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
         + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
         + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
         + color(
             AnsiFore.GREEN,
@@ -652,7 +665,6 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         )
         + "\n"
         + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  ⏱️  Compile times are ~25% longer\n")
         + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
         + "\n"
         + "What should I do?\n"

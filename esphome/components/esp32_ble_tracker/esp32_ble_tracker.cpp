@@ -25,10 +25,6 @@
 #include <esp_coexist.h>
 #endif
 
-#ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
-#endif
-
 #define MBEDTLS_AES_ALT
 #include <aes_alt.h>
 

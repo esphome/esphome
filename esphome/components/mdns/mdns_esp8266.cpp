@@ -33,7 +33,7 @@ void MDNSComponent::setup() {
     MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
       MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
-                         const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
+                         FPSTR(MDNS_STR_ARG(record.value)));
     }
   }
 }
