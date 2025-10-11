@@ -12,11 +12,12 @@ namespace esphome {
 namespace mdns {
 
 void MDNSComponent::setup() {
-  this->compile_records_();
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
+  this->compile_records_(services);
 
   MDNS.begin(this->hostname_.c_str());
 
-  for (const auto &service : this->services_) {
+  for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds

@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
@@ -125,6 +125,17 @@ def mdns_service(
     )
 
 
+def enable_mdns_storage():
+    """Enable persistent storage of mDNS services in the MDNSComponent.
+
+    Called by external components (like OpenThread) that need access to
+    services after setup() completes via get_services().
+
+    Public API for external components. Do not remove.
+    """
+    cg.add_define("USE_MDNS_STORE_SERVICES")
+
+
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config):
     if config[CONF_DISABLED] is True:
@@ -150,6 +161,8 @@ async def to_code(config):
 
     if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
+        # Extra services need to be stored persistently
+        enable_mdns_storage()
 
     # Ensure at least 1 service (fallback service)
     cg.add_define("MDNS_SERVICE_COUNT", max(1, service_count))
@@ -170,6 +183,10 @@ async def to_code(config):
 
     # Ensure at least 1 to avoid zero-size array
     cg.add_define("MDNS_DYNAMIC_TXT_COUNT", max(1, dynamic_txt_count))
+
+    # Enable storage if verbose logging is enabled (for dump_config)
+    if get_logger_level() in ("VERBOSE", "VERY_VERBOSE"):
+        enable_mdns_storage()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
