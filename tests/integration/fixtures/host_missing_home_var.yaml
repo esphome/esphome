@@ -1,0 +1,12 @@
+esphome:
+  name: test_device
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+# This will trigger the preferences setup which requires HOME
+preferences:
