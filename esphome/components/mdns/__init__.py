@@ -101,7 +101,7 @@ async def _mdns_txt_record_templated(
 
 
 def mdns_service(
-    service: str, proto: str, port: int, txt_records: list[dict[str, str]]
+    service: str, proto: str, port: int, txt_records: list[cg.RawExpression]
 ) -> cg.StructInitializer:
     """Create a mDNS service.
 
