@@ -375,15 +375,11 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 }
 
 void ESP32ImprovComponent::check_wifi_connection_() {
-  if (wifi::global_wifi_component->is_connected()) {
-    this->on_wifi_connected_();
+  if (!wifi::global_wifi_component->is_connected()) {
+    return;
   }
-}
 
-void ESP32ImprovComponent::on_wifi_connected_() {
-  // Handle WiFi connection, whether from Improv provisioning or external (e.g., captive portal)
   if (this->state_ == improv::STATE_PROVISIONING) {
-    // WiFi provisioned via Improv - save credentials and send response
     wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
     this->connecting_sta_ = {};
     this->cancel_timeout("wifi-connect-timeout");
@@ -401,7 +397,6 @@ void ESP32ImprovComponent::on_wifi_connected_() {
     std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
     this->send_response_(data);
   } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
-    // WiFi provisioned externally (e.g., captive portal) - just transition to provisioned
     ESP_LOGD(TAG, "WiFi provisioned externally");
   }
 

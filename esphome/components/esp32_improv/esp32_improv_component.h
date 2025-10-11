@@ -111,7 +111,6 @@ class ESP32ImprovComponent : public Component {
   void send_response_(std::vector<uint8_t> &response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
-  void on_wifi_connected_();
   void check_wifi_connection_();
   bool check_identify_();
   void advertise_service_data_();
