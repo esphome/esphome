@@ -343,8 +343,7 @@ bool VL53L1xSensor::apply_distance_threshold_() {
   if (this->distance_threshold_.interrupt_when != NOT_SET) {
     uint8_t err = 0;
     if ((err = driver::SetDistanceThreshold(this, this->distance_threshold_.min, this->distance_threshold_.max,
-                                            this->distance_threshold_.interrupt_when)) !=
-        driver::VL53L1X_ERROR_NONE) {
+                                            this->distance_threshold_.interrupt_when)) != driver::VL53L1X_ERROR_NONE) {
       ESP_LOGW(TAG, "SetDistanceThreshold failed: %d", err);
       return false;
     }
