@@ -4,6 +4,7 @@ from collections.abc import Generator
 import importlib.util
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from unittest.mock import Mock, call, patch
@@ -90,7 +91,13 @@ def test_main_all_tests_should_run(
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["changed_components"] == ["wifi", "api", "sensor"]
-    assert output["component_test_count"] == 3
+    # changed_components_with_tests will only include components that actually have test files
+    assert "changed_components_with_tests" in output
+    assert isinstance(output["changed_components_with_tests"], list)
+    # component_test_count matches number of components with tests
+    assert output["component_test_count"] == len(
+        output["changed_components_with_tests"]
+    )
 
 
 def test_main_no_tests_should_run(
@@ -125,6 +132,7 @@ def test_main_no_tests_should_run(
     assert output["clang_format"] is False
     assert output["python_linters"] is False
     assert output["changed_components"] == []
+    assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
 
 
@@ -197,7 +205,13 @@ def test_main_with_branch_argument(
     assert output["clang_format"] is False
     assert output["python_linters"] is True
     assert output["changed_components"] == ["mqtt"]
-    assert output["component_test_count"] == 1
+    # changed_components_with_tests will only include components that actually have test files
+    assert "changed_components_with_tests" in output
+    assert isinstance(output["changed_components_with_tests"], list)
+    # component_test_count matches number of components with tests
+    assert output["component_test_count"] == len(
+        output["changed_components_with_tests"]
+    )
 
 
 def test_should_run_integration_tests(
@@ -377,3 +391,60 @@ def test_should_run_clang_format_with_branch() -> None:
         mock_changed.return_value = []
         determine_jobs.should_run_clang_format("release")
         mock_changed.assert_called_once_with("release")
+
+
+def test_main_filters_components_without_tests(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_subprocess_run: Mock,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """Test that components without test files are filtered out."""
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Mock list-components.py output with 3 components
+    # wifi: has tests, sensor: has tests, airthings_ble: no tests
+    mock_result = Mock()
+    mock_result.stdout = "wifi\nsensor\nairthings_ble\n"
+    mock_subprocess_run.return_value = mock_result
+
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # wifi has tests
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32.yaml").write_text("test: config")
+
+    # sensor has tests
+    sensor_dir = tests_dir / "sensor"
+    sensor_dir.mkdir(parents=True)
+    (sensor_dir / "test.esp8266.yaml").write_text("test: config")
+
+    # airthings_ble exists but has no test files
+    airthings_dir = tests_dir / "airthings_ble"
+    airthings_dir.mkdir(parents=True)
+
+    # Mock root_path to use tmp_path
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch("sys.argv", ["determine-jobs.py"]),
+    ):
+        determine_jobs.main()
+
+    # Check output
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    # changed_components should have all components
+    assert set(output["changed_components"]) == {"wifi", "sensor", "airthings_ble"}
+    # changed_components_with_tests should only have components with test files
+    assert set(output["changed_components_with_tests"]) == {"wifi", "sensor"}
+    # component_test_count should be based on components with tests
+    assert output["component_test_count"] == 2
