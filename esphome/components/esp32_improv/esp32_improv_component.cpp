@@ -163,9 +163,6 @@ void ESP32ImprovComponent::loop() {
     }
     case improv::STATE_PROVISIONING: {
       this->set_status_indicator_state_((now % 200) < 100);
-      if (wifi::global_wifi_component->is_connected()) {
-        this->on_wifi_connected_();
-      }
       break;
     }
     case improv::STATE_PROVISIONED: {
