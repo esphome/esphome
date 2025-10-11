@@ -340,6 +340,7 @@ def final_validation(config):
 
     # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
     # This is an internal dependency in the Bluedroid stack (tested ESP-IDF 5.4.2-5.5.1)
+    # See: https://github.com/espressif/esp-idf/issues/17724
     add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
 
