@@ -306,6 +306,15 @@ std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, 
 /// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
+/// Concatenate a name with a separator and suffix using an efficient stack-based approach.
+/// This avoids multiple heap allocations during string construction.
+/// Maximum name length supported is 120 characters for friendly names.
+/// @param name The base name string
+/// @param sep The separator character (e.g., '-', ' ', or '.')
+/// @param suffix The suffix to append (e.g., MAC address suffix or ".local")
+/// @return The concatenated string: name + sep + suffix
+std::string make_name_with_suffix(const std::string &name, char sep, const std::string &suffix);
+
 ///@}
 
 /// @name Parsing & formatting

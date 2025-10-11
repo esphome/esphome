@@ -691,7 +691,7 @@ void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_
 
 std::string EthernetComponent::get_use_address() const {
   if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
+    return make_name_with_suffix(App.get_name(), '.', "local");
   }
   return this->use_address_;
 }

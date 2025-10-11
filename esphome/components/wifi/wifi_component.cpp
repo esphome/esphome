@@ -267,7 +267,7 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 }
 std::string WiFiComponent::get_use_address() const {
   if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
+    return make_name_with_suffix(App.get_name(), '.', "local");
   }
   return this->use_address_;
 }
