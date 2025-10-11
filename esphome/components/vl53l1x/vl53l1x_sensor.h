@@ -12,9 +12,6 @@ namespace i2c {
 class I2CBus;
 }
 namespace vl53l1x {
-void register_sensor(::esphome::i2c::I2CDevice *dev);
-void set_bootstrap_device(::esphome::i2c::I2CDevice *dev);
-void clear_bootstrap_device();
 
 enum DistanceMode : uint8_t { SHORT = 0, LONG = 2 };
 enum InterruptWhenMode : uint8_t {

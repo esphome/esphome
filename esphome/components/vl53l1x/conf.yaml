@@ -8,8 +8,7 @@ sensor:
     name: "All Configuration Options"
 
     # Conditionally required: Must be set when multiple VL53L1X Sensors
-    # are connected. All sensors must have a unique address, even when
-    # connected to multiple buses.
+    # are connected on the same bus.
     address: 0x29 # Default: 0x29
 
     # Conditionally required: Must be set if address is not
