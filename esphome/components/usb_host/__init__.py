@@ -20,6 +20,7 @@ USBClient = usb_host_ns.class_("USBClient", Component)
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"
+CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 
 
 def usb_device_schema(cls=USBClient, vid: int = None, pid: [int] = None) -> cv.Schema:
@@ -44,6 +45,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(USBHost),
             cv.Optional(CONF_ENABLE_HUBS, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
+                min=1, max=32
+            ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
@@ -62,6 +66,10 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 1024)
     if config.get(CONF_ENABLE_HUBS):
         add_idf_sdkconfig_option("CONFIG_USB_HOST_HUBS_SUPPORTED", True)
+
+    max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
+    cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
