@@ -1,1 +1,9 @@
+substitutions:
+  display_reset_pin: "10"
+  interrupt_pin: "20"
+  reset_pin: "21"
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
 <<: !include common.yaml

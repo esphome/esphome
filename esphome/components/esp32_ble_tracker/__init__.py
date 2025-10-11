@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 
 from esphome import automation
@@ -52,8 +53,18 @@ class BLEFeatures(StrEnum):
     ESP_BT_DEVICE = "ESP_BT_DEVICE"
 
 
+# Dataclass for registration counts
+@dataclass
+class RegistrationCounts:
+    listeners: int = 0
+    clients: int = 0
+
+
 # Set to track which features are needed by components
 _required_features: set[BLEFeatures] = set()
+
+# Track registration counts for StaticVector sizing
+_registration_counts = RegistrationCounts()
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -257,12 +268,14 @@ async def to_code(config):
         register_ble_features({BLEFeatures.ESP_BT_DEVICE})
 
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        _registration_counts.listeners += 1
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:
             addr_list = [it.as_hex for it in conf[CONF_MAC_ADDRESS]]
             cg.add(trigger.set_addresses(addr_list))
         await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
+        _registration_counts.listeners += 1
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_SERVICE_UUID]) == len(bt_uuid16_format):
             cg.add(trigger.set_service_uuid16(as_hex(conf[CONF_SERVICE_UUID])))
@@ -275,6 +288,7 @@ async def to_code(config):
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
+        _registration_counts.listeners += 1
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid16_format):
             cg.add(trigger.set_manufacturer_uuid16(as_hex(conf[CONF_MANUFACTURER_ID])))
@@ -287,6 +301,7 @@ async def to_code(config):
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     for conf in config.get(CONF_ON_SCAN_END, []):
+        _registration_counts.listeners += 1
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
@@ -319,6 +334,17 @@ async def _add_ble_features():
     if BLEFeatures.ESP_BT_DEVICE in _required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
+
+    # Add defines for StaticVector sizing based on registration counts
+    # Only define if count > 0 to avoid allocating unnecessary memory
+    if _registration_counts.listeners > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT", _registration_counts.listeners
+        )
+    if _registration_counts.clients > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT", _registration_counts.clients
+        )
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
@@ -369,6 +395,7 @@ async def register_ble_device(
     var: cg.SafeExpType, config: ConfigType
 ) -> cg.SafeExpType:
     register_ble_features({BLEFeatures.ESP_BT_DEVICE})
+    _registration_counts.listeners += 1
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
     return var
@@ -376,6 +403,7 @@ async def register_ble_device(
 
 async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExpType:
     register_ble_features({BLEFeatures.ESP_BT_DEVICE})
+    _registration_counts.clients += 1
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
     return var
@@ -389,6 +417,7 @@ async def register_raw_ble_device(
     This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
     will not be compiled in if this is the only registration method used.
     """
+    _registration_counts.listeners += 1
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
     return var
@@ -402,6 +431,7 @@ async def register_raw_client(
     This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
     will not be compiled in if this is the only registration method used.
     """
+    _registration_counts.clients += 1
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
     return var

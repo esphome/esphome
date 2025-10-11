@@ -1,16 +1,12 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
 psram:
   mode: octal
 
-spi:
-  - clk_pin:
-      number: 47
-      allow_other_uses: true
-    mosi_pin:
-      number: 41
-      allow_other_uses: true
-
 display:
   - platform: mipi_rgb
+    spi_id: spi_bus
     model: ZX2D10GE01R-V4848
     update_interval: 1s
     color_order: BGR
