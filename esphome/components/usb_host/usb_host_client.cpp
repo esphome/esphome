@@ -362,7 +362,7 @@ TransferRequest *USBClient::get_trq_() {
     i = 0;
   }
 
-  ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
+  ESP_LOGE(TAG, "All %d transfer slots in use", (int)MAX_REQUESTS);
   return nullptr;
 }
 void USBClient::disconnect() {
