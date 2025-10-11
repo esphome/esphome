@@ -399,7 +399,7 @@ void ESP32ImprovComponent::on_wifi_connected_() {
     this->send_response_(data);
   } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
     // WiFi provisioned externally (e.g., captive portal) - just transition to provisioned
-    ESP_LOGD(TAG, "WiFi provisioned externally, transitioning to provisioned state");
+    ESP_LOGD(TAG, "WiFi provisioned externally");
   }
 
   // Common actions for both cases
