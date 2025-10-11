@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.cpp_types import Component
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -62,7 +63,7 @@ async def register_usb_client(config):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 1024)
     if config.get(CONF_ENABLE_HUBS):
         add_idf_sdkconfig_option("CONFIG_USB_HOST_HUBS_SUPPORTED", True)
