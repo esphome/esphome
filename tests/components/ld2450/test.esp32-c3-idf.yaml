@@ -2,4 +2,7 @@ substitutions:
   tx_pin: GPIO4
   rx_pin: GPIO5
 
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-c3-idf.yaml
+
 <<: !include common.yaml
