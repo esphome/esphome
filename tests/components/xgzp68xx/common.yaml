@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_xgzp68xx
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: xgzp68xx
+    i2c_id: i2c_bus
     k_value: 4096
     temperature:
       name: Pressure Temperature
