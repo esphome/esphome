@@ -103,8 +103,10 @@ class Application {
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       const std::string mac_suffix = get_mac_address().substr(6);
-      this->name_ = name + "-" + mac_suffix;
-      this->friendly_name_ = friendly_name.empty() ? "" : friendly_name + " " + mac_suffix;
+      this->name_ = make_name_with_suffix(name, '-', mac_suffix);
+      if (!friendly_name.empty()) {
+        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix);
+      }
     } else {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
