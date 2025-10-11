@@ -429,6 +429,7 @@ static void transfer_callback(usb_transfer_t *xfer) {
   }
 
   // Release transfer slot AFTER callback completes to prevent slot exhaustion
+  // This is critical for high-throughput transfers (e.g., USB UART at 115200 baud)
   // The callback has finished accessing xfer->data_buffer, so it's safe to release
   // The release_trq() uses thread-safe atomic operations
   trq->client->release_trq(trq);
