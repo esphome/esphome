@@ -217,8 +217,7 @@ bool ESP32BLE::ble_setup_() {
   if (this->name_.has_value()) {
     name = this->name_.value();
     if (App.is_name_add_mac_suffix_enabled()) {
-      name += "-";
-      name += get_mac_address().substr(6);
+      name = make_name_with_suffix(name, '-', get_mac_address().substr(6));
     }
   } else {
     name = App.get_name();
