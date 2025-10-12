@@ -314,9 +314,10 @@ std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, .
 /// Maximum name length supported is 120 characters for friendly names.
 /// @param name The base name string
 /// @param sep The separator character (e.g., '-', ' ', or '.')
-/// @param suffix The suffix to append (e.g., MAC address suffix or ".local")
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
 /// @return The concatenated string: name + sep + suffix
-std::string make_name_with_suffix(const std::string &name, char sep, const std::string &suffix);
+std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
 
 ///@}
 
