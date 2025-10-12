@@ -691,7 +691,9 @@ void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_
 
 std::string EthernetComponent::get_use_address() const {
   if (this->use_address_.empty()) {
-    return make_name_with_suffix(App.get_name(), '.', "local");
+    // ".local" suffix length for mDNS hostnames
+    constexpr size_t MDNS_LOCAL_SUFFIX_LEN = 5;
+    return make_name_with_suffix(App.get_name(), '.', "local", MDNS_LOCAL_SUFFIX_LEN);
   }
   return this->use_address_;
 }
