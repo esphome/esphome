@@ -244,7 +244,7 @@ def main() -> None:
         component
         for component in changed_components
         if (component_test_dir := tests_dir / component).exists()
-        and next(component_test_dir.glob("test.*.yaml"), None) is not None
+        and any(component_test_dir.glob("test.*.yaml"))
     ]
 
     # Build output
