@@ -192,7 +192,7 @@ template<typename T> class FixedVector {
 
   /// Add element without bounds checking
   /// Caller must ensure sufficient capacity was allocated via init()
-  /// Silently ignores pushes beyond capacity to avoid runtime overhead
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
   void push_back(const T &value) {
     if (size_ < capacity_) {
       data_[size_++] = value;
