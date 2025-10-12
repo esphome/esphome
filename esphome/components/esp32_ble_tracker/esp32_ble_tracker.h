@@ -1,3 +1,4 @@
+// a
 #pragma once
 
 #include "esphome/core/automation.h"
