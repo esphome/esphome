@@ -72,7 +72,7 @@ FatESP32Info::FatESP32Info(std::string path) {
   if (res == FR_NO_FILE || res == FR_NO_PATH) {
     return;
   } else if ((res == FR_INVALID_NAME) && (path_ == "/")) {
-    // res = FR_OK;
+    res = FR_OK;
     exist_ = true;
     is_dir_ = true;
     return;

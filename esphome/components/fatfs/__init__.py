@@ -91,6 +91,12 @@ async def new_fatfs(config, *args):
     return var
 
 
+async def to_code(config):
+    raise NotImplementedError(
+        "This component if only FATFS API. You need fatfs component with device driver."
+    )
+
+
 #
 #   Triggers
 #

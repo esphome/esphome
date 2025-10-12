@@ -14,7 +14,7 @@ from esphome.cpp_generator import MockObjClass
 # MOUNT_POINT = "munt_point"
 # CONF_DRIVE_ID = "drive_id"
 
-# IS_PLATFORM_COMPONENT = True
+IS_PLATFORM_COMPONENT = True
 CODEOWNERS = ["@abel-msk"]
 # _LOGGER = logging.getLogger(__name__)
 
@@ -53,3 +53,9 @@ async def new_esp32_driver(config, *args):
 
     # await register_esp32_driver(var, config)
     # return var
+
+
+async def to_code(config):
+    raise NotImplementedError(
+        "This component if only FATFS API for ESP32 platform. You need fatfs component with device driver."
+    )
