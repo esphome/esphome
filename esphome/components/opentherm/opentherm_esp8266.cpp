@@ -58,6 +58,16 @@ void OpenTherm::log_protocol_state() const {
            to_string(clock_).c_str(), format_bin(this->capture_).c_str(), to_string(this->bit_pos_).c_str());
 }
 
+void IRAM_ATTR OpenTherm::read_() {
+  this->data_ = 0;
+  this->bit_pos_ = 0;
+  this->mode_ = OperationMode::READ;
+  this->capture_ = 1;         // reset counter and add as if read start bit
+  this->clock_ = 1;           // clock is high at the start of comm
+  this->start_read_timer_();  // get us into 1/4 of manchester code. 5 timer ticks constitute 1 ms, which is 1 bit
+                              // period in OpenTherm.
+}
+
 bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
   if (arg->mode_ == OperationMode::LISTEN) {
     if (arg->timeout_counter_ == 0) {
@@ -85,7 +95,7 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
         return false;
       } else if (arg->clock_ == 1 || arg->capture_ > 0xF) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
-        if (arg->bit_pos_ == BitPositions::STOP_BIT) {
+        if (arg->bit_pos_ == 33) {
           // expecting stop bit
           auto stop_bit_error = arg->verify_stop_bit_(last);
           if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
@@ -148,7 +158,7 @@ void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
 
 ProtocolErrorType IRAM_ATTR OpenTherm::verify_stop_bit_(uint8_t value) {
   if (value) {  // stop bit detected
-    return check_parity_(this->data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
+    return check_parity(this->data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
   } else {  // no stop bit detected, error
     return ProtocolErrorType::INVALID_START_STOP_BIT;
   }

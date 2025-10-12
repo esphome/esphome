@@ -43,7 +43,6 @@ class OpenTherm : public OpenThermBase {
   void read_();               // data detected start reading
   void start_read_timer_();   // reading timer_ to sample at 1/5 of manchester code bit length (at 5kHz)
   void start_write_timer_();  // writing timer_ to send manchester code (at 2kHz)
-  bool check_parity_(uint32_t val);
 
   void bit_read_(uint8_t value);
   ProtocolErrorType verify_stop_bit_(uint8_t value);
