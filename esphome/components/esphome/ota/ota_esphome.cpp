@@ -1,3 +1,5 @@
+// useless comment
+
 #include "ota_esphome.h"
 #ifdef USE_OTA
 #ifdef USE_OTA_PASSWORD
