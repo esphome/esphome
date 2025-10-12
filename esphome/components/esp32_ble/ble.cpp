@@ -185,6 +185,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
   if (!this->gap_event_handlers_.empty()) {
     err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
     if (err != ESP_OK) {
@@ -192,8 +193,9 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#endif
 
-#ifdef USE_ESP32_BLE_SERVER
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
   if (!this->gatts_event_handlers_.empty()) {
     err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
     if (err != ESP_OK) {
@@ -203,7 +205,7 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-#ifdef USE_ESP32_BLE_CLIENT
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
   if (!this->gattc_event_handlers_.empty()) {
     err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
     if (err != ESP_OK) {
@@ -306,9 +308,11 @@ void ESP32BLE::loop() {
     case BLE_COMPONENT_STATE_DISABLE: {
       ESP_LOGD(TAG, "Disabling");
 
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
       for (auto *ble_event_handler : this->ble_status_event_handlers_) {
         ble_event_handler->ble_before_disabled_event_handler();
       }
+#endif
 
       if (!ble_dismantle_()) {
         ESP_LOGE(TAG, "Could not be dismantled");
@@ -338,7 +342,7 @@ void ESP32BLE::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {
-#ifdef USE_ESP32_BLE_SERVER
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTS: {
         esp_gatts_cb_event_t event = ble_event->event_.gatts.gatts_event;
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
@@ -350,7 +354,7 @@ void ESP32BLE::loop() {
         break;
       }
 #endif
-#ifdef USE_ESP32_BLE_CLIENT
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTC: {
         esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
@@ -366,10 +370,12 @@ void ESP32BLE::loop() {
         esp_gap_ble_cb_event_t gap_event = ble_event->event_.gap.gap_event;
         switch (gap_event) {
           case ESP_GAP_BLE_SCAN_RESULT_EVT:
+#ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
             // Use the new scan event handler - no memcpy!
             for (auto *scan_handler : this->gap_scan_event_handlers_) {
               scan_handler->gap_scan_event_handler(ble_event->scan_result());
             }
+#endif
             break;
 
           // Scan complete events
@@ -381,10 +387,12 @@ void ESP32BLE::loop() {
             // This is verified at compile-time by static_assert checks in ble_event.h
             // The struct already contains our copy of the status (copied in BLEEvent constructor)
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             for (auto *gap_handler : this->gap_event_handlers_) {
               gap_handler->gap_event_handler(
                   gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
             }
+#endif
             break;
 
           // Advertising complete events
@@ -395,19 +403,23 @@ void ESP32BLE::loop() {
           case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
             // All advertising complete events have the same structure with just status
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             for (auto *gap_handler : this->gap_event_handlers_) {
               gap_handler->gap_event_handler(
                   gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
             }
+#endif
             break;
 
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             for (auto *gap_handler : this->gap_event_handlers_) {
               gap_handler->gap_event_handler(
                   gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
             }
+#endif
             break;
 
           // Security events
@@ -417,10 +429,12 @@ void ESP32BLE::loop() {
           case ESP_GAP_BLE_PASSKEY_REQ_EVT:
           case ESP_GAP_BLE_NC_REQ_EVT:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             for (auto *gap_handler : this->gap_event_handlers_) {
               gap_handler->gap_event_handler(
                   gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
             }
+#endif
             break;
 
           default:
