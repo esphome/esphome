@@ -47,10 +47,6 @@ font:
     id: bdf_font
     size: 7
 
-i2c:
-  scl: ${i2c_scl}
-  sda: ${i2c_sda}
-
 display:
   - platform: ssd1306_i2c
     id: ssd1306_display
