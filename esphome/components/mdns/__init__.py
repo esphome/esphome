@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_SERVICES,
     PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
@@ -58,9 +58,64 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
+    """Create a mDNS TXT record.
+
+    Public API for external components. Do not remove.
+
+    Args:
+        key: The TXT record key
+        value: The TXT record value (static string only)
+
+    Returns:
+        A RawExpression representing a MDNSTXTRecord struct
+    """
+    return cg.RawExpression(
+        f"{{MDNS_STR({cg.safe_exp(key)}), MDNS_STR({cg.safe_exp(value)})}}"
+    )
+
+
+async def _mdns_txt_record_templated(
+    mdns_comp: cg.Pvariable, key: str, value: Lambda | str
+) -> cg.RawExpression:
+    """Create a mDNS TXT record with support for templated values.
+
+    Internal helper function.
+
+    Args:
+        mdns_comp: The MDNSComponent instance (from cg.get_variable())
+        key: The TXT record key
+        value: The TXT record value (can be a static string or a lambda template)
+
+    Returns:
+        A RawExpression representing a MDNSTXTRecord struct
+    """
+    if not cg.is_template(value):
+        # It's a static string - use directly in flash, no need to store in vector
+        return mdns_txt_record(key, value)
+    # It's a lambda - evaluate and store using helper
+    templated_value = await cg.templatable(value, [], cg.std_string)
+    safe_key = cg.safe_exp(key)
+    dynamic_call = f"{mdns_comp}->add_dynamic_txt_value(({templated_value})())"
+    return cg.RawExpression(f"{{MDNS_STR({safe_key}), MDNS_STR({dynamic_call})}}")
+
+
 def mdns_service(
-    service: str, proto: str, port: int, txt_records: list[dict[str, str]]
-):
+    service: str, proto: str, port: int, txt_records: list[cg.RawExpression]
+) -> cg.StructInitializer:
+    """Create a mDNS service.
+
+    Public API for external components. Do not remove.
+
+    Args:
+        service: Service name (e.g., "_http")
+        proto: Protocol (e.g., "_tcp" or "_udp")
+        port: Port number
+        txt_records: List of MDNSTXTRecord expressions
+
+    Returns:
+        A StructInitializer representing a MDNSService struct
+    """
     return cg.StructInitializer(
         MDNSService,
         ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
@@ -120,26 +175,10 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     for service in config[CONF_SERVICES]:
-        # Build the txt records list for the service
-        txt_records = []
-        for txt_key, txt_value in service[CONF_TXT].items():
-            if cg.is_template(txt_value):
-                # It's a lambda - evaluate and store using helper
-                templated_value = await cg.templatable(txt_value, [], cg.std_string)
-                safe_key = cg.safe_exp(txt_key)
-                dynamic_call = f"{var}->add_dynamic_txt_value(({templated_value})())"
-                txt_records.append(
-                    cg.RawExpression(
-                        f"{{MDNS_STR({safe_key}), MDNS_STR({dynamic_call})}}"
-                    )
-                )
-            else:
-                # It's a static string - use directly in flash, no need to store in vector
-                txt_records.append(
-                    cg.RawExpression(
-                        f"{{MDNS_STR({cg.safe_exp(txt_key)}), MDNS_STR({cg.safe_exp(txt_value)})}}"
-                    )
-                )
+        txt_records = [
+            await _mdns_txt_record_templated(var, txt_key, txt_value)
+            for txt_key, txt_value in service[CONF_TXT].items()
+        ]
 
         exp = mdns_service(
             service[CONF_SERVICE],
