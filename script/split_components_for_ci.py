@@ -96,10 +96,17 @@ def create_intelligent_batches(
 
     for component in components_with_tests:
         # Components that can't be grouped get unique signatures
-        # This includes both manually curated ISOLATED_COMPONENTS and
-        # automatically detected non_groupable components
+        # This includes:
+        # - Manually curated ISOLATED_COMPONENTS
+        # - Automatically detected non_groupable components
+        # - Directly changed components (passed via --isolate in CI)
         # These can share a batch/runner but won't be grouped/merged
-        if component in ISOLATED_COMPONENTS or component in non_groupable:
+        is_isolated = (
+            component in ISOLATED_COMPONENTS
+            or component in non_groupable
+            or (directly_changed and component in directly_changed)
+        )
+        if is_isolated:
             signature_groups[f"isolated_{component}"].append(component)
             continue
 
