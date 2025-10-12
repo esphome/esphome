@@ -40,6 +40,10 @@ void TM1638Component::setup() {
 
   this->reset_();  // all LEDs off
 
+  this->clear();
+}
+
+void TM1638Component::clear() {
   for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
     this->buffer_[i] = 0;
 }
@@ -82,7 +86,7 @@ uint16_t TM1638Component::get_keys() {
     uint8_t v = this->shift_in_();
     if (isQFY) { // 16 buttons - https://github.com/gavinlyonsrepo/TM1638plus/blob/master/src/TM1638plus_Model2.cpp
       // turn v ABCDEFGI = 0BC00FG0  into 00CG00BF see matrix below
-			v = (((v & 0x40) >> 3 | (v & 0x04)) >> 2) | (v & 0x20) | (v & 0x02) << 3;
+      v = (((v & 0x40) >> 3 | (v & 0x04)) >> 2) | (v & 0x20) | (v & 0x02) << 3;
       // i = 0 v = 00,10, 9,0021 // i = 1 v = 00,12,11,0043
       // i = 2 v = 00,14,13,0065 // i = 3 v = 00,16,15,0087
       // buttons = 16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1
