@@ -154,33 +154,26 @@ void OpenTherm::rmt_read_() {
 void OpenTherm::rmt_write_() {
   // Build Manchester stream as raw RMT symbols, 1 bit = two halves of 500us
   rmt_symbol_word_t syms[34];
-  auto set_sym = [](rmt_symbol_word_t &s, bool level0, uint16_t dur0, bool level1, uint16_t dur1) {
-    s.level0 = level0;
-    s.duration0 = dur0;
-    s.level1 = level1;
-    s.duration1 = dur1;
-  };
 
   // Helper to encode a bit: 1 => low,high; 0 => high,low
-  auto encode_bit = [&](uint8_t bit) -> rmt_symbol_word_t {
+  auto encode_bit = [&](bool bit) -> rmt_symbol_word_t {
     rmt_symbol_word_t s{};
-    if (bit) {
-      set_sym(s, 0, 500, 1, 500);
-    } else {
-      set_sym(s, 1, 500, 0, 500);
-    }
+    s.level0 = bit ? 0 : 1;
+    s.duration0 = 500;
+    s.level1 = bit ? 1 : 0;
+    s.duration1 = 500;
     return s;
   };
 
   // Start bit '1'
-  syms[0] = encode_bit(1);
+  syms[0] = encode_bit(true);
   // Data bits MSB..LSB (bits 31..0)
   for (int i = 31; i >= 0; i--) {
     uint8_t b = (this->data_ >> i) & 0x1;
     syms[32 - i] = encode_bit(b);
   }
   // Stop bit '1'
-  syms[33] = encode_bit(1);
+  syms[33] = encode_bit(true);
 
   rmt_transmit_config_t cfg = {};
   cfg.loop_count = 0;
