@@ -71,5 +71,76 @@ std::string JsonBuilder::serialize() {
   return output;
 }
 
+int16_t try_find_json(std::span<const unsigned char> buffer) {
+#define MAX_JSON_DEPTH 32
+  typedef std::size_t position_t;
+  // brackets and braces are used as a bitset, for indicators of the nesting
+  std::bitset<MAX_JSON_DEPTH> brackets, braces;
+  uint8_t depth = 0;
+  bool inside_string = false;
+  bool backslash = false;
+  bool corrupt = false;
+
+  size_t idx = 0;
+
+  for (auto it = buffer.begin(); it != buffer.end(); ++it) {
+    if (*it == '{' || *it == '[') {
+      break;
+    }
+    idx++;
+  }
+
+  if (idx > 0)
+    return -idx;
+
+  for (auto it = buffer.begin(); it != buffer.end(); ++it) {
+    if (std::isspace(*it)) {
+    } else if (!std::isprint(*it)) {
+      corrupt = true;
+    } else if (!inside_string) {
+      if (*it == '{') {
+        braces.set(position_t(depth++), true);
+        if (depth > MAX_JSON_DEPTH) {
+          corrupt = true;
+        }
+      } else if (*it == '}') {
+        if (depth > 0 && braces[depth - 1]) {
+          braces.set(position_t(--depth), false);
+        } else {
+          corrupt = true;
+        }
+      } else if (*it == '[') {
+        brackets.set(position_t(depth++), true);
+        if (depth > MAX_JSON_DEPTH) {
+          corrupt = true;
+        }
+      } else if (*it == ']') {
+        if (depth > 0 && brackets[depth - 1]) {
+          brackets.set(position_t(--depth), false);
+        } else {
+          corrupt = true;
+        }
+      } else if (*it == '"') {
+        inside_string = true;
+      }
+    } else {  // !inside_string
+      if (backslash) {
+        backslash = false;
+      } else if (*it == '\\') {
+        backslash = true;
+      } else if (*it == '"') {
+        inside_string = false;
+      }
+    }
+    idx++;
+    if (corrupt) {
+      return -1;
+    } else if (depth == 0) {
+      return idx;
+    }
+  }
+  return 0;
+}
+
 }  // namespace json
 }  // namespace esphome

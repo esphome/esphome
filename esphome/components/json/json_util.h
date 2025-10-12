@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <span>
+#include <bitset>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -57,6 +59,13 @@ JsonDocument parse_json(const uint8_t *data, size_t len);
 inline JsonDocument parse_json(const std::string &data) {
   return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
 }
+
+// try to identify a json object in a stream of text
+// returns a negative number indicating the number of characters
+// to discard, a positive number indicating the number of characters
+// making up a complete JSON object, or 0 if an incomplete JSON
+// object has been found, but more data is required to complete it.
+int16_t try_find_json(std::span<const unsigned char> buffer);
 
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
