@@ -472,7 +472,7 @@ class Application {
   // - When a component is enabled, it's swapped with the first inactive component
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
-  std::vector<Component *> looping_components_{};
+  FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
