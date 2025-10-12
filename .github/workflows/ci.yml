@@ -433,7 +433,7 @@ jobs:
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) >= 100
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: ${{ (github.base_ref == 'beta' || github.base_ref == 'release') && 8 || 4 }}
       matrix:
         components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
     steps:
