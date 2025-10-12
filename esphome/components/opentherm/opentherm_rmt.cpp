@@ -258,7 +258,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
 
   auto produce_bit = [&](uint16_t level) -> uint8_t {
     if (prev_level == level) {
-      this->set_protocol_error(ProtocolErrorType::NO_TRANSITION);
+      this->set_protocol_error_(ProtocolErrorType::NO_TRANSITION);
       return ERROR_BIT_VALUE;
     }
 
@@ -279,10 +279,10 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
         tick = 1;
       } else {
         // Long intervals should happen only when we already have first half of a bit.
-        this->set_protocol_error(ProtocolErrorType::NO_CHANGE_TOO_LONG);
+        this->set_protocol_error_(ProtocolErrorType::NO_CHANGE_TOO_LONG);
       }
     } else {
-      this->set_protocol_error(ProtocolErrorType::INVALID_DURATION);
+      this->set_protocol_error_(ProtocolErrorType::INVALID_DURATION);
     }
 
     prev_level = level;
@@ -301,7 +301,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
         if (level == 0 && prev_level == 1) {
           bit = 1;
         } else {
-          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT);
+          this->set_protocol_error_(ProtocolErrorType::INVALID_START_STOP_BIT);
           return false;
         }
       } else {
@@ -317,7 +317,7 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
 
       if (this->bit_index_ == 0 || this->bit_index_ == 33) {  // Check start and stop bit
         if (bit != 1) {
-          this->set_protocol_error(ProtocolErrorType::INVALID_START_STOP_BIT);
+          this->set_protocol_error_(ProtocolErrorType::INVALID_START_STOP_BIT);
           return false;
         }
       } else {
@@ -332,11 +332,11 @@ bool IRAM_ATTR OpenTherm::decode_rmt_symbols_(size_t num_symbols) {
   }
 
   // If we reached here, something went wrong and our data is incomplete.
-  this->set_protocol_error(ProtocolErrorType::INSUFFICIENT_DATA);
+  this->set_protocol_error_(ProtocolErrorType::INSUFFICIENT_DATA);
   return false;
 }
 
-void OpenTherm::set_protocol_error(ProtocolErrorType error_type) {
+void OpenTherm::set_protocol_error_(ProtocolErrorType error_type) {
   this->mode_ = OperationMode::ERROR_PROTOCOL;
   this->error_type_ = error_type;
 }
