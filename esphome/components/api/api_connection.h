@@ -1,3 +1,4 @@
+// ci test
 #pragma once
 
 #include "esphome/core/defines.h"
