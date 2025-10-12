@@ -5,6 +5,7 @@ from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CAPTURE_RESPONSE,
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_ID,
     CONF_METHOD,
@@ -57,7 +58,6 @@ CONF_HEADERS = "headers"
 CONF_COLLECT_HEADERS = "collect_headers"
 CONF_BODY = "body"
 CONF_JSON = "json"
-CONF_CAPTURE_RESPONSE = "capture_response"
 
 
 def validate_url(value):

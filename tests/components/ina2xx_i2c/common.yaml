@@ -1,11 +1,6 @@
-i2c:
-  - id: i2c_ina2xx
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: ina2xx_i2c
-    i2c_id: i2c_ina2xx
+    i2c_id: i2c_bus
     address: 0x40
     model: INA228
     shunt_resistance: 0.001130 ohm
