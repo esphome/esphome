@@ -384,9 +384,10 @@ jobs:
 
           # Use intelligent splitter that groups components with same bus configs
           components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
+          directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
 
           echo "Splitting components intelligently..."
-          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 40 --output github)
+          output=$(python3 script/split_components_for_ci.py --components "$components" --directly-changed "$directly_changed" --batch-size 40 --output github)
 
           echo "$output" >> $GITHUB_OUTPUT
 
