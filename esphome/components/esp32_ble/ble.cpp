@@ -186,32 +186,26 @@ bool ESP32BLE::ble_setup_() {
   }
 
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-  if (!this->gap_event_handlers_.empty()) {
-    err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
-      return false;
-    }
+  err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
+    return false;
   }
 #endif
 
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
-  if (!this->gatts_event_handlers_.empty()) {
-    err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
-      return false;
-    }
+  err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
+    return false;
   }
 #endif
 
 #if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
-  if (!this->gattc_event_handlers_.empty()) {
-    err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
-      return false;
-    }
+  err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
+    return false;
   }
 #endif
 
