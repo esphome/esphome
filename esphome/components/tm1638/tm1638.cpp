@@ -80,19 +80,18 @@ uint16_t TM1638Component::get_keys() {
 
   delayMicroseconds(10);
 
-  bool isQFY = this->board_ == "qyf"; // once
+  bool isQFY = this->board_ == "qyf";  // once
 
-  for (uint8_t i = 0; i < 4; i++) { // read the 4 button registers
+  for (uint8_t i = 0; i < 4; i++) {  // read the 4 button registers
     uint8_t v = this->shift_in_();
-    if (isQFY) { // 16 buttons - https://github.com/gavinlyonsrepo/TM1638plus/blob/master/src/TM1638plus_Model2.cpp
+    if (isQFY) {  // 16 buttons - https://github.com/gavinlyonsrepo/TM1638plus/blob/master/src/TM1638plus_Model2.cpp
       // turn v ABCDEFGI = 0BC00FG0  into 00CG00BF see matrix below
       v = (((v & 0x40) >> 3 | (v & 0x04)) >> 2) | (v & 0x20) | (v & 0x02) << 3;
       // i = 0 v = 00,10, 9,0021 // i = 1 v = 00,12,11,0043
       // i = 2 v = 00,14,13,0065 // i = 3 v = 00,16,15,0087
       // buttons = 16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1
-      buttons |= ((v & 0x000F) << (2*i)) | (((v & 0x00F0) << 4) << (2*i));
-    }
-    else
+      buttons |= ((v & 0x000F) << (2 * i)) | (((v & 0x00F0) << 4) << (2 * i));
+    } else
       buttons |= v << i;  // shift bits to correct slots in the byte
   }
 
@@ -114,12 +113,11 @@ void TM1638Component::update() {  // this is called at the interval specified in
 float TM1638Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void TM1638Component::display() {
+  uint8_t buffer[8] = {0};
 
-  uint8_t buffer[8] = { 0 };
+  if (this->board_ == "qyf") {  // refactor for differently wired board
 
-  if(this->board_ == "qyf") { // refactor for differently wired board
-
-    uint8_t mask = 0x80; // start on left side (left most 7-segment)
+    uint8_t mask = 0x80;  // start on left side (left most 7-segment)
     for (uint8_t i = 0; i < 8; i++) {
       /*
       if (buffer_[i] & 0x01) buffer[0] |= mask; // A
@@ -131,15 +129,15 @@ void TM1638Component::display() {
       if (buffer_[i] & 0x40) buffer[6] |= mask; // G
       if (buffer_[i] & 0x80) buffer[7] |= mask; // .
       */
-      uint8_t seg = 0x01; // start with A-segment
+      uint8_t seg = 0x01;  // start with A-segment
       for (uint8_t j = 0; j < 8; j++) {
-        if (buffer_[i] & seg) buffer[j] |= mask;
+        if (buffer_[i] & seg)
+          buffer[j] |= mask;
         seg <<= 1;
       }
       mask >>= 1;
     }
-  }
-  else
+  } else
     memcpy(buffer, buffer_, sizeof(buffer));
 
   for (uint8_t i = 0; i < 8; i++) {
@@ -161,7 +159,8 @@ void TM1638Component::reset_() {
 /////////////// LEDs /////////////////
 
 void TM1638Component::set_led(int led_pos, bool led_on_off) {
-  if (this->board_ != "led") return;
+  if (this->board_ != "led")
+    return;
 
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 

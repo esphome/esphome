@@ -3,13 +3,13 @@ import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BOARD,
     CONF_CLK_PIN,
     CONF_DIO_PIN,
     CONF_ID,
     CONF_INTENSITY,
     CONF_LAMBDA,
     CONF_STB_PIN,
-    CONF_BOARD,
 )
 
 CODEOWNERS = ["@skykingjwc"]
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
         cv.Required(CONF_STB_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_INTENSITY, default=7): cv.int_range(min=0, max=8),
-        cv.Optional(CONF_BOARD, default="led"): cv.string, #led/qyf/lkm
+        cv.Optional(CONF_BOARD, default="led"): cv.string,  # led/qyf/lkm
     }
 ).extend(cv.polling_component_schema("1s"))
 

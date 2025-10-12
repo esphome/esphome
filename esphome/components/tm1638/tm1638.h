@@ -44,7 +44,7 @@ class TM1638Component : public PollingComponent {
 
   void register_listener(KeyListener *listener) { this->listeners_.push_back(listener); }
 
-  void clear(); // clear display buffer
+  void clear();  // clear display buffer
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
