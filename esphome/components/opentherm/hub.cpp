@@ -202,7 +202,12 @@ void OpenthermHub::loop() {
   switch (cur_mode) {
     case OperationMode::WRITE:
     case OperationMode::READ:
+      break;
     case OperationMode::LISTEN:
+      if (this->last_conversation_start_ > 0 && (cur_time - this->last_conversation_start_) > 1150) {
+        ESP_LOGE(TAG, "Hub timeout triggered during receive");
+        this->stop_opentherm_();
+      }
       break;
     case OperationMode::IDLE:
       this->check_timings_(cur_time);
