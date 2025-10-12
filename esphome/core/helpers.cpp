@@ -247,7 +247,7 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
   if (total_len >= MAX_NAME_WITH_SUFFIX_SIZE) {
     // NOTE: This calculation could underflow if suffix_len >= MAX_NAME_WITH_SUFFIX_SIZE - 2,
     // but this is safe because this helper is only called with small suffixes:
-    // MAC suffixes (6-12 bytes), ".local" (6 bytes), etc.
+    // MAC suffixes (6-12 bytes), ".local" (5 bytes), etc.
     name_len = MAX_NAME_WITH_SUFFIX_SIZE - suffix_len - 2;  // -2 for separator and null terminator
     total_len = name_len + 1 + suffix_len;
   }
