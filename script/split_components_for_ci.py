@@ -261,7 +261,9 @@ def main() -> int:
     isolated_count = sum(
         1
         for comp in all_batched_components
-        if comp in ISOLATED_COMPONENTS or comp in non_groupable
+        if comp in ISOLATED_COMPONENTS
+        or comp in non_groupable
+        or (directly_changed and comp in directly_changed)
     )
     groupable_count = actual_components - isolated_count
 
