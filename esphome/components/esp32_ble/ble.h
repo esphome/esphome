@@ -125,35 +125,25 @@ class ESP32BLE : public Component {
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 #endif
 
-  void register_gap_event_handler(GAPEventHandler *handler) {
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-    this->gap_event_handlers_.push_back(handler);
+  void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
 #endif
-  }
-  void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
 #ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
+  void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
     this->gap_scan_event_handlers_.push_back(handler);
-#endif
-  }
-#ifdef USE_ESP32_BLE_CLIENT
-  void register_gattc_event_handler(GATTcEventHandler *handler) {
-#ifdef ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT
-    this->gattc_event_handlers_.push_back(handler);
-#endif
   }
 #endif
-#ifdef USE_ESP32_BLE_SERVER
-  void register_gatts_event_handler(GATTsEventHandler *handler) {
-#ifdef ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT
-    this->gatts_event_handlers_.push_back(handler);
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
+  void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
 #endif
-  }
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
+  void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
 #endif
-  void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
+  void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
     this->ble_status_event_handlers_.push_back(handler);
-#endif
   }
+#endif
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
