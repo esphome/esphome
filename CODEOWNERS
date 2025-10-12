@@ -168,7 +168,6 @@ esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/fatfs/* @abel-msk
 esphome/components/fatfs_esp32/* @abel-msk
-esphome/components/fatfs_esp32_sdspi/* @abel-msk
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @alexborro @loongyh @OnFreund
 esphome/components/font/* @clydebarrow @esphome/core
