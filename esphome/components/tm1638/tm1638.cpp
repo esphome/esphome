@@ -4,6 +4,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <string>
+
 namespace esphome {
 namespace tm1638 {
 
@@ -34,6 +36,8 @@ void TM1638Component::setup() {
 
   this->set_intensity(intensity_);
 
+  this->set_board(board_);
+
   this->reset_();  // all LEDs off
 
   for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
@@ -43,8 +47,9 @@ void TM1638Component::setup() {
 void TM1638Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TM1638:\n"
+                "  Board: %s\n"
                 "  Intensity: %u",
-                this->intensity_);
+                this->board_.c_str(), this->intensity_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_PIN("  STB Pin: ", this->stb_pin_);
@@ -55,13 +60,13 @@ void TM1638Component::loop() {
   if (this->listeners_.empty())
     return;
 
-  uint8_t keys = this->get_keys();
+  uint16_t keys = this->get_keys();
   for (auto &listener : this->listeners_)
     listener->keys_update(keys);
 }
 
-uint8_t TM1638Component::get_keys() {
-  uint8_t buttons = 0;
+uint16_t TM1638Component::get_keys() {
+  uint16_t buttons = 0;
 
   this->stb_pin_->digital_write(false);
 
@@ -71,9 +76,20 @@ uint8_t TM1638Component::get_keys() {
 
   delayMicroseconds(10);
 
-  for (uint8_t i = 0; i < 4; i++) {  // read the 4 button registers
+  bool isQFY = this->board_ == "qyf"; // once
+
+  for (uint8_t i = 0; i < 4; i++) { // read the 4 button registers
     uint8_t v = this->shift_in_();
-    buttons |= v << i;  // shift bits to correct slots in the byte
+    if (isQFY) { // 16 buttons - https://github.com/gavinlyonsrepo/TM1638plus/blob/master/src/TM1638plus_Model2.cpp
+      // turn v ABCDEFGI = 0BC00FG0  into 00CG00BF see matrix below
+			v = (((v & 0x40) >> 3 | (v & 0x04)) >> 2) | (v & 0x20) | (v & 0x02) << 3;
+      // i = 0 v = 00,10, 9,0021 // i = 1 v = 00,12,11,0043
+      // i = 2 v = 00,14,13,0065 // i = 3 v = 00,16,15,0087
+      // buttons = 16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1
+      buttons |= ((v & 0x000F) << (2*i)) | (((v & 0x00F0) << 4) << (2*i));
+    }
+    else
+      buttons |= v << i;  // shift bits to correct slots in the byte
   }
 
   this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -113,6 +129,8 @@ void TM1638Component::reset_() {
 /////////////// LEDs /////////////////
 
 void TM1638Component::set_led(int led_pos, bool led_on_off) {
+  if (this->board_ != "led") return;
+
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 
   uint8_t commands[2];

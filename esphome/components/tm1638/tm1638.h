@@ -7,13 +7,14 @@
 #include "esphome/core/time.h"
 
 #include <vector>
+#include <string>
 
 namespace esphome {
 namespace tm1638 {
 
 class KeyListener {
  public:
-  virtual void keys_update(uint8_t keys){};
+  virtual void keys_update(uint16_t keys){};
 };
 
 class TM1638Component;
@@ -34,6 +35,13 @@ class TM1638Component : public PollingComponent {
   void set_dio_pin(GPIOPin *pin) { this->dio_pin_ = pin; }
   void set_stb_pin(GPIOPin *pin) { this->stb_pin_ = pin; }
 
+  void set_board(std::string board) {
+    for (char &c : board) {
+      c = std::tolower(static_cast<unsigned char>(c));
+    }
+    this->board_ = board;
+  }
+
   void register_listener(KeyListener *listener) { this->listeners_.push_back(listener); }
 
   /// Evaluate the printf-format and print the result at the given position.
@@ -47,7 +55,7 @@ class TM1638Component : public PollingComponent {
   uint8_t print(const char *str);
 
   void loop() override;
-  uint8_t get_keys();
+  uint16_t get_keys();
 
   /// Evaluate the strftime-format and print the result at the given position.
   uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
@@ -65,10 +73,11 @@ class TM1638Component : public PollingComponent {
   void shift_out_(uint8_t value);
   void reset_();
   uint8_t shift_in_();
-  uint8_t intensity_{};  /// brghtness of the display  0 through 7
+  uint8_t intensity_{};  /// brightness of the display  0 through 7
   GPIOPin *clk_pin_;
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
+  std::string board_;
   uint8_t *buffer_ = new uint8_t[8];
   optional<tm1638_writer_t> writer_{};
   std::vector<KeyListener *> listeners_{};
