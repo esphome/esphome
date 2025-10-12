@@ -12,7 +12,6 @@ namespace esphome {
 namespace opentherm {
 
 using std::string;
-using std::to_string;
 
 static const char *const TAG = "opentherm";
 
