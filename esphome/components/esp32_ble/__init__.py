@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
@@ -421,6 +421,16 @@ def final_validation(config):
     # For newer chips (C3/S3/etc), different configs are used automatically
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BLE_MAX_CONN", max_connections)
 
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validation
+
+
+# This needs to be run as a job with very low priority so that all components have
+# a chance to register their handlers before the counts are added to defines.
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_ble_handler_defines():
     # Add defines for StaticVector sizing based on handler registration counts
     # Only define if count > 0 to avoid allocating unnecessary memory
     if _handler_counts.gap_event > 0:
@@ -445,11 +455,6 @@ def final_validation(config):
             "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT",
             _handler_counts.ble_status_event,
         )
-
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = final_validation
 
 
 async def to_code(config):
@@ -505,6 +510,9 @@ async def to_code(config):
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
+
+    # Schedule the handler defines to be added after all components register
+    CORE.add_job(_add_ble_handler_defines)
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
