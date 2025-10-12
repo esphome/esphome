@@ -237,12 +237,6 @@ std::string str_sprintf(const char *fmt, ...) {
 
 // Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
 static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
-// MAC address suffix length (last 6 characters of 12-char MAC address string)
-static constexpr size_t MAC_ADDRESS_SUFFIX_LEN = 6;
-// Full MAC address string length (lowercase hex without separators)
-static constexpr size_t MAC_ADDRESS_LEN = 12;
-// ".local" suffix length for mDNS hostnames
-static constexpr size_t MDNS_LOCAL_SUFFIX_LEN = 5;
 
 std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
   char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
