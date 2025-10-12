@@ -110,8 +110,36 @@ void TM1638Component::update() {  // this is called at the interval specified in
 float TM1638Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void TM1638Component::display() {
+
+  uint8_t buffer[8] = { 0 };
+
+  if(this->board_ == "qyf") { // refactor for differently wired board
+
+    uint8_t mask = 0x80; // start on left side (left most 7-segment)
+    for (uint8_t i = 0; i < 8; i++) {
+      /*
+      if (buffer_[i] & 0x01) buffer[0] |= mask; // A
+      if (buffer_[i] & 0x02) buffer[1] |= mask; // B
+      if (buffer_[i] & 0x04) buffer[2] |= mask; // C
+      if (buffer_[i] & 0x08) buffer[3] |= mask; // D
+      if (buffer_[i] & 0x10) buffer[4] |= mask; // E
+      if (buffer_[i] & 0x20) buffer[5] |= mask; // F
+      if (buffer_[i] & 0x40) buffer[6] |= mask; // G
+      if (buffer_[i] & 0x80) buffer[7] |= mask; // .
+      */
+      uint8_t seg = 0x01; // start with A-segment
+      for (uint8_t j = 0; j < 8; j++) {
+        if (buffer_[i] & seg) buffer[j] |= mask;
+        seg <<= 1;
+      }
+      mask >>= 1;
+    }
+  }
+  else
+    memcpy(buffer, buffer_, sizeof(buffer));
+
   for (uint8_t i = 0; i < 8; i++) {
-    this->set_7seg_(i, buffer_[i]);
+    this->set_7seg_(i, buffer[i]);
   }
 }
 
