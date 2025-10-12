@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_rc522
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 rc522_i2c:
   - id: rc522_nfcc
+    i2c_id: i2c_bus
     update_interval: 1s
     on_tag:
       - lambda: |-

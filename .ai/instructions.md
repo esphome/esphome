@@ -186,6 +186,11 @@ This document provides essential context for AI models interacting with this pro
         └── components/[component]/ # Component-specific tests
         ```
         Run them using `script/test_build_components`. Use `-c <component>` to test specific components and `-t <target>` for specific platforms.
+    *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
+        ```bash
+        ./script/test_component_grouping.py -e config --all
+        ```
+        This tests all components in a single build to catch conflicts that might not appear when testing components individually. Use `-e config` for fast configuration validation, or `-e compile` for full compilation testing.
 *   **Debugging and Troubleshooting:**
     *   **Debug Tools:**
         - `esphome config <file>.yaml` to validate configuration.

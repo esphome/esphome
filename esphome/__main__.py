@@ -1006,6 +1006,12 @@ def parse_args(argv):
         action="append",
         default=[],
     )
+    options_parser.add_argument(
+        "--testing-mode",
+        help="Enable testing mode (disables validation checks for grouped component testing)",
+        action="store_true",
+        default=False,
+    )
 
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
@@ -1264,6 +1270,7 @@ def run_esphome(argv):
 
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
+    CORE.testing_mode = args.testing_mode
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(
