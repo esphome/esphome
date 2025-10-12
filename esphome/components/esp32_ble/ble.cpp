@@ -214,10 +214,10 @@ bool ESP32BLE::ble_setup_() {
     name = this->name_.value();
     if (App.is_name_add_mac_suffix_enabled()) {
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t MAC_ADDRESS_SUFFIX_LEN = 6;
+      constexpr size_t mac_address_suffix_len = 6;
       const std::string mac_addr = get_mac_address();
-      const char *mac_suffix_ptr = mac_addr.c_str() + MAC_ADDRESS_SUFFIX_LEN;
-      name = make_name_with_suffix(name, '-', mac_suffix_ptr, MAC_ADDRESS_SUFFIX_LEN);
+      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
+      name = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
     }
   } else {
     name = App.get_name();

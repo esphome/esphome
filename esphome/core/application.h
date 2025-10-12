@@ -103,13 +103,13 @@ class Application {
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t MAC_ADDRESS_SUFFIX_LEN = 6;
+      constexpr size_t mac_address_suffix_len = 6;
       const std::string mac_addr = get_mac_address();
       // Use pointer + offset to avoid substr() allocation
-      const char *mac_suffix_ptr = mac_addr.c_str() + MAC_ADDRESS_SUFFIX_LEN;
-      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, MAC_ADDRESS_SUFFIX_LEN);
+      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
+      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
       if (!friendly_name.empty()) {
-        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, MAC_ADDRESS_SUFFIX_LEN);
+        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
       }
     } else {
       this->name_ = name;
