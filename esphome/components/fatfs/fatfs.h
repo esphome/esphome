@@ -15,18 +15,6 @@ namespace fatfs {
  *
  */
 
-// #define AM_RDO 0x01 /* Read only */
-// #define AM_HID 0x02 /* Hidden */
-// #define AM_SYS 0x04 /* System */
-// #define AM_DIR 0x10 /* Directory */
-// #define AM_ARC 0x20 /* Archive */
-
-// /* Filesystem type (FATFS.fs_type) */
-// #define FS_FAT12 1
-// #define FS_FAT16 2
-// #define FS_FAT32 3
-// #define FS_EXFAT 4
-
 //  File open flags
 #define FAT_F_READ 0x01           // NOLINT
 #define FAT_F_WRITE = 0x02        // NOLINT
@@ -70,8 +58,6 @@ const char *fs_errstr(uint8_t);
 
 /**
  * @brief  Return file or directory attributes.
- *
- *
  */
 class FatInfo {
  public:
@@ -151,7 +137,6 @@ class FatInfo {
 /**
  * @brief Represent file object. Provide access to object contents.
  * Cover FF_functions from fatfs lib. See @ref https://elm-chan.org/fsw/ff/
- *
  */
 class FileObject {
  public:
@@ -176,7 +161,6 @@ class FileObject {
    * @return false  fileopen fail. see @ref file_error
    */
   virtual bool open(uint16_t mode) { return false; };
-
   /**
    * @brief  CLose file. Flush to media&
    *
@@ -255,7 +239,6 @@ class FileObject {
 
 /**
  * @brief Open directory object and set content read pointer to first object
- *
  */
 class DirObject {
  public:
@@ -289,9 +272,7 @@ class DirObject {
 };
 
 /** --------------------------------------------------------------------------------
- *
  * @brief   Card eject/insert interrupt data
- *
  */
 struct MediaDetectInterrupt {
   volatile bool present{true};
@@ -301,9 +282,7 @@ struct MediaDetectInterrupt {
 };
 
 /** --------------------------------------------------------------------------------
- *
  * @brief  Main class for accessing FAT file structure on the starage media
- *
  */
 class FatFs {
  public:

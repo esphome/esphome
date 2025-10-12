@@ -3,7 +3,6 @@
 
 namespace esphome {
 namespace fatfs {
-
 static const char *const TAG = "fatfs";
 
 void MediaDetectInterrupt::inserted(MediaDetectInterrupt *data) { data->present = true; }
@@ -33,21 +32,11 @@ const char *fs_errstr(uint8_t errnum) {
   return fs_err2str[errnum];
 }
 
-/** --------------------------------------------------------------------------------
- *
- * @brief
- *
- */
 void FatFs::set_drive_id(uint8_t drive_id) {
   drive_id_ = drive_id;
   logical_drv_ += std::to_string(drive_id_) + std::string(":");
 }
 
-/** --------------------------------------------------------------------------------
- *
- * @brief
- *
- */
 bool FatFs::init_storage_state_interrupt() {
   if (this->cd_pin_ != NULL) {
     this->cd_pin_->setup();
@@ -56,7 +45,6 @@ bool FatFs::init_storage_state_interrupt() {
                                     gpio::INTERRUPT_LOW_LEVEL);
     this->cd_pin_->attach_interrupt(MediaDetectInterrupt::ejected, &this->media_present_st_,
                                     gpio::INTERRUPT_HIGH_LEVEL);
-
     // Set current pin state
     this->media_present_st_.present = this->cd_pin_->digital_read();
     this->media_present_st_.init = true;
@@ -66,11 +54,6 @@ bool FatFs::init_storage_state_interrupt() {
   return false;
 }
 
-/** --------------------------------------------------------------------------------
- *
- * @brief
- *
- */
 StorageState FatFs::is_storage_state_interrupt() {
   if (this->media_present_st_.init) {
     if (this->media_present_st_.present != media_present_) {

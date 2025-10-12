@@ -8,35 +8,20 @@
 #include "esphome/core/log.h"
 #include "esphome/components/fatfs/fatfs.h"
 #include "esphome/core/time.h"
-
 #include "fatfs_esp32_file.h"
-
-// extern "C" {
-// #include "ff.h"
-// #include "diskio.h"
-// #if ESP_IDF_VERSION_MAJOR > 3
-// #include "diskio_impl.h"
-// #endif
-// #include "esp_vfs_fat.h"
-// }
 
 namespace esphome {
 namespace fatfs_esp32 {
-
 #ifndef FAT_MAX_FILES
 #define FAT_MAX_FILES 5  // NOLINT
 #endif
-// #define FF_STR_VOLUME_ID 1  // flash:file1.txt"
-// #define F_STR_VOLUME_ID == 2 // /flash/file1.txt
 
-// typedef BYTE DSTATUS;
 using DSTATUS = BYTE;
 
 DSTATUS ff_sd_initialize(uint8_t pdrv);
 DSTATUS ff_sd_status(uint8_t pdrv);
 
 /** --------------------------------------------------------------------------------
- *
  * @brief The disk_read function is called to read data from the storage device.
  *
  * @param pdrv [IN] Physical drive number to identify the target device.
@@ -76,7 +61,6 @@ DRESULT ff_sd_write(uint8_t pdrv, const uint8_t *buffer, DWORD sector, UINT coun
 DRESULT ff_sd_ioctl(uint8_t pdrv, uint8_t cmd, void *buff);
 
 /** ****************************************************************************************
- *
  * @brief  Diskio operation wrapper api, required  as low level for FatFS lib and esp_idf vfat
  *         need to be implemented for IO driver implementation
  *
@@ -86,7 +70,6 @@ DRESULT ff_sd_ioctl(uint8_t pdrv, uint8_t cmd, void *buff);
  * RES_WRPRT 2 - Write Protected
  * RES_NOTRDY 3 - Not Ready
  * RES_PARERR 4 - Invalid Parameter
- *
  */
 class StorageIO {
  public:
@@ -100,7 +83,6 @@ class StorageIO {
 
   /**
    * @brief reset driver initialization
-   *
    */
   virtual void storage_uninit() = 0;
 
@@ -178,7 +160,6 @@ class StorageIO {
 };
 
 /** ****************************************************************************************
- *
  * @brief  Provide implementation of fatfs  API. See @ref fatfs::FatFs component.
  * Cover FATFS lib from  esp_idf sdk.  FATFS lib also accessible under Arduino framework.
  * Implementation controll fat mount/unmount, check if media exist
@@ -187,8 +168,6 @@ class StorageIO {
  * It does not provide storage media access, so this implementation
  * need to be extended with storage media driver  StorageIO @ref fatfs_esp32::StorageIO.
  * Injects driver class with "set_io_driver" method
- *
- *
  */
 class FatESP32 : public fatfs::FatFs {
  public:

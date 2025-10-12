@@ -12,14 +12,11 @@ extern "C" {
 
 namespace esphome {
 namespace fatfs_esp32 {
-
 using namespace esphome::fatfs;
 static const char *const TAG = "fatfs_esp32";
-
 std::map<std::uint8_t, StorageIO *> db;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 using enum fatfs::StorageState;
 
-//--------------------------------------------------------------------------------
 DSTATUS ff_sd_initialize(uint8_t pdrv) {
   StorageIO *io_class = nullptr;
   if (db.find(pdrv) != db.end()) {
@@ -37,7 +34,6 @@ DSTATUS ff_sd_initialize(uint8_t pdrv) {
   return io_class->storage_status();
 }
 
-//--------------------------------------------------------------------------------
 DSTATUS ff_sd_status(uint8_t pdrv) {
   StorageIO *io_class;
   if (db.find(pdrv) != db.end()) {
@@ -51,8 +47,6 @@ DSTATUS ff_sd_status(uint8_t pdrv) {
   return io_class->storage_status();
 }
 
-//--------------------------------------------------------------------------------
-// DRESULT ff_sd_read(uint8_t pdrv, uint8_t *buffer, DWORD sector, UINT count)
 DRESULT ff_sd_read(uint8_t pdrv, uint8_t *buffer, DWORD sector, UINT count) {
   StorageIO *io_class;
   if (db.find(pdrv) != db.end()) {
@@ -70,8 +64,6 @@ DRESULT ff_sd_read(uint8_t pdrv, uint8_t *buffer, DWORD sector, UINT count) {
   return res;
 }
 
-//--------------------------------------------------------------------------------
-// DRESULT ff_sd_write(uint8_t pdrv, const uint8_t *buffer, DWORD sector, UINT count)
 DRESULT ff_sd_write(uint8_t pdrv, const uint8_t *buffer, DWORD sector, UINT count) {
   StorageIO *io_class;
   if (db.find(pdrv) != db.end()) {
@@ -91,7 +83,6 @@ DRESULT ff_sd_write(uint8_t pdrv, const uint8_t *buffer, DWORD sector, UINT coun
   return res;
 }
 
-//--------------------------------------------------------------------------------
 DRESULT ff_sd_ioctl(uint8_t pdrv, uint8_t cmd, void *buff) {
   StorageIO *io_class;
   if (db.find(pdrv) != db.end()) {
@@ -104,12 +95,6 @@ DRESULT ff_sd_ioctl(uint8_t pdrv, uint8_t cmd, void *buff) {
   ESP_LOGVV(TAG, "ff_sd_ioctl, drv=%d, cmd=%d, res=%d, rc=%d", pdrv, cmd, res, io_class->storage_error());
   return res;
 }
-
-/** --------------------------------------------------------------------------------
- *
- * @brief
- *
- */
 
 bool FatESP32::set_io_driver(StorageIO *io_class) {
   io_ = io_class;
@@ -128,7 +113,6 @@ bool FatESP32::set_io_driver(StorageIO *io_class) {
       return false;
     }
   }
-
   //  Check is IO driver registered
   if (io_ == NULL) {
     ESP_LOGE(TAG, "Init IO driver failed. Driver not set.");
@@ -139,11 +123,6 @@ bool FatESP32::set_io_driver(StorageIO *io_class) {
   return true;
 }
 
-/** --------------------------------------------------------------------------------
- *
- * @brief
- *
- */
 void FatESP32::init_driver() {
   sd_impl_.init = &ff_sd_initialize;
   sd_impl_.status = &ff_sd_status;
@@ -154,22 +133,11 @@ void FatESP32::init_driver() {
   ESP_LOGD(TAG, "init drv=%s", this->get_drive_name().c_str());
 }
 
-/** --------------------------------------------------------------------------------
- *
- * @brief
- *
- */
 void FatESP32::relese_driver() {
   ff_diskio_register(this->get_grive_id(), NULL);
   ESP_LOGV(TAG, "Release driver. drv=%s", this->get_drive_name().c_str());
 }
 
-/** --------------------------------------------------------------------------------
- * @brief
- *
- * @return true
- * @return false
- */
 bool FatESP32::mount() {
   FATFS *local_fs;
   // char *ldrv = strdup(this->get_drive_name().c_str());
@@ -194,12 +162,6 @@ bool FatESP32::mount() {
   return true;
 }
 
-/** --------------------------------------------------------------------------------
- * @brief
- *
- * @return true
- * @return false
- */
 void FatESP32::unmount() {
   if (fs_ != NULL) {
     FRESULT res = f_mount(NULL, this->get_drive_name().c_str(), 0);
@@ -213,18 +175,10 @@ void FatESP32::unmount() {
   }
 }
 
-//--------------------------------------------------------------------------------
-
-fatfs::FatInfo *FatESP32::get_info(std::string &path) { return new FatESP32Info(path); }
-
-//--------------------------------------------------------------------------------
-
 bool FatESP32::is_exist(std::string &path) {
   auto fs = FatESP32Info(path);
   return fs.is_exist();
 }
-
-//--------------------------------------------------------------------------------
 
 fatfs::FileObject *FatESP32::open_file(std::string &path, uint8_t mode) {
   FatESP32File *fl = new FatESP32File(path);
@@ -232,8 +186,6 @@ fatfs::FileObject *FatESP32::open_file(std::string &path, uint8_t mode) {
   error_ = fl->file_error();
   return fl;
 }
-
-//--------------------------------------------------------------------------------
 
 fatfs::FileObject *FatESP32::open_file(fatfs::FatInfo *obj, uint8_t mode) {
   FatESP32File *fl = new FatESP32File(*obj);
@@ -243,8 +195,6 @@ fatfs::FileObject *FatESP32::open_file(fatfs::FatInfo *obj, uint8_t mode) {
   return fl;
 }
 
-//--------------------------------------------------------------------------------
-
 fatfs::DirObject *FatESP32::open_dir(std::string &path) {
   ESP_LOGV(TAG, "Open dir from path %s", path.c_str());
   FatESP32Dir *d_obj = new FatESP32Dir(path);
@@ -253,8 +203,6 @@ fatfs::DirObject *FatESP32::open_dir(std::string &path) {
   return d_obj;
 }
 
-//--------------------------------------------------------------------------------
-
 fatfs::DirObject *FatESP32::open_dir(fatfs::FatInfo *obj) {
   ESP_LOGV(TAG, "Open dir from FatInfo %s", obj->get_full_path().c_str());
   FatESP32Dir *d_obj = new FatESP32Dir(*obj);
@@ -262,8 +210,6 @@ fatfs::DirObject *FatESP32::open_dir(fatfs::FatInfo *obj) {
   error_ = d_obj->file_error();
   return d_obj;
 }
-
-//--------------------------------------------------------------------------------
 
 fatfs::DirObject *FatESP32::mk_dir(std::string &path) {
   error_ = static_cast<fatfs::FatError>(f_mkdir(path.c_str()));
@@ -277,14 +223,10 @@ fatfs::DirObject *FatESP32::mk_dir(std::string &path) {
   return dptr;
 }
 
-//--------------------------------------------------------------------------------
-
 fatfs::DirObject *FatESP32::mk_dir(fatfs::FatInfo *obj, std::string &name) {
   std::string dir = obj->get_full_path() + "/" + name;
   return this->mk_dir(dir);
 }
-
-//--------------------------------------------------------------------------------
 
 bool FatESP32::del(std::string &path) {
   error_ = static_cast<fatfs::FatError>(f_unlink(path.c_str()));
@@ -296,8 +238,6 @@ bool FatESP32::del(std::string &path) {
   return true;
 }
 
-//--------------------------------------------------------------------------------
-
 bool FatESP32::rename(std::string &path_from, std::string &path_to) {
   error_ = static_cast<fatfs::FatError>(f_rename(path_from.c_str(), path_to.c_str()));
   if (error_ != fatfs::FatError::FR_OK) {
@@ -307,7 +247,6 @@ bool FatESP32::rename(std::string &path_from, std::string &path_to) {
   }
   return true;
 }
-
 }  // namespace fatfs_esp32
 }  // namespace esphome
 #endif

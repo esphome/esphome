@@ -8,7 +8,6 @@
 #include "esphome/core/log.h"
 #include "esphome/components/fatfs/fatfs.h"
 #include "esphome/core/time.h"
-
 extern "C" {
 #include "ff.h"
 #include "diskio.h"
@@ -24,9 +23,7 @@ namespace fatfs_esp32 {
 using fatfs::fs_errstr;
 
 /** --------------------------------------------------------------------------------
- *
  * @brief Provide implementation for @ref fatfs::FatInfo API
- *
  */
 class FatESP32Info : public fatfs::FatInfo {
  public:
@@ -59,9 +56,7 @@ class FatESP32Info : public fatfs::FatInfo {
 };
 
 /** --------------------------------------------------------------------------------
- *
  * @brief Provide implementation for @ref fatfs::FileObject API
- *
  */
 class FatESP32File : public fatfs::FileObject, public FatESP32Info {
  public:
@@ -86,9 +81,7 @@ class FatESP32File : public fatfs::FileObject, public FatESP32Info {
 };
 
 /** --------------------------------------------------------------------------------
- *
  * @brief Provide implementation for @ref fatfs::DirObject API
- *
  */
 class FatESP32Dir : public fatfs::DirObject, public FatESP32Info {
  public:
