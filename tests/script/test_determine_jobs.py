@@ -445,6 +445,8 @@ def test_main_filters_components_without_tests(
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch("sys.argv", ["determine-jobs.py"]),
     ):
+        # Clear the cache since we're mocking root_path
+        determine_jobs._component_has_tests.cache_clear()
         determine_jobs.main()
 
     # Check output
