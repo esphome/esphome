@@ -410,6 +410,8 @@ on_...:
 - **white** (*Optional*, [templatable](#config-templatable), percentage): The brightness to set the white channel
   to.
 
+## Light Conditions
+
 {{< anchor "light-is_on_condition" >}}
 {{< anchor "light-is_off_condition" >}}
 
@@ -426,6 +428,8 @@ on_...:
       # Same syntax for is_off
       light.is_on: my_light
 ```
+
+## Light Triggers
 
 {{< anchor "light-on_turn_on_off_trigger" >}}
 
