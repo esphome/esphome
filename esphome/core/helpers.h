@@ -193,7 +193,9 @@ template<typename T> class FixedVector {
     }
   }
 
-  // Add element (no reallocation - must have initialized capacity)
+  /// Add element without bounds checking
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
   void push_back(const T &value) {
     if (size_ < capacity_) {
       data_[size_++] = value;
@@ -202,6 +204,8 @@ template<typename T> class FixedVector {
 
   size_t size() const { return size_; }
 
+  /// Access element without bounds checking (matches std::vector behavior)
+  /// Caller must ensure index is valid (i < size())
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 };
