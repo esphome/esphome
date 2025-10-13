@@ -1,13 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_KEY, CONF_NAME, CONF_TYPE
 from esphome.log import Fore, color
-from esphome.const import (
-    CONF_ID,
-    CONF_TYPE,
-    CONF_KEY,
-    CONF_NAME,
-)
 
 AUTO_LOAD = ["wmbus"]
 
@@ -15,16 +10,14 @@ CONF_METER_ID = "meter_id"
 CONF_LISTENER_ID = "listener_id"
 CONF_WMBUS_ID = "wmbus_id"
 CONF_FIELD = "field"
-CONF_SENSORS = 'sensors'
+CONF_SENSORS = "sensors"
 
-from .. import (
-    WMBusComponent,
-    wmbus_ns
-)
+from .. import WMBusComponent, wmbus_ns
 
 CODEOWNERS = ["@SzczepanLeon"]
 
-WMBusListener = wmbus_ns.class_('WMBusListener')
+WMBusListener = wmbus_ns.class_("WMBusListener")
+
 
 def my_key(value):
     value = cv.string_strict(value)
@@ -43,9 +36,7 @@ def my_key(value):
     return "".join(f"{part:02X}" for part in parts_int)
 
 
-SENSOR_SCHEMA = text_sensor.text_sensor_schema(
-    #
-).extend(
+SENSOR_SCHEMA = text_sensor.text_sensor_schema().extend(
     {
         cv.Optional(CONF_FIELD, default=""): cv.string_strict,
     }
@@ -62,14 +53,21 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
 async def to_code(config):
     if config[CONF_TYPE]:
-        cg.add_platformio_option("build_src_filter", [f"+<**/wmbus/driver_{config[CONF_TYPE].lower()}.cpp>"])
+        cg.add_platformio_option(
+            "build_src_filter", [f"+<**/wmbus/driver_{config[CONF_TYPE].lower()}.cpp>"]
+        )
     if config[CONF_METER_ID]:
         wmbus = await cg.get_variable(config[CONF_WMBUS_ID])
-        cg.add(wmbus.register_wmbus_listener(config[CONF_METER_ID], config[CONF_TYPE].lower(), config[CONF_KEY]))
+        cg.add(
+            wmbus.register_wmbus_listener(
+                config[CONF_METER_ID], config[CONF_TYPE].lower(), config[CONF_KEY]
+            )
+        )
         for s in config.get(CONF_SENSORS, []):
-            if (s[CONF_FIELD]):
+            if s[CONF_FIELD]:
                 field = s[CONF_FIELD].lower()
             else:
                 field = s[CONF_NAME].lower()

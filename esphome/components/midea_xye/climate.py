@@ -1,9 +1,9 @@
-from esphome.core import coroutine
 from esphome import automation
-from esphome.components import climate, sensor, uart, remote_transmitter
+import esphome.codegen as cg
+from esphome.components import climate, remote_transmitter, sensor, uart
+from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_AUTOCONF,
     CONF_BEEPER,
@@ -18,36 +18,32 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
-    CONF_TIMEOUT,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
+    CONF_TIMEOUT,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_FREQUENCY,
-    ICON_POWER,
-    ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
-    ICON_TIMER,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_BUG,
+    ICON_POWER,
     ICON_SECURITY,
+    ICON_THERMOMETER,
+    ICON_TIMER,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    UNIT_WATT,
     UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
     UNIT_HERTZ,
     UNIT_MINUTE,
-    UNIT_EMPTY,
+    UNIT_PERCENT,
+    UNIT_WATT,
 )
-from esphome.components.climate import (
-    ClimateMode,
-    ClimatePreset,
-    ClimateSwingMode,
-)
+from esphome.core import coroutine
 
-#CODEOWNERS = ["@dudanov"]
+# CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart", "wifi"]
 AUTO_LOAD = ["sensor"]
 CONF_TEMPERATURE_2A = "temperature_2a"
@@ -388,5 +384,5 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
     sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens)) 
-    #cg.add_library("dudanov/MideaUART", "1.1.8")
+    cg.add(var.set_sensor(sens))
+    # cg.add_library("dudanov/MideaUART", "1.1.8")

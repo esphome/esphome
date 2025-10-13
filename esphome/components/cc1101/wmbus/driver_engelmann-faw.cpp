@@ -15,95 +15,66 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("engelmann-faw");
-        di.setDefaultFields("name,id,status,reporting_date,consumption_at_reporting_date_m3,timestamp");
-        di.addLinkMode(LinkMode::T1);
-        di.addDetection(MANUFACTURER_EFE,  0x07,  0x00);
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("engelmann-faw");
+  di.setDefaultFields("name,id,status,reporting_date,consumption_at_reporting_date_m3,timestamp");
+  di.addLinkMode(LinkMode::T1);
+  di.addDetection(MANUFACTURER_EFE, 0x07, 0x00);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) :
-        MeterCommonImplementation(mi, di)
-    {
-        addStringFieldWithExtractorAndLookup(
-            "status",
-            "Status and error flags.",
-            DEFAULT_PRINT_PROPERTIES  | PrintProperty::STATUS | PrintProperty::INCLUDE_TPL_STATUS,
-            FieldMatcher::build()
-            .set(VIFRange::ErrorFlags),
-            {
-                {
-                    {
-                        "ERROR_FLAGS",
-                        Translate::MapType::BitToString,
-                        AlwaysTrigger, MaskBits(0xff),
-                        "OK",
-                        {
-                            { 0x01, "VOLUME_DETECTION_COILS_DEFECT" },
-                            { 0x02, "RESET" },
-                            { 0x04, "CRC_ERROR" },
-                            { 0x08, "REMOVAL_DETECTED" },
-                            { 0x10, "MAGNETIC_MANIPULATION" },
-                            { 0x20, "LEAKAGE" },
-                            { 0x40, "BLOCKED" },
-                            { 0x80, "REVERSE_FLOW" },
-                        }
-                    },
-                },
-            });
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addStringFieldWithExtractorAndLookup(
+      "status", "Status and error flags.",
+      DEFAULT_PRINT_PROPERTIES | PrintProperty::STATUS | PrintProperty::INCLUDE_TPL_STATUS,
+      FieldMatcher::build().set(VIFRange::ErrorFlags),
+      {
+          {
+              {"ERROR_FLAGS",
+               Translate::MapType::BitToString,
+               AlwaysTrigger,
+               MaskBits(0xff),
+               "OK",
+               {
+                   {0x01, "VOLUME_DETECTION_COILS_DEFECT"},
+                   {0x02, "RESET"},
+                   {0x04, "CRC_ERROR"},
+                   {0x08, "REMOVAL_DETECTED"},
+                   {0x10, "MAGNETIC_MANIPULATION"},
+                   {0x20, "LEAKAGE"},
+                   {0x40, "BLOCKED"},
+                   {0x80, "REVERSE_FLOW"},
+               }},
+          },
+      });
 
-        addStringFieldWithExtractor(
-            "reporting_date",
-            "The reporting date of the last billing period.",
-            DEFAULT_PRINT_PROPERTIES,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Date)
-            .set(StorageNr(1))
-            );
+  addStringFieldWithExtractor(
+      "reporting_date", "The reporting date of the last billing period.", DEFAULT_PRINT_PROPERTIES,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Date).set(StorageNr(1)));
 
-        addNumericFieldWithExtractor(
-            "consumption_at_reporting_date",
-            "The water consumption at the last billing period date.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Volume,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Volume)
-            .set(StorageNr(1)));
+  addNumericFieldWithExtractor(
+      "consumption_at_reporting_date", "The water consumption at the last billing period date.",
+      DEFAULT_PRINT_PROPERTIES, Quantity::Volume, VifScaling::Auto, DifSignedness::Signed,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Volume).set(StorageNr(1)));
 
-        for (int i=2; i<=16; ++i)
-        {
-            string name, info;
-            strprintf(&name, "consumption_%d_months_ago", i-1);
-            strprintf(&info, "Water consumption %d month(s) ago.", i-1);
+  for (int i = 2; i <= 16; ++i) {
+    string name, info;
+    strprintf(&name, "consumption_%d_months_ago", i - 1);
+    strprintf(&info, "Water consumption %d month(s) ago.", i - 1);
 
-            addNumericFieldWithExtractor(
-                name,
-                info,
-                DEFAULT_PRINT_PROPERTIES,
-                Quantity::Volume,
-                VifScaling::Auto, DifSignedness::Signed,
-                FieldMatcher::build()
-                .set(MeasurementType::Instantaneous)
-                .set(VIFRange::Volume)
-                .set(StorageNr(i)));
-        }
-    }
+    addNumericFieldWithExtractor(
+        name, info, DEFAULT_PRINT_PROPERTIES, Quantity::Volume, VifScaling::Auto, DifSignedness::Signed,
+        FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Volume).set(StorageNr(i)));
+  }
 }
-
+}  // namespace
 
 // Test: Wasserzaehler engelmann-faw 43000255 NOKEY
 // telegram=|8f44c5145502004301077260402520c51400076b0000002f2f426cbf2c441322e9000001fd17008401133c340100c40113ae2d010084021303290100c402137e21010084031313180100c403138a0e010084041337060100c40413b2fc00008405139af30000c4051322e90000840613c1df0000c40613cdd5000084071365ce0000c407136dc500008408138dbf0000|

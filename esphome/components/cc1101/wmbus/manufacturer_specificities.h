@@ -20,68 +20,68 @@
 #ifndef MANUFACTURER_SPECIFICITIES_H
 #define MANUFACTURER_SPECIFICITIES_H
 
-#include"utils.h"
-#include"types.h"
+#include "utils.h"
+#include "types.h"
 #include "meters.h"
 
 using namespace std;
 
 // Common: add default manufacturers key if none specified and we know one for the given frame
-void addDefaultManufacturerKeyIfAny(const vector<uchar>& frame, TPLSecurityMode tpl_sec_mode, MeterKeys* meter_keys);
+void addDefaultManufacturerKeyIfAny(const vector<uchar> &frame, TPLSecurityMode tpl_sec_mode, MeterKeys *meter_keys);
 
-uint32_t uint32FromBytes(const vector<uchar>& data, int offset, bool reverse = false);
+uint32_t uint32FromBytes(const vector<uchar> &data, int offset, bool reverse = false);
 
 // Diehl: initialize support of default keys in a meter
-void initializeDiehlDefaultKeySupport(const vector<uchar>& confidentiality_key, vector<uint32_t>& keys);
+void initializeDiehlDefaultKeySupport(const vector<uchar> &confidentiality_key, vector<uint32_t> &keys);
 
 // Diehl: check method of LFSR decryption algorithm
-enum class DiehlLfsrCheckMethod {
-    CHECKSUM_AND_0XEF,
-    HEADER_1_BYTE
-};
+enum class DiehlLfsrCheckMethod { CHECKSUM_AND_0XEF, HEADER_1_BYTE };
 
 // Diehl: decode LFSR encrypted data used in Izar/PRIOS and Sharky meters
-vector<uchar> decodeDiehlLfsr(const vector<uchar>& origin, const vector<uchar>& frame, uint32_t key, DiehlLfsrCheckMethod check_method, uint32_t check_value);
+vector<uchar> decodeDiehlLfsr(const vector<uchar> &origin, const vector<uchar> &frame, uint32_t key,
+                              DiehlLfsrCheckMethod check_method, uint32_t check_value);
 
 // Diehl: frame interpretation
 enum class DiehlFrameInterpretation {
-    NA,                // N/A: not a Diehl frame
-    REAL_DATA,
-    OMS,
-    PRIOS,
-    SAP_PRIOS,
-    SAP_PRIOS_STD,
-    PRIOS_SCR,
-    RESERVED
+  NA,  // N/A: not a Diehl frame
+  REAL_DATA,
+  OMS,
+  PRIOS,
+  SAP_PRIOS,
+  SAP_PRIOS_STD,
+  PRIOS_SCR,
+  RESERVED
 };
 
-const char* toString(DiehlFrameInterpretation i);
+const char *toString(DiehlFrameInterpretation i);
 
 // Diehl: address transformation method
 enum class DiehlAddressTransformMethod {
-    NONE,              // "A field" coded as per standard
-    SWAPPING,          // "A field" coded as version/type/serialnumber instead of standard serialnumber/version/type
-    SAP_PRIOS,         // Version and type not included in telegram. Must be hardcoded to 0 and 7
-    SAP_PRIOS_STANDARD // ?
+  NONE,               // "A field" coded as per standard
+  SWAPPING,           // "A field" coded as version/type/serialnumber instead of standard serialnumber/version/type
+  SAP_PRIOS,          // Version and type not included in telegram. Must be hardcoded to 0 and 7
+  SAP_PRIOS_STANDARD  // ?
 };
 
-const char* toString(DiehlAddressTransformMethod m);
+const char *toString(DiehlAddressTransformMethod m);
 
 // Diehl: Determines how to interpret frame
-DiehlFrameInterpretation detectDiehlFrameInterpretation(const vector<uchar>& frame);
+DiehlFrameInterpretation detectDiehlFrameInterpretation(const vector<uchar> &frame);
 
 // Diehl: Is "A field" coded differently from standard?
-DiehlAddressTransformMethod mustTransformDiehlAddress(const vector<uchar>& frame);
+DiehlAddressTransformMethod mustTransformDiehlAddress(const vector<uchar> &frame);
 
 // Diehl: transform "A field" to make it compliant to standard
-void transformDiehlAddress(vector<uchar>& frame, DiehlAddressTransformMethod method);
+void transformDiehlAddress(vector<uchar> &frame, DiehlAddressTransformMethod method);
 
 // Diehl: Is payload real data crypted (LFSR)?
-bool mustDecryptDiehlRealData(const vector<uchar>& frame);
+bool mustDecryptDiehlRealData(const vector<uchar> &frame);
 
 // Diehl: decrypt real data payload (LFSR)
-bool decryptDielhRealData(Telegram* t, vector<uchar>& frame, vector<uchar>::iterator& pos, const vector<uchar>& meterkey);
+bool decryptDielhRealData(Telegram *t, vector<uchar> &frame, vector<uchar>::iterator &pos,
+                          const vector<uchar> &meterkey);
 
-void qdsExtractWalkByField(Telegram* t, Meter* driver, DVEntry& mfctEntry, int pos, int n, const string& key_s, const string& fieldName, Quantity quantity);
+void qdsExtractWalkByField(Telegram *t, Meter *driver, DVEntry &mfctEntry, int pos, int n, const string &key_s,
+                           const string &fieldName, Quantity quantity);
 
 #endif

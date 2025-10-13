@@ -15,30 +15,25 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
 using namespace std;
 
-struct MeterAuto : public virtual MeterCommonImplementation
-{
-    MeterAuto(MeterInfo &mi, DriverInfo &di);
+struct MeterAuto : public virtual MeterCommonImplementation {
+  MeterAuto(MeterInfo &mi, DriverInfo &di);
 };
 
-bool ok = registerDriver([](DriverInfo&di)
-{
-    di.setName("auto");
-    di.setDefaultFields("name,id,timestamp");
-    di.setMeterType(MeterType::AutoMeter);
-    di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new MeterAuto(mi, di)); });
+bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("auto");
+  di.setDefaultFields("name,id,timestamp");
+  di.setMeterType(MeterType::AutoMeter);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new MeterAuto(mi, di)); });
 });
 
-MeterAuto::MeterAuto(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-{
-}
+MeterAuto::MeterAuto(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {}
 
-shared_ptr<Meter> createAuto(MeterInfo &mi)
-{
-    DriverInfo di;
-    di.setName("auto");
-    return shared_ptr<Meter>(new MeterAuto(mi, di));
+shared_ptr<Meter> createAuto(MeterInfo &mi) {
+  DriverInfo di;
+  di.setName("auto");
+  return shared_ptr<Meter>(new MeterAuto(mi, di));
 }

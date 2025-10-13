@@ -15,70 +15,61 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 #include "Telegram.h"
 #include <cmath>
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
 
-        void processContent(Telegram *t);
-    };
+  void processContent(Telegram *t);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("apatorna1");
-        di.setDefaultFields("name,id,total_m3,timestamp");
-        di.setMeterType(MeterType::WaterMeter);
-        di.addDetection(MANUFACTURER_APA,  0x07,  0x14);
-        di.usesProcessContent();
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("apatorna1");
+  di.setDefaultFields("name,id,total_m3,timestamp");
+  di.setMeterType(MeterType::WaterMeter);
+  di.addDetection(MANUFACTURER_APA, 0x07, 0x14);
+  di.usesProcessContent();
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-    {
-        addNumericField(
-            "total",
-            Quantity::Volume,
-            DEFAULT_PRINT_PROPERTIES,
-            "The total water consumption recorded by this meter.");
-    }
-
-    void Driver::processContent(Telegram *t)
-    {
-        vector<uchar> content;
-        t->extractPayload(&content);
-
-        if (content.size() < 4) return;
-
-        vector<uchar> frame(content.begin() + 2, content.begin() + 18);
-        vector<uchar>::iterator pos = frame.begin();
-
-        // TODO: read specified key from input
-        vector<uchar> aes_key(16, 0);
-
-        int num_encrypted_bytes = 0;
-        int num_not_encrypted_at_end = 0;
-
-        t->tpl_acc = content[0]; //0xBB;
-
-        decrypt_TPL_AES_CBC_IV(t, frame, pos, aes_key, &num_encrypted_bytes, &num_not_encrypted_at_end);
-
-        const int multiplier = pow(10, (frame.at(1) & 0b00110000) >> 4);
-
-        const int reading = static_cast<int>(frame.at(4)) << 20 |
-                            static_cast<int>(frame.at(3)) << 12 |
-                            static_cast<int>(frame.at(2)) << 4  |
-                            (static_cast<int>(frame.at(1)) & 0b00001111);
-
-        const double volume = static_cast<double>(reading) * multiplier / 1000;
-
-        setNumericValue("total", Unit::M3, volume);
-    }
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addNumericField("total", Quantity::Volume, DEFAULT_PRINT_PROPERTIES,
+                  "The total water consumption recorded by this meter.");
 }
+
+void Driver::processContent(Telegram *t) {
+  vector<uchar> content;
+  t->extractPayload(&content);
+
+  if (content.size() < 4)
+    return;
+
+  vector<uchar> frame(content.begin() + 2, content.begin() + 18);
+  vector<uchar>::iterator pos = frame.begin();
+
+  // TODO: read specified key from input
+  vector<uchar> aes_key(16, 0);
+
+  int num_encrypted_bytes = 0;
+  int num_not_encrypted_at_end = 0;
+
+  t->tpl_acc = content[0];  // 0xBB;
+
+  decrypt_TPL_AES_CBC_IV(t, frame, pos, aes_key, &num_encrypted_bytes, &num_not_encrypted_at_end);
+
+  const int multiplier = pow(10, (frame.at(1) & 0b00110000) >> 4);
+
+  const int reading = static_cast<int>(frame.at(4)) << 20 | static_cast<int>(frame.at(3)) << 12 |
+                      static_cast<int>(frame.at(2)) << 4 | (static_cast<int>(frame.at(1)) & 0b00001111);
+
+  const double volume = static_cast<double>(reading) * multiplier / 1000;
+
+  setNumericValue("total", Unit::M3, volume);
+}
+}  // namespace
 
 // Test: ApNa1 apatorna1 04913581 00000000000000000000000000000000
 // telegram=|1C440106813591041407A0B000266A705474DDB80D9A0EB9AE2EF29D96|

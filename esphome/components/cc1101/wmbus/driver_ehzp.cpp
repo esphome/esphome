@@ -14,70 +14,45 @@
  You should have received a copy of the GNU General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("ehzp");
-        di.setDefaultFields("name,id,total_energy_consumption_kwh,current_power_consumption_kw,total_energy_production_kwh,timestamp");
-        di.setMeterType(MeterType::ElectricityMeter);
-        di.addLinkMode(LinkMode::T1);
-        di.addDetection(MANUFACTURER_EMH,  0x02,  0x02);
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("ehzp");
+  di.setDefaultFields(
+      "name,id,total_energy_consumption_kwh,current_power_consumption_kw,total_energy_production_kwh,timestamp");
+  di.setMeterType(MeterType::ElectricityMeter);
+  di.addLinkMode(LinkMode::T1);
+  di.addDetection(MANUFACTURER_EMH, 0x02, 0x02);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-    {
-        addStringField(
-            "status",
-            "Meter status. Includes both meter error field and tpl status field.",
-            PrintProperty::STATUS | PrintProperty::INCLUDE_TPL_STATUS);
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addStringField("status", "Meter status. Includes both meter error field and tpl status field.",
+                 PrintProperty::STATUS | PrintProperty::INCLUDE_TPL_STATUS);
 
-        addOptionalLibraryFields("on_time_h");
+  addOptionalLibraryFields("on_time_h");
 
-        addNumericFieldWithExtractor(
-            "total_energy_consumption",
-            "The total energy consumption recorded by this meter.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Energy,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::AnyEnergyVIF)
-            );
+  addNumericFieldWithExtractor("total_energy_consumption", "The total energy consumption recorded by this meter.",
+                               DEFAULT_PRINT_PROPERTIES, Quantity::Energy, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::AnyEnergyVIF));
 
-        addNumericFieldWithExtractor(
-            "current_power_consumption",
-            "Current power consumption.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Power,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::AnyPowerVIF)
-            );
+  addNumericFieldWithExtractor("current_power_consumption", "Current power consumption.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Power, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::AnyPowerVIF));
 
-        addNumericFieldWithExtractor(
-            "total_energy_production",
-            "The total energy production recorded by this meter.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Energy,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::AnyEnergyVIF)
-            .add(VIFCombinable::BackwardFlow)
-            );
-
-    }
+  addNumericFieldWithExtractor("total_energy_production", "The total energy production recorded by this meter.",
+                               DEFAULT_PRINT_PROPERTIES, Quantity::Energy, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build()
+                                   .set(MeasurementType::Instantaneous)
+                                   .set(VIFRange::AnyEnergyVIF)
+                                   .add(VIFCombinable::BackwardFlow));
 }
+}  // namespace
 
 // Test: Elen3 ehzp 55995599 NOKEY
 // telegram=|5344A8159955995502028C201D900F002C250C390000ED176BBBB1591ADB7A1D003007102F2F_0700583B74020000000007803CBCD70200000000000728B070200000000000042092A406002F2F2F2F2F2F2F2F2F|
