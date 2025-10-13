@@ -30,6 +30,19 @@ wave_4_3 = DriverChip(
         "blue": [14, 38, 18, 17, 10],
     },
 )
+
+wave_4_3.extend(
+    "WAVESHARE-5-1024X600",
+    width=1024,
+    height=600,
+    hsync_back_porch=188,
+    hsync_front_porch=88,
+    hsync_pulse_width=8,
+    vsync_back_porch=16,
+    vsync_front_porch=3,
+    vsync_pulse_width=6,
+)
+
 wave_4_3.extend(
     "ESP32-S3-TOUCH-LCD-7-800X480",
     enable_pin=[{"ch422g": None, "number": 2}, {"ch422g": None, "number": 6}],
