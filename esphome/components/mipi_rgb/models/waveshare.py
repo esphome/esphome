@@ -35,12 +35,12 @@ wave_4_3.extend(
     "WAVESHARE-5-1024X600",
     width=1024,
     height=600,
-    hsync_back_porch=188,
-    hsync_front_porch=88,
-    hsync_pulse_width=8,
-    vsync_back_porch=16,
-    vsync_front_porch=3,
-    vsync_pulse_width=6,
+    hsync_back_porch=145,
+    hsync_front_porch=170,
+    hsync_pulse_width=30,
+    vsync_back_porch=23,
+    vsync_front_porch=12,
+    vsync_pulse_width=2,
 )
 
 wave_4_3.extend(
