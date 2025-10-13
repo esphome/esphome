@@ -156,17 +156,15 @@ class AirConditioner : public PollingComponent, public climate::Climate {
   void dump_config() override;
   void set_sensor(Sensor *sensor) { this->sensor_ = sensor; }
 <<<<<<< HEAD
-  void set_outdoor_temperature_sensor(Sensor *sensor)
-  void set_temperature_2a_sensor(Sensor *sensor)
-  void set_temperature_2b_sensor(Sensor *sensor)
-  void set_current_sensor(Sensor *sensor)
-  void set_frequency_sensor(Sensor *sensor)
-  void set_timer_start_sensor(Sensor *sensor)
-  void set_timer_stop_sensor(Sensor *sensor)
-  void set_error_flags_sensor(Sensor *sensor)
-  void set_protect_flags_sensor(Sensor *sensor)
-  void set_humidity_setpoint_sensor(Sensor *sensor)
-  void set_power_sensor(Sensor *sensor)
+  void
+  set_outdoor_temperature_sensor(Sensor *sensor) void set_temperature_2a_sensor(Sensor *sensor) void set_temperature_2b_sensor(Sensor *sensor) void set_current_sensor(Sensor *sensor) void set_frequency_sensor(Sensor *sensor) void set_timer_start_sensor(
+      Sensor *
+          sensor) void set_timer_stop_sensor(Sensor *
+                                                 sensor) void set_error_flags_sensor(Sensor *
+                                                                                         sensor) void set_protect_flags_sensor(Sensor *
+                                                                                                                                   sensor) void set_humidity_setpoint_sensor(Sensor *
+                                                                                                                                                                                 sensor) void set_power_sensor(Sensor
+                                                                                                                                                                                                                   *sensor)
 =======
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_; }
   void set_temperature_2a_sensor(Sensor *sensor) { this->temperature_2a_sensor_; }
@@ -180,7 +178,7 @@ class AirConditioner : public PollingComponent, public climate::Climate {
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_; }
 >>>>>>> 6f23dc9bb364a7483d6ffbc997b0c8ca22b6c403
-  void update() override;
+      void update() override;
   void setClientCommand(uint8_t command);
   void setup() override;
   void loop() override {}
