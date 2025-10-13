@@ -487,8 +487,9 @@ def request_wifi_scan_results():
 async def final_step():
     """Final code generation step to configure scan result retention."""
     if _FLAGS["keep_scan_results"]:
-        wifi_var = cg.MockObj(id="global_wifi_component", base="wifi::WiFiComponent *")
-        cg.add(wifi_var.set_keep_scan_results(True))
+        cg.add(
+            cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
+        )
 
 
 @automation.register_action(
