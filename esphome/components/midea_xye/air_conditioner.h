@@ -119,7 +119,7 @@
 #define CLIENT_ID 0x33
 
 namespace esphome {
-namespace midea_xye {
+namespace midea {
 namespace ac {
 
 using sensor::Sensor;
