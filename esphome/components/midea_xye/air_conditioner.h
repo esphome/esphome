@@ -155,17 +155,17 @@ class AirConditioner : public PollingComponent, public climate::Climate {
 
   void dump_config() override;
   void set_sensor(Sensor *sensor) { this->sensor_ = sensor; }
-  void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = outdoor_sensor; }
-  void set_temperature_2a_sensor(Sensor *sensor) { this->temperature_2a_sensor_ = temperature_2a_sensor; }
-  void set_temperature_2b_sensor(Sensor *sensor) { this->temperature_2b_sensor_ = temperature_2b_sensor; }
-  void set_current_sensor(Sensor *sensor) { this->current_sensor_ = current_sensor; }
-  void set_frequency_sensor(Sensor *sensor) { this->frequency_sensor_ = frequency_sensor; }
-  void set_timer_start_sensor(Sensor *sensor) { this->timer_start_sensor_ = timer_start_sensor; }
-  void set_timer_stop_sensor(Sensor *sensor) { this->timer_stop_sensor_ = timer_stop_sensor; }
-  void set_error_flags_sensor(Sensor *sensor) { this->error_flags_sensor_ = error_flags_sensor; }
-  void set_protect_flags_sensor(Sensor *sensor) { this->protect_flags_sensor_ = protect_flags_sensor; }
-  void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = humidity_sensor; }
-  void set_power_sensor(Sensor *sensor) { this->power_sensor_ = power_sensor; }
+  void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = outdoor_sensor_; }
+  void set_temperature_2a_sensor(Sensor *sensor) { this->temperature_2a_sensor_ = temperature_2a_sensor_; }
+  void set_temperature_2b_sensor(Sensor *sensor) { this->temperature_2b_sensor_ = temperature_2b_sensor_; }
+  void set_current_sensor(Sensor *sensor) { this->current_sensor_ = current_sensor_; }
+  void set_frequency_sensor(Sensor *sensor) { this->frequency_sensor_ = frequency_sensor_; }
+  void set_timer_start_sensor(Sensor *sensor) { this->timer_start_sensor_ = timer_start_sensor_; }
+  void set_timer_stop_sensor(Sensor *sensor) { this->timer_stop_sensor_ = timer_stop_sensor_; }
+  void set_error_flags_sensor(Sensor *sensor) { this->error_flags_sensor_ = error_flags_sensor_; }
+  void set_protect_flags_sensor(Sensor *sensor) { this->protect_flags_sensor_ = protect_flags_sensor_; }
+  void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = humidity_sensor_; }
+  void set_power_sensor(Sensor *sensor) { this->power_sensor_ = power_sensor_; }
   void update() override;
   void setClientCommand(uint8_t command);
   void setup() override;
