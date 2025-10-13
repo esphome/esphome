@@ -1,0 +1,21 @@
+display:
+  - platform: tm1638
+    id: tm1638_display
+    stb_pin: 2
+    clk_pin: 5
+    dio_pin: 4
+    update_interval: 5s
+    intensity: 5
+    board: "qyf"
+    lambda: |-
+      it.print("81818181");
+
+binary_sensor:
+  - platform: tm1638
+    id: Button0
+    key: 0
+    filters:
+      - delayed_on: 10ms
+  - platform: tm1638
+    id: Button4
+    key: 15
