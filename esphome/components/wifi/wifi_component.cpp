@@ -267,7 +267,9 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 }
 std::string WiFiComponent::get_use_address() const {
   if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
+    // ".local" suffix length for mDNS hostnames
+    constexpr size_t mdns_local_suffix_len = 5;
+    return make_name_with_suffix(App.get_name(), '.', "local", mdns_local_suffix_len);
   }
   return this->use_address_;
 }
@@ -576,8 +578,9 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
   format_mac_addr_upper(bssid.data(), bssid_s);
 
   if (res.get_matches()) {
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), res.get_is_hidden() ? "(HIDDEN) " : "",
-             bssid_s, LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
     ESP_LOGD(TAG,
              "    Channel: %u\n"
              "    RSSI: %d dB",

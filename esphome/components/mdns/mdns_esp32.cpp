@@ -12,7 +12,8 @@ namespace mdns {
 static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
-  this->compile_records_();
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
+  this->compile_records_(services);
 
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
@@ -24,7 +25,7 @@ void MDNSComponent::setup() {
   mdns_hostname_set(this->hostname_.c_str());
   mdns_instance_name_set(this->hostname_.c_str());
 
-  for (const auto &service : this->services_) {
+  for (const auto &service : services) {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
