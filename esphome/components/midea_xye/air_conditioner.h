@@ -232,7 +232,7 @@ class AirConditioner : public PollingComponent, public climate::Climate {
 };
 
 }  // namespace ac
-}  // namespace midea_xye
+}  // namespace midea
 }  // namespace esphome
 
 #endif  // USE_ARDUINO
