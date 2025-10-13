@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.10.0-dev"
+__version__ = "2025.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -679,6 +679,7 @@ CONF_ON_RESPONSE = "on_response"
 CONF_ON_SHUTDOWN = "on_shutdown"
 CONF_ON_SPEED_SET = "on_speed_set"
 CONF_ON_STATE = "on_state"
+CONF_ON_SUCCESS = "on_success"
 CONF_ON_TAG = "on_tag"
 CONF_ON_TAG_REMOVED = "on_tag_removed"
 CONF_ON_TIME = "on_time"
@@ -821,6 +822,7 @@ CONF_RESET_DURATION = "reset_duration"
 CONF_RESET_PIN = "reset_pin"
 CONF_RESIZE = "resize"
 CONF_RESOLUTION = "resolution"
+CONF_RESPONSE_TEMPLATE = "response_template"
 CONF_RESTART = "restart"
 CONF_RESTORE = "restore"
 CONF_RESTORE_MODE = "restore_mode"

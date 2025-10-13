@@ -1,1 +1,4 @@
+packages:
+  camera: !include ../../test_build_components/common/camera/esp32-idf.yaml
+
 <<: !include common.yaml
