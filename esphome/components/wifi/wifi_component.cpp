@@ -268,8 +268,8 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 std::string WiFiComponent::get_use_address() const {
   if (this->use_address_.empty()) {
     // ".local" suffix length for mDNS hostnames
-    constexpr size_t MDNS_LOCAL_SUFFIX_LEN = 5;
-    return make_name_with_suffix(App.get_name(), '.', "local", MDNS_LOCAL_SUFFIX_LEN);
+    constexpr size_t mdns_local_suffix_len = 5;
+    return make_name_with_suffix(App.get_name(), '.', "local", mdns_local_suffix_len);
   }
   return this->use_address_;
 }
