@@ -120,7 +120,7 @@ void TM1638Component::display() {
     uint8_t mask = 0x80;  // start on left side (left most 7-segment)
     for (uint8_t i = 0; i < 8; i++) {
       uint8_t seg = 0x01;  // start with A-segment
-      for (unsigned char & j : buffer) {
+      for (unsigned char &j : buffer) {
         if (buffer_[i] & seg)
           j |= mask;
         seg <<= 1;
