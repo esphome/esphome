@@ -468,6 +468,27 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
+_FLAGS = {"keep_scan_results": False}
+
+
+def request_wifi_scan_results():
+    """Request that WiFi scan results be kept in memory after connection.
+
+    Components that need access to scan results after WiFi is connected should
+    call this function during their code generation. This prevents the WiFi component from
+    freeing scan result memory after successful connection.
+    """
+    _FLAGS["keep_scan_results"] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure scan result retention."""
+    if _FLAGS["keep_scan_results"]:
+        wifi_var = cg.MockObj(id="global_wifi_component", base="wifi::WiFiComponent *")
+        cg.add(wifi_var.set_keep_scan_results(True))
+
+
 @automation.register_action(
     "wifi.configure",
     WiFiConfigureAction,
