@@ -776,6 +776,12 @@ async def to_code(config):
     )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        # Add pydantic compatibility fix for ESP-IDF 5.4.x
+        add_extra_script(
+            "pre",
+            "fix_pydantic_compatibility.py",
+            Path(__file__).parent / "fix_pydantic_compatibility.py.script",
+        )
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")

@@ -1,0 +1,74 @@
+Import("env")  # noqa: F821
+
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import os  # noqa: E402
+import platformio  # noqa: E402
+
+
+def fix_pydantic_compatibility():
+    """
+    Fix pydantic compatibility issue with ESP-IDF 5.4.x.
+    
+    ESP-IDF 5.4.x component manager expects pydantic 1.x, but ESPHome 2025.9.3
+    uses pydantic 2.x. This script downgrades pydantic in the ESP-IDF environment
+    to resolve the AttributeError: 'NoneType' object has no attribute 'validation_alias'
+    """
+    try:
+        # Check if we're using ESP-IDF framework
+        framework = env.get("PIOFRAMEWORK", [])
+        if "espidf" not in framework:
+            print("Not using ESP-IDF framework, skipping pydantic fix")
+            return
+            
+        print("ESP-IDF framework detected, checking pydantic compatibility...")
+        
+        # Get the ESP-IDF Python environment
+        idf_path = env.get("IDF_PATH")
+        if not idf_path:
+            print("IDF_PATH not found, skipping pydantic fix")
+            return
+            
+        # Check if we're using ESP-IDF 5.4.x (which has the pydantic issue)
+        idf_version = env.get("IDF_VER", "")
+        if not idf_version.startswith("5.4"):
+            print(f"ESP-IDF version {idf_version} detected, pydantic fix not needed")
+            return
+            
+        print(f"ESP-IDF {idf_version} detected, applying pydantic compatibility fix...")
+        
+        # Get the PlatformIO environment's Python executable
+        # This is the Python environment that ESP-IDF will use
+        pio_python = env.subst("$PYTHONEXE")
+        if not pio_python or not os.path.exists(pio_python):
+            print("PlatformIO Python executable not found, skipping pydantic fix")
+            return
+            
+        print(f"Using Python executable: {pio_python}")
+        
+        # Try to downgrade pydantic in the PlatformIO environment
+        try:
+            # Use the PlatformIO Python environment to install pydantic 1.x
+                   result = subprocess.run([
+                       pio_python, "-m", "pip", "install", 
+                       "pydantic==1.10.15", "--force-reinstall"
+                   ], capture_output=True, text=True, timeout=120)
+            
+            if result.returncode == 0:
+                print("Successfully downgraded pydantic to 1.10.15 for ESP-IDF compatibility")
+                print("This should resolve the 'validation_alias' AttributeError")
+            else:
+                print(f"Warning: Failed to downgrade pydantic: {result.stderr}")
+                print("You may need to manually run: pip install 'pydantic==1.10.15' 'pydantic-settings==1.2.0'")
+                
+        except subprocess.TimeoutExpired:
+            print("Warning: Timeout while downgrading pydantic")
+        except Exception as e:
+            print(f"Warning: Error downgrading pydantic: {e}")
+            
+    except Exception as e:
+        print(f"Warning: Error in pydantic compatibility fix: {e}")
+
+
+# Run the fix before the build
+fix_pydantic_compatibility()
