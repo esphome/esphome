@@ -71,8 +71,9 @@ std::string JsonBuilder::serialize() {
   return output;
 }
 
+// this function can not handle nesting of braces/brackets more than 32 levels deep
 int16_t try_find_json(std::span<const unsigned char> buffer) {
-#define MAX_JSON_DEPTH 32
+  static const uint8_t MAX_JSON_DEPTH = 32;
   typedef std::size_t position_t;
   // brackets and braces are used as a bitset, for indicators of the nesting
   std::bitset<MAX_JSON_DEPTH> brackets, braces;
@@ -80,11 +81,12 @@ int16_t try_find_json(std::span<const unsigned char> buffer) {
   bool inside_string = false;
   bool backslash = false;
   bool corrupt = false;
+  bool overflow = false;
 
   size_t idx = 0;
 
-  for (auto it = buffer.begin(); it != buffer.end(); ++it) {
-    if (*it == '{' || *it == '[') {
+  for (unsigned char it : buffer) {
+    if (it == '{' || it == '[') {
       break;
     }
     idx++;
@@ -93,47 +95,48 @@ int16_t try_find_json(std::span<const unsigned char> buffer) {
   if (idx > 0)
     return -idx;
 
-  for (auto it = buffer.begin(); it != buffer.end(); ++it) {
-    if (std::isspace(*it)) {
-    } else if (!std::isprint(*it)) {
+  for (unsigned char it : buffer) {
+    if (std::isspace(it)) {
+    } else if (!std::isprint(it)) {
       corrupt = true;
     } else if (!inside_string) {
-      if (*it == '{') {
+      if (it == '{') {
         braces.set(position_t(depth++), true);
         if (depth > MAX_JSON_DEPTH) {
-          corrupt = true;
+          overflow = true;
         }
-      } else if (*it == '}') {
+      } else if (it == '}') {
         if (depth > 0 && braces[depth - 1]) {
           braces.set(position_t(--depth), false);
         } else {
           corrupt = true;
         }
-      } else if (*it == '[') {
+      } else if (it == '[') {
         brackets.set(position_t(depth++), true);
         if (depth > MAX_JSON_DEPTH) {
-          corrupt = true;
+          overflow = true;
         }
-      } else if (*it == ']') {
+      } else if (it == ']') {
         if (depth > 0 && brackets[depth - 1]) {
           brackets.set(position_t(--depth), false);
         } else {
           corrupt = true;
         }
-      } else if (*it == '"') {
+      } else if (it == '"') {
         inside_string = true;
       }
     } else {  // !inside_string
       if (backslash) {
+        // any character can be escaped. This ends the escape.
         backslash = false;
-      } else if (*it == '\\') {
+      } else if (it == '\\') {
         backslash = true;
-      } else if (*it == '"') {
+      } else if (it == '"') {
         inside_string = false;
       }
     }
     idx++;
-    if (corrupt) {
+    if (overflow || corrupt) {
       return -1;
     } else if (depth == 0) {
       return idx;
