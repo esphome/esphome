@@ -272,9 +272,10 @@ void AirConditioner::ParseResponse() {
     set_frequency_sensor(this->frequency_sensor_, RXData[RX_BYTE_FREQUENCY]);
     set_timer_start_sensor(this->timer_start_sensor_, CalculateGetTime(RXData[RX_BYTE_TIMER_START]));
     set_timer_stop_sensor(this->timer_stop_sensor_, CalculateGetTime(RXData[RX_BYTE_TIMER_STOP]));
-    set_error_flags_sensor(this->error_flags_sensor_, (RXData[RX_BYTE_ERROR_FLAGS1] << 0) | (RXData[RX_BYTE_ERROR_FLAGS2] << 8));
+    set_error_flags_sensor(this->error_flags_sensor_,
+                           (RXData[RX_BYTE_ERROR_FLAGS1] << 0) | (RXData[RX_BYTE_ERROR_FLAGS2] << 8));
     set_protect_flags_sensor(this->protect_flags_sensor_,
-               (RXData[RX_BYTE_PROTECT_FLAGS1] << 0) | (RXData[RX_BYTE_PROTECT_FLAGS2] << 8));
+                             (RXData[RX_BYTE_PROTECT_FLAGS1] << 0) | (RXData[RX_BYTE_PROTECT_FLAGS2] << 8));
 
   } else {
     ESP_LOGE(Constants::TAG, "Received invalid response from AC");
