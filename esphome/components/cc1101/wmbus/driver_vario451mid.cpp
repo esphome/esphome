@@ -15,88 +15,49 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("vario451mid");
-        di.setDefaultFields("name,id,total_energy_consumption_kwh,energy_at_old_date_kwh,energy_at_set_date_kwh,timestamp");
-        di.setMeterType(MeterType::HeatMeter);
-        // Mode 7
-        di.addLinkMode(LinkMode::T1);
-        di.addDetection(MANUFACTURER_TCH, 0x04,  0x17);
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("vario451mid");
+  di.setDefaultFields("name,id,total_energy_consumption_kwh,energy_at_old_date_kwh,energy_at_set_date_kwh,timestamp");
+  di.setMeterType(MeterType::HeatMeter);
+  // Mode 7
+  di.addLinkMode(LinkMode::T1);
+  di.addDetection(MANUFACTURER_TCH, 0x04, 0x17);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) :  MeterCommonImplementation(mi, di)
-    {
-        addNumericFieldWithExtractor(
-            "total_energy_consumption",
-            "The total energy consumption recorded by this meter.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Energy,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::AnyEnergyVIF)
-            );
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addNumericFieldWithExtractor("total_energy_consumption", "The total energy consumption recorded by this meter.",
+                               DEFAULT_PRINT_PROPERTIES, Quantity::Energy, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::AnyEnergyVIF));
 
-        addNumericFieldWithExtractor(
-            "energy_at_old_date",
-            "The total energy consumption recorded when?",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Energy,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::AnyEnergyVIF)
-            .set(StorageNr(1))
-            );
+  addNumericFieldWithExtractor(
+      "energy_at_old_date", "The total energy consumption recorded when?", DEFAULT_PRINT_PROPERTIES, Quantity::Energy,
+      VifScaling::Auto, DifSignedness::Signed,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::AnyEnergyVIF).set(StorageNr(1)));
 
-        addNumericFieldWithExtractor(
-            "old",
-            "The last billing old date?",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::PointInTime,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Date)
-            .set(StorageNr(1)),
-            Unit::DateLT);
+  addNumericFieldWithExtractor(
+      "old", "The last billing old date?", DEFAULT_PRINT_PROPERTIES, Quantity::PointInTime, VifScaling::Auto,
+      DifSignedness::Signed,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Date).set(StorageNr(1)), Unit::DateLT);
 
-        addNumericFieldWithExtractor(
-            "energy_at_set_date",
-            "The total energy consumption recorded by this meter at the due date.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Energy,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::AnyEnergyVIF)
-            .set(StorageNr(8))
-            );
+  addNumericFieldWithExtractor(
+      "energy_at_set_date", "The total energy consumption recorded by this meter at the due date.",
+      DEFAULT_PRINT_PROPERTIES, Quantity::Energy, VifScaling::Auto, DifSignedness::Signed,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::AnyEnergyVIF).set(StorageNr(8)));
 
-        addNumericFieldWithExtractor(
-            "set",
-            "The last billing set date.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::PointInTime,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Date)
-            .set(StorageNr(8)),
-            Unit::DateLT);
-    }
+  addNumericFieldWithExtractor(
+      "set", "The last billing set date.", DEFAULT_PRINT_PROPERTIES, Quantity::PointInTime, VifScaling::Auto,
+      DifSignedness::Signed,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Date).set(StorageNr(8)), Unit::DateLT);
 }
+}  // namespace
 
 // Test: Heato vario451mid 94430412 NOKEY
 // telegram=734468501204439417048c0084900f002c2536700000B767B64527c50ac67a33005007102f2f8404062846000082046c9f2c8d04861f1e72fe00000000000000000000000000000000000000000000000000000000440600000000426cffff0406c94700002f2f2f2f2f2f2f2f2f2f2f2f2f2f2f

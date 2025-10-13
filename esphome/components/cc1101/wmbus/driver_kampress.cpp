@@ -15,106 +15,65 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("kampress");
-        di.setDefaultFields("name,id,status,pressure_bar,max_pressure_bar,min_pressure_bar,timestamp");
-        di.setMeterType(MeterType::PressureSensor);
-        di.addLinkMode(LinkMode::C1);
-        di.addDetection(MANUFACTURER_KAM,  0x18,  0x01);
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("kampress");
+  di.setDefaultFields("name,id,status,pressure_bar,max_pressure_bar,min_pressure_bar,timestamp");
+  di.setMeterType(MeterType::PressureSensor);
+  di.addLinkMode(LinkMode::C1);
+  di.addDetection(MANUFACTURER_KAM, 0x18, 0x01);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-    {
-        addStringFieldWithExtractorAndLookup(
-            "status",
-            "Status and error flags.",
-            DEFAULT_PRINT_PROPERTIES  | INCLUDE_TPL_STATUS,
-            FieldMatcher::build()
-            .set(VIFRange::ErrorFlags),
-            {
-                {
-                    {
-                        "ERROR_FLAGS",
-                        Translate::MapType::BitToString,
-                        AlwaysTrigger, MaskBits(0xffff),
-                        "OK",
-                        {
-                            { 0x01, "DROP" }, // Unexpected drop in pressure in relation to average pressure.
-                            { 0x02, "SURGE" }, // Unexpected increase in pressure in relation to average pressure.
-                            { 0x04, "HIGH" }, // Average pressure has reached configurable limit. Default 15 bar
-                            { 0x08, "LOW" }, // Average pressure has reached configurable limit. Default 1.5 bar
-                            { 0x10, "TRANSIENT" }, // Pressure changes quickly over short timeperiods. Average is fluctuating.
-                            { 0x20, "COMM_ERROR" } // Cannot measure properly or bad internal communication.
-                        }
-                    },
-                },
-            });
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addStringFieldWithExtractorAndLookup(
+      "status", "Status and error flags.", DEFAULT_PRINT_PROPERTIES | INCLUDE_TPL_STATUS,
+      FieldMatcher::build().set(VIFRange::ErrorFlags),
+      {
+          {
+              {"ERROR_FLAGS",
+               Translate::MapType::BitToString,
+               AlwaysTrigger,
+               MaskBits(0xffff),
+               "OK",
+               {
+                   {0x01, "DROP"},       // Unexpected drop in pressure in relation to average pressure.
+                   {0x02, "SURGE"},      // Unexpected increase in pressure in relation to average pressure.
+                   {0x04, "HIGH"},       // Average pressure has reached configurable limit. Default 15 bar
+                   {0x08, "LOW"},        // Average pressure has reached configurable limit. Default 1.5 bar
+                   {0x10, "TRANSIENT"},  // Pressure changes quickly over short timeperiods. Average is fluctuating.
+                   {0x20, "COMM_ERROR"}  // Cannot measure properly or bad internal communication.
+               }},
+          },
+      });
 
-        addNumericFieldWithExtractor(
-            "pressure",
-            "The measured pressure.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Pressure,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Pressure)
-            );
+  addNumericFieldWithExtractor("pressure", "The measured pressure.", DEFAULT_PRINT_PROPERTIES, Quantity::Pressure,
+                               VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Pressure));
 
-        addNumericFieldWithExtractor(
-            "max_pressure",
-            "The maximum pressure measured during ?.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Pressure,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Maximum)
-            .set(VIFRange::Pressure)
-            );
+  addNumericFieldWithExtractor("max_pressure", "The maximum pressure measured during ?.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Pressure, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Maximum).set(VIFRange::Pressure));
 
-        addNumericFieldWithExtractor(
-            "min_pressure",
-            "The minimum pressure measured during ?.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Pressure,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Minimum)
-            .set(VIFRange::Pressure)
-            );
+  addNumericFieldWithExtractor("min_pressure", "The minimum pressure measured during ?.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Pressure, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Minimum).set(VIFRange::Pressure));
 
-        addNumericFieldWithExtractor(
-            "alfa",
-            "We do not know what this is.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Dimensionless,
-            VifScaling::None, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(DifVifKey("05FF09"))
-            );
+  addNumericFieldWithExtractor("alfa", "We do not know what this is.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Dimensionless, VifScaling::None, DifSignedness::Signed,
+                               FieldMatcher::build().set(DifVifKey("05FF09")));
 
-        addNumericFieldWithExtractor(
-            "beta",
-            "We do not know what this is.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Dimensionless,
-            VifScaling::None, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(DifVifKey("05FF0A"))
-            );
-    }
+  addNumericFieldWithExtractor("beta", "We do not know what this is.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Dimensionless, VifScaling::None, DifSignedness::Signed,
+                               FieldMatcher::build().set(DifVifKey("05FF0A")));
 }
+}  // namespace
 
 // Test: Pressing kampress 77000317 NOKEY
 // telegram=|32442D2C1703007701188D280080E39322DB8F78_22696600126967000269660005FF091954A33A05FF0A99BD823A02FD170800|

@@ -16,51 +16,34 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("iperl");
-        di.setDefaultFields("name,id,total_m3,max_flow_m3h,timestamp");
-        di.setMeterType(MeterType::WaterMeter);
-        di.addLinkMode(LinkMode::T1);
-        di.addDetection(MANUFACTURER_SEN,  0x06,  0x68);
-        di.addDetection(MANUFACTURER_SEN,  0x07,  0x68);
-        di.addDetection(MANUFACTURER_SEN,  0x07,  0x7c);
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("iperl");
+  di.setDefaultFields("name,id,total_m3,max_flow_m3h,timestamp");
+  di.setMeterType(MeterType::WaterMeter);
+  di.addLinkMode(LinkMode::T1);
+  di.addDetection(MANUFACTURER_SEN, 0x06, 0x68);
+  di.addDetection(MANUFACTURER_SEN, 0x07, 0x68);
+  di.addDetection(MANUFACTURER_SEN, 0x07, 0x7c);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-    {
-        addNumericFieldWithExtractor(
-            "total",
-            "The total water consumption recorded by this meter.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Volume,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Volume)
-            );
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addNumericFieldWithExtractor("total", "The total water consumption recorded by this meter.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Volume, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Volume));
 
-        addNumericFieldWithExtractor(
-            "max_flow",
-            "The maximum flow recorded during previous period.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Flow,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::VolumeFlow));
-    }
+  addNumericFieldWithExtractor("max_flow", "The maximum flow recorded during previous period.",
+                               DEFAULT_PRINT_PROPERTIES, Quantity::Flow, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::VolumeFlow));
 }
+}  // namespace
 
 // Test: MoreWater iperl 12345699 NOKEY
 // Comment: Test iPerl T1 telegram, that after decryption, has 2f2f markers.

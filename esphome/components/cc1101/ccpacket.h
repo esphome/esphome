@@ -16,9 +16,9 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with CC1101; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA	02110-1301 
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA	02110-1301
  * USA
- * 
+ *
  * Author: Daniel Berenguer
  * Creation date: 06/03/2013
  */
@@ -29,43 +29,41 @@
 /**
  * Buffer and data lengths
  */
-#define CCPACKET_BUFFER_LEN				 64
-#define CCPACKET_DATA_LEN					 CCPACKET_BUFFER_LEN - 3
+#define CCPACKET_BUFFER_LEN 64
+#define CCPACKET_DATA_LEN CCPACKET_BUFFER_LEN - 3
 
 /**
  * Class: CCPACKET
- * 
+ *
  * Description:
  * CC1101 data packet class
  */
 typedef struct {
-	/**
-	 * Data length
-	 */
-	unsigned char length;
+  /**
+   * Data length
+   */
+  unsigned char length;
 
-	/**
-	 * Data buffer
-	 */
-	unsigned char data[CCPACKET_DATA_LEN];
+  /**
+   * Data buffer
+   */
+  unsigned char data[CCPACKET_DATA_LEN];
 
-	/**
-	 * CRC OK flag
-	 */
-	bool crc_ok;
+  /**
+   * CRC OK flag
+   */
+  bool crc_ok;
 
-	/**
-	 * Received Strength Signal Indication
-	 */
-	unsigned char rssi;
+  /**
+   * Received Strength Signal Indication
+   */
+  unsigned char rssi;
 
-	/**
-	 * Link Quality Index
-	 */
-	unsigned char lqi;
+  /**
+   * Link Quality Index
+   */
+  unsigned char lqi;
 
 } CCPACKET;
 
 #endif
-
-

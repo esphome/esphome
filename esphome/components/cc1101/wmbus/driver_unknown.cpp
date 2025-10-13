@@ -15,30 +15,25 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
 using namespace std;
 
-struct MeterUnknown : public virtual MeterCommonImplementation
-{
-    MeterUnknown(MeterInfo &mi, DriverInfo &di);
+struct MeterUnknown : public virtual MeterCommonImplementation {
+  MeterUnknown(MeterInfo &mi, DriverInfo &di);
 };
 
-static bool ok = registerDriver([](DriverInfo&di)
-{
-    di.setName("unknown");
-    di.setDefaultFields("name,id,timestamp");
-    di.setMeterType(MeterType::UnknownMeter);
-    di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new MeterUnknown(mi, di)); });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("unknown");
+  di.setDefaultFields("name,id,timestamp");
+  di.setMeterType(MeterType::UnknownMeter);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new MeterUnknown(mi, di)); });
 });
 
-MeterUnknown::MeterUnknown(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-{
-}
+MeterUnknown::MeterUnknown(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {}
 
-shared_ptr<Meter> createUnknown(MeterInfo &mi)
-{
-    DriverInfo di;
-    di.setName("unknown");
-    return shared_ptr<Meter>(new MeterUnknown(mi, di));
+shared_ptr<Meter> createUnknown(MeterInfo &mi) {
+  DriverInfo di;
+  di.setName("unknown");
+  return shared_ptr<Meter>(new MeterUnknown(mi, di));
 }

@@ -21,12 +21,12 @@ logger:
   baud_rate: 0
 
 external_components:
-  - source: 
+  - source:
       type: git
       url: https://github.com/exciton/esphome
       ref: dev
     components: [midea_xye]
-  
+
 # UART settings for RS485 covnerter dongle (required)
 uart:
   tx_pin: TX
@@ -47,16 +47,16 @@ climate:
       min_temperature: 17 °C    # min: 17
       max_temperature: 30 °C    # max: 30
       temperature_step: 1.0 °C  # min: 0.5
-    supported_modes:            # Optional. 
+    supported_modes:            # Optional.
       - FAN_ONLY
-      - HEAT_COOL              
+      - HEAT_COOL
       - COOL
       - HEAT
       - DRY
     custom_fan_modes:           # Optional
       - SILENT
       - TURBO
-    supported_presets:          # Optional. 
+    supported_presets:          # Optional.
       - BOOST
       - SLEEP
     supported_swing_modes:      # Optional
@@ -75,7 +75,7 @@ climate:
       name: Timer Stop
     error_flags:                # Optional.
       name: Error Flags
-    protect_flags:              # Optional. 
+    protect_flags:              # Optional.
       name: Protect Flags
 
 ```
@@ -93,10 +93,10 @@ climate:
 - Current reading always shows 255
 - Reading back fan mode when in Auto shows the acutal mode (i.e. no way to check it's in auto)
 - Setting turbo (aux heat), sleep doesn't work (although reading it back from the unit does seem to)
-- Setting swing mode 
+- Setting swing mode
 
 # Not yet implemented
-- Setting timers direct to unit. No real need since automations can do this 
+- Setting timers direct to unit. No real need since automations can do this
 - Need to check calibration calculation for temperature
 - Figure out how to force display to C or F. Setting temp in C doesn't force display to C.
 - Freeze protection
@@ -105,4 +105,3 @@ climate:
 
 # Not tested
 - IR integration
-

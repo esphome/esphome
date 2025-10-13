@@ -15,61 +15,38 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("dme_07");
-        di.setDefaultFields("name,id,total_m3,status,timestamp");
-        di.setMeterType(MeterType::WaterMeter);
-        di.addLinkMode(LinkMode::T1);
-        di.addDetection(MANUFACTURER_DME,  0x07,  0x7b);
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("dme_07");
+  di.setDefaultFields("name,id,total_m3,status,timestamp");
+  di.setMeterType(MeterType::WaterMeter);
+  di.addLinkMode(LinkMode::T1);
+  di.addDetection(MANUFACTURER_DME, 0x07, 0x7b);
 
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-    {
-        addStringFieldWithExtractorAndLookup(
-            "status",
-            "Status of meter.",
-            DEFAULT_PRINT_PROPERTIES  | PrintProperty::STATUS,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::ErrorFlags),
-            {
-                {
-                    {
-                        "ERROR_FLAGS",
-                        Translate::MapType::BitToString,
-                        AlwaysTrigger, MaskBits(0xffff),
-                        "OK",
-                        {
-                        }
-                    },
-                },
-            });
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addStringFieldWithExtractorAndLookup(
+      "status", "Status of meter.", DEFAULT_PRINT_PROPERTIES | PrintProperty::STATUS,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::ErrorFlags),
+      {
+          {
+              {"ERROR_FLAGS", Translate::MapType::BitToString, AlwaysTrigger, MaskBits(0xffff), "OK", {}},
+          },
+      });
 
-        addNumericFieldWithExtractor(
-            "total",
-            "The total water consumption recorded by this meter.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Volume,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Volume)
-            );
-
-
-    }
+  addNumericFieldWithExtractor("total", "The total water consumption recorded by this meter.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Volume, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Volume));
 }
+}  // namespace
 
 // Test: DigiWasser dme_07 93929190 NOKEY
 // telegram=|1E44A511909192937B077A9F0010052F2F_04130347030002FD1700002F2F2F|

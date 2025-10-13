@@ -16,50 +16,33 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include"meters_common_implementation.h"
+#include "meters_common_implementation.h"
 
-namespace
-{
-    struct Driver : public virtual MeterCommonImplementation
-    {
-        Driver(MeterInfo &mi, DriverInfo &di);
-    };
+namespace {
+struct Driver : public virtual MeterCommonImplementation {
+  Driver(MeterInfo &mi, DriverInfo &di);
+};
 
-    static bool ok = registerDriver([](DriverInfo&di)
-    {
-        di.setName("ev200");
-        di.setDefaultFields("name,id,total_m3,target_m3,timestamp");
-        di.setMeterType(MeterType::WaterMeter);
-        di.addLinkMode(LinkMode::T1);
-        di.addDetection(MANUFACTURER_ELR,  0x07,  0x0d);
-        di.setConstructor([](MeterInfo& mi, DriverInfo& di){ return shared_ptr<Meter>(new Driver(mi, di)); });
-    });
+static bool ok = registerDriver([](DriverInfo &di) {
+  di.setName("ev200");
+  di.setDefaultFields("name,id,total_m3,target_m3,timestamp");
+  di.setMeterType(MeterType::WaterMeter);
+  di.addLinkMode(LinkMode::T1);
+  di.addDetection(MANUFACTURER_ELR, 0x07, 0x0d);
+  di.setConstructor([](MeterInfo &mi, DriverInfo &di) { return shared_ptr<Meter>(new Driver(mi, di)); });
+});
 
-    Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di)
-    {
-        addNumericFieldWithExtractor(
-            "total",
-            "The total water consumption recorded by this meter.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Volume,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Volume)
-            );
+Driver::Driver(MeterInfo &mi, DriverInfo &di) : MeterCommonImplementation(mi, di) {
+  addNumericFieldWithExtractor("total", "The total water consumption recorded by this meter.", DEFAULT_PRINT_PROPERTIES,
+                               Quantity::Volume, VifScaling::Auto, DifSignedness::Signed,
+                               FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Volume));
 
-        addNumericFieldWithExtractor(
-            "target",
-            "The target water consumption recorded at previous period.",
-            DEFAULT_PRINT_PROPERTIES,
-            Quantity::Volume,
-            VifScaling::Auto, DifSignedness::Signed,
-            FieldMatcher::build()
-            .set(MeasurementType::Instantaneous)
-            .set(VIFRange::Volume)
-            .set(StorageNr(1)));
-    }
+  addNumericFieldWithExtractor(
+      "target", "The target water consumption recorded at previous period.", DEFAULT_PRINT_PROPERTIES, Quantity::Volume,
+      VifScaling::Auto, DifSignedness::Signed,
+      FieldMatcher::build().set(MeasurementType::Instantaneous).set(VIFRange::Volume).set(StorageNr(1)));
 }
+}  // namespace
 
 // Test: Voda ev200 99993030 NOKEY
 // telegram=|2E449215303099990D077AB50820452F2F_0C12495849004C12557545000FB10445007022C50BFFFFFFFF0000FFF000|
