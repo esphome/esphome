@@ -53,34 +53,48 @@ def fix_pydantic_compatibility():
         else:
             print("ESP-IDF 5.4.x detected, applying pydantic compatibility fix...")
 
-        # Get the PlatformIO environment's Python executable
-        # This is the Python environment that ESP-IDF will use
-        pio_python = env.subst("$PYTHONEXE")  # noqa: F821
-        if not pio_python or not os.path.exists(pio_python):
-            print("PlatformIO Python executable not found, skipping pydantic fix")
+        # Get the ESP-IDF Python environment
+        # The error occurs in the ESP-IDF environment, not the PlatformIO environment
+        espidf_python = None
+
+        # Try to find the ESP-IDF Python executable
+        if idf_path:
+            # If IDF_PATH is set, look for Python in the ESP-IDF environment
+            espidf_python = os.path.join(idf_path, "tools", "python_env", "idf5.4_py3.13_env", "Scripts", "python.exe")
+            if not os.path.exists(espidf_python):
+                espidf_python = os.path.join(idf_path, "tools", "python_env", "idf5.4_py3.13_env", "bin", "python")
+        else:
+            # If IDF_PATH is not set, try to find it in the PlatformIO ESP-IDF environment
+            platformio_home = os.path.expanduser("~/.platformio")
+            espidf_python = os.path.join(platformio_home, "penv", ".espidf-5.4.2", "bin", "python")
+            if not os.path.exists(espidf_python):
+                espidf_python = os.path.join(platformio_home, "penv", ".espidf-5.4.2", "Scripts", "python.exe")
+
+        if not espidf_python or not os.path.exists(espidf_python):
+            print("ESP-IDF Python executable not found, skipping pydantic fix")
             return
 
-        print(f"Using Python executable: {pio_python}")
+        print(f"Using ESP-IDF Python executable: {espidf_python}")
 
-        # Try to install compatible pydantic version in the PlatformIO environment
+        # Try to install compatible pydantic version in the ESP-IDF environment
         try:
             # Check if uv is available (ESP-IDF 5.5+ uses uv instead of pip)
             uv_available = subprocess.run([
-                pio_python, "-m", "uv", "--version"
+                espidf_python, "-m", "uv", "--version"
             ], check=False, capture_output=True, text=True, timeout=10).returncode == 0
 
             if uv_available:
                 print("Using uv package manager")
                 # Use uv to install pydantic 2.11.10 (the version ESP-IDF expects)
                 result = subprocess.run([
-                    pio_python, "-m", "uv", "pip", "install",
+                    espidf_python, "-m", "uv", "pip", "install",
                     "pydantic==2.11.10", "--force-reinstall"
                 ], check=False, capture_output=True, text=True, timeout=120)
             else:
                 print("Using pip package manager")
                 # Use pip to install pydantic 2.11.10
                 result = subprocess.run([
-                    pio_python, "-m", "pip", "install",
+                    espidf_python, "-m", "pip", "install",
                     "pydantic==2.11.10", "--force-reinstall"
                 ], check=False, capture_output=True, text=True, timeout=120)
 
