@@ -168,11 +168,12 @@ APIError APINoiseFrameHelper::try_read_frame_() {
   // read body
   uint16_t msg_size = (((uint16_t) rx_header_buf_[1]) << 8) | rx_header_buf_[2];
 
-  if (state_ != State::DATA && msg_size > 128) {
-    // for handshake message only permit up to 128 bytes
+  // Check against size limits to prevent OOM: MAX_HANDSHAKE_SIZE for handshake, MAX_MESSAGE_SIZE for data
+  uint16_t limit = (state_ == State::DATA) ? MAX_MESSAGE_SIZE : MAX_HANDSHAKE_SIZE;
+  if (msg_size > limit) {
     state_ = State::FAILED;
-    HELPER_LOG("Bad packet len for handshake: %d", msg_size);
-    return APIError::BAD_HANDSHAKE_PACKET_LEN;
+    HELPER_LOG("Bad packet: message size %u exceeds maximum %u", msg_size, limit);
+    return (state_ == State::DATA) ? APIError::BAD_DATA_PACKET : APIError::BAD_HANDSHAKE_PACKET_LEN;
   }
 
   // Reserve space for body
