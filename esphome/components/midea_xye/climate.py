@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_OUTDOOR_TEMPERATURE,
     CONF_PERIOD,
     CONF_SENSOR,
-    CONF_SET_POINT_MINIMUM_DIFFERENTIAL,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
@@ -389,10 +388,5 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
     sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(
-        var.set_set_point_minimum_differential(
-            config[CONF_SET_POINT_MINIMUM_DIFFERENTIAL]
-        )
-    )
     cg.add(var.set_sensor(sens)) 
     #cg.add_library("dudanov/MideaUART", "1.1.8")
