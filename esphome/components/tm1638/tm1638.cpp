@@ -80,11 +80,11 @@ uint16_t TM1638Component::get_keys() {
 
   delayMicroseconds(10);
 
-  bool isQFY = this->board_ == "qyf";  // once
+  bool is_qfy = this->board_ == "qyf";  // once
 
   for (uint8_t i = 0; i < 4; i++) {  // read the 4 button registers
     uint8_t v = this->shift_in_();
-    if (isQFY) {  // 16 buttons - https://github.com/gavinlyonsrepo/TM1638plus/blob/master/src/TM1638plus_Model2.cpp
+    if (is_qfy) {  // 16 buttons - https://github.com/gavinlyonsrepo/TM1638plus/blob/master/src/TM1638plus_Model2.cpp
       // turn v ABCDEFGI = 0BC00FG0  into 00CG00BF see matrix below
       v = (((v & 0x40) >> 3 | (v & 0x04)) >> 2) | (v & 0x20) | (v & 0x02) << 3;
       // i = 0 v = 00,10, 9,0021 // i = 1 v = 00,12,11,0043
@@ -119,20 +119,10 @@ void TM1638Component::display() {
 
     uint8_t mask = 0x80;  // start on left side (left most 7-segment)
     for (uint8_t i = 0; i < 8; i++) {
-      /*
-      if (buffer_[i] & 0x01) buffer[0] |= mask; // A
-      if (buffer_[i] & 0x02) buffer[1] |= mask; // B
-      if (buffer_[i] & 0x04) buffer[2] |= mask; // C
-      if (buffer_[i] & 0x08) buffer[3] |= mask; // D
-      if (buffer_[i] & 0x10) buffer[4] |= mask; // E
-      if (buffer_[i] & 0x20) buffer[5] |= mask; // F
-      if (buffer_[i] & 0x40) buffer[6] |= mask; // G
-      if (buffer_[i] & 0x80) buffer[7] |= mask; // .
-      */
       uint8_t seg = 0x01;  // start with A-segment
-      for (uint8_t j = 0; j < 8; j++) {
+      for (unsigned char & j : buffer) {
         if (buffer_[i] & seg)
-          buffer[j] |= mask;
+          j |= mask;
         seg <<= 1;
       }
       mask >>= 1;
