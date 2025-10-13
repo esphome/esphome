@@ -181,6 +181,31 @@ template<typename T> class FixedVector {
   FixedVector(const FixedVector &) = delete;
   FixedVector &operator=(const FixedVector &) = delete;
 
+  // Enable move semantics for use in containers
+  FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.capacity_ = 0;
+  }
+
+  FixedVector &operator=(FixedVector &&other) noexcept {
+    if (this != &other) {
+      // Delete our current data
+      if (data_ != nullptr) {
+        delete[] data_;
+      }
+      // Take ownership of other's data
+      data_ = other.data_;
+      size_ = other.size_;
+      capacity_ = other.capacity_;
+      // Leave other in valid empty state
+      other.data_ = nullptr;
+      other.size_ = 0;
+      other.capacity_ = 0;
+    }
+    return *this;
+  }
+
   // Allocate capacity - can only be called once on empty vector
   void init(size_t n) {
     if (data_ == nullptr && n > 0) {
@@ -199,12 +224,33 @@ template<typename T> class FixedVector {
     }
   }
 
+  /// Construct element in place and return reference
+  /// Caller must ensure sufficient capacity was allocated via init()
+  T &emplace_back() {
+    if (size_ < capacity_) {
+      return data_[size_++];
+    }
+    // Should never happen with proper init() - return last element to avoid crash
+    return data_[capacity_ - 1];
+  }
+
+  /// Access last element
+  T &back() { return data_[size_ - 1]; }
+  const T &back() const { return data_[size_ - 1]; }
+
   size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
 
   /// Access element without bounds checking (matches std::vector behavior)
   /// Caller must ensure index is valid (i < size())
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
+
+  /// Iterators for range-based for loops
+  T *begin() { return data_; }
+  T *end() { return data_ + size_; }
+  const T *begin() const { return data_; }
+  const T *end() const { return data_ + size_; }
 };
 
 ///@}
