@@ -447,6 +447,8 @@ async def to_code(config):
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
 
+    CORE.add_job(final_step)
+
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
 async def wifi_connected_to_code(config, condition_id, template_arg, args):
