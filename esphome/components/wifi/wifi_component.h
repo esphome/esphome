@@ -278,7 +278,7 @@ class WiFiComponent : public Component {
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
-  const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+  const FixedVector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -385,7 +385,7 @@ class WiFiComponent : public Component {
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
-  std::vector<WiFiScanResult> scan_result_;
+  FixedVector<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
   WiFiAP ap_;
   optional<float> output_power_;

@@ -552,7 +552,7 @@ void WiFiComponent::start_scanning() {
 // Using insertion sort instead of std::stable_sort saves flash memory
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements)
-static void insertion_sort_scan_results(std::vector<WiFiScanResult> &results) {
+static void insertion_sort_scan_results(FixedVector<WiFiScanResult> &results) {
   const size_t size = results.size();
   for (size_t i = 1; i < size; i++) {
     // Make a copy to avoid issues with move semantics during comparison
