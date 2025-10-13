@@ -769,14 +769,8 @@ async def to_code(config):
     for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
         os.environ.pop(clean_var, None)
 
-    if (
-        conf[CONF_TYPE] == FRAMEWORK_ESP_IDF
-        and framework_ver >= cv.Version(5, 4, 0)
-        and framework_ver <= cv.Version(5, 5, 1)
-    ) or (
-        conf[CONF_TYPE] == FRAMEWORK_ARDUINO
-        and framework_ver >= cv.Version(3, 2, 0)
-        and framework_ver <= cv.Version(3, 3, 2)
+    if (cv.Version(5, 4, 0) <= framework_ver <= cv.Version(5, 5, 1)) or (
+        cv.Version(3, 2, 0) <= framework_ver <= cv.Version(3, 3, 2)
     ):
         try:
             import shutil
@@ -789,7 +783,7 @@ async def to_code(config):
             penv_dir = Path(pio_config.get("platformio", "core_dir")) / "penv"
             platform_dir = Path(pio_config.get("platformio", "platforms_dir"))
             cleanup = False
-            for root, dirs, files in os.walk(penv_dir):
+            for _, dirs, _ in os.walk(penv_dir):
                 for dir in dirs:
                     if dir.startswith("pydantic-") and not dir.startswith(
                         "pydantic-2.11.10"
@@ -797,7 +791,10 @@ async def to_code(config):
                         cleanup = True
             if cleanup:
                 _LOGGER.warning(
-                    f"Fixing pydantic issue, cleaning {platform_dir} and {penv_dir}"
+                    "Fixing pydantic issue, cleaning %s and %s.\n"
+                    "If the issue does not resolve, make sure the recommended platform version is used.",
+                    platform_dir,
+                    penv_dir,
                 )
                 if platform_dir.exists():
                     shutil.rmtree(platform_dir)
