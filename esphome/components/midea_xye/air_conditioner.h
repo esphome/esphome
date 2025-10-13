@@ -3,7 +3,7 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/defines.h"
-
+#include "air_conditioner.cpp"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
