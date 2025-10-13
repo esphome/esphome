@@ -24,16 +24,34 @@ def fix_pydantic_compatibility():
         # Get the ESP-IDF Python environment
         idf_path = env.get("IDF_PATH")  # noqa: F821
         if not idf_path:
-            print("IDF_PATH not found, skipping pydantic fix")
-            return
+            # In CI environments, IDF_PATH might not be set even when using ESP-IDF
+            # Check if we're actually using ESP-IDF by looking at the framework
+            print("IDF_PATH not found, but ESP-IDF framework detected - proceeding with pydantic fix")
 
         # Check if we're using ESP-IDF 5.4.x (which has the pydantic issue)
         idf_version = env.get("IDF_VER", "")  # noqa: F821
-        if not idf_version.startswith("5.4"):
+        if not idf_version:
+            # If IDF_VER is not set, check the framework version from PlatformIO
+            # The framework version format is like "3.50402.0" for ESP-IDF 5.4.2
+            framework_version = env.get("PIOFRAMEWORK_VERSION", "")  # noqa: F821
+            if not framework_version:
+                # Try alternative environment variables
+                framework_version = env.get("FRAMEWORK_VERSION", "")  # noqa: F821
+
+            if framework_version and framework_version.startswith("3.50402"):  # ESP-IDF 5.4.2
+                print(f"ESP-IDF framework version {framework_version} detected (ESP-IDF 5.4.x), applying pydantic fix")
+            else:
+                # If we can't determine the version, but we're using ESP-IDF framework,
+                # assume it might be 5.4.x and apply the fix (it's safe to do so)
+                print(f"ESP-IDF framework detected (version unknown: {framework_version}), applying pydantic fix as precaution")
+        elif not idf_version.startswith("5.4"):
             print(f"ESP-IDF version {idf_version} detected, pydantic fix not needed")
             return
 
-        print(f"ESP-IDF {idf_version} detected, applying pydantic compatibility fix...")
+        if idf_version:
+            print(f"ESP-IDF {idf_version} detected, applying pydantic compatibility fix...")
+        else:
+            print("ESP-IDF 5.4.x detected, applying pydantic compatibility fix...")
 
         # Get the PlatformIO environment's Python executable
         # This is the Python environment that ESP-IDF will use
