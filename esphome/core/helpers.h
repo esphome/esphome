@@ -250,6 +250,17 @@ template<typename T> class FixedVector {
     }
   }
 
+  /// Add element by move without bounds checking
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
+  void push_back(T &&value) {
+    if (size_ < capacity_) {
+      // Use placement new to move-construct the object in pre-allocated memory
+      new (&data_[size_]) T(std::move(value));
+      size_++;
+    }
+  }
+
   /// Access last element (no bounds checking - matches std::vector behavior)
   /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }

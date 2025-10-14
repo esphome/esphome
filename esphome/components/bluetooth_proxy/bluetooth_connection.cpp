@@ -291,12 +291,12 @@ void BluetoothConnection::send_service_for_discovery_() {
             api::BluetoothGATTDescriptor descriptor_resp;
             fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, desc_result.uuid, use_efficient_uuids);
             descriptor_resp.handle = desc_result.handle;
-            characteristic_resp.descriptors.push_back(descriptor_resp);
+            characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
             desc_offset++;
           }
         }
         // Add the characteristic to the service (with or without descriptors)
-        service_resp.characteristics.push_back(characteristic_resp);
+        service_resp.characteristics.push_back(std::move(characteristic_resp));
       }
     }  // end if (total_char_count > 0)
 
