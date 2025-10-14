@@ -96,11 +96,9 @@ class Component {
    * @return The setup priority of this component
    */
 
-   [[deprecated]]
-  virtual float get_setup_priority() const;
+  [[deprecated]] virtual float get_setup_priority() const;
 
-  [[deprecated]]
-  float get_actual_setup_priority() const;
+  [[deprecated]] float get_actual_setup_priority() const;
 
   void set_setup_priority(float priority);
 

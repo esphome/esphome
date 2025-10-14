@@ -45,16 +45,16 @@ PLATFORM_MAX_GROUP_SIZE = {
     "esp8266-idf": 5,  # ESP8266 IDF also has limited IRAM
     "esp32-idf": 100,
     "rp2040-ard": 100,
-    #"nrf52-adafruit": 50,
+    # "nrf52-adafruit": 50,
     "esp32-s3-idf": 40,
     "esp32-c6-idf": 40,
     # BK72xx now uses BK7252 board (1.62MB flash vs 1.03MB) - no limit needed
     # Other platforms can handle larger groups
 }
 
-#"esp32-s3-idf": 40,
-#"nrf52-adafruit": 40,
-#"esp32-c6-idf": 40,
+# "esp32-s3-idf": 40,
+# "nrf52-adafruit": 40,
+# "esp32-c6-idf": 40,
 
 
 def show_disk_space_if_ci(esphome_command: str) -> None:

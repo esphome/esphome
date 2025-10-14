@@ -2,7 +2,6 @@
 import argparse
 from collections import defaultdict
 from collections.abc import Iterable
-import contextlib
 from datetime import datetime
 import functools
 import getpass
@@ -12,9 +11,7 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
 import sys
-import tempfile
 import time
 from typing import Protocol, cast
 
@@ -401,14 +398,19 @@ def generate_cpp_contents(config: ConfigType) -> None:
 
     # Collect entries as (name, manifest, conf)
     entries: list[tuple[str, ComponentManifest | None, ConfigFragmentType]] = list(
-        cast(Iterable[tuple[str, ComponentManifest | None, ConfigFragmentType]], iter_component_configs(config))
+        cast(
+            Iterable[tuple[str, ComponentManifest | None, ConfigFragmentType]],
+            iter_component_configs(config),
+        )
     )
 
     # name_to_comp_conf: defaultdict[str, list[tuple[ComponentManifest | None, object]]] = (
     #     defaultdict(list, {nm: [(comp, conf)] for nm, comp, conf in entries})
     # )
 
-    name_to_comp_conf: defaultdict[str, list[tuple[ComponentManifest | None, ConfigFragmentType]]] = defaultdict(list)
+    name_to_comp_conf: defaultdict[
+        str, list[tuple[ComponentManifest | None, ConfigFragmentType]]
+    ] = defaultdict(list)
     for nm, comp, conf in entries:
         name_to_comp_conf[nm].append((comp, conf))
 
@@ -434,11 +436,15 @@ def generate_cpp_contents(config: ConfigType) -> None:
         if manifest.is_platform_component:
             # Platform components depend on the platform component
             add_edge(CORE.target_platform, name)
-            _LOGGER.debug("Adding platform dependency %s -> %s", CORE.target_platform, name)
+            _LOGGER.debug(
+                "Adding platform dependency %s -> %s", CORE.target_platform, name
+            )
         elif manifest.is_target_platform:
             # Target platform depends on the global esphome component
             add_edge(CONF_ESPHOME, CORE.target_platform)
-            _LOGGER.debug("Adding platform dependency esphome -> %s", CORE.target_platform)
+            _LOGGER.debug(
+                "Adding platform dependency esphome -> %s", CORE.target_platform
+            )
         for dep in manifest.dependencies:
             if dep not in name_to_comp_conf:
                 _LOGGER.debug("Skipping missing dependency %s -> %s", dep, name)
@@ -469,7 +475,12 @@ def generate_cpp_contents(config: ConfigType) -> None:
         for dst in sorted(adj[nm]):
             indegree[dst] -= 1
             reverse_adj[dst].remove(nm)
-            _LOGGER.debug("  Decreased indegree of %s to %s. Set %s", dst, indegree[dst], reverse_adj[dst])
+            _LOGGER.debug(
+                "  Decreased indegree of %s to %s. Set %s",
+                dst,
+                indegree[dst],
+                reverse_adj[dst],
+            )
 
             if indegree[dst] == 0:
                 _LOGGER.debug("  Adding %s to zero indegree", dst)
@@ -1254,7 +1265,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
-    #"graph": command_graph,
+    # "graph": command_graph,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
