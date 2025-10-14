@@ -238,6 +238,9 @@ This document provides essential context for AI models interacting with this pro
            Use `cg.add_define("MAX_VALUES", count)` to set the size from Python configuration.
 
            **For byte buffers:** Avoid `std::vector<uint8_t>` unless the buffer needs to grow. Use `std::unique_ptr<uint8_t[]>` instead.
+
+           > **Note:** `std::unique_ptr<uint8_t[]>` does **not** provide bounds checking or iterator support like `std::vector<uint8_t>`. Use it only when you do not need these features and want minimal overhead.
+
            ```cpp
            // Bad - STL overhead for simple byte buffer
            std::vector<uint8_t> buffer;
@@ -249,7 +252,34 @@ This document provides essential context for AI models interacting with this pro
            std::array<uint8_t, 256> buffer;
            ```
 
-        2. **Small datasets (1-16 elements):** Use `std::vector` or `std::array` with simple structs instead of `std::map`/`std::set`/`std::unordered_map`.
+        2. **Compile-time-known sizes with dynamic storage:** Use `StaticVector` from `esphome/core/helpers.h` when the maximum size is known at compile time but you need heap allocation.
+           ```cpp
+           // Bad - generates STL realloc code (_M_realloc_insert)
+           std::vector<ServiceRecord> services;
+           services.reserve(5);  // Still includes reallocation machinery
+
+           // Good - compile-time max size, heap allocated, no reallocation machinery
+           StaticVector<ServiceRecord, MAX_SERVICES> services;  // Max size known at compile time
+           ```
+           Use `cg.add_define("MAX_SERVICES", count)` to set the maximum from Python configuration.
+
+        3. **Runtime-known sizes:** Use `FixedVector` from `esphome/core/helpers.h` when the size is only known at runtime initialization.
+           ```cpp
+           // Bad - generates STL realloc code (_M_realloc_insert)
+           std::vector<TxtRecord> txt_records;
+           txt_records.reserve(5);  // Still includes reallocation machinery
+
+           // Good - runtime size, single allocation, no reallocation machinery
+           FixedVector<TxtRecord> txt_records;
+           txt_records.init(record_count);  // Initialize with exact size at runtime
+           ```
+           **Benefits:**
+           - Eliminates `_M_realloc_insert`, `_M_default_append` template instantiations (saves 200-500 bytes per instance)
+           - Single allocation, no upper bound needed
+           - No reallocation overhead
+           - Compatible with protobuf code generation when using `[(fixed_vector) = true]` option
+
+        4. **Small datasets (1-16 elements):** Use `std::vector` or `std::array` with simple structs instead of `std::map`/`std::set`/`std::unordered_map`.
            ```cpp
            // Bad - 2KB+ overhead for red-black tree/hash table
            std::map<std::string, int> small_lookup;
@@ -268,11 +298,12 @@ This document provides essential context for AI models interacting with this pro
            // Or std::array if size is compile-time constant:
            // std::array<LookupEntry, 3> small_lookup = {{ ... }};
            ```
-           Linear search on small datasets (1-16 elements) is faster than hashing/tree overhead. `std::vector` with simple structs is perfectly fine - it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets.
+           Linear search on small datasets (1-16 elements) is often faster than hashing/tree overhead, but this depends on lookup frequency and access patterns. For frequent lookups in hot code paths, the O(1) vs O(n) complexity difference may still matter even for small datasets. `std::vector` with simple structs is usually fine—it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets unless profiling shows otherwise.
 
-        3. **Detection:** Look for these patterns in compiler output:
+        5. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
+           - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
            - Red-black tree code (`rb_tree`, `_Rb_tree`)
            - Hash table infrastructure (`unordered_map`, `hash`)
 
@@ -285,6 +316,49 @@ This document provides essential context for AI models interacting with this pro
         - Single-use niche components
         - Code where readability matters more than bytes
         - Already using appropriate containers
+
+    *   **State Management:** Use `CORE.data` for component state that needs to persist during configuration generation. Avoid module-level mutable globals.
+
+        **Bad Pattern (Module-Level Globals):**
+        ```python
+        # Don't do this - state persists between compilation runs
+        _component_state = []
+        _use_feature = None
+
+        def enable_feature():
+            global _use_feature
+            _use_feature = True
+        ```
+
+        **Good Pattern (CORE.data with Helpers):**
+        ```python
+        from esphome.core import CORE
+
+        # Keys for CORE.data storage
+        COMPONENT_STATE_KEY = "my_component_state"
+        USE_FEATURE_KEY = "my_component_use_feature"
+
+        def _get_component_state() -> list:
+            """Get component state from CORE.data."""
+            return CORE.data.setdefault(COMPONENT_STATE_KEY, [])
+
+        def _get_use_feature() -> bool | None:
+            """Get feature flag from CORE.data."""
+            return CORE.data.get(USE_FEATURE_KEY)
+
+        def _set_use_feature(value: bool) -> None:
+            """Set feature flag in CORE.data."""
+            CORE.data[USE_FEATURE_KEY] = value
+
+        def enable_feature():
+            _set_use_feature(True)
+        ```
+
+        **Why this matters:**
+        - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
+        - `CORE.data` automatically clears between runs
+        - Typed helper functions provide better IDE support and maintainability
+        - Encapsulation makes state management explicit and testable
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 
