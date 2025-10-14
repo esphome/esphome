@@ -175,8 +175,8 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 
 #ifdef USE_MDNS_STORE_SERVICES
-  // Copy to member variable if storage is enabled (verbose logging, OpenThread, or extra services)
-  this->services_ = services;
+  // Move to member variable if storage is enabled (verbose logging, OpenThread, or extra services)
+  this->services_ = std::move(services);
 #endif
 }
 

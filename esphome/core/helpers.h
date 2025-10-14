@@ -208,32 +208,11 @@ template<typename T> class FixedVector {
 
   ~FixedVector() { cleanup_(); }
 
-  // Copy constructor - performs deep copy
-  FixedVector(const FixedVector &other) {
-    if (other.size_ > 0) {
-      init(other.size_);
-      for (size_t i = 0; i < other.size_; i++) {
-        push_back(other.data_[i]);
-      }
-    }
-  }
+  // Disable copy operations - use std::move() to transfer ownership
+  FixedVector(const FixedVector &) = delete;
+  FixedVector &operator=(const FixedVector &) = delete;
 
-  // Copy assignment operator - performs deep copy
-  FixedVector &operator=(const FixedVector &other) {
-    if (this != &other) {
-      cleanup_();
-      reset_();
-      if (other.size_ > 0) {
-        init(other.size_);
-        for (size_t i = 0; i < other.size_; i++) {
-          push_back(other.data_[i]);
-        }
-      }
-    }
-    return *this;
-  }
-
-  // Enable move semantics (allows use in move-only containers like std::vector)
+  // Enable move semantics
   FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
     other.reset_();
   }
