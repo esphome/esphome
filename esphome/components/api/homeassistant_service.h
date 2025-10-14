@@ -175,7 +175,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
  protected:
   template<typename VectorType, typename SourceType>
-  static void populate_service_map(VectorType &dest, SourceType &source, Ts... x) {
+  static void populate_service_map_(VectorType &dest, SourceType &source, Ts... x) {
     dest.init(source.size());
     for (auto &it : source) {
       auto &kv = dest.emplace_back();
