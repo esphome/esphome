@@ -72,16 +72,35 @@ void Application::register_component_(Component *comp) {
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
   ESP_LOGV(TAG, "Sorting components by setup priority");
-
+#ifdef USE_REGISTRATION_ORDER_SETUP
+  // Keep registration order (build-time already ensured dependency order)
+  ESP_LOGV(TAG, "Using registration-order setup (no priority sort)");
+#else
   // Sort by setup priority using our helper function
   insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_actual_setup_priority>(
       this->components_.begin(), this->components_.end());
+#endif
+
+  // Log the final setup order for visibility
+#ifdef USE_REGISTRATION_ORDER_SETUP
+  const char *order_mode = "registration-order";
+#else
+  const char *order_mode = "priority-sort";
+#endif
+  ESP_LOGD(TAG, "Setup order (%s):", order_mode);
+  for (uint32_t i = 0; i < this->components_.size(); i++) {
+    Component *c = this->components_[i];
+    ESP_LOGD(TAG, "  [%u] %s (priority %.1f)", i, LOG_STR_ARG(c->get_component_log_str()),
+             c->get_actual_setup_priority());
+  }
 
   // Initialize looping_components_ early so enable_pending_loops_() works during setup
   this->calculate_looping_components_();
 
   for (uint32_t i = 0; i < this->components_.size(); i++) {
     Component *component = this->components_[i];
+
+    ESP_LOGD(TAG, "Setting up %s", LOG_STR_ARG(component->get_component_log_str()));
 
     // Update loop_component_start_time_ before calling each component during setup
     this->loop_component_start_time_ = millis();

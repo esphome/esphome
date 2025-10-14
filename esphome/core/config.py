@@ -444,6 +444,7 @@ async def _add_platform_defines() -> None:
 
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
+    cg.add_global(cg.RawStatement('#include "esphome.h"'))
     cg.add_global(cg.global_ns.namespace("esphome").using)
     # These can be used by user lambdas, put them to default scope
     cg.add_global(cg.RawExpression("using std::isnan"))

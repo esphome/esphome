@@ -309,6 +309,7 @@ class FakeEventLoop:
         prio = getattr(coro, "priority", 0.0)
         task = _Task(prio, self._task_counter, gen, func)
         self._task_counter += 1
+        _LOGGER.debug("Scheduling %s in %s (num %s)", func.__qualname__, func.__module__, task.id_number)
         heapq.heappush(self._pending_tasks, task)
 
     def flush_tasks(self):

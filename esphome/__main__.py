@@ -1,16 +1,22 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from collections import defaultdict
+from collections.abc import Iterable
+import contextlib
 from datetime import datetime
 import functools
 import getpass
+import heapq
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
+import tempfile
 import time
-from typing import Protocol
+from typing import Protocol, cast
 
 import argcomplete
 
@@ -50,8 +56,9 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.loader import ComponentManifest
 from esphome.log import AnsiFore, color, setup_log
-from esphome.types import ConfigType
+from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import (
     get_serial_ports,
     list_yaml_files,
@@ -380,12 +387,98 @@ def write_cpp(config: ConfigType) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
-    _LOGGER.info("Generating C++ source...")
+    """Generate C++ by scheduling component to_code in a deterministic topo order.
 
-    for name, component, conf in iter_component_configs(CORE.config):
-        if component.to_code is not None:
+    The order is derived from explicit component/platform DEPENDENCIES only.
+    AUTO_LOAD expands the set of modules to process (handled earlier during
+    configuration building) and does not impose ordering. We additionally
+    place logger first when configured. Ties are broken by name to ensure
+    deterministic outputs across runs for identical YAML.
+    """
+    _LOGGER.info("Generating C++ source...")
+    # Tell the C++ runtime to keep registration-order during setup (skip runtime sorting)
+    cg.add_define("USE_REGISTRATION_ORDER_SETUP")
+
+    # Collect entries as (name, manifest, conf)
+    entries: list[tuple[str, ComponentManifest | None, ConfigFragmentType]] = list(
+        cast(Iterable[tuple[str, ComponentManifest | None, ConfigFragmentType]], iter_component_configs(config))
+    )
+
+    # name_to_comp_conf: defaultdict[str, list[tuple[ComponentManifest | None, object]]] = (
+    #     defaultdict(list, {nm: [(comp, conf)] for nm, comp, conf in entries})
+    # )
+
+    name_to_comp_conf: defaultdict[str, list[tuple[ComponentManifest | None, ConfigFragmentType]]] = defaultdict(list)
+    for nm, comp, conf in entries:
+        name_to_comp_conf[nm].append((comp, conf))
+
+    # Build dependency graph dep_name -> name and indegree counts
+    adj: dict[str, set[str]] = defaultdict(set)
+    indegree: dict[str, int] = {nm: 0 for nm in name_to_comp_conf}
+
+    def add_edge(src_name: str, dst_name: str) -> None:
+        if dst_name in adj[src_name]:
+            return
+        adj[src_name].add(dst_name)
+        indegree[dst_name] += 1
+
+    fixed_deps: list[str] = []
+    if config and "logger" in config and "logger" in name_to_comp_conf:
+        fixed_deps.append("logger")
+
+    for name, manifest, _comp_conf in entries:
+        if manifest is None:
+            continue
+        if manifest.is_platform_component:
+            # Platform components depend on the platform component
+            add_edge(CORE.target_platform, name)
+            _LOGGER.debug("Adding platform dependency %s -> %s", CORE.target_platform, name)
+        elif manifest.is_target_platform:
+            # Target platform depends on the global esphome component
+            add_edge(CONF_ESPHOME, CORE.target_platform)
+            _LOGGER.debug("Adding platform dependency esphome -> %s", CORE.target_platform)
+        for dep in manifest.dependencies:
+            if dep not in name_to_comp_conf:
+                _LOGGER.debug("Skipping missing dependency %s -> %s", dep, name)
+                continue
+            _LOGGER.debug("Adding dependency %s -> %s", dep, name)
+            add_edge(dep, name)
+
+        for dep in fixed_deps:
+            if dep != name:
+                add_edge(dep, name)
+
+    zero_indegree: list[str] = list[str](
+        {nm for nm in name_to_comp_conf if indegree[nm] == 0}
+    )
+    heapq.heapify(zero_indegree)
+
+    ordered_names: list[str] = []
+    while zero_indegree:
+        nm = heapq.heappop(zero_indegree)
+        ordered_names.append(nm)
+        for dst in sorted(adj[nm]):
+            indegree[dst] -= 1
+
+            if indegree[dst] == 0:
+                _LOGGER.debug("  Adding %s to zero indegree", dst)
+                heapq.heappush(zero_indegree, dst)
+
+    if len(ordered_names) != len(name_to_comp_conf):
+        cyclic: list[str] = [n for n, deg in indegree.items() if deg > 0]
+        raise EsphomeError(
+            "Circular dependency detected among components: "
+            + ", ".join(sorted(cyclic))
+        )
+
+    _LOGGER.info("Initialization order: %s", ", ".join(ordered_names))
+    for name in ordered_names:
+        for component, conf in name_to_comp_conf[name]:
+            if component is None or component.to_code is None:
+                continue
             coro = wrap_to_code(name, component)
             CORE.add_job(coro, conf)
+            _LOGGER.debug("Scheduled %s.to_code()", name)
 
     CORE.flush_tasks()
 
@@ -413,7 +506,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def upload_using_esptool(
-    config: ConfigType, port: str, file: str, speed: int
+    config: ConfigType, port: str, file: str | None, speed: int
 ) -> str | int:
     from esphome import platformio_api
 

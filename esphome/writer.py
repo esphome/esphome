@@ -281,10 +281,8 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
-    global_s = '#include "esphome.h"\n'
-    global_s += CORE.cpp_global_section
 
-    full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
+    full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{CORE.cpp_global_section}{CPP_INCLUDE_END}"
     full_file += (
         f"{code_format[1] + CPP_AUTO_GENERATE_BEGIN}\n{code_s}{CPP_AUTO_GENERATE_END}"
     )

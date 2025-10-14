@@ -49,6 +49,12 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
+        # If registration-order setup is active, runtime sorting is skipped.
+        # Warn users that setup_priority has no effect on setup order.
+        if any(d.name == "USE_REGISTRATION_ORDER_SETUP" for d in CORE.defines):
+            _LOGGER.warning(
+                "setup_priority is ignored because registration-order setup is enabled; order is determined by dependencies"
+            )
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
