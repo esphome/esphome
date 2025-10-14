@@ -230,8 +230,8 @@ void BluetoothConnection::send_service_for_discovery_() {
     service_resp.handle = service_result.start_handle;
 
     if (total_char_count > 0) {
-      // Initialize FixedVector with exact count and process characteristics
-      service_resp.characteristics.init(total_char_count);
+      // Reserve space and process characteristics
+      service_resp.characteristics.reserve(total_char_count);
       uint16_t char_offset = 0;
       esp_gattc_char_elem_t char_result;
       while (true) {  // characteristics
@@ -275,8 +275,8 @@ void BluetoothConnection::send_service_for_discovery_() {
           continue;
         }
 
-        // Initialize FixedVector with exact count and process descriptors
-        characteristic_resp.descriptors.init(total_desc_count);
+        // Reserve space and process descriptors
+        characteristic_resp.descriptors.reserve(total_desc_count);
         uint16_t desc_offset = 0;
         esp_gattc_descr_elem_t desc_result;
         while (true) {  // descriptors
