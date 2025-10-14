@@ -12,8 +12,13 @@ namespace mdns {
 static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
+#ifdef USE_MDNS_STORE_SERVICES
+  this->compile_records_(this->services_);
+  const auto &services = this->services_;
+#else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
   this->compile_records_(services);
+#endif
 
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
