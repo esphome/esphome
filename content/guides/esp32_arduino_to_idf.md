@@ -10,8 +10,10 @@ params:
 Starting with ESPHome 2026.1.0, the default framework for ESP32 will change from Arduino to ESP-IDF. This guide will
 help you migrate your existing configurations or make an informed choice about which framework to use.
 
-Note: The Arduino framework is integrated as an ESP-IDF component, providing Arduino API compatibility
-within the ESP-IDF build system.
+> [!NOTE]
+> The Arduino framework is built as an ESP-IDF component on top of ESP-IDF, providing Arduino API compatibility
+> within the ESP-IDF build system. This means Arduino builds include both the ESP-IDF framework and the Arduino
+> compatibility layer, resulting in longer build times, more flash usage, and more RAM usage compared to native ESP-IDF.
 
 > [!NOTE]
 > This change only affects ESP32, ESP32-S2, ESP32-S3, and ESP32-C3 variants.
@@ -113,7 +115,7 @@ when available:
 
 **Arduino-Only Components:**
 
-The following components currently require Arduino framework and don't have ESP-IDF alternatives yet:
+The following components currently require Arduino framework and don't have ESP-IDF alternatives or native ESP-IDF support yet:
 
 - {{< docref "/components/output/ac_dimmer" "ac_dimmer" >}} - AC dimmer control
 - {{< docref "/components/sensor/dsmr" "dsmr" >}} - Dutch Smart Meter integration
@@ -121,7 +123,7 @@ The following components currently require Arduino framework and don't have ESP-
 - {{< docref "/components/climate/midea" "midea" >}} - Midea air conditioner control
 - {{< docref "/components/light/index" "WLED Effect" >}} - WLED UDP Realtime Control integration
 
-If you need these components, you should continue using the Arduino framework.
+If you need these components, you will need to continue using the Arduino framework.
 
 > [!NOTE]
 > Component compatibility is constantly improving. Check the component documentation
@@ -140,13 +142,15 @@ If you encounter compilation errors after switching to ESP-IDF:
 
 ### Build Time
 
-ESP-IDF compilation takes approximately 25% longer than Arduino:
+ESP-IDF compilation is significantly faster than Arduino:
 
-- On modern desktop systems: ~15-30 seconds additional time
-- On Raspberry Pi 5: ~1 minute additional time
-- On Raspberry Pi 4 or older: 3-5 minutes additional time
-- Subsequent builds are faster but still proportionally slower
-- The longer build time is due to ESP-IDF's more comprehensive optimization process
+- **ESP-IDF is 2-3x faster** than Arduino framework
+- On modern desktop systems: ESP-IDF saves 30-60 seconds per build
+- On Raspberry Pi 5: ESP-IDF saves 2-4 minutes per build
+- On Raspberry Pi 4 or older: ESP-IDF saves 6-10 minutes or more per build
+- Subsequent builds maintain the same relative performance advantage
+
+The faster build times are due to ESP-IDF's optimized build system and the elimination of the Arduino compatibility layer overhead.
 
 ### Performance Considerations
 
