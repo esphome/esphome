@@ -59,9 +59,9 @@ class LightTransitionTransformer : public LightTransformer {
   // transition from 0 to 1 on x = [0, 1]
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
 
-  bool changing_color_mode_{false};
   LightColorValues end_values_{};
   LightColorValues intermediate_values_{};
+  bool changing_color_mode_{false};
 };
 
 class LightFlashTransformer : public LightTransformer {
@@ -117,8 +117,8 @@ class LightFlashTransformer : public LightTransformer {
 
  protected:
   LightState &state_;
-  uint32_t transition_length_;
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+  uint32_t transition_length_;
   bool begun_lightstate_restore_;
 };
 

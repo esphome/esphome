@@ -21,9 +21,9 @@ from esphome.const import (
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -103,6 +103,9 @@ _VALVE_SCHEMA = (
 )
 
 
+_VALVE_SCHEMA.add_extra(entity_duplicate_validator("valve"))
+
+
 def valve_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
@@ -132,7 +135,7 @@ VALVE_SCHEMA.add_extra(cv.deprecated_schema_constant("valve"))
 
 
 async def _setup_valve_core(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "valve")
 
     if device_class_config := config.get(CONF_DEVICE_CLASS):
         cg.add(var.set_device_class(device_class_config))
@@ -163,6 +166,7 @@ async def register_valve(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_valve(var))
+    CORE.register_platform_component("valve", var)
     await _setup_valve_core(var, config)
 
 
@@ -198,9 +202,9 @@ async def valve_stop_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action("valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA)
-def valve_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def valve_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -229,7 +233,6 @@ async def valve_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_VALVE")
     cg.add_global(valve_ns.using)

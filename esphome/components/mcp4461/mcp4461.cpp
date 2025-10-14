@@ -1,7 +1,7 @@
 #include "mcp4461.h"
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mcp4461 {
@@ -10,7 +10,6 @@ static const char *const TAG = "mcp4461";
 constexpr uint8_t EEPROM_WRITE_TIMEOUT_MS = 10;
 
 void Mcp4461Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up mcp4461 using address (0x%02X)...", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
@@ -123,7 +122,7 @@ uint8_t Mcp4461Component::get_status_register_() {
   uint8_t addr = static_cast<uint8_t>(Mcp4461Addresses::MCP4461_STATUS);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::READ);
   uint16_t buf;
-  if (!this->read_byte_16(reg, &buf)) {
+  if (!this->read_16_(reg, &buf)) {
     this->error_code_ = MCP4461_STATUS_REGISTER_ERROR;
     this->mark_failed();
     return 0;
@@ -148,6 +147,20 @@ void Mcp4461Component::read_status_register_to_log() {
            ((status_register_value >> 5) & 0x01), ((status_register_value >> 4) & 0x01),
            ((status_register_value >> 3) & 0x01), ((status_register_value >> 2) & 0x01),
            ((status_register_value >> 1) & 0x01), ((status_register_value >> 0) & 0x01));
+}
+bool Mcp4461Component::read_16_(uint8_t address, uint16_t *buf) {
+  // read 16 bits and convert from big endian to host,
+  // Do this as two separate operations to ensure a stop condition between the write and read
+  i2c::ErrorCode err = this->write(&address, 1);
+  if (err != i2c::ERROR_OK) {
+    return false;
+  }
+  err = this->read(reinterpret_cast<uint8_t *>(buf), 2);
+  if (err != i2c::ERROR_OK) {
+    return false;
+  }
+  *buf = convert_big_endian(*buf);
+  return true;
 }
 
 uint8_t Mcp4461Component::get_wiper_address_(uint8_t wiper) {
@@ -199,14 +212,14 @@ uint16_t Mcp4461Component::get_wiper_level_(Mcp4461WiperIdx wiper) {
 
 uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx) {
   uint8_t addr = this->get_wiper_address_(wiper_idx);
-  uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::INCREMENT);
+  uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::READ);
   if (wiper_idx > 3) {
     if (!this->is_eeprom_ready_for_writing_(true)) {
       return 0;
     }
   }
   uint16_t buf = 0;
-  if (!(this->read_byte_16(reg, &buf))) {
+  if (!(this->read_16_(reg, &buf))) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
     ESP_LOGW(TAG, "Error fetching %swiper %u value", (wiper_idx > 3) ? "nonvolatile " : "", wiper_idx);
@@ -329,7 +342,7 @@ bool Mcp4461Component::increase_wiper_(Mcp4461WiperIdx wiper) {
   ESP_LOGV(TAG, "Increasing wiper %u", wiper_idx);
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::INCREMENT);
-  auto err = this->write(&this->address_, reg, sizeof(reg));
+  auto err = this->write(&this->address_, reg);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
@@ -360,7 +373,7 @@ bool Mcp4461Component::decrease_wiper_(Mcp4461WiperIdx wiper) {
   ESP_LOGV(TAG, "Decreasing wiper %u", wiper_idx);
   uint8_t addr = this->get_wiper_address_(wiper_idx);
   uint8_t reg = addr | static_cast<uint8_t>(Mcp4461Commands::DECREMENT);
-  auto err = this->write(&this->address_, reg, sizeof(reg));
+  auto err = this->write(&this->address_, reg);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
@@ -393,7 +406,7 @@ uint8_t Mcp4461Component::get_terminal_register_(Mcp4461TerminalIdx terminal_con
                                                               : static_cast<uint8_t>(Mcp4461Addresses::MCP4461_TCON1);
   reg |= static_cast<uint8_t>(Mcp4461Commands::READ);
   uint16_t buf;
-  if (this->read_byte_16(reg, &buf)) {
+  if (this->read_16_(reg, &buf)) {
     return static_cast<uint8_t>(buf & 0x00ff);
   } else {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
@@ -518,7 +531,7 @@ uint16_t Mcp4461Component::get_eeprom_value(Mcp4461EepromLocation location) {
   if (!this->is_eeprom_ready_for_writing_(true)) {
     return 0;
   }
-  if (!this->read_byte_16(reg, &buf)) {
+  if (!this->read_16_(reg, &buf)) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
     ESP_LOGW(TAG, "Error fetching EEPROM location value");

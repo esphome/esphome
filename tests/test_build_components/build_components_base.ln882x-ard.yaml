@@ -1,0 +1,15 @@
+esphome:
+  name: componenttestespln882x
+  friendly_name: $component_name
+
+ln882x:
+  board: generic-ln882hki
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

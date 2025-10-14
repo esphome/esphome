@@ -10,18 +10,20 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
+    CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_RESTORE_MODE,
+    CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -48,12 +50,16 @@ RESTORE_MODES = {
 }
 
 
+ControlAction = switch_ns.class_("ControlAction", automation.Action)
 ToggleAction = switch_ns.class_("ToggleAction", automation.Action)
 TurnOffAction = switch_ns.class_("TurnOffAction", automation.Action)
 TurnOnAction = switch_ns.class_("TurnOnAction", automation.Action)
 SwitchPublishAction = switch_ns.class_("SwitchPublishAction", automation.Action)
 
 SwitchCondition = switch_ns.class_("SwitchCondition", Condition)
+SwitchStateTrigger = switch_ns.class_(
+    "SwitchStateTrigger", automation.Trigger.template(bool)
+)
 SwitchTurnOnTrigger = switch_ns.class_(
     "SwitchTurnOnTrigger", automation.Trigger.template()
 )
@@ -75,6 +81,11 @@ _SWITCH_SCHEMA = (
             cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchStateTrigger),
+                }
+            ),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
@@ -89,6 +100,9 @@ _SWITCH_SCHEMA = (
         }
     )
 )
+
+
+_SWITCH_SCHEMA.add_extra(entity_duplicate_validator("switch"))
 
 
 def switch_schema(
@@ -131,10 +145,13 @@ SWITCH_SCHEMA.add_extra(cv.deprecated_schema_constant("switch"))
 
 
 async def setup_switch_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "switch")
 
     if (inverted := config.get(CONF_INVERTED)) is not None:
         cg.add(var.set_inverted(inverted))
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(bool, "x")], conf)
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -159,6 +176,7 @@ async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_switch(var))
+    CORE.register_platform_component("switch", var)
     await setup_switch_core_(var, config)
 
 
@@ -173,6 +191,23 @@ SWITCH_ACTION_SCHEMA = maybe_simple_id(
         cv.Required(CONF_ID): cv.use_id(Switch),
     }
 )
+SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Switch),
+        cv.Required(CONF_STATE): cv.templatable(cv.boolean),
+    }
+)
+
+
+@automation.register_action(
+    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA
+)
+async def switch_control_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_STATE], args, bool)
+    cg.add(var.set_state(template_))
+    return var
 
 
 @automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
@@ -195,7 +230,6 @@ async def switch_is_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(switch_ns.using)
-    cg.add_define("USE_SWITCH")

@@ -36,5 +36,9 @@ binary_sensor:
   - platform: packet_transport
     provider: unencrypted-device
     id: other_binary_sensor_id
+  - platform: packet_transport
+    provider: some-device-name
+    type: status
+    name: Some-Device Status
   - platform: template
     id: binary_sensor_id1

@@ -1,0 +1,18 @@
+pi4ioe5v6408:
+  i2c_id: i2c_bus
+  id: pi4ioe1
+  address: 0x44
+
+switch:
+  - platform: gpio
+    id: switch1
+    pin:
+      pi4ioe5v6408: pi4ioe1
+      number: 0
+
+binary_sensor:
+  - platform: gpio
+    id: sensor1
+    pin:
+      pi4ioe5v6408: pi4ioe1
+      number: 1

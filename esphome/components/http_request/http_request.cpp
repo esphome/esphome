@@ -10,11 +10,13 @@ namespace http_request {
 static const char *const TAG = "http_request";
 
 void HttpRequestComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "HTTP Request:");
-  ESP_LOGCONFIG(TAG, "  Timeout: %ums", this->timeout_);
-  ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
-  ESP_LOGCONFIG(TAG, "  Follow redirects: %s", YESNO(this->follow_redirects_));
-  ESP_LOGCONFIG(TAG, "  Redirect limit: %d", this->redirect_limit_);
+  ESP_LOGCONFIG(TAG,
+                "HTTP Request:\n"
+                "  Timeout: %ums\n"
+                "  User-Agent: %s\n"
+                "  Follow redirects: %s\n"
+                "  Redirect limit: %d",
+                this->timeout_, this->useragent_, YESNO(this->follow_redirects_), this->redirect_limit_);
   if (this->watchdog_timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %" PRIu32 "ms", this->watchdog_timeout_);
   }

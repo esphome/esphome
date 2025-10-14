@@ -31,8 +31,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -161,6 +161,9 @@ _FAN_SCHEMA = (
 )
 
 
+_FAN_SCHEMA.add_extra(entity_duplicate_validator("fan"))
+
+
 def fan_schema(
     class_: cg.Pvariable,
     *,
@@ -225,7 +228,7 @@ def validate_preset_modes(value):
 
 
 async def setup_fan_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "fan")
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
@@ -296,6 +299,7 @@ async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_fan(var))
+    CORE.register_platform_component("fan", var)
     await setup_fan_core_(var, config)
 
 
@@ -394,7 +398,6 @@ async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_FAN")
     cg.add_global(fan_ns.using)
