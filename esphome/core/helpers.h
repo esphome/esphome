@@ -168,13 +168,17 @@ template<typename T> class FixedVector {
   size_t size_{0};
   size_t capacity_{0};
 
+  // Helper to destroy all elements without freeing memory
+  void destroy_elements_() {
+    for (size_t i = 0; i < size_; i++) {
+      data_[i].~T();
+    }
+  }
+
   // Helper to destroy elements and free memory
   void cleanup_() {
     if (data_ != nullptr) {
-      // Manually destroy all elements
-      for (size_t i = 0; i < size_; i++) {
-        data_[i].~T();
-      }
+      destroy_elements_();
       // Free raw memory
       ::operator delete(data_);
     }
@@ -226,10 +230,7 @@ template<typename T> class FixedVector {
 
   // Clear the vector (destroy all elements, reset size to 0, keep capacity)
   void clear() {
-    // Manually destroy all elements
-    for (size_t i = 0; i < size_; i++) {
-      data_[i].~T();
-    }
+    destroy_elements_();
     size_ = 0;
   }
 
