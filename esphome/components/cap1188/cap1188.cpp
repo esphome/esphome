@@ -25,7 +25,7 @@ void CAP1188Component::setup() {
   }
 } 
 
-void finish_setup() {
+void finish_setup_() {
   // Check if CAP1188 is actually connected
   this->read_byte(CAP1188_PRODUCT_ID, &this->cap1188_product_id_);
   this->read_byte(CAP1188_MANUFACTURE_ID, &this->cap1188_manufacture_id_);
