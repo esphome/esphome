@@ -84,24 +84,27 @@ static const int CAMERA_STOP_STREAM = 5000;
     return;
 #endif  // USE_DEVICES
 
-APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
+std::unique_ptr<APIFrameHelper> APIConnection::create_frame_helper_(std::unique_ptr<socket::Socket> sock,
+                                                                    APIServer *parent, ClientInfo *client_info) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto noise_ctx = parent->get_noise_ctx();
   if (noise_ctx->has_psk()) {
-    this->helper_ =
-        std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
-  } else {
-    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+    return std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, client_info)};
   }
+  return std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), client_info)};
 #elif defined(USE_API_PLAINTEXT)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+  return std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), client_info)};
 #elif defined(USE_API_NOISE)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{
-      new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx(), &this->client_info_)};
+  return std::unique_ptr<APIFrameHelper>{
+      new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx(), client_info)};
 #else
 #error "No frame helper defined"
 #endif
+}
+
+APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
+    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
+  this->helper_ = create_frame_helper_(std::move(sock), parent, &this->client_info_);
 #ifdef USE_CAMERA
   if (camera::Camera::instance() != nullptr) {
     this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};

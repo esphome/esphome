@@ -277,6 +277,10 @@ class APIConnection final : public APIServerConnection {
   const std::string &get_peername() const { return this->client_info_.peername; }
 
  protected:
+  // Helper function to create the appropriate frame helper based on configuration
+  static std::unique_ptr<APIFrameHelper> create_frame_helper_(std::unique_ptr<socket::Socket> sock, APIServer *parent,
+                                                              ClientInfo *client_info);
+
   // Helper function to handle authentication completion
   void complete_authentication_();
 
