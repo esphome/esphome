@@ -168,14 +168,22 @@ template<typename T> class FixedVector {
   size_t size_{0};
   size_t capacity_{0};
 
+  // Helper to destroy elements and free memory
+  void cleanup_() {
+    if (data_ != nullptr) {
+      // Manually destroy all elements
+      for (size_t i = 0; i < size_; i++) {
+        data_[i].~T();
+      }
+      // Free raw memory
+      ::operator delete(data_);
+    }
+  }
+
  public:
   FixedVector() = default;
 
-  ~FixedVector() {
-    if (data_ != nullptr) {
-      delete[] data_;
-    }
-  }
+  ~FixedVector() { cleanup_(); }
 
   // Enable move semantics for use in containers
   FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
@@ -202,21 +210,33 @@ template<typename T> class FixedVector {
     return *this;
   }
 
-  // Allocate capacity - can only be called once on empty vector
+  // Allocate capacity - can be called multiple times to reinit
   void init(size_t n) {
-    if (data_ == nullptr && n > 0) {
-      data_ = new T[n];
+    cleanup_();
+    data_ = nullptr;
+    capacity_ = 0;
+    size_ = 0;
+    if (n > 0) {
+      // Allocate raw memory without calling constructors
+      data_ = static_cast<T *>(::operator new(n * sizeof(T)));
       capacity_ = n;
-      size_ = 0;
     }
   }
+
+  // Clear the vector (reset size to 0, keep capacity)
+  void clear() { size_ = 0; }
+
+  // Check if vector is empty
+  bool empty() const { return size_ == 0; }
 
   /// Add element without bounds checking
   /// Caller must ensure sufficient capacity was allocated via init()
   /// Silently ignores pushes beyond capacity (no exception or assertion)
   void push_back(const T &value) {
     if (size_ < capacity_) {
-      data_[size_++] = value;
+      // Use placement new to construct the object in pre-allocated memory
+      new (&data_[size_]) T(value);
+      size_++;
     }
   }
 
@@ -242,7 +262,7 @@ template<typename T> class FixedVector {
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 
-  /// Iterators for range-based for loops
+  // Iterator support for range-based for loops
   T *begin() { return data_; }
   T *end() { return data_ + size_; }
   const T *begin() const { return data_; }
