@@ -10,7 +10,13 @@ what files have changed. It outputs JSON with the following structure:
   "clang_format": true/false,
   "python_linters": true/false,
   "changed_components": ["component1", "component2", ...],
-  "component_test_count": 5
+  "component_test_count": 5,
+  "memory_impact": {
+    "should_run": "true/false",
+    "component": "component_name",
+    "test_file": "test.esp32-idf.yaml",
+    "platform": "esp32-idf"
+  }
 }
 
 The CI workflow uses this information to:
@@ -20,6 +26,7 @@ The CI workflow uses this information to:
 - Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
+- Run memory impact analysis when exactly one component changes
 
 Usage:
   python script/determine-jobs.py [-b BRANCH]
@@ -212,6 +219,92 @@ def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) 
     return any(file.endswith(extensions) for file in changed_files(branch))
 
 
+def detect_single_component_for_memory_impact(
+    changed_components: list[str],
+) -> dict[str, Any]:
+    """Detect if exactly one component changed for memory impact analysis.
+
+    Args:
+        changed_components: List of changed component names
+
+    Returns:
+        Dictionary with memory impact analysis parameters:
+        - should_run: "true" or "false"
+        - component: component name (if should_run is true)
+        - test_file: test file name (if should_run is true)
+        - platform: platform name (if should_run is true)
+    """
+    # Platform preference order for memory impact analysis
+    # Ordered by production relevance and memory constraint importance
+    PLATFORM_PREFERENCE = [
+        "esp32-idf",  # Primary ESP32 IDF platform
+        "esp32-c3-idf",  # ESP32-C3 IDF
+        "esp32-c6-idf",  # ESP32-C6 IDF
+        "esp32-s2-idf",  # ESP32-S2 IDF
+        "esp32-s3-idf",  # ESP32-S3 IDF
+        "esp32-c2-idf",  # ESP32-C2 IDF
+        "esp32-c5-idf",  # ESP32-C5 IDF
+        "esp32-h2-idf",  # ESP32-H2 IDF
+        "esp32-p4-idf",  # ESP32-P4 IDF
+        "esp8266-ard",  # ESP8266 Arduino (memory constrained)
+        "esp32-ard",  # ESP32 Arduino
+        "esp32-c3-ard",  # ESP32-C3 Arduino
+        "esp32-s2-ard",  # ESP32-S2 Arduino
+        "esp32-s3-ard",  # ESP32-S3 Arduino
+        "bk72xx-ard",  # BK72xx Arduino
+        "rp2040-ard",  # RP2040 Arduino
+        "nrf52-adafruit",  # nRF52 Adafruit
+        "host",  # Host platform (development/testing)
+    ]
+
+    # Skip base bus components as they're used across many builds
+    filtered_components = [
+        c for c in changed_components if c not in ["i2c", "spi", "uart", "modbus"]
+    ]
+
+    # Only proceed if exactly one component changed
+    if len(filtered_components) != 1:
+        return {"should_run": "false"}
+
+    component = filtered_components[0]
+
+    # Find a test configuration for this component
+    tests_dir = Path(root_path) / "tests" / "components" / component
+
+    if not tests_dir.exists():
+        return {"should_run": "false"}
+
+    # Look for test files
+    test_files = list(tests_dir.glob("test.*.yaml"))
+    if not test_files:
+        return {"should_run": "false"}
+
+    # Try each preferred platform in order
+    for preferred_platform in PLATFORM_PREFERENCE:
+        for test_file in test_files:
+            parts = test_file.stem.split(".")
+            if len(parts) >= 2:
+                platform = parts[1]
+                if platform == preferred_platform:
+                    return {
+                        "should_run": "true",
+                        "component": component,
+                        "test_file": test_file.name,
+                        "platform": platform,
+                    }
+
+    # Fall back to first test file
+    test_file = test_files[0]
+    parts = test_file.stem.split(".")
+    platform = parts[1] if len(parts) >= 2 else "esp32-idf"
+    return {
+        "should_run": "true",
+        "component": component,
+        "test_file": test_file.name,
+        "platform": platform,
+    }
+
+
 def main() -> None:
     """Main function that determines which CI jobs to run."""
     parser = argparse.ArgumentParser(
@@ -247,6 +340,9 @@ def main() -> None:
         and any(component_test_dir.glob("test.*.yaml"))
     ]
 
+    # Detect single component change for memory impact analysis
+    memory_impact = detect_single_component_for_memory_impact(changed_components)
+
     # Build output
     output: dict[str, Any] = {
         "integration_tests": run_integration,
@@ -256,6 +352,7 @@ def main() -> None:
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "component_test_count": len(changed_components_with_tests),
+        "memory_impact": memory_impact,
     }
 
     # Output as JSON

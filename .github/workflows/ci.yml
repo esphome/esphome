@@ -179,6 +179,7 @@ jobs:
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
+      memory_impact: ${{ steps.determine.outputs.memory-impact }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -207,6 +208,7 @@ jobs:
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
+          echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
 
   integration-tests:
     name: Run integration tests
@@ -510,6 +512,118 @@ jobs:
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
+  memory-impact-target-branch:
+    name: Build target branch for memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    outputs:
+      ram_usage: ${{ steps.extract.outputs.ram_usage }}
+      flash_usage: ${{ steps.extract.outputs.flash_usage }}
+    steps:
+      - name: Check out target branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.base_ref }}
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache platformio
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Compile test configuration and extract memory usage
+        id: extract
+        run: |
+          . venv/bin/activate
+          component="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).component }}"
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+          test_file="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).test_file }}"
+
+          echo "Compiling $component for $platform using $test_file"
+          python script/test_build_components.py -e compile -c "$component" -t "$platform" --no-grouping 2>&1 | \
+            python script/ci_memory_impact_extract.py --output-env
+
+  memory-impact-pr-branch:
+    name: Build PR branch for memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    outputs:
+      ram_usage: ${{ steps.extract.outputs.ram_usage }}
+      flash_usage: ${{ steps.extract.outputs.flash_usage }}
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache platformio
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Compile test configuration and extract memory usage
+        id: extract
+        run: |
+          . venv/bin/activate
+          component="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).component }}"
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+          test_file="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).test_file }}"
+
+          echo "Compiling $component for $platform using $test_file"
+          python script/test_build_components.py -e compile -c "$component" -t "$platform" --no-grouping 2>&1 | \
+            python script/ci_memory_impact_extract.py --output-env
+
+  memory-impact-comment:
+    name: Comment memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+      - memory-impact-target-branch
+      - memory-impact-pr-branch
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Post or update PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).component }}
+          PLATFORM: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}
+          TARGET_RAM: ${{ needs.memory-impact-target-branch.outputs.ram_usage }}
+          TARGET_FLASH: ${{ needs.memory-impact-target-branch.outputs.flash_usage }}
+          PR_RAM: ${{ needs.memory-impact-pr-branch.outputs.ram_usage }}
+          PR_FLASH: ${{ needs.memory-impact-pr-branch.outputs.flash_usage }}
+        run: |
+          . venv/bin/activate
+          python script/ci_memory_impact_comment.py \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --component "$COMPONENT" \
+            --platform "$PLATFORM" \
+            --target-ram "$TARGET_RAM" \
+            --target-flash "$TARGET_FLASH" \
+            --pr-ram "$PR_RAM" \
+            --pr-flash "$PR_FLASH"
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-24.04
@@ -525,6 +639,9 @@ jobs:
       - test-build-components-splitter
       - test-build-components-split
       - pre-commit-ci-lite
+      - memory-impact-target-branch
+      - memory-impact-pr-branch
+      - memory-impact-comment
     if: always()
     steps:
       - name: Success
