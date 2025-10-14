@@ -11,6 +11,7 @@
 #include "esphome/core/entity_base.h"
 
 #include <functional>
+#include <map>
 #include <vector>
 
 namespace esphome::api {
@@ -744,6 +745,18 @@ class APIConnection final : public APIServerConnection {
     this->on_fatal_error();
     this->log_warning_(message, err);
   }
+
+  // TODO: TEMPORARY - Testing memory impact analysis - remove these!
+  std::map<int, int> dummy_test_map_1_;
+  std::map<int, int> dummy_test_map_2_;
+  std::map<int, int> dummy_test_map_3_;
+  std::map<int, int> dummy_test_map_4_;
+  std::map<int, int> dummy_test_map_5_;
+  std::map<int, int> dummy_test_map_6_;
+  std::map<int, int> dummy_test_map_7_;
+  std::map<int, int> dummy_test_map_8_;
+  std::map<int, int> dummy_test_map_9_;
+  std::map<int, int> dummy_test_map_10_;
 };
 
 }  // namespace esphome::api
