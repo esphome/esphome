@@ -221,6 +221,48 @@ This document provides essential context for AI models interacting with this pro
     *   **Component Development:** Keep dependencies minimal, provide clear error messages, and write comprehensive docstrings and tests.
     *   **Code Generation:** Generate minimal and efficient C++ code. Validate all user inputs thoroughly. Support multiple platform variations.
     *   **Configuration Design:** Aim for simplicity with sensible defaults, while allowing for advanced customization.
+    *   **State Management:** Use `CORE.data` for component state that needs to persist during configuration generation. Avoid module-level mutable globals.
+
+        **Bad Pattern (Module-Level Globals):**
+        ```python
+        # Don't do this - state persists between compilation runs
+        _component_state = []
+        _use_feature = None
+
+        def enable_feature():
+            global _use_feature
+            _use_feature = True
+        ```
+
+        **Good Pattern (CORE.data with Helpers):**
+        ```python
+        from esphome.core import CORE
+
+        # Keys for CORE.data storage
+        COMPONENT_STATE_KEY = "my_component_state"
+        USE_FEATURE_KEY = "my_component_use_feature"
+
+        def _get_component_state() -> list:
+            """Get component state from CORE.data."""
+            return CORE.data.setdefault(COMPONENT_STATE_KEY, [])
+
+        def _get_use_feature() -> bool | None:
+            """Get feature flag from CORE.data."""
+            return CORE.data.get(USE_FEATURE_KEY)
+
+        def _set_use_feature(value: bool) -> None:
+            """Set feature flag in CORE.data."""
+            CORE.data[USE_FEATURE_KEY] = value
+
+        def enable_feature():
+            _set_use_feature(True)
+        ```
+
+        **Why this matters:**
+        - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
+        - `CORE.data` automatically clears between runs
+        - Typed helper functions provide better IDE support and maintainability
+        - Encapsulation makes state management explicit and testable
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 
