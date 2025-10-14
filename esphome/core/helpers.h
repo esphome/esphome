@@ -226,6 +226,14 @@ template<typename T> class FixedVector {
   // Clear the vector (reset size to 0, keep capacity)
   void clear() { size_ = 0; }
 
+  // Shrink capacity to fit current size (frees all memory)
+  void shrink_to_fit() {
+    cleanup_();
+    data_ = nullptr;
+    capacity_ = 0;
+    size_ = 0;
+  }
+
   /// Add element without bounds checking
   /// Caller must ensure sufficient capacity was allocated via init()
   /// Silently ignores pushes beyond capacity (no exception or assertion)
