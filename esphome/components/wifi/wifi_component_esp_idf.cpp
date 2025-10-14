@@ -763,8 +763,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.sta_scan_done;
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
-    scan_result_.clear();
     this->scan_done_ = true;
+    scan_result_.clear();
+
     if (it.status != 0) {
       // scan error
       return;
@@ -784,7 +785,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
     records.resize(number);
 
-    scan_result_.reserve(number);
+    scan_result_.init(number);
     for (int i = 0; i < number; i++) {
       auto &record = records[i];
       bssid_t bssid;
