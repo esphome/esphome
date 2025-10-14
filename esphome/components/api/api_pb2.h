@@ -1923,7 +1923,7 @@ class BluetoothGATTCharacteristic final : public ProtoMessage {
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   uint32_t properties{0};
-  FixedVector<BluetoothGATTDescriptor> descriptors{};
+  std::vector<BluetoothGATTDescriptor> descriptors{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1937,7 +1937,7 @@ class BluetoothGATTService final : public ProtoMessage {
  public:
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
-  FixedVector<BluetoothGATTCharacteristic> characteristics{};
+  std::vector<BluetoothGATTCharacteristic> characteristics{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
