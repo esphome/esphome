@@ -202,9 +202,9 @@ template<typename T> class FixedVector {
 
   /// Constructor from initializer list - allocates exact size needed
   /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
-  FixedVector(std::initializer_list<T> init) {
-    init(init.size());
-    for (const auto &item : init) {
+  FixedVector(std::initializer_list<T> init_list) {
+    init(init_list.size());
+    for (const auto &item : init_list) {
       push_back(item);
     }
   }
