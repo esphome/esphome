@@ -221,6 +221,70 @@ This document provides essential context for AI models interacting with this pro
     *   **Component Development:** Keep dependencies minimal, provide clear error messages, and write comprehensive docstrings and tests.
     *   **Code Generation:** Generate minimal and efficient C++ code. Validate all user inputs thoroughly. Support multiple platform variations.
     *   **Configuration Design:** Aim for simplicity with sensible defaults, while allowing for advanced customization.
+    *   **Embedded Systems Optimization:** ESPHome targets resource-constrained microcontrollers. Be mindful of flash size and RAM usage.
+
+        **STL Container Guidelines:**
+
+        ESPHome runs on embedded systems with limited resources. Choose containers carefully:
+
+        1. **Compile-time-known sizes:** Use `std::array` instead of `std::vector` when size is known at compile time.
+           ```cpp
+           // Bad - generates STL realloc code
+           std::vector<int> values;
+
+           // Good - no dynamic allocation
+           std::array<int, MAX_VALUES> values;
+           ```
+           Use `cg.add_define("MAX_VALUES", count)` to set the size from Python configuration.
+
+           **For byte buffers:** Avoid `std::vector<uint8_t>` unless the buffer needs to grow. Use `std::unique_ptr<uint8_t[]>` instead.
+           ```cpp
+           // Bad - STL overhead for simple byte buffer
+           std::vector<uint8_t> buffer;
+           buffer.resize(256);
+
+           // Good - minimal overhead, single allocation
+           std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(256);
+           // Or if size is constant:
+           std::array<uint8_t, 256> buffer;
+           ```
+
+        2. **Small datasets (1-16 elements):** Use `std::vector` or `std::array` with simple structs instead of `std::map`/`std::set`/`std::unordered_map`.
+           ```cpp
+           // Bad - 2KB+ overhead for red-black tree/hash table
+           std::map<std::string, int> small_lookup;
+           std::unordered_map<int, std::string> tiny_map;
+
+           // Good - simple struct with linear search (std::vector is fine)
+           struct LookupEntry {
+             const char *key;
+             int value;
+           };
+           std::vector<LookupEntry> small_lookup = {
+             {"key1", 10},
+             {"key2", 20},
+             {"key3", 30},
+           };
+           // Or std::array if size is compile-time constant:
+           // std::array<LookupEntry, 3> small_lookup = {{ ... }};
+           ```
+           Linear search on small datasets (1-16 elements) is faster than hashing/tree overhead. `std::vector` with simple structs is perfectly fine - it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets.
+
+        3. **Detection:** Look for these patterns in compiler output:
+           - Large code sections with STL symbols (vector, map, set)
+           - `alloc`, `realloc`, `dealloc` in symbol names
+           - Red-black tree code (`rb_tree`, `_Rb_tree`)
+           - Hash table infrastructure (`unordered_map`, `hash`)
+
+        **When to optimize:**
+        - Core components (API, network, logger)
+        - Widely-used components (mdns, wifi, ble)
+        - Components causing flash size complaints
+
+        **When not to optimize:**
+        - Single-use niche components
+        - Code where readability matters more than bytes
+        - Already using appropriate containers
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 
