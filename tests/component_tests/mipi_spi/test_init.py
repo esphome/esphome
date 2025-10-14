@@ -69,7 +69,7 @@ def run_schema_validation(config: ConfigType) -> None:
             {
                 "id": "display_id",
                 "model": "custom",
-                "dimensions": {"width": 320, "height": 240},
+                "dimensions": {"width": 260, "height": 260},
                 "draw_rounding": 13,
                 "init_sequence": [[0xA0, 0x01]],
             },
