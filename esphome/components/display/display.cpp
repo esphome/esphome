@@ -810,6 +810,9 @@ void Display::test_card() {
     }
   }
   this->filled_rectangle(0, 0, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(w - 10, 0, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(0, h - 10, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(w - 10, h - 10, 10, 10, Color(255, 0, 255));
   this->rectangle(0, 0, w, h, Color(255, 255, 255));
   this->stop_poller();
 }
