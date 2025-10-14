@@ -115,10 +115,10 @@ def find_existing_comment(pr_number: str) -> str | None:
         pr_number: PR number
 
     Returns:
-        Comment ID if found, None otherwise
+        Comment numeric ID (databaseId) if found, None otherwise
     """
     try:
-        # List all comments on the PR
+        # List all comments on the PR with both id (node ID) and databaseId (numeric ID)
         result = subprocess.run(
             [
                 "gh",
@@ -128,7 +128,7 @@ def find_existing_comment(pr_number: str) -> str | None:
                 "--json",
                 "comments",
                 "--jq",
-                ".comments[]",
+                ".comments[] | {id, databaseId, body}",
             ],
             capture_output=True,
             text=True,
@@ -143,7 +143,8 @@ def find_existing_comment(pr_number: str) -> str | None:
             try:
                 comment = json.loads(line)
                 if COMMENT_MARKER in comment.get("body", ""):
-                    return str(comment["id"])
+                    # Return the numeric databaseId, not the node ID
+                    return str(comment["databaseId"])
             except json.JSONDecodeError:
                 continue
 
