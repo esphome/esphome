@@ -221,7 +221,7 @@ template<typename T> class FixedVector {
     reset_();
     if (n > 0) {
       // Allocate raw memory without calling constructors
-      // sizeof(T) is correct here - when T is a pointer type, we want the pointer size
+      // sizeof(T) is correct here for any type T (value types, pointers, etc.)
       // NOLINTNEXTLINE(bugprone-sizeof-expression)
       data_ = static_cast<T *>(::operator new(n * sizeof(T)));
       capacity_ = n;
