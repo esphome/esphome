@@ -173,11 +173,6 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   fallback_service.port = USE_WEBSERVER_PORT;
   fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
-
-#ifdef USE_MDNS_STORE_SERVICES
-  // Move to member variable if storage is enabled (verbose logging, OpenThread, or extra services)
-  this->services_ = std::move(services);
-#endif
 }
 
 void MDNSComponent::dump_config() {
