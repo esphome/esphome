@@ -470,7 +470,7 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
-_FLAGS = {"keep_scan_results": False}
+KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 
 
 def request_wifi_scan_results():
@@ -480,13 +480,13 @@ def request_wifi_scan_results():
     call this function during their code generation. This prevents the WiFi component from
     freeing scan result memory after successful connection.
     """
-    _FLAGS["keep_scan_results"] = True
+    CORE.data[KEEP_SCAN_RESULTS_KEY] = True
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure scan result retention."""
-    if _FLAGS["keep_scan_results"]:
+    if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
         cg.add(
             cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
         )
