@@ -179,6 +179,7 @@ template<typename T> class FixedVector {
   void cleanup_() {
     if (data_ != nullptr) {
       destroy_elements_();
+      // Free raw memory
       ::operator delete(data_);
     }
   }
