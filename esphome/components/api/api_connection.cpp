@@ -84,8 +84,8 @@ static const int CAMERA_STOP_STREAM = 5000;
     return;
 #endif  // USE_DEVICES
 
-std::unique_ptr<APIFrameHelper> APIConnection::create_frame_helper_(std::unique_ptr<socket::Socket> sock,
-                                                                    APIServer *parent, ClientInfo *client_info) {
+std::unique_ptr<APIFrameHelper> APIConnection::create_frame_helper(std::unique_ptr<socket::Socket> sock,
+                                                                   APIServer *parent, ClientInfo *client_info) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto noise_ctx = parent->get_noise_ctx();
   if (noise_ctx->has_psk()) {
@@ -104,7 +104,7 @@ std::unique_ptr<APIFrameHelper> APIConnection::create_frame_helper_(std::unique_
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
-  this->helper_ = create_frame_helper_(std::move(sock), parent, &this->client_info_);
+  this->helper_ = create_frame_helper(std::move(sock), parent, &this->client_info_);
 #ifdef USE_CAMERA
   if (camera::Camera::instance() != nullptr) {
     this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
