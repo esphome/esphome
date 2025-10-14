@@ -108,8 +108,13 @@ class BTLoggers(Enum):
     """ESP32 WiFi provisioning over Bluetooth"""
 
 
-# Set to track which loggers are needed by components
-_required_loggers: set[BTLoggers] = set()
+# Key for storing required loggers in CORE.data
+ESP32_BLE_REQUIRED_LOGGERS_KEY = "esp32_ble_required_loggers"
+
+
+def _get_required_loggers() -> set[BTLoggers]:
+    """Get the set of required Bluetooth loggers from CORE.data."""
+    return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
 
 
 # Dataclass for handler registration counts
@@ -170,12 +175,13 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
     Args:
         *loggers: One or more BTLoggers enum members
     """
+    required_loggers = _get_required_loggers()
     for logger in loggers:
         if not isinstance(logger, BTLoggers):
             raise TypeError(
                 f"Logger must be a BTLoggers enum member, got {type(logger)}"
             )
-        _required_loggers.add(logger)
+        required_loggers.add(logger)
 
 
 CONF_BLE_ID = "ble_id"
@@ -427,7 +433,7 @@ def final_validation(config):
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
-# This needs to be run as a job with very low priority so that all components have
+# This needs to be run as a job with CoroPriority.FINAL priority so that all components have
 # a chance to register their handlers before the counts are added to defines.
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_ble_handler_defines():
@@ -479,8 +485,9 @@ async def to_code(config):
     # Apply logger settings if log disabling is enabled
     if config.get(CONF_DISABLE_BT_LOGS, False):
         # Disable all Bluetooth loggers that are not required
+        required_loggers = _get_required_loggers()
         for logger in BTLoggers:
-            if logger not in _required_loggers:
+            if logger not in required_loggers:
                 add_idf_sdkconfig_option(f"{logger.value}_NONE", True)
 
     # Set BLE connection establishment timeout to match aioesphomeapi/bleak-retry-connector
