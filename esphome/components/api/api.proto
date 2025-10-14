@@ -1519,7 +1519,7 @@ message BluetoothGATTCharacteristic {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
-  repeated BluetoothGATTDescriptor descriptors = 4;
+  repeated BluetoothGATTDescriptor descriptors = 4 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.
@@ -1531,7 +1531,7 @@ message BluetoothGATTCharacteristic {
 message BluetoothGATTService {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
-  repeated BluetoothGATTCharacteristic characteristics = 3;
+  repeated BluetoothGATTCharacteristic characteristics = 3 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.

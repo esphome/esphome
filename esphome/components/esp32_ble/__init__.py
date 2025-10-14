@@ -433,7 +433,7 @@ def final_validation(config):
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
-# This needs to be run as a job with very low priority so that all components have
+# This needs to be run as a job with CoroPriority.FINAL priority so that all components have
 # a chance to register their handlers before the counts are added to defines.
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_ble_handler_defines():
