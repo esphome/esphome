@@ -37,6 +37,7 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
@@ -146,12 +147,15 @@ def swap_xy_schema(model):
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
-    transform = cv.Schema(
-        {
-            cv.Required(CONF_MIRROR_X): cv.boolean,
-            cv.Required(CONF_MIRROR_Y): cv.boolean,
-            **swap_xy_schema(model),
-        }
+    transform = cv.Any(
+        cv.Schema(
+            {
+                cv.Required(CONF_MIRROR_X): cv.boolean,
+                cv.Required(CONF_MIRROR_Y): cv.boolean,
+                **swap_xy_schema(model),
+            }
+        ),
+        cv.one_of(CONF_DISABLED, lower=True),
     )
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
@@ -160,11 +164,16 @@ def model_schema(config):
         else cv.Optional(CONF_INIT_SEQUENCE)
     )
     # Dimensions are optional if the model has a default width and the x-y transform is not overridden
-    is_swapped = config.get(CONF_TRANSFORM, {}).get(CONF_SWAP_XY) is True
+    transform_config = config.get(CONF_TRANSFORM, {})
+    is_swapped = (
+        isinstance(transform_config, dict)
+        and transform_config.get(CONF_SWAP_XY, False) is True
+    )
     cv_dimensions = (
         cv.Optional if model.get_default(CONF_WIDTH) and not is_swapped else cv.Required
     )
     pixel_modes = DISPLAY_PIXEL_MODES if bus_mode == TYPE_SINGLE else (DISPLAY_16BIT,)
+    rounding = config.get(CONF_DRAW_ROUNDING, model.get_default(CONF_DRAW_ROUNDING, 1))
     color_depth = (
         ("16", "8", "16bit", "8bit") if bus_mode == TYPE_SINGLE else ("16", "16bit")
     )
@@ -192,9 +201,7 @@ def model_schema(config):
         .extend(
             {
                 cv.GenerateID(): cv.declare_id(MipiSpi),
-                cv_dimensions(CONF_DIMENSIONS): dimension_schema(
-                    model.get_default(CONF_DRAW_ROUNDING, 1)
-                ),
+                cv_dimensions(CONF_DIMENSIONS): dimension_schema(rounding),
                 model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
                     pins.gpio_output_pin_schema
                 ),
