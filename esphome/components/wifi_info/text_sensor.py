@@ -78,8 +78,8 @@ async def to_code(config):
     await setup_conf(config, CONF_BSSID)
     await setup_conf(config, CONF_MAC_ADDRESS)
     if CONF_SCAN_RESULTS in config:
+        await setup_conf(config, CONF_SCAN_RESULTS)
         wifi.request_wifi_scan_results()
-    await setup_conf(config, CONF_SCAN_RESULTS)
     await setup_conf(config, CONF_DNS_ADDRESS)
     if conf := config.get(CONF_IP_ADDRESS):
         wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
