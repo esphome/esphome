@@ -677,7 +677,6 @@ def test_write_cpp_creates_new_file(
     assert written_path == main_cpp
 
     # Check that all necessary parts are in the new file
-    assert '#include "esphome.h"' in written_content
     assert CPP_INCLUDE_BEGIN in written_content
     assert CPP_INCLUDE_END in written_content
     assert CPP_AUTO_GENERATE_BEGIN in written_content

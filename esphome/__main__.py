@@ -1,8 +1,11 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from collections import defaultdict
+from collections.abc import Callable, Iterable
 from datetime import datetime
 import functools
 import getpass
+import heapq
 import importlib
 import logging
 import os
@@ -10,7 +13,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Protocol
+from typing import Protocol, cast
 
 import argcomplete
 
@@ -50,8 +53,9 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.loader import ComponentManifest
 from esphome.log import AnsiFore, color, setup_log
-from esphome.types import ConfigType
+from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import (
     get_serial_ports,
     list_yaml_files,
@@ -478,12 +482,154 @@ def write_cpp(config: ConfigType) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
+    """Generate C++ by scheduling component to_code in a deterministic topological order."""
     _LOGGER.info("Generating C++ source...")
 
-    for name, component, conf in iter_component_configs(CORE.config):
-        if component.to_code is not None:
+    # Collect entries as (name, manifest, conf)
+    entries: list[tuple[str, ComponentManifest | None, ConfigFragmentType]] = list(
+        cast(
+            Iterable[tuple[str, ComponentManifest | None, ConfigFragmentType]],
+            iter_component_configs(config),
+        )
+    )
+
+    name_to_comp_conf: defaultdict[
+        str, list[tuple[ComponentManifest | None, ConfigFragmentType]]
+    ] = defaultdict(list)
+
+    for name, manifest, conf in entries:
+        _LOGGER.debug("Processing component %s", name)
+        name_to_comp_conf[name].append((manifest, conf))
+
+        if manifest is None:
+            continue
+
+    adj: dict[str, set[str]] = defaultdict(set)
+    indegree: dict[str, int] = {nm: 0 for nm in name_to_comp_conf}
+
+    def add_edge(src_name: str, dst_name: str) -> None:
+        _LOGGER.debug("Adding dependency %s -> %s", src_name, dst_name)
+        if dst_name in adj[src_name]:
+            return
+
+        adj[src_name].add(dst_name)
+        indegree[dst_name] += 1
+
+    fixed_deps: list[str] = []
+    # TODO what other fixed components should be included?
+    # I guess this should be a property of the component manifest...?
+    if "logger" in name_to_comp_conf:
+        fixed_deps.append("logger")
+
+    # Build the graph
+
+    # target platform
+    #     ^
+    #     |
+    #  esphome core <-------|
+    #     ^                 |
+    #     |                 |
+    #  fixed deps<----------|
+    #     ^                 |
+    #     |                 |
+    #  components<----------|
+    #     ^                 |
+    #     |-----------------|
+
+    for dep in fixed_deps:
+        add_edge(CONF_ESPHOME, dep)
+
+    for name, manifest, _comp_conf in entries:
+        _LOGGER.debug("Processing dependencies for component %s", name)
+
+        if manifest is None:
+            raise EsphomeError(f"Manifest is None for component {name}")
+
+        _LOGGER.debug("Manifest dependencies for %s: %s", name, manifest.dependencies)
+
+        for dep in manifest.dependencies:
+            if dep not in name_to_comp_conf:
+                _LOGGER.error("Skipping missing dependency %s -> %s", dep, name)
+                raise EsphomeError(
+                    f"Dependency {dep} not found. Known: {sorted(name_to_comp_conf.keys())}"
+                )
+            add_edge(dep, name)
+
+        auto_load: list[str] | Callable[..., list[str]] = manifest.auto_load
+        if callable(auto_load):
+            import inspect
+
+            if inspect.signature(auto_load).parameters:
+                auto_load = auto_load(config)
+            else:
+                auto_load = auto_load()
+
+        for auto_loaded in auto_load:
+            add_edge(name, auto_loaded)
+
+        if manifest.is_target_platform:
+            # the target platform does not depend on anything else, it is the "root",
+            # because the compiler toolchain etc. must be setup first
+            continue
+
+        if name == CONF_ESPHOME:
+            # esphome only depends on the target platform.
+            add_edge(CORE.target_platform, CONF_ESPHOME)
+            continue
+
+        # all components depend on esphome core. This bridges the gap between
+        # missing fixed deps and components.
+        add_edge(CONF_ESPHOME, name)
+
+        # all components depend on fixed deps, to ensure they are initialized first
+        for fixed_dep in fixed_deps:
+            if fixed_dep != name:
+                add_edge(fixed_dep, name)
+
+    zero_indegree: list[str] = list(
+        {nm for nm in name_to_comp_conf if indegree[nm] == 0}
+    )
+
+    heapq.heapify(zero_indegree)
+
+    ordered_names: list[str] = []
+    partial_order: list[list[str]] = [zero_indegree[:]]
+
+    _LOGGER.debug("Adjacency list: %s", adj)
+
+    while True:
+        partial_order.append([])
+        while zero_indegree:
+            name = heapq.heappop(zero_indegree)
+            ordered_names.append(name)
+            for dst in adj[name]:
+                indegree[dst] -= 1
+                if indegree[dst] == 0:
+                    # heapq.heappush(zero_indegree, dst)
+                    heapq.heappush(partial_order[-1], dst)
+        zero_indegree = partial_order[-1][:]
+        if not zero_indegree:
+            _ = partial_order.pop()
+            break
+
+    if len(ordered_names) != len(name_to_comp_conf):
+        cyclic: list[str] = [n for n, deg in indegree.items() if deg > 0]
+        raise EsphomeError(
+            "Circular dependency detected among components: "
+            + ", ".join(sorted(cyclic))
+        )
+
+    _LOGGER.debug("Partial topological order: %s", partial_order)
+    _LOGGER.debug("Total topological names order: %s", ordered_names)
+    _LOGGER.info("Initialization order: %s", ", ".join(ordered_names))
+
+    for name in ordered_names:
+        for component, conf in name_to_comp_conf[name]:
+            if component is None or component.to_code is None:
+                continue
             coro = wrap_to_code(name, component)
             CORE.add_job(coro, conf)
+            _LOGGER.debug("Scheduled %s.to_code()", name)
 
     CORE.flush_tasks()
 
@@ -513,7 +659,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def upload_using_esptool(
-    config: ConfigType, port: str, file: str, speed: int
+    config: ConfigType, port: str, file: str | None, speed: int
 ) -> str | int:
     from esphome import platformio_api
 

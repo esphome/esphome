@@ -95,11 +95,12 @@ class Component {
    *
    * @return The setup priority of this component
    */
-  virtual float get_setup_priority() const;
 
-  float get_actual_setup_priority() const;
+  [[deprecated]] virtual float get_setup_priority() const;
 
-  void set_setup_priority(float priority);
+  [[deprecated]] float get_actual_setup_priority() const;
+
+  [[deprecated]] void set_setup_priority(float priority);
 
   /** priority of loop(). higher -> executed earlier
    *
