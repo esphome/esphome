@@ -86,21 +86,21 @@ network::IPAddresses get_ip_addresses() {
 }
 
 const std::string &get_use_address() {
+  // Global component pointers are guaranteed to be set by component constructors when USE_* is defined
 #ifdef USE_ETHERNET
-  if (ethernet::global_eth_component != nullptr)
-    return ethernet::global_eth_component->get_use_address();
+  return ethernet::global_eth_component->get_use_address();
 #endif
 
 #ifdef USE_MODEM
-  if (modem::global_modem_component != nullptr)
-    return modem::global_modem_component->get_use_address();
+  return modem::global_modem_component->get_use_address();
 #endif
 
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->get_use_address();
+  return wifi::global_wifi_component->get_use_address();
 #endif
+
 #if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI)
+  // Fallback when no network component is defined (shouldn't happen with USE_NETWORK defined)
   static const std::string empty;
   return empty;
 #endif
