@@ -10,15 +10,22 @@ static const char *const TAG = "cap1188";
 void CAP1188Component::setup() {
   // Reset device using the reset pin
   if (this->reset_pin_ != nullptr) {
+    this->disable_loop();
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
-    delay(100);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(100);  // NOLINT
-    this->reset_pin_->digital_write(false);
-    delay(100);  // NOLINT
+    this->set_timeout(100, [this]() {
+      this->reset_pin_->digital_write(true);
+      this->set_timeout(100, [this]() {
+        this->reset_pin_->digital_write(false);
+        this->set_timeout(100, [this]() {
+          this->enable_loop();
+        });
+      });
+    });
   }
+} 
 
+void finish_setup() {
   // Check if CAP1188 is actually connected
   this->read_byte(CAP1188_PRODUCT_ID, &this->cap1188_product_id_);
   this->read_byte(CAP1188_MANUFACTURE_ID, &this->cap1188_manufacture_id_);
@@ -67,6 +74,11 @@ void CAP1188Component::dump_config() {
 }
 
 void CAP1188Component::loop() {
+  if (!this->setup_finished_) {
+    this->finish_setup_();
+    this->setup_finished_ = true;
+  }
+
   uint8_t touched = 0;
 
   this->read_register(CAP1188_SENSOR_INPUT_STATUS, &touched, 1);
