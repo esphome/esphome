@@ -251,11 +251,8 @@ void BluetoothConnection::send_service_for_discovery_() {
           break;
         }
 
-        service_resp.characteristics.emplace_back();
-        auto &characteristic_resp = service_resp.characteristics.back();
-
+        api::BluetoothGATTCharacteristic characteristic_resp;
         fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid, char_result.uuid, use_efficient_uuids);
-
         characteristic_resp.handle = char_result.char_handle;
         characteristic_resp.properties = char_result.properties;
         char_offset++;
@@ -270,39 +267,36 @@ void BluetoothConnection::send_service_for_discovery_() {
           this->send_service_ = DONE_SENDING_SERVICES;
           return;
         }
-        if (total_desc_count == 0) {
-          // No descriptors, continue to next characteristic
-          continue;
+        if (total_desc_count > 0) {
+          // Initialize FixedVector with exact count and process descriptors
+          characteristic_resp.descriptors.init(total_desc_count);
+          uint16_t desc_offset = 0;
+          esp_gattc_descr_elem_t desc_result;
+          while (true) {  // descriptors
+            uint16_t desc_count = 1;
+            esp_gatt_status_t desc_status = esp_ble_gattc_get_all_descr(
+                this->gattc_if_, this->conn_id_, char_result.char_handle, &desc_result, &desc_count, desc_offset);
+            if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+              break;
+            }
+            if (desc_status != ESP_GATT_OK) {
+              this->log_connection_error_("esp_ble_gattc_get_all_descr", desc_status);
+              this->send_service_ = DONE_SENDING_SERVICES;
+              return;
+            }
+            if (desc_count == 0) {
+              break;  // No more descriptors
+            }
+
+            api::BluetoothGATTDescriptor descriptor_resp;
+            fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, desc_result.uuid, use_efficient_uuids);
+            descriptor_resp.handle = desc_result.handle;
+            characteristic_resp.descriptors.push_back(descriptor_resp);
+            desc_offset++;
+          }
         }
-
-        // Initialize FixedVector with exact count and process descriptors
-        characteristic_resp.descriptors.init(total_desc_count);
-        uint16_t desc_offset = 0;
-        esp_gattc_descr_elem_t desc_result;
-        while (true) {  // descriptors
-          uint16_t desc_count = 1;
-          esp_gatt_status_t desc_status = esp_ble_gattc_get_all_descr(
-              this->gattc_if_, this->conn_id_, char_result.char_handle, &desc_result, &desc_count, desc_offset);
-          if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
-            break;
-          }
-          if (desc_status != ESP_GATT_OK) {
-            this->log_connection_error_("esp_ble_gattc_get_all_descr", desc_status);
-            this->send_service_ = DONE_SENDING_SERVICES;
-            return;
-          }
-          if (desc_count == 0) {
-            break;  // No more descriptors
-          }
-
-          characteristic_resp.descriptors.emplace_back();
-          auto &descriptor_resp = characteristic_resp.descriptors.back();
-
-          fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, desc_result.uuid, use_efficient_uuids);
-
-          descriptor_resp.handle = desc_result.handle;
-          desc_offset++;
-        }
+        // Add the characteristic to the service (with or without descriptors)
+        service_resp.characteristics.push_back(characteristic_resp);
       }
     }  // end if (total_char_count > 0)
 

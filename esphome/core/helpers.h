@@ -224,8 +224,14 @@ template<typename T> class FixedVector {
     }
   }
 
-  // Clear the vector (reset size to 0, keep capacity)
-  void clear() { size_ = 0; }
+  // Clear the vector (destroy all elements, reset size to 0, keep capacity)
+  void clear() {
+    // Manually destroy all elements
+    for (size_t i = 0; i < size_; i++) {
+      data_[i].~T();
+    }
+    size_ = 0;
+  }
 
   // Shrink capacity to fit current size (frees all memory)
   void shrink_to_fit() {
@@ -244,17 +250,8 @@ template<typename T> class FixedVector {
     }
   }
 
-  /// Construct element in place and return reference
-  /// Caller must ensure sufficient capacity was allocated via init()
-  T &emplace_back() {
-    if (size_ < capacity_) {
-      return data_[size_++];
-    }
-    // Should never happen with proper init() - return last element to avoid crash
-    return data_[capacity_ - 1];
-  }
-
-  /// Access last element
+  /// Access last element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
