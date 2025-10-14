@@ -17,13 +17,11 @@ void CAP1188Component::setup() {
       this->reset_pin_->digital_write(true);
       this->set_timeout(100, [this]() {
         this->reset_pin_->digital_write(false);
-        this->set_timeout(100, [this]() {
-          this->enable_loop();
-        });
+        this->set_timeout(100, [this]() { this->enable_loop(); });
       });
     });
   }
-} 
+}
 
 void finish_setup_() {
   // Check if CAP1188 is actually connected
