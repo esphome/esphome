@@ -197,6 +197,15 @@ template<typename T> class FixedVector {
  public:
   FixedVector() = default;
 
+  /// Constructor from initializer list - allocates exact size needed
+  /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
+  FixedVector(std::initializer_list<T> init) {
+    init(init.size());
+    for (const auto &item : init) {
+      push_back(item);
+    }
+  }
+
   ~FixedVector() { cleanup_(); }
 
   // Disable copy operations (avoid accidental expensive copies)
