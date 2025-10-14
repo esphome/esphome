@@ -114,6 +114,10 @@ def find_existing_comment(pr_number: str) -> str | None:
         Comment numeric ID (databaseId) if found, None otherwise
     """
     try:
+        print(
+            f"DEBUG: Looking for existing comment on PR #{pr_number}", file=sys.stderr
+        )
+
         # List all comments on the PR with both id (node ID) and databaseId (numeric ID)
         result = subprocess.run(
             [
@@ -131,23 +135,46 @@ def find_existing_comment(pr_number: str) -> str | None:
             check=True,
         )
 
+        print(f"DEBUG: gh pr view output:\n{result.stdout}", file=sys.stderr)
+
         # Parse comments and look for our marker
+        comment_count = 0
         for line in result.stdout.strip().split("\n"):
             if not line:
                 continue
 
             try:
                 comment = json.loads(line)
-                if COMMENT_MARKER in comment.get("body", ""):
+                comment_count += 1
+                print(
+                    f"DEBUG: Checking comment {comment_count}: id={comment.get('id')}, databaseId={comment.get('databaseId')}",
+                    file=sys.stderr,
+                )
+
+                body = comment.get("body", "")
+                if COMMENT_MARKER in body:
+                    database_id = str(comment["databaseId"])
+                    print(
+                        f"DEBUG: Found existing comment with databaseId={database_id}",
+                        file=sys.stderr,
+                    )
                     # Return the numeric databaseId, not the node ID
-                    return str(comment["databaseId"])
-            except json.JSONDecodeError:
+                    return database_id
+                print("DEBUG: Comment does not contain marker", file=sys.stderr)
+            except json.JSONDecodeError as e:
+                print(f"DEBUG: JSON decode error: {e}", file=sys.stderr)
                 continue
 
+        print(
+            f"DEBUG: No existing comment found (checked {comment_count} comments)",
+            file=sys.stderr,
+        )
         return None
 
     except subprocess.CalledProcessError as e:
         print(f"Error finding existing comment: {e}", file=sys.stderr)
+        if e.stderr:
+            print(f"stderr: {e.stderr.decode()}", file=sys.stderr)
         return None
 
 
@@ -165,10 +192,13 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> bool:
     existing_comment_id = find_existing_comment(pr_number)
 
     try:
-        if existing_comment_id:
+        if existing_comment_id and existing_comment_id != "None":
             # Update existing comment
-            print(f"Updating existing comment {existing_comment_id}", file=sys.stderr)
-            subprocess.run(
+            print(
+                f"DEBUG: Updating existing comment {existing_comment_id}",
+                file=sys.stderr,
+            )
+            result = subprocess.run(
                 [
                     "gh",
                     "api",
@@ -180,15 +210,22 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> bool:
                 ],
                 check=True,
                 capture_output=True,
+                text=True,
             )
+            print(f"DEBUG: Update response: {result.stdout}", file=sys.stderr)
         else:
             # Post new comment
-            print("Posting new comment", file=sys.stderr)
-            subprocess.run(
+            print(
+                f"DEBUG: Posting new comment (existing_comment_id={existing_comment_id})",
+                file=sys.stderr,
+            )
+            result = subprocess.run(
                 ["gh", "pr", "comment", pr_number, "--body", comment_body],
                 check=True,
                 capture_output=True,
+                text=True,
             )
+            print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
 
         print("Comment posted/updated successfully", file=sys.stderr)
         return True
@@ -196,7 +233,15 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> bool:
     except subprocess.CalledProcessError as e:
         print(f"Error posting/updating comment: {e}", file=sys.stderr)
         if e.stderr:
-            print(f"stderr: {e.stderr.decode()}", file=sys.stderr)
+            print(
+                f"stderr: {e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}",
+                file=sys.stderr,
+            )
+        if e.stdout:
+            print(
+                f"stdout: {e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}",
+                file=sys.stderr,
+            )
         return False
 
 
