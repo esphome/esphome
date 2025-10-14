@@ -127,9 +127,9 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     std::string service_value = this->service_.value(x...);
     resp.set_service(StringRef(service_value));
     resp.is_event = this->flags_.is_event;
-    this->populate_service_map_(resp.data, this->data_, x...);
-    this->populate_service_map_(resp.data_template, this->data_template_, x...);
-    this->populate_service_map_(resp.variables, this->variables_, x...);
+    this->populate_service_map(resp.data, this->data_, x...);
+    this->populate_service_map(resp.data_template, this->data_template_, x...);
+    this->populate_service_map(resp.variables, this->variables_, x...);
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
     if (this->flags_.wants_status) {
@@ -175,7 +175,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
  protected:
   template<typename VectorType, typename SourceType>
-  static void populate_service_map_(VectorType &dest, SourceType &source, Ts... x) {
+  static void populate_service_map(VectorType &dest, SourceType &source, Ts... x) {
     dest.init(source.size());
     for (auto &it : source) {
       auto &kv = dest.emplace_back();
