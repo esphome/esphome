@@ -763,8 +763,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.sta_scan_done;
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
-    this->scan_done_ = true;
     scan_result_.clear();
+    this->scan_done_ = true;
 
     if (it.status != 0) {
       // scan error
