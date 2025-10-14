@@ -204,9 +204,12 @@ template<typename T> class FixedVector {
   /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
   FixedVector(std::initializer_list<T> init_list) {
     init(init_list.size());
+    size_t idx = 0;
     for (const auto &item : init_list) {
-      push_back(item);
+      new (data_ + idx) T(item);
+      ++idx;
     }
+    size_ = init_list.size();
   }
 
   ~FixedVector() { cleanup_(); }
