@@ -170,8 +170,11 @@ template<typename T> class FixedVector {
 
   // Helper to destroy all elements without freeing memory
   void destroy_elements_() {
-    for (size_t i = 0; i < size_; i++) {
-      data_[i].~T();
+    // Only call destructors for non-trivially destructible types
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      for (size_t i = 0; i < size_; i++) {
+        data_[i].~T();
+      }
     }
   }
 
@@ -265,15 +268,11 @@ template<typename T> class FixedVector {
   /// Emplace element without bounds checking - constructs in-place
   /// Caller must ensure sufficient capacity was allocated via init()
   /// Returns reference to the newly constructed element
-  /// Silently ignores emplaces beyond capacity (returns reference to last element)
+  /// NOTE: Caller MUST ensure size_ < capacity_ before calling
   T &emplace_back() {
-    if (size_ < capacity_) {
-      // Use placement new to default-construct the object in pre-allocated memory
-      new (&data_[size_]) T();
-      size_++;
-      return data_[size_ - 1];
-    }
-    // Beyond capacity - return reference to last element to avoid crash
+    // Use placement new to default-construct the object in pre-allocated memory
+    new (&data_[size_]) T();
+    size_++;
     return data_[size_ - 1];
   }
 
