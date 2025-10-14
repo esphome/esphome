@@ -415,12 +415,14 @@ def generate_cpp_contents(config: ConfigType) -> None:
     # Build dependency graph dep_name -> name and indegree counts
     adj: dict[str, set[str]] = defaultdict(set)
     indegree: dict[str, int] = {nm: 0 for nm in name_to_comp_conf}
+    reverse_adj: dict[str, set[str]] = defaultdict(set)
 
     def add_edge(src_name: str, dst_name: str) -> None:
         if dst_name in adj[src_name]:
             return
         adj[src_name].add(dst_name)
         indegree[dst_name] += 1
+        reverse_adj[dst_name].add(src_name)
 
     fixed_deps: list[str] = []
     if config and "logger" in config and "logger" in name_to_comp_conf:
@@ -451,18 +453,28 @@ def generate_cpp_contents(config: ConfigType) -> None:
     zero_indegree: list[str] = list[str](
         {nm for nm in name_to_comp_conf if indegree[nm] == 0}
     )
+
+    _LOGGER.debug("Initial zero indegree: %s", zero_indegree)
+    _LOGGER.debug("Dependency graph: %s", adj)
+    _LOGGER.debug("Dependency indegree: %s", indegree)
+    _LOGGER.debug("reversegraph: %s", reverse_adj)
+
     heapq.heapify(zero_indegree)
 
     ordered_names: list[str] = []
     while zero_indegree:
         nm = heapq.heappop(zero_indegree)
+        _LOGGER.debug("Processing %s, reverse %s", nm, reverse_adj[nm])
         ordered_names.append(nm)
         for dst in sorted(adj[nm]):
             indegree[dst] -= 1
+            reverse_adj[dst].remove(nm)
+            _LOGGER.debug("  Decreased indegree of %s to %s. Set %s", dst, indegree[dst], reverse_adj[dst])
 
             if indegree[dst] == 0:
                 _LOGGER.debug("  Adding %s to zero indegree", dst)
                 heapq.heappush(zero_indegree, dst)
+        heapq.heapify(zero_indegree)
 
     if len(ordered_names) != len(name_to_comp_conf):
         cyclic: list[str] = [n for n, deg in indegree.items() if deg > 0]
@@ -1025,6 +1037,202 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+# def command_graph(args: ArgsProtocol, config: ConfigType) -> int | None:
+#     """Generate a dependency graph for the current config.
+
+#         - Solid edges: dependency -> component (DEPENDENCIES).
+#         - Dashed edges: component -> auto_loaded (AUTO_LOAD), not affecting rank.
+#         - Ranks and an invisible chain help reflect a readable topological order.
+#     - Renders via Graphviz 'dot' when available; otherwise writes a .dot file.
+#     """
+#     # Collect present component names and their manifests
+#     entries: list[tuple[str, object, dict]] = list(iter_component_configs(CORE.config))
+
+#     present: set[str] = set()
+#     for name, _comp, _conf in entries:
+#         present.add(name)
+
+#     # Compute edges dep -> name for present-only nodes (dependency -> component)
+#     edges: set[tuple[str, str]] = set()
+#     # Compute AUTO_LOAD edges name -> auto for present-only nodes
+#     auto_edges: set[tuple[str, str]] = set()
+#     for name, manifest, _conf in entries:
+#         for dep in getattr(manifest, "dependencies", []) or []:
+#             if dep in present:
+#                 # dependency -> component for topo flow left-to-right (LR)
+#                 edges.add((dep, name))
+#         # AUTO_LOAD handling
+#         auto = getattr(manifest, "auto_load", [])
+#         loads: list[str] = []
+#         if isinstance(auto, list):
+#             loads = auto
+#         elif callable(auto):
+#             # Match config.py semantics: call with conf if parameters are expected
+#             try:
+#                 import inspect  # local import to avoid top-level side effects
+
+#                 if inspect.signature(auto).parameters:
+#                     # Need the conf for this component
+#                     try:
+#                         # Find the matching entry's conf (we're already in entries loop)
+#                         # name is unique per entry here; use the _conf from this loop
+#                         loads = auto(_conf)  # type: ignore[misc]
+#                     except Exception as e:  # noqa: BLE001
+#                         _LOGGER.debug(
+#                             "AUTO_LOAD callable for %s raised %s; skipping dashed edges",
+#                             name,
+#                             e,
+#                         )
+#                         loads = []
+#                 else:
+#                     try:
+#                         loads = auto()  # type: ignore[misc]
+#                     except Exception as e:  # noqa: BLE001
+#                         _LOGGER.debug(
+#                             "AUTO_LOAD callable(no-arg) for %s raised %s; skipping",
+#                             name,
+#                             e,
+#                         )
+#                         loads = []
+#             except Exception:  # fall back if inspect fails unexpectedly
+#                 loads = []
+#         # Add dashed edges only for present nodes
+#         for target in loads or []:
+#             if target in present:
+#                 auto_edges.add((name, target))
+
+#     # Compute indegree over dependency edges (used for topo ordering only)
+#     indeg: dict[str, int] = {n: 0 for n in present}
+#     for _src, _dst in edges:
+#         indeg[_dst] += 1
+
+#     # Compute a deterministic topological order based on dependency edges
+#     # Kahn's algorithm with lexical tie-break.
+#     indeg_copy = dict(indeg)
+#     zero = []
+#     for n in present:
+#         if indeg_copy[n] == 0:
+#             heapq.heappush(zero, n)
+#     # adjacency list for edges
+#     adj: dict[str, set[str]] = {n: set() for n in present}
+#     for s, d in edges:
+#         adj[s].add(d)
+#     topo_order: list[str] = []
+#     while zero:
+#         n = heapq.heappop(zero)
+#         topo_order.append(n)
+#         for d in sorted(adj.get(n, [])):
+#             indeg_copy[d] -= 1
+#             if indeg_copy[d] == 0:
+#                 heapq.heappush(zero, d)
+#     # If cycle exists, fall back to alphabetical order for remaining nodes
+#     if len(topo_order) < len(present):
+#         remaining = sorted([n for n in present if n not in topo_order])
+#         topo_order.extend(remaining)
+
+#     # Build DOT text
+#     rankdir = getattr(args, "rankdir", "TB") or "TB"
+#     lines: list[str] = []
+#     lines.append('digraph "ESPHome Dependencies" {')
+#     lines.append(f"  rankdir={rankdir};")
+#     lines.append('  node [shape=box, style="rounded,filled", fillcolor="#f5f5f5"];\n')
+#     # Nodes
+#     for node in sorted(present):
+#         safe_label = node.replace('"', '\\"')
+#         lines.append(f'  "{safe_label}";')
+#     # Edges (dependencies)
+#     if edges:
+#         lines.append("")
+#         for src, dst in sorted(edges):
+#             s = src.replace('"', '\\"')
+#             d = dst.replace('"', '\\"')
+#             lines.append(f'  "{s}" -> "{d}";')
+#     # AUTO_LOAD dashed edges
+#     if auto_edges:
+#         lines.append("")
+#         for src, dst in sorted(auto_edges):
+#             s = src.replace('"', '\\"')
+#             d = dst.replace('"', '\\"')
+#             # Do not affect ranking/ordering with AUTO_LOAD
+#             lines.append(f'  "{s}" -> "{d}" [style=dashed, constraint=false];')
+#     # Group nodes by depth (rank=same) to place shallower modules higher
+#     depth: dict[str, int] = {n: 0 for n in present}
+#     for n in topo_order:
+#         for d in sorted(adj.get(n, [])):
+#             depth[d] = max(depth[d], depth[n] + 1)
+#     if topo_order:
+#         # Build ranks per depth value
+#         buckets: dict[int, list[str]] = {}
+#         for n, dep in depth.items():
+#             buckets.setdefault(dep, []).append(n)
+#         for dep in sorted(buckets.keys()):
+#             items = []
+#             for x in sorted(buckets[dep]):
+#                 lab = x.replace('"', '\\"')
+#                 items.append('"' + lab + '"')
+#             same = " ".join(items)
+#             lines.append("  { rank=same; " + same + "; }")
+#     lines.append("}")
+#     dot_text = "\n".join(lines) + "\n"
+
+#     # Decide output path and format
+#     config_path = CORE.config_path
+#     default_png = config_path.with_suffix("").with_name(
+#         config_path.stem + "-dep-graph.png"
+#     )
+#     out_path_str: str | None = getattr(args, "output", None)
+#     out_path = Path(out_path_str) if out_path_str else default_png
+#     out_ext = out_path.suffix.lower()
+
+#     # Determine desired format
+#     fmt = getattr(args, "format", None)
+#     if fmt is None:
+#         if out_ext in (".png", ".svg", ".pdf", ".dot"):
+#             fmt = out_ext.lstrip(".")
+#         else:
+#             fmt = "png"
+
+#     # If fmt is dot or graphviz is unavailable, just write .dot
+#     dot_available = shutil.which("dot") is not None
+#     if fmt == "dot" or not dot_available:
+#         if out_ext != ".dot":
+#             out_path = out_path.with_suffix(".dot")
+#         out_path.write_text(dot_text, encoding="utf-8")
+#         if not dot_available and fmt != "dot":
+#             _LOGGER.warning(
+#                 "Graphviz 'dot' not found. Wrote DOT file instead: %s", out_path
+#             )
+#         else:
+#             _LOGGER.info("Wrote DOT graph: %s", out_path)
+#         return 0
+
+#     # Render with dot to desired format
+#     # Always create a temporary .dot file to feed into dot
+#     with tempfile.NamedTemporaryFile("w", suffix=".dot", delete=False) as tf:
+#         tf.write(dot_text)
+#         tmp_dot_path = tf.name
+#     try:
+#         rc = run_external_process("dot", "-T", fmt, tmp_dot_path, "-o", str(out_path))
+#         if rc != 0:
+#             _LOGGER.error(
+#                 "Graphviz rendering failed (exit %s). Keeping DOT at: %s",
+#                 rc,
+#                 tmp_dot_path,
+#             )
+#             return rc
+#         _LOGGER.info("Wrote dependency graph: %s", out_path)
+#         # Clean up temporary dot on success
+#         with contextlib.suppress(OSError):
+#             os.unlink(tmp_dot_path)
+#         return 0
+#     except FileNotFoundError:
+#         # Fallback, should not happen because we checked dot_available
+#         out_dot = out_path.with_suffix(".dot")
+#         out_dot.write_text(dot_text, encoding="utf-8")
+#         _LOGGER.warning("Graphviz not found. Wrote DOT file instead: %s", out_dot)
+#         return 0
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -1046,6 +1254,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
+    #"graph": command_graph,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1330,6 +1539,31 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs=1
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
+
+    # parser_graph = subparsers.add_parser(
+    #     "graph",
+    #     help="Generate a component dependency graph (png/svg/pdf/dot).",
+    # )
+    # parser_graph.add_argument(
+    #     "configuration", help="Your YAML configuration file(s).", nargs="+"
+    # )
+    # parser_graph.add_argument(
+    #     "-o",
+    #     "--output",
+    #     help="Output file path. Defaults to <config>-dep-graph.png (or .dot when Graphviz is unavailable).",
+    # )
+    # parser_graph.add_argument(
+    #     "-f",
+    #     "--format",
+    #     choices=["png", "svg", "pdf", "dot"],
+    #     help="Output format. If omitted, inferred from --output extension, else png.",
+    # )
+    # parser_graph.add_argument(
+    #     "--rankdir",
+    #     choices=["LR", "TB", "RL", "BT"],
+    #     default="TB",
+    #     help="Graph layout direction (default: TB)",
+    # )
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
