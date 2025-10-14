@@ -866,7 +866,7 @@ message ListEntitiesServicesResponse {
 
   string name = 1;
   fixed32 key = 2;
-  repeated ListEntitiesServicesArgument args = 3;
+  repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
 }
 message ExecuteServiceArgument {
   option (ifdef) = "USE_API_SERVICES";
