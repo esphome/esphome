@@ -252,16 +252,18 @@ This document provides essential context for AI models interacting with this pro
            std::array<uint8_t, 256> buffer;
            ```
 
-        2. **Compile-time-known sizes with dynamic storage:** Use `StaticVector` from `esphome/core/helpers.h` when the maximum size is known at compile time but you need heap allocation.
+        2. **Compile-time-known fixed sizes with vector-like API:** Use `StaticVector` from `esphome/core/helpers.h` for fixed-size stack allocation with `push_back()` interface.
            ```cpp
            // Bad - generates STL realloc code (_M_realloc_insert)
            std::vector<ServiceRecord> services;
            services.reserve(5);  // Still includes reallocation machinery
 
-           // Good - compile-time max size, heap allocated, no reallocation machinery
-           StaticVector<ServiceRecord, MAX_SERVICES> services;  // Max size known at compile time
+           // Good - compile-time fixed size, stack allocated, no reallocation machinery
+           StaticVector<ServiceRecord, MAX_SERVICES> services;  // Allocates all MAX_SERVICES on stack
+           services.push_back(record1);  // Tracks count but all slots allocated
            ```
-           Use `cg.add_define("MAX_SERVICES", count)` to set the maximum from Python configuration.
+           Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
+           Like `std::array` but with vector-like API (`push_back()`, `size()`) and no STL reallocation code.
 
         3. **Runtime-known sizes:** Use `FixedVector` from `esphome/core/helpers.h` when the size is only known at runtime initialization.
            ```cpp
