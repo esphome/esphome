@@ -41,11 +41,20 @@ from script.merge_component_configs import merge_component_configs
 # Platform-specific maximum group sizes
 # ESP8266 has limited IRAM and can't handle large component groups
 PLATFORM_MAX_GROUP_SIZE = {
-    "esp8266-ard": 10,  # ESP8266 Arduino has limited IRAM
-    "esp8266-idf": 10,  # ESP8266 IDF also has limited IRAM
+    "esp8266-ard": 5,  # ESP8266 Arduino has limited IRAM
+    "esp8266-idf": 5,  # ESP8266 IDF also has limited IRAM
+    "esp32-idf": 100,
+    "rp2040-ard": 100,
+    #"nrf52-adafruit": 50,
+    "esp32-s3-idf": 40,
+    "esp32-c6-idf": 40,
     # BK72xx now uses BK7252 board (1.62MB flash vs 1.03MB) - no limit needed
     # Other platforms can handle larger groups
 }
+
+#"esp32-s3-idf": 40,
+#"nrf52-adafruit": 40,
+#"esp32-c6-idf": 40,
 
 
 def show_disk_space_if_ci(esphome_command: str) -> None:
@@ -212,6 +221,8 @@ def run_esphome_test(
 
     # Add command and config file
     cmd.extend([esphome_command, str(output_file)])
+    cmd_clean = cmd[:]
+    cmd_clean.extend(["clean", str(output_file)])
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
@@ -222,6 +233,8 @@ def run_esphome_test(
         print("  (using --testing-mode)")
 
     try:
+        result = subprocess.run(cmd, check=False)
+        subprocess.run(cmd_clean, check=False)
         result = subprocess.run(cmd, check=False)
         success = result.returncode == 0
 
@@ -326,6 +339,27 @@ def run_grouped_test(
         str(output_file),
     ]
 
+    cmd_clean = [
+        sys.executable,
+        "-m",
+        "esphome",
+        "--testing-mode",  # Required for grouped tests
+        "-s",
+        "component_name",
+        device_name,  # Use unique hash-based device name
+        "-s",
+        "component_dir",
+        "../../components",
+        "-s",
+        "test_name",
+        "merged",
+        "-s",
+        "target_platform",
+        platform,
+        "clean",
+        str(output_file),
+    ]
+
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
 
@@ -336,6 +370,10 @@ def run_grouped_test(
 
     try:
         result = subprocess.run(cmd, check=False)
+        if result.returncode == 0:
+            # If compile succeeded, run clean to save space
+            subprocess.run(cmd_clean, check=False)
+            result = subprocess.run(cmd, check=False)
         success = result.returncode == 0
 
         # Show disk space after build in CI during compile
@@ -550,6 +588,13 @@ def run_grouped_component_tests(
             # Create split groups
             for i in range(0, len(components), max_size):
                 split_components = components[i : i + max_size]
+                # for comp in split_components:
+                #    for idx,_comp in enumerate(split_components):
+                #         if comp == _comp:
+                #             continue
+                #         if comp in _comp.CONFLICTS_WITH or _comp in comp.CONFLICTS_WITH:
+                #             print(f"    ⚠️ Conflict between {comp} and {_comp}")
+
                 # Create unique signature for each split group
                 split_signature = f"{signature}_split{i // max_size + 1}"
                 split_groups[(platform, split_signature)] = split_components

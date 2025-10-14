@@ -36,8 +36,7 @@ def patch_structhash():
         ):
             fs.rmtree(build_dir)
 
-        if not build_dir.is_dir():
-            build_dir.mkdir(parents=True)
+        build_dir.mkdir(parents=True, exist_ok=True)
 
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir

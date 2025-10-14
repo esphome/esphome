@@ -267,6 +267,7 @@ async def component_to_code(config):
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.set_cpp_standard("gnu++20")
+    cg.add_build_flag("-Os")
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")

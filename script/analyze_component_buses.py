@@ -81,6 +81,7 @@ ISOLATED_COMPONENTS = {
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
+    "openthread": "Conflicts with wifi",
 }
 
 
@@ -299,7 +300,7 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 
 
 def analyze_all_components(
-    tests_dir: Path = None,
+    tests_dir: Path | None = None,
 ) -> tuple[dict[str, dict[str, list[str]]], set[str], set[str]]:
     """Analyze all component test directories.
 

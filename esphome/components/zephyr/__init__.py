@@ -113,6 +113,7 @@ def zephyr_to_code(config):
     cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.set_cpp_standard("gnu++20")
+    cg.add_build_flag("-Oz")
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
 
