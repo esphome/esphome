@@ -59,15 +59,29 @@ def mock_subprocess_run() -> Generator[Mock, None, None]:
         yield mock
 
 
+@pytest.fixture
+def mock_changed_files() -> Generator[Mock, None, None]:
+    """Mock changed_files for memory impact detection."""
+    with patch.object(determine_jobs, "changed_files") as mock:
+        # Default to empty list
+        mock.return_value = []
+        yield mock
+
+
 def test_main_all_tests_should_run(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test when all tests should run."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = True
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
@@ -98,6 +112,9 @@ def test_main_all_tests_should_run(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
+    # memory_impact should be present
+    assert "memory_impact" in output
+    assert output["memory_impact"]["should_run"] == "false"  # No files changed
 
 
 def test_main_no_tests_should_run(
@@ -106,9 +123,14 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test when no tests should run."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = False
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
@@ -134,6 +156,9 @@ def test_main_no_tests_should_run(
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
+    # memory_impact should be present
+    assert "memory_impact" in output
+    assert output["memory_impact"]["should_run"] == "false"
 
 
 def test_main_list_components_fails(
@@ -167,9 +192,14 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test with branch argument."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = False
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
@@ -212,6 +242,9 @@ def test_main_with_branch_argument(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
+    # memory_impact should be present
+    assert "memory_impact" in output
+    assert output["memory_impact"]["should_run"] == "false"
 
 
 def test_should_run_integration_tests(
@@ -399,10 +432,15 @@ def test_main_filters_components_without_tests(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that components without test files are filtered out."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = False
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
@@ -448,3 +486,6 @@ def test_main_filters_components_without_tests(
     assert set(output["changed_components_with_tests"]) == {"wifi", "sensor"}
     # component_test_count should be based on components with tests
     assert output["component_test_count"] == 2
+    # memory_impact should be present
+    assert "memory_impact" in output
+    assert output["memory_impact"]["should_run"] == "false"

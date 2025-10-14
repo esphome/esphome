@@ -18,27 +18,23 @@ COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
 
 def format_bytes(bytes_value: int) -> str:
-    """Format bytes value with appropriate unit.
+    """Format bytes value with comma separators.
 
     Args:
         bytes_value: Number of bytes
 
     Returns:
-        Formatted string (e.g., "1.5 KB", "256 bytes")
+        Formatted string with comma separators (e.g., "1,234 bytes")
     """
-    if bytes_value < 1024:
-        return f"{bytes_value} bytes"
-    if bytes_value < 1024 * 1024:
-        return f"{bytes_value / 1024:.2f} KB"
-    return f"{bytes_value / (1024 * 1024):.2f} MB"
+    return f"{bytes_value:,} bytes"
 
 
 def format_change(before: int, after: int) -> str:
     """Format memory change with delta and percentage.
 
     Args:
-        before: Memory usage before change
-        after: Memory usage after change
+        before: Memory usage before change (in bytes)
+        after: Memory usage after change (in bytes)
 
     Returns:
         Formatted string with delta and percentage
@@ -46,8 +42,16 @@ def format_change(before: int, after: int) -> str:
     delta = after - before
     percentage = 0.0 if before == 0 else (delta / before) * 100
 
-    # Format delta with sign
-    delta_str = f"+{format_bytes(delta)}" if delta >= 0 else format_bytes(delta)
+    # Format delta with sign and always show in bytes for precision
+    if delta > 0:
+        delta_str = f"+{delta:,} bytes"
+        emoji = "📈"
+    elif delta < 0:
+        delta_str = f"{delta:,} bytes"
+        emoji = "📉"
+    else:
+        delta_str = "+0 bytes"
+        emoji = "➡️"
 
     # Format percentage with sign
     if percentage > 0:
@@ -56,14 +60,6 @@ def format_change(before: int, after: int) -> str:
         pct_str = f"{percentage:.2f}%"
     else:
         pct_str = "0.00%"
-
-    # Add emoji indicator
-    if delta > 0:
-        emoji = "📈"
-    elif delta < 0:
-        emoji = "📉"
-    else:
-        emoji = "➡️"
 
     return f"{emoji} {delta_str} ({pct_str})"
 
@@ -115,42 +111,70 @@ def find_existing_comment(pr_number: str) -> str | None:
         pr_number: PR number
 
     Returns:
-        Comment ID if found, None otherwise
+        Comment numeric ID if found, None otherwise
     """
     try:
-        # List all comments on the PR
+        print(
+            f"DEBUG: Looking for existing comment on PR #{pr_number}", file=sys.stderr
+        )
+
+        # Use gh api to get comments directly - this returns the numeric id field
         result = subprocess.run(
             [
                 "gh",
-                "pr",
-                "view",
-                pr_number,
-                "--json",
-                "comments",
+                "api",
+                f"/repos/{{owner}}/{{repo}}/issues/{pr_number}/comments",
                 "--jq",
-                ".comments[]",
+                ".[] | {id, body}",
             ],
             capture_output=True,
             text=True,
             check=True,
         )
 
+        print(
+            f"DEBUG: gh api comments output (first 500 chars):\n{result.stdout[:500]}",
+            file=sys.stderr,
+        )
+
         # Parse comments and look for our marker
+        comment_count = 0
         for line in result.stdout.strip().split("\n"):
             if not line:
                 continue
 
             try:
                 comment = json.loads(line)
-                if COMMENT_MARKER in comment.get("body", ""):
-                    return str(comment["id"])
-            except json.JSONDecodeError:
+                comment_count += 1
+                comment_id = comment.get("id")
+                print(
+                    f"DEBUG: Checking comment {comment_count}: id={comment_id}",
+                    file=sys.stderr,
+                )
+
+                body = comment.get("body", "")
+                if COMMENT_MARKER in body:
+                    print(
+                        f"DEBUG: Found existing comment with id={comment_id}",
+                        file=sys.stderr,
+                    )
+                    # Return the numeric id
+                    return str(comment_id)
+                print("DEBUG: Comment does not contain marker", file=sys.stderr)
+            except json.JSONDecodeError as e:
+                print(f"DEBUG: JSON decode error: {e}", file=sys.stderr)
                 continue
 
+        print(
+            f"DEBUG: No existing comment found (checked {comment_count} comments)",
+            file=sys.stderr,
+        )
         return None
 
     except subprocess.CalledProcessError as e:
         print(f"Error finding existing comment: {e}", file=sys.stderr)
+        if e.stderr:
+            print(f"stderr: {e.stderr.decode()}", file=sys.stderr)
         return None
 
 
@@ -168,10 +192,13 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> bool:
     existing_comment_id = find_existing_comment(pr_number)
 
     try:
-        if existing_comment_id:
+        if existing_comment_id and existing_comment_id != "None":
             # Update existing comment
-            print(f"Updating existing comment {existing_comment_id}", file=sys.stderr)
-            subprocess.run(
+            print(
+                f"DEBUG: Updating existing comment {existing_comment_id}",
+                file=sys.stderr,
+            )
+            result = subprocess.run(
                 [
                     "gh",
                     "api",
@@ -183,15 +210,22 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> bool:
                 ],
                 check=True,
                 capture_output=True,
+                text=True,
             )
+            print(f"DEBUG: Update response: {result.stdout}", file=sys.stderr)
         else:
             # Post new comment
-            print("Posting new comment", file=sys.stderr)
-            subprocess.run(
+            print(
+                f"DEBUG: Posting new comment (existing_comment_id={existing_comment_id})",
+                file=sys.stderr,
+            )
+            result = subprocess.run(
                 ["gh", "pr", "comment", pr_number, "--body", comment_body],
                 check=True,
                 capture_output=True,
+                text=True,
             )
+            print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
 
         print("Comment posted/updated successfully", file=sys.stderr)
         return True
@@ -199,7 +233,15 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> bool:
     except subprocess.CalledProcessError as e:
         print(f"Error posting/updating comment: {e}", file=sys.stderr)
         if e.stderr:
-            print(f"stderr: {e.stderr.decode()}", file=sys.stderr)
+            print(
+                f"stderr: {e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}",
+                file=sys.stderr,
+            )
+        if e.stdout:
+            print(
+                f"stdout: {e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}",
+                file=sys.stderr,
+            )
         return False
 
 
