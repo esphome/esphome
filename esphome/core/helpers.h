@@ -180,6 +180,13 @@ template<typename T> class FixedVector {
     }
   }
 
+  // Helper to reset pointers after cleanup
+  void reset_() {
+    data_ = nullptr;
+    capacity_ = 0;
+    size_ = 0;
+  }
+
  public:
   FixedVector() = default;
 
@@ -187,25 +194,19 @@ template<typename T> class FixedVector {
 
   // Enable move semantics for use in containers
   FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
-    other.data_ = nullptr;
-    other.size_ = 0;
-    other.capacity_ = 0;
+    other.reset_();
   }
 
   FixedVector &operator=(FixedVector &&other) noexcept {
     if (this != &other) {
       // Delete our current data
-      if (data_ != nullptr) {
-        delete[] data_;
-      }
+      cleanup_();
       // Take ownership of other's data
       data_ = other.data_;
       size_ = other.size_;
       capacity_ = other.capacity_;
       // Leave other in valid empty state
-      other.data_ = nullptr;
-      other.size_ = 0;
-      other.capacity_ = 0;
+      other.reset_();
     }
     return *this;
   }
@@ -213,9 +214,7 @@ template<typename T> class FixedVector {
   // Allocate capacity - can be called multiple times to reinit
   void init(size_t n) {
     cleanup_();
-    data_ = nullptr;
-    capacity_ = 0;
-    size_ = 0;
+    reset_();
     if (n > 0) {
       // Allocate raw memory without calling constructors
       data_ = static_cast<T *>(::operator new(n * sizeof(T)));
@@ -229,9 +228,7 @@ template<typename T> class FixedVector {
   // Shrink capacity to fit current size (frees all memory)
   void shrink_to_fit() {
     cleanup_();
-    data_ = nullptr;
-    capacity_ = 0;
-    size_ = 0;
+    reset_();
   }
 
   /// Add element without bounds checking
