@@ -121,6 +121,14 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
+// Use std::vector for RP2040 since scan count is unknown (callback-based)
+// Use FixedVector for other platforms where count is queried first
+#ifdef USE_RP2040
+template<typename T> using wifi_scan_vector_t = std::vector<T>;
+#else
+template<typename T> using wifi_scan_vector_t = FixedVector<T>;
+#endif
+
 class WiFiAP {
  public:
   void set_ssid(const std::string &ssid);
@@ -278,7 +286,7 @@ class WiFiComponent : public Component {
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
-  const FixedVector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -385,7 +393,7 @@ class WiFiComponent : public Component {
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
-  FixedVector<WiFiScanResult> scan_result_;
+  wifi_scan_vector_t<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
   WiFiAP ap_;
   optional<float> output_power_;
