@@ -261,6 +261,21 @@ template<typename T> class FixedVector {
     }
   }
 
+  /// Emplace element without bounds checking - constructs in-place
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Returns reference to the newly constructed element
+  /// Silently ignores emplaces beyond capacity (returns reference to last element)
+  T &emplace_back() {
+    if (size_ < capacity_) {
+      // Use placement new to default-construct the object in pre-allocated memory
+      new (&data_[size_]) T();
+      size_++;
+      return data_[size_ - 1];
+    }
+    // Beyond capacity - return reference to last element to avoid crash
+    return data_[size_ - 1];
+  }
+
   /// Access last element (no bounds checking - matches std::vector behavior)
   /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }
