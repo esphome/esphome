@@ -18,27 +18,23 @@ COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
 
 def format_bytes(bytes_value: int) -> str:
-    """Format bytes value with appropriate unit.
+    """Format bytes value with comma separators.
 
     Args:
         bytes_value: Number of bytes
 
     Returns:
-        Formatted string (e.g., "1.5 KB", "256 bytes")
+        Formatted string with comma separators (e.g., "1,234 bytes")
     """
-    if bytes_value < 1024:
-        return f"{bytes_value} bytes"
-    if bytes_value < 1024 * 1024:
-        return f"{bytes_value / 1024:.2f} KB"
-    return f"{bytes_value / (1024 * 1024):.2f} MB"
+    return f"{bytes_value:,} bytes"
 
 
 def format_change(before: int, after: int) -> str:
     """Format memory change with delta and percentage.
 
     Args:
-        before: Memory usage before change
-        after: Memory usage after change
+        before: Memory usage before change (in bytes)
+        after: Memory usage after change (in bytes)
 
     Returns:
         Formatted string with delta and percentage
@@ -46,8 +42,16 @@ def format_change(before: int, after: int) -> str:
     delta = after - before
     percentage = 0.0 if before == 0 else (delta / before) * 100
 
-    # Format delta with sign
-    delta_str = f"+{format_bytes(delta)}" if delta >= 0 else format_bytes(delta)
+    # Format delta with sign and always show in bytes for precision
+    if delta > 0:
+        delta_str = f"+{delta:,} bytes"
+        emoji = "📈"
+    elif delta < 0:
+        delta_str = f"{delta:,} bytes"
+        emoji = "📉"
+    else:
+        delta_str = "+0 bytes"
+        emoji = "➡️"
 
     # Format percentage with sign
     if percentage > 0:
@@ -56,14 +60,6 @@ def format_change(before: int, after: int) -> str:
         pct_str = f"{percentage:.2f}%"
     else:
         pct_str = "0.00%"
-
-    # Add emoji indicator
-    if delta > 0:
-        emoji = "📈"
-    elif delta < 0:
-        emoji = "📉"
-    else:
-        emoji = "➡️"
 
     return f"{emoji} {delta_str} ({pct_str})"
 
