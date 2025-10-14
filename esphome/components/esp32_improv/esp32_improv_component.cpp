@@ -38,8 +38,7 @@ void ESP32ImprovComponent::setup() {
     });
   }
 #endif
-  global_ble_server->on(BLEServerEvt::EmptyEvt::ON_DISCONNECT,
-                        [this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
+  global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 
   // Start with loop disabled - will be enabled by start() when needed
   this->disable_loop();
@@ -57,12 +56,11 @@ void ESP32ImprovComponent::setup_characteristics() {
   this->error_->add_descriptor(error_descriptor);
 
   this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::on(
-      BLECharacteristicEvt::VectorEvt::ON_WRITE, [this](const std::vector<uint8_t> &data, uint16_t id) {
-        if (!data.empty()) {
-          this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
-        }
-      });
+  this->rpc_->on_write([this](std::span<const uint8_t> data, uint16_t id) {
+    if (!data.empty()) {
+      this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
+    }
+  });
   BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->add_descriptor(rpc_descriptor);
 
@@ -145,6 +143,7 @@ void ESP32ImprovComponent::loop() {
 #else
       this->set_state_(improv::STATE_AUTHORIZED);
 #endif
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_AUTHORIZED: {
@@ -158,31 +157,12 @@ void ESP32ImprovComponent::loop() {
       if (!this->check_identify_()) {
         this->set_status_indicator_state_((now % 1000) < 500);
       }
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_PROVISIONING: {
       this->set_status_indicator_state_((now % 200) < 100);
-      if (wifi::global_wifi_component->is_connected()) {
-        wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
-                                                   this->connecting_sta_.get_password());
-        this->connecting_sta_ = {};
-        this->cancel_timeout("wifi-connect-timeout");
-        this->set_state_(improv::STATE_PROVISIONED);
-
-        std::vector<std::string> urls = {ESPHOME_MY_LINK};
-#ifdef USE_WEBSERVER
-        for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
-          if (ip.is_ip4()) {
-            std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-            urls.push_back(webserver_url);
-            break;
-          }
-        }
-#endif
-        std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
-        this->send_response_(data);
-        this->stop();
-      }
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_PROVISIONED: {
@@ -392,6 +372,36 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
+}
+
+void ESP32ImprovComponent::check_wifi_connection_() {
+  if (!wifi::global_wifi_component->is_connected()) {
+    return;
+  }
+
+  if (this->state_ == improv::STATE_PROVISIONING) {
+    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+    this->connecting_sta_ = {};
+    this->cancel_timeout("wifi-connect-timeout");
+
+    std::vector<std::string> urls = {ESPHOME_MY_LINK};
+#ifdef USE_WEBSERVER
+    for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+      if (ip.is_ip4()) {
+        std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
+        urls.push_back(webserver_url);
+        break;
+      }
+    }
+#endif
+    std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
+    this->send_response_(data);
+  } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
+    ESP_LOGD(TAG, "WiFi provisioned externally");
+  }
+
+  this->set_state_(improv::STATE_PROVISIONED);
+  this->stop();
 }
 
 void ESP32ImprovComponent::advertise_service_data_() {
