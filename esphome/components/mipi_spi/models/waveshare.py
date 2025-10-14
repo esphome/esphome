@@ -155,7 +155,7 @@ CO5300.extend(
 )
 
 AXS15231.extend(
-    "WAVESHARE-S3-TOUCH-LCD-3.49",
+    "WAVESHARE-ESP32-S3-TOUCH-LCD-3.49",
     width=172,
     height=640,
     data_rate="80MHz",
