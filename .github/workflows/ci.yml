@@ -114,8 +114,7 @@ jobs:
       matrix:
         python-version:
           - "3.11"
-          - "3.12"
-          - "3.13"
+          - "3.14"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -124,13 +123,9 @@ jobs:
           # Minimize CI resource usage
           # by only running the Python version
           # version used for docker images on Windows and macOS
-          - python-version: "3.13"
+          - python-version: "3.14"
             os: windows-latest
-          - python-version: "3.12"
-            os: windows-latest
-          - python-version: "3.13"
-            os: macOS-latest
-          - python-version: "3.12"
+          - python-version: "3.14"
             os: macOS-latest
     runs-on: ${{ matrix.os }}
     needs:
