@@ -1122,6 +1122,28 @@ void HomeassistantActionRequest::dump_to(std::string &out) const {
     out.append("\n");
   }
   dump_field(out, "is_event", this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, "wants_response", this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, "response_template", this->response_template);
+#endif
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void HomeassistantActionResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "HomeassistantActionResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
