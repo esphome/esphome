@@ -220,12 +220,16 @@ def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) 
 
 
 def detect_single_component_for_memory_impact(
-    changed_components: list[str],
+    branch: str | None = None,
 ) -> dict[str, Any]:
     """Detect if exactly one component changed for memory impact analysis.
 
+    This analyzes the actual changed files (not dependencies) to determine if
+    exactly one component has been modified. This is different from the
+    changed_components list which includes all dependencies.
+
     Args:
-        changed_components: List of changed component names
+        branch: Branch to compare against
 
     Returns:
         Dictionary with memory impact analysis parameters:
@@ -257,16 +261,26 @@ def detect_single_component_for_memory_impact(
         "host",  # Host platform (development/testing)
     ]
 
-    # Skip base bus components as they're used across many builds
-    filtered_components = [
-        c for c in changed_components if c not in ["i2c", "spi", "uart", "modbus"]
-    ]
+    # Get actually changed files (not dependencies)
+    files = changed_files(branch)
+
+    # Find all changed components (excluding core)
+    changed_component_set = set()
+
+    for file in files:
+        if file.startswith(ESPHOME_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 3:
+                component = parts[2]
+                # Skip base bus components as they're used across many builds
+                if component not in ["i2c", "spi", "uart", "modbus"]:
+                    changed_component_set.add(component)
 
     # Only proceed if exactly one component changed
-    if len(filtered_components) != 1:
+    if len(changed_component_set) != 1:
         return {"should_run": "false"}
 
-    component = filtered_components[0]
+    component = list(changed_component_set)[0]
 
     # Find a test configuration for this component
     tests_dir = Path(root_path) / "tests" / "components" / component
@@ -341,7 +355,7 @@ def main() -> None:
     ]
 
     # Detect single component change for memory impact analysis
-    memory_impact = detect_single_component_for_memory_impact(changed_components)
+    memory_impact = detect_single_component_for_memory_impact(args.branch)
 
     # Build output
     output: dict[str, Any] = {
