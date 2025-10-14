@@ -171,13 +171,20 @@ template<typename T> class FixedVector {
   size_t size_{0};
   size_t capacity_{0};
 
-  // Helper to destroy elements and free memory
-  void cleanup_() {
-    if (data_ != nullptr) {
-      // Manually destroy all elements
+  // Helper to destroy all elements without freeing memory
+  void destroy_elements_() {
+    // Only call destructors for non-trivially destructible types
+    if constexpr (!std::is_trivially_destructible<T>::value) {
       for (size_t i = 0; i < size_; i++) {
         data_[i].~T();
       }
+    }
+  }
+
+  // Helper to destroy elements and free memory
+  void cleanup_() {
+    if (data_ != nullptr) {
+      destroy_elements_();
       // Free raw memory
       ::operator delete(data_);
     }
@@ -220,13 +227,18 @@ template<typename T> class FixedVector {
     reset_();
     if (n > 0) {
       // Allocate raw memory without calling constructors
+      // sizeof(T) is correct here for any type T (value types, pointers, etc.)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
       data_ = static_cast<T *>(::operator new(n * sizeof(T)));
       capacity_ = n;
     }
   }
 
-  // Clear the vector (reset size to 0, keep capacity)
-  void clear() { size_ = 0; }
+  // Clear the vector (destroy all elements, reset size to 0, keep capacity)
+  void clear() {
+    destroy_elements_();
+    size_ = 0;
+  }
 
   // Shrink capacity to fit current size (frees all memory)
   void shrink_to_fit() {
@@ -245,17 +257,30 @@ template<typename T> class FixedVector {
     }
   }
 
-  /// Construct element in place and return reference
+  /// Add element by move without bounds checking
   /// Caller must ensure sufficient capacity was allocated via init()
-  T &emplace_back() {
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
+  void push_back(T &&value) {
     if (size_ < capacity_) {
-      return data_[size_++];
+      // Use placement new to move-construct the object in pre-allocated memory
+      new (&data_[size_]) T(std::move(value));
+      size_++;
     }
-    // Should never happen with proper init() - return last element to avoid crash
-    return data_[capacity_ - 1];
   }
 
-  /// Access last element
+  /// Emplace element without bounds checking - constructs in-place
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Returns reference to the newly constructed element
+  /// NOTE: Caller MUST ensure size_ < capacity_ before calling
+  T &emplace_back() {
+    // Use placement new to default-construct the object in pre-allocated memory
+    new (&data_[size_]) T();
+    size_++;
+    return data_[size_ - 1];
+  }
+
+  /// Access last element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
