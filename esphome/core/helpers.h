@@ -199,7 +199,11 @@ template<typename T> class FixedVector {
 
   ~FixedVector() { cleanup_(); }
 
-  // Enable move semantics for use in containers
+  // Disable copy operations (avoid accidental expensive copies)
+  FixedVector(const FixedVector &) = delete;
+  FixedVector &operator=(const FixedVector &) = delete;
+
+  // Enable move semantics (allows use in move-only containers like std::vector)
   FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
     other.reset_();
   }
