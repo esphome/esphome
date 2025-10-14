@@ -1,4 +1,5 @@
 from collections.abc import Callable, MutableMapping
+from dataclasses import dataclass
 from enum import Enum
 import logging
 import re
@@ -16,7 +17,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
@@ -109,6 +110,58 @@ class BTLoggers(Enum):
 
 # Set to track which loggers are needed by components
 _required_loggers: set[BTLoggers] = set()
+
+
+# Dataclass for handler registration counts
+@dataclass
+class HandlerCounts:
+    gap_event: int = 0
+    gap_scan_event: int = 0
+    gattc_event: int = 0
+    gatts_event: int = 0
+    ble_status_event: int = 0
+
+
+# Track handler registration counts for StaticVector sizing
+_handler_counts = HandlerCounts()
+
+
+def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
+    """Register a GAP event handler and track the count."""
+    _handler_counts.gap_event += 1
+    cg.add(parent_var.register_gap_event_handler(handler_var))
+
+
+def register_gap_scan_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GAP scan event handler and track the count."""
+    _handler_counts.gap_scan_event += 1
+    cg.add(parent_var.register_gap_scan_event_handler(handler_var))
+
+
+def register_gattc_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GATTc event handler and track the count."""
+    _handler_counts.gattc_event += 1
+    cg.add(parent_var.register_gattc_event_handler(handler_var))
+
+
+def register_gatts_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GATTs event handler and track the count."""
+    _handler_counts.gatts_event += 1
+    cg.add(parent_var.register_gatts_event_handler(handler_var))
+
+
+def register_ble_status_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a BLE status event handler and track the count."""
+    _handler_counts.ble_status_event += 1
+    cg.add(parent_var.register_ble_status_event_handler(handler_var))
 
 
 def register_bt_logger(*loggers: BTLoggers) -> None:
@@ -374,6 +427,36 @@ def final_validation(config):
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
+# This needs to be run as a job with CoroPriority.FINAL priority so that all components have
+# a chance to register their handlers before the counts are added to defines.
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_ble_handler_defines():
+    # Add defines for StaticVector sizing based on handler registration counts
+    # Only define if count > 0 to avoid allocating unnecessary memory
+    if _handler_counts.gap_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT", _handler_counts.gap_event
+        )
+    if _handler_counts.gap_scan_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT",
+            _handler_counts.gap_scan_event,
+        )
+    if _handler_counts.gattc_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT", _handler_counts.gattc_event
+        )
+    if _handler_counts.gatts_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT", _handler_counts.gatts_event
+        )
+    if _handler_counts.ble_status_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT",
+            _handler_counts.ble_status_event,
+        )
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
@@ -427,6 +510,9 @@ async def to_code(config):
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
+
+    # Schedule the handler defines to be added after all components register
+    CORE.add_job(_add_ble_handler_defines)
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
