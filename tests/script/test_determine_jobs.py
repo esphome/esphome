@@ -76,8 +76,12 @@ def test_main_all_tests_should_run(
     mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test when all tests should run."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = True
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
@@ -121,8 +125,12 @@ def test_main_no_tests_should_run(
     mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test when no tests should run."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = False
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
@@ -186,8 +194,12 @@ def test_main_with_branch_argument(
     mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test with branch argument."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = False
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
@@ -423,8 +435,12 @@ def test_main_filters_components_without_tests(
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that components without test files are filtered out."""
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     mock_should_run_integration_tests.return_value = False
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
