@@ -100,7 +100,9 @@ const std::string &get_use_address() {
 #endif
 
 #if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI)
-  static_assert(false, "At least one of USE_ETHERNET, USE_MODEM, or USE_WIFI must be defined when USE_NETWORK is set.");
+  // Fallback when no network component is defined (e.g., host platform)
+  static const std::string empty;
+  return empty;
 #endif
 }
 
