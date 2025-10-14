@@ -765,7 +765,6 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
     scan_result_.clear();
     this->scan_done_ = true;
-
     if (it.status != 0) {
       // scan error
       return;
