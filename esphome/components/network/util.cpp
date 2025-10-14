@@ -85,7 +85,7 @@ network::IPAddresses get_ip_addresses() {
   return {};
 }
 
-std::string get_use_address() {
+const std::string &get_use_address() {
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
     return ethernet::global_eth_component->get_use_address();
@@ -100,7 +100,10 @@ std::string get_use_address() {
   if (wifi::global_wifi_component != nullptr)
     return wifi::global_wifi_component->get_use_address();
 #endif
-  return "";
+#if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI)
+  static const std::string empty;
+  return empty;
+#endif
 }
 
 }  // namespace network
