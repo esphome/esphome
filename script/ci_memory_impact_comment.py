@@ -111,31 +111,31 @@ def find_existing_comment(pr_number: str) -> str | None:
         pr_number: PR number
 
     Returns:
-        Comment numeric ID (databaseId) if found, None otherwise
+        Comment numeric ID if found, None otherwise
     """
     try:
         print(
             f"DEBUG: Looking for existing comment on PR #{pr_number}", file=sys.stderr
         )
 
-        # List all comments on the PR with both id (node ID) and databaseId (numeric ID)
+        # Use gh api to get comments directly - this returns the numeric id field
         result = subprocess.run(
             [
                 "gh",
-                "pr",
-                "view",
-                pr_number,
-                "--json",
-                "comments",
+                "api",
+                f"/repos/{{owner}}/{{repo}}/issues/{pr_number}/comments",
                 "--jq",
-                ".comments[] | {id, databaseId, body}",
+                ".[] | {id, body}",
             ],
             capture_output=True,
             text=True,
             check=True,
         )
 
-        print(f"DEBUG: gh pr view output:\n{result.stdout}", file=sys.stderr)
+        print(
+            f"DEBUG: gh api comments output (first 500 chars):\n{result.stdout[:500]}",
+            file=sys.stderr,
+        )
 
         # Parse comments and look for our marker
         comment_count = 0
@@ -146,20 +146,20 @@ def find_existing_comment(pr_number: str) -> str | None:
             try:
                 comment = json.loads(line)
                 comment_count += 1
+                comment_id = comment.get("id")
                 print(
-                    f"DEBUG: Checking comment {comment_count}: id={comment.get('id')}, databaseId={comment.get('databaseId')}",
+                    f"DEBUG: Checking comment {comment_count}: id={comment_id}",
                     file=sys.stderr,
                 )
 
                 body = comment.get("body", "")
                 if COMMENT_MARKER in body:
-                    database_id = str(comment["databaseId"])
                     print(
-                        f"DEBUG: Found existing comment with databaseId={database_id}",
+                        f"DEBUG: Found existing comment with id={comment_id}",
                         file=sys.stderr,
                     )
-                    # Return the numeric databaseId, not the node ID
-                    return database_id
+                    # Return the numeric id
+                    return str(comment_id)
                 print("DEBUG: Comment does not contain marker", file=sys.stderr)
             except json.JSONDecodeError as e:
                 print(f"DEBUG: JSON decode error: {e}", file=sys.stderr)
