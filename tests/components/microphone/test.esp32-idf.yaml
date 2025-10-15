@@ -8,7 +8,6 @@ i2s_audio:
   i2s_bclk_pin: ${i2s_bclk_pin}
   i2s_lrclk_pin: ${i2s_lrclk_pin}
   i2s_mclk_pin: ${i2s_mclk_pin}
-  use_legacy: true
 
 microphone:
   - platform: i2s_audio
@@ -16,7 +15,3 @@ microphone:
     i2s_din_pin: ${i2s_din_pin}
     adc_type: external
     pdm: false
-  - platform: i2s_audio
-    id: mic_id_adc
-    adc_pin: 32
-    adc_type: internal

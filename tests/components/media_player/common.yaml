@@ -7,12 +7,18 @@ i2s_audio:
   i2s_bclk_pin: 14
   i2s_mclk_pin: 15
 
-media_player:
+speaker:
   - platform: i2s_audio
-    name: None
+    id: external_speaker
     dac_type: external
     i2s_dout_pin: 18
-    mute_pin: 19
+
+media_player:
+  - platform: speaker
+    id: speaker_media_player_id
+    name: None
+    announcement_pipeline:
+      speaker: external_speaker
     on_state:
       - media_player.play:
       - media_player.play_media: http://localhost/media.mp3
