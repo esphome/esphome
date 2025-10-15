@@ -9,8 +9,8 @@ from unittest.mock import Mock
 import pytest
 
 from esphome import git
-import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
+from esphome.git import GitCommandError
 
 
 def _compute_repo_dir(url: str, ref: str | None, domain: str) -> Path:
@@ -305,7 +305,7 @@ def test_clone_or_update_recovers_from_git_failures(
 
         # Fail on first call to the specified command, succeed on subsequent calls
         if cmd_type == fail_command and call_counts[cmd_type] == 1:
-            raise cv.Invalid(error_message)
+            raise GitCommandError(error_message)
 
         # Default successful responses
         if cmd_type == "rev-parse":
@@ -357,12 +357,12 @@ def test_clone_or_update_fails_when_recovery_also_fails(
         cmd_type = _get_git_command_type(cmd)
         if cmd_type == "rev-parse":
             # First time fails (broken repo)
-            raise cv.Invalid(
+            raise GitCommandError(
                 "ambiguous argument 'HEAD': unknown revision or path not in the working tree."
             )
         if cmd_type == "clone":
             # Clone also fails (recovery fails)
-            raise cv.Invalid("fatal: unable to access repository")
+            raise GitCommandError("fatal: unable to access repository")
         return ""
 
     mock_run_git_command.side_effect = git_command_side_effect
@@ -370,7 +370,7 @@ def test_clone_or_update_fails_when_recovery_also_fails(
     refresh = TimePeriodSeconds(days=1)
 
     # Should raise after one recovery attempt fails
-    with pytest.raises(cv.Invalid, match="fatal: unable to access repository"):
+    with pytest.raises(GitCommandError, match="fatal: unable to access repository"):
         git.clone_or_update(
             url=url,
             ref=ref,
@@ -417,7 +417,7 @@ def test_clone_or_update_recover_broken_flag_prevents_second_recovery(
 
         # First attempt: rev-parse fails (broken repo)
         if cmd_type == "rev-parse" and call_counts[cmd_type] == 1:
-            raise cv.Invalid(
+            raise GitCommandError(
                 "ambiguous argument 'HEAD': unknown revision or path not in the working tree."
             )
 
@@ -428,7 +428,7 @@ def test_clone_or_update_recover_broken_flag_prevents_second_recovery(
         # Recovery: fetch for ref checkout fails
         # This happens in the clone path when ref is not None (line 80 in git.py)
         if cmd_type == "fetch" and call_counts[cmd_type] == 1:
-            raise cv.Invalid("fatal: couldn't find remote ref main")
+            raise GitCommandError("fatal: couldn't find remote ref main")
 
         # Default success
         return "abc123" if cmd_type == "rev-parse" else ""
@@ -439,7 +439,7 @@ def test_clone_or_update_recover_broken_flag_prevents_second_recovery(
 
     # Should raise on the fetch during recovery (when _recover_broken=False)
     # This tests the critical "if not _recover_broken: raise" path
-    with pytest.raises(cv.Invalid, match="fatal: couldn't find remote ref main"):
+    with pytest.raises(GitCommandError, match="fatal: couldn't find remote ref main"):
         git.clone_or_update(
             url=url,
             ref=ref,
@@ -498,7 +498,7 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
             return "abc123"
         if cmd_type == "stash":
             # Always fails
-            raise cv.Invalid("fatal: unable to write new index file")
+            raise GitCommandError("fatal: unable to write new index file")
         return ""
 
     mock_run_git_command.side_effect = git_command_side_effect
@@ -510,7 +510,7 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
     # This hits the "if not _recover_broken: raise" path
     with (
         unittest.mock.patch("esphome.git.shutil.rmtree", side_effect=mock_rmtree),
-        pytest.raises(cv.Invalid, match="fatal: unable to write new index file"),
+        pytest.raises(GitCommandError, match="fatal: unable to write new index file"),
     ):
         git.clone_or_update(
             url=url,

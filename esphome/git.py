@@ -18,6 +18,22 @@ _LOGGER = logging.getLogger(__name__)
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
 
+class GitException(cv.Invalid):
+    """Base exception for git-related errors."""
+
+
+class GitNotInstalledError(GitException):
+    """Exception raised when git is not installed on the system."""
+
+
+class GitCommandError(GitException):
+    """Exception raised when a git command fails."""
+
+
+class GitRepositoryError(GitException):
+    """Exception raised when a git repository is in an invalid state."""
+
+
 def run_git_command(
     cmd: list[str], cwd: str | None = None, git_dir: Path | None = None
 ) -> str:
@@ -33,8 +49,12 @@ def run_git_command(
     try:
         env = None
         if git_dir is not None:
-            # Force git to only operate on this specific repository
-            # This prevents git from walking up to parent repositories
+            # Force git to only operate on this specific repository by setting
+            # GIT_DIR and GIT_WORK_TREE. This prevents git from walking up the
+            # directory tree to find parent repositories when the target repo's
+            # .git directory is corrupt. Without this, commands like 'git stash'
+            # could accidentally operate on parent repositories (e.g., the main
+            # ESPHome repo) instead of failing, causing data loss.
             env = {
                 **subprocess.os.environ,
                 "GIT_DIR": str(Path(git_dir) / ".git"),
@@ -44,7 +64,7 @@ def run_git_command(
             cmd, cwd=cwd, capture_output=True, check=False, close_fds=False, env=env
         )
     except FileNotFoundError as err:
-        raise cv.Invalid(
+        raise GitNotInstalledError(
             "git is not installed but required for external_components.\n"
             "Please see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git for installing git"
         ) from err
@@ -53,8 +73,8 @@ def run_git_command(
         err_str = ret.stderr.decode("utf-8")
         lines = [x.strip() for x in err_str.splitlines()]
         if lines[-1].startswith("fatal:"):
-            raise cv.Invalid(lines[-1][len("fatal: ") :])
-        raise cv.Invalid(err_str)
+            raise GitCommandError(lines[-1][len("fatal: ") :])
+        raise GitCommandError(err_str)
 
     return ret.stdout.decode("utf-8").strip()
 
@@ -152,7 +172,7 @@ def clone_or_update(
                     str(repo_dir),
                     git_dir=repo_dir,
                 )
-            except cv.Invalid as err:
+            except GitException as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
                 if not _recover_broken:
