@@ -74,7 +74,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], uuid_arr)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    cg.add(parent.register_gap_event_handler(var))
+    esp32_ble.register_gap_event_handler(parent, var)
 
     await cg.register_component(var, config)
     cg.add(var.set_major(config[CONF_MAJOR]))

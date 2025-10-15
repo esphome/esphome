@@ -1,5 +1,5 @@
 substitutions:
-  remote_transmitter_pin: GPIO4
-  remote_receiver_pin: GPIO5
+  remote_transmitter_pin: GPIO0
+  remote_receiver_pin: GPIO2
 
 <<: !include common.yaml
