@@ -1,0 +1,11 @@
+# Common I2C configuration for ESP32-S3 IDF tests
+
+substitutions:
+  scl_pin: GPIO9
+  sda_pin: GPIO8
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

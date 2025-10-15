@@ -8,7 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
 #include "StreamString.h"
 #endif
 
@@ -103,7 +103,7 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
   return match;
 }
 
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
 // helper for allowing only unique entries in the queue
 void DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
@@ -127,6 +127,10 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
       deferred_queue_.erase(deferred_queue_.begin());
       this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
     } else {
+      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::process_buffer_()
+      // The implementations differ due to platform-specific APIs (DISCARDED vs HTTPD_SOCK_ERR_TIMEOUT, close() vs
+      // fd_.store(0)), but the failure counting and timeout logic should be kept in sync. If you change this logic,
+      // also update the ESP-IDF implementation.
       this->consecutive_send_failures_++;
       if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
         // Too many failures, connection is likely dead
@@ -148,6 +152,10 @@ void DeferredUpdateEventSource::loop() {
 
 void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
                                                       message_generator_t *message_generator) {
+  // Skip if no connected clients to avoid unnecessary deferred queue processing
+  if (this->count() == 0)
+    return;
+
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
   if (!entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
@@ -193,6 +201,9 @@ void DeferredUpdateEventSourceList::loop() {
 
 void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
                                                           message_generator_t *message_generator) {
+  // Skip if no event sources (no connected clients) to avoid unnecessary iteration
+  if (this->empty())
+    return;
   for (DeferredUpdateEventSource *dues : *this) {
     dues->deferrable_send_state(source, event_type, message_generator);
   }
@@ -297,7 +308,7 @@ void WebServer::setup() {
   }
 #endif
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   this->base_->add_handler(&this->events_);
 #endif
   this->base_->add_handler(this);
@@ -381,11 +392,14 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #endif
 
 // Helper functions to reduce code size by avoiding macro expansion
-static void set_json_id(JsonObject &root, EntityBase *obj, const std::string &id, JsonDetail start_config) {
-  root["id"] = id;
+static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
+  char id_buf[160];  // object_id can be up to 128 chars + prefix + dash + null
+  const auto &object_id = obj->get_object_id();
+  snprintf(id_buf, sizeof(id_buf), "%s-%s", prefix, object_id.c_str());
+  root["id"] = id_buf;
   if (start_config == DETAIL_ALL) {
     root["name"] = obj->get_name();
-    root["icon"] = obj->get_icon();
+    root["icon"] = obj->get_icon_ref();
     root["entity_category"] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
     if (is_disabled)
@@ -393,17 +407,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const std::string &id
   }
 }
 
+// Keep as separate function even though only used once: reduces code size by ~48 bytes
+// by allowing compiler to share code between template instantiations (bool, float, etc.)
 template<typename T>
-static void set_json_value(JsonObject &root, EntityBase *obj, const std::string &id, const T &value,
+static void set_json_value(JsonObject &root, EntityBase *obj, const char *prefix, const T &value,
                            JsonDetail start_config) {
-  set_json_id(root, obj, id, start_config);
+  set_json_id(root, obj, prefix, start_config);
   root["value"] = value;
 }
 
 template<typename T>
-static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const std::string &id,
-                                      const std::string &state, const T &value, JsonDetail start_config) {
-  set_json_value(root, obj, id, value, start_config);
+static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, const std::string &state,
+                                      const T &value, JsonDetail start_config) {
+  set_json_value(root, obj, prefix, value, start_config);
   root["state"] = state;
 }
 
@@ -415,8 +431,6 @@ static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", sensor_state_json_generator);
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -442,20 +456,15 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // Build JSON directly inline
-  std::string state;
-  if (std::isnan(value)) {
-    state = "NA";
-  } else {
-    state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
-    if (!obj->get_unit_of_measurement().empty())
-      state += " " + obj->get_unit_of_measurement();
-  }
-  set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
+  const auto uom_ref = obj->get_unit_of_measurement_ref();
+
+  std::string state =
+      std::isnan(value) ? "NA" : value_accuracy_with_uom_to_string(value, obj->get_accuracy_decimals(), uom_ref);
+  set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
-    if (!obj->get_unit_of_measurement().empty())
-      root["uom"] = obj->get_unit_of_measurement();
+    if (!uom_ref.empty())
+      root["uom"] = uom_ref;
   }
 
   return builder.serialize();
@@ -464,8 +473,6 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", text_sensor_state_json_generator);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -494,7 +501,7 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value, start_config);
+  set_json_icon_state_value(root, obj, "text_sensor", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -505,8 +512,6 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", switch_state_json_generator);
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -567,7 +572,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+  set_json_icon_state_value(root, obj, "switch", value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
     root["assumed_state"] = obj->assumed_state();
     this->add_sorting_info_(root, obj);
@@ -607,7 +612,7 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "button-" + obj->get_object_id(), start_config);
+  set_json_id(root, obj, "button", start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -618,8 +623,6 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -647,8 +650,7 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value,
-                            start_config);
+  set_json_icon_state_value(root, obj, "binary_sensor", value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -659,8 +661,6 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::Fan *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", fan_state_json_generator);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -717,8 +717,7 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state,
-                            start_config);
+  set_json_icon_state_value(root, obj, "fan", obj->state ? "ON" : "OFF", obj->state, start_config);
   const auto traits = obj->get_traits();
   if (traits.supports_speed()) {
     root["speed_level"] = obj->speed;
@@ -736,8 +735,6 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", light_state_json_generator);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -793,8 +790,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "light-" + obj->get_object_id(), start_config);
-  root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
+  set_json_value(root, obj, "light", obj->remote_values.is_on() ? "ON" : "OFF", start_config);
 
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
@@ -812,8 +808,6 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", cover_state_json_generator);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -829,15 +823,28 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     auto call = obj->make_call();
-    if (match.method_equals("open")) {
-      call.set_command_open();
-    } else if (match.method_equals("close")) {
-      call.set_command_close();
-    } else if (match.method_equals("stop")) {
-      call.set_command_stop();
-    } else if (match.method_equals("toggle")) {
-      call.set_command_toggle();
-    } else if (!match.method_equals("set")) {
+
+    // Lookup table for cover methods
+    static const struct {
+      const char *name;
+      cover::CoverCall &(cover::CoverCall::*action)();
+    } METHODS[] = {
+        {"open", &cover::CoverCall::set_command_open},
+        {"close", &cover::CoverCall::set_command_close},
+        {"stop", &cover::CoverCall::set_command_stop},
+        {"toggle", &cover::CoverCall::set_command_toggle},
+    };
+
+    bool found = false;
+    for (const auto &method : METHODS) {
+      if (match.method_equals(method.name)) {
+        (call.*method.action)();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found && !match.method_equals("set")) {
       request->send(404);
       return;
     }
@@ -868,8 +875,8 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
-                            obj->position, start_config);
+  set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
+                            start_config);
   root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
   if (obj->get_traits().get_supports_position())
@@ -886,8 +893,6 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", number_state_json_generator);
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -926,7 +931,15 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
+  const auto uom_ref = obj->traits.get_unit_of_measurement_ref();
+
+  std::string val_str = std::isnan(value)
+                            ? "\"NaN\""
+                            : value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
+  std::string state_str = std::isnan(value) ? "NA"
+                                            : value_accuracy_with_uom_to_string(
+                                                  value, step_to_accuracy_decimals(obj->traits.get_step()), uom_ref);
+  set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
     root["min_value"] =
         value_accuracy_to_string(obj->traits.get_min_value(), step_to_accuracy_decimals(obj->traits.get_step()));
@@ -934,19 +947,9 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
         value_accuracy_to_string(obj->traits.get_max_value(), step_to_accuracy_decimals(obj->traits.get_step()));
     root["step"] = value_accuracy_to_string(obj->traits.get_step(), step_to_accuracy_decimals(obj->traits.get_step()));
     root["mode"] = (int) obj->traits.get_mode();
-    if (!obj->traits.get_unit_of_measurement().empty())
-      root["uom"] = obj->traits.get_unit_of_measurement();
+    if (!uom_ref.empty())
+      root["uom"] = uom_ref;
     this->add_sorting_info_(root, obj);
-  }
-  if (std::isnan(value)) {
-    root["value"] = "\"NaN\"";
-    root["state"] = "NA";
-  } else {
-    root["value"] = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
-    std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
-    if (!obj->traits.get_unit_of_measurement().empty())
-      state += " " + obj->traits.get_unit_of_measurement();
-    root["state"] = state;
   }
 
   return builder.serialize();
@@ -955,8 +958,6 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_DATETIME_DATE
 void WebServer::on_date_update(datetime::DateEntity *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", date_state_json_generator);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1000,10 +1001,8 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "date-" + obj->get_object_id(), start_config);
   std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
-  root["value"] = value;
-  root["state"] = value;
+  set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1014,8 +1013,6 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_TIME
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", time_state_json_generator);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1058,10 +1055,8 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "time-" + obj->get_object_id(), start_config);
   std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-  root["value"] = value;
-  root["state"] = value;
+  set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1072,8 +1067,6 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", datetime_state_json_generator);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1116,11 +1109,9 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "datetime-" + obj->get_object_id(), start_config);
   std::string value =
       str_sprintf("%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute, obj->second);
-  root["value"] = value;
-  root["state"] = value;
+  set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1131,8 +1122,6 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 
 #ifdef USE_TEXT
 void WebServer::on_text_update(text::Text *obj, const std::string &state) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", text_state_json_generator);
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1171,16 +1160,11 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "text-" + obj->get_object_id(), start_config);
+  std::string state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value;
+  set_json_icon_state_value(root, obj, "text", state, value, start_config);
   root["min_length"] = obj->traits.get_min_length();
   root["max_length"] = obj->traits.get_max_length();
   root["pattern"] = obj->traits.get_pattern();
-  if (obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD) {
-    root["state"] = "********";
-  } else {
-    root["state"] = value;
-  }
-  root["value"] = value;
   if (start_config == DETAIL_ALL) {
     root["mode"] = (int) obj->traits.get_mode();
     this->add_sorting_info_(root, obj);
@@ -1192,8 +1176,6 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", select_state_json_generator);
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1232,7 +1214,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
+  set_json_icon_state_value(root, obj, "select", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root["option"].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1246,12 +1228,10 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 #endif
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(buf, (PGM_P) ((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), 15)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", climate_state_json_generator);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1301,7 +1281,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   json::JsonBuilder builder;
   JsonObject root = builder.root();
-  set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
+  set_json_id(root, obj, "climate", start_config);
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
@@ -1392,8 +1372,6 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
 #ifdef USE_LOCK
 void WebServer::on_lock_update(lock::Lock *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", lock_state_json_generator);
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1454,8 +1432,7 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "lock-" + obj->get_object_id(), lock::lock_state_to_string(value), value,
-                            start_config);
+  set_json_icon_state_value(root, obj, "lock", lock::lock_state_to_string(value), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1466,8 +1443,6 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
 
 #ifdef USE_VALVE
 void WebServer::on_valve_update(valve::Valve *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", valve_state_json_generator);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1483,15 +1458,28 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     auto call = obj->make_call();
-    if (match.method_equals("open")) {
-      call.set_command_open();
-    } else if (match.method_equals("close")) {
-      call.set_command_close();
-    } else if (match.method_equals("stop")) {
-      call.set_command_stop();
-    } else if (match.method_equals("toggle")) {
-      call.set_command_toggle();
-    } else if (!match.method_equals("set")) {
+
+    // Lookup table for valve methods
+    static const struct {
+      const char *name;
+      valve::ValveCall &(valve::ValveCall::*action)();
+    } METHODS[] = {
+        {"open", &valve::ValveCall::set_command_open},
+        {"close", &valve::ValveCall::set_command_close},
+        {"stop", &valve::ValveCall::set_command_stop},
+        {"toggle", &valve::ValveCall::set_command_toggle},
+    };
+
+    bool found = false;
+    for (const auto &method : METHODS) {
+      if (match.method_equals(method.name)) {
+        (call.*method.action)();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found && !match.method_equals("set")) {
       request->send(404);
       return;
     }
@@ -1520,8 +1508,8 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "valve-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
-                            obj->position, start_config);
+  set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
+                            start_config);
   root["current_operation"] = valve::valve_operation_to_str(obj->current_operation);
 
   if (obj->get_traits().get_supports_position())
@@ -1536,8 +1524,6 @@ std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", alarm_control_panel_state_json_generator);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1555,17 +1541,28 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     auto call = obj->make_call();
     parse_string_param_(request, "code", call, &decltype(call)::set_code);
 
-    if (match.method_equals("disarm")) {
-      call.disarm();
-    } else if (match.method_equals("arm_away")) {
-      call.arm_away();
-    } else if (match.method_equals("arm_home")) {
-      call.arm_home();
-    } else if (match.method_equals("arm_night")) {
-      call.arm_night();
-    } else if (match.method_equals("arm_vacation")) {
-      call.arm_vacation();
-    } else {
+    // Lookup table for alarm control panel methods
+    static const struct {
+      const char *name;
+      alarm_control_panel::AlarmControlPanelCall &(alarm_control_panel::AlarmControlPanelCall::*action)();
+    } METHODS[] = {
+        {"disarm", &alarm_control_panel::AlarmControlPanelCall::disarm},
+        {"arm_away", &alarm_control_panel::AlarmControlPanelCall::arm_away},
+        {"arm_home", &alarm_control_panel::AlarmControlPanelCall::arm_home},
+        {"arm_night", &alarm_control_panel::AlarmControlPanelCall::arm_night},
+        {"arm_vacation", &alarm_control_panel::AlarmControlPanelCall::arm_vacation},
+    };
+
+    bool found = false;
+    for (const auto &method : METHODS) {
+      if (match.method_equals(method.name)) {
+        (call.*method.action)();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
       request->send(404);
       return;
     }
@@ -1593,8 +1590,8 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
   JsonObject root = builder.root();
 
   char buf[16];
-  set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(),
-                            PSTR_LOCAL(alarm_control_panel_state_to_string(value)), value, start_config);
+  set_json_icon_state_value(root, obj, "alarm-control-panel", PSTR_LOCAL(alarm_control_panel_state_to_string(value)),
+                            value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1639,7 +1636,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "event-" + obj->get_object_id(), start_config);
+  set_json_id(root, obj, "event", start_config);
   if (!event_type.empty()) {
     root["event_type"] = event_type;
   }
@@ -1648,7 +1645,7 @@ std::string WebServer::event_json(event::Event *obj, const std::string &event_ty
     for (auto const &event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
-    root["device_class"] = obj->get_device_class();
+    root["device_class"] = obj->get_device_class_ref();
     this->add_sorting_info_(root, obj);
   }
 
@@ -1671,8 +1668,6 @@ static const char *update_state_to_string(update::UpdateState state) {
 }
 
 void WebServer::on_update(update::UpdateEntity *obj) {
-  if (this->events_.empty())
-    return;
   this->events_.deferrable_send_state(obj, "state", update_state_json_generator);
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -1711,9 +1706,8 @@ std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_c
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "update-" + obj->get_object_id(), start_config);
-  root["value"] = obj->update_info.latest_version;
-  root["state"] = update_state_to_string(obj->state);
+  set_json_icon_state_value(root, obj, "update", update_state_to_string(obj->state), obj->update_info.latest_version,
+                            start_config);
   if (start_config == DETAIL_ALL) {
     root["current_version"] = obj->update_info.current_version;
     root["title"] = obj->update_info.title;
@@ -1731,24 +1725,24 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   const auto &url = request->url();
   const auto method = request->method();
 
-  // Simple URL checks
-  if (url == "/")
-    return true;
-
-#ifdef USE_ARDUINO
-  if (url == "/events")
-    return true;
+  // Static URL checks
+  static const char *const STATIC_URLS[] = {
+    "/",
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
+    "/events",
 #endif
-
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css")
-    return true;
+    "/0.css",
 #endif
-
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js")
-    return true;
+    "/0.js",
 #endif
+  };
+
+  for (const auto &static_url : STATIC_URLS) {
+    if (url == static_url)
+      return true;
+  }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (method == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA))
@@ -1768,92 +1762,87 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (!is_get_or_post)
     return false;
 
-  // GET-only components
-  if (is_get) {
+  // Use lookup tables for domain checks
+  static const char *const GET_ONLY_DOMAINS[] = {
 #ifdef USE_SENSOR
-    if (match.domain_equals("sensor"))
-      return true;
+      "sensor",
 #endif
 #ifdef USE_BINARY_SENSOR
-    if (match.domain_equals("binary_sensor"))
-      return true;
+      "binary_sensor",
 #endif
 #ifdef USE_TEXT_SENSOR
-    if (match.domain_equals("text_sensor"))
-      return true;
+      "text_sensor",
 #endif
 #ifdef USE_EVENT
-    if (match.domain_equals("event"))
-      return true;
+      "event",
 #endif
-  }
+  };
 
-  // GET+POST components
-  if (is_get_or_post) {
+  static const char *const GET_POST_DOMAINS[] = {
 #ifdef USE_SWITCH
-    if (match.domain_equals("switch"))
-      return true;
+      "switch",
 #endif
 #ifdef USE_BUTTON
-    if (match.domain_equals("button"))
-      return true;
+      "button",
 #endif
 #ifdef USE_FAN
-    if (match.domain_equals("fan"))
-      return true;
+      "fan",
 #endif
 #ifdef USE_LIGHT
-    if (match.domain_equals("light"))
-      return true;
+      "light",
 #endif
 #ifdef USE_COVER
-    if (match.domain_equals("cover"))
-      return true;
+      "cover",
 #endif
 #ifdef USE_NUMBER
-    if (match.domain_equals("number"))
-      return true;
+      "number",
 #endif
 #ifdef USE_DATETIME_DATE
-    if (match.domain_equals("date"))
-      return true;
+      "date",
 #endif
 #ifdef USE_DATETIME_TIME
-    if (match.domain_equals("time"))
-      return true;
+      "time",
 #endif
 #ifdef USE_DATETIME_DATETIME
-    if (match.domain_equals("datetime"))
-      return true;
+      "datetime",
 #endif
 #ifdef USE_TEXT
-    if (match.domain_equals("text"))
-      return true;
+      "text",
 #endif
 #ifdef USE_SELECT
-    if (match.domain_equals("select"))
-      return true;
+      "select",
 #endif
 #ifdef USE_CLIMATE
-    if (match.domain_equals("climate"))
-      return true;
+      "climate",
 #endif
 #ifdef USE_LOCK
-    if (match.domain_equals("lock"))
-      return true;
+      "lock",
 #endif
 #ifdef USE_VALVE
-    if (match.domain_equals("valve"))
-      return true;
+      "valve",
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-    if (match.domain_equals("alarm_control_panel"))
-      return true;
+      "alarm_control_panel",
 #endif
 #ifdef USE_UPDATE
-    if (match.domain_equals("update"))
-      return true;
+      "update",
 #endif
+  };
+
+  // Check GET-only domains
+  if (is_get) {
+    for (const auto &domain : GET_ONLY_DOMAINS) {
+      if (match.domain_equals(domain))
+        return true;
+    }
+  }
+
+  // Check GET+POST domains
+  if (is_get_or_post) {
+    for (const auto &domain : GET_POST_DOMAINS) {
+      if (match.domain_equals(domain))
+        return true;
+    }
   }
 
   return false;
@@ -1867,7 +1856,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == "/events") {
     this->events_.add_new_client(this, request);
     return;
