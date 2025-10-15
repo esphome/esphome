@@ -73,9 +73,11 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
 
-    # Mock list-components.py output
+    # Mock list-components.py output (now returns JSON with --changed-with-deps)
     mock_result = Mock()
-    mock_result.stdout = "wifi\napi\nsensor\n"
+    mock_result.stdout = json.dumps(
+        {"directly_changed": ["wifi", "api"], "all_changed": ["wifi", "api", "sensor"]}
+    )
     mock_subprocess_run.return_value = mock_result
 
     # Run main function with mocked argv
@@ -116,7 +118,7 @@ def test_main_no_tests_should_run(
 
     # Mock empty list-components.py output
     mock_result = Mock()
-    mock_result.stdout = ""
+    mock_result.stdout = json.dumps({"directly_changed": [], "all_changed": []})
     mock_subprocess_run.return_value = mock_result
 
     # Run main function with mocked argv
@@ -177,7 +179,9 @@ def test_main_with_branch_argument(
 
     # Mock list-components.py output
     mock_result = Mock()
-    mock_result.stdout = "mqtt\n"
+    mock_result.stdout = json.dumps(
+        {"directly_changed": ["mqtt"], "all_changed": ["mqtt"]}
+    )
     mock_subprocess_run.return_value = mock_result
 
     with patch("sys.argv", ["script.py", "-b", "main"]):
@@ -192,7 +196,7 @@ def test_main_with_branch_argument(
     # Check that list-components.py was called with branch
     mock_subprocess_run.assert_called_once()
     call_args = mock_subprocess_run.call_args[0][0]
-    assert "--changed" in call_args
+    assert "--changed-with-deps" in call_args
     assert "-b" in call_args
     assert "main" in call_args
 
@@ -411,7 +415,12 @@ def test_main_filters_components_without_tests(
     # Mock list-components.py output with 3 components
     # wifi: has tests, sensor: has tests, airthings_ble: no tests
     mock_result = Mock()
-    mock_result.stdout = "wifi\nsensor\nairthings_ble\n"
+    mock_result.stdout = json.dumps(
+        {
+            "directly_changed": ["wifi", "sensor"],
+            "all_changed": ["wifi", "sensor", "airthings_ble"],
+        }
+    )
     mock_subprocess_run.return_value = mock_result
 
     # Create test directory structure
@@ -436,6 +445,8 @@ def test_main_filters_components_without_tests(
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch("sys.argv", ["determine-jobs.py"]),
     ):
+        # Clear the cache since we're mocking root_path
+        determine_jobs._component_has_tests.cache_clear()
         determine_jobs.main()
 
     # Check output

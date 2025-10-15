@@ -185,18 +185,32 @@ def main():
         "-c",
         "--changed",
         action="store_true",
-        help="List all components required for testing based on changes",
+        help="List all components required for testing based on changes (includes dependencies)",
+    )
+    parser.add_argument(
+        "--changed-direct",
+        action="store_true",
+        help="List only directly changed components (without dependencies)",
+    )
+    parser.add_argument(
+        "--changed-with-deps",
+        action="store_true",
+        help="Output JSON with both directly changed and all changed components",
     )
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
     )
     args = parser.parse_args()
 
-    if args.branch and not args.changed:
-        parser.error("--branch requires --changed")
+    if args.branch and not (
+        args.changed or args.changed_direct or args.changed_with_deps
+    ):
+        parser.error(
+            "--branch requires --changed, --changed-direct, or --changed-with-deps"
+        )
 
-    if args.changed:
-        # When --changed is passed, only get the changed files
+    if args.changed or args.changed_direct or args.changed_with_deps:
+        # When --changed* is passed, only get the changed files
         changed = changed_files(args.branch)
 
         # If any base test file(s) changed, there's no need to filter out components
@@ -210,8 +224,25 @@ def main():
         # Get all component files
         files = get_all_component_files()
 
-    for c in get_components(files, args.changed):
-        print(c)
+    if args.changed_with_deps:
+        # Return JSON with both directly changed and all changed components
+        import json
+
+        directly_changed = get_components(files, False)
+        all_changed = get_components(files, True)
+        output = {
+            "directly_changed": directly_changed,
+            "all_changed": all_changed,
+        }
+        print(json.dumps(output))
+    elif args.changed_direct:
+        # Return only directly changed components (without dependencies)
+        for c in get_components(files, False):
+            print(c)
+    else:
+        # Return all changed components (with dependencies) - default behavior
+        for c in get_components(files, args.changed):
+            print(c)
 
 
 if __name__ == "__main__":

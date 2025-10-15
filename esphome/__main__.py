@@ -268,8 +268,10 @@ def has_ip_address() -> bool:
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS or is an IP address)."""
-    return has_mdns() or has_ip_address()
+    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
+    # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
+    return CORE.address is not None
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
@@ -578,11 +580,12 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api():
         addresses_to_use: list[str] | None = None
 
-        if port_type == "NETWORK" and (has_mdns() or is_ip_address(port)):
+        if port_type == "NETWORK":
+            # Network addresses (IPs, mDNS names, or regular DNS hostnames) can be used
+            # The resolve_ip_address() function in helpers.py handles all types
             addresses_to_use = devices
-        elif port_type in ("NETWORK", "MQTT", "MQTTIP") and has_mqtt_ip_lookup():
-            # Only use MQTT IP lookup if the first condition didn't match
-            # (for MQTT/MQTTIP types, or for NETWORK when mdns/ip check fails)
+        elif port_type in ("MQTT", "MQTTIP") and has_mqtt_ip_lookup():
+            # Use MQTT IP lookup for MQTT/MQTTIP types
             addresses_to_use = mqtt_get_ip(
                 config, args.username, args.password, args.client_id
             )
