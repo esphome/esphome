@@ -106,7 +106,7 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   // Use correct HTML data based on whether custom HTML is used
 #ifdef USE_CAPTIVE_PORTAL_CUSTOM_HTML
 #define HTML_DATA ESPHOME_CAPTIVE_PORTAL_INDEX_GZ
-#define HTML_SIZE sizeof(ESPHOME_CAPTIVE_PORTAL_INDEX_GZ_SIZE)
+#define HTML_SIZE ESPHOME_CAPTIVE_PORTAL_INDEX_GZ_SIZE
 #else
 #define HTML_DATA INDEX_GZ
 #define HTML_SIZE sizeof(INDEX_GZ)
