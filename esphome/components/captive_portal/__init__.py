@@ -93,20 +93,16 @@ async def to_code(config):
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    files_to_filter: list[str] = []
+    # Only compile the ESP-IDF DNS server when using ESP-IDF framework
+    files_to_filter = filter_source_files_from_platform(
+        {
+            "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
+        }
+    )()
 
     # captive_index.h is only needed when there is no custom html index file provided
     config = CORE.config.get("captive_portal", {})
     if CONF_CUSTOM_HTML in config:
         files_to_filter.append("captive_index.h")
-
-    # Only compile the ESP-IDF DNS server when using ESP-IDF framework
-    files_to_filter.extend(
-        filter_source_files_from_platform(
-            {
-                "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
-            }
-        )
-    )
 
     return files_to_filter
