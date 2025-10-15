@@ -78,7 +78,7 @@ lvgl:
     - id: date_style
       text_font: roboto10
       align: center
-      text_color: color_id2
+      text_color: !lambda return color_id2;
       bg_opa: cover
       radius: 4
       pad_all: 2
@@ -170,6 +170,12 @@ lvgl:
               lvgl.page.is_showing: page1
             then:
               logger.log: "Yes, page1 showing"
+        - if:
+            condition:
+              lvgl.is_idle:
+                timeout: !lambda return 5000;
+            then:
+              logger.log: LVGL is idle
       on_unload:
         - logger.log: page unloaded
         - lvgl.widget.focus: mark
@@ -640,7 +646,9 @@ lvgl:
             on_click:
               lvgl.qrcode.update:
                 id: lv_qr
-                text: homeassistant.io
+                text:
+                  format: "A string with a number %d"
+                  args: ['(int)(random_uint32() % 1000)']
 
         - slider:
             min_value: 0
@@ -676,7 +684,7 @@ lvgl:
             width: 120
             range_from: -10
             range_to: 1000
-            step: 5.0
+            selected_digit: 2
             rollover: false
             digits: 6
             decimal_places: 2
@@ -715,6 +723,20 @@ lvgl:
                 arc_color: 0xFFFF00
               focused:
                 arc_color: 0x808080
+        - arc:
+            align: center
+            id: lv_arc_1
+            value: !lambda return 75;
+            min_value: !lambda return 50;
+            max_value: !lambda return 60;
+            arc_color: 0xFF0000
+            indicator:
+              arc_width: !lambda return 20;
+              arc_color: 0xF000FF
+              pressed:
+                arc_color: 0xFFFF00
+              focused:
+                arc_color: 0x808080
         - bar:
             id: bar_id
             align: top_mid
@@ -722,12 +744,15 @@ lvgl:
             value: 30
             max_value: 100
             min_value: 10
+            start_value: 20
             mode: range
             on_click:
               then:
                 - lvgl.bar.update:
                     id: bar_id
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    mode: range
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
@@ -828,9 +853,7 @@ lvgl:
                       styles: bdr_style
                       grid_cell_x_align: center
                       grid_cell_y_align: stretch
-                      grid_cell_row_pos: 0
-                      grid_cell_column_pos: 1
-                      grid_cell_column_span: 1
+                      grid_cell_column_span: 2
                       text: "Grid cell 0/1"
                   - label:
                       grid_cell_x_align: end
@@ -910,21 +933,27 @@ lvgl:
                       text_color: 0xFFFFFF
                       scales:
                         - ticks:
-                            width: 1
+                            width: !lambda return 1;
                             count: 61
-                            length: 20
+                            length: 20%
                             color: 0xFFFFFF
                           range_from: 0
                           range_to: 60
                           angle_range: 360
-                          rotation: 270
+                          rotation: !lambda return 2700;
                           indicators:
+                            - tick_style:
+                                start_value: 0
+                                end_value: 60
+                                color_start: 0x0000bd
+                                color_end: 0xbd0000
+                                width: !lambda return 1;
                             - line:
                                 opa: 50%
                                 id: minute_hand
                                 color: 0xFF0000
-                                r_mod: -1
-                                width: 3
+                                r_mod: !lambda return -1;
+                                width: !lambda return 3;
                         -
                           angle_range: 330
                           rotation: 300

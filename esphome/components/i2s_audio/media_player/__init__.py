@@ -92,7 +92,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(_):
     if not use_legacy():
-        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver.")
+        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -114,7 +114,7 @@ async def to_code(config):
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
         cg.add(var.set_i2s_comm_fmt_lsb(config[CONF_I2S_COMM_FMT] == "lsb"))
 
-    cg.add_library("WiFiClientSecure", None)
+    cg.add_library("NetworkClientSecure", None)
     cg.add_library("HTTPClient", None)
-    cg.add_library("esphome/ESP32-audioI2S", "2.0.7")
+    cg.add_library("esphome/ESP32-audioI2S", "2.3.0")
     cg.add_build_flag("-DAUDIO_NO_SD_FS")

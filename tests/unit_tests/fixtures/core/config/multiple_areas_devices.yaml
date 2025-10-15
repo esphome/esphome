@@ -1,0 +1,22 @@
+esphome:
+  name: test-multiple
+  area:
+    id: main_area
+    name: Main Area
+  areas:
+    - id: area1
+      name: Area 1
+    - id: area2
+      name: Area 2
+  devices:
+    - id: device1
+      name: Device 1
+      area_id: main_area
+    - id: device2
+      name: Device 2
+      area_id: area1
+    - id: device3
+      name: Device 3
+      area_id: area2
+
+host:

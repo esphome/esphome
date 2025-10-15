@@ -10,8 +10,10 @@ static const char *const TAG = "pylontech.textsensor";
 PylontechTextSensor::PylontechTextSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
 
 void PylontechTextSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pylontech Text Sensor:");
-  ESP_LOGCONFIG(TAG, " Battery %d", this->bat_num_);
+  ESP_LOGCONFIG(TAG,
+                "Pylontech Text Sensor:\n"
+                " Battery %d",
+                this->bat_num_);
   LOG_TEXT_SENSOR("  ", "Base state", this->base_state_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Voltage state", this->voltage_state_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Current state", this->current_state_text_sensor_);

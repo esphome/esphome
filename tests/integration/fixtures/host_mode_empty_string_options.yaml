@@ -1,0 +1,58 @@
+esphome:
+  name: host-empty-string-test
+
+host:
+
+api:
+  batch_delay: 50ms
+
+select:
+  - platform: template
+    name: "Select Empty First"
+    id: select_empty_first
+    optimistic: true
+    options:
+      - ""  # Empty string at the beginning
+      - "Option A"
+      - "Option B"
+      - "Option C"
+    initial_option: "Option A"
+
+  - platform: template
+    name: "Select Empty Middle"
+    id: select_empty_middle
+    optimistic: true
+    options:
+      - "Option 1"
+      - "Option 2"
+      - ""  # Empty string in the middle
+      - "Option 3"
+      - "Option 4"
+    initial_option: "Option 1"
+
+  - platform: template
+    name: "Select Empty Last"
+    id: select_empty_last
+    optimistic: true
+    options:
+      - "Choice X"
+      - "Choice Y"
+      - "Choice Z"
+      - ""  # Empty string at the end
+    initial_option: "Choice X"
+
+# Add a sensor to ensure we have other entities in the list
+sensor:
+  - platform: template
+    name: "Test Sensor"
+    id: test_sensor
+    lambda: |-
+      return 42.0;
+    update_interval: 60s
+
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor"
+    id: test_binary_sensor
+    lambda: |-
+      return true;

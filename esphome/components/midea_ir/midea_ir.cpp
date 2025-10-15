@@ -1,7 +1,7 @@
 #include "midea_ir.h"
 #include "midea_data.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/coolix/coolix.h"
 
 namespace esphome {

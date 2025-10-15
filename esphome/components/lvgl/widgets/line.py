@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_X, CONF_Y
 from esphome.core import Lambda
 
-from ..defines import CONF_MAIN, CONF_X, CONF_Y, call_lambda
+from ..defines import CONF_MAIN, call_lambda
 from ..lvcode import lv_add
 from ..schemas import point_schema
 from ..types import LvCompound, LvType
