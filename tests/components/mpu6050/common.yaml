@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_mpu6050
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mpu6050
+    i2c_id: i2c_bus
     address: 0x68
     accel_x:
       name: MPU6050 Accel X

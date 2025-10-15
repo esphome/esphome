@@ -2,12 +2,6 @@ wifi:
   ssid: MySSID
   password: password1
 
-uart:
-  - id: uponor_uart
-    baud_rate: 19200
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-
 time:
   - platform: sntp
     id: sntp_time
@@ -17,7 +11,6 @@ time:
       - 192.168.178.1
 
 uponor_smatrix:
-  uart_id: uponor_uart
   address: 0x110B
   time_id: sntp_time
   time_device_address: 0xDE13
