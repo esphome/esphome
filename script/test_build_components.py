@@ -156,6 +156,31 @@ def get_platform_base_files(base_dir: Path) -> dict[str, list[Path]]:
     return dict(platform_files)
 
 
+def group_components_by_platform(
+    failed_results: list[TestResult],
+) -> dict[str, list[str]]:
+    """Group failed components by platform for simplified reproduction commands.
+
+    Args:
+        failed_results: List of failed test results
+
+    Returns:
+        Dictionary mapping platform to list of component names
+    """
+    platform_components: dict[str, list[str]] = {}
+    for result in failed_results:
+        platform = result.platform
+        if platform not in platform_components:
+            platform_components[platform] = []
+        platform_components[platform].extend(result.components)
+
+    # Remove duplicates and sort for each platform
+    return {
+        platform: sorted(set(components))
+        for platform, components in platform_components.items()
+    }
+
+
 def format_github_summary(test_results: list[TestResult]) -> str:
     """Format test results as GitHub Actions job summary markdown.
 
@@ -199,13 +224,20 @@ def format_github_summary(test_results: list[TestResult]) -> str:
             )
         lines.append("\n")
 
-        # Show failed commands in collapsible sections
+        # Show simplified commands to reproduce failures
+        # Group all failed components by platform for a single command per platform
         lines.append("<details>\n")
         lines.append("<summary>Commands to reproduce failures</summary>\n\n")
         lines.append("```bash\n")
-        for result in failed_results:
-            lines.append(f"# {result.test_id}\n")
-            lines.append(f"{result.command}\n\n")
+
+        # Generate one command per platform
+        platform_components = group_components_by_platform(failed_results)
+        for platform in sorted(platform_components.keys()):
+            components_csv = ",".join(platform_components[platform])
+            lines.append(
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e compile\n"
+            )
+
         lines.append("```\n")
         lines.append("</details>\n")
 
@@ -1059,13 +1091,16 @@ def test_components(
         for result in failed_results:
             print(f"  - {result.test_id}")
 
-        # Print failed commands at the end for easy copy-paste from CI logs
+        # Print simplified commands grouped by platform for easy copy-paste
         print("\n" + "=" * 80)
-        print("Failed test commands (copy-paste to reproduce locally):")
+        print("Commands to reproduce failures (copy-paste to reproduce locally):")
         print("=" * 80)
-        for result in failed_results:
-            print(f"\n# {result.test_id}")
-            print(result.command)
+        platform_components = group_components_by_platform(failed_results)
+        for platform in sorted(platform_components.keys()):
+            components_csv = ",".join(platform_components[platform])
+            print(
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e compile"
+            )
         print()
 
     # Write GitHub Actions job summary if in CI
