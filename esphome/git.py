@@ -5,6 +5,7 @@ import hashlib
 import logging
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import urllib.parse
 
@@ -55,6 +56,7 @@ def clone_or_update(
     username: str = None,
     password: str = None,
     submodules: list[str] | None = None,
+    _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
 
@@ -80,7 +82,7 @@ def clone_or_update(
 
         if submodules is not None:
             _LOGGER.info(
-                "Initialising submodules (%s) for %s", ", ".join(submodules), key
+                "Initializing submodules (%s) for %s", ", ".join(submodules), key
             )
             run_git_command(
                 ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
@@ -99,20 +101,47 @@ def clone_or_update(
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
         age = datetime.now() - datetime.fromtimestamp(file_timestamp.stat().st_mtime)
         if refresh is None or age.total_seconds() > refresh.total_seconds:
-            old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
-            _LOGGER.info("Updating %s", key)
-            _LOGGER.debug("Location: %s", repo_dir)
-            # Stash local changes (if any)
-            run_git_command(
-                ["git", "stash", "push", "--include-untracked"], str(repo_dir)
-            )
-            # Fetch remote ref
-            cmd = ["git", "fetch", "--", "origin"]
-            if ref is not None:
-                cmd.append(ref)
-            run_git_command(cmd, str(repo_dir))
-            # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
-            run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+            # Try to update the repository, recovering from broken state if needed
+            old_sha: str | None = None
+            try:
+                old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
+                _LOGGER.info("Updating %s", key)
+                _LOGGER.debug("Location: %s", repo_dir)
+                # Stash local changes (if any)
+                run_git_command(
+                    ["git", "stash", "push", "--include-untracked"], str(repo_dir)
+                )
+                # Fetch remote ref
+                cmd = ["git", "fetch", "--", "origin"]
+                if ref is not None:
+                    cmd.append(ref)
+                run_git_command(cmd, str(repo_dir))
+                # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
+                run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+            except cv.Invalid as err:
+                # Repository is in a broken state or update failed
+                # Only attempt recovery once to prevent infinite recursion
+                if not _recover_broken:
+                    raise
+
+                _LOGGER.warning(
+                    "Repository %s has issues (%s), removing and re-cloning",
+                    key,
+                    err,
+                )
+                shutil.rmtree(repo_dir)
+                # Recursively call clone_or_update to re-clone
+                # Set _recover_broken=False to prevent infinite recursion
+                return clone_or_update(
+                    url=url,
+                    ref=ref,
+                    refresh=refresh,
+                    domain=domain,
+                    username=username,
+                    password=password,
+                    submodules=submodules,
+                    _recover_broken=False,
+                )
 
             if submodules is not None:
                 _LOGGER.info(
