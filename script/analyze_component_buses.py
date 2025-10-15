@@ -366,6 +366,65 @@ def analyze_all_components(
     return components, non_groupable, direct_bus_components
 
 
+@lru_cache(maxsize=256)
+def _get_bus_configs(buses: tuple[str, ...]) -> frozenset[tuple[str, str]]:
+    """Map bus type to set of configs for that type.
+
+    Args:
+        buses: Tuple of bus package names (e.g., ("uart_9600", "i2c"))
+
+    Returns:
+        Frozenset of (base_type, full_config) tuples
+        Example: frozenset({("uart", "uart_9600"), ("i2c", "i2c")})
+    """
+    # Split on underscore to get base type: "uart_9600" -> "uart", "i2c" -> "i2c"
+    return frozenset((bus.split("_", 1)[0], bus) for bus in buses)
+
+
+@lru_cache(maxsize=1024)
+def are_buses_compatible(buses1: tuple[str, ...], buses2: tuple[str, ...]) -> bool:
+    """Check if two bus tuples are compatible for merging.
+
+    Two bus lists are compatible if they don't have conflicting configurations
+    for the same bus type. For example:
+    - ("ble", "uart") and ("i2c",) are compatible (different buses)
+    - ("uart_9600",) and ("uart_19200",) are NOT compatible (same bus, different configs)
+    - ("uart_9600",) and ("uart_9600",) are compatible (same bus, same config)
+
+    Args:
+        buses1: First tuple of bus package names
+        buses2: Second tuple of bus package names
+
+    Returns:
+        True if buses can be merged without conflicts
+    """
+    configs1 = _get_bus_configs(buses1)
+    configs2 = _get_bus_configs(buses2)
+
+    # Group configs by base type
+    bus_types1: dict[str, set[str]] = {}
+    for base_type, full_config in configs1:
+        if base_type not in bus_types1:
+            bus_types1[base_type] = set()
+        bus_types1[base_type].add(full_config)
+
+    bus_types2: dict[str, set[str]] = {}
+    for base_type, full_config in configs2:
+        if base_type not in bus_types2:
+            bus_types2[base_type] = set()
+        bus_types2[base_type].add(full_config)
+
+    # Check for conflicts: same bus type with different configs
+    for bus_type, configs in bus_types1.items():
+        if bus_type not in bus_types2:
+            continue  # No conflict - different bus types
+        # Same bus type - check if configs match
+        if configs != bus_types2[bus_type]:
+            return False  # Conflict - same bus type, different configs
+
+    return True  # No conflicts found
+
+
 def create_grouping_signature(
     platform_buses: dict[str, list[str]], platform: str
 ) -> str:
