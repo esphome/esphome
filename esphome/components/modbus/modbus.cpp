@@ -64,6 +64,15 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
+  if (at > 6 && raw[1] == 0x03) {
+    uint16_t read_crc = crc16(raw, 6);
+    uint16_t read_remote_crc = uint16_t(raw[6]) | (uint16_t(raw[7]) << 8);
+    if (read_crc == read_remote_crc) {
+      ESP_LOGD(TAG, "Valid Read packet -> ignoring it: %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", raw[0], raw[1], raw[2],
+               raw[3], raw[4], raw[5], raw[6], raw[7]);
+      return false;  // ignore the read packet
+    }
+  }
 
   // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
   if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
@@ -147,6 +156,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       }
     }
   }
+  ESP_LOGD(TAG, "VALID PACKET Len: %02X", at);
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
   bool found = false;
   for (auto *device : this->devices_) {
