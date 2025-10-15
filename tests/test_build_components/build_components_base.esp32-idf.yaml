@@ -3,7 +3,8 @@ esphome:
   friendly_name: $component_name
 
 esp32:
-  board: nodemcu-32s
+  # Use board with 8MB flash for testing large component groups
+  board: esp32-pico-devkitm-2
   framework:
     type: esp-idf
 
