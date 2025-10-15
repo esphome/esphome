@@ -776,10 +776,26 @@ message HomeassistantActionRequest {
   option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
-  repeated HomeassistantServiceMap data = 2;
-  repeated HomeassistantServiceMap data_template = 3;
-  repeated HomeassistantServiceMap variables = 4;
+  repeated HomeassistantServiceMap data = 2 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap data_template = 3 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap variables = 4 [(fixed_vector) = true];
   bool is_event = 5;
+  uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
+  bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  string response_template = 8 [(no_zero_copy) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+}
+
+// Message sent by Home Assistant to ESPHome with service call response data
+message HomeassistantActionResponse {
+  option (id) = 130;
+  option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
+  bool success = 2; // Whether the service call succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
@@ -1503,7 +1519,7 @@ message BluetoothGATTCharacteristic {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
-  repeated BluetoothGATTDescriptor descriptors = 4;
+  repeated BluetoothGATTDescriptor descriptors = 4 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.
@@ -1515,7 +1531,7 @@ message BluetoothGATTCharacteristic {
 message BluetoothGATTService {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
-  repeated BluetoothGATTCharacteristic characteristics = 3;
+  repeated BluetoothGATTCharacteristic characteristics = 3 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.

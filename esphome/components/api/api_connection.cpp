@@ -8,9 +8,9 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
-#include <utility>
 #include <functional>
 #include <limits>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -116,8 +116,7 @@ void APIConnection::start() {
 
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Helper init failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
   this->client_info_.peername = helper_->getpeername();
@@ -147,8 +146,7 @@ void APIConnection::loop() {
 
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return;
   }
 
@@ -163,17 +161,13 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
-        on_fatal_error();
-        this->log_warning_(LOG_STR("Reading failed"), err);
+        this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
         // read a packet
-        if (buffer.data_len > 0) {
-          this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-        } else {
-          this->read_message(0, buffer.type, nullptr);
-        }
+        this->read_message(buffer.data_len, buffer.type,
+                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
         if (this->flags_.remove)
           return;
       }
@@ -1395,6 +1389,11 @@ void APIConnection::complete_authentication_() {
     this->send_time_request();
   }
 #endif
+#ifdef USE_ZWAVE_PROXY
+  if (zwave_proxy::global_zwave_proxy != nullptr) {
+    zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
+  }
+#endif
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
@@ -1550,6 +1549,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   }
 }
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  if (msg.response_data_len > 0) {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
+                                          msg.response_data_len);
+  } else
+#endif
+  {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message);
+  }
+};
+#endif
 #ifdef USE_API_NOISE
 bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
@@ -1580,8 +1593,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return false;
   }
   if (this->helper_->can_write_without_blocking())
@@ -1600,8 +1612,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   if (err == APIError::WOULD_BLOCK)
     return false;
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Packet write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Packet write failed"), err);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1787,8 +1798,7 @@ void APIConnection::process_batch_() {
   APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
                                                        std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Batch write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1869,10 +1879,6 @@ void APIConnection::process_state_subscriptions_() {
 void APIConnection::log_warning_(const LogString *message, APIError err) {
   ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
-}
-
-void APIConnection::log_socket_operation_failed_(APIError err) {
-  this->log_warning_(LOG_STR("Socket operation failed"), err);
 }
 
 }  // namespace esphome::api

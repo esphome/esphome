@@ -49,6 +49,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   float get_setup_priority() const override;
   bool can_proceed() override;
 
+  void api_connection_authenticated(api::APIConnection *conn);
   void zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
@@ -61,6 +62,7 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   void send_frame(const uint8_t *data, size_t length);
 
  protected:
+  void send_homeid_changed_msg_(api::APIConnection *conn = nullptr);
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
