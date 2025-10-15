@@ -2054,6 +2054,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Tinkerfish (@tinkerfish)](https://github.com/tinkerfish)
 - [TJ Horner (@tjhorner)](https://github.com/tjhorner)
 - [Theodore Ni (@tjni)](https://github.com/tjni)
+- [TJQ (@tjq19940331)](https://github.com/tjq19940331)
 - [Subhash Chandra (@TMaYaD)](https://github.com/TMaYaD)
 - [Max Efremov (@Tmin10)](https://github.com/Tmin10)
 - [tmpeh (@tmpeh)](https://github.com/tmpeh)
