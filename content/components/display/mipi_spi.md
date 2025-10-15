@@ -67,6 +67,7 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | WAVESHARE-4-TFT                      | Waveshare | <https://www.waveshare.com/4inch-tft-touch-shield.htm> |
 | PICO-RESTOUCH-LCD-3.5                | Waveshare | <https://www.waveshare.com/pico-restouch-lcd-3.5.htm> |
 | WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.75 | Waveshare | <https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm> |
+| WAVESHARE-ESP32-S3-TOUCH-LCD-3.49    | Waveshare | <https://www.waveshare.com/esp32-s3-touch-lcd-3.49.htm> |
 | WT32-SC01-PLUS                       | Wireless-Tag | <https://www.wireless-tag.com/portfolio/wt32-sc01-plus/> |
 | ESP32-2432S028                       | Sunton | <https://www.espressif.com/en/products/devkits/esp32-2432s028> |
 | JC3248W535                           | Guition | <https://www.aliexpress.com/item/1005007566332450.html> |
@@ -125,7 +126,7 @@ most of the configuration will be set by default, but can be overridden if neede
 
 - **invert_colors** (*Optional*, boolean): Specifies whether the display colors should be inverted. Options are `true` or `false`. Defaults to `false`.
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`. If the driver chip supports hardware rotation for the given orientation this will be translated to the appropriate hardware command. If hardware rotation is not supported, the display will be rotated in software.
-- **transform** (*Optional*): If `rotation` is not sufficient, use this to transform the display. If this option is specified, then the `dimensions` option must also be provided. Options are:
+- **transform** (*Optional*): If `rotation` is not sufficient, use this to transform the display. If this option is specified, then the `dimensions` option must also be provided. The value can either be the string `disabled` to disable hardware transform, or a dictionary. Options are:
 
   - **swap_xy** (**Required**, boolean): If true, exchange the x and y axes.
   - **mirror_x** (**Required**, boolean): If true, mirror the x axis.
@@ -200,6 +201,8 @@ dimensions:
   height: 480
   width: 320
 ```
+
+When using the `CUSTOM` model with rotation, if the chip does not support hardware transform use `transform: disabled` to disable hardware transform and ensure software rotation.
 
 ## LCD Backlights
 
