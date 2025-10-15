@@ -265,14 +265,9 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
     return this->wifi_dns_ip_(num);
   return {};
 }
-std::string WiFiComponent::get_use_address() const {
-  if (this->use_address_.empty()) {
-    // ".local" suffix length for mDNS hostnames
-    constexpr size_t mdns_local_suffix_len = 5;
-    return make_name_with_suffix(App.get_name(), '.', "local", mdns_local_suffix_len);
-  }
-  return this->use_address_;
-}
+// set_use_address() is guaranteed to be called during component setup by Python code generation,
+// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
+const std::string &WiFiComponent::get_use_address() const { return this->use_address_; }
 void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
@@ -717,6 +712,12 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+
+    // Free scan results memory unless a component needs them
+    if (!this->keep_scan_results_) {
+      this->scan_result_.clear();
+      this->scan_result_.shrink_to_fit();
+    }
 
     if (this->fast_connect_) {
       this->save_fast_connect_settings_();
