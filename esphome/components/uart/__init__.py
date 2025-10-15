@@ -347,7 +347,7 @@ def final_validate_device_schema(
 
     def validate_pin(opt, device):
         def validator(value):
-            if opt in device:
+            if opt in device and not CORE.testing_mode:
                 raise cv.Invalid(
                     f"The uart {opt} is used both by {name} and {device[opt]}, "
                     f"but can only be used by one. Please create a new uart bus for {name}."

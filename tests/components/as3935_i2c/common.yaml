@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_as3935
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 as3935_i2c:
+  i2c_id: i2c_bus
   irq_pin: ${irq_pin}
 
 binary_sensor:

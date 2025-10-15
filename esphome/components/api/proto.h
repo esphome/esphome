@@ -749,13 +749,29 @@ class ProtoSize {
   template<typename MessageType>
   inline void add_repeated_message(uint32_t field_id_size, const std::vector<MessageType> &messages) {
     // Skip if the vector is empty
-    if (messages.empty()) {
-      return;
+    if (!messages.empty()) {
+      // Use the force version for all messages in the repeated field
+      for (const auto &message : messages) {
+        add_message_object_force(field_id_size, message);
+      }
     }
+  }
 
-    // Use the force version for all messages in the repeated field
-    for (const auto &message : messages) {
-      add_message_object_force(field_id_size, message);
+  /**
+   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size (FixedVector
+   * version)
+   *
+   * @tparam MessageType The type of the nested messages in the FixedVector
+   * @param messages FixedVector of message objects
+   */
+  template<typename MessageType>
+  inline void add_repeated_message(uint32_t field_id_size, const FixedVector<MessageType> &messages) {
+    // Skip if the fixed vector is empty
+    if (!messages.empty()) {
+      // Use the force version for all messages in the repeated field
+      for (const auto &message : messages) {
+        add_message_object_force(field_id_size, message);
+      }
     }
   }
 };

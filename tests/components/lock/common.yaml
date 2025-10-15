@@ -27,7 +27,9 @@ lock:
           id: test_lock1
           state: !lambda "return LOCK_STATE_UNLOCKED;"
     on_lock:
-      - lock.template.publish: LOCKED
+      - lock.template.publish:
+          id: test_lock1
+          state: LOCKED
   - platform: output
     name: Generic Output Lock
     id: test_lock2

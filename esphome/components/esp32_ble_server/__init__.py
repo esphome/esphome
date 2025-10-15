@@ -546,8 +546,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    cg.add(parent.register_gatts_event_handler(var))
-    cg.add(parent.register_ble_status_event_handler(var))
+    esp32_ble.register_gatts_event_handler(parent, var)
+    esp32_ble.register_ble_status_event_handler(parent, var)
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     if CONF_MANUFACTURER_DATA in config:
