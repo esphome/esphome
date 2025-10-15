@@ -234,7 +234,7 @@ async def to_code(config):
     # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 2MB
     # This is done via a pre-build script that generates a custom linker script
     if CORE.testing_mode:
-        cg.add_define("ESPHOME_TESTING_MODE")
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
