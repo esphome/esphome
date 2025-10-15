@@ -1,5 +1,5 @@
 rc522_spi:
-  id: rc522_nfcc
+  id: rc522_nfcc_spi
   cs_pin: ${cs_pin}
 
 binary_sensor:

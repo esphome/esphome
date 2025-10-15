@@ -1,5 +1,5 @@
 wk2212_spi:
-  - id: wk2212_spi_bridge
+  - id: wk2212_spi_bridge_spi
     cs_pin: ${cs_pin}
     crystal: 11059200
     data_rate: 1MHz

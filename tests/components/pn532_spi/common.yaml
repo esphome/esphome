@@ -1,5 +1,5 @@
 pn532_spi:
-  id: pn532_nfcc
+  id: pn532_nfcc_spi
   cs_pin: ${cs_pin}
 
 binary_sensor:

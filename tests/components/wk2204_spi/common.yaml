@@ -1,5 +1,5 @@
 wk2204_spi:
-  - id: wk2204_spi_id
+  - id: wk2204_spi_id_spi
     cs_pin: ${cs_pin}
     crystal: 11059200
     data_rate: 1MHz
