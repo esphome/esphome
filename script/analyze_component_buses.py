@@ -313,7 +313,7 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 
 
 def analyze_all_components(
-    tests_dir: Path = None,
+    tests_dir: Path | None = None,
 ) -> tuple[dict[str, dict[str, list[str]]], set[str], set[str]]:
     """Analyze all component test directories.
 

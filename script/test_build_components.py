@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 import hashlib
 import os
@@ -24,11 +25,13 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from typing import ParamSpec
 
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
+from esphome.core import EsphomeError
 from script.analyze_component_buses import (
     BASE_BUS_COMPONENTS,
     ISOLATED_COMPONENTS,
@@ -295,6 +298,23 @@ def extract_platform_with_version(base_file: Path) -> str:
     return base_file.stem.replace("build_components_base.", "")
 
 
+Params = ParamSpec("Params")
+
+
+def run_with_clean_retry(
+    func: Callable[Params, TestResult], *args: Params.args, **kwargs: Params.kwargs
+) -> TestResult:
+    try:
+        result: TestResult = func(*args, **kwargs)
+        if not result.success:
+            raise EsphomeError("Test failed")
+        return result
+    except Exception as e:
+        print(f"{func.__name__} failed ({e}), retrying with perform_clean=True...")
+        kwargs["perform_clean"] = True
+        return func(*args, **kwargs)
+
+
 def run_esphome_test(
     component: str,
     test_file: Path,
@@ -305,6 +325,7 @@ def run_esphome_test(
     esphome_command: str,
     continue_on_fail: bool,
     use_testing_mode: bool = False,
+    perform_clean: bool = False,
 ) -> TestResult:
     """Run esphome test for a single component.
 
@@ -364,11 +385,22 @@ def run_esphome_test(
         ]
     )
 
+    cmd_clean = cmd[:]
+
     # Add command and config file
     cmd.extend([esphome_command, str(output_file)])
+    cmd_clean.extend(["clean", str(output_file)])
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
+
+    # Clean if requested
+    if perform_clean:
+        print("Cleaning")
+        try:
+            _ = subprocess.run(cmd_clean, check=False)
+        except Exception as e:
+            print(f"Error cleaning: {e}")
 
     # Run command
     print(f"> [{component}] [{test_name}] [{platform_with_version}]")
@@ -429,6 +461,7 @@ def run_grouped_test(
     tests_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
+    perform_clean: bool = False,
 ) -> TestResult:
     """Run esphome test for a group of components with shared bus configs.
 
@@ -507,9 +540,19 @@ def run_grouped_test(
         "-s",
         "target_platform",
         platform,
-        esphome_command,
-        str(output_file),
     ]
+
+    cmd_clean = cmd[:]
+
+    cmd.extend([esphome_command, str(output_file)])
+    cmd_clean.extend(["clean", str(output_file)])
+
+    if perform_clean:
+        print("Cleaning")
+        try:
+            _ = subprocess.run(cmd_clean, check=False)
+        except Exception as e:
+            print(f"Error cleaning: {e}")
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
@@ -860,7 +903,8 @@ def run_grouped_component_tests(
                 continue
 
             # Run grouped test
-            test_result = run_grouped_test(
+            test_result = run_with_clean_retry(
+                run_grouped_test,
                 components=components_to_group,
                 platform=platform,
                 platform_with_version=platform_with_version,
@@ -869,6 +913,7 @@ def run_grouped_component_tests(
                 tests_dir=tests_dir,
                 esphome_command=esphome_command,
                 continue_on_fail=continue_on_fail,
+                perform_clean=True,
             )
 
             # Mark all components as tested
@@ -911,7 +956,8 @@ def run_individual_component_test(
     if (component, platform_with_version) in tested_components:
         return
 
-    test_result = run_esphome_test(
+    test_result: TestResult = run_with_clean_retry(
+        run_esphome_test,
         component=component,
         test_file=test_file,
         platform=platform,
@@ -920,7 +966,9 @@ def run_individual_component_test(
         build_dir=build_dir,
         esphome_command=esphome_command,
         continue_on_fail=continue_on_fail,
+        perform_clean=False,
     )
+
     test_results.append(test_result)
 
 
