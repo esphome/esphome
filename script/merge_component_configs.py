@@ -201,7 +201,7 @@ def deduplicate_by_id(
 
     # On first call, collect all IDs from entire config
     if global_seen_ids is None:
-        global_seen_ids = {}
+        global_seen_ids: dict[str, Any] = {}
         collect_all_ids(data, global_seen_ids)
 
     result = {}
