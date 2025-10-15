@@ -55,15 +55,6 @@ class TestResult:
     test_type: str = "compile"  # "config" or "compile"
 
 
-# Platform-specific maximum group sizes
-# ESP8266 has limited IRAM and can't handle large component groups
-PLATFORM_MAX_GROUP_SIZE = {
-    "esp8266-ard": 20,  # ESP8266 Arduino has limited IRAM
-    # BK72xx now uses BK7252 board (1.62MB flash vs 1.03MB) - no limit needed
-    # Other platforms can handle larger groups
-}
-
-
 def show_disk_space_if_ci(esphome_command: str) -> None:
     """Show disk space usage if running in CI during compile.
 
@@ -777,28 +768,6 @@ def run_grouped_component_tests(
         else:
             # No other groups for this platform - keep no_buses components together
             grouped_components[(platform, NO_BUSES_SIGNATURE)] = no_buses_comps
-
-    # Split groups that exceed platform-specific maximum sizes
-    # ESP8266 has limited IRAM and can't handle large component groups
-    split_groups = {}
-    for (platform, signature), components in list(grouped_components.items()):
-        max_size = PLATFORM_MAX_GROUP_SIZE.get(platform)
-        if max_size and len(components) > max_size:
-            # Split this group into smaller groups
-            print(
-                f"\n  ℹ️ Splitting {platform} group (signature: {signature}) "
-                f"from {len(components)} to max {max_size} components per group"
-            )
-            # Remove original group
-            del grouped_components[(platform, signature)]
-            # Create split groups
-            for i in range(0, len(components), max_size):
-                split_components = components[i : i + max_size]
-                # Create unique signature for each split group
-                split_signature = f"{signature}_split{i // max_size + 1}"
-                split_groups[(platform, split_signature)] = split_components
-    # Add split groups back
-    grouped_components.update(split_groups)
 
     groups_to_test = []
     individual_tests = set()  # Use set to avoid duplicates

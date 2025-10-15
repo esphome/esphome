@@ -230,6 +230,12 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # In testing mode, fake a larger IRAM to allow linking grouped component tests
+    # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 128KB
+    # so the linker will succeed even though the firmware wouldn't actually run
+    if CORE.using_testing_mode:
+        cg.add_build_flag("-DMMU_IRAM_SIZE=0x20000")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
