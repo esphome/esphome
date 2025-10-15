@@ -190,7 +190,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:iram_fix.py", "post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -231,10 +231,10 @@ async def to_code(config):
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
     # In testing mode, fake a larger IRAM to allow linking grouped component tests
-    # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 128KB
-    # so the linker will succeed even though the firmware wouldn't actually run
+    # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 2MB
+    # This is done via a pre-build script that generates a custom linker script
     if CORE.testing_mode:
-        cg.add_build_flag("-DMMU_IRAM_SIZE=0x20000")
+        cg.add_define("ESPHOME_TESTING_MODE")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
@@ -270,4 +270,9 @@ def copy_files():
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
+    )
+    iram_fix_file = dir / "iram_fix.py.script"
+    copy_file_if_changed(
+        iram_fix_file,
+        CORE.relative_build_path("iram_fix.py"),
     )

@@ -1,0 +1,44 @@
+import os
+import shutil
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+
+def preprocess_linker_script(source, target, env):
+    """Generate a custom linker script with fake IRAM for testing mode."""
+    # Check if we're in testing mode by looking for the define
+    build_flags = env.get("BUILD_FLAGS", [])
+    testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
+
+    if not testing_mode:
+        return
+
+    # Get the framework's linker script directory
+    framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
+    ld_dir = os.path.join(framework_dir, "tools", "sdk", "ld")
+    original_ld = os.path.join(ld_dir, "eagle.app.v6.common.ld.h")
+
+    # Create a build directory for our custom linker script
+    build_dir = env.subst("$BUILD_DIR")
+    custom_ld = os.path.join(build_dir, "eagle.app.v6.common.ld")
+
+    # Read and preprocess the linker script with fake IRAM
+    with open(original_ld, 'r') as f:
+        content = f.read()
+
+    # Replace MMU_IRAM_SIZE with our fake value (2MB = 0x200000)
+    content = content.replace("len = MMU_IRAM_SIZE", "len = 0x200000")
+
+    # Write the custom linker script
+    with open(custom_ld, 'w') as f:
+        f.write(content)
+
+    # Update the linker flags to use our custom script
+    env.Append(LINKFLAGS=[
+        "-Wl,-T" + custom_ld
+    ])
+
+
+# Run this before the build starts
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", preprocess_linker_script)
