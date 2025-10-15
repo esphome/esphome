@@ -468,6 +468,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
 
   /// queues a modbus command in the send queue
   void queue_command(const ModbusCommandItem &command);
+  void queue_command(const ModbusCommandItem &command, bool insert);
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// Registers a server register with the controller. Called by esphomes code generator
@@ -516,6 +517,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   }
   /// Get the server courtesy response object
   ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
+  /// QUeue a passive read
+  void queue_passive_read(uint16_t start_address, uint8_t register_count);
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -561,6 +564,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// Server courtesy response
   ServerCourtesyResponse server_courtesy_response_{
       .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};
+  uint32_t last_receive_timestamp_{0};
 };
 
 /** Convert vector<uint8_t> response payload to float.

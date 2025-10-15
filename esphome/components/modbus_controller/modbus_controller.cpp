@@ -17,10 +17,26 @@ void ModbusController::setup() { this->create_register_ranges_(); }
 */
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
+  uint32_t last_read = millis() - this->last_receive_timestamp_;
+  if (!this->command_queue_.empty()) {
+    auto &firstCmd = this->command_queue_.front();
+    if (firstCmd->function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+      this->command_queue_.pop_front();
+      return (!this->command_queue_.empty());
+    }
+  }
+
+  if (last_read > 10) {
+    // ESP_LOGD(TAG, "have to wait");
+    return (!this->command_queue_.empty());
+  }
 
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !this->command_queue_.empty()) {
     auto &command = this->command_queue_.front();
-
+    if (command->function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+      this->command_queue_.pop_front();
+      return (!this->command_queue_.empty());
+    }
     // remove from queue if command was sent too often
     if (!command->should_retry(this->max_cmd_retries_)) {
       if (!this->module_offline_) {
@@ -40,7 +56,7 @@ bool ModbusController::send_next_command_() {
                this->address_, command->register_address);
       this->command_queue_.pop_front();
     } else {
-      ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
+      ESP_LOGD(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
                command->register_address, command->register_count);
       command->send();
 
@@ -256,7 +272,7 @@ SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint
       [=](RegisterRange const &r) { return (r.start_address == start_address && r.register_type == register_type); });
 
   if (reg_it == this->register_ranges_.end()) {
-    ESP_LOGE(TAG, "No matching range for sensor found - start_address : 0x%X", start_address);
+    ESP_LOGV(TAG, "No matching range for sensor found - start_address : 0x%X", start_address);
   } else {
     return reg_it->sensors;
   }
@@ -268,14 +284,23 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  // loop through all sensors with the same start address
-  auto sensors = find_sensors_(register_type, start_address);
-  for (auto *sensor : sensors) {
-    sensor->parse_and_publish(data);
+  uint8_t len = data.size() / 2;
+
+  for (uint8_t i = 0; i < len; i++) {
+    uint16_t sensor_address = start_address + i;
+    // loop through all sensors with the same start address
+    auto sensors = find_sensors_(register_type, sensor_address);
+    for (auto *sensor : sensors) {
+      std::vector<uint8_t> sensorData = std::vector<uint8_t>(data.begin() + i * 2, data.end());
+      sensor->parse_and_publish(sensorData);
+      this->last_receive_timestamp_ = millis();
+    }
   }
 }
 
-void ModbusController::queue_command(const ModbusCommandItem &command) {
+void ModbusController::queue_command(const ModbusCommandItem &command) { queue_command(command, false); }
+
+void ModbusController::queue_command(const ModbusCommandItem &command, bool insert) {
   if (!this->allow_duplicate_commands_) {
     // check if this command is already qeued.
     // not very effective but the queue is never really large
@@ -290,7 +315,11 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
       }
     }
   }
-  this->command_queue_.push_back(make_unique<ModbusCommandItem>(command));
+  if (insert) {
+    this->command_queue_.insert(this->command_queue_.begin(), make_unique<ModbusCommandItem>(command));
+  } else {
+    this->command_queue_.push_back(make_unique<ModbusCommandItem>(command));
+  }
 }
 
 void ModbusController::update_range_(RegisterRange &r) {
@@ -824,6 +853,13 @@ void ModbusController::add_on_online_callback(std::function<void(int, int)> &&ca
 
 void ModbusController::add_on_offline_callback(std::function<void(int, int)> &&callback) {
   this->offline_callback_.add(std::move(callback));
+}
+
+void ModbusController::queue_passive_read(uint16_t start_address, uint8_t register_count) {
+  ESP_LOGW(TAG, "add to queue");
+  // this->command_queue_.clear();
+  queue_command(
+      ModbusCommandItem::create_read_command(this, ModbusRegisterType::HOLDING, start_address, register_count), true);
 }
 
 }  // namespace modbus_controller
