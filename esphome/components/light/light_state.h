@@ -13,6 +13,7 @@
 
 #include "esphome/core/helpers.h"
 #include <strings.h>
+#include <vector>
 
 namespace esphome {
 namespace light {
