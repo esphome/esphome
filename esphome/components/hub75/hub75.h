@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <utility>
 
 #include "esphome/core/hal.h"
@@ -133,3 +135,5 @@ class HUB75Display : public display::DisplayBuffer {
 
 }  // namespace hub75
 }  // namespace esphome
+
+#endif

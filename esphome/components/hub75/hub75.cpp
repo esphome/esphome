@@ -1,5 +1,7 @@
 #include "hub75.h"
 
+#ifdef USE_ESP32
+
 namespace esphome {
 namespace hub75 {
 
@@ -189,3 +191,5 @@ void HUB75Display::filled_rectangle(int x1, int y1, int width, int height, Color
 
 }  // namespace hub75
 }  // namespace esphome
+
+#endif
