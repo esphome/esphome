@@ -4,6 +4,10 @@
 #include "esphome/core/application.h"
 #include "esphome/components/wifi/wifi_component.h"
 
+#ifndef USE_CAPTIVE_PORTAL_CUSTOM_HTML
+#include "captive_index.h"
+#endif
+
 namespace esphome {
 namespace captive_portal {
 
@@ -98,10 +102,20 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   // All other requests get the captive portal page
   // This includes OS captive portal detection endpoints which will trigger
   // the captive portal when they don't receive their expected responses
-#ifndef USE_ESP8266
-  auto *response = req->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
+
+  // Use correct HTML data based on whether custom HTML is used
+#ifdef USE_CAPTIVE_PORTAL_CUSTOM_HTML
+#define HTML_DATA ESPHOME_CAPTIVE_PORTAL_INDEX_GZ
+#define HTML_SIZE sizeof(ESPHOME_CAPTIVE_PORTAL_INDEX_GZ_SIZE)
 #else
-  auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
+#define HTML_DATA INDEX_GZ
+#define HTML_SIZE sizeof(INDEX_GZ)
+#endif
+
+#ifdef USE_ESP8266
+  auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), HTML_DATA, HTML_SIZE);
+#else
+  auto *response = req->beginResponse(200, ESPHOME_F("text/html"), HTML_DATA, HTML_SIZE);
 #endif
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   req->send(response);

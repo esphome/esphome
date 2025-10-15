@@ -60,9 +60,16 @@ def add_custom_html_index_as_progmem(content: str, compress: bool = True) -> Non
     content_encoded = content.encode("utf-8")
     if compress:
         content_encoded = gzip.compress(content_encoded)
+    content_encoded_size = len(content_encoded)
     bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"const uint8_t INDEX_GZ[] PROGMEM = {{{bytes_as_int}}}"
+    uint8_t = (
+        f"const uint8_t ESPHOME_CAPTIVE_PORTAL_INDEX_GZ[] PROGMEM = {{{bytes_as_int}}}"
+    )
+    size_t = (
+        f"const size_t ESPHOME_CAPTIVE_PORTAL_INDEX_GZ_SIZE = {content_encoded_size}"
+    )
     cg.add_global(cg.RawExpression(uint8_t))
+    cg.add_global(cg.RawExpression(size_t))
 
 
 @coroutine_with_priority(CoroPriority.CAPTIVE_PORTAL)
