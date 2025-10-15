@@ -2186,3 +2186,80 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.2.50", "192.168.2.51", "192.168.1.100"]
     )
+
+
+def test_upload_program_ota_mqtt_timeout_fallback(
+    mock_mqtt_get_ip: Mock,
+    mock_run_ota: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program falls back to other devices when MQTT times out."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    # MQTT times out
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ],
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+        },
+    }
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Static IP first, MQTTIP second
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    # Should succeed using the static IP even though MQTT failed
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+
+    # Verify MQTT was attempted
+    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+
+    # Verify espota2.run_ota was called with only the static IP (MQTT failed)
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_mqtt_timeout_fallback(
+    mock_run_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """Test show_logs falls back to other devices when MQTT times out."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+    # MQTT times out
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+
+    args = MockArgs(username="user", password="pass", client_id="client")
+    # Static IP first, MQTTIP second
+    devices = ["192.168.1.100", "MQTTIP"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    # Should succeed using the static IP even though MQTT failed
+    assert result == 0
+
+    # Verify MQTT was attempted
+    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+
+    # Verify run_logs was called with only the static IP (MQTT failed)
+    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])

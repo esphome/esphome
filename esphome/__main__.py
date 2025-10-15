@@ -300,6 +300,7 @@ def _resolve_network_devices(
     - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
     - Deduplicate addresses while preserving order
     - Only resolve MQTT once even if multiple MQTT strings are present
+    - If MQTT resolution fails, log a warning and continue with other devices
 
     Args:
         devices: List of device identifiers (IPs, hostnames, or magic strings)
@@ -317,10 +318,16 @@ def _resolve_network_devices(
         if port_type in _MQTT_PORT_TYPES:
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
-                mqtt_ips = mqtt_get_ip(
-                    config, args.username, args.password, args.client_id
-                )
-                network_devices.extend(mqtt_ips)
+                try:
+                    mqtt_ips = mqtt_get_ip(
+                        config, args.username, args.password, args.client_id
+                    )
+                    network_devices.extend(mqtt_ips)
+                except EsphomeError as err:
+                    _LOGGER.warning(
+                        "MQTT IP discovery failed (%s), will try other devices if available",
+                        err,
+                    )
                 mqtt_resolved = True
         elif device not in network_devices:
             # Regular network address or IP - add if not already present
