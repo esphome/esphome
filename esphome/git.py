@@ -21,7 +21,15 @@ NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 def run_git_command(
     cmd: list[str], cwd: str | None = None, git_dir: Path | None = None
 ) -> str:
-    _LOGGER.debug("Running git command: %s", " ".join(cmd))
+    if git_dir is not None:
+        _LOGGER.debug(
+            "Running git command with repository isolation: %s (git_dir=%s)",
+            " ".join(cmd),
+            git_dir,
+        )
+    else:
+        _LOGGER.debug("Running git command: %s", " ".join(cmd))
+
     try:
         env = None
         if git_dir is not None:
@@ -148,17 +156,35 @@ def clone_or_update(
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
                 if not _recover_broken:
+                    _LOGGER.error(
+                        "Repository %s recovery failed, cannot retry (already attempted once)",
+                        key,
+                    )
                     raise
 
                 _LOGGER.warning(
-                    "Repository %s has issues (%s), removing and re-cloning",
+                    "Repository %s has issues (%s), attempting recovery",
                     key,
                     err,
                 )
-                shutil.rmtree(repo_dir)
+                _LOGGER.info("Removing broken repository at %s", repo_dir)
+
+                try:
+                    shutil.rmtree(repo_dir)
+                    _LOGGER.info(
+                        "Successfully removed broken repository, re-cloning..."
+                    )
+                except Exception as remove_err:
+                    _LOGGER.error(
+                        "Failed to remove broken repository %s: %s",
+                        repo_dir,
+                        remove_err,
+                    )
+                    raise
+
                 # Recursively call clone_or_update to re-clone
                 # Set _recover_broken=False to prevent infinite recursion
-                return clone_or_update(
+                result = clone_or_update(
                     url=url,
                     ref=ref,
                     refresh=refresh,
@@ -168,6 +194,8 @@ def clone_or_update(
                     submodules=submodules,
                     _recover_broken=False,
                 )
+                _LOGGER.info("Repository %s successfully recovered", key)
+                return result
 
             if submodules is not None:
                 _LOGGER.info(
