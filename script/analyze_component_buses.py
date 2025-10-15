@@ -56,6 +56,10 @@ DIRECT_BUS_TYPES = ("i2c", "spi", "uart", "modbus")
 # These components can be merged with any other group
 NO_BUSES_SIGNATURE = "no_buses"
 
+# Prefix for isolated component signatures
+# Isolated components have unique signatures and cannot be merged with others
+ISOLATED_SIGNATURE_PREFIX = "isolated_"
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {
@@ -453,8 +457,14 @@ def merge_compatible_bus_groups(
         if (platform1, sig1) in processed_keys:
             continue
 
-        # Skip NO_BUSES_SIGNATURE for now - they'll be distributed later
+        # Skip NO_BUSES_SIGNATURE - they'll be distributed later
         if sig1 == NO_BUSES_SIGNATURE:
+            merged_groups[(platform1, sig1)] = comps1
+            processed_keys.add((platform1, sig1))
+            continue
+
+        # Skip isolated components - they can't be merged with others
+        if sig1.startswith(ISOLATED_SIGNATURE_PREFIX):
             merged_groups[(platform1, sig1)] = comps1
             processed_keys.add((platform1, sig1))
             continue
@@ -475,6 +485,8 @@ def merge_compatible_bus_groups(
                 continue  # Different platforms can't be merged
             if sig2 == NO_BUSES_SIGNATURE:
                 continue  # Handle separately
+            if sig2.startswith(ISOLATED_SIGNATURE_PREFIX):
+                continue  # Isolated components can't be merged
 
             # Check if buses are compatible
             buses2: tuple[str, ...] = tuple(sorted(sig2.split("+")))
