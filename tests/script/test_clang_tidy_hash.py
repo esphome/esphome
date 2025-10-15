@@ -44,37 +44,53 @@ def test_get_clang_tidy_version_from_requirements(
     assert result == expected
 
 
-def test_calculate_clang_tidy_hash() -> None:
-    """Test calculating hash from all configuration sources."""
+def test_calculate_clang_tidy_hash_with_sdkconfig(tmp_path: Path) -> None:
+    """Test calculating hash from all configuration sources including sdkconfig.defaults."""
     clang_tidy_content = b"Checks: '-*,readability-*'\n"
     requirements_version = "clang-tidy==18.1.5"
     platformio_content = b"[env:esp32]\nplatform = espressif32\n"
+    sdkconfig_content = b"CONFIG_AUTOSTART_ARDUINO=y\n"
+    requirements_content = "clang-tidy==18.1.5\n"
+
+    # Create temporary files
+    (tmp_path / ".clang-tidy").write_bytes(clang_tidy_content)
+    (tmp_path / "platformio.ini").write_bytes(platformio_content)
+    (tmp_path / "sdkconfig.defaults").write_bytes(sdkconfig_content)
+    (tmp_path / "requirements_dev.txt").write_text(requirements_content)
 
     # Expected hash calculation
     expected_hasher = hashlib.sha256()
     expected_hasher.update(clang_tidy_content)
     expected_hasher.update(requirements_version.encode())
     expected_hasher.update(platformio_content)
+    expected_hasher.update(sdkconfig_content)
     expected_hash = expected_hasher.hexdigest()
 
-    # Mock the dependencies
-    with (
-        patch("clang_tidy_hash.read_file_bytes") as mock_read_bytes,
-        patch(
-            "clang_tidy_hash.get_clang_tidy_version_from_requirements",
-            return_value=requirements_version,
-        ),
-    ):
-        # Set up mock to return different content based on the file being read
-        def read_file_mock(path: Path) -> bytes:
-            if ".clang-tidy" in str(path):
-                return clang_tidy_content
-            if "platformio.ini" in str(path):
-                return platformio_content
-            return b""
+    result = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
 
-        mock_read_bytes.side_effect = read_file_mock
-        result = clang_tidy_hash.calculate_clang_tidy_hash()
+    assert result == expected_hash
+
+
+def test_calculate_clang_tidy_hash_without_sdkconfig(tmp_path: Path) -> None:
+    """Test calculating hash without sdkconfig.defaults file."""
+    clang_tidy_content = b"Checks: '-*,readability-*'\n"
+    requirements_version = "clang-tidy==18.1.5"
+    platformio_content = b"[env:esp32]\nplatform = espressif32\n"
+    requirements_content = "clang-tidy==18.1.5\n"
+
+    # Create temporary files (without sdkconfig.defaults)
+    (tmp_path / ".clang-tidy").write_bytes(clang_tidy_content)
+    (tmp_path / "platformio.ini").write_bytes(platformio_content)
+    (tmp_path / "requirements_dev.txt").write_text(requirements_content)
+
+    # Expected hash calculation (no sdkconfig)
+    expected_hasher = hashlib.sha256()
+    expected_hasher.update(clang_tidy_content)
+    expected_hasher.update(requirements_version.encode())
+    expected_hasher.update(platformio_content)
+    expected_hash = expected_hasher.hexdigest()
+
+    result = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
 
     assert result == expected_hash
 
@@ -85,67 +101,63 @@ def test_read_stored_hash_exists(tmp_path: Path) -> None:
     hash_file = tmp_path / ".clang-tidy.hash"
     hash_file.write_text(f"{stored_hash}\n")
 
-    with (
-        patch("clang_tidy_hash.Path") as mock_path_class,
-        patch("clang_tidy_hash.read_file_lines", return_value=[f"{stored_hash}\n"]),
-    ):
-        # Mock the path calculation and exists check
-        mock_hash_file = Mock()
-        mock_hash_file.exists.return_value = True
-        mock_path_class.return_value.parent.parent.__truediv__.return_value = (
-            mock_hash_file
-        )
-
-        result = clang_tidy_hash.read_stored_hash()
+    result = clang_tidy_hash.read_stored_hash(repo_root=tmp_path)
 
     assert result == stored_hash
 
 
-def test_read_stored_hash_not_exists() -> None:
+def test_read_stored_hash_not_exists(tmp_path: Path) -> None:
     """Test reading hash when file doesn't exist."""
-    with patch("clang_tidy_hash.Path") as mock_path_class:
-        # Mock the path calculation and exists check
-        mock_hash_file = Mock()
-        mock_hash_file.exists.return_value = False
-        mock_path_class.return_value.parent.parent.__truediv__.return_value = (
-            mock_hash_file
-        )
-
-        result = clang_tidy_hash.read_stored_hash()
+    result = clang_tidy_hash.read_stored_hash(repo_root=tmp_path)
 
     assert result is None
 
 
-def test_write_hash() -> None:
+def test_write_hash(tmp_path: Path) -> None:
     """Test writing hash to file."""
     hash_value = "abc123def456"
+    hash_file = tmp_path / ".clang-tidy.hash"
 
-    with patch("clang_tidy_hash.write_file_content") as mock_write:
-        clang_tidy_hash.write_hash(hash_value)
+    clang_tidy_hash.write_hash(hash_value, repo_root=tmp_path)
 
-        # Verify write_file_content was called with correct parameters
-        mock_write.assert_called_once()
-        args = mock_write.call_args[0]
-        assert str(args[0]).endswith(".clang-tidy.hash")
-        assert args[1] == hash_value.strip() + "\n"
+    assert hash_file.exists()
+    assert hash_file.read_text() == hash_value.strip() + "\n"
 
 
 @pytest.mark.parametrize(
-    ("args", "current_hash", "stored_hash", "expected_exit"),
+    ("args", "current_hash", "stored_hash", "hash_file_in_changed", "expected_exit"),
     [
-        (["--check"], "abc123", "abc123", 1),  # Hashes match, no scan needed
-        (["--check"], "abc123", "def456", 0),  # Hashes differ, scan needed
-        (["--check"], "abc123", None, 0),  # No stored hash, scan needed
+        (["--check"], "abc123", "abc123", False, 1),  # Hashes match, no scan needed
+        (["--check"], "abc123", "def456", False, 0),  # Hashes differ, scan needed
+        (["--check"], "abc123", None, False, 0),  # No stored hash, scan needed
+        (
+            ["--check"],
+            "abc123",
+            "abc123",
+            True,
+            0,
+        ),  # Hash file updated in PR, scan needed
     ],
 )
 def test_main_check_mode(
-    args: list[str], current_hash: str, stored_hash: str | None, expected_exit: int
+    args: list[str],
+    current_hash: str,
+    stored_hash: str | None,
+    hash_file_in_changed: bool,
+    expected_exit: int,
 ) -> None:
     """Test main function in check mode."""
+    changed = [".clang-tidy.hash"] if hash_file_in_changed else []
+
+    # Create a mock module that can be imported
+    mock_helpers = Mock()
+    mock_helpers.changed_files = Mock(return_value=changed)
+
     with (
         patch("sys.argv", ["clang_tidy_hash.py"] + args),
         patch("clang_tidy_hash.calculate_clang_tidy_hash", return_value=current_hash),
         patch("clang_tidy_hash.read_stored_hash", return_value=stored_hash),
+        patch.dict("sys.modules", {"helpers": mock_helpers}),
         pytest.raises(SystemExit) as exc_info,
     ):
         clang_tidy_hash.main()

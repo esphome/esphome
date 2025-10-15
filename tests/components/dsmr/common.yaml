@@ -1,9 +1,3 @@
-uart:
-  - id: uart_dsmr
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   max_telegram_length: 1000

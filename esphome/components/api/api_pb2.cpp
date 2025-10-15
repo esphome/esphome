@@ -884,6 +884,15 @@ void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_message(4, it, true);
   }
   buffer.encode_bool(5, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  buffer.encode_uint32(6, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  buffer.encode_bool(7, this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  buffer.encode_string(8, this->response_template);
+#endif
 }
 void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->service_ref_.size());
@@ -891,6 +900,48 @@ void HomeassistantActionRequest::calculate_size(ProtoSize &size) const {
   size.add_repeated_message(1, this->data_template);
   size.add_repeated_message(1, this->variables);
   size.add_bool(1, this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  size.add_uint32(1, this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  size.add_bool(1, this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  size.add_length(1, this->response_template.size());
+#endif
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1:
+      this->call_id = value.as_uint32();
+      break;
+    case 2:
+      this->success = value.as_bool();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3:
+      this->error_message = value.as_string();
+      break;
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+    case 4: {
+      // Use raw data directly to avoid allocation
+      this->response_data = value.data();
+      this->response_data_len = value.size();
+      break;
+    }
+#endif
+    default:
+      return false;
+  }
+  return true;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -2397,6 +2448,52 @@ void VoiceAssistantWakeWord::calculate_size(ProtoSize &size) const {
     }
   }
 }
+bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 5:
+      this->model_size = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->id = value.as_string();
+      break;
+    case 2:
+      this->wake_word = value.as_string();
+      break;
+    case 3:
+      this->trained_languages.push_back(value.as_string());
+      break;
+    case 4:
+      this->model_type = value.as_string();
+      break;
+    case 6:
+      this->model_hash = value.as_string();
+      break;
+    case 7:
+      this->url = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->external_wake_words.emplace_back();
+      value.decode_to_message(this->external_wake_words.back());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->available_wake_words) {
     buffer.encode_message(1, it, true);
@@ -3065,6 +3162,27 @@ bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return false;
   }
   return true;
+}
+bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->data = value.data();
+      this->data_len = value.size();
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, static_cast<uint32_t>(this->type));
+  buffer.encode_bytes(2, this->data, this->data_len);
+}
+void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, static_cast<uint32_t>(this->type));
+  size.add_length(2, this->data_len);
 }
 #endif
 

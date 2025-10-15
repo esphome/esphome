@@ -14,9 +14,11 @@ from typing import Protocol
 
 import argcomplete
 
+# Note: Do not import modules from esphome.components here, as this would
+# cause them to be loaded before external components are processed, resulting
+# in the built-in version being used instead of the external component one.
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
@@ -240,6 +242,8 @@ def has_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
+    from esphome.components.mqtt import CONF_DISCOVER_IP
+
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -264,8 +268,10 @@ def has_ip_address() -> bool:
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS or is an IP address)."""
-    return has_mdns() or has_ip_address()
+    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
+    # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
+    return CORE.address is not None
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
@@ -574,11 +580,12 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api():
         addresses_to_use: list[str] | None = None
 
-        if port_type == "NETWORK" and (has_mdns() or is_ip_address(port)):
+        if port_type == "NETWORK":
+            # Network addresses (IPs, mDNS names, or regular DNS hostnames) can be used
+            # The resolve_ip_address() function in helpers.py handles all types
             addresses_to_use = devices
-        elif port_type in ("NETWORK", "MQTT", "MQTTIP") and has_mqtt_ip_lookup():
-            # Only use MQTT IP lookup if the first condition didn't match
-            # (for MQTT/MQTTIP types, or for NETWORK when mdns/ip check fails)
+        elif port_type in ("MQTT", "MQTTIP") and has_mqtt_ip_lookup():
+            # Use MQTT IP lookup for MQTT/MQTTIP types
             addresses_to_use = mqtt_get_ip(
                 config, args.username, args.password, args.client_id
             )
@@ -731,11 +738,11 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
     return clean_mqtt(config, args)
 
 
-def command_clean_platform(args: ArgsProtocol, config: ConfigType) -> int | None:
+def command_clean_all(args: ArgsProtocol) -> int | None:
     try:
-        writer.clean_platform()
+        writer.clean_all(args.configuration)
     except OSError as err:
-        _LOGGER.error("Error deleting platform files: %s", err)
+        _LOGGER.error("Error cleaning all files: %s", err)
         return 1
     _LOGGER.info("Done!")
     return 0
@@ -931,6 +938,7 @@ PRE_CONFIG_ACTIONS = {
     "dashboard": command_dashboard,
     "vscode": command_vscode,
     "update-all": command_update_all,
+    "clean-all": command_clean_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -941,7 +949,6 @@ POST_CONFIG_ACTIONS = {
     "run": command_run,
     "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
-    "clean-platform": command_clean_platform,
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "idedata": command_idedata,
     "rename": command_rename,
@@ -951,7 +958,6 @@ POST_CONFIG_ACTIONS = {
 SIMPLE_CONFIG_ACTIONS = [
     "clean",
     "clean-mqtt",
-    "clean-platform",
     "config",
 ]
 
@@ -998,6 +1004,12 @@ def parse_args(argv):
         help="DNS address cache mapping in format 'hostname=ip1,ip2'",
         action="append",
         default=[],
+    )
+    options_parser.add_argument(
+        "--testing-mode",
+        help="Enable testing mode (disables validation checks for grouped component testing)",
+        action="store_true",
+        default=False,
     )
 
     parser = argparse.ArgumentParser(
@@ -1156,11 +1168,11 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
-    parser_clean = subparsers.add_parser(
-        "clean-platform", help="Delete all platform files."
+    parser_clean_all = subparsers.add_parser(
+        "clean-all", help="Clean all build and platform files."
     )
-    parser_clean.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    parser_clean_all.add_argument(
+        "configuration", help="Your YAML configuration directory.", nargs="*"
     )
 
     parser_dashboard = subparsers.add_parser(
@@ -1209,7 +1221,7 @@ def parse_args(argv):
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directories.", nargs="+"
+        "configuration", help="Your YAML configuration file or directory.", nargs="+"
     )
 
     parser_idedata = subparsers.add_parser("idedata")
@@ -1257,6 +1269,7 @@ def run_esphome(argv):
 
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
+    CORE.testing_mode = args.testing_mode
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(

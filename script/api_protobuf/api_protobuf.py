@@ -1415,6 +1415,8 @@ class RepeatedTypeInfo(TypeInfo):
         # Check if this is a pointer field by looking for container_pointer option
         self._container_type = get_field_opt(field, pb.container_pointer, "")
         self._use_pointer = bool(self._container_type)
+        # Check if this should use FixedVector instead of std::vector
+        self._use_fixed_vector = get_field_opt(field, pb.fixed_vector, False)
 
         # For repeated fields, we need to get the base type info
         # but we can't call create_field_type_info as it would cause recursion
@@ -1438,6 +1440,8 @@ class RepeatedTypeInfo(TypeInfo):
             if "<" in self._container_type and ">" in self._container_type:
                 return f"const {self._container_type}*"
             return f"const {self._container_type}<{self._ti.cpp_type}>*"
+        if self._use_fixed_vector:
+            return f"FixedVector<{self._ti.cpp_type}>"
         return f"std::vector<{self._ti.cpp_type}>"
 
     @property
