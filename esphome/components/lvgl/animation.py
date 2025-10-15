@@ -172,7 +172,7 @@ async def animations_to_code(config):
             cg.add(var.add_timing(timing_var))
 
         cg.add(var.set_duration(animation[CONF_DURATION]))
-        cg.add(var.set_delay(animation[CONF_START_DELAY]))
+        cg.add(var.set_start_delay(animation[CONF_START_DELAY]))
         await cg.register_component(var, animation)
 
 
@@ -197,7 +197,7 @@ async def start_animation(config, action_id, template_arg, args):
             if (duration := config.get(CONF_DURATION)) is not None:
                 context.add(anim_var.set_duration(duration))
             if (start_delay := config.get(CONF_START_DELAY)) is not None:
-                context.add(anim_var.set_delay(start_delay))
+                context.add(anim_var.set_start_delay(start_delay))
             context.add(anim_var.start())
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_LVGL_ID])
