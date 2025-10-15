@@ -870,7 +870,7 @@ async def to_code(config):
 
     # Disable placing libc locks in IRAM to save RAM
     # This is safe for ESPHome since no IRAM ISRs (interrupts that run while cache is disabled)
-    # use libc lock APIs. Saves approximately 1.6KB of IRAM.
+    # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
     if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
