@@ -69,7 +69,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
 #endif
 };
 
-extern const uint8_t INDEX_GZ[];
+extern const uint8_t INDEX_GZ[] PROGMEM;
 extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
