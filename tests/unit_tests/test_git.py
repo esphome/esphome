@@ -471,16 +471,8 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
     domain = "test"
     repo_dir = _compute_repo_dir(url, ref, domain)
 
-    # Create repo directory
-    repo_dir.mkdir(parents=True)
-    git_dir = repo_dir / ".git"
-    git_dir.mkdir()
-
-    fetch_head = git_dir / "FETCH_HEAD"
-    fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=2)
-    fetch_head.touch()
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    # Use helper to set up old repo
+    _setup_old_repo(repo_dir)
 
     # Mock shutil.rmtree to NOT actually delete the directory
     # This simulates a scenario where deletion fails (permissions, etc.)
@@ -492,9 +484,10 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
 
     # Mock git commands to always fail on stash
     def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
-        if "rev-parse" in cmd:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
             return "abc123"
-        if "stash" in cmd:
+        if cmd_type == "stash":
             # Always fails
             raise cv.Invalid("fatal: unable to write new index file")
         return ""
