@@ -1,7 +1,6 @@
 """Tests for git.py module."""
 
 from datetime import datetime, timedelta
-import hashlib
 import os
 from pathlib import Path
 from unittest.mock import Mock
@@ -13,6 +12,12 @@ import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
 
 
+def _compute_repo_dir(url: str, ref: str | None, domain: str) -> Path:
+    """Helper to compute the expected repo directory path using git module's logic."""
+    key = f"{url}@{ref}"
+    return git._compute_destination_path(key, domain)
+
+
 def test_clone_or_update_with_never_refresh(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -20,16 +25,10 @@ def test_clone_or_update_with_never_refresh(
     # Set up CORE.config_path so data_dir uses tmp_path
     CORE.config_path = tmp_path / "test.yaml"
 
-    # Compute the expected repo directory path
     url = "https://github.com/test/repo"
     ref = None
-    key = f"{url}@{ref}"
     domain = "test"
-
-    # Compute hash-based directory name (matching _compute_destination_path logic)
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create the git repo directory structure
     repo_dir.mkdir(parents=True)
@@ -61,16 +60,10 @@ def test_clone_or_update_with_refresh_updates_old_repo(
     # Set up CORE.config_path so data_dir uses tmp_path
     CORE.config_path = tmp_path / "test.yaml"
 
-    # Compute the expected repo directory path
     url = "https://github.com/test/repo"
     ref = None
-    key = f"{url}@{ref}"
     domain = "test"
-
-    # Compute hash-based directory name (matching _compute_destination_path logic)
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create the git repo directory structure
     repo_dir.mkdir(parents=True)
@@ -115,16 +108,10 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     # Set up CORE.config_path so data_dir uses tmp_path
     CORE.config_path = tmp_path / "test.yaml"
 
-    # Compute the expected repo directory path
     url = "https://github.com/test/repo"
     ref = None
-    key = f"{url}@{ref}"
     domain = "test"
-
-    # Compute hash-based directory name (matching _compute_destination_path logic)
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create the git repo directory structure
     repo_dir.mkdir(parents=True)
@@ -161,16 +148,10 @@ def test_clone_or_update_clones_missing_repo(
     # Set up CORE.config_path so data_dir uses tmp_path
     CORE.config_path = tmp_path / "test.yaml"
 
-    # Compute the expected repo directory path
     url = "https://github.com/test/repo"
     ref = None
-    key = f"{url}@{ref}"
     domain = "test"
-
-    # Compute hash-based directory name (matching _compute_destination_path logic)
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create base directory but NOT the repo itself
     base_dir = tmp_path / ".esphome" / domain
@@ -203,16 +184,10 @@ def test_clone_or_update_with_none_refresh_always_updates(
     # Set up CORE.config_path so data_dir uses tmp_path
     CORE.config_path = tmp_path / "test.yaml"
 
-    # Compute the expected repo directory path
     url = "https://github.com/test/repo"
     ref = None
-    key = f"{url}@{ref}"
     domain = "test"
-
-    # Compute hash-based directory name (matching _compute_destination_path logic)
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create the git repo directory structure
     repo_dir.mkdir(parents=True)
@@ -273,12 +248,8 @@ def test_clone_or_update_recovers_from_git_failures(
 
     url = "https://github.com/test/repo"
     ref = "main"
-    key = f"{url}@{ref}"
     domain = "test"
-
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create repo directory
     repo_dir.mkdir(parents=True)
@@ -353,12 +324,8 @@ def test_clone_or_update_fails_when_recovery_also_fails(
 
     url = "https://github.com/test/repo"
     ref = "main"
-    key = f"{url}@{ref}"
     domain = "test"
-
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    repo_dir = tmp_path / ".esphome" / domain / h.hexdigest()[:8]
+    repo_dir = _compute_repo_dir(url, ref, domain)
 
     # Create repo directory
     repo_dir.mkdir(parents=True)
@@ -404,3 +371,162 @@ def test_clone_or_update_fails_when_recovery_also_fails(
     # Should have tried rev-parse once (which failed and triggered recovery)
     rev_parse_calls = [c for c in call_list if "rev-parse" in c[0][0]]
     assert len(rev_parse_calls) == 1
+
+
+def test_clone_or_update_recover_broken_flag_prevents_second_recovery(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Test that _recover_broken=False prevents a second recovery attempt (tests the raise path)."""
+    # Set up CORE.config_path so data_dir uses tmp_path
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    # Create repo directory
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+    old_time = datetime.now() - timedelta(days=2)
+    fetch_head.touch()
+    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+
+    # Track fetch calls to differentiate between first (in clone) and second (in recovery update)
+    call_counts: dict[str, int] = {}
+
+    # Mock git command to fail on fetch during recovery's ref checkout
+    def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
+        cmd_type = None
+        if "rev-parse" in cmd:
+            cmd_type = "rev-parse"
+        elif "stash" in cmd:
+            cmd_type = "stash"
+        elif "fetch" in cmd:
+            cmd_type = "fetch"
+        elif "reset" in cmd:
+            cmd_type = "reset"
+        elif "clone" in cmd:
+            cmd_type = "clone"
+
+        if cmd_type:
+            call_counts[cmd_type] = call_counts.get(cmd_type, 0) + 1
+
+        # First attempt: rev-parse fails (broken repo)
+        if cmd_type == "rev-parse" and call_counts[cmd_type] == 1:
+            raise cv.Invalid(
+                "ambiguous argument 'HEAD': unknown revision or path not in the working tree."
+            )
+
+        # Recovery: clone succeeds
+        if cmd_type == "clone":
+            return ""
+
+        # Recovery: fetch for ref checkout fails
+        # This happens in the clone path when ref is not None (line 80 in git.py)
+        if cmd_type == "fetch" and call_counts[cmd_type] == 1:
+            raise cv.Invalid("fatal: couldn't find remote ref main")
+
+        # Default success
+        return "abc123" if cmd_type == "rev-parse" else ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+
+    # Should raise on the fetch during recovery (when _recover_broken=False)
+    # This tests the critical "if not _recover_broken: raise" path
+    with pytest.raises(cv.Invalid, match="fatal: couldn't find remote ref main"):
+        git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    # Verify the sequence of events
+    call_list = mock_run_git_command.call_args_list
+
+    # Should have: rev-parse (fail, triggers recovery), clone (success),
+    # fetch (fail during ref checkout, raises because _recover_broken=False)
+    rev_parse_calls = [c for c in call_list if "rev-parse" in c[0][0]]
+    # Should have exactly one rev-parse call that failed
+    assert len(rev_parse_calls) == 1
+
+    clone_calls = [c for c in call_list if "clone" in c[0][0]]
+    # Should have exactly one clone call (the recovery attempt)
+    assert len(clone_calls) == 1
+
+    fetch_calls = [c for c in call_list if "fetch" in c[0][0]]
+    # Should have exactly one fetch call that failed (during ref checkout in recovery)
+    assert len(fetch_calls) == 1
+
+
+def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Test that _recover_broken=False prevents infinite recursion when repo persists."""
+    # This tests the critical "if not _recover_broken: raise" path at line 124-125
+    # Set up CORE.config_path so data_dir uses tmp_path
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    # Create repo directory
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+    old_time = datetime.now() - timedelta(days=2)
+    fetch_head.touch()
+    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+
+    # Mock shutil.rmtree to NOT actually delete the directory
+    # This simulates a scenario where deletion fails (permissions, etc.)
+    import unittest.mock
+
+    def mock_rmtree(path, *args, **kwargs):
+        # Don't actually delete - this causes the recursive call to still see the repo
+        pass
+
+    # Mock git commands to always fail on stash
+    def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
+        if "rev-parse" in cmd:
+            return "abc123"
+        if "stash" in cmd:
+            # Always fails
+            raise cv.Invalid("fatal: unable to write new index file")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+
+    # Mock shutil.rmtree and test
+    # Should raise on the second attempt when _recover_broken=False
+    # This hits the "if not _recover_broken: raise" path
+    with (
+        unittest.mock.patch("esphome.git.shutil.rmtree", side_effect=mock_rmtree),
+        pytest.raises(cv.Invalid, match="fatal: unable to write new index file"),
+    ):
+        git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    # Verify the sequence: stash fails twice (once triggering recovery, once raising)
+    call_list = mock_run_git_command.call_args_list
+    stash_calls = [c for c in call_list if "stash" in c[0][0]]
+    # Should have exactly two stash calls
+    assert len(stash_calls) == 2
