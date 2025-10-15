@@ -34,30 +34,37 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
-def run_git_command(cmd: list[str], git_dir: Path) -> str:
-    _LOGGER.debug(
-        "Running git command with repository isolation: %s (git_dir=%s)",
-        " ".join(cmd),
-        git_dir,
-    )
+def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
+    if git_dir is not None:
+        _LOGGER.debug(
+            "Running git command with repository isolation: %s (git_dir=%s)",
+            " ".join(cmd),
+            git_dir,
+        )
+    else:
+        _LOGGER.debug("Running git command: %s", " ".join(cmd))
 
-    # Set up environment for repository isolation
+    # Set up environment for repository isolation if git_dir is provided
     # Force git to only operate on this specific repository by setting
     # GIT_DIR and GIT_WORK_TREE. This prevents git from walking up the
     # directory tree to find parent repositories when the target repo's
     # .git directory is corrupt. Without this, commands like 'git stash'
     # could accidentally operate on parent repositories (e.g., the main
     # ESPHome repo) instead of failing, causing data loss.
-    env: dict[str, str] = {
-        **subprocess.os.environ,
-        "GIT_DIR": str(Path(git_dir) / ".git"),
-        "GIT_WORK_TREE": str(git_dir),
-    }
+    env = None
+    cwd = None
+    if git_dir is not None:
+        env = {
+            **subprocess.os.environ,
+            "GIT_DIR": str(Path(git_dir) / ".git"),
+            "GIT_WORK_TREE": str(git_dir),
+        }
+        cwd = str(git_dir)
 
     try:
         ret = subprocess.run(
             cmd,
-            cwd=str(git_dir),
+            cwd=cwd,
             capture_output=True,
             check=False,
             close_fds=False,
@@ -110,7 +117,7 @@ def clone_or_update(
         _LOGGER.debug("Location: %s", repo_dir)
         cmd = ["git", "clone", "--depth=1"]
         cmd += ["--", url, str(repo_dir)]
-        run_git_command(cmd, git_dir=repo_dir)
+        run_git_command(cmd)
 
         if ref is not None:
             # We need to fetch the PR branch first, otherwise git will complain
