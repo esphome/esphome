@@ -340,7 +340,7 @@ def merge_component_configs(
 
         # Collect packages that are included as dependencies
         # If modbus is present, uart is included via modbus.packages.uart
-        packages_to_skip = set()
+        packages_to_skip: set[str] = set()
         for pkg_name in all_packages:
             if pkg_name.startswith(DEPENDENCY_MARKER_PREFIX):
                 # Extract the actual package name (remove _dep_ prefix)
