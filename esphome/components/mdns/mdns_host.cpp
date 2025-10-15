@@ -1,4 +1,5 @@
-#ifdef USE_HOST
+#include "esphome/core/defines.h"
+#if defined(USE_HOST) && defined(USE_MDNS)
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
@@ -8,7 +9,9 @@
 namespace esphome {
 namespace mdns {
 
-void MDNSComponent::setup() { this->compile_records_(); }
+void MDNSComponent::setup() {
+  // Host platform doesn't have actual mDNS implementation
+}
 
 void MDNSComponent::on_shutdown() {}
 

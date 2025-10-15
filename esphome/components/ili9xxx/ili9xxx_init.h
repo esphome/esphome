@@ -101,7 +101,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_MADCTL  , 1, MADCTL_MV | MADCTL_BGR,       // Memory Access Control
   ILI9XXX_CSCON , 1, 0x01,
   ILI9XXX_PIXFMT, 1, 0x55,  // 16 bit mode
-  ILI9XXX_INVON, 0,
   ILI9XXX_DISPON, 0x80,     // Set display on
   0x00 // end
 };
@@ -121,7 +120,6 @@ static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_MADCTL  , 1, MADCTL_MX| MADCTL_BGR,       // Memory Access Control
     ILI9XXX_CSCON , 1, 0x01,
     ILI9XXX_PIXFMT, 1, 0x66,  // 18 bit mode
-    ILI9XXX_INVON, 0,
     ILI9XXX_DISPON, 0x80,     // Set display on
     0x00 // end
 };
@@ -204,7 +202,6 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
 
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };
@@ -368,6 +365,116 @@ static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
   ILI9XXX_SLPOUT  , 0x80,                // Exit Sleep
   ILI9XXX_DISPON  , 0x80,                // Display on
   0x00                  // End of list
+};
+
+static const uint8_t PROGMEM INITCMD_GC9D01N[] = {
+  // Enable Inter_command
+  0xFE, 0,          // Inter Register Enable 1 (FEh)
+  0xEF, 0,          // Inter Register Enable 2 (EFh)
+  // Inter_command is now enabled
+  0x80, 1, 0xFF,
+  0x81, 1, 0xFF,
+  0x82, 1, 0xFF,
+  0x83, 1, 0xFF,
+  0x84, 1, 0xFF,
+  0x85, 1, 0xFF,
+  0x86, 1, 0xFF,
+  0x87, 1, 0xFF,
+  0x88, 1, 0xFF,
+  0x89, 1, 0xFF,
+  0x8A, 1, 0xFF,
+  0x8B, 1, 0xFF,
+  0x8C, 1, 0xFF,
+  0x8D, 1, 0xFF,
+  0x8E, 1, 0xFF,
+  0x8F, 1, 0xFF,
+  0x3A, 1, 0x05,    // COLMOD: Pixel Format Set (3Ah) MCU interface, 16 bits / pixel
+  0xEC, 1, 0x01,    // Inversion (ECh) DINV=1+2H1V column for Dual Gate (BFh=0)
+                    // According to datasheet Inversion (ECh) value 0x01 isn't valid, but Lilygo uses it everywhere
+  0x74, 7, 0x02, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x98, 1, 0x3e,
+  0x99, 1, 0x3e,
+  0xB5, 2, 0x0D, 0x0D,    // Blanking Porch Control (B5h) VFP=14 VBP=14 HBP=Off
+  0x60, 4, 0x38, 0x0F, 0x79, 0x67,
+  0x61, 4, 0x38, 0x11, 0x79, 0x67,
+  0x64, 6, 0x38, 0x17, 0x71, 0x5F, 0x79, 0x67,
+  0x65, 6, 0x38, 0x13, 0x71, 0x5B, 0x79, 0x67,
+  0x6A, 2, 0x00, 0x00,
+  0x6C, 7, 0x22, 0x02, 0x22, 0x02, 0x22, 0x22, 0x50,
+  0x6E, 32, 0x03, 0x03, 0x01, 0x01, 0x00, 0x00, 0x0F, 0x0F,
+            0x0D, 0x0D, 0x0B, 0x0B, 0x09, 0x09, 0x00, 0x00,
+            0x00, 0x00, 0x0A, 0x0A, 0x0C, 0x0C, 0x0E, 0x0E,
+            0x10, 0x10, 0x00, 0x00, 0x02, 0x02, 0x04, 0x04,
+  0xBF, 1, 0x01,    // Dual-Single gate select (BFh) 01h = dual gate mode
+  0xF9, 1, 0x40,
+  0x9B, 5, 0x3B, 0x93, 0x33, 0x7F, 0x00,
+  0x7E, 1, 0x30,
+  0x70, 6, 0x0D, 0x02, 0x08, 0x0D, 0x02, 0x08,
+  0x71, 3, 0x0D, 0x02, 0x08,
+  0x91, 2, 0x0E, 0x09,
+  // Set VREG1A, VREG1B, VREG2A, VREG2B voltage
+  // According to datasheet set either 0xC3/0xC4 or 0xC9 only, but Lilygo sets both of them
+  0xC3, 5, 0x19, 0xC4, 0x19, 0xC9, 0x3C,
+  0xF0, 6, 0x53, 0x15, 0x0A, 0x04, 0x00, 0x3E,    // SET_GAMMA1 (F0h)
+  0xF1, 6, 0x56, 0xA8, 0x7F, 0x33, 0x34, 0x5F,    // SET_GAMMA2 (F1h)
+  0xF2, 6, 0x53, 0x15, 0x0A, 0x04, 0x00, 0x3A,    // SET_GAMMA3 (F2h)
+  0xF3, 6, 0x52, 0xA4, 0x7F, 0x33, 0x34, 0xDF,    // SET_GAMMA4 (F3h)
+  ILI9XXX_SLPOUT, 0,      // Sleep Out Mode (11h)
+  ILI9XXX_DELAY(10),
+  ILI9XXX_DISPON, 0,      // Display ON (29h)
+  ILI9XXX_DELAY(20),
+  0x00                    // End of list
+};
+
+static const uint8_t PROGMEM INITCMD_ST7735[] = {
+    ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
+    ILI9XXX_DELAY(10),
+    ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay
+    ILI9XXX_DELAY(10),
+    ILI9XXX_PIXFMT  , 1, 0x05,
+    ILI9XXX_FRMCTR1, 3, //  4: Frame rate control, 3 args + delay:
+    0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+    ILI9XXX_FRMCTR2, 3,              //  4: Framerate ctrl - idle mode, 3 args:
+    0x01, 0x2C, 0x2D,             //     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+    ILI9XXX_FRMCTR3, 6,              //  5: Framerate - partial mode, 6 args:
+    0x01, 0x2C, 0x2D,             //     Dot inversion mode
+    0x01, 0x2C, 0x2D,             //     Line inversion mode
+
+    ILI9XXX_INVCTR, 1,              //  7: Display inversion control, 1 arg:
+    0x7,                          //     Line inversion
+    ILI9XXX_PWCTR1,  3,              //  7: Power control, 3 args, no delay:
+    0xA2,
+    0x02,                         //     -4.6V
+    0x84,                         //     AUTO mode
+    ILI9XXX_PWCTR2,  1,              //  8: Power control, 1 arg, no delay:
+    0xC5,                         //     VGH25=2.4C VGSEL=-10 VGH=3 * AVDD
+    ILI9XXX_PWCTR3,  2,              //  9: Power control, 2 args, no delay:
+    0x0A,                         //     Opamp current small
+    0x00,                         //     Boost frequency
+    ILI9XXX_PWCTR4,  2,              // 10: Power control, 2 args, no delay:
+    0x8A,                         //     BCLK/2,
+    0x2A,                         //     opamp current small & medium low
+    ILI9XXX_PWCTR5,  2,              // 11: Power control, 2 args, no delay:
+    0x8A, 0xEE,
+
+    ILI9XXX_VMCTR1, 1, // 11: Power control, 2 args + delay:
+    0x0E,
+    ILI9XXX_GMCTRP1, 16,              // 13: Gamma Adjustments (pos. polarity), 16 args + delay:
+    0x02, 0x1c, 0x07, 0x12,       //     (Not entirely necessary, but provides
+    0x37, 0x32, 0x29, 0x2d,       //      accurate colors)
+    0x29, 0x25, 0x2B, 0x39,
+    0x00, 0x01, 0x03, 0x10,
+    ILI9XXX_GMCTRN1, 16, // 14: Gamma Adjustments (neg. polarity), 16 args + delay:
+    0x03, 0x1d, 0x07, 0x06,       //     (Not entirely necessary, but provides
+    0x2E, 0x2C, 0x29, 0x2D,       //      accurate colors)
+    0x2E, 0x2E, 0x37, 0x3F,
+    0x00, 0x00, 0x02, 0x10,
+    ILI9XXX_MADCTL  , 1, 0x00,             // Memory Access Control, BGR
+    ILI9XXX_NORON  , 0,
+    ILI9XXX_DELAY(10),
+    ILI9XXX_DISPON  , 0,                // Display on
+    ILI9XXX_DELAY(10),
+    00,   // endo of list
 };
 
 // clang-format on

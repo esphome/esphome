@@ -1,8 +1,10 @@
 #include "xgzp68xx.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
+
+#include <cinttypes>
 
 namespace esphome {
 namespace xgzp68xx {
@@ -37,8 +39,8 @@ void XGZP68XXComponent::update() {
     temperature_raw = encode_uint16(data[3], data[4]);
 
     // Convert the pressure data to hPa
-    ESP_LOGV(TAG, "Got raw pressure=%d, raw temperature=%d ", pressure_raw, temperature_raw);
-    ESP_LOGV(TAG, "K value is %d ", this->k_value_);
+    ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u", pressure_raw, temperature_raw);
+    ESP_LOGV(TAG, "K value is %u", this->k_value_);
 
     // The most significant bit of both pressure and temperature will be 1 to indicate a negative value.
     // This is directly from the datasheet, and the calculations below will handle this.
@@ -67,22 +69,23 @@ void XGZP68XXComponent::update() {
 }
 
 void XGZP68XXComponent::setup() {
-  ESP_LOGD(TAG, "Setting up XGZP68xx...");
   uint8_t config;
 
   // Display some sample bits to confirm we are talking to the sensor
   this->read_register(SYSCONFIG_ADDRESS, &config, 1);
-  ESP_LOGCONFIG(TAG, "Gain value is %d", (config >> 3) & 0b111);
-  ESP_LOGCONFIG(TAG, "XGZP68xx started!");
+  ESP_LOGCONFIG(TAG,
+                "Gain value is %d\n"
+                "XGZP68xx started!",
+                (config >> 3) & 0b111);
 }
 
 void XGZP68XXComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "XGZP68xx");
+  ESP_LOGCONFIG(TAG, "XGZP68xx:");
   LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Connection with XGZP68xx failed!");
+    ESP_LOGE(TAG, "  Connection failed");
   }
   LOG_UPDATE_INTERVAL(this);
 }

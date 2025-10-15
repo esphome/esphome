@@ -34,10 +34,12 @@ enum WakeupPinMode {
   WAKEUP_PIN_MODE_INVERT_WAKEUP,
 };
 
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
 struct Ext1Wakeup {
   uint64_t mask;
   esp_sleep_ext1_wakeup_mode_t wakeup_mode;
 };
+#endif
 
 struct WakeupCauseToRunDuration {
   // Run duration if woken up by timer or any other reason besides those below.
@@ -48,7 +50,7 @@ struct WakeupCauseToRunDuration {
   uint32_t gpio_cause;
 };
 
-#endif
+#endif  // USE_ESP32
 
 template<typename... Ts> class EnterDeepSleepAction;
 
@@ -71,20 +73,22 @@ class DeepSleepComponent : public Component {
   void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
 
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
-#endif
+#endif  // USE_ESP32
 
 #if defined(USE_ESP32)
-#if !defined(USE_ESP32_VARIANT_ESP32C3)
-
+#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
-
-  void set_touch_wakeup(bool touch_wakeup);
-
 #endif
+
+#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
+    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32H2)
+  void set_touch_wakeup(bool touch_wakeup);
+#endif
+
   // Set the duration in ms for how long the code should run before entering
   // deep sleep mode, according to the cause the ESP32 has woken.
   void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration);
-#endif
+#endif  // USE_ESP32
 
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
@@ -106,14 +110,22 @@ class DeepSleepComponent : public Component {
   // duration before entering deep sleep.
   optional<uint32_t> get_run_duration_() const;
 
+  void dump_config_platform_();
+  bool prepare_to_sleep_();
+  void deep_sleep_();
+
   optional<uint64_t> sleep_duration_;
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
+
+#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
   optional<Ext1Wakeup> ext1_wakeup_;
+#endif
+
   optional<bool> touch_wakeup_;
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
-#endif
+#endif  // USE_ESP32
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};

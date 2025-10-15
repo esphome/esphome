@@ -1,0 +1,14 @@
+as3935_spi:
+  cs_pin: ${cs_pin}
+  irq_pin: ${irq_pin}
+
+binary_sensor:
+  - platform: as3935
+    name: Storm Alert
+
+sensor:
+  - platform: as3935
+    lightning_energy:
+      name: Lightning Energy
+    distance:
+      name: Distance Storm

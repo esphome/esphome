@@ -1,11 +1,11 @@
 #pragma once
-#include "esphome/core/defines.h"
 #ifdef USE_ESP_IDF
-
-#include "ota_component.h"
 #include "ota_backend.h"
-#include <esp_ota_ops.h>
+
 #include "esphome/components/md5/md5.h"
+#include "esphome/core/defines.h"
+
+#include <esp_ota_ops.h>
 
 namespace esphome {
 namespace ota {
@@ -24,6 +24,7 @@ class IDFOTABackend : public OTABackend {
   const esp_partition_t *partition_;
   md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
+  bool md5_set_{false};
 };
 
 }  // namespace ota

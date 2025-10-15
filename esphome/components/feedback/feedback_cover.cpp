@@ -1,6 +1,7 @@
 #include "feedback_cover.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace feedback {
@@ -220,7 +221,7 @@ void FeedbackCover::set_open_obstacle_sensor(binary_sensor::BinarySensor *open_o
 void FeedbackCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Recompute position every loop cycle
   this->recompute_position_();
@@ -244,7 +245,7 @@ void FeedbackCover::loop() {
 
   // update current position at requested interval, regardless of who started the movement
   // so that we also update UI if there was an external movement
-  // don´t save intermediate positions
+  // don't save intermediate positions
   if (now - this->last_publish_time_ > this->update_interval_) {
     this->publish_state(false);
     this->last_publish_time_ = now;
@@ -274,7 +275,7 @@ void FeedbackCover::control(const CoverCall &call) {
     if (pos == this->position) {
       // already at target,
 
-      // for covers with built in end stop, if we don´t have sensors we should send the command again
+      // for covers with built in end stop, if we don't have sensors we should send the command again
       // to make sure the assumed state is not wrong
       if (this->has_built_in_endstop_ && ((pos == COVER_OPEN
 #ifdef USE_BINARY_SENSOR

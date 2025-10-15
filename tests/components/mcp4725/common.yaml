@@ -1,0 +1,3 @@
+output:
+  - platform: mcp4725
+    id: mcp4725_dac_output

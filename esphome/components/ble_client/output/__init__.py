@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import ble_client, esp32_ble_tracker, output
+import esphome.config_validation as cv
 from esphome.const import CONF_CHARACTERISTIC_UUID, CONF_ID, CONF_SERVICE_UUID
 
 from .. import ble_client_ns
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
@@ -63,6 +63,6 @@ def to_code(config):
         )
         cg.add(var.set_char_uuid128(uuid128))
     cg.add(var.set_require_response(config[CONF_REQUIRE_RESPONSE]))
-    yield output.register_output(var, config)
-    yield ble_client.register_ble_node(var, config)
-    yield cg.register_component(var, config)
+    await output.register_output(var, config)
+    await ble_client.register_ble_node(var, config)
+    await cg.register_component(var, config)

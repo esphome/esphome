@@ -1,0 +1,8 @@
+esphome:
+  on_boot:
+    - pcf85063.read_time
+    - pcf85063.write_time
+
+time:
+  - platform: pcf85063
+    i2c_id: i2c_bus

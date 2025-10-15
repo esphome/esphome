@@ -1,5 +1,5 @@
-import esphome.codegen as cg
 from esphome import automation
+import esphome.codegen as cg
 
 # Base
 light_ns = cg.esphome_ns.namespace("light")
@@ -11,6 +11,8 @@ AddressableLightRef = AddressableLight.operator("ref")
 
 Color = cg.esphome_ns.class_("Color")
 LightColorValues = light_ns.class_("LightColorValues")
+
+LightStateRTCState = light_ns.struct("LightStateRTCState")
 
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)
@@ -24,6 +26,13 @@ COLOR_MODES = {
     "RGB_WHITE": ColorMode.RGB_WHITE,
     "RGB_COLOR_TEMPERATURE": ColorMode.RGB_COLOR_TEMPERATURE,
     "RGB_COLD_WARM_WHITE": ColorMode.RGB_COLD_WARM_WHITE,
+}
+
+# Limit modes
+LimitMode = light_ns.enum("LimitMode", is_class=True)
+LIMIT_MODES = {
+    "CLAMP": LimitMode.CLAMP,
+    "DO_NOTHING": LimitMode.DO_NOTHING,
 }
 
 # Actions

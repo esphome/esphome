@@ -1,0 +1,5 @@
+sensor:
+  - platform: tof10120
+    i2c_id: i2c_bus
+    name: Distance sensor
+    update_interval: 5s

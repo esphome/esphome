@@ -1,15 +1,6 @@
-uart:
-  - id: uart_kuntze
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+  flow_control_pin: GPIO3
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-c3-idf.yaml
 
-modbus:
-  flow_control_pin: 3
-
-sensor:
-  - platform: kuntze
-    ph:
-      name: Kuntze pH
-    temperature:
-      name: Kuntze temperature
+<<: !include common.yaml

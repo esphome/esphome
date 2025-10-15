@@ -1,0 +1,8 @@
+adc128s102:
+  cs_pin: ${cs_pin}
+  id: adc128s102_adc
+
+sensor:
+  - platform: adc128s102
+    id: adc128s102_channel_0
+    channel: 0

@@ -9,8 +9,10 @@ namespace qr_code {
 static const char *const TAG = "qr_code";
 
 void QrCode::dump_config() {
-  ESP_LOGCONFIG(TAG, "QR code:");
-  ESP_LOGCONFIG(TAG, "  Value: '%s'", this->value_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "QR code:\n"
+                "  Value: '%s'",
+                this->value_.c_str());
 }
 
 void QrCode::set_value(const std::string &value) {
@@ -24,7 +26,7 @@ void QrCode::set_ecc(qrcodegen_Ecc ecc) {
 }
 
 void QrCode::generate_qr_code() {
-  ESP_LOGV(TAG, "Generating QR code...");
+  ESP_LOGV(TAG, "Generating QR code");
   uint8_t tempbuffer[qrcodegen_BUFFER_LEN_MAX];
 
   if (!qrcodegen_encodeText(this->value_.c_str(), tempbuffer, this->qr_, this->ecc_, qrcodegen_VERSION_MIN,

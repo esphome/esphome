@@ -1,0 +1,10 @@
+mcp3204:
+  - id: mcp3204_hub
+    cs_pin: ${cs_pin}
+
+sensor:
+  - platform: mcp3204
+    id: mcp3204_sensor
+    mcp3204_id: mcp3204_hub
+    number: 0
+    update_interval: 5s

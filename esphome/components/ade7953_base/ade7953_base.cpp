@@ -1,6 +1,8 @@
 #include "ade7953_base.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace ade7953_base {
 
@@ -56,15 +58,18 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
   LOG_SENSOR("  ", "Rective Power A Sensor", this->reactive_power_a_sensor_);
   LOG_SENSOR("  ", "Reactive Power B Sensor", this->reactive_power_b_sensor_);
-  ESP_LOGCONFIG(TAG, "  USE_ACC_ENERGY_REGS: %d", this->use_acc_energy_regs_);
-  ESP_LOGCONFIG(TAG, "  PGA_V_8: 0x%X", pga_v_);
-  ESP_LOGCONFIG(TAG, "  PGA_IA_8: 0x%X", pga_ia_);
-  ESP_LOGCONFIG(TAG, "  PGA_IB_8: 0x%X", pga_ib_);
-  ESP_LOGCONFIG(TAG, "  VGAIN_32: 0x%08jX", (uintmax_t) vgain_);
-  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%08jX", (uintmax_t) aigain_);
-  ESP_LOGCONFIG(TAG, "  BIGAIN_32: 0x%08jX", (uintmax_t) bigain_);
-  ESP_LOGCONFIG(TAG, "  AWGAIN_32: 0x%08jX", (uintmax_t) awgain_);
-  ESP_LOGCONFIG(TAG, "  BWGAIN_32: 0x%08jX", (uintmax_t) bwgain_);
+  ESP_LOGCONFIG(TAG,
+                "  USE_ACC_ENERGY_REGS: %d\n"
+                "  PGA_V_8: 0x%X\n"
+                "  PGA_IA_8: 0x%X\n"
+                "  PGA_IB_8: 0x%X\n"
+                "  VGAIN_32: 0x%08jX\n"
+                "  AIGAIN_32: 0x%08jX\n"
+                "  BIGAIN_32: 0x%08jX\n"
+                "  AWGAIN_32: 0x%08jX\n"
+                "  BWGAIN_32: 0x%08jX",
+                this->use_acc_energy_regs_, pga_v_, pga_ia_, pga_ib_, (uintmax_t) vgain_, (uintmax_t) aigain_,
+                (uintmax_t) bigain_, (uintmax_t) awgain_, (uintmax_t) bwgain_);
 }
 
 #define ADE_PUBLISH_(name, val, factor) \
@@ -105,7 +110,7 @@ void ADE7953::update() {
     this->last_update_ = now;
     // prevent DIV/0
     pf = ADE_WATTSEC_POWER_FACTOR * (diff < 10 ? 10 : diff) / 1000;
-    ESP_LOGVV(TAG, "ADE7953::update() diff=%d pf=%f", diff, pf);
+    ESP_LOGVV(TAG, "ADE7953::update() diff=%" PRIu32 " pf=%f", diff, pf);
   }
 
   // Apparent power

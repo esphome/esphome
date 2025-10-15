@@ -1,0 +1,9 @@
+sensor:
+  - platform: ens160_spi
+    cs_pin: ${cs_pin}
+    eco2:
+      name: "ENS160 eCO2"
+    tvoc:
+      name: "ENS160 Total Volatile Organic Compounds"
+    aqi:
+      name: "ENS160 Air Quality Index"

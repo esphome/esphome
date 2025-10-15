@@ -4,4 +4,7 @@ substitutions:
   mosi_pin: GPIO6
   cs_pin: GPIO19
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
 <<: !include common.yaml

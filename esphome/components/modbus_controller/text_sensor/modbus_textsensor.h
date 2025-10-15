@@ -9,7 +9,7 @@
 namespace esphome {
 namespace modbus_controller {
 
-enum class RawEncoding { NONE = 0, HEXBYTES = 1, COMMA = 2 };
+enum class RawEncoding { NONE = 0, HEXBYTES = 1, COMMA = 2, ANSI = 3 };
 
 class ModbusTextSensor : public Component, public text_sensor::TextSensor, public SensorItem {
  public:

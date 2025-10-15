@@ -2,8 +2,12 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/scheduler.h"
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 #include <vector>
 
@@ -11,7 +15,7 @@ namespace esphome {
 
 template<typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
-  explicit AndCondition(const std::vector<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
+  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -22,12 +26,12 @@ template<typename... Ts> class AndCondition : public Condition<Ts...> {
   }
 
  protected:
-  std::vector<Condition<Ts...> *> conditions_;
+  FixedVector<Condition<Ts...> *> conditions_;
 };
 
 template<typename... Ts> class OrCondition : public Condition<Ts...> {
  public:
-  explicit OrCondition(const std::vector<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
+  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -38,7 +42,7 @@ template<typename... Ts> class OrCondition : public Condition<Ts...> {
   }
 
  protected:
-  std::vector<Condition<Ts...> *> conditions_;
+  FixedVector<Condition<Ts...> *> conditions_;
 };
 
 template<typename... Ts> class NotCondition : public Condition<Ts...> {
@@ -52,7 +56,7 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
 
 template<typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
-  explicit XorCondition(const std::vector<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
+  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -63,7 +67,7 @@ template<typename... Ts> class XorCondition : public Condition<Ts...> {
   }
 
  protected:
-  std::vector<Condition<Ts...> *> conditions_;
+  FixedVector<Condition<Ts...> *> conditions_;
 };
 
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
@@ -157,14 +161,23 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   void play_complex(Ts... x) override {
     auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-    this->set_timeout(this->delay_.value(x...), f);
+
+    // If num_running_ > 1, we have multiple instances running in parallel
+    // In single/restart/queued modes, only one instance runs at a time
+    // Parallel mode uses skip_cancel=true to allow multiple delays to coexist
+    // WARNING: This can accumulate delays if scripts are triggered faster than they complete!
+    // Users should set max_runs on parallel scripts to limit concurrent executions.
+    // Issue #10264: This is a workaround for parallel script delays interfering with each other.
+    App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
+                                    /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+                                    /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout(""); }
+  void stop() override { this->cancel_timeout("delay"); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
@@ -278,10 +291,11 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
       iteration++;
-      if (iteration >= this->count_.value(x...))
+      if (iteration >= this->count_.value(x...)) {
         this->play_next_tuple_(this->var_);
-      else
+      } else {
         this->then_.play(iteration, x...);
+      }
     }));
   }
 

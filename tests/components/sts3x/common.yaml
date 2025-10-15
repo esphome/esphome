@@ -1,0 +1,6 @@
+sensor:
+  - platform: sts3x
+    i2c_id: i2c_bus
+    id: sts3x_sensor
+    name: STS3X Temperature
+    address: 0x4A

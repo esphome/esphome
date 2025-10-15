@@ -1,0 +1,14 @@
+as3935_i2c:
+  i2c_id: i2c_bus
+  irq_pin: ${irq_pin}
+
+binary_sensor:
+  - platform: as3935
+    name: Storm Alert
+
+sensor:
+  - platform: as3935
+    lightning_energy:
+      name: Lightning Energy
+    distance:
+      name: Distance Storm

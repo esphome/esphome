@@ -1,5 +1,6 @@
 #include "sun.h"
 #include "esphome/core/log.h"
+#include <numbers>
 
 /*
 The formulas/algorithms in this module are based on the book
@@ -18,14 +19,12 @@ using namespace esphome::sun::internal;
 
 static const char *const TAG = "sun";
 
-#undef PI
 #undef degrees
 #undef radians
 #undef sq
 
-static const num_t PI = 3.141592653589793;
-inline num_t degrees(num_t rad) { return rad * 180 / PI; }
-inline num_t radians(num_t deg) { return deg * PI / 180; }
+inline num_t degrees(num_t rad) { return rad * 180 / std::numbers::pi; }
+inline num_t radians(num_t deg) { return deg * std::numbers::pi / 180; }
 inline num_t arcdeg(num_t deg, num_t minutes, num_t seconds) { return deg + minutes / 60 + seconds / 3600; }
 inline num_t sq(num_t x) { return x * x; }
 inline num_t cb(num_t x) { return x * x * x; }

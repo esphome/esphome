@@ -8,7 +8,6 @@ static const char *const TAG = "st7789v";
 static const size_t TEMP_BUFFER_SIZE = 128;
 
 void ST7789V::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
 #ifdef USE_POWER_SUPPLY
   this->power_.request();
   // the PowerSupply component takes care of post turn-on delay
@@ -122,12 +121,15 @@ void ST7789V::setup() {
 
 void ST7789V::dump_config() {
   LOG_DISPLAY("", "SPI ST7789V", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_);
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
-  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
-  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
-  ESP_LOGCONFIG(TAG, "  8-bit color mode: %s", YESNO(this->eightbitcolor_));
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Height: %u\n"
+                "  Width: %u\n"
+                "  Height Offset: %u\n"
+                "  Width Offset: %u\n"
+                "  8-bit color mode: %s",
+                this->model_str_, this->height_, this->width_, this->offset_height_, this->offset_width_,
+                YESNO(this->eightbitcolor_));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -174,8 +176,9 @@ void ST7789V::write_display_data() {
   if (this->eightbitcolor_) {
     uint8_t temp_buffer[TEMP_BUFFER_SIZE];
     size_t temp_index = 0;
-    for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
-      for (int index = 0; index < this->get_width_internal(); ++index) {
+    size_t width = static_cast<size_t>(this->get_width_internal());
+    for (size_t line = 0; line < this->get_buffer_length_(); line += width) {
+      for (size_t index = 0; index < width; ++index) {
         auto color = display::ColorUtil::color_to_565(
             display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                          display::ColorBitness::COLOR_BITNESS_332, true));
@@ -252,7 +255,7 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   }
 
   this->dc_pin_->digital_write(true);
-  return write_array(byte, size * 2);
+  write_array(byte, size * 2);
 }
 
 size_t ST7789V::get_buffer_length_() {

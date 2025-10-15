@@ -19,8 +19,8 @@ const extern float COVER_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
+    if (!(obj)->get_device_class_ref().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
     } \
   }
 
@@ -129,13 +129,13 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
-  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open() instead.", "2021.9")
+  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open().perform() instead.", "2021.9")
   void open();
   /** Close the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
-  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close() instead.", "2021.9")
+  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close().perform() instead.", "2021.9")
   void close();
   /** Stop the cover.
    *

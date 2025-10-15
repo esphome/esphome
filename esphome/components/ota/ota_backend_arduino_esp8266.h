@@ -1,10 +1,9 @@
 #pragma once
-#include "esphome/core/defines.h"
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
-
-#include "ota_component.h"
 #include "ota_backend.h"
+
+#include "esphome/core/defines.h"
 #include "esphome/core/macros.h"
 
 namespace esphome {
@@ -22,6 +21,9 @@ class ArduinoESP8266OTABackend : public OTABackend {
 #else
   bool supports_compression() override { return false; }
 #endif
+
+ private:
+  bool md5_set_{false};
 };
 
 }  // namespace ota

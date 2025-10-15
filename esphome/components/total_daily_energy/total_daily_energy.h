@@ -23,7 +23,6 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   void set_method(TotalDailyEnergyMethod method) { method_ = method; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override;
 
   void publish_state_and_save(float state);

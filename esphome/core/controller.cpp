@@ -7,8 +7,10 @@ namespace esphome {
 void Controller::setup_controller(bool include_internal) {
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors()) {
-    if (include_internal || !obj->is_internal())
-      obj->add_on_state_callback([this, obj](bool state) { this->on_binary_sensor_update(obj, state); });
+    if (include_internal || !obj->is_internal()) {
+      obj->add_full_state_callback(
+          [this, obj](optional<bool> previous, optional<bool> state) { this->on_binary_sensor_update(obj); });
+    }
   }
 #endif
 #ifdef USE_FAN
@@ -119,6 +121,12 @@ void Controller::setup_controller(bool include_internal) {
   for (auto *obj : App.get_events()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_event_callback([this, obj](const std::string &event_type) { this->on_event(obj, event_type); });
+  }
+#endif
+#ifdef USE_UPDATE
+  for (auto *obj : App.get_updates()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_update(obj); });
   }
 #endif
 }

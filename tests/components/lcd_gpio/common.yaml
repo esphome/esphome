@@ -1,0 +1,13 @@
+display:
+  - platform: lcd_gpio
+    id: my_lcd_gpio
+    dimensions: 18x4
+    data_pins:
+      - number: ${d0_pin}
+      - number: ${d1_pin}
+      - number: ${d2_pin}
+      - number: ${d3_pin}
+    enable_pin: ${enable_pin}
+    rs_pin: ${rs_pin}
+    lambda: |-
+      it.print("Hello World!");

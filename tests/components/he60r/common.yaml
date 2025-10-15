@@ -1,0 +1,6 @@
+cover:
+  - platform: he60r
+    id: garage_door
+    name: Garage Door
+    open_duration: 14s
+    close_duration: 14s

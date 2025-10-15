@@ -1,9 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WIFI
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <string>
@@ -17,6 +18,14 @@
 
 #ifdef USE_LIBRETINY
 #include <WiFi.h>
+#endif
+
+#if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
+#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#include <esp_eap_client.h>
+#else
+#include <esp_wpa2.h>
+#endif
 #endif
 
 #ifdef USE_ESP8266
@@ -51,9 +60,10 @@ struct SavedWifiSettings {
 struct SavedWifiFastConnectSettings {
   uint8_t bssid[6];
   uint8_t channel;
+  int8_t ap_index;
 } PACKED;  // NOLINT
 
-enum WiFiComponentState {
+enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
   /** WiFi is disabled. */
@@ -102,10 +112,22 @@ struct EAPAuth {
   // used for EAP-TLS
   const char *client_cert;
   const char *client_key;
+// used for EAP-TTLS
+#ifdef USE_ESP32
+  esp_eap_ttls_phase2_types ttls_phase_2;
+#endif
 };
 #endif  // USE_WIFI_WPA2_EAP
 
 using bssid_t = std::array<uint8_t, 6>;
+
+// Use std::vector for RP2040 since scan count is unknown (callback-based)
+// Use FixedVector for other platforms where count is queried first
+#ifdef USE_RP2040
+template<typename T> using wifi_scan_vector_t = std::vector<T>;
+#else
+template<typename T> using wifi_scan_vector_t = FixedVector<T>;
+#endif
 
 class WiFiAP {
  public:
@@ -133,14 +155,14 @@ class WiFiAP {
 
  protected:
   std::string ssid_;
-  optional<bssid_t> bssid_;
   std::string password_;
+  optional<bssid_t> bssid_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
-  optional<uint8_t> channel_;
-  float priority_{0};
   optional<ManualIP> manual_ip_;
+  float priority_{0};
+  optional<uint8_t> channel_;
   bool hidden_{false};
 };
 
@@ -164,14 +186,14 @@ class WiFiScanResult {
   bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
-  bool matches_{false};
   bssid_t bssid_;
   std::string ssid_;
+  float priority_{0.0f};
   uint8_t channel_;
   int8_t rssi_;
+  bool matches_{false};
   bool with_auth_;
   bool is_hidden_;
-  float priority_{0.0f};
 };
 
 struct WiFiSTAPriority {
@@ -179,13 +201,13 @@ struct WiFiSTAPriority {
   float priority;
 };
 
-enum WiFiPowerSaveMode {
+enum WiFiPowerSaveMode : uint8_t {
   WIFI_POWER_SAVE_NONE = 0,
   WIFI_POWER_SAVE_LIGHT,
   WIFI_POWER_SAVE_HIGH,
 };
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
 
@@ -196,6 +218,7 @@ class WiFiComponent : public Component {
   WiFiComponent();
 
   void set_sta(const WiFiAP &ap);
+  WiFiAP get_sta() { return this->selected_ap_; }
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
@@ -242,6 +265,7 @@ class WiFiComponent : public Component {
   void setup() override;
   void start();
   void dump_config() override;
+  void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
   float get_loop_priority() const override;
@@ -259,10 +283,10 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  std::string get_use_address() const;
+  const std::string &get_use_address() const;
   void set_use_address(const std::string &use_address);
 
-  const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -300,13 +324,14 @@ class WiFiComponent : public Component {
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
 
   Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
   Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
 
- protected:
-  static std::string format_mac_addr(const uint8_t mac[6]);
+  int32_t get_wifi_channel();
 
+ protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
 #endif  // USE_WIFI_AP
@@ -331,7 +356,7 @@ class WiFiComponent : public Component {
 #endif  // USE_WIFI_AP
 
   bool wifi_disconnect_();
-  int32_t wifi_channel_();
+
   network::IPAddress wifi_subnet_mask_();
   network::IPAddress wifi_gateway_ip_();
   network::IPAddress wifi_dns_ip_(int num);
@@ -339,7 +364,7 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  void load_fast_connect_settings_();
+  bool load_fast_connect_settings_();
   void save_fast_connect_settings_();
 
 #ifdef USE_ESP8266
@@ -352,7 +377,7 @@ class WiFiComponent : public Component {
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
   void wifi_scan_done_callback_();
 #endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
@@ -369,28 +394,38 @@ class WiFiComponent : public Component {
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
+  wifi_scan_vector_t<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
-  bool fast_connect_{false};
-  bool retry_hidden_{false};
-
-  bool has_ap_{false};
   WiFiAP ap_;
-  WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
-  bool handled_connected_state_{false};
+  optional<float> output_power_;
+  ESPPreferenceObject pref_;
+  ESPPreferenceObject fast_connect_pref_;
+
+  // Group all 32-bit integers together
   uint32_t action_started_;
-  uint8_t num_retried_{0};
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t ap_timeout_{};
+
+  // Group all 8-bit values together
+  WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+  uint8_t num_retried_{0};
+  uint8_t ap_index_{0};
+#if USE_NETWORK_IPV6
+  uint8_t num_ipv6_addresses_{0};
+#endif /* USE_NETWORK_IPV6 */
+
+  // Group all boolean values together
+  bool fast_connect_{false};
+  bool trying_loaded_ap_{false};
+  bool retry_hidden_{false};
+  bool has_ap_{false};
+  bool handled_connected_state_{false};
   bool error_from_callback_{false};
-  std::vector<WiFiScanResult> scan_result_;
   bool scan_done_{false};
   bool ap_setup_{false};
-  optional<float> output_power_;
   bool passive_scan_{false};
-  ESPPreferenceObject pref_;
-  ESPPreferenceObject fast_connect_pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
   bool btm_{false};
@@ -398,10 +433,9 @@ class WiFiComponent : public Component {
 #endif
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
-#if USE_NETWORK_IPV6
-  uint8_t num_ipv6_addresses_{0};
-#endif /* USE_NETWORK_IPV6 */
+  bool keep_scan_results_{false};
 
+  // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
   Trigger<> *disconnect_trigger_{new Trigger<>()};
 };
@@ -428,5 +462,87 @@ template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
   void play(Ts... x) override { global_wifi_component->disable(); }
 };
 
+template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, public Component {
+ public:
+  TEMPLATABLE_VALUE(std::string, ssid)
+  TEMPLATABLE_VALUE(std::string, password)
+  TEMPLATABLE_VALUE(bool, save)
+  TEMPLATABLE_VALUE(uint32_t, connection_timeout)
+
+  void play(Ts... x) override {
+    auto ssid = this->ssid_.value(x...);
+    auto password = this->password_.value(x...);
+    // Avoid multiple calls
+    if (this->connecting_)
+      return;
+    // If already connected to the same AP, do nothing
+    if (global_wifi_component->wifi_ssid() == ssid) {
+      // Callback to notify the user that the connection was successful
+      this->connect_trigger_->trigger();
+      return;
+    }
+    // Create a new WiFiAP object with the new SSID and password
+    this->new_sta_.set_ssid(ssid);
+    this->new_sta_.set_password(password);
+    // Save the current STA
+    this->old_sta_ = global_wifi_component->get_sta();
+    // Disable WiFi
+    global_wifi_component->disable();
+    // Set the state to connecting
+    this->connecting_ = true;
+    // Store the new STA so once the WiFi is enabled, it will connect to it
+    // This is necessary because the WiFiComponent will raise an error and fallback to the saved STA
+    // if trying to connect to a new STA while already connected to another one
+    if (this->save_.value(x...)) {
+      global_wifi_component->save_wifi_sta(new_sta_.get_ssid(), new_sta_.get_password());
+    } else {
+      global_wifi_component->set_sta(new_sta_);
+    }
+    // Enable WiFi
+    global_wifi_component->enable();
+    // Set timeout for the connection
+    this->set_timeout("wifi-connect-timeout", this->connection_timeout_.value(x...), [this, x...]() {
+      // If the timeout is reached, stop connecting and revert to the old AP
+      global_wifi_component->disable();
+      global_wifi_component->save_wifi_sta(old_sta_.get_ssid(), old_sta_.get_password());
+      global_wifi_component->enable();
+      // Start a timeout for the fallback if the connection to the old AP fails
+      this->set_timeout("wifi-fallback-timeout", this->connection_timeout_.value(x...), [this]() {
+        this->connecting_ = false;
+        this->error_trigger_->trigger();
+      });
+    });
+  }
+
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
+  Trigger<> *get_error_trigger() const { return this->error_trigger_; }
+
+  void loop() override {
+    if (!this->connecting_)
+      return;
+    if (global_wifi_component->is_connected()) {
+      // The WiFi is connected, stop the timeout and reset the connecting flag
+      this->cancel_timeout("wifi-connect-timeout");
+      this->cancel_timeout("wifi-fallback-timeout");
+      this->connecting_ = false;
+      if (global_wifi_component->wifi_ssid() == this->new_sta_.get_ssid()) {
+        // Callback to notify the user that the connection was successful
+        this->connect_trigger_->trigger();
+      } else {
+        // Callback to notify the user that the connection failed
+        this->error_trigger_->trigger();
+      }
+    }
+  }
+
+ protected:
+  bool connecting_{false};
+  WiFiAP new_sta_;
+  WiFiAP old_sta_;
+  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> *error_trigger_{new Trigger<>()};
+};
+
 }  // namespace wifi
 }  // namespace esphome
+#endif
