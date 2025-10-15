@@ -379,7 +379,16 @@ jobs:
 
           # Use intelligent splitter that groups components with same bus configs
           components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
-          directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
+
+          # Only isolate directly changed components when targeting dev branch
+          # For beta/release branches, group everything for faster CI
+          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+            directly_changed='[]'
+            echo "Target branch: ${{ github.base_ref }} - grouping all components"
+          else
+            directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
+            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components"
+          fi
 
           echo "Splitting components intelligently..."
           output=$(python3 script/split_components_for_ci.py --components "$components" --directly-changed "$directly_changed" --batch-size 40 --output github)
