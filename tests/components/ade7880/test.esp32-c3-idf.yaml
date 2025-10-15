@@ -1,8 +1,9 @@
 substitutions:
-  scl_pin: GPIO5
-  sda_pin: GPIO4
   irq0_pin: GPIO6
   irq1_pin: GPIO7
-  reset_pin: GPIO10
+  reset_pin: GPIO9
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-c3-idf.yaml
 
 <<: !include common.yaml

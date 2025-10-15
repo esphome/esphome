@@ -1,25 +1,24 @@
-i2c:
-  - id: i2c_tt21100
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 display:
   - platform: ssd1306_i2c
+    i2c_id: i2c_bus
     id: ssd1306_display
     model: SSD1306_128X64
     reset_pin: ${disp_reset_pin}
     pages:
-      - id: page1
+      - id: tt21100_page1
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
 
 touchscreen:
   - platform: tt21100
+    i2c_id: i2c_bus
+    id: tt21100_touchscreen
     display: ssd1306_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
 
 binary_sensor:
   - platform: tt21100
+    id: tt21100_button
     name: Home Button
     index: 1
