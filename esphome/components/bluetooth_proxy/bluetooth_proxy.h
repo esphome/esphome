@@ -23,6 +23,7 @@ namespace esphome::bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 static const int DONE_SENDING_SERVICES = -2;
+static const int INIT_SENDING_SERVICES = -3;
 
 using namespace esp32_ble_client;
 
@@ -49,7 +50,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -129,7 +130,9 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   std::string get_bluetooth_mac_address_pretty() {
     const uint8_t *mac = esp_bt_dev_get_address();
-    return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    char buf[18];
+    format_mac_addr_upper(mac, buf);
+    return std::string(buf);
   }
 
  protected:
@@ -149,7 +152,6 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 
   // BLE advertisement batching
-  std::vector<api::BluetoothLERawAdvertisement> advertisement_pool_;
   api::BluetoothLERawAdvertisementsResponse response_;
 
   // Group 3: 4-byte types
@@ -160,8 +162,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   // Group 4: 1-byte types grouped together
   bool active_;
-  uint8_t advertisement_count_{0};
   uint8_t connection_count_{0};
+  bool configured_scan_active_{false};  // Configured scan mode from YAML
   // 3 bytes used, 1 byte padding
 };
 

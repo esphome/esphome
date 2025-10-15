@@ -208,11 +208,11 @@ void ESPNowComponent::enable_() {
   esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
 #endif
 
+  this->state_ = ESPNOW_STATE_ENABLED;
+
   for (auto peer : this->peers_) {
     this->add_peer(peer.address);
   }
-
-  this->state_ = ESPNOW_STATE_ENABLED;
 }
 
 void ESPNowComponent::disable() {
@@ -407,7 +407,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   }
 
   if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
-    this->mark_failed();
+    this->status_momentary_warning("peer-add-failed");
     return ESP_ERR_INVALID_MAC;
   }
 

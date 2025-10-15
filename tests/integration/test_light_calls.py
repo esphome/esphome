@@ -108,14 +108,51 @@ async def test_light_calls(
         # Wait for flash to end
         state = await wait_for_state_change(rgbcw_light.key)
 
-        # Test 13: effect only
+        # Test 13: effect only - test all random effects
         # First ensure light is on
         client.light_command(key=rgbcw_light.key, state=True)
         state = await wait_for_state_change(rgbcw_light.key)
-        # Now set effect
-        client.light_command(key=rgbcw_light.key, effect="Random Effect")
+
+        # Test 13a: Default random effect (no name, gets default name "Random")
+        client.light_command(key=rgbcw_light.key, effect="Random")
         state = await wait_for_state_change(rgbcw_light.key)
-        assert state.effect == "Random Effect"
+        assert state.effect == "Random"
+
+        # Test 13b: Slow random effect with long name
+        client.light_command(
+            key=rgbcw_light.key, effect="My Very Slow Random Effect With Long Name"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "My Very Slow Random Effect With Long Name"
+
+        # Test 13c: Fast random effect with long name
+        client.light_command(
+            key=rgbcw_light.key, effect="My Fast Random Effect That Changes Quickly"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "My Fast Random Effect That Changes Quickly"
+
+        # Test 13d: Random effect with medium length name
+        client.light_command(
+            key=rgbcw_light.key, effect="Random Effect With Medium Length Name Here"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "Random Effect With Medium Length Name Here"
+
+        # Test 13e: Another random effect
+        client.light_command(
+            key=rgbcw_light.key,
+            effect="Another Random Effect With Different Parameters",
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "Another Random Effect With Different Parameters"
+
+        # Test 13f: Yet another random effect
+        client.light_command(
+            key=rgbcw_light.key, effect="Yet Another Random Effect To Test Memory"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "Yet Another Random Effect To Test Memory"
 
         # Test 14: stop effect
         client.light_command(key=rgbcw_light.key, effect="None")

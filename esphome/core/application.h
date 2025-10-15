@@ -10,6 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
+#include "esphome/core/string_ref.h"
 
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
@@ -101,9 +102,15 @@ class Application {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
-      const std::string mac_suffix = get_mac_address().substr(6);
-      this->name_ = name + "-" + mac_suffix;
-      this->friendly_name_ = friendly_name.empty() ? "" : friendly_name + " " + mac_suffix;
+      // MAC address suffix length (last 6 characters of 12-char MAC address string)
+      constexpr size_t mac_address_suffix_len = 6;
+      const std::string mac_addr = get_mac_address();
+      // Use pointer + offset to avoid substr() allocation
+      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
+      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
+      if (!friendly_name.empty()) {
+        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
+      }
     } else {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
@@ -248,6 +255,8 @@ class Application {
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
   std::string get_compilation_time() const { return this->compilation_time_; }
+  /// Get the compilation time as StringRef (for API usage)
+  StringRef get_compilation_time_ref() const { return StringRef(this->compilation_time_); }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
@@ -428,6 +437,7 @@ class Application {
   void register_component_(Component *comp);
 
   void calculate_looping_components_();
+  void add_looping_components_by_state_(bool match_loop_done);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()
@@ -468,7 +478,7 @@ class Application {
   // - When a component is enabled, it's swapped with the first inactive component
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
-  std::vector<Component *> looping_components_{};
+  FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif

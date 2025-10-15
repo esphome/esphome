@@ -2,11 +2,12 @@
 
 #include "ble_descriptor.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/components/event_emitter/event_emitter.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <vector>
-#include <unordered_map>
+#include <span>
+#include <functional>
+#include <memory>
 
 #ifdef USE_ESP32
 
@@ -23,22 +24,10 @@ namespace esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
-using namespace event_emitter;
 
 class BLEService;
 
-namespace BLECharacteristicEvt {
-enum VectorEvt {
-  ON_WRITE,
-};
-
-enum EmptyEvt {
-  ON_READ,
-};
-}  // namespace BLECharacteristicEvt
-
-class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>,
-                          public EventEmitter<BLECharacteristicEvt::EmptyEvt, uint16_t> {
+class BLECharacteristic {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();
@@ -77,6 +66,15 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   bool is_created();
   bool is_failed();
 
+  // Direct callback registration - only allocates when callback is set
+  void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
+    this->on_write_callback_ =
+        std::make_unique<std::function<void(std::span<const uint8_t>, uint16_t)>>(std::move(callback));
+  }
+  void on_read(std::function<void(uint16_t)> &&callback) {
+    this->on_read_callback_ = std::make_unique<std::function<void(uint16_t)>>(std::move(callback));
+  }
+
  protected:
   bool write_event_{false};
   BLEService *service_{};
@@ -89,7 +87,20 @@ class BLECharacteristic : public EventEmitter<BLECharacteristicEvt::VectorEvt, s
   SemaphoreHandle_t set_value_lock_;
 
   std::vector<BLEDescriptor *> descriptors_;
-  std::unordered_map<uint16_t, bool> clients_to_notify_;
+
+  struct ClientNotificationEntry {
+    uint16_t conn_id;
+    bool indicate;  // true = indicate, false = notify
+  };
+  std::vector<ClientNotificationEntry> clients_to_notify_;
+
+  void remove_client_from_notify_list_(uint16_t conn_id);
+  ClientNotificationEntry *find_client_in_notify_list_(uint16_t conn_id);
+
+  void set_property_bit_(esp_gatt_char_prop_t bit, bool value);
+
+  std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
+  std::unique_ptr<std::function<void(uint16_t)>> on_read_callback_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 

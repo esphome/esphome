@@ -6,7 +6,7 @@ from pathlib import Path
 
 from esphome import automation, external_files
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_player, speaker
+from esphome.components import audio, esp32, media_player, psram, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -26,10 +26,21 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["audio", "psram"]
+
+def AUTO_LOAD(config: ConfigType) -> list[str]:
+    load = ["audio"]
+    if (
+        not config
+        or config.get(CONF_TASK_STACK_IN_PSRAM)
+        or config.get(CONF_CODEC_SUPPORT_ENABLED)
+    ):
+        return load + ["psram"]
+    return load
+
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
@@ -147,7 +158,7 @@ def _read_audio_file_and_type(file_config):
     elif file_source == TYPE_WEB:
         path = _compute_local_file_path(conf_file)
     else:
-        raise cv.Invalid("Unsupported file source.")
+        raise cv.Invalid("Unsupported file source")
 
     with open(path, "rb") as f:
         data = f.read()
@@ -219,7 +230,7 @@ def _validate_supported_local_file(config):
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
-            raise cv.Invalid("Unsupported local media file.")
+            raise cv.Invalid("Unsupported local media file")
         if not config[CONF_CODEC_SUPPORT_ENABLED] and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):
@@ -279,7 +290,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(CONF_CODEC_SUPPORT_ENABLED, default=True): cv.boolean,
+            cv.Optional(
+                CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
+            ): cv.boolean,
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,

@@ -46,11 +46,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   void play(Ts... x) override {
     auto state = this->state_.optional_value(x...);
     if (state.has_value()) {
-      if (*state) {
-        this->switch_->turn_on();
-      } else {
-        this->switch_->turn_off();
-      }
+      this->switch_->control(*state);
     }
   }
 
@@ -66,6 +62,13 @@ template<typename... Ts> class SwitchCondition : public Condition<Ts...> {
  protected:
   Switch *parent_;
   bool state_;
+};
+
+class SwitchStateTrigger : public Trigger<bool> {
+ public:
+  SwitchStateTrigger(Switch *a_switch) {
+    a_switch->add_on_state_callback([this](bool state) { this->trigger(state); });
+  }
 };
 
 class SwitchTurnOnTrigger : public Trigger<> {

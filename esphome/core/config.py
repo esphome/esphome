@@ -39,7 +39,7 @@ from esphome.const import (
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import (
     copy_file_if_changed,
     fnv1a_32bit_hash,
@@ -136,21 +136,21 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
-def valid_include(value):
+def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
         return value
     try:
-        return cv.directory(value)
+        return str(cv.directory(value))
     except cv.Invalid:
         pass
-    value = cv.file_(value)
-    _, ext = os.path.splitext(value)
+    path = cv.file_(value)
+    ext = path.suffix
     if ext not in VALID_INCLUDE_EXTS:
         raise cv.Invalid(
             f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
-    return value
+    return str(path)
 
 
 def valid_project_name(value: str):
@@ -200,7 +200,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
-            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
             cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
@@ -311,9 +311,9 @@ def preload_core_config(config, result) -> str:
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
-        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
-    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
+        build_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
+        conf[CONF_BUILD_PATH] = str(build_path / CORE.name)
+    CORE.build_path = CORE.data_dir / conf[CONF_BUILD_PATH]
 
     target_platforms = []
 
@@ -339,12 +339,12 @@ def preload_core_config(config, result) -> str:
     return target_platforms[0]
 
 
-def include_file(path, basename):
-    parts = basename.split(os.path.sep)
+def include_file(path: Path, basename: Path):
+    parts = basename.parts
     dst = CORE.relative_src_path(*parts)
     copy_file_if_changed(path, dst)
 
-    _, ext = os.path.splitext(path)
+    ext = path.suffix
     if ext in [".h", ".hpp", ".tcc"]:
         # Header, add include statement
         cg.add_global(cg.RawStatement(f'#include "{basename}"'))
@@ -359,7 +359,7 @@ ARDUINO_GLUE_CODE = """\
 """
 
 
-@coroutine_with_priority(-999.0)
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
 async def add_arduino_global_workaround():
     # The Arduino framework defined these itself in the global
     # namespace. For the esphome codebase that is not a problem,
@@ -376,32 +376,32 @@ async def add_arduino_global_workaround():
         cg.add_global(cg.RawStatement(line))
 
 
-@coroutine_with_priority(-1000.0)
-async def add_includes(includes):
+@coroutine_with_priority(CoroPriority.FINAL)
+async def add_includes(includes: list[str]) -> None:
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
-        if os.path.isdir(path):
+        if path.is_dir():
             # Directory, copy tree
             for p in walk_files(path):
-                basename = os.path.relpath(p, os.path.dirname(path))
+                basename = p.relative_to(path.parent)
                 include_file(p, basename)
         else:
             # Copy file
-            basename = os.path.basename(path)
+            basename = Path(path.name)
             include_file(path, basename)
 
 
-@coroutine_with_priority(-1000.0)
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options):
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
-        if key == "build_flags" and not isinstance(val, list):
+        if key in ["build_flags", "lib_ignore"] and not isinstance(val, list):
             val = [val]
         cg.add_platformio_option(key, val)
 
 
-@coroutine_with_priority(30.0)
+@coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
@@ -423,7 +423,7 @@ async def _add_automations(config):
 DATETIME_SUBTYPES = {"date", "time", "datetime"}
 
 
-@coroutine_with_priority(-100.0)
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platform_defines() -> None:
     # Generate compile-time defines for platforms that have actual entities
     # Only add USE_* and count defines when there are entities
@@ -442,7 +442,7 @@ async def _add_platform_defines() -> None:
             cg.add_define(f"USE_{platform_name.upper()}")
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
     # These can be used by user lambdas, put them to default scope
