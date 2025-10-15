@@ -158,26 +158,25 @@ def get_platform_base_files(base_dir: Path) -> dict[str, list[Path]]:
 
 def group_components_by_platform(
     failed_results: list[TestResult],
-) -> dict[str, list[str]]:
-    """Group failed components by platform for simplified reproduction commands.
+) -> dict[tuple[str, str], list[str]]:
+    """Group failed components by platform and test type for simplified reproduction commands.
 
     Args:
         failed_results: List of failed test results
 
     Returns:
-        Dictionary mapping platform to list of component names
+        Dictionary mapping (platform, test_type) to list of component names
     """
-    platform_components: dict[str, list[str]] = {}
+    platform_components: dict[tuple[str, str], list[str]] = {}
     for result in failed_results:
-        platform = result.platform
-        if platform not in platform_components:
-            platform_components[platform] = []
-        platform_components[platform].extend(result.components)
+        key = (result.platform, result.test_type)
+        if key not in platform_components:
+            platform_components[key] = []
+        platform_components[key].extend(result.components)
 
     # Remove duplicates and sort for each platform
     return {
-        platform: sorted(set(components))
-        for platform, components in platform_components.items()
+        key: sorted(set(components)) for key, components in platform_components.items()
     }
 
 
@@ -230,12 +229,12 @@ def format_github_summary(test_results: list[TestResult]) -> str:
         lines.append("<summary>Commands to reproduce failures</summary>\n\n")
         lines.append("```bash\n")
 
-        # Generate one command per platform
+        # Generate one command per platform and test type
         platform_components = group_components_by_platform(failed_results)
-        for platform in sorted(platform_components.keys()):
-            components_csv = ",".join(platform_components[platform])
+        for platform, test_type in sorted(platform_components.keys()):
+            components_csv = ",".join(platform_components[(platform, test_type)])
             lines.append(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e compile\n"
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}\n"
             )
 
         lines.append("```\n")
@@ -1091,15 +1090,15 @@ def test_components(
         for result in failed_results:
             print(f"  - {result.test_id}")
 
-        # Print simplified commands grouped by platform for easy copy-paste
+        # Print simplified commands grouped by platform and test type for easy copy-paste
         print("\n" + "=" * 80)
         print("Commands to reproduce failures (copy-paste to reproduce locally):")
         print("=" * 80)
         platform_components = group_components_by_platform(failed_results)
-        for platform in sorted(platform_components.keys()):
-            components_csv = ",".join(platform_components[platform])
+        for platform, test_type in sorted(platform_components.keys()):
+            components_csv = ",".join(platform_components[(platform, test_type)])
             print(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e compile"
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}"
             )
         print()
 
