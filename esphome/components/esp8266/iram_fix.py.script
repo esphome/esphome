@@ -17,27 +17,40 @@ def preprocess_linker_script(source, target, env):
     # Get the framework's linker script directory
     framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
     ld_dir = os.path.join(framework_dir, "tools", "sdk", "ld")
-    original_ld = os.path.join(ld_dir, "eagle.app.v6.common.ld.h")
+    original_ld_h = os.path.join(ld_dir, "eagle.app.v6.common.ld.h")
 
     # Create a build directory for our custom linker script
     build_dir = env.subst("$BUILD_DIR")
     custom_ld = os.path.join(build_dir, "eagle.app.v6.common.ld")
 
-    # Read and preprocess the linker script with fake IRAM
-    with open(original_ld, 'r') as f:
-        content = f.read()
+    # Use GCC to preprocess the linker script with our fake IRAM define
+    # This properly handles #ifdef, #include, and other preprocessor directives
+    gcc = env.subst("$CC")
+    preprocess_cmd = [
+        gcc,
+        "-E",  # Preprocess only
+        "-P",  # Omit linemarkers
+        "-x", "c",  # Treat as C file
+        "-DMMU_IRAM_SIZE=0x200000",  # Our fake IRAM size (2MB)
+        "-I", ld_dir,  # Include directory for #include directives
+        original_ld_h,
+        "-o", custom_ld
+    ]
 
-    # Replace MMU_IRAM_SIZE with our fake value (2MB = 0x200000)
-    content = content.replace("len = MMU_IRAM_SIZE", "len = 0x200000")
+    import subprocess
+    result = subprocess.run(preprocess_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error preprocessing linker script: {result.stderr}")
+        return
 
-    # Write the custom linker script
-    with open(custom_ld, 'w') as f:
-        f.write(content)
+    # Replace the automatically generated local.eagle.app.v6.common.ld with our custom one
+    # PlatformIO automatically preprocesses eagle.app.v6.common.ld.h to local.eagle.app.v6.common.ld
+    # We need to replace that with our version that has fake IRAM
+    local_ld = os.path.join(build_dir, "ld", "local.eagle.app.v6.common.ld")
+    os.makedirs(os.path.dirname(local_ld), exist_ok=True)
 
-    # Update the linker flags to use our custom script
-    env.Append(LINKFLAGS=[
-        "-Wl,-T" + custom_ld
-    ])
+    # Copy our custom preprocessed script to the local location
+    shutil.copy(custom_ld, local_ld)
 
 
 # Run this before the build starts
