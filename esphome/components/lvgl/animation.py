@@ -98,8 +98,10 @@ ANIMABLE_STYLES = {
 
 ANIMATION_CONFIG = cv.Schema(
     {
-        cv.Optional(CONF_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_START_DELAY): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_DURATION, default="5s"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_START_DELAY, default="0s"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_TIMING, default={}): cv.ensure_list(TIMING_SCHEMA),
     }
 )
@@ -144,9 +146,7 @@ async def animations_to_code(config):
             tos = []
             for widget in widgets:
                 w = (await get_widgets(widget))[0]
-                props = [
-                    (k, v) for k, v in widget.items() if k in ANIMABLE_STYLES.keys()
-                ]
+                props = [(k, v) for k, v in widget.items() if k in ANIMABLE_STYLES]
                 for prop, limits in props:
                     validator = ANIMABLE_STYLES[prop]
                     value = process_value(validator, len(froms))
@@ -170,10 +170,9 @@ async def animations_to_code(config):
             args = [v for k, v in args]
             timing_var = cg.new_Pvariable(timing_id, *args)
             cg.add(var.add_timing(timing_var))
-        if CONF_DURATION in animation:
-            cg.add(var.set_duration(animation[CONF_DURATION]))
-        if CONF_START_DELAY in animation:
-            cg.add(var.set_delay(animation[CONF_START_DELAY]))
+
+        cg.add(var.set_duration(animation[CONF_DURATION]))
+        cg.add(var.set_delay(animation[CONF_START_DELAY]))
         await cg.register_component(var, animation)
 
 
