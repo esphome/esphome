@@ -1104,16 +1104,25 @@ class HomeassistantServiceMap final : public ProtoMessage {
 class HomeassistantActionRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 35;
-  static constexpr uint8_t ESTIMATED_SIZE = 113;
+  static constexpr uint8_t ESTIMATED_SIZE = 128;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
   StringRef service_ref_{};
   void set_service(const StringRef &ref) { this->service_ref_ = ref; }
-  std::vector<HomeassistantServiceMap> data{};
-  std::vector<HomeassistantServiceMap> data_template{};
-  std::vector<HomeassistantServiceMap> variables{};
+  FixedVector<HomeassistantServiceMap> data{};
+  FixedVector<HomeassistantServiceMap> data_template{};
+  FixedVector<HomeassistantServiceMap> variables{};
   bool is_event{false};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  uint32_t call_id{0};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  bool wants_response{false};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  std::string response_template{};
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1121,6 +1130,30 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #endif
 
  protected:
+};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+class HomeassistantActionResponse final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 130;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "homeassistant_action_response"; }
+#endif
+  uint32_t call_id{0};
+  bool success{false};
+  std::string error_message{};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  const uint8_t *response_data{nullptr};
+  uint16_t response_data_len{0};
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1890,7 +1923,7 @@ class BluetoothGATTCharacteristic final : public ProtoMessage {
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   uint32_t properties{0};
-  std::vector<BluetoothGATTDescriptor> descriptors{};
+  FixedVector<BluetoothGATTDescriptor> descriptors{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1904,7 +1937,7 @@ class BluetoothGATTService final : public ProtoMessage {
  public:
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
-  std::vector<BluetoothGATTCharacteristic> characteristics{};
+  FixedVector<BluetoothGATTCharacteristic> characteristics{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;

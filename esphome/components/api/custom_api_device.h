@@ -201,9 +201,9 @@ class CustomAPIDevice {
   void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
+    resp.data.init(data.size());
     for (auto &it : data) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
+      auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef(it.first));
       kv.value = it.second;
     }
@@ -244,9 +244,9 @@ class CustomAPIDevice {
     HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
     resp.is_event = true;
+    resp.data.init(data.size());
     for (auto &it : data) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
+      auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef(it.first));
       kv.value = it.second;
     }

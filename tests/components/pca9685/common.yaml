@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_pca9685
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 pca9685:
+  i2c_id: i2c_bus
   frequency: 500
   address: 0x0
 
