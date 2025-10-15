@@ -425,6 +425,74 @@ def are_buses_compatible(buses1: tuple[str, ...], buses2: tuple[str, ...]) -> bo
     return True  # No conflicts found
 
 
+def merge_compatible_bus_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Merge groups with compatible (non-conflicting) buses.
+
+    This function takes groups keyed by (platform, bus_signature) and merges
+    groups that share the same platform and have compatible bus configurations.
+    Two groups can be merged if their buses don't conflict - meaning they don't
+    have different configurations for the same bus type.
+
+    For example:
+    - ["ble"] + ["uart"] = compatible (different buses)
+    - ["uart_9600"] + ["uart_19200"] = incompatible (same bus, different configs)
+    - ["uart_9600"] + ["uart_9600"] = compatible (same bus, same config)
+
+    Args:
+        grouped_components: Dictionary mapping (platform, signature) to list of component names
+
+    Returns:
+        Dictionary with same structure but with compatible groups merged
+    """
+    merged_groups: dict[tuple[str, str], list[str]] = {}
+    processed_keys: set[tuple[str, str]] = set()
+
+    for (platform1, sig1), comps1 in sorted(grouped_components.items()):
+        if (platform1, sig1) in processed_keys:
+            continue
+
+        # Skip NO_BUSES_SIGNATURE for now - they'll be distributed later
+        if sig1 == NO_BUSES_SIGNATURE:
+            merged_groups[(platform1, sig1)] = comps1
+            processed_keys.add((platform1, sig1))
+            continue
+
+        # Start with this group's components
+        merged_comps: list[str] = list(comps1)
+        merged_sig: str = sig1
+        processed_keys.add((platform1, sig1))
+
+        # Get buses for this group as tuple for caching
+        buses1: tuple[str, ...] = tuple(sorted(sig1.split("+")))
+
+        # Try to merge with other groups on same platform
+        for (platform2, sig2), comps2 in sorted(grouped_components.items()):
+            if (platform2, sig2) in processed_keys:
+                continue
+            if platform2 != platform1:
+                continue  # Different platforms can't be merged
+            if sig2 == NO_BUSES_SIGNATURE:
+                continue  # Handle separately
+
+            # Check if buses are compatible
+            buses2: tuple[str, ...] = tuple(sorted(sig2.split("+")))
+            if are_buses_compatible(buses1, buses2):
+                # Compatible! Merge this group
+                merged_comps.extend(comps2)
+                processed_keys.add((platform2, sig2))
+                # Update merged signature to include all unique buses
+                all_buses: set[str] = set(buses1) | set(buses2)
+                merged_sig = "+".join(sorted(all_buses))
+                buses1 = tuple(sorted(all_buses))  # Update for next iteration
+
+        # Store merged group
+        merged_groups[(platform1, merged_sig)] = merged_comps
+
+    return merged_groups
+
+
 def create_grouping_signature(
     platform_buses: dict[str, list[str]], platform: str
 ) -> str:
