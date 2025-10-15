@@ -173,7 +173,6 @@ def model_schema(config):
         cv.Optional if model.get_default(CONF_WIDTH) and not is_swapped else cv.Required
     )
     pixel_modes = DISPLAY_PIXEL_MODES if bus_mode == TYPE_SINGLE else (DISPLAY_16BIT,)
-    rounding = config.get(CONF_DRAW_ROUNDING, model.get_default(CONF_DRAW_ROUNDING, 1))
     color_depth = (
         ("16", "8", "16bit", "8bit") if bus_mode == TYPE_SINGLE else ("16", "16bit")
     )
@@ -201,7 +200,7 @@ def model_schema(config):
         .extend(
             {
                 cv.GenerateID(): cv.declare_id(MipiSpi),
-                cv_dimensions(CONF_DIMENSIONS): dimension_schema(rounding),
+                cv_dimensions(CONF_DIMENSIONS): dimension_schema(1),
                 model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
                     pins.gpio_output_pin_schema
                 ),
@@ -407,6 +406,7 @@ def get_instance(config):
                 offset_height,
                 DISPLAY_ROTATIONS[rotation],
                 frac,
+                config[CONF_DRAW_ROUNDING],
             ]
         )
         return MipiSpiBuffer, templateargs
@@ -438,7 +438,6 @@ async def to_code(config):
         else:
             config[CONF_ROTATION] = 0
     cg.add(var.set_model(config[CONF_MODEL]))
-    cg.add(var.set_draw_rounding(config[CONF_DRAW_ROUNDING]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
