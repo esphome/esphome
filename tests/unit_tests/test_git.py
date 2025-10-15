@@ -158,6 +158,49 @@ def test_run_git_command_strips_fatal_prefix(
     assert "repository not found" in str(exc_info.value)
 
 
+def test_run_git_command_without_git_dir(mock_subprocess_run: Mock) -> None:
+    """Test that run_git_command works without git_dir (clone case)."""
+    # Configure mock to return success
+    mock_subprocess_run.return_value = Mock(
+        returncode=0,
+        stdout=b"Cloning into 'test_repo'...",
+        stderr=b"",
+    )
+
+    result = git.run_git_command(["git", "clone", "https://github.com/test/repo"])
+
+    # Verify subprocess.run was called
+    assert mock_subprocess_run.called
+    call_args = mock_subprocess_run.call_args
+
+    # Verify environment does NOT have GIT_DIR or GIT_WORK_TREE set
+    # (it should use the default environment or None)
+    env = call_args[1].get("env")
+    if env is not None:
+        assert "GIT_DIR" not in env
+        assert "GIT_WORK_TREE" not in env
+
+    # Verify cwd is None (default)
+    assert call_args[1].get("cwd") is None
+
+    assert result == "Cloning into 'test_repo'..."
+
+
+def test_run_git_command_without_git_dir_raises_error(
+    mock_subprocess_run: Mock,
+) -> None:
+    """Test that run_git_command without git_dir can still raise errors."""
+    # Configure mock to return error
+    mock_subprocess_run.return_value = Mock(
+        returncode=128,
+        stdout=b"",
+        stderr=b"fatal: repository not found\n",
+    )
+
+    with pytest.raises(GitCommandError, match="repository not found"):
+        git.run_git_command(["git", "clone", "https://invalid.url/repo.git"])
+
+
 def test_clone_or_update_with_never_refresh(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
