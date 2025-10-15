@@ -62,7 +62,7 @@ def create_intelligent_batches(
     tests_dir: Path,
     batch_size: int = 40,
     directly_changed: set[str] | None = None,
-) -> list[list[str]]:
+) -> tuple[list[list[str]], dict[tuple[str, str], list[str]]]:
     """Create batches optimized for component grouping.
 
     Args:
@@ -72,7 +72,9 @@ def create_intelligent_batches(
         directly_changed: Set of directly changed components (for logging only)
 
     Returns:
-        List of component batches (lists of component names)
+        Tuple of (batches, signature_groups) where:
+        - batches: List of component batches (lists of component names)
+        - signature_groups: Dict mapping (platform, signature) to component lists
     """
     # Filter out components without test files
     # Platform components like 'climate' and 'climate_ir' don't have test files
@@ -181,7 +183,7 @@ def create_intelligent_batches(
     if current_batch:
         batches.append(current_batch)
 
-    return batches
+    return batches, signature_groups
 
 
 def main() -> int:
@@ -243,7 +245,7 @@ def main() -> int:
             return 1
 
     # Create intelligent batches
-    batches = create_intelligent_batches(
+    batches, signature_groups = create_intelligent_batches(
         components=components,
         tests_dir=args.tests_dir,
         batch_size=args.batch_size,
@@ -267,6 +269,51 @@ def main() -> int:
 
     # Re-analyze to get isolated component counts for summary
     _, non_groupable, _ = analyze_all_components(args.tests_dir)
+
+    # Show grouping details
+    print("\n=== Component Grouping Details ===", file=sys.stderr)
+    # Sort groups by signature for readability
+    groupable_groups = []
+    isolated_groups = []
+    for (platform, signature), group_comps in sorted(signature_groups.items()):
+        if signature.startswith("isolated_"):
+            isolated_groups.append((signature, group_comps))
+        else:
+            groupable_groups.append((signature, group_comps))
+
+    if groupable_groups:
+        print(
+            f"\nGroupable signatures ({len(groupable_groups)} merged groups after cross-bus optimization):",
+            file=sys.stderr,
+        )
+        for signature, group_comps in sorted(
+            groupable_groups, key=lambda x: (-len(x[1]), x[0])
+        ):
+            # Check if this is a merged signature (contains +)
+            is_merged = "+" in signature and signature != NO_BUSES_SIGNATURE
+            merge_indicator = " [MERGED]" if is_merged else ""
+            print(
+                f"  [{signature}]{merge_indicator}: {len(group_comps)} components",
+                file=sys.stderr,
+            )
+            # Show first few components as examples
+            examples = ", ".join(sorted(group_comps)[:8])
+            if len(group_comps) > 8:
+                examples += f", ... (+{len(group_comps) - 8} more)"
+            print(f"    → {examples}", file=sys.stderr)
+
+    if isolated_groups:
+        print(
+            f"\nIsolated components ({len(isolated_groups)} components - tested individually):",
+            file=sys.stderr,
+        )
+        isolated_names = sorted(
+            [comp for _, comps in isolated_groups for comp in comps]
+        )
+        # Group isolated components for compact display
+        for i in range(0, len(isolated_names), 10):
+            chunk = isolated_names[i : i + 10]
+            print(f"  {', '.join(chunk)}", file=sys.stderr)
 
     # Count isolated vs groupable components
     all_batched_components = [comp for batch in batches for comp in batch]
