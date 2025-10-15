@@ -161,37 +161,15 @@ def prefix_substitutions_in_dict(
     return data
 
 
-def collect_all_ids(data: Any, seen_ids: dict[str, Any]) -> None:
-    """Recursively collect all IDs from all levels of nested config.
+def deduplicate_by_id(data: dict) -> dict:
+    """Deduplicate list items with the same ID.
 
-    Args:
-        data: Config data (dict, list, or other)
-        seen_ids: Dict mapping ID name to first occurrence data
-    """
-    if isinstance(data, dict):
-        for value in data.values():
-            collect_all_ids(value, seen_ids)
-    elif isinstance(data, list):
-        for item in data:
-            if isinstance(item, dict) and "id" in item:
-                item_id = item["id"]
-                if item_id not in seen_ids:
-                    seen_ids[item_id] = item
-            collect_all_ids(item, seen_ids)
-
-
-def deduplicate_by_id(
-    data: dict, global_seen_ids: dict[str, Any] | None = None
-) -> dict:
-    """Deduplicate list items with the same ID across all nesting levels.
-
-    Keeps only the first occurrence of each ID throughout the entire config,
-    including nested packages. If items with the same ID are identical, this
-    silently deduplicates. If they differ, the first one is kept.
+    Keeps only the first occurrence of each ID. If items with the same ID
+    are identical, this silently deduplicates. If they differ, the first
+    one is kept (ESPHome's validation will catch if this causes issues).
 
     Args:
         data: Parsed config dictionary
-        global_seen_ids: Dict of already-seen IDs (used for recursion)
 
     Returns:
         Config with deduplicated lists
@@ -199,40 +177,28 @@ def deduplicate_by_id(
     if not isinstance(data, dict):
         return data
 
-    # On first call, collect all IDs from entire config
-    if global_seen_ids is None:
-        global_seen_ids = {}
-        collect_all_ids(data, global_seen_ids)
-
     result = {}
     for key, value in data.items():
         if isinstance(value, list):
             # Check for items with 'id' field
+            seen_ids = set()
             deduped_list = []
 
             for item in value:
                 if isinstance(item, dict) and "id" in item:
                     item_id = item["id"]
-                    # Only keep if this is the first occurrence globally
-                    if global_seen_ids.get(item_id) is item:
-                        deduped_list.append(
-                            deduplicate_by_id(item, global_seen_ids)
-                            if isinstance(item, dict)
-                            else item
-                        )
-                    # else: skip duplicate ID (already seen elsewhere)
+                    if item_id not in seen_ids:
+                        seen_ids.add(item_id)
+                        deduped_list.append(item)
+                    # else: skip duplicate ID (keep first occurrence)
                 else:
-                    # No ID, recursively deduplicate and add it
-                    deduped_list.append(
-                        deduplicate_by_id(item, global_seen_ids)
-                        if isinstance(item, dict)
-                        else item
-                    )
+                    # No ID, just add it
+                    deduped_list.append(item)
 
             result[key] = deduped_list
         elif isinstance(value, dict):
             # Recursively deduplicate nested dicts
-            result[key] = deduplicate_by_id(value, global_seen_ids)
+            result[key] = deduplicate_by_id(value)
         else:
             result[key] = value
 
