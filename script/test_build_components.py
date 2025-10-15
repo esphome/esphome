@@ -52,6 +52,7 @@ class TestResult:
     success: bool
     duration: float
     command: str = ""
+    test_type: str = "compile"  # "config" or "compile"
 
 
 # Platform-specific maximum group sizes
@@ -167,10 +168,13 @@ def format_github_summary(test_results: list[TestResult]) -> str:
 
     # Summary statistics
     total_time = sum(r.duration for r in test_results)
+    # Determine test type from results (all should be the same)
+    test_type = test_results[0].test_type if test_results else "unknown"
     lines.append(
         f"**Results:** {len(passed_results)} passed, {len(failed_results)} failed\n"
     )
     lines.append(f"**Total time:** {total_time:.1f}s\n")
+    lines.append(f"**Test type:** `{test_type}`\n")
 
     # Show failed tests if any
     if failed_results:
@@ -364,6 +368,7 @@ def run_esphome_test(
             success=success,
             duration=duration,
             command=cmd_str,
+            test_type=esphome_command,
         )
     except subprocess.CalledProcessError:
         duration = time.time() - start_time
@@ -377,6 +382,7 @@ def run_esphome_test(
             success=False,
             duration=duration,
             command=cmd_str,
+            test_type=esphome_command,
         )
 
 
@@ -439,6 +445,7 @@ def run_grouped_test(
             success=False,
             duration=0.0,
             command=f"# Failed during config merge: {e}",
+            test_type=esphome_command,
         )
 
     # Create test file that includes merged config
@@ -505,6 +512,7 @@ def run_grouped_test(
             success=success,
             duration=duration,
             command=cmd_str,
+            test_type=esphome_command,
         )
     except subprocess.CalledProcessError:
         duration = time.time() - start_time
@@ -518,6 +526,7 @@ def run_grouped_test(
             success=False,
             duration=duration,
             command=cmd_str,
+            test_type=esphome_command,
         )
 
 
