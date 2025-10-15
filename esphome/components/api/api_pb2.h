@@ -1263,7 +1263,7 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   uint32_t key{0};
-  std::vector<ListEntitiesServicesArgument> args{};
+  FixedVector<ListEntitiesServicesArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
