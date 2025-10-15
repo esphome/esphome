@@ -36,7 +36,7 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-void MDNSComponent::compile_records_() {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
   this->hostname_ = App.get_name();
 
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
@@ -53,7 +53,7 @@ void MDNSComponent::compile_records_() {
   MDNS_STATIC_CONST_CHAR(VALUE_BOARD, ESPHOME_BOARD);
 
   if (api::global_api_server != nullptr) {
-    auto &service = this->services_.emplace_next();
+    auto &service = services.emplace_next();
     service.service_type = MDNS_STR(SERVICE_ESPHOMELIB);
     service.proto = MDNS_STR(SERVICE_TCP);
     service.port = api::global_api_server->get_port();
@@ -83,7 +83,7 @@ void MDNSComponent::compile_records_() {
 #endif
 
     auto &txt_records = service.txt_records;
-    txt_records.reserve(txt_count);
+    txt_records.init(txt_count);
 
     if (!friendly_name_empty) {
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
@@ -146,7 +146,7 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_PROMETHEUS
   MDNS_STATIC_CONST_CHAR(SERVICE_PROMETHEUS, "_prometheus-http");
 
-  auto &prom_service = this->services_.emplace_next();
+  auto &prom_service = services.emplace_next();
   prom_service.service_type = MDNS_STR(SERVICE_PROMETHEUS);
   prom_service.proto = MDNS_STR(SERVICE_TCP);
   prom_service.port = USE_WEBSERVER_PORT;
@@ -155,7 +155,7 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_WEBSERVER
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
 
-  auto &web_service = this->services_.emplace_next();
+  auto &web_service = services.emplace_next();
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
   web_service.port = USE_WEBSERVER_PORT;
@@ -167,11 +167,11 @@ void MDNSComponent::compile_records_() {
 
   // Publish "http" service if not using native API or any other services
   // This is just to have *some* mDNS service so that .local resolution works
-  auto &fallback_service = this->services_.emplace_next();
+  auto &fallback_service = services.emplace_next();
   fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
   fallback_service.port = USE_WEBSERVER_PORT;
-  fallback_service.txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
+  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
 }
 
@@ -180,7 +180,7 @@ void MDNSComponent::dump_config() {
                 "mDNS:\n"
                 "  Hostname: %s",
                 this->hostname_.c_str());
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+#ifdef USE_MDNS_STORE_SERVICES
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto),

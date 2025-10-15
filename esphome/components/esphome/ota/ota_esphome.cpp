@@ -29,7 +29,7 @@ namespace esphome {
 static const char *const TAG = "esphome.ota";
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size for OTA data transfer
-static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 10000;  // milliseconds for initial handshake
+static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
 #ifdef USE_OTA_PASSWORD

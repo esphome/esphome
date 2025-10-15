@@ -1,23 +1,21 @@
-i2c:
-  - id: i2c_gt911
-    scl: 5
-    sda: 4
-
 display:
   - platform: ssd1306_i2c
+    i2c_id: i2c_bus
     id: ssd1306_display
     model: SSD1306_128X64
-    reset_pin: 10
+    reset_pin: ${display_reset_pin}
     pages:
-      - id: page1
+      - id: gt911_page1
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
 
 touchscreen:
   - platform: gt911
+    i2c_id: i2c_bus
+    id: gt911_touchscreen
     display: ssd1306_display
-    interrupt_pin: 20
-    reset_pin: 21
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
 
 binary_sensor:
   - platform: gt911

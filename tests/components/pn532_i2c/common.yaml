@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_pn532
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 pn532_i2c:
+  i2c_id: i2c_bus
   id: pn532_nfcc
 
 binary_sensor:
