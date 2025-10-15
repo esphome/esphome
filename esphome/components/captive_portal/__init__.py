@@ -28,7 +28,7 @@ def AUTO_LOAD() -> list[str]:
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
 
-CONF_CUSTOM_HTML = "custom_html_file"
+CONF_CUSTOM_HTML_FILE = "custom_html_file"
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
-            cv.Optional(CONF_CUSTOM_HTML): cv.file_,
+            cv.Optional(CONF_CUSTOM_HTML_FILE): cv.file_,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -92,9 +92,9 @@ async def to_code(config):
 
     # captive_index.h is filtered out, so this will replace the default index
     # with the user-provided one
-    if CONF_CUSTOM_HTML in config:
+    if CONF_CUSTOM_HTML_FILE in config:
         cg.add_define("USE_CAPTIVE_PORTAL_CUSTOM_HTML")
-        path = CORE.relative_config_path(config[CONF_CUSTOM_HTML])
+        path = CORE.relative_config_path(config[CONF_CUSTOM_HTML_FILE])
         with open(file=path, encoding="utf-8") as custom_html_file:
             add_custom_html_index_as_progmem(custom_html_file.read())
 
@@ -109,7 +109,7 @@ def FILTER_SOURCE_FILES() -> list[str]:
 
     # captive_index.h is only needed when there is no custom html index file provided
     config = CORE.config.get("captive_portal", {})
-    if CONF_CUSTOM_HTML in config:
+    if CONF_CUSTOM_HTML_FILE in config:
         files_to_filter.append("captive_index.h")
 
     return files_to_filter
