@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
+    ISOLATED_SIGNATURE_PREFIX,
     NO_BUSES_SIGNATURE,
     analyze_all_components,
     create_grouping_signature,
@@ -115,7 +116,9 @@ def create_intelligent_batches(
             or (directly_changed and component in directly_changed)
         )
         if is_isolated:
-            signature_groups[(ALL_PLATFORMS, f"isolated_{component}")].append(component)
+            signature_groups[
+                (ALL_PLATFORMS, f"{ISOLATED_SIGNATURE_PREFIX}{component}")
+            ].append(component)
             continue
 
         # Get signature from any platform (they should all have the same buses)
@@ -147,7 +150,7 @@ def create_intelligent_batches(
     # 3. "no_buses" components CAN be grouped together
     def sort_key(item):
         (_platform, signature), components = item
-        is_isolated = signature.startswith("isolated_")
+        is_isolated = signature.startswith(ISOLATED_SIGNATURE_PREFIX)
         # Put "isolated_*" last (1), groupable first (0)
         # Within each category, sort by size (largest first)
         return (is_isolated, -len(components))
@@ -164,7 +167,7 @@ def create_intelligent_batches(
     current_weight = 0
 
     for (_platform, signature), group_components in sorted_groups:
-        is_isolated = signature.startswith("isolated_")
+        is_isolated = signature.startswith(ISOLATED_SIGNATURE_PREFIX)
         weight_per_component = ISOLATED_WEIGHT if is_isolated else GROUPABLE_WEIGHT
 
         for component in group_components:
@@ -276,7 +279,7 @@ def main() -> int:
     groupable_groups = []
     isolated_groups = []
     for (platform, signature), group_comps in sorted(signature_groups.items()):
-        if signature.startswith("isolated_"):
+        if signature.startswith(ISOLATED_SIGNATURE_PREFIX):
             isolated_groups.append((signature, group_comps))
         else:
             groupable_groups.append((signature, group_comps))
@@ -291,11 +294,18 @@ def main() -> int:
         ):
             # Check if this is a merged signature (contains +)
             is_merged = "+" in signature and signature != NO_BUSES_SIGNATURE
-            merge_indicator = " [MERGED]" if is_merged else ""
-            print(
-                f"  [{signature}]{merge_indicator}: {len(group_comps)} components",
-                file=sys.stderr,
-            )
+            # Special handling for no_buses components
+            if signature == NO_BUSES_SIGNATURE:
+                print(
+                    f"  [{signature}]: {len(group_comps)} components (used as fillers across batches)",
+                    file=sys.stderr,
+                )
+            else:
+                merge_indicator = " [MERGED]" if is_merged else ""
+                print(
+                    f"  [{signature}]{merge_indicator}: {len(group_comps)} components",
+                    file=sys.stderr,
+                )
             # Show first few components as examples
             examples = ", ".join(sorted(group_comps)[:8])
             if len(group_comps) > 8:

@@ -457,7 +457,9 @@ def merge_compatible_bus_groups(
         if (platform1, sig1) in processed_keys:
             continue
 
-        # Skip NO_BUSES_SIGNATURE - they'll be distributed later
+        # Skip NO_BUSES_SIGNATURE - kept separate for flexible batch distribution
+        # These components have no bus requirements and can be added to any batch
+        # as "fillers" for load balancing across CI runners
         if sig1 == NO_BUSES_SIGNATURE:
             merged_groups[(platform1, sig1)] = comps1
             processed_keys.add((platform1, sig1))
@@ -484,7 +486,7 @@ def merge_compatible_bus_groups(
             if platform2 != platform1:
                 continue  # Different platforms can't be merged
             if sig2 == NO_BUSES_SIGNATURE:
-                continue  # Handle separately
+                continue  # Keep separate for flexible batch distribution
             if sig2.startswith(ISOLATED_SIGNATURE_PREFIX):
                 continue  # Isolated components can't be merged
 
