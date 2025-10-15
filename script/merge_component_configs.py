@@ -338,12 +338,25 @@ def merge_component_configs(
         common_bus_packages = get_common_bus_packages()
         merged_packages: dict[str, Any] = {}
 
+        # Collect packages that are included as dependencies
+        # If modbus is present, uart is included via modbus.packages.uart
+        packages_to_skip = set()
+        for pkg_name in all_packages:
+            if pkg_name.startswith(DEPENDENCY_MARKER_PREFIX):
+                # Extract the actual package name (remove _dep_ prefix)
+                dep_name = pkg_name[len(DEPENDENCY_MARKER_PREFIX) :]
+                packages_to_skip.add(dep_name)
+
         for pkg_name in all_packages:
             # Skip dependency markers
             if pkg_name.startswith(DEPENDENCY_MARKER_PREFIX):
                 continue
             # Skip non-common-bus packages
             if pkg_name not in common_bus_packages:
+                continue
+            # Skip packages that are included as dependencies of other packages
+            # This prevents duplicate definitions (e.g., uart via modbus + uart separately)
+            if pkg_name in packages_to_skip:
                 continue
 
             # Find a component that has this package and extract its value
