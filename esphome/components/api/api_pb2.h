@@ -1110,9 +1110,9 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #endif
   StringRef service_ref_{};
   void set_service(const StringRef &ref) { this->service_ref_ = ref; }
-  std::vector<HomeassistantServiceMap> data{};
-  std::vector<HomeassistantServiceMap> data_template{};
-  std::vector<HomeassistantServiceMap> variables{};
+  FixedVector<HomeassistantServiceMap> data{};
+  FixedVector<HomeassistantServiceMap> data_template{};
+  FixedVector<HomeassistantServiceMap> variables{};
   bool is_event{false};
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   uint32_t call_id{0};
