@@ -1,8 +1,3 @@
-i2c:
-  - id: i2c_graph
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: template
     id: some_sensor
@@ -20,6 +15,6 @@ display:
     model: SSD1306_128X64
     reset_pin: ${reset_pin}
     pages:
-      - id: page1
+      - id: graph_page1
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());

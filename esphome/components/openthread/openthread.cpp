@@ -180,10 +180,12 @@ void OpenThreadSrpComponent::setup() {
     entry->mService.mNumTxtEntries = service.txt_records.size();
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
-      auto value = const_cast<TemplatableValue<std::string> &>(txt.value).value();
+      // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
+      // OpenThread SRP client expects the data to persist, so we strdup it
+      const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
-      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value.c_str()));
-      txt_entries[i].mValueLength = value.size();
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
+      txt_entries[i].mValueLength = strlen(value_str);
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();
