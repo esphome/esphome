@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 import sys
 
@@ -13,7 +14,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE
-from esphome.loader import get_component, get_platform
+from esphome.loader import ComponentManifest, get_component, get_platform
 
 
 def filter_component_files(str):
@@ -45,6 +46,29 @@ def add_item_to_components_graph(components_graph, parent, child):
             components_graph[parent].append(child)
 
 
+def resolve_auto_load(
+    auto_load: list[str] | Callable[[], list[str]] | Callable[[dict | None], list[str]],
+    config: dict | None = None,
+) -> list[str]:
+    """Resolve AUTO_LOAD to a list, handling callables with or without config parameter.
+
+    Args:
+        auto_load: The AUTO_LOAD value (list or callable)
+        config: Optional config to pass to callable AUTO_LOAD functions
+
+    Returns:
+        List of component names to auto-load
+    """
+    if not callable(auto_load):
+        return auto_load
+
+    import inspect
+
+    if inspect.signature(auto_load).parameters:
+        return auto_load(config)
+    return auto_load()
+
+
 def create_components_graph():
     # The root directory of the repo
     root = Path(__file__).parent.parent
@@ -63,7 +87,7 @@ def create_components_graph():
 
     components_graph = {}
     platforms = []
-    components = []
+    components: list[tuple[ComponentManifest, str, Path]] = []
 
     for path in components_dir.iterdir():
         if not path.is_dir():
@@ -92,8 +116,8 @@ def create_components_graph():
 
         for target_config in TARGET_CONFIGURATIONS:
             CORE.data[KEY_CORE] = target_config
-            for auto_load in comp.auto_load:
-                add_item_to_components_graph(components_graph, auto_load, name)
+            for item in resolve_auto_load(comp.auto_load, config=None):
+                add_item_to_components_graph(components_graph, item, name)
         # restore config
         CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
@@ -114,8 +138,8 @@ def create_components_graph():
 
             for target_config in TARGET_CONFIGURATIONS:
                 CORE.data[KEY_CORE] = target_config
-                for auto_load in platform.auto_load:
-                    add_item_to_components_graph(components_graph, auto_load, name)
+                for item in resolve_auto_load(platform.auto_load, config={}):
+                    add_item_to_components_graph(components_graph, item, name)
             # restore config
             CORE.data[KEY_CORE] = TARGET_CONFIGURATIONS[0]
 
@@ -161,18 +185,32 @@ def main():
         "-c",
         "--changed",
         action="store_true",
-        help="List all components required for testing based on changes",
+        help="List all components required for testing based on changes (includes dependencies)",
+    )
+    parser.add_argument(
+        "--changed-direct",
+        action="store_true",
+        help="List only directly changed components (without dependencies)",
+    )
+    parser.add_argument(
+        "--changed-with-deps",
+        action="store_true",
+        help="Output JSON with both directly changed and all changed components",
     )
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
     )
     args = parser.parse_args()
 
-    if args.branch and not args.changed:
-        parser.error("--branch requires --changed")
+    if args.branch and not (
+        args.changed or args.changed_direct or args.changed_with_deps
+    ):
+        parser.error(
+            "--branch requires --changed, --changed-direct, or --changed-with-deps"
+        )
 
-    if args.changed:
-        # When --changed is passed, only get the changed files
+    if args.changed or args.changed_direct or args.changed_with_deps:
+        # When --changed* is passed, only get the changed files
         changed = changed_files(args.branch)
 
         # If any base test file(s) changed, there's no need to filter out components
@@ -186,8 +224,25 @@ def main():
         # Get all component files
         files = get_all_component_files()
 
-    for c in get_components(files, args.changed):
-        print(c)
+    if args.changed_with_deps:
+        # Return JSON with both directly changed and all changed components
+        import json
+
+        directly_changed = get_components(files, False)
+        all_changed = get_components(files, True)
+        output = {
+            "directly_changed": directly_changed,
+            "all_changed": all_changed,
+        }
+        print(json.dumps(output))
+    elif args.changed_direct:
+        # Return only directly changed components (without dependencies)
+        for c in get_components(files, False):
+            print(c)
+    else:
+        # Return all changed components (with dependencies) - default behavior
+        for c in get_components(files, args.changed):
+            print(c)
 
 
 if __name__ == "__main__":

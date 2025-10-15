@@ -1,19 +1,14 @@
-i2c:
-  - id: i2c_chsc6x
-    scl: 3
-    sda: 9
-
-spi:
-  clk_pin: 5
-  mosi_pin: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-c3-idf.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
 
 display:
   - platform: ili9xxx
     id: ili9xxx_display
     model: GC9A01A
     invert_colors: True
-    cs_pin: 18
-    dc_pin: 19
+    cs_pin: 10
+    dc_pin: 6
     pages:
       - id: page1
         lambda: |-
