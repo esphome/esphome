@@ -539,10 +539,8 @@ optional<float> LowPassFilter::new_value(float value) {
 
   if (std::isnan(this->last_input_)) {
     this->last_output_ = value;
-    this->last_input_ = value;
   } else {
     this->last_output_ = this->last_output_ + this->alpha_ * (value - this->last_output_);
-    this->last_input_ = value;
   }
 
   return this->last_output_;
