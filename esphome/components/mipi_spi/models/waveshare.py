@@ -161,5 +161,4 @@ AXS15231.extend(
     data_rate="80MHz",
     cs_pin=9,
     reset_pin=21,
-    draw_rounding=4,
 )
