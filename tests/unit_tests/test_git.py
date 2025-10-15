@@ -54,6 +54,110 @@ def _get_git_command_type(cmd: list[str]) -> str | None:
     return None
 
 
+def test_run_git_command_success(tmp_path: Path) -> None:
+    """Test that run_git_command returns output on success."""
+    # Create a simple git repo to test with
+    repo_dir = tmp_path / "test_repo"
+    repo_dir.mkdir()
+
+    # Initialize a git repo
+    result = git.run_git_command(["git", "init"], str(repo_dir))
+    assert "Initialized empty Git repository" in result or result == ""
+
+    # Verify we can run a command and get output
+    result = git.run_git_command(["git", "status", "--porcelain"], str(repo_dir))
+    # Empty repo should have empty status
+    assert isinstance(result, str)
+
+
+def test_run_git_command_with_git_dir_isolation(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """Test that git_dir parameter properly isolates git operations."""
+    repo_dir = tmp_path / "test_repo"
+    repo_dir.mkdir()
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+
+    # Configure mock to return success
+    mock_subprocess_run.return_value = Mock(
+        returncode=0,
+        stdout=b"test output",
+        stderr=b"",
+    )
+
+    result = git.run_git_command(
+        ["git", "rev-parse", "HEAD"],
+        git_dir=repo_dir,
+    )
+
+    # Verify subprocess.run was called
+    assert mock_subprocess_run.called
+    call_args = mock_subprocess_run.call_args
+
+    # Verify environment was set
+    env = call_args[1]["env"]
+    assert "GIT_DIR" in env
+    assert "GIT_WORK_TREE" in env
+    assert env["GIT_DIR"] == str(repo_dir / ".git")
+    assert env["GIT_WORK_TREE"] == str(repo_dir)
+
+    assert result == "test output"
+
+
+def test_run_git_command_raises_git_not_installed_error(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """Test that FileNotFoundError is converted to GitNotInstalledError."""
+    from esphome.git import GitNotInstalledError
+
+    repo_dir = tmp_path / "test_repo"
+
+    # Configure mock to raise FileNotFoundError
+    mock_subprocess_run.side_effect = FileNotFoundError("git not found")
+
+    with pytest.raises(GitNotInstalledError, match="git is not installed"):
+        git.run_git_command(["git", "status"], git_dir=repo_dir)
+
+
+def test_run_git_command_raises_git_command_error_on_failure(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """Test that failed git commands raise GitCommandError."""
+    repo_dir = tmp_path / "test_repo"
+
+    # Configure mock to return non-zero exit code
+    mock_subprocess_run.return_value = Mock(
+        returncode=1,
+        stdout=b"",
+        stderr=b"fatal: not a git repository",
+    )
+
+    with pytest.raises(GitCommandError, match="not a git repository"):
+        git.run_git_command(["git", "status"], git_dir=repo_dir)
+
+
+def test_run_git_command_strips_fatal_prefix(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """Test that 'fatal: ' prefix is stripped from error messages."""
+    repo_dir = tmp_path / "test_repo"
+
+    # Configure mock to return error with "fatal: " prefix
+    mock_subprocess_run.return_value = Mock(
+        returncode=128,
+        stdout=b"",
+        stderr=b"fatal: repository not found\n",
+    )
+
+    with pytest.raises(GitCommandError) as exc_info:
+        git.run_git_command(["git", "clone", "invalid-url"], git_dir=repo_dir)
+
+    # Error message should NOT include "fatal: " prefix
+    assert "fatal:" not in str(exc_info.value)
+    assert "repository not found" in str(exc_info.value)
+
+
 def test_clone_or_update_with_never_refresh(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:

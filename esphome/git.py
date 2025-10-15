@@ -34,34 +34,34 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
-def run_git_command(
-    cmd: list[str], cwd: str | None = None, git_dir: Path | None = None
-) -> str:
-    if git_dir is not None:
-        _LOGGER.debug(
-            "Running git command with repository isolation: %s (git_dir=%s)",
-            " ".join(cmd),
-            git_dir,
-        )
-    else:
-        _LOGGER.debug("Running git command: %s", " ".join(cmd))
+def run_git_command(cmd: list[str], git_dir: Path) -> str:
+    _LOGGER.debug(
+        "Running git command with repository isolation: %s (git_dir=%s)",
+        " ".join(cmd),
+        git_dir,
+    )
+
+    # Set up environment for repository isolation
+    # Force git to only operate on this specific repository by setting
+    # GIT_DIR and GIT_WORK_TREE. This prevents git from walking up the
+    # directory tree to find parent repositories when the target repo's
+    # .git directory is corrupt. Without this, commands like 'git stash'
+    # could accidentally operate on parent repositories (e.g., the main
+    # ESPHome repo) instead of failing, causing data loss.
+    env: dict[str, str] = {
+        **subprocess.os.environ,
+        "GIT_DIR": str(Path(git_dir) / ".git"),
+        "GIT_WORK_TREE": str(git_dir),
+    }
 
     try:
-        env = None
-        if git_dir is not None:
-            # Force git to only operate on this specific repository by setting
-            # GIT_DIR and GIT_WORK_TREE. This prevents git from walking up the
-            # directory tree to find parent repositories when the target repo's
-            # .git directory is corrupt. Without this, commands like 'git stash'
-            # could accidentally operate on parent repositories (e.g., the main
-            # ESPHome repo) instead of failing, causing data loss.
-            env = {
-                **subprocess.os.environ,
-                "GIT_DIR": str(Path(git_dir) / ".git"),
-                "GIT_WORK_TREE": str(git_dir),
-            }
         ret = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, check=False, close_fds=False, env=env
+            cmd,
+            cwd=str(git_dir),
+            capture_output=True,
+            check=False,
+            close_fds=False,
+            env=env,
         )
     except FileNotFoundError as err:
         raise GitNotInstalledError(
@@ -110,21 +110,21 @@ def clone_or_update(
         _LOGGER.debug("Location: %s", repo_dir)
         cmd = ["git", "clone", "--depth=1"]
         cmd += ["--", url, str(repo_dir)]
-        run_git_command(cmd)
+        run_git_command(cmd, git_dir=repo_dir)
 
         if ref is not None:
             # We need to fetch the PR branch first, otherwise git will complain
             # about missing objects
             _LOGGER.info("Fetching %s", ref)
-            run_git_command(["git", "fetch", "--", "origin", ref], str(repo_dir))
-            run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+            run_git_command(["git", "fetch", "--", "origin", ref], git_dir=repo_dir)
+            run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir)
 
         if submodules is not None:
             _LOGGER.info(
                 "Initializing submodules (%s) for %s", ", ".join(submodules), key
             )
             run_git_command(
-                ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
+                ["git", "submodule", "update", "--init"] + submodules, git_dir=repo_dir
             )
 
     else:
@@ -146,7 +146,7 @@ def clone_or_update(
                 # First verify the repository is valid by checking HEAD
                 # Use git_dir parameter to prevent git from walking up to parent repos
                 old_sha = run_git_command(
-                    ["git", "rev-parse", "HEAD"], str(repo_dir), git_dir=repo_dir
+                    ["git", "rev-parse", "HEAD"], git_dir=repo_dir
                 )
 
                 _LOGGER.info("Updating %s", key)
@@ -156,7 +156,6 @@ def clone_or_update(
                 # Use git_dir to ensure this only affects the specific repo
                 run_git_command(
                     ["git", "stash", "push", "--include-untracked"],
-                    str(repo_dir),
                     git_dir=repo_dir,
                 )
 
@@ -164,12 +163,11 @@ def clone_or_update(
                 cmd = ["git", "fetch", "--", "origin"]
                 if ref is not None:
                     cmd.append(ref)
-                run_git_command(cmd, str(repo_dir), git_dir=repo_dir)
+                run_git_command(cmd, git_dir=repo_dir)
 
                 # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
                 run_git_command(
                     ["git", "reset", "--hard", "FETCH_HEAD"],
-                    str(repo_dir),
                     git_dir=repo_dir,
                 )
             except GitException as err:
@@ -223,15 +221,12 @@ def clone_or_update(
                 )
                 run_git_command(
                     ["git", "submodule", "update", "--init"] + submodules,
-                    str(repo_dir),
                     git_dir=repo_dir,
                 )
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
-                run_git_command(
-                    ["git", "reset", "--hard", old_sha], str(repo_dir), git_dir=repo_dir
-                )
+                run_git_command(["git", "reset", "--hard", old_sha], git_dir=repo_dir)
 
             return repo_dir, revert
 
