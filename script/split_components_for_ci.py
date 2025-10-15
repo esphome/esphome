@@ -56,6 +56,7 @@ def create_intelligent_batches(
     components: list[str],
     tests_dir: Path,
     batch_size: int = 40,
+    directly_changed: set[str] | None = None,
 ) -> list[list[str]]:
     """Create batches optimized for component grouping.
 
@@ -63,6 +64,7 @@ def create_intelligent_batches(
         components: List of component names to batch
         tests_dir: Path to tests/components directory
         batch_size: Target size for each batch
+        directly_changed: Set of directly changed components (for logging only)
 
     Returns:
         List of component batches (lists of component names)
@@ -94,10 +96,17 @@ def create_intelligent_batches(
 
     for component in components_with_tests:
         # Components that can't be grouped get unique signatures
-        # This includes both manually curated ISOLATED_COMPONENTS and
-        # automatically detected non_groupable components
+        # This includes:
+        # - Manually curated ISOLATED_COMPONENTS
+        # - Automatically detected non_groupable components
+        # - Directly changed components (passed via --isolate in CI)
         # These can share a batch/runner but won't be grouped/merged
-        if component in ISOLATED_COMPONENTS or component in non_groupable:
+        is_isolated = (
+            component in ISOLATED_COMPONENTS
+            or component in non_groupable
+            or (directly_changed and component in directly_changed)
+        )
+        if is_isolated:
             signature_groups[f"isolated_{component}"].append(component)
             continue
 
@@ -188,6 +197,10 @@ def main() -> int:
         help="Path to tests/components directory",
     )
     parser.add_argument(
+        "--directly-changed",
+        help="JSON array of directly changed component names (for logging only)",
+    )
+    parser.add_argument(
         "--output",
         "-o",
         choices=["json", "github"],
@@ -208,11 +221,21 @@ def main() -> int:
         print("Components must be a JSON array", file=sys.stderr)
         return 1
 
+    # Parse directly changed components list from JSON (if provided)
+    directly_changed = None
+    if args.directly_changed:
+        try:
+            directly_changed = set(json.loads(args.directly_changed))
+        except json.JSONDecodeError as e:
+            print(f"Error parsing directly-changed JSON: {e}", file=sys.stderr)
+            return 1
+
     # Create intelligent batches
     batches = create_intelligent_batches(
         components=components,
         tests_dir=args.tests_dir,
         batch_size=args.batch_size,
+        directly_changed=directly_changed,
     )
 
     # Convert batches to space-separated strings for CI
@@ -238,13 +261,37 @@ def main() -> int:
     isolated_count = sum(
         1
         for comp in all_batched_components
-        if comp in ISOLATED_COMPONENTS or comp in non_groupable
+        if comp in ISOLATED_COMPONENTS
+        or comp in non_groupable
+        or (directly_changed and comp in directly_changed)
     )
     groupable_count = actual_components - isolated_count
 
     print("\n=== Intelligent Batch Summary ===", file=sys.stderr)
     print(f"Total components requested: {len(components)}", file=sys.stderr)
     print(f"Components with test files: {actual_components}", file=sys.stderr)
+
+    # Show breakdown of directly changed vs dependencies
+    if directly_changed:
+        direct_count = sum(
+            1 for comp in all_batched_components if comp in directly_changed
+        )
+        dep_count = actual_components - direct_count
+        direct_comps = [
+            comp for comp in all_batched_components if comp in directly_changed
+        ]
+        dep_comps = [
+            comp for comp in all_batched_components if comp not in directly_changed
+        ]
+        print(
+            f"  - Direct changes: {direct_count} ({', '.join(sorted(direct_comps))})",
+            file=sys.stderr,
+        )
+        print(
+            f"  - Dependencies: {dep_count} ({', '.join(sorted(dep_comps))})",
+            file=sys.stderr,
+        )
+
     print(f"  - Groupable (weight=1): {groupable_count}", file=sys.stderr)
     print(f"  - Isolated (weight=10): {isolated_count}", file=sys.stderr)
     if actual_components < len(components):
