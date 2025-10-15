@@ -122,7 +122,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
 
   // Decode packet payload data for easy access
   UponorSmatrixData data[data_len];
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     data[i].id = packet[(i * 3) + 4];
     data[i].value = encode_uint16(packet[(i * 3) + 5], packet[(i * 3) + 6]);
   }
@@ -135,7 +135,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
     // thermostat sending both room temperature and time information.
     bool found_temperature = false;
     bool found_time = false;
-    for (int i = 0; i < data_len; i++) {
+    for (size_t i = 0; i < data_len; i++) {
       if (data[i].id == UPONOR_ID_ROOM_TEMP)
         found_temperature = true;
       if (data[i].id == UPONOR_ID_DATETIME1)
@@ -181,7 +181,7 @@ bool UponorSmatrixComponent::send(uint16_t device_address, const UponorSmatrixDa
   packet.push_back(device_address >> 8);
   packet.push_back(device_address >> 0);
 
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     packet.push_back(data[i].id);
     packet.push_back(data[i].value >> 8);
     packet.push_back(data[i].value >> 0);

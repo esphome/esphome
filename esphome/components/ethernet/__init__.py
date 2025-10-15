@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
+    CONF_MAC_ADDRESS,
     CONF_MANUAL_IP,
     CONF_MISO_PIN,
     CONF_MODE,
@@ -145,13 +146,6 @@ def _validate(config):
             use_address = CORE.name + config[CONF_DOMAIN]
         config[CONF_USE_ADDRESS] = use_address
 
-    # Validate LAN8670 is only used with ESP32 classic or ESP32-P4
-    if config[CONF_TYPE] == "LAN8670":
-        variant = get_esp32_variant()
-        if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
-            raise cv.Invalid(
-                f"LAN8670 PHY is only supported on ESP32 classic and ESP32-P4, not {variant}"
-            )
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if _is_framework_spi_polling_mode_supported():
             if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
@@ -184,6 +178,12 @@ def _validate(config):
             del config[CONF_CLK_MODE]
         elif CONF_CLK not in config:
             raise cv.Invalid("'clk' is a required option for [ethernet].")
+        variant = get_esp32_variant()
+        if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
+            raise cv.Invalid(
+                f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
+                f"on ESP32 classic and ESP32-P4, not {variant}"
+            )
 
     return config
 
@@ -198,6 +198,7 @@ BASE_SCHEMA = cv.Schema(
             "This option has been removed. Please use the [disabled] option under the "
             "new mdns component instead."
         ),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -365,6 +366,9 @@ async def to_code(config):
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
         cg.add_define(phy_define)
+
+    if mac_address := config.get(CONF_MAC_ADDRESS):
+        cg.add(var.set_fixed_mac(mac_address.parts))
 
     cg.add_define("USE_ETHERNET")
 
