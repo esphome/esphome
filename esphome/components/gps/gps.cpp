@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "gps.h"
 #include "esphome/core/log.h"
 
@@ -22,73 +20,76 @@ void GPS::dump_config() {
 }
 
 void GPS::update() {
-  if (this->latitude_sensor_ != nullptr)
+  if (this->latitude_sensor_ != nullptr) {
     this->latitude_sensor_->publish_state(this->latitude_);
+  }
 
-  if (this->longitude_sensor_ != nullptr)
+  if (this->longitude_sensor_ != nullptr) {
     this->longitude_sensor_->publish_state(this->longitude_);
+  }
 
-  if (this->speed_sensor_ != nullptr)
+  if (this->speed_sensor_ != nullptr) {
     this->speed_sensor_->publish_state(this->speed_);
+  }
 
-  if (this->course_sensor_ != nullptr)
+  if (this->course_sensor_ != nullptr) {
     this->course_sensor_->publish_state(this->course_);
+  }
 
-  if (this->altitude_sensor_ != nullptr)
+  if (this->altitude_sensor_ != nullptr) {
     this->altitude_sensor_->publish_state(this->altitude_);
+  }
 
-  if (this->satellites_sensor_ != nullptr)
+  if (this->satellites_sensor_ != nullptr) {
     this->satellites_sensor_->publish_state(this->satellites_);
+  }
 
-  if (this->hdop_sensor_ != nullptr)
+  if (this->hdop_sensor_ != nullptr) {
     this->hdop_sensor_->publish_state(this->hdop_);
+  }
 }
 
 void GPS::loop() {
   while (this->available() > 0 && !this->has_time_) {
-    if (this->tiny_gps_.encode(this->read())) {
-      if (this->tiny_gps_.location.isUpdated()) {
-        this->latitude_ = this->tiny_gps_.location.lat();
-        this->longitude_ = this->tiny_gps_.location.lng();
+    if (!this->tiny_gps_.encode(this->read())) {
+      continue;
+    }
+    if (this->tiny_gps_.location.isUpdated()) {
+      this->latitude_ = this->tiny_gps_.location.lat();
+      this->longitude_ = this->tiny_gps_.location.lng();
+      ESP_LOGV(TAG, "Latitude, Longitude: %.6f°, %.6f°", this->latitude_, this->longitude_);
+    }
 
-        ESP_LOGD(TAG, "Location:");
-        ESP_LOGD(TAG, "  Lat: %.6f °", this->latitude_);
-        ESP_LOGD(TAG, "  Lon: %.6f °", this->longitude_);
-      }
+    if (this->tiny_gps_.speed.isUpdated()) {
+      this->speed_ = this->tiny_gps_.speed.kmph();
+      ESP_LOGV(TAG, "Speed: %.3f km/h", this->speed_);
+    }
 
-      if (this->tiny_gps_.speed.isUpdated()) {
-        this->speed_ = this->tiny_gps_.speed.kmph();
-        ESP_LOGD(TAG, "Speed: %.3f km/h", this->speed_);
-      }
+    if (this->tiny_gps_.course.isUpdated()) {
+      this->course_ = this->tiny_gps_.course.deg();
+      ESP_LOGV(TAG, "Course: %.2f°", this->course_);
+    }
 
-      if (this->tiny_gps_.course.isUpdated()) {
-        this->course_ = this->tiny_gps_.course.deg();
-        ESP_LOGD(TAG, "Course: %.2f °", this->course_);
-      }
+    if (this->tiny_gps_.altitude.isUpdated()) {
+      this->altitude_ = this->tiny_gps_.altitude.meters();
+      ESP_LOGV(TAG, "Altitude: %.2f m", this->altitude_);
+    }
 
-      if (this->tiny_gps_.altitude.isUpdated()) {
-        this->altitude_ = this->tiny_gps_.altitude.meters();
-        ESP_LOGD(TAG, "Altitude: %.2f m", this->altitude_);
-      }
+    if (this->tiny_gps_.satellites.isUpdated()) {
+      this->satellites_ = this->tiny_gps_.satellites.value();
+      ESP_LOGV(TAG, "Satellites: %d", this->satellites_);
+    }
 
-      if (this->tiny_gps_.satellites.isUpdated()) {
-        this->satellites_ = this->tiny_gps_.satellites.value();
-        ESP_LOGD(TAG, "Satellites: %d", this->satellites_);
-      }
+    if (this->tiny_gps_.hdop.isUpdated()) {
+      this->hdop_ = this->tiny_gps_.hdop.hdop();
+      ESP_LOGV(TAG, "HDOP: %.3f", this->hdop_);
+    }
 
-      if (this->tiny_gps_.hdop.isUpdated()) {
-        this->hdop_ = this->tiny_gps_.hdop.hdop();
-        ESP_LOGD(TAG, "HDOP: %.3f", this->hdop_);
-      }
-
-      for (auto *listener : this->listeners_) {
-        listener->on_update(this->tiny_gps_);
-      }
+    for (auto *listener : this->listeners_) {
+      listener->on_update(this->tiny_gps_);
     }
   }
 }
 
 }  // namespace gps
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

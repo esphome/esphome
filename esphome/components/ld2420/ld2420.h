@@ -20,8 +20,9 @@
 namespace esphome {
 namespace ld2420 {
 
-static const uint8_t TOTAL_GATES = 16;
 static const uint8_t CALIBRATE_SAMPLES = 64;
+static const uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
+static const uint8_t TOTAL_GATES = 16;
 
 enum OpMode : uint8_t {
   OP_NORMAL_MODE = 1,
@@ -118,10 +119,10 @@ class LD2420Component : public Component, public uart::UARTDevice {
 
   float gate_move_sensitivity_factor{0.5};
   float gate_still_sensitivity_factor{0.5};
-  int32_t last_periodic_millis = millis();
-  int32_t report_periodic_millis = millis();
-  int32_t monitor_periodic_millis = millis();
-  int32_t last_normal_periodic_millis = millis();
+  int32_t last_periodic_millis{0};
+  int32_t report_periodic_millis{0};
+  int32_t monitor_periodic_millis{0};
+  int32_t last_normal_periodic_millis{0};
   uint16_t radar_data[TOTAL_GATES][CALIBRATE_SAMPLES];
   uint16_t gate_avg[TOTAL_GATES];
   uint16_t gate_peak[TOTAL_GATES];
@@ -161,8 +162,6 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void set_presence_(bool presence) { this->presence_ = presence; };
   uint16_t get_distance_() { return this->distance_; };
   void set_distance_(uint16_t distance) { this->distance_ = distance; };
-  bool get_cmd_active_() { return this->cmd_active_; };
-  void set_cmd_active_(bool active) { this->cmd_active_ = active; };
   void handle_simple_mode_(const uint8_t *inbuf, int len);
   void handle_energy_mode_(uint8_t *buffer, int len);
   void handle_ack_data_(uint8_t *buffer, int len);
@@ -181,12 +180,11 @@ class LD2420Component : public Component, public uart::UARTDevice {
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(16);
 #endif
 
-  uint32_t max_distance_gate_;
-  uint32_t min_distance_gate_;
+  uint16_t distance_{0};
   uint16_t system_mode_;
   uint16_t gate_energy_[TOTAL_GATES];
-  uint16_t distance_{0};
-  uint8_t config_checksum_{0};
+  uint8_t buffer_pos_{0};  // where to resume processing/populating buffer
+  uint8_t buffer_data_[MAX_LINE_LENGTH];
   char firmware_ver_[8]{"v0.0.0"};
   bool cmd_active_{false};
   bool presence_{false};

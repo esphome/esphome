@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.8.0-dev"
+__version__ = "2025.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -21,6 +21,7 @@ class Platform(StrEnum):
     HOST = "host"
     LIBRETINY_OLDSTYLE = "libretiny"
     LN882X = "ln882x"
+    NRF52 = "nrf52"
     RP2040 = "rp2040"
     RTL87XX = "rtl87xx"
 
@@ -31,6 +32,15 @@ class Framework(StrEnum):
     ARDUINO = "arduino"
     ESP_IDF = "esp-idf"
     NATIVE = "host"
+    ZEPHYR = "zephyr"
+
+
+class ThreadModel(StrEnum):
+    """Threading model identifiers for ESPHome scheduler."""
+
+    SINGLE = "ESPHOME_THREAD_SINGLE"
+    MULTI_NO_ATOMICS = "ESPHOME_THREAD_MULTI_NO_ATOMICS"
+    MULTI_ATOMICS = "ESPHOME_THREAD_MULTI_ATOMICS"
 
 
 class PlatformFramework(Enum):
@@ -47,6 +57,9 @@ class PlatformFramework(Enum):
     RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
     LN882X_ARDUINO = (Platform.LN882X, Framework.ARDUINO)
 
+    # Zephyr framework platforms
+    NRF52_ZEPHYR = (Platform.NRF52, Framework.ZEPHYR)
+
     # Host platform (native)
     HOST_NATIVE = (Platform.HOST, Framework.NATIVE)
 
@@ -58,6 +71,7 @@ PLATFORM_ESP8266 = Platform.ESP8266
 PLATFORM_HOST = Platform.HOST
 PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
 PLATFORM_LN882X = Platform.LN882X
+PLATFORM_NRF52 = Platform.NRF52
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
@@ -90,6 +104,7 @@ CONF_ALL = "all"
 CONF_ALLOW_OTHER_USES = "allow_other_uses"
 CONF_ALPHA = "alpha"
 CONF_ALTITUDE = "altitude"
+CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
 CONF_AMBIENT_LIGHT = "ambient_light"
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
@@ -99,6 +114,7 @@ CONF_AND = "and"
 CONF_ANGLE = "angle"
 CONF_ANY = "any"
 CONF_AP = "ap"
+CONF_API = "api"
 CONF_APPARENT_POWER = "apparent_power"
 CONF_ARDUINO_VERSION = "arduino_version"
 CONF_AREA = "area"
@@ -158,6 +174,7 @@ CONF_CALIBRATE_LINEAR = "calibrate_linear"
 CONF_CALIBRATION = "calibration"
 CONF_CAPACITANCE = "capacitance"
 CONF_CAPACITY = "capacity"
+CONF_CAPTURE_RESPONSE = "capture_response"
 CONF_CARBON_MONOXIDE = "carbon_monoxide"
 CONF_CARRIER_DUTY_PERCENT = "carrier_duty_percent"
 CONF_CARRIER_FREQUENCY = "carrier_frequency"
@@ -170,6 +187,7 @@ CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
 CONF_CHECK = "check"
 CONF_CHIPSET = "chipset"
 CONF_CLEAN_SESSION = "clean_session"
+CONF_CLEAR = "clear"
 CONF_CLEAR_IMPEDANCE = "clear_impedance"
 CONF_CLIENT_CERTIFICATE = "client_certificate"
 CONF_CLIENT_CERTIFICATE_KEY = "client_certificate_key"
@@ -368,6 +386,8 @@ CONF_FINGER_ID = "finger_id"
 CONF_FINGERPRINT_COUNT = "fingerprint_count"
 CONF_FLASH_LENGTH = "flash_length"
 CONF_FLASH_TRANSITION_LENGTH = "flash_transition_length"
+CONF_FLIP_X = "flip_x"
+CONF_FLIP_Y = "flip_y"
 CONF_FLOW = "flow"
 CONF_FLOW_CONTROL_PIN = "flow_control_pin"
 CONF_FONT = "font"
@@ -407,6 +427,7 @@ CONF_HEAD = "head"
 CONF_HEADING = "heading"
 CONF_HEARTBEAT = "heartbeat"
 CONF_HEAT_ACTION = "heat_action"
+CONF_HEAT_COOL_MODE = "heat_cool_mode"
 CONF_HEAT_DEADBAND = "heat_deadband"
 CONF_HEAT_MODE = "heat_mode"
 CONF_HEAT_OVERRUN = "heat_overrun"
@@ -506,6 +527,7 @@ CONF_LOADED_INTEGRATIONS = "loaded_integrations"
 CONF_LOCAL = "local"
 CONF_LOCK_ACTION = "lock_action"
 CONF_LOG = "log"
+CONF_LOG_LEVEL = "log_level"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
@@ -521,6 +543,7 @@ CONF_MANUAL_IP = "manual_ip"
 CONF_MANUFACTURER_ID = "manufacturer_id"
 CONF_MASK_DISTURBER = "mask_disturber"
 CONF_MAX_BRIGHTNESS = "max_brightness"
+CONF_MAX_CONNECTIONS = "max_connections"
 CONF_MAX_COOLING_RUN_TIME = "max_cooling_run_time"
 CONF_MAX_CURRENT = "max_current"
 CONF_MAX_DURATION = "max_duration"
@@ -650,9 +673,11 @@ CONF_ON_PRESET_SET = "on_preset_set"
 CONF_ON_PRESS = "on_press"
 CONF_ON_RAW_VALUE = "on_raw_value"
 CONF_ON_RELEASE = "on_release"
+CONF_ON_RESPONSE = "on_response"
 CONF_ON_SHUTDOWN = "on_shutdown"
 CONF_ON_SPEED_SET = "on_speed_set"
 CONF_ON_STATE = "on_state"
+CONF_ON_SUCCESS = "on_success"
 CONF_ON_TAG = "on_tag"
 CONF_ON_TAG_REMOVED = "on_tag_removed"
 CONF_ON_TIME = "on_time"
@@ -743,6 +768,7 @@ CONF_POSITION_COMMAND_TOPIC = "position_command_topic"
 CONF_POSITION_STATE_TOPIC = "position_state_topic"
 CONF_POWER = "power"
 CONF_POWER_FACTOR = "power_factor"
+CONF_POWER_MODE = "power_mode"
 CONF_POWER_ON_VALUE = "power_on_value"
 CONF_POWER_SAVE_MODE = "power_save_mode"
 CONF_POWER_SUPPLY = "power_supply"
@@ -794,6 +820,7 @@ CONF_RESET_DURATION = "reset_duration"
 CONF_RESET_PIN = "reset_pin"
 CONF_RESIZE = "resize"
 CONF_RESOLUTION = "resolution"
+CONF_RESPONSE_TEMPLATE = "response_template"
 CONF_RESTART = "restart"
 CONF_RESTORE = "restore"
 CONF_RESTORE_MODE = "restore_mode"
@@ -809,6 +836,7 @@ CONF_RMT_CHANNEL = "rmt_channel"
 CONF_RMT_SYMBOLS = "rmt_symbols"
 CONF_ROTATION = "rotation"
 CONF_ROW = "row"
+CONF_ROWS = "rows"
 CONF_RS_PIN = "rs_pin"
 CONF_RTD_NOMINAL_RESISTANCE = "rtd_nominal_resistance"
 CONF_RTD_WIRES = "rtd_wires"
@@ -915,6 +943,7 @@ CONF_SWING_MODE_COMMAND_TOPIC = "swing_mode_command_topic"
 CONF_SWING_MODE_STATE_TOPIC = "swing_mode_state_topic"
 CONF_SWING_OFF_ACTION = "swing_off_action"
 CONF_SWING_VERTICAL_ACTION = "swing_vertical_action"
+CONF_SWITCH = "switch"
 CONF_SWITCH_DATAPOINT = "switch_datapoint"
 CONF_SWITCHES = "switches"
 CONF_SYNC = "sync"
@@ -1145,7 +1174,7 @@ UNIT_KILOMETER = "km"
 UNIT_KILOMETER_PER_HOUR = "km/h"
 UNIT_KILOVOLT_AMPS = "kVA"
 UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
-UNIT_KILOVOLT_AMPS_REACTIVE = "kVAR"
+UNIT_KILOVOLT_AMPS_REACTIVE = "kvar"
 UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
@@ -1187,6 +1216,7 @@ UNIT_WATT = "W"
 UNIT_WATT_HOURS = "Wh"
 
 # device classes
+DEVICE_CLASS_ABSOLUTE_HUMIDITY = "absolute_humidity"
 DEVICE_CLASS_APPARENT_POWER = "apparent_power"
 DEVICE_CLASS_AQI = "aqi"
 DEVICE_CLASS_AREA = "area"
@@ -1245,6 +1275,7 @@ DEVICE_CLASS_PLUG = "plug"
 DEVICE_CLASS_PM1 = "pm1"
 DEVICE_CLASS_PM10 = "pm10"
 DEVICE_CLASS_PM25 = "pm25"
+DEVICE_CLASS_PM4 = "pm4"
 DEVICE_CLASS_POWER = "power"
 DEVICE_CLASS_POWER_FACTOR = "power_factor"
 DEVICE_CLASS_PRECIPITATION = "precipitation"
@@ -1311,3 +1342,7 @@ ENTITY_CATEGORY_CONFIG = "config"
 
 # The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
 ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
+
+# The corresponding constant exists in c++
+# when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
+SCHEDULER_DONT_RUN = 4294967295

@@ -6,12 +6,6 @@ remote_transmitter:
   pin: ${pin}
   carrier_duty_percent: 50%
 
-uart:
-  - id: uart_midea
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 climate:
   - platform: midea
     id: midea_unit

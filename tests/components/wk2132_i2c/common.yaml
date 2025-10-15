@@ -1,14 +1,7 @@
-i2c:
-  id: i2c_bus
-  scl: ${scl_pin}
-  sda: ${sda_pin}
-  scan: true
-  frequency: 600kHz
-
 wk2132_i2c:
   - id: wk2132_i2c_id
-    address: 0x70
     i2c_id: i2c_bus
+    address: 0x70
     uart:
       - id: wk2132_id_0
         channel: 0

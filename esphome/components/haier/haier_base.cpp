@@ -242,7 +242,6 @@ haier_protocol::HandlerError HaierClimateBase::timeout_default_handler_(haier_pr
 }
 
 void HaierClimateBase::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Set timestamp here to give AC time to boot
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);
@@ -352,7 +351,7 @@ ClimateTraits HaierClimateBase::traits() { return traits_; }
 void HaierClimateBase::initialization() {
   constexpr uint32_t restore_settings_version = 0xA77D21EF;
   this->base_rtc_ =
-      global_preferences->make_preference<HaierBaseSettings>(this->get_object_id_hash() ^ restore_settings_version);
+      global_preferences->make_preference<HaierBaseSettings>(this->get_preference_hash() ^ restore_settings_version);
   HaierBaseSettings recovered;
   if (!this->base_rtc_.load(&recovered)) {
     recovered = {false, true};

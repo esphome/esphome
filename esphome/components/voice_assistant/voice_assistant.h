@@ -90,6 +90,15 @@ struct Configuration {
   uint32_t max_active_wake_words;
 };
 
+#ifdef USE_MEDIA_PLAYER
+enum class MediaPlayerResponseState {
+  IDLE,
+  URL_SENT,
+  PLAYING,
+  FINISHED,
+};
+#endif
+
 class VoiceAssistant : public Component {
  public:
   VoiceAssistant();
@@ -272,8 +281,8 @@ class VoiceAssistant : public Component {
   media_player::MediaPlayer *media_player_{nullptr};
   std::string tts_response_url_{""};
   bool started_streaming_tts_{false};
-  bool media_player_wait_for_announcement_start_{false};
-  bool media_player_wait_for_announcement_end_{false};
+
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
 
   bool local_output_{false};

@@ -6,6 +6,7 @@ esp_ldo:
   - id: ldo_4
     channel: 4
     voltage: 2.0V
+    setup_priority: 900
 
 esphome:
   on_boot:
