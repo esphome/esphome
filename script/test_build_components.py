@@ -68,15 +68,27 @@ PLATFORM_MAX_GROUP_SIZE = {
 def show_disk_space_if_ci(esphome_command: str) -> None:
     """Show disk space usage if running in CI during compile.
 
+    Only shows output during compilation (not config validation) since
+    disk space is only relevant when actually building firmware.
+
     Args:
         esphome_command: The esphome command being run (config/compile/clean)
     """
-    if os.environ.get("GITHUB_ACTIONS") and esphome_command == "compile":
-        print("\n" + "=" * 80)
-        print("Disk Space After Build:")
-        print("=" * 80)
-        subprocess.run(["df", "-h"], check=False)
-        print("=" * 80 + "\n")
+    # Only show disk space during compilation in CI
+    # Config validation doesn't build anything so disk space isn't relevant
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    if esphome_command != "compile":
+        return
+
+    print("\n" + "=" * 80)
+    print("Disk Space After Build:")
+    print("=" * 80)
+    # Use sys.stdout.flush() to ensure output appears immediately
+    sys.stdout.flush()
+    subprocess.run(["df", "-h"], check=False, stdout=sys.stdout, stderr=sys.stderr)
+    print("=" * 80 + "\n")
+    sys.stdout.flush()
 
 
 def find_component_tests(
