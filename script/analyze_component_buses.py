@@ -79,13 +79,14 @@ ISOLATED_COMPONENTS = {
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
-    "mapping": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
+    "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
     "mcp47a1": "no YAML config to specify i2c bus id",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
+    "syslog": "Uses dict format for time section (platform: host) incompatible with standard list format - ESPHome merge_config cannot handle",
 }
 
 
