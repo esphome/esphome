@@ -25,6 +25,7 @@ from script.analyze_component_buses import (
     NO_BUSES_SIGNATURE,
     analyze_all_components,
     create_grouping_signature,
+    merge_compatible_bus_groups,
 )
 
 # Weighting for batch creation
@@ -32,6 +33,10 @@ from script.analyze_component_buses import (
 # Groupable components can be merged into single builds, so they count as 1x
 ISOLATED_WEIGHT = 10
 GROUPABLE_WEIGHT = 1
+
+# Platform used for batching (platform-agnostic batching)
+# Batches are split across CI runners and each runner tests all platforms
+ALL_PLATFORMS = "all"
 
 
 def has_test_files(component_name: str, tests_dir: Path) -> bool:
@@ -91,8 +96,9 @@ def create_intelligent_batches(
 
     # Group components by their bus signature ONLY (ignore platform)
     # All platforms will be tested by test_build_components.py for each batch
-    # Key: signature, Value: list of components
-    signature_groups: dict[str, list[str]] = defaultdict(list)
+    # Key: (platform, signature), Value: list of components
+    # We use ALL_PLATFORMS since batching is platform-agnostic
+    signature_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
 
     for component in components_with_tests:
         # Components that can't be grouped get unique signatures
@@ -107,7 +113,7 @@ def create_intelligent_batches(
             or (directly_changed and component in directly_changed)
         )
         if is_isolated:
-            signature_groups[f"isolated_{component}"].append(component)
+            signature_groups[(ALL_PLATFORMS, f"isolated_{component}")].append(component)
             continue
 
         # Get signature from any platform (they should all have the same buses)
@@ -117,11 +123,17 @@ def create_intelligent_batches(
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
                 # Group by signature only - platform doesn't matter for batching
-                signature_groups[signature].append(component)
+                # Use ALL_PLATFORMS since we're batching across all platforms
+                signature_groups[(ALL_PLATFORMS, signature)].append(component)
                 break  # Only use first platform for grouping
         else:
             # No buses found for any platform - can be grouped together
-            signature_groups[NO_BUSES_SIGNATURE].append(component)
+            signature_groups[(ALL_PLATFORMS, NO_BUSES_SIGNATURE)].append(component)
+
+    # Merge compatible bus groups (cross-bus optimization)
+    # This allows components with different buses (ble + uart) to be batched together
+    # improving the efficiency of test_build_components.py grouping
+    signature_groups = merge_compatible_bus_groups(signature_groups)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches
@@ -132,7 +144,7 @@ def create_intelligent_batches(
     # 2. Sort groupable signatures by size (largest first)
     # 3. "no_buses" components CAN be grouped together
     def sort_key(item):
-        signature, components = item
+        (_platform, signature), components = item
         is_isolated = signature.startswith("isolated_")
         # Put "isolated_*" last (1), groupable first (0)
         # Within each category, sort by size (largest first)
@@ -149,7 +161,7 @@ def create_intelligent_batches(
     current_batch = []
     current_weight = 0
 
-    for signature, group_components in sorted_groups:
+    for (_platform, signature), group_components in sorted_groups:
         is_isolated = signature.startswith("isolated_")
         weight_per_component = ISOLATED_WEIGHT if is_isolated else GROUPABLE_WEIGHT
 
