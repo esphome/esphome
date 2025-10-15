@@ -324,7 +324,7 @@ def _is_framework_url(source: str) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 2, 1),
+    "recommended": cv.Version(3, 3, 2),
     "latest": cv.Version(3, 3, 2),
     "dev": cv.Version(3, 3, 2),
 }
@@ -343,7 +343,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 4, 2),
+    "recommended": cv.Version(5, 5, 1),
     "latest": cv.Version(5, 5, 1),
     "dev": cv.Version(5, 5, 1),
 }
@@ -363,7 +363,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(54, 3, 21, "2"),
+    "recommended": cv.Version(55, 3, 31, "1"),
     "latest": cv.Version(55, 3, 31, "1"),
     "dev": cv.Version(55, 3, 31, "1"),
 }
