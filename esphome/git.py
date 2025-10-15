@@ -186,19 +186,8 @@ def clone_or_update(
                     err,
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
-
-                try:
-                    shutil.rmtree(repo_dir)
-                    _LOGGER.info(
-                        "Successfully removed broken repository, re-cloning..."
-                    )
-                except Exception as remove_err:
-                    _LOGGER.error(
-                        "Failed to remove broken repository %s: %s",
-                        repo_dir,
-                        remove_err,
-                    )
-                    raise
+                shutil.rmtree(repo_dir)
+                _LOGGER.info("Successfully removed broken repository, re-cloning...")
 
                 # Recursively call clone_or_update to re-clone
                 # Set _recover_broken=False to prevent infinite recursion
