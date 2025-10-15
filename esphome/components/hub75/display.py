@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_OE_PIN,
+    CONF_ROWS,
     CONF_WIDTH,
 )
 
@@ -42,7 +43,6 @@ CONF_CLOCK_PHASE = "clock_phase"
 CONF_DOUBLE_BUFFER = "double_buffer"
 
 CONF_VIRTUAL_MATRIX = "virtual_matrix"
-CONF_ROWS = "rows"
 CONF_COLS = "cols"
 CONF_CHAIN_TYPE = "chain_type"
 CONF_SCAN_TYPE = "scan_type"
