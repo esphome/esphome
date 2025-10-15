@@ -365,6 +365,7 @@ def run_grouped_component_tests(
     build_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
+    additional_isolated: set[str] | None = None,
 ) -> tuple[set[tuple[str, str]], list[str], list[str], dict[str, str]]:
     """Run grouped component tests.
 
@@ -376,6 +377,7 @@ def run_grouped_component_tests(
         build_dir: Path to build directory
         esphome_command: ESPHome command (config/compile)
         continue_on_fail: Whether to continue on failure
+        additional_isolated: Additional components to treat as isolated (not grouped)
 
     Returns:
         Tuple of (tested_components, passed_tests, failed_tests, failed_commands)
@@ -397,6 +399,17 @@ def run_grouped_component_tests(
     # Track why components can't be grouped (for detailed output)
     non_groupable_reasons = {}
 
+    # Merge additional isolated components with predefined ones
+    # ISOLATED COMPONENTS are tested individually WITHOUT --testing-mode
+    # This is critical because:
+    # - Grouped tests use --testing-mode which disables pin conflict checks and other validation
+    # - These checks are disabled to allow config merging (multiple components in one build)
+    # - For directly changed components (via --isolate), we need full validation to catch issues
+    # - Dependencies are safe to group since they weren't modified in the PR
+    all_isolated = set(ISOLATED_COMPONENTS.keys())
+    if additional_isolated:
+        all_isolated.update(additional_isolated)
+
     # Group by (platform, bus_signature)
     for component, platforms in component_buses.items():
         if component not in all_tests:
@@ -404,7 +417,7 @@ def run_grouped_component_tests(
 
         # Skip components that must be tested in isolation
         # These are shown separately and should not be in non_groupable_reasons
-        if component in ISOLATED_COMPONENTS:
+        if component in all_isolated:
             continue
 
         # Skip base bus components (these test the bus platforms themselves)
@@ -453,15 +466,28 @@ def run_grouped_component_tests(
     print("\nGrouping Plan:")
     print("-" * 80)
 
-    # Show isolated components (must test individually due to known issues)
-    isolated_in_tests = [c for c in ISOLATED_COMPONENTS if c in all_tests]
+    # Show isolated components (must test individually due to known issues or direct changes)
+    isolated_in_tests = [c for c in all_isolated if c in all_tests]
     if isolated_in_tests:
-        print(
-            f"\n⚠ {len(isolated_in_tests)} components must be tested in isolation (known build issues):"
-        )
-        for comp in sorted(isolated_in_tests):
-            reason = ISOLATED_COMPONENTS[comp]
-            print(f"  - {comp}: {reason}")
+        predefined_isolated = [c for c in isolated_in_tests if c in ISOLATED_COMPONENTS]
+        additional_in_tests = [
+            c for c in isolated_in_tests if c in (additional_isolated or set())
+        ]
+
+        if predefined_isolated:
+            print(
+                f"\n⚠ {len(predefined_isolated)} components must be tested in isolation (known build issues):"
+            )
+            for comp in sorted(predefined_isolated):
+                reason = ISOLATED_COMPONENTS[comp]
+                print(f"  - {comp}: {reason}")
+
+        if additional_in_tests:
+            print(
+                f"\n✓ {len(additional_in_tests)} components tested in isolation (directly changed in PR):"
+            )
+            for comp in sorted(additional_in_tests):
+                print(f"  - {comp}")
 
     # Show base bus components (test the bus platform implementations)
     base_bus_in_tests = [c for c in BASE_BUS_COMPONENTS if c in all_tests]
@@ -733,6 +759,7 @@ def test_components(
     esphome_command: str,
     continue_on_fail: bool,
     enable_grouping: bool = True,
+    isolated_components: set[str] | None = None,
 ) -> int:
     """Test components with optional intelligent grouping.
 
@@ -742,6 +769,10 @@ def test_components(
         esphome_command: ESPHome command (config/compile)
         continue_on_fail: Whether to continue on failure
         enable_grouping: Whether to enable component grouping
+        isolated_components: Set of component names to test in isolation (not grouped).
+            These are tested WITHOUT --testing-mode to enable full validation
+            (pin conflicts, etc). This is used in CI for directly changed components
+            to catch issues that would be missed with --testing-mode.
 
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -788,6 +819,7 @@ def test_components(
             build_dir=build_dir,
             esphome_command=esphome_command,
             continue_on_fail=continue_on_fail,
+            additional_isolated=isolated_components,
         )
 
     # Then run individual tests for components not in groups
@@ -912,11 +944,22 @@ def main() -> int:
         action="store_true",
         help="Disable component grouping (test each component individually)",
     )
+    parser.add_argument(
+        "--isolate",
+        help="Comma-separated list of components to test in isolation (not grouped with others). "
+        "These are tested WITHOUT --testing-mode to enable full validation. "
+        "Used in CI for directly changed components to catch pin conflicts and other issues.",
+    )
 
     args = parser.parse_args()
 
     # Parse component patterns
     component_patterns = [p.strip() for p in args.components.split(",")]
+
+    # Parse isolated components
+    isolated_components = None
+    if args.isolate:
+        isolated_components = {c.strip() for c in args.isolate.split(",") if c.strip()}
 
     return test_components(
         component_patterns=component_patterns,
@@ -924,6 +967,7 @@ def main() -> int:
         esphome_command=args.esphome_command,
         continue_on_fail=args.continue_on_fail,
         enable_grouping=not args.no_grouping,
+        isolated_components=isolated_components,
     )
 
 

@@ -38,7 +38,7 @@ struct MDNSService {
   // as defined in RFC6763 Section 7, like "_tcp" or "_udp"
   const MDNSString *proto;
   TemplatableValue<uint16_t> port;
-  std::vector<MDNSTXTRecord> txt_records;
+  FixedVector<MDNSTXTRecord> txt_records;
 };
 
 class MDNSComponent : public Component {
