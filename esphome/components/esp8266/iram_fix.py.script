@@ -1,12 +1,12 @@
 import os
-import shutil
+import re
 
 # pylint: disable=E0602
 Import("env")  # noqa
 
 
-def preprocess_linker_script(source, target, env):
-    """Generate a custom linker script with fake IRAM for testing mode."""
+def patch_linker_script_after_preprocess(source, target, env):
+    """Patch the local linker script after PlatformIO preprocesses it."""
     # Check if we're in testing mode by looking for the define
     build_flags = env.get("BUILD_FLAGS", [])
     testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
@@ -14,44 +14,31 @@ def preprocess_linker_script(source, target, env):
     if not testing_mode:
         return
 
-    # Get the framework's linker script directory
-    framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
-    ld_dir = os.path.join(framework_dir, "tools", "sdk", "ld")
-    original_ld_h = os.path.join(ld_dir, "eagle.app.v6.common.ld.h")
-
-    # Create a build directory for our custom linker script
+    # Get the local linker script path
     build_dir = env.subst("$BUILD_DIR")
-    custom_ld = os.path.join(build_dir, "eagle.app.v6.common.ld")
+    local_ld = os.path.join(build_dir, "ld", "local.eagle.app.v6.common.ld")
 
-    # Use GCC to preprocess the linker script with our fake IRAM define
-    # This properly handles #ifdef, #include, and other preprocessor directives
-    gcc = env.subst("$CC")
-    preprocess_cmd = [
-        gcc,
-        "-E",  # Preprocess only
-        "-P",  # Omit linemarkers
-        "-x", "c",  # Treat as C file
-        "-DMMU_IRAM_SIZE=0x200000",  # Our fake IRAM size (2MB)
-        "-I", ld_dir,  # Include directory for #include directives
-        original_ld_h,
-        "-o", custom_ld
-    ]
-
-    import subprocess
-    result = subprocess.run(preprocess_cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error preprocessing linker script: {result.stderr}")
+    if not os.path.exists(local_ld):
         return
 
-    # Replace the automatically generated local.eagle.app.v6.common.ld with our custom one
-    # PlatformIO automatically preprocesses eagle.app.v6.common.ld.h to local.eagle.app.v6.common.ld
-    # We need to replace that with our version that has fake IRAM
-    local_ld = os.path.join(build_dir, "ld", "local.eagle.app.v6.common.ld")
-    os.makedirs(os.path.dirname(local_ld), exist_ok=True)
+    # Read the linker script
+    with open(local_ld, "r") as f:
+        content = f.read()
 
-    # Copy our custom preprocessed script to the local location
-    shutil.copy(custom_ld, local_ld)
+    # Replace IRAM size from 0x8000 (32KB) to 0x200000 (2MB)
+    # The line looks like: iram1_0_seg : org = 0x40100000, len = 0x8000
+    updated = re.sub(
+        r"(iram1_0_seg\s*:\s*org\s*=\s*0x40100000\s*,\s*len\s*=\s*)0x8000",
+        r"\g<1>0x200000",
+        content,
+    )
+
+    if updated != content:
+        with open(local_ld, "w") as f:
+            f.write(updated)
+        print("ESPHome: Patched IRAM size to 2MB for testing mode")
 
 
-# Run this before the build starts
-env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", preprocess_linker_script)
+# Hook into the build process right before linking
+# This runs after PlatformIO has already preprocessed the linker scripts
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_linker_script_after_preprocess)
