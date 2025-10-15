@@ -4,10 +4,6 @@
 #include "esphome/core/application.h"
 #include "esphome/components/wifi/wifi_component.h"
 
-#ifndef USE_CAPTIVE_PORTAL_CUSTOM_HTML
-#include "captive_index.h"
-#endif
-
 namespace esphome {
 namespace captive_portal {
 
