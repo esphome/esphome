@@ -18,7 +18,7 @@ _PLATFORM_FRAMEWORK_LOOKUP = {
 }
 
 
-def merge_dicts_ordered(*dicts):
+def merge_dicts_ordered(*dicts: dict) -> OrderedDict:
     """Merge multiple dicts into an OrderedDict, preserving key order.
 
     This is a helper to ensure that dictionary merging preserves OrderedDict type,
