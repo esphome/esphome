@@ -1,0 +1,504 @@
+esphome:
+  name: awarma-12kw
+  friendly_name: Awarma-12kw
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  logs:
+    modbus_controller: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "OczLkEeZA2DhsL9h4w2izEQ5TS5CbYuimTz4ZxQkFYw="
+
+ota:
+  - platform: esphome
+    password: "f38392bf9ae7a46f18f8ca9df2374d00"
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO17_OUT
+  phy_addr: 0
+  power_pin: GPIO12
+  manual_ip:
+    gateway: 10.0.3.1
+    subnet: 255.255.255.0
+    static_ip: 10.0.3.25
+
+uart:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+  # debug:
+  #   direction: RX
+  #   dummy_receiver: true
+modbus:
+  flow_control_pin: GPIO4
+  id: modbus1
+  disable_crc: "false"
+
+globals:
+  - id: modbus_connected
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+modbus_controller:
+  - id: modbus_device
+    address: 0x1 ## address of the Modbus slave device on the bus
+    modbus_id: modbus1
+    setup_priority: -10
+    on_online:
+      then:
+        - globals.set:
+            id: modbus_connected
+            value: "true"
+    on_offline:
+      then:
+        - globals.set:
+            id: modbus_connected
+            value: "false"
+
+binary_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Switched ON"
+    register_type: holding
+    address: 0x1000
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Standby / Shutdown"
+    register_type: holding
+    address: 0x1102
+    bitmask: 1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Power on State"
+    register_type: holding
+    address: 0x1102
+    bitmask: 2
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Downtime State"
+    register_type: holding
+    address: 0x1102
+    bitmask: 4
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Alarm Power on State"
+    register_type: holding
+    address: 0x1102
+    bitmask: 8
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Defrosting State"
+    register_type: holding
+    address: 0x1102
+    bitmask: 16
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Sterilization Status"
+    register_type: holding
+    address: 0x1102
+    bitmask: 256
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Antifreeze State"
+    register_type: holding
+    address: 0x1102
+    bitmask: 512
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: Floor Drying"
+    register_type: holding
+    address: 0x1102
+    bitmask: 1024
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "OS: PV Mode"
+    register_type: holding
+    address: 0x1102
+    bitmask: 2048
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Coil Temp"
+    register_type: holding
+    address: 0x1106
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Discharge temp"
+    register_type: holding
+    address: 0x1107
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Ambient temp"
+    register_type: holding
+    address: 0x1108
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Suction temp"
+    register_type: holding
+    address: 0x1109
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  # - platform: modbus_controller
+  #   modbus_controller_id: modbus_device
+  #   name: "EVI Inlet temp"
+  #   register_type: holding
+  #   address: 0x110A
+  #   device_class: "temperature"
+  #   state_class: "measurement"
+  #   unit_of_measurement: "°C"
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: !lambda return 0.1;
+  # - platform: modbus_controller
+  #   modbus_controller_id: modbus_device
+  #   name: "EVI Outlet temp"
+  #   register_type: holding
+  #   address: 0x110B
+  #   device_class: "temperature"
+  #   state_class: "measurement"
+  #   unit_of_measurement: "°C"
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Refrigerant liquid temperature"
+    register_type: holding
+    address: 0x110C
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Water inlet temperature"
+    register_type: holding
+    address: 0x110D
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Water outlet temperature"
+    register_type: holding
+    address: 0x110E
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "DHW tank temperature"
+    register_type: holding
+    address: 0x110F
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Water flow"
+    register_type: holding
+    address: 0x1110
+    device_class: "volume_flow_rate"
+    state_class: "measurement"
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Main circulation temperature differential"
+    register_type: holding
+    address: 0x1111
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "EVI circulation temperature differential"
+    register_type: holding
+    address: 0x1112
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "High pressure"
+    register_type: holding
+    address: 0x1113
+    device_class: "pressure"
+    state_class: "measurement"
+    unit_of_measurement: "MPa"
+    accuracy_decimals: 2
+    filters:
+      - multiply: !lambda return 0.01;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Low pressure"
+    register_type: holding
+    address: 0x1114
+    device_class: "pressure"
+    state_class: "measurement"
+    unit_of_measurement: "MPa"
+    accuracy_decimals: 2
+    filters:
+      - multiply: !lambda return 0.01;
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Compressor running frequency"
+    register_type: holding
+    address: 0x1115
+    device_class: "frequency"
+    state_class: "measurement"
+    unit_of_measurement: "HZ"
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Fan motor 1 speed"
+    register_type: holding
+    address: 0x1116
+    device_class: "frequency"
+    state_class: "measurement"
+    unit_of_measurement: "rpm"
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Compressor target frequency"
+    register_type: holding
+    address: 0x111A
+    device_class: "frequency"
+    state_class: "measurement"
+    unit_of_measurement: "HZ"
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Compressor input current"
+    register_type: holding
+    address: 0x111B
+    device_class: "current"
+    state_class: "measurement"
+    unit_of_measurement: "A"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "AC power voltage"
+    register_type: holding
+    address: 0x111D
+    device_class: "voltage"
+    state_class: "measurement"
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "DC power voltage"
+    register_type: holding
+    address: 0x111E
+    device_class: "voltage"
+    state_class: "measurement"
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Temp T6"
+    register_type: holding
+    address: 0x111F
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Room temperature (T2)"
+    register_type: holding
+    address: 0x1120
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  # - platform: modbus_controller
+  #   modbus_controller_id: modbus_device
+  #   name: "Evaporator temperature"
+  #   register_type: holding
+  #   address: 0x1121
+  #   device_class: "temperature"
+  #   state_class: "measurement"
+  #   unit_of_measurement: "°C"
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: !lambda return 0.1;
+  # - platform: modbus_controller
+  #   modbus_controller_id: modbus_device
+  #   name: "Condenser temperature"
+  #   register_type: holding
+  #   address: 0x1122
+  #   device_class: "temperature"
+  #   state_class: "measurement"
+  #   unit_of_measurement: "°C"
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: !lambda return 0.1;
+
+number:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "A/C Hysteresis temperature"
+    register_type: holding
+    address: 0x2004
+    min_value: 1.0
+    max_value: 15.0
+    multiply: 10.0
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Maximum Fan Speed"
+    register_type: holding
+    address: 8250
+    min_value: 500
+    max_value: 1500
+    multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Compressor Maximum"
+    register_type: holding
+    address: 8235
+    min_value: 50
+    max_value: 120
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Compressor Minimum"
+    register_type: holding
+    address: 8236
+    min_value: 30
+    max_value: 90
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Target Temperature"
+    register_type: holding
+    address: 8198
+    min_value: 35
+    max_value: 75
+    multiply: 10.0
+
+# sensor:
+#   - platform: modbus_controller
+#     modbus_controller_id: modbus_device
+#     name: "Switched ON"
+#     register_type: holding
+#     address: 0x1102
+
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "ON / Off"
+    register_type: holding
+    address: 0x1000
+# sensor:
+#   - platform: modbus_controller
+#     modbus_controller_id: modbus_device
+#     name: "Water flow"
+#     register_type: holding
+#     address: 4368
+#     device_class: "volume_flow_rate"
+#     state_class: "measurement"
+#     unit_of_measurement: "L/min"
+#     accuracy_decimals: 1
+#     filters:
+#       - multiply: !lambda return 0.1;
+#   - platform: modbus_controller
+#     modbus_controller_id: modbus_device
+#     name: "Water inlet temperature"
+#     register_type: holding
+#     address: 4365
+#     device_class: "temperature"
+#     state_class: "measurement"
+#     unit_of_measurement: "°C"
+#     accuracy_decimals: 1
+#     filters:
+#       - multiply: !lambda return 0.1;
+#   - platform: modbus_controller
+#     modbus_controller_id: modbus_device
+#     name: "Water outlet temperature"
+#     register_type: holding
+#     address: 4366
+#     device_class: "temperature"
+#     state_class: "measurement"
+#     unit_of_measurement: "°C"
+#     accuracy_decimals: 1
+#     filters:
+#       - multiply: !lambda return 0.1;
+#   - platform: modbus_controller
+#     modbus_controller_id: modbus_device
+#     name: "Compressor running frequency"
+#     register_type: holding
+#     address: 4373
+#     device_class: "frequency"
+#     state_class: "measurement"
+#     unit_of_measurement: "HZ"
+#   - platform: modbus_controller
+#     modbus_controller_id: modbus_device
+#     name: "Compressor input current"
+#     register_type: holding
+#     address: 4379
+#     device_class: "current"
+#     state_class: "measurement"
+#     unit_of_measurement: "A"
+#     accuracy_decimals: 1
+#     filters:
+#       - multiply: !lambda return 0.1;
