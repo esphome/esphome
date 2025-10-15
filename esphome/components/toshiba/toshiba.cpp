@@ -2,7 +2,6 @@
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 
 #include <vector>
-#include <map>
 
 namespace esphome {
 namespace toshiba {
