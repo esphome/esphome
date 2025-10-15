@@ -59,7 +59,6 @@ class TestResult:
 # ESP8266 has limited IRAM and can't handle large component groups
 PLATFORM_MAX_GROUP_SIZE = {
     "esp8266-ard": 20,  # ESP8266 Arduino has limited IRAM
-    "esp8266-idf": 20,  # ESP8266 IDF also has limited IRAM
     # BK72xx now uses BK7252 board (1.62MB flash vs 1.03MB) - no limit needed
     # Other platforms can handle larger groups
 }
