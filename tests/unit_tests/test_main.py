@@ -1204,6 +1204,31 @@ def test_show_logs_api(
 
 
 @patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_with_fqdn_mdns_disabled(
+    mock_run_logs: Mock,
+) -> None:
+    """Test show_logs with API using FQDN when mDNS is disabled."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: True},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    devices = ["device.example.com"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    # Should use the FQDN directly, not try MQTT lookup
+    mock_run_logs.assert_called_once_with(CORE.config, ["device.example.com"])
+
+
+@patch("esphome.components.api.client.run_logs")
 def test_show_logs_api_with_mqtt_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -1222,7 +1247,7 @@ def test_show_logs_api_with_mqtt_fallback(
     mock_mqtt_get_ip.return_value = ["192.168.1.200"]
 
     args = MockArgs(username="user", password="pass", client_id="client")
-    devices = ["device.local"]
+    devices = ["MQTTIP"]
 
     result = show_logs(CORE.config, args, devices)
 
@@ -1487,27 +1512,31 @@ def test_mqtt_get_ip() -> None:
 def test_has_resolvable_address() -> None:
     """Test has_resolvable_address function."""
 
-    # Test with mDNS enabled and hostname address
+    # Test with mDNS enabled and .local hostname address
     setup_core(config={}, address="esphome-device.local")
     assert has_resolvable_address() is True
 
-    # Test with mDNS disabled and hostname address
+    # Test with mDNS disabled and .local hostname address (still resolvable via DNS)
     setup_core(
         config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
     )
-    assert has_resolvable_address() is False
+    assert has_resolvable_address() is True
 
-    # Test with IP address (mDNS doesn't matter)
+    # Test with mDNS disabled and regular DNS hostname (resolvable)
+    setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="device.example.com")
+    assert has_resolvable_address() is True
+
+    # Test with IP address (always resolvable, mDNS doesn't matter)
     setup_core(config={}, address="192.168.1.100")
     assert has_resolvable_address() is True
 
-    # Test with IP address and mDNS disabled
+    # Test with IP address and mDNS disabled (still resolvable)
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="192.168.1.100")
     assert has_resolvable_address() is True
 
-    # Test with no address but mDNS enabled (can still resolve mDNS names)
+    # Test with no address
     setup_core(config={}, address=None)
-    assert has_resolvable_address() is True
+    assert has_resolvable_address() is False
 
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
