@@ -2,11 +2,7 @@
 
 #ifdef USE_ESP32
 
-#ifdef USE_I2S_LEGACY
-#include <driver/i2s.h>
-#else
 #include <driver/i2s_std.h>
-#endif
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
@@ -79,14 +75,7 @@ void I2SAudioSpeaker::dump_config() {
   if (this->timeout_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " ms", this->timeout_.value());
   }
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_DAC
-  ESP_LOGCONFIG(TAG, "  Internal DAC mode: %d", static_cast<int8_t>(this->internal_dac_mode_));
-#endif
-  ESP_LOGCONFIG(TAG, "  Communication format: %d", static_cast<int8_t>(this->i2s_comm_fmt_));
-#else
   ESP_LOGCONFIG(TAG, "  Communication format: %s", this->i2s_comm_fmt_.c_str());
-#endif
 }
 
 void I2SAudioSpeaker::loop() {
@@ -300,14 +289,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         // Audio stream info changed, stop the speaker task so it will restart with the proper settings.
         break;
       }
-#ifdef USE_I2S_LEGACY
-      i2s_event_t i2s_event;
-      while (xQueueReceive(this_speaker->i2s_event_queue_, &i2s_event, 0)) {
-        if (i2s_event.type == I2S_EVENT_TX_Q_OVF) {
-          tx_dma_underflow = true;
-        }
-      }
-#else
       int64_t write_timestamp;
       while (xQueueReceive(this_speaker->i2s_event_queue_, &write_timestamp, 0)) {
         // Receives timing events from the I2S on_sent callback. If actual audio data was sent in this event, it passes
@@ -326,7 +307,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           this_speaker->audio_output_callback_(frames_sent, write_timestamp);
         }
       }
-#endif
 
       if (this_speaker->pause_state_) {
         // Pause state is accessed atomically, so thread safe
@@ -393,17 +373,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         vTaskDelay(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS / 2));
       } else {
         size_t bytes_written = 0;
-#ifdef USE_I2S_LEGACY
-        if (this_speaker->current_stream_info_.get_bits_per_sample() == (uint8_t) this_speaker->bits_per_sample_) {
-          i2s_write(this_speaker->parent_->get_port(), transfer_buffer->get_buffer_start(),
-                    transfer_buffer->available(), &bytes_written, pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS));
-        } else if (this_speaker->current_stream_info_.get_bits_per_sample() <
-                   (uint8_t) this_speaker->bits_per_sample_) {
-          i2s_write_expand(this_speaker->parent_->get_port(), transfer_buffer->get_buffer_start(),
-                           transfer_buffer->available(), this_speaker->current_stream_info_.get_bits_per_sample(),
-                           this_speaker->bits_per_sample_, &bytes_written, pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS));
-        }
-#else
         if (tx_dma_underflow) {
           // Temporarily disable channel and callback to reset the I2S driver's internal DMA buffer queue so timing
           // callbacks are accurate. Preload the data.
@@ -420,14 +389,12 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           i2s_channel_write(this_speaker->tx_handle_, transfer_buffer->get_buffer_start(), transfer_buffer->available(),
                             &bytes_written, DMA_BUFFER_DURATION_MS);
         }
-#endif
         if (bytes_written > 0) {
           last_data_received_time = millis();
           frames_written += this_speaker->current_stream_info_.bytes_to_frames(bytes_written);
           transfer_buffer->decrease_buffer_length(bytes_written);
           if (tx_dma_underflow) {
             tx_dma_underflow = false;
-#ifndef USE_I2S_LEGACY
             // Reset the event queue timestamps
             // Enable the on_sent callback to accurately track the timestamps of played audio
             // Enable the I2S channel to start sending the preloaded audio
@@ -440,14 +407,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             i2s_channel_register_event_callback(this_speaker->tx_handle_, &callbacks, this_speaker);
 
             i2s_channel_enable(this_speaker->tx_handle_);
-#endif
           }
-#ifdef USE_I2S_LEGACY
-          // The legacy driver doesn't easily support the callback approach for timestamps, so fall back to a direct but
-          // less accurate approach.
-          this_speaker->audio_output_callback_(this_speaker->current_stream_info_.bytes_to_frames(bytes_written),
-                                               esp_timer_get_time() + dma_buffers_duration_ms * 1000);
-#endif
         }
       }
     }
@@ -496,22 +456,14 @@ void I2SAudioSpeaker::stop_(bool wait_on_empty) {
 esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info) {
   this->current_stream_info_ = audio_stream_info;  // store the stream info settings the driver will use
 
-#ifdef USE_I2S_LEGACY
-  if ((this->i2s_mode_ & I2S_MODE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
-#else
   if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
-#endif
     // Can't reconfigure I2S bus, so the sample rate must match the configured value
     ESP_LOGE(TAG, "Audio stream settings are not compatible with this I2S configuration");
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-#ifdef USE_I2S_LEGACY
-  if ((i2s_bits_per_sample_t) audio_stream_info.get_bits_per_sample() > this->bits_per_sample_) {
-#else
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO &&
       (i2s_slot_bit_width_t) audio_stream_info.get_bits_per_sample() > this->slot_bit_width_) {
-#endif
     // Currently can't handle the case when the incoming audio has more bits per sample than the configured value
     ESP_LOGE(TAG, "Audio streams with more bits per sample than the I2S speaker's configuration is not supported");
     return ESP_ERR_NOT_SUPPORTED;
@@ -524,77 +476,6 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
 
   uint32_t dma_buffer_length = audio_stream_info.ms_to_frames(DMA_BUFFER_DURATION_MS);
 
-#ifdef USE_I2S_LEGACY
-  i2s_channel_fmt_t channel = this->channel_;
-
-  if (audio_stream_info.get_channels() == 1) {
-    if (this->channel_ == I2S_CHANNEL_FMT_ONLY_LEFT) {
-      channel = I2S_CHANNEL_FMT_ONLY_LEFT;
-    } else {
-      channel = I2S_CHANNEL_FMT_ONLY_RIGHT;
-    }
-  } else if (audio_stream_info.get_channels() == 2) {
-    channel = I2S_CHANNEL_FMT_RIGHT_LEFT;
-  }
-
-  i2s_driver_config_t config = {
-    .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_TX),
-    .sample_rate = audio_stream_info.get_sample_rate(),
-    .bits_per_sample = this->bits_per_sample_,
-    .channel_format = channel,
-    .communication_format = this->i2s_comm_fmt_,
-    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = DMA_BUFFERS_COUNT,
-    .dma_buf_len = (int) dma_buffer_length,
-    .use_apll = this->use_apll_,
-    .tx_desc_auto_clear = true,
-    .fixed_mclk = I2S_PIN_NO_CHANGE,
-    .mclk_multiple = this->mclk_multiple_,
-    .bits_per_chan = this->bits_per_channel_,
-#if SOC_I2S_SUPPORTS_TDM
-    .chan_mask = (i2s_channel_t) (I2S_TDM_ACTIVE_CH0 | I2S_TDM_ACTIVE_CH1),
-    .total_chan = 2,
-    .left_align = false,
-    .big_edin = false,
-    .bit_order_msb = false,
-    .skip_msk = false,
-#endif
-  };
-#if SOC_I2S_SUPPORTS_DAC
-  if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
-    config.mode = (i2s_mode_t) (config.mode | I2S_MODE_DAC_BUILT_IN);
-  }
-#endif
-
-  esp_err_t err =
-      i2s_driver_install(this->parent_->get_port(), &config, I2S_EVENT_QUEUE_COUNT, &this->i2s_event_queue_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to install I2S legacy driver");
-    // Failed to install the driver, so unlock the I2S port
-    this->parent_->unlock();
-    return err;
-  }
-
-#if SOC_I2S_SUPPORTS_DAC
-  if (this->internal_dac_mode_ == I2S_DAC_CHANNEL_DISABLE) {
-#endif
-    i2s_pin_config_t pin_config = this->parent_->get_pin_config();
-    pin_config.data_out_num = this->dout_pin_;
-
-    err = i2s_set_pin(this->parent_->get_port(), &pin_config);
-#if SOC_I2S_SUPPORTS_DAC
-  } else {
-    i2s_set_dac_mode(this->internal_dac_mode_);
-  }
-#endif
-
-  if (err != ESP_OK) {
-    // Failed to set the data out pin, so uninstall the driver and unlock the I2S port
-    ESP_LOGE(TAG, "Failed to set the data out pin");
-    i2s_driver_uninstall(this->parent_->get_port());
-    this->parent_->unlock();
-  }
-#else
   i2s_chan_config_t chan_cfg = {
       .id = this->parent_->get_port(),
       .role = this->i2s_role_,
@@ -683,12 +564,10 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   }
 
   i2s_channel_enable(this->tx_handle_);
-#endif
 
   return err;
 }
 
-#ifndef USE_I2S_LEGACY
 bool IRAM_ATTR I2SAudioSpeaker::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx) {
   int64_t now = esp_timer_get_time();
 
@@ -709,16 +588,11 @@ bool IRAM_ATTR I2SAudioSpeaker::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_eve
 
   return need_yield1 | need_yield2 | need_yield3;
 }
-#endif
 
 void I2SAudioSpeaker::stop_i2s_driver_() {
-#ifdef USE_I2S_LEGACY
-  i2s_driver_uninstall(this->parent_->get_port());
-#else
   i2s_channel_disable(this->tx_handle_);
   i2s_del_channel(this->tx_handle_);
   this->tx_handle_ = nullptr;
-#endif
   this->parent_->unlock();
 }
 

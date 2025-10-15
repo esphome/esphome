@@ -146,7 +146,7 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
-#define USE_I2S_LEGACY
+// Note: USE_I2S_LEGACY removed - Arduino-ESP32 3.x now uses the same modern I2S driver as ESP-IDF
 #endif
 
 // IDF-specific feature flags
