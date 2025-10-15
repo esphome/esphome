@@ -412,6 +412,9 @@ void AsyncEventSource::try_send_nodefer(const char *message, const char *event, 
 
 void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
                                              message_generator_t *message_generator) {
+  // Skip if no connected clients to avoid unnecessary processing
+  if (this->empty())
+    return;
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
       ses->deferrable_send_state(source, event_type, message_generator);

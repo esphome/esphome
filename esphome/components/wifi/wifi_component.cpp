@@ -265,12 +265,9 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
     return this->wifi_dns_ip_(num);
   return {};
 }
-std::string WiFiComponent::get_use_address() const {
-  if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
-  }
-  return this->use_address_;
-}
+// set_use_address() is guaranteed to be called during component setup by Python code generation,
+// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
+const std::string &WiFiComponent::get_use_address() const { return this->use_address_; }
 void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
@@ -576,8 +573,9 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
   format_mac_addr_upper(bssid.data(), bssid_s);
 
   if (res.get_matches()) {
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), res.get_is_hidden() ? "(HIDDEN) " : "",
-             bssid_s, LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
     ESP_LOGD(TAG,
              "    Channel: %u\n"
              "    RSSI: %d dB",
