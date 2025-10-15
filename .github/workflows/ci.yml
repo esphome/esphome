@@ -468,11 +468,21 @@ jobs:
           fi
           echo ""
 
+          # Show disk space before validation (after bind mounts setup)
+          echo "Disk space before config validation:"
+          df -h
+          echo ""
+
           # Run config validation with grouping and isolation
           python3 script/test_build_components.py -e config -c "$components_csv" -f --isolate "$directly_changed_csv"
 
           echo ""
           echo "Config validation passed! Starting compilation..."
+          echo ""
+
+          # Show disk space before compilation
+          echo "Disk space before compilation:"
+          df -h
           echo ""
 
           # Run compilation with grouping and isolation
