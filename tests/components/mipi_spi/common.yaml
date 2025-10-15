@@ -1,11 +1,3 @@
-spi:
-  - id: spi_single
-    clk_pin:
-      number: ${clk_pin}
-      allow_other_uses: true
-    mosi_pin:
-      number: ${mosi_pin}
-
 display:
   - platform: mipi_spi
     spi_16: true
@@ -30,8 +22,5 @@ display:
     dimensions:
       width: 100
       height: 200
-    enable_pin:
-      - number: ${clk_pin}
-        allow_other_uses: true
-      - number: ${enable_pin}
+    enable_pin: ${enable_pin}
     bus_mode: single

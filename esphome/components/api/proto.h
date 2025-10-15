@@ -182,6 +182,10 @@ class ProtoLengthDelimited {
   explicit ProtoLengthDelimited(const uint8_t *value, size_t length) : value_(value), length_(length) {}
   std::string as_string() const { return std::string(reinterpret_cast<const char *>(this->value_), this->length_); }
 
+  // Direct access to raw data without string allocation
+  const uint8_t *data() const { return this->value_; }
+  size_t size() const { return this->length_; }
+
   /**
    * Decode the length-delimited data into an existing ProtoDecodableMessage instance.
    *
@@ -745,13 +749,29 @@ class ProtoSize {
   template<typename MessageType>
   inline void add_repeated_message(uint32_t field_id_size, const std::vector<MessageType> &messages) {
     // Skip if the vector is empty
-    if (messages.empty()) {
-      return;
+    if (!messages.empty()) {
+      // Use the force version for all messages in the repeated field
+      for (const auto &message : messages) {
+        add_message_object_force(field_id_size, message);
+      }
     }
+  }
 
-    // Use the force version for all messages in the repeated field
-    for (const auto &message : messages) {
-      add_message_object_force(field_id_size, message);
+  /**
+   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size (FixedVector
+   * version)
+   *
+   * @tparam MessageType The type of the nested messages in the FixedVector
+   * @param messages FixedVector of message objects
+   */
+  template<typename MessageType>
+  inline void add_repeated_message(uint32_t field_id_size, const FixedVector<MessageType> &messages) {
+    // Skip if the fixed vector is empty
+    if (!messages.empty()) {
+      // Use the force version for all messages in the repeated field
+      for (const auto &message : messages) {
+        add_message_object_force(field_id_size, message);
+      }
     }
   }
 };
@@ -827,7 +847,7 @@ class ProtoService {
   }
 
   // Authentication helper methods
-  bool check_connection_setup_() {
+  inline bool check_connection_setup_() {
     if (!this->is_connection_setup()) {
       this->on_no_setup_connection();
       return false;
@@ -835,7 +855,7 @@ class ProtoService {
     return true;
   }
 
-  bool check_authenticated_() {
+  inline bool check_authenticated_() {
 #ifdef USE_API_PASSWORD
     if (!this->check_connection_setup_()) {
       return false;

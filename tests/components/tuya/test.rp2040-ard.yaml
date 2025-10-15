@@ -3,4 +3,7 @@ substitutions:
   rx_pin: GPIO5
   status_pin: GPIO12
 
+packages:
+  uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml
+
 <<: !include common.yaml

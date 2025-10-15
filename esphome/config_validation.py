@@ -15,7 +15,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
-import os
+from pathlib import Path
 import re
 from string import ascii_letters, digits
 import uuid as uuid_
@@ -1195,6 +1195,13 @@ def validate_bytes(value):
 
 
 def hostname(value):
+    """Validate that the value is a valid hostname.
+
+    Maximum length is 63 characters per RFC 1035.
+
+    Note: If this limit is changed, update MAX_NAME_WITH_SUFFIX_SIZE in
+    esphome/core/helpers.cpp to accommodate the new maximum length.
+    """
     value = string(value)
     if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
         return value
@@ -1609,34 +1616,32 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
-def directory(value):
+def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isdir(path):
+    if not path.is_dir():
         raise Invalid(
-            f"Path '{path}' is not a directory (full path: {os.path.abspath(path)})."
+            f"Path '{path}' is not a directory (full path: {path.resolve()})."
         )
-    return value
+    return path
 
 
-def file_(value):
+def file_(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if not os.path.exists(path):
+    if not path.exists():
         raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
+            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
         )
-    if not os.path.isfile(path):
-        raise Invalid(
-            f"Path '{path}' is not a file (full path: {os.path.abspath(path)})."
-        )
-    return value
+    if not path.is_file():
+        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
+    return path
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
