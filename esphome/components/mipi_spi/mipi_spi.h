@@ -542,10 +542,10 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   void draw_pixel_at(int x, int y, Color color) override {
     if (!this->get_clipping().inside(x, y))
       return;
-    rotate_coordinates_(x, y);
+    rotate_coordinates(x, y);
     if (x < 0 || x >= WIDTH || y < this->start_line_ || y >= this->end_line_)
       return;
-    this->buffer_[(y - this->start_line_) * BUFFER_WIDTH + x] = convert_color_(color);
+    this->buffer_[(y - this->start_line_) * BUFFER_WIDTH + x] = convert_color(color);
     if (x < this->x_low_) {
       this->x_low_ = x;
     }
@@ -566,7 +566,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     this->y_low_ = this->start_line_;
     this->x_high_ = WIDTH - 1;
     this->y_high_ = this->end_line_ - 1;
-    std::fill_n(this->buffer_, HEIGHT * BUFFER_WIDTH / FRACTION, convert_color_(color));
+    std::fill_n(this->buffer_, HEIGHT * BUFFER_WIDTH / FRACTION, convert_color(color));
   }
 
   int get_width() override {
@@ -583,7 +583,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
  protected:
   // Rotate the coordinates to match the display orientation.
-  static void rotate_coordinates_(int &x, int &y) {
+  static void rotate_coordinates(int &x, int &y) {
     if constexpr (ROTATION == display::DISPLAY_ROTATION_180_DEGREES) {
       x = WIDTH - x - 1;
       y = HEIGHT - y - 1;
@@ -599,7 +599,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   }
 
   // Convert a color to the buffer pixel format.
-  static BUFFERTYPE convert_color_(const Color &color) {
+  static BUFFERTYPE convert_color(const Color &color) {
     if constexpr (BUFFERPIXEL == PIXEL_MODE_8) {
       return (color.red & 0xE0) | (color.g & 0xE0) >> 3 | color.b >> 6;
     } else if constexpr (BUFFERPIXEL == PIXEL_MODE_16) {
