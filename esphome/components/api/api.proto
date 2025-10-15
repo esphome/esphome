@@ -776,9 +776,9 @@ message HomeassistantActionRequest {
   option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
-  repeated HomeassistantServiceMap data = 2;
-  repeated HomeassistantServiceMap data_template = 3;
-  repeated HomeassistantServiceMap variables = 4;
+  repeated HomeassistantServiceMap data = 2 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap data_template = 3 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap variables = 4 [(fixed_vector) = true];
   bool is_event = 5;
   uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
   bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
