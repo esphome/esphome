@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from typing import Any
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
@@ -40,6 +41,35 @@ def patch_structhash():
 
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir
+
+
+def patch_file_downloader():
+    """Patch PlatformIO's FileDownloader to retry on PackageException errors."""
+    from platformio.package.download import FileDownloader
+    from platformio.package.exception import PackageException
+
+    original_init = FileDownloader.__init__
+
+    def patched_init(self, *args: Any, **kwargs: Any) -> None:
+        max_retries = 3
+
+        for attempt in range(max_retries):
+            try:
+                return original_init(self, *args, **kwargs)
+            except PackageException as e:
+                if attempt < max_retries - 1:
+                    _LOGGER.warning(
+                        "Package download failed: %s. Retrying... (attempt %d/%d)",
+                        str(e),
+                        attempt + 1,
+                        max_retries,
+                    )
+                else:
+                    # Final attempt - re-raise
+                    raise
+        return None
+
+    FileDownloader.__init__ = patched_init
 
 
 IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
@@ -99,6 +129,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     import platformio.__main__
 
     patch_structhash()
+    patch_file_downloader()
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 

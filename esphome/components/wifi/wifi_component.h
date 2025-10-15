@@ -121,6 +121,14 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
+// Use std::vector for RP2040 since scan count is unknown (callback-based)
+// Use FixedVector for other platforms where count is queried first
+#ifdef USE_RP2040
+template<typename T> using wifi_scan_vector_t = std::vector<T>;
+#else
+template<typename T> using wifi_scan_vector_t = FixedVector<T>;
+#endif
+
 class WiFiAP {
  public:
   void set_ssid(const std::string &ssid);
@@ -275,10 +283,10 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  std::string get_use_address() const;
+  const std::string &get_use_address() const;
   void set_use_address(const std::string &use_address);
 
-  const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -316,6 +324,7 @@ class WiFiComponent : public Component {
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
 
   Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
   Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
@@ -385,7 +394,7 @@ class WiFiComponent : public Component {
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
-  std::vector<WiFiScanResult> scan_result_;
+  wifi_scan_vector_t<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
   WiFiAP ap_;
   optional<float> output_power_;
@@ -424,6 +433,7 @@ class WiFiComponent : public Component {
 #endif
   bool enable_on_boot_;
   bool got_ipv4_address_{false};
+  bool keep_scan_results_{false};
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
