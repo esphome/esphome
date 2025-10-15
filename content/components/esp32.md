@@ -171,6 +171,10 @@ LWIP (Lightweight IP) behavior. Some options improve performance while others sa
 - **enable_lwip_check_thread_safety** (*Optional*, boolean): Enable LWIP thread safety checks to detect incorrect usage of
   the TCP/IP stack from multiple threads. This helps catch thread safety issues when core locking is enabled. Defaults to `true`.
 
+- **disable_libc_locks_in_iram** (*Optional*, boolean): Disable placing libc lock functions in IRAM. This saves approximately
+  1.3 KB of IRAM by placing these functions in flash memory instead. This is safe for ESPHome since no IRAM interrupt service
+  routines (ISRs that run while cache is disabled) use libc lock APIs. Defaults to `true` (IRAM placement disabled to save RAM).
+
 Some options can be disabled to save flash memory without affecting typical ESPHome functionality. The performance
 options (defaulting to `true`  ) improve socket operation performance but can be disabled if you need better
 multi-threaded scalability (which is uncommon since ESPHome uses an event loop).
@@ -189,6 +193,7 @@ esp32:
       enable_lwip_check_thread_safety: true  # Thread safety validation
 
       # Memory saving options
+      disable_libc_locks_in_iram: true  # Enabled by default, saves 1.3 KB IRAM
       enable_lwip_dhcp_server: false  # Disabled by default, only needed for AP mode
       enable_lwip_mdns_queries: false  # Enabled by default, can disable if not using .local hostnames
       enable_lwip_bridge_interface: false  # Disabled by default
