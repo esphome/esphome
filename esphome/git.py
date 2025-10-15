@@ -18,11 +18,22 @@ _LOGGER = logging.getLogger(__name__)
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
 
-def run_git_command(cmd, cwd=None) -> str:
+def run_git_command(
+    cmd: list[str], cwd: str | None = None, git_dir: Path | None = None
+) -> str:
     _LOGGER.debug("Running git command: %s", " ".join(cmd))
     try:
+        env = None
+        if git_dir is not None:
+            # Force git to only operate on this specific repository
+            # This prevents git from walking up to parent repositories
+            env = {
+                **subprocess.os.environ,
+                "GIT_DIR": str(Path(git_dir) / ".git"),
+                "GIT_WORK_TREE": str(git_dir),
+            }
         ret = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, check=False, close_fds=False
+            cmd, cwd=cwd, capture_output=True, check=False, close_fds=False, env=env
         )
     except FileNotFoundError as err:
         raise cv.Invalid(
@@ -104,20 +115,35 @@ def clone_or_update(
             # Try to update the repository, recovering from broken state if needed
             old_sha: str | None = None
             try:
-                old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
+                # First verify the repository is valid by checking HEAD
+                # Use git_dir parameter to prevent git from walking up to parent repos
+                old_sha = run_git_command(
+                    ["git", "rev-parse", "HEAD"], str(repo_dir), git_dir=repo_dir
+                )
+
                 _LOGGER.info("Updating %s", key)
                 _LOGGER.debug("Location: %s", repo_dir)
+
                 # Stash local changes (if any)
+                # Use git_dir to ensure this only affects the specific repo
                 run_git_command(
-                    ["git", "stash", "push", "--include-untracked"], str(repo_dir)
+                    ["git", "stash", "push", "--include-untracked"],
+                    str(repo_dir),
+                    git_dir=repo_dir,
                 )
+
                 # Fetch remote ref
                 cmd = ["git", "fetch", "--", "origin"]
                 if ref is not None:
                     cmd.append(ref)
-                run_git_command(cmd, str(repo_dir))
+                run_git_command(cmd, str(repo_dir), git_dir=repo_dir)
+
                 # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
-                run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+                run_git_command(
+                    ["git", "reset", "--hard", "FETCH_HEAD"],
+                    str(repo_dir),
+                    git_dir=repo_dir,
+                )
             except cv.Invalid as err:
                 # Repository is in a broken state or update failed
                 # Only attempt recovery once to prevent infinite recursion
@@ -148,12 +174,16 @@ def clone_or_update(
                     "Updating submodules (%s) for %s", ", ".join(submodules), key
                 )
                 run_git_command(
-                    ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
+                    ["git", "submodule", "update", "--init"] + submodules,
+                    str(repo_dir),
+                    git_dir=repo_dir,
                 )
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
-                run_git_command(["git", "reset", "--hard", old_sha], str(repo_dir))
+                run_git_command(
+                    ["git", "reset", "--hard", old_sha], str(repo_dir), git_dir=repo_dir
+                )
 
             return repo_dir, revert
 

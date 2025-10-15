@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -292,7 +293,9 @@ def test_clone_or_update_recovers_from_git_failures(
     # Track command call counts to make first call fail, subsequent calls succeed
     call_counts: dict[str, int] = {}
 
-    def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
         # Determine which command this is
         cmd_type = _get_git_command_type(cmd)
 
@@ -348,7 +351,9 @@ def test_clone_or_update_fails_when_recovery_also_fails(
     _setup_old_repo(repo_dir)
 
     # Mock git command to fail on clone (simulating network failure during recovery)
-    def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
         cmd_type = _get_git_command_type(cmd)
         if cmd_type == "rev-parse":
             # First time fails (broken repo)
@@ -402,7 +407,9 @@ def test_clone_or_update_recover_broken_flag_prevents_second_recovery(
     call_counts: dict[str, int] = {}
 
     # Mock git command to fail on fetch during recovery's ref checkout
-    def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
         cmd_type = _get_git_command_type(cmd)
 
         if cmd_type:
@@ -483,7 +490,9 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
         pass
 
     # Mock git commands to always fail on stash
-    def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
         cmd_type = _get_git_command_type(cmd)
         if cmd_type == "rev-parse":
             return "abc123"
