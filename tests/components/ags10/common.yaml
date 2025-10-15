@@ -1,9 +1,3 @@
-i2c:
-  - id: i2c_ags10
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-    frequency: 10kHz
-
 sensor:
   - platform: ags10
     id: ags10_1
