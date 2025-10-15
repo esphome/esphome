@@ -35,6 +35,10 @@ logger:
 - **logs** (*Optional*, mapping): Manually set the log level for a
    specific component or tag. See [Manual Log Levels for more information](#logger-manual_tag_specific_levels).
 
+- **runtime_tag_levels** (*Optional*, boolean): Enable runtime per-tag log level changes. This is automatically enabled
+   when `logs` is configured or when `logger.set_level` is used with a `tag` parameter. Only needs to be manually
+   enabled if calling `set_log_level()` from a lambda or external component. Defaults to `false` (auto-enabled as needed).
+
 - **id** (*Optional*, [ID](#config-id)): Manually specify the ID used for code generation.
 
 Advanced settings:
@@ -102,17 +106,17 @@ hardware interfaces for logging. Many newer boards based on ESP32 variants (such
 are using the ESP's on-board USB hardware peripheral while boards based on older processors (such as
 the original ESP32 or ESP8266) continue to use USB-to-serial bridge ICs for communication.
 
-|          | Arduino   | ESP-IDF           |
-| -------- | --------- | ----------------- |
-| ESP8266  | `UART0`   | N/A               |
-| ESP32    | `UART0`   | `UART0`           |
-| ESP32-C3 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-C5 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-C6 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-P4 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| ESP32-S2 | `USB_CDC` | `USB_CDC`         |
-| ESP32-S3 | `USB_CDC` | `USB_SERIAL_JTAG` |
-| RP2040 | `USB_CDC` | N/A |
+|          | Interface |
+| -------- | --------- |
+| ESP8266  | `UART0`   |
+| ESP32    | `UART0`   |
+| ESP32-C3 | `USB_SERIAL_JTAG` |
+| ESP32-C5 | `USB_SERIAL_JTAG` |
+| ESP32-C6 | `USB_SERIAL_JTAG` |
+| ESP32-P4 | `USB_SERIAL_JTAG` |
+| ESP32-S2 | `USB_CDC`         |
+| ESP32-S3 | `USB_SERIAL_JTAG` |
+| RP2040 | `USB_CDC` |
 
 {{< anchor "logger-log_levels" >}}
 
@@ -173,6 +177,10 @@ logger:
     mqtt.component: DEBUG
     mqtt.client: ERROR
 ```
+
+> [!NOTE]
+> When using `logs`, runtime per-tag log level support is automatically enabled. When this feature is disabled
+> (the default when `logs` is not configured), the logger is optimized for better performance and reduced memory usage.
 
 The `level` option controls which log statements are included in the
 firmware. You cannot set a tag to a more detailed level than
@@ -237,6 +245,11 @@ on_...:
         level: DEBUG
         tag: mqtt.client
 ```
+
+> [!NOTE]
+> When using `logger.set_level` with a `tag` parameter, runtime per-tag log level support is automatically enabled.
+> If you need to call `set_log_level()` directly from a lambda or external component, you must manually enable
+> `runtime_tag_levels: true` in the logger configuration.
 
 ## Logger Automation
 

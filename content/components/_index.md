@@ -388,6 +388,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "HYT271","components/sensor/hyt271","hyt271.jpg","Temperature & Humidity",""
 "Inkbird IBS-TH1 Mini","components/sensor/inkbird_ibsth1_mini","inkbird_isbth1_mini.jpg","Temperature & Humidity",""
 "Internal Temperature","components/sensor/internal_temperature","thermometer.svg","Temperature","dark-invert"
+"LM75B","components/sensor/lm75b","lm75b.jpg","Temperature",""
 "LPS22","components/sensor/lps22","lps22.webp","Temperature & Barometric Pressure",""
 "MCP9808","components/sensor/mcp9808","mcp9808.jpg","Temperature",""
 "MH-Z19","components/sensor/mhz19","mhz19.jpg","CO₂ & Temperature",""
@@ -416,6 +417,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "TMP102","components/sensor/tmp102","tmp102.jpg","Temperature",""
 "TMP1075","components/sensor/tmp1075","tmp1075.jpg","Temperature",""
 "TMP117","components/sensor/tmp117","tmp117.jpg","Temperature",""
+"WTS01","components/sensor/wts01","wts01.png","Temperature",""
 "XGZP68xx Series","components/sensor/xgzp68xx","6897d.jpg","Differential Pressure",""
 {{< /imgtable >}}
 
@@ -724,6 +726,7 @@ Often known as "tag" or "card" readers within the community.
 "MIPI DSI Displays","components/display/mipi_dsi","tab5.jpg"
 "MIPI RGB Displays","components/display/mipi_rgb","indicator.jpg"
 "MIPI SPI Displays","components/display/mipi_spi","t4-s3.jpg"
+"ePaper SPI Displays","components/display/epaper_spi","epaper.svg"
 "ILI9xxx","components/display/ili9xxx","ili9341.jpg"
 "ILI9341","components/display/ili9xxx","ili9341.svg"
 "ILI9342","components/display/ili9xxx","ili9342.svg"
@@ -1049,6 +1052,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 "Status LED","components/status_led","led-on.svg","dark-invert"
 "Sun","components/sun","weather-sunny.svg","dark-invert"
 "Tuya MCU","components/tuya","tuya.png",""
+"Z-Wave Proxy","components/zwave_proxy","z-wave.svg",""
 {{< /imgtable >}}
 
 ## Cookbook

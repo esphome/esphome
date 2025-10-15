@@ -24,6 +24,7 @@ esp32_ble:
   io_capability: keyboard_only
   disable_bt_logs: true  # Default, saves flash
   connection_timeout: 20s  # Default, matches client timeout
+  max_connections: 3  # Default, total BLE connections
   # advertising: true  # Only needed for advanced use cases
   max_notifications: 12  # Default, increase if needed
 ```
@@ -50,7 +51,7 @@ esp32_ble:
 > [!NOTE]
 > The `disable_bt_logs` option intelligently disables only the Bluetooth logging categories that are not required by your configuration. Each Bluetooth component registers the specific loggers it needs, and all unused loggers are automatically disabled during compilation. This includes loggers for Classic Bluetooth features (like RFCOMM, A2DP, HID) that are not used by ESPHome's BLE implementation.
 
-- **connection_timeout** (*Optional*, [Time](#config-time)): The maximum time to wait for a BLE connection to be established. Only available when using ESP-IDF framework. Defaults to `20s`.
+- **connection_timeout** (*Optional*, [Time](#config-time)): The maximum time to wait for a BLE connection to be established. Defaults to `20s`.
 
   - Range: 10 to 180 seconds
   - This timeout should align with the timeout used by your BLE client software to prevent connection slot waste
@@ -64,7 +65,19 @@ esp32_ble:
 > The `advertising` option is an advanced feature that manually enables BLE advertising compilation. In most cases, you don't need to set this as advertising is automatically enabled when using components that require it (like `esp32_ble_server` or `esp32_ble_beacon`  ). This option is primarily useful for custom components or special use cases where you need advertising functionality without the standard server or beacon components.
 
 - **advertising_cycle_time** (*Optional*, [Time](#config-time)): The time interval for cycling through multiple advertisements. Only applicable when advertising is enabled. Defaults to `10s`.
-- **max_notifications** (*Optional*, integer): The maximum number of BLE characteristics that can have notifications enabled across all connections. Only available when using ESP-IDF framework. Defaults to `12`.
+
+- **max_connections** (*Optional*, integer): The maximum number of simultaneous BLE connections (client + server combined). Defaults to `3`.
+
+  - Range: 1 to 9
+  - Each connection slot consumes approximately 1KB of RAM
+  - This limit is shared between {{< docref "esp32_ble_tracker/" >}} (BLE client), {{< docref "bluetooth_proxy/" >}}, and {{< docref "esp32_ble_server/" >}} (BLE server)
+  - Total BLE instances (ADV/SCAN + connections) is limited to 10 on ESP32-C3/S3
+  - It is recommended not to exceed `5` connection slots to avoid memory issues
+
+> [!NOTE]
+> The `max_connections` option sets both `CONFIG_BT_ACL_CONNECTIONS` (total instances including ADV/SCAN) and `CONFIG_BTDM_CTRL_BLE_MAX_CONN` (connection slots only) in ESP-IDF. This configuration was previously located in `esp32_ble_tracker` but has been moved here as it applies to all BLE functionality (client and server). For backward compatibility, setting it in `esp32_ble_tracker` will still work but will show a deprecation warning.
+
+- **max_notifications** (*Optional*, integer): The maximum number of BLE characteristics that can have notifications enabled across all connections. Defaults to `12`.
 
   - Range: 1 to 64
   - This is a global limit shared across all BLE connections
