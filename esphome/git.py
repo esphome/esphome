@@ -51,8 +51,8 @@ def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
     # .git directory is corrupt. Without this, commands like 'git stash'
     # could accidentally operate on parent repositories (e.g., the main
     # ESPHome repo) instead of failing, causing data loss.
-    env = None
-    cwd = None
+    env: dict[str, str] | None = None
+    cwd: str | None = None
     if git_dir is not None:
         env = {
             **subprocess.os.environ,
