@@ -18,6 +18,41 @@ def _compute_repo_dir(url: str, ref: str | None, domain: str) -> Path:
     return git._compute_destination_path(key, domain)
 
 
+def _setup_old_repo(repo_dir: Path, days_old: int = 2) -> None:
+    """Helper to set up a git repo directory structure with an old timestamp.
+
+    Args:
+        repo_dir: The repository directory path to create.
+        days_old: Number of days old to make the FETCH_HEAD file (default: 2).
+    """
+    # Create repo directory
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+
+    # Create FETCH_HEAD file with old timestamp
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+    old_time = datetime.now() - timedelta(days=days_old)
+    fetch_head.touch()
+    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+
+
+def _get_git_command_type(cmd: list[str]) -> str | None:
+    """Helper to determine the type of git command from a command list.
+
+    Args:
+        cmd: The git command list (e.g., ["git", "rev-parse", "HEAD"]).
+
+    Returns:
+        The command type ("rev-parse", "stash", "fetch", "reset", "clone") or None.
+    """
+    # Git commands are always in format ["git", "command", ...], so check index 1
+    if len(cmd) > 1:
+        return cmd[1]
+    return None
+
+
 def test_clone_or_update_with_never_refresh(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -251,33 +286,15 @@ def test_clone_or_update_recovers_from_git_failures(
     domain = "test"
     repo_dir = _compute_repo_dir(url, ref, domain)
 
-    # Create repo directory
-    repo_dir.mkdir(parents=True)
-    git_dir = repo_dir / ".git"
-    git_dir.mkdir()
-
-    fetch_head = git_dir / "FETCH_HEAD"
-    fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=2)
-    fetch_head.touch()
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    # Use helper to set up old repo
+    _setup_old_repo(repo_dir)
 
     # Track command call counts to make first call fail, subsequent calls succeed
     call_counts: dict[str, int] = {}
 
     def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
         # Determine which command this is
-        cmd_type = None
-        if "rev-parse" in cmd:
-            cmd_type = "rev-parse"
-        elif "stash" in cmd:
-            cmd_type = "stash"
-        elif "fetch" in cmd:
-            cmd_type = "fetch"
-        elif "reset" in cmd:
-            cmd_type = "reset"
-        elif "clone" in cmd:
-            cmd_type = "clone"
+        cmd_type = _get_git_command_type(cmd)
 
         # Track call count for this command type
         if cmd_type:
@@ -327,25 +344,18 @@ def test_clone_or_update_fails_when_recovery_also_fails(
     domain = "test"
     repo_dir = _compute_repo_dir(url, ref, domain)
 
-    # Create repo directory
-    repo_dir.mkdir(parents=True)
-    git_dir = repo_dir / ".git"
-    git_dir.mkdir()
-
-    fetch_head = git_dir / "FETCH_HEAD"
-    fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=2)
-    fetch_head.touch()
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    # Use helper to set up old repo
+    _setup_old_repo(repo_dir)
 
     # Mock git command to fail on clone (simulating network failure during recovery)
     def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
-        if "rev-parse" in cmd:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
             # First time fails (broken repo)
             raise cv.Invalid(
                 "ambiguous argument 'HEAD': unknown revision or path not in the working tree."
             )
-        if "clone" in cmd:
+        if cmd_type == "clone":
             # Clone also fails (recovery fails)
             raise cv.Invalid("fatal: unable to access repository")
         return ""
@@ -385,33 +395,15 @@ def test_clone_or_update_recover_broken_flag_prevents_second_recovery(
     domain = "test"
     repo_dir = _compute_repo_dir(url, ref, domain)
 
-    # Create repo directory
-    repo_dir.mkdir(parents=True)
-    git_dir = repo_dir / ".git"
-    git_dir.mkdir()
-
-    fetch_head = git_dir / "FETCH_HEAD"
-    fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=2)
-    fetch_head.touch()
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    # Use helper to set up old repo
+    _setup_old_repo(repo_dir)
 
     # Track fetch calls to differentiate between first (in clone) and second (in recovery update)
     call_counts: dict[str, int] = {}
 
     # Mock git command to fail on fetch during recovery's ref checkout
     def git_command_side_effect(cmd: list[str], cwd: str | None = None) -> str:
-        cmd_type = None
-        if "rev-parse" in cmd:
-            cmd_type = "rev-parse"
-        elif "stash" in cmd:
-            cmd_type = "stash"
-        elif "fetch" in cmd:
-            cmd_type = "fetch"
-        elif "reset" in cmd:
-            cmd_type = "reset"
-        elif "clone" in cmd:
-            cmd_type = "clone"
+        cmd_type = _get_git_command_type(cmd)
 
         if cmd_type:
             call_counts[cmd_type] = call_counts.get(cmd_type, 0) + 1
