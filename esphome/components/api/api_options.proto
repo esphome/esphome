@@ -64,4 +64,10 @@ extend google.protobuf.FieldOptions {
     // This is typically done through methods returning const T& or special accessor
     // methods like get_options() or supported_modes_for_api_().
     optional string container_pointer = 50001;
+
+    // fixed_vector: Use FixedVector instead of std::vector for repeated fields
+    // When set, the repeated field will use FixedVector<T> which requires calling
+    // init(size) before adding elements. This eliminates std::vector template overhead
+    // and is ideal when the exact size is known before populating the array.
+    optional bool fixed_vector = 50013 [default=false];
 }

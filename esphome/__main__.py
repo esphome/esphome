@@ -14,9 +14,11 @@ from typing import Protocol
 
 import argcomplete
 
+# Note: Do not import modules from esphome.components here, as this would
+# cause them to be loaded before external components are processed, resulting
+# in the built-in version being used instead of the external component one.
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
-from esphome.components.mqtt import CONF_DISCOVER_IP
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
@@ -240,6 +242,8 @@ def has_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
+    from esphome.components.mqtt import CONF_DISCOVER_IP
+
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -264,8 +268,10 @@ def has_ip_address() -> bool:
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS or is an IP address)."""
-    return has_mdns() or has_ip_address()
+    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
+    # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
+    return CORE.address is not None
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
@@ -574,11 +580,12 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api():
         addresses_to_use: list[str] | None = None
 
-        if port_type == "NETWORK" and (has_mdns() or is_ip_address(port)):
+        if port_type == "NETWORK":
+            # Network addresses (IPs, mDNS names, or regular DNS hostnames) can be used
+            # The resolve_ip_address() function in helpers.py handles all types
             addresses_to_use = devices
-        elif port_type in ("NETWORK", "MQTT", "MQTTIP") and has_mqtt_ip_lookup():
-            # Only use MQTT IP lookup if the first condition didn't match
-            # (for MQTT/MQTTIP types, or for NETWORK when mdns/ip check fails)
+        elif port_type in ("MQTT", "MQTTIP") and has_mqtt_ip_lookup():
+            # Use MQTT IP lookup for MQTT/MQTTIP types
             addresses_to_use = mqtt_get_ip(
                 config, args.username, args.password, args.client_id
             )
@@ -998,6 +1005,12 @@ def parse_args(argv):
         action="append",
         default=[],
     )
+    options_parser.add_argument(
+        "--testing-mode",
+        help="Enable testing mode (disables validation checks for grouped component testing)",
+        action="store_true",
+        default=False,
+    )
 
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
@@ -1256,6 +1269,7 @@ def run_esphome(argv):
 
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
+    CORE.testing_mode = args.testing_mode
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(

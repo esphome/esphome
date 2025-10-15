@@ -447,6 +447,8 @@ async def to_code(config):
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
 
+    CORE.add_job(final_step)
+
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
 async def wifi_connected_to_code(config, condition_id, template_arg, args):
@@ -466,6 +468,28 @@ async def wifi_enable_to_code(config, action_id, template_arg, args):
 @automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
+
+
+KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
+
+
+def request_wifi_scan_results():
+    """Request that WiFi scan results be kept in memory after connection.
+
+    Components that need access to scan results after WiFi is connected should
+    call this function during their code generation. This prevents the WiFi component from
+    freeing scan result memory after successful connection.
+    """
+    CORE.data[KEEP_SCAN_RESULTS_KEY] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure scan result retention."""
+    if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
+        cg.add(
+            cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
+        )
 
 
 @automation.register_action(
