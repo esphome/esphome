@@ -177,9 +177,10 @@ void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ =
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 void LightState::set_initial_state(const LightStateRTCState &initial_state) { this->initial_state_ = initial_state; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
-const std::vector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
+const FixedVector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
 void LightState::add_effects(const std::vector<LightEffect *> &effects) {
-  this->effects_.reserve(this->effects_.size() + effects.size());
+  // Called once from Python codegen during setup with all effects from YAML config
+  this->effects_.init(effects.size());
   for (auto *effect : effects) {
     this->effects_.push_back(effect);
   }

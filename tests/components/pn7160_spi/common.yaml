@@ -16,12 +16,6 @@ esphome:
       - tag.polling_off: nfcc_pn7160
       - tag.polling_on: nfcc_pn7160
 
-spi:
-  - id: spi_pn7160
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-    miso_pin: ${miso_pin}
-
 pn7160_spi:
   id: nfcc_pn7160
   cs_pin: ${cs_pin}

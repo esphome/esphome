@@ -784,7 +784,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
     records.resize(number);
 
-    scan_result_.reserve(number);
+    scan_result_.init(number);
     for (int i = 0; i < number; i++) {
       auto &record = records[i];
       bssid_t bssid;

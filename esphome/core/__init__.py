@@ -529,6 +529,8 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        # True if running in testing mode (disables validation checks for grouped testing)
+        self.testing_mode = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
