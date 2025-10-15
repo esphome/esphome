@@ -80,6 +80,8 @@ ISOLATED_COMPONENTS = {
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
+    "openthread": "Conflicts with wifi: used by most components",
+    "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
     "mcp4725": "no YAML config to specify i2c bus id",
     "mcp47a1": "no YAML config to specify i2c bus id",

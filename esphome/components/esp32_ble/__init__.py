@@ -387,6 +387,15 @@ def final_validation(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     validate_connection_slots(max_connections)
 
+    # Check if hosted bluetooth is being used
+    if "esp32_hosted" in full_config:
+        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
 
