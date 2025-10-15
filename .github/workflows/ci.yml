@@ -433,18 +433,31 @@ jobs:
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
-          # Use /mnt for build files (70GB available vs ~29GB on /)
-          # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
-          sudo mkdir -p /mnt/platformio
-          sudo chown $USER:$USER /mnt/platformio
-          mkdir -p ~/.platformio
-          sudo mount --bind /mnt/platformio ~/.platformio
 
-          # Bind mount test build directory to /mnt
-          sudo mkdir -p /mnt/test_build_components_build
-          sudo chown $USER:$USER /mnt/test_build_components_build
-          mkdir -p tests/test_build_components/build
-          sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+          # Check if /mnt has more free space than / before bind mounting
+          # Extract available space in KB for comparison
+          root_avail=$(df -k / | awk 'NR==2 {print $4}')
+          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
+
+          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
+
+          # Only use /mnt if it has more space than /
+          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
+            echo "Using /mnt for build files (more space available)"
+            # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
+            sudo mkdir -p /mnt/platformio
+            sudo chown $USER:$USER /mnt/platformio
+            mkdir -p ~/.platformio
+            sudo mount --bind /mnt/platformio ~/.platformio
+
+            # Bind mount test build directory to /mnt
+            sudo mkdir -p /mnt/test_build_components_build
+            sudo chown $USER:$USER /mnt/test_build_components_build
+            mkdir -p tests/test_build_components/build
+            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+          else
+            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
+          fi
 
           # Convert space-separated components to comma-separated for Python script
           components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
