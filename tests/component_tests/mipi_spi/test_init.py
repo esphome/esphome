@@ -336,7 +336,7 @@ def test_native_generation(
 
     main_cpp = generate_main(component_fixture_path("native.yaml"))
     assert (
-        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1>()"
+        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1, 1>()"
         in main_cpp
     )
     assert "set_init_sequence({240, 1, 8, 242" in main_cpp
