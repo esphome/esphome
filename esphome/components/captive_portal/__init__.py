@@ -1,3 +1,5 @@
+import gzip
+
 import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
@@ -26,6 +28,8 @@ def AUTO_LOAD() -> list[str]:
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
 
+CONF_CUSTOM_HTML = "custom_html_file"
+
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
 
@@ -36,6 +40,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
+            cv.Optional(CONF_CUSTOM_HTML): cv.file_,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -48,6 +53,16 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
 )
+
+
+def add_custom_html_index_as_progmem(content: str, compress: bool = True) -> None:
+    """Add a resource to progmem."""
+    content_encoded = content.encode("utf-8")
+    if compress:
+        content_encoded = gzip.compress(content_encoded)
+    bytes_as_int = ", ".join(str(x) for x in content_encoded)
+    uint8_t = f"const uint8_t INDEX_GZ[] PROGMEM = {{{bytes_as_int}}}"
+    cg.add_global(cg.RawExpression(uint8_t))
 
 
 @coroutine_with_priority(CoroPriority.CAPTIVE_PORTAL)
@@ -68,10 +83,30 @@ async def to_code(config):
         if CORE.is_libretiny:
             cg.add_library("DNSServer", None)
 
+    # captive_index.h is filtered out, so this will replace the default index
+    # with the user-provided one
+    if CONF_CUSTOM_HTML in config:
+        cg.add_define("USE_CAPTIVE_PORTAL_CUSTOM_HTML")
+        path = CORE.relative_config_path(config[CONF_CUSTOM_HTML])
+        with open(file=path, encoding="utf-8") as custom_html_file:
+            add_custom_html_index_as_progmem(custom_html_file.read())
 
-# Only compile the ESP-IDF DNS server when using ESP-IDF framework
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
-    }
-)
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    files_to_filter: list[str] = []
+
+    # captive_index.h is only needed when there is no custom html index file provided
+    config = CORE.config.get("captive_portal", {})
+    if CONF_CUSTOM_HTML in config:
+        files_to_filter.append("captive_index.h")
+
+    # Only compile the ESP-IDF DNS server when using ESP-IDF framework
+    files_to_filter.extend(
+        filter_source_files_from_platform(
+            {
+                "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
+            }
+        )
+    )
+
+    return files_to_filter
