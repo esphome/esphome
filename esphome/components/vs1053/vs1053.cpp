@@ -4,10 +4,12 @@
 #include "esphome/core/log.h"
 #include "vs1053_reg.h"
 
+#include <algorithm>
+
 namespace esphome {
 namespace vs1053 {
 
-static const char* TAG = "VS1053";
+static const char *const TAG = "VS1053";
 
 void VS1053Component::setup() {
   // Setup pins
@@ -42,7 +44,7 @@ void VS1053Component::setup() {
 
 void VS1053Component::loop() {
   // Device encountered an error. Attempt recovery with a soft reset
-  if (this->state_ == PlaybackState::Error) {
+  if (this->state_ == PlaybackState::ERROR) {
     ESP_LOGI(TAG, "Playback error. Attempting soft reset.");
     if (!this->init_(true)) {
       this->mark_failed();
@@ -50,12 +52,12 @@ void VS1053Component::loop() {
     }
 
     // Device successfully reset
-    this->state_ = PlaybackState::Idle;
+    this->state_ = PlaybackState::IDLE;
     return;
   }
 
   // Nothing to do
-  if (this->state_ == PlaybackState::Idle)
+  if (this->state_ == PlaybackState::IDLE)
     return;
 
   // Not ready for data
@@ -82,16 +84,18 @@ void VS1053Component::loop() {
     }
 
     // Transition to idle if playback was cancelled and all fill is sent
-    if (this->state_ == PlaybackState::Cancelled && this->fill_remaining_ == 0) {
-      this->state_ = PlaybackState::Idle;
+    if (this->state_ == PlaybackState::CANCELLED && this->fill_remaining_ == 0) {
+      this->state_ = PlaybackState::IDLE;
     }
 
     return;
   }
 
   // Handle end of playback
-  if (this->state_ == PlaybackState::Stop)
-    return this->finish_playback_();
+  if (this->state_ == PlaybackState::STOP) {
+    this->finish_playback_();
+    return;
+  }
 
   // Write as much file data as possible
   size_t remaining = this->buffer_end_ - this->buffer_;
@@ -112,16 +116,16 @@ void VS1053Component::loop() {
       break;
 
     // Handle playback cancellation
-    if (this->state_ == PlaybackState::Cancel) {
+    if (this->state_ == PlaybackState::CANCEL) {
       if (!this->get_cancel_bit_()) {
         // Start fill if cancel bit is cleared
         ESP_LOGI(TAG, "Playback cancelled. Sending fill data.");
         this->fill_remaining_ = FILL_LENGTH;
-        this->state_ = PlaybackState::Cancelled;
+        this->state_ = PlaybackState::CANCELLED;
       } else if ((now - this->cancel_start_) > CANCEL_TIMEOUT_US) {
         // Device has failed to cancel after 1 second
         ESP_LOGE(TAG, "Playback cancellation failed.");
-        this->state_ = PlaybackState::Error;
+        this->state_ = PlaybackState::ERROR;
       }
 
       return;
@@ -132,7 +136,7 @@ void VS1053Component::loop() {
   if (this->buffer_ >= this->buffer_end_) {
     ESP_LOGI(TAG, "Playback complete. Sending fill data.");
     this->fill_remaining_ = FILL_LENGTH;
-    this->state_ = PlaybackState::Stop;
+    this->state_ = PlaybackState::STOP;
   }
 }
 
@@ -152,9 +156,7 @@ void VS1053Component::set_volume(uint8_t left, uint8_t right) {
   this->volume_right_ = right;
 
   // Convert incoming volume to attenuation
-  auto convert = [](uint8_t v) {
-    return 0xFF - v;
-  };
+  auto convert = [](uint8_t v) { return 0xFF - v; };
 
   // Register sets attenuation in 0.5 dB steps
   // Maximum volume 0x0000, minimum 0xFEFE, analog powerdown 0xFFFF
@@ -164,7 +166,7 @@ void VS1053Component::set_volume(uint8_t left, uint8_t right) {
 
 void VS1053Component::cancel_playback() {
   // Can't cancel playback if we're not playing
-  if (this->state_ != PlaybackState::Playing)
+  if (this->state_ != PlaybackState::PLAYING)
     return;
 
   ESP_LOGI(TAG, "Cancelling playback.");
@@ -173,14 +175,14 @@ void VS1053Component::cancel_playback() {
   this->set_cancel_bit_();
 
   // Transition to cancel state and save timestamp
-  this->state_ = PlaybackState::Cancel;
+  this->state_ = PlaybackState::CANCEL;
   this->cancel_start_ = micros();
 }
 
-void VS1053Component::play_file(const uint8_t* data, size_t length) {
+void VS1053Component::play_file(const uint8_t *data, size_t length) {
   // Ensure device is idle
-  if (this->state_ != PlaybackState::Idle) {
-    ESP_LOGW(TAG, "State not idle. Current state %d.", this->state_);
+  if (this->state_ != PlaybackState::IDLE) {
+    ESP_LOGW(TAG, "State not idle. Current state %d.", static_cast<int>(this->state_));
     return;
   }
 
@@ -197,7 +199,7 @@ void VS1053Component::play_file(const uint8_t* data, size_t length) {
   this->buffer_end_ = data + length;
 
   // Update state
-  this->state_ = PlaybackState::Playing;
+  this->state_ = PlaybackState::PLAYING;
 
   // Attempt to fill entire FIFO
   size_t remaining = std::min(length, FIFO_LENGTH);
@@ -260,20 +262,14 @@ void VS1053Component::play_test_sine_sdi(uint16_t ms) {
   this->wait_data_ready_(1000);
 
   // Start test with fixed frequency
-  const uint8_t sine_start[16] = {
-      0x53, 0xEF, 0x6E, 0x44,
-      0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00};
+  const uint8_t sine_start[16] = {0x53, 0xEF, 0x6E, 0x44, 0x00, 0x00, 0x00, 0x00,
+                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   this->data_write_(sine_start, sizeof(sine_start));
 
   // Stop test after duration
   this->set_timeout(ms, [this]() {
-    uint8_t sine_stop[16] = {
-        0x45, 0x78, 0x69, 0x74,
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00};
+    uint8_t sine_stop[16] = {0x45, 0x78, 0x69, 0x74, 0x00, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     this->data_write_(sine_stop, sizeof(sine_stop));
   });
 }
@@ -294,13 +290,13 @@ void VS1053Component::finish_playback_() {
     // Cancel bit won't clear, device is in error
     if (fill_sent >= STOP_FILL_LENGTH) {
       ESP_LOGE(TAG, "Playback stop failed.");
-      this->state_ = PlaybackState::Error;
+      this->state_ = PlaybackState::ERROR;
       return;
     }
   }
 
   // Playback complete transition to idle
-  this->state_ = PlaybackState::Idle;
+  this->state_ = PlaybackState::IDLE;
 }
 
 bool VS1053Component::init_(bool soft_reset) {
@@ -342,9 +338,7 @@ bool VS1053Component::init_(bool soft_reset) {
   return true;
 }
 
-bool VS1053Component::get_cancel_bit_() const {
-  return this->command_read_(SCI_REG_MODE) & MODE_SM_CANCEL;
-}
+bool VS1053Component::get_cancel_bit_() const { return this->command_read_(SCI_REG_MODE) & MODE_SM_CANCEL; }
 
 void VS1053Component::set_cancel_bit_() const {
   // Set cancel bit
@@ -352,13 +346,11 @@ void VS1053Component::set_cancel_bit_() const {
   this->command_write_(SCI_REG_MODE, mode | MODE_SM_CANCEL);
 }
 
-uint8_t VS1053Component::get_fill_byte_() const {
-  return get_parameter_(PARAMETER_END_FILL_BYTE_ADDR) & 0xFF;
-}
+uint8_t VS1053Component::get_fill_byte_() const { return get_parameter_(PARAMETER_END_FILL_BYTE_ADDR) & 0xFF; }
 
-uint16_t VS1053Component::get_parameter_(uint16_t addr) const {
+uint16_t VS1053Component::get_parameter_(uint16_t param) const {
   // Read parameter from RAM
-  this->command_write_(SCI_REG_WRAMADDR, addr);
+  this->command_write_(SCI_REG_WRAMADDR, param);
   return this->command_read_(SCI_REG_WRAM);
 }
 
@@ -376,7 +368,7 @@ bool VS1053Component::wait_data_ready_(uint32_t timeout_us) const {
   return true;
 }
 
-void VS1053Component::data_write_(const uint8_t* buffer, size_t length) const {
+void VS1053Component::data_write_(const uint8_t *buffer, size_t length) const {
   // ESP_LOGV(TAG, "SDI write %d bytes: %s", length, format_hex_pretty(buffer, length).c_str());
 
   this->sdi_spi_->enable();

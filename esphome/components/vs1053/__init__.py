@@ -17,8 +17,8 @@ CONF_DREQ_PIN = "dreq_pin"
 vs1053_ns = cg.esphome_ns.namespace("vs1053")
 VS1053Component = vs1053_ns.class_("VS1053Component", cg.Component)
 
-VS1053_SDI_SPI = vs1053_ns.class_("VS1053_SDI_SPIDevice", spi.SPIDevice)
-VS1053_SCI_SPI = vs1053_ns.class_("VS1053_SCI_SPIDevice", spi.SPIDevice)
+VS1053_SDI_SPI = vs1053_ns.class_("VS1053SdiSpiDevice", spi.SPIDevice)
+VS1053_SCI_SPI = vs1053_ns.class_("VS1053SciSpiDevice", spi.SPIDevice)
 
 
 def _spi_schema(cls) -> cv.Schema:
