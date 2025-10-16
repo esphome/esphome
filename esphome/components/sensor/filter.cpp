@@ -32,48 +32,71 @@ void Filter::initialize(Sensor *parent, Filter *next) {
   this->next_ = next;
 }
 
-// MedianFilter
-MedianFilter::MedianFilter(size_t window_size, size_t send_every, size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
-void MedianFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
-void MedianFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
-optional<float> MedianFilter::new_value(float value) {
-  while (this->queue_.size() >= this->window_size_) {
-    this->queue_.pop_front();
-  }
-  this->queue_.push_back(value);
-  ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f)", this, value);
+// SlidingWindowFilter
+SlidingWindowFilter::SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at)
+    : window_size_(window_size), send_every_(send_every), send_at_(send_every - send_first_at) {
+  // Allocate ring buffer once at initialization
+  this->window_.init(window_size);
+}
 
+void SlidingWindowFilter::set_window_size(size_t window_size) {
+  this->window_size_ = window_size;
+  // Reallocate buffer with new size
+  this->window_.init(window_size);
+  this->window_head_ = 0;
+  this->window_count_ = 0;
+}
+
+optional<float> SlidingWindowFilter::new_value(float value) {
+  // Add value to ring buffer
+  if (this->window_count_ < this->window_size_) {
+    // Buffer not yet full - just append
+    this->window_.push_back(value);
+    this->window_count_++;
+    this->window_head_ = this->window_count_;
+  } else {
+    // Buffer full - overwrite oldest value (ring buffer)
+    this->window_[this->window_head_] = value;
+    this->window_head_ = (this->window_head_ + 1) % this->window_size_;
+  }
+
+  // Check if we should send a result
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
-
-    float median = NAN;
-    if (!this->queue_.empty()) {
-      // Copy queue without NaN values
-      std::vector<float> median_queue;
-      median_queue.reserve(this->queue_.size());
-      for (auto v : this->queue_) {
-        if (!std::isnan(v)) {
-          median_queue.push_back(v);
-        }
-      }
-
-      sort(median_queue.begin(), median_queue.end());
-
-      size_t queue_size = median_queue.size();
-      if (queue_size) {
-        if (queue_size % 2) {
-          median = median_queue[queue_size / 2];
-        } else {
-          median = (median_queue[queue_size / 2] + median_queue[(queue_size / 2) - 1]) / 2.0f;
-        }
-      }
-    }
-
-    ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f) SENDING %f", this, value, median);
-    return median;
+    float result = this->compute_result_();
+    ESP_LOGVV(TAG, "SlidingWindowFilter(%p)::new_value(%f) SENDING %f", this, value, result);
+    return result;
   }
   return {};
+}
+
+// SortedWindowFilter
+FixedVector<float> SortedWindowFilter::get_sorted_values_() {
+  // Copy window without NaN values using FixedVector (no heap allocation)
+  FixedVector<float> sorted_values;
+  sorted_values.init(this->window_count_);
+  for (size_t i = 0; i < this->window_count_; i++) {
+    float v = this->window_[i];
+    if (!std::isnan(v)) {
+      sorted_values.push_back(v);
+    }
+  }
+  sort(sorted_values.begin(), sorted_values.end());
+  return sorted_values;
+}
+
+// MedianFilter
+float MedianFilter::compute_result_() {
+  FixedVector<float> sorted_values = this->get_sorted_values_();
+  if (sorted_values.empty())
+    return NAN;
+
+  size_t size = sorted_values.size();
+  if (size % 2) {
+    return sorted_values[size / 2];
+  } else {
+    return (sorted_values[size / 2] + sorted_values[(size / 2) - 1]) / 2.0f;
+  }
 }
 
 // SkipInitialFilter
@@ -91,136 +114,36 @@ optional<float> SkipInitialFilter::new_value(float value) {
 
 // QuantileFilter
 QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile)
-    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size), quantile_(quantile) {}
-void QuantileFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
-void QuantileFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
-void QuantileFilter::set_quantile(float quantile) { this->quantile_ = quantile; }
-optional<float> QuantileFilter::new_value(float value) {
-  while (this->queue_.size() >= this->window_size_) {
-    this->queue_.pop_front();
-  }
-  this->queue_.push_back(value);
-  ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f), quantile:%f", this, value, this->quantile_);
+    : SortedWindowFilter(window_size, send_every, send_first_at), quantile_(quantile) {}
 
-  if (++this->send_at_ >= this->send_every_) {
-    this->send_at_ = 0;
+float QuantileFilter::compute_result_() {
+  FixedVector<float> sorted_values = this->get_sorted_values_();
+  if (sorted_values.empty())
+    return NAN;
 
-    float result = NAN;
-    if (!this->queue_.empty()) {
-      // Copy queue without NaN values
-      std::vector<float> quantile_queue;
-      for (auto v : this->queue_) {
-        if (!std::isnan(v)) {
-          quantile_queue.push_back(v);
-        }
-      }
-
-      sort(quantile_queue.begin(), quantile_queue.end());
-
-      size_t queue_size = quantile_queue.size();
-      if (queue_size) {
-        size_t position = ceilf(queue_size * this->quantile_) - 1;
-        ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, queue_size);
-        result = quantile_queue[position];
-      }
-    }
-
-    ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f) SENDING %f", this, value, result);
-    return result;
-  }
-  return {};
+  size_t position = ceilf(sorted_values.size() * this->quantile_) - 1;
+  ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, sorted_values.size());
+  return sorted_values[position];
 }
 
 // MinFilter
-MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
-void MinFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
-void MinFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
-optional<float> MinFilter::new_value(float value) {
-  while (this->queue_.size() >= this->window_size_) {
-    this->queue_.pop_front();
-  }
-  this->queue_.push_back(value);
-  ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f)", this, value);
-
-  if (++this->send_at_ >= this->send_every_) {
-    this->send_at_ = 0;
-
-    float min = NAN;
-    for (auto v : this->queue_) {
-      if (!std::isnan(v)) {
-        min = std::isnan(min) ? v : std::min(min, v);
-      }
-    }
-
-    ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f) SENDING %f", this, value, min);
-    return min;
-  }
-  return {};
-}
+float MinFilter::compute_result_() { return this->find_extremum_<std::less<float>>(); }
 
 // MaxFilter
-MaxFilter::MaxFilter(size_t window_size, size_t send_every, size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
-void MaxFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
-void MaxFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
-optional<float> MaxFilter::new_value(float value) {
-  while (this->queue_.size() >= this->window_size_) {
-    this->queue_.pop_front();
-  }
-  this->queue_.push_back(value);
-  ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f)", this, value);
-
-  if (++this->send_at_ >= this->send_every_) {
-    this->send_at_ = 0;
-
-    float max = NAN;
-    for (auto v : this->queue_) {
-      if (!std::isnan(v)) {
-        max = std::isnan(max) ? v : std::max(max, v);
-      }
-    }
-
-    ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f) SENDING %f", this, value, max);
-    return max;
-  }
-  return {};
-}
+float MaxFilter::compute_result_() { return this->find_extremum_<std::greater<float>>(); }
 
 // SlidingWindowMovingAverageFilter
-SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every,
-                                                                   size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
-void SlidingWindowMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
-void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
-optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
-  while (this->queue_.size() >= this->window_size_) {
-    this->queue_.pop_front();
-  }
-  this->queue_.push_back(value);
-  ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f)", this, value);
-
-  if (++this->send_at_ >= this->send_every_) {
-    this->send_at_ = 0;
-
-    float sum = 0;
-    size_t valid_count = 0;
-    for (auto v : this->queue_) {
-      if (!std::isnan(v)) {
-        sum += v;
-        valid_count++;
-      }
+float SlidingWindowMovingAverageFilter::compute_result_() {
+  float sum = 0;
+  size_t valid_count = 0;
+  for (size_t i = 0; i < this->window_count_; i++) {
+    float v = this->window_[i];
+    if (!std::isnan(v)) {
+      sum += v;
+      valid_count++;
     }
-
-    float average = NAN;
-    if (valid_count) {
-      average = sum / valid_count;
-    }
-
-    ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) SENDING %f", this, value, average);
-    return average;
   }
-  return {};
+  return valid_count ? sum / valid_count : NAN;
 }
 
 // ExponentialMovingAverageFilter

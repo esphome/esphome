@@ -44,11 +44,78 @@ class Filter {
   Sensor *parent_{nullptr};
 };
 
+/** Base class for filters that use a sliding window of values.
+ *
+ * Uses a ring buffer to efficiently maintain a fixed-size sliding window without
+ * reallocations or pop_front() overhead. Eliminates deque fragmentation issues.
+ */
+class SlidingWindowFilter : public Filter {
+ public:
+  SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at);
+
+  void set_send_every(size_t send_every) { this->send_every_ = send_every; }
+  void set_window_size(size_t window_size);
+
+  optional<float> new_value(float value) final;
+
+ protected:
+  /// Called by new_value() to compute the filtered result from the current window
+  virtual float compute_result_() = 0;
+
+  /// Access the sliding window values (ring buffer implementation)
+  /// Use: for (size_t i = 0; i < window_count_; i++) { float val = window_[i]; }
+  FixedVector<float> window_;
+  size_t window_head_{0};   ///< Index where next value will be written
+  size_t window_count_{0};  ///< Number of valid values in window (0 to window_size_)
+  size_t window_size_;      ///< Maximum window size
+  size_t send_every_;       ///< Send result every N values
+  size_t send_at_;          ///< Counter for send_every
+};
+
+/** Base class for Min/Max filters.
+ *
+ * Provides a templated helper to find extremum values efficiently.
+ */
+class MinMaxFilter : public SlidingWindowFilter {
+ public:
+  using SlidingWindowFilter::SlidingWindowFilter;
+
+ protected:
+  /// Helper to find min or max value in window, skipping NaN values
+  /// Usage: find_extremum_<std::less<float>>() for min, find_extremum_<std::greater<float>>() for max
+  template<typename Compare> float find_extremum_() {
+    float result = NAN;
+    Compare comp;
+    for (size_t i = 0; i < this->window_count_; i++) {
+      float v = this->window_[i];
+      if (!std::isnan(v)) {
+        result = std::isnan(result) ? v : (comp(v, result) ? v : result);
+      }
+    }
+    return result;
+  }
+};
+
+/** Base class for filters that need a sorted window (Median, Quantile).
+ *
+ * Extends SlidingWindowFilter to provide a helper that creates a sorted copy
+ * of non-NaN values from the window.
+ */
+class SortedWindowFilter : public SlidingWindowFilter {
+ public:
+  using SlidingWindowFilter::SlidingWindowFilter;
+
+ protected:
+  /// Helper to get sorted non-NaN values from the window
+  /// Returns empty FixedVector if all values are NaN
+  FixedVector<float> get_sorted_values_();
+};
+
 /** Simple quantile filter.
  *
- * Takes the quantile of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the quantile of the last <window_size> values and pushes it out every <send_every>.
  */
-class QuantileFilter : public Filter {
+class QuantileFilter : public SortedWindowFilter {
  public:
   /** Construct a QuantileFilter.
    *
@@ -61,25 +128,18 @@ class QuantileFilter : public Filter {
    */
   explicit QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile);
 
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
-  void set_quantile(float quantile);
+  void set_quantile(float quantile) { this->quantile_ = quantile; }
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result_() override;
   float quantile_;
 };
 
 /** Simple median filter.
  *
- * Takes the median of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the median of the last <window_size> values and pushes it out every <send_every>.
  */
-class MedianFilter : public Filter {
+class MedianFilter : public SortedWindowFilter {
  public:
   /** Construct a MedianFilter.
    *
@@ -89,18 +149,10 @@ class MedianFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MedianFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using SortedWindowFilter::SortedWindowFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result_() override;
 };
 
 /** Simple skip filter.
@@ -123,9 +175,9 @@ class SkipInitialFilter : public Filter {
 
 /** Simple min filter.
  *
- * Takes the min of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the min of the last <window_size> values and pushes it out every <send_every>.
  */
-class MinFilter : public Filter {
+class MinFilter : public MinMaxFilter {
  public:
   /** Construct a MinFilter.
    *
@@ -135,25 +187,17 @@ class MinFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MinFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using MinMaxFilter::MinMaxFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result_() override;
 };
 
 /** Simple max filter.
  *
- * Takes the max of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the max of the last <window_size> values and pushes it out every <send_every>.
  */
-class MaxFilter : public Filter {
+class MaxFilter : public MinMaxFilter {
  public:
   /** Construct a MaxFilter.
    *
@@ -163,18 +207,10 @@ class MaxFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MaxFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using MinMaxFilter::MinMaxFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result_() override;
 };
 
 /** Simple sliding window moving average filter.
@@ -182,7 +218,7 @@ class MaxFilter : public Filter {
  * Essentially just takes takes the average of the last window_size values and pushes them out
  * every send_every.
  */
-class SlidingWindowMovingAverageFilter : public Filter {
+class SlidingWindowMovingAverageFilter : public SlidingWindowFilter {
  public:
   /** Construct a SlidingWindowMovingAverageFilter.
    *
@@ -192,18 +228,10 @@ class SlidingWindowMovingAverageFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using SlidingWindowFilter::SlidingWindowFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result_() override;
 };
 
 /** Simple exponential moving average filter.
