@@ -60,7 +60,7 @@ class SlidingWindowFilter : public Filter {
 
  protected:
   /// Called by new_value() to compute the filtered result from the current window
-  virtual float compute_result_() = 0;
+  virtual float compute_result() = 0;
 
   /// Access the sliding window values (ring buffer implementation)
   /// Use: for (size_t i = 0; i < window_count_; i++) { float val = window_[i]; }
@@ -131,7 +131,7 @@ class QuantileFilter : public SortedWindowFilter {
   void set_quantile(float quantile) { this->quantile_ = quantile; }
 
  protected:
-  float compute_result_() override;
+  float compute_result() override;
   float quantile_;
 };
 
@@ -152,7 +152,7 @@ class MedianFilter : public SortedWindowFilter {
   using SortedWindowFilter::SortedWindowFilter;
 
  protected:
-  float compute_result_() override;
+  float compute_result() override;
 };
 
 /** Simple skip filter.
@@ -190,7 +190,7 @@ class MinFilter : public MinMaxFilter {
   using MinMaxFilter::MinMaxFilter;
 
  protected:
-  float compute_result_() override;
+  float compute_result() override;
 };
 
 /** Simple max filter.
@@ -210,7 +210,7 @@ class MaxFilter : public MinMaxFilter {
   using MinMaxFilter::MinMaxFilter;
 
  protected:
-  float compute_result_() override;
+  float compute_result() override;
 };
 
 /** Simple sliding window moving average filter.
