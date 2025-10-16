@@ -7,7 +7,7 @@ api:
     # Test 1: Queue depth with default max_runs=5
     - action: test_queue_depth
       then:
-        - logger.log: "=== TEST 1: Queue depth (max_runs=5 means 1 running + 5 queued = 6 total, reject 7) ==="
+        - logger.log: "=== TEST 1: Queue depth (max_runs=5 means 5 total, reject 6-7) ==="
         - script.execute:
             id: queue_depth_script
             value: 1
@@ -64,7 +64,7 @@ api:
     # Test 4: Verify rejection (max_runs=3)
     - action: test_rejection
       then:
-        - logger.log: "=== TEST 4: Verify rejection (max_runs=3 means 1 running + 3 queued = 4 total, reject 5-8) ==="
+        - logger.log: "=== TEST 4: Verify rejection (max_runs=3 means 3 total, reject 4-8) ==="
         - script.execute:
             id: rejection_script
             val: 1
