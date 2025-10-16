@@ -14,6 +14,8 @@ import voluptuous as vol
 
 import esphome.config_validation as cv
 from esphome.const import CONF_JINJA, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.core import Lambda
+from esphome.types import Extend, Remove
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
 
 from .helpers import JinjaStr, has_jinja
@@ -240,6 +242,12 @@ class Jinja(jinja.Environment):
                 return expr
             if isinstance(expr, list):
                 return [jinja_eval(v, ctx, list_item) for v in expr]
+            if isinstance(expr, Extend):
+                return Extend(jinja_eval(expr.value, ctx, list_item))
+            if isinstance(expr, Remove):
+                return Remove(jinja_eval(expr.value, ctx, list_item))
+            if isinstance(expr, Lambda):
+                return Lambda(jinja_eval(expr.value, ctx, list_item))
             if not isinstance(expr, str):
                 return expr
             result, _ = self.expand(JinjaStr(expr, ctx))
