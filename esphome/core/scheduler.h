@@ -324,9 +324,12 @@ class Scheduler {
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
 #ifndef ESPHOME_THREAD_SINGLE
-  // Single-core platforms don't need the defer queue and save 40 bytes of RAM
-  std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-#endif                                                      /* ESPHOME_THREAD_SINGLE */
+  // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
+  // Using std::vector instead of std::deque avoids 512-byte chunked allocations
+  // Index tracking avoids O(n) erase() calls when draining the queue each loop
+  std::vector<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
+  size_t defer_queue_front_{0};  // Index of first valid item in defer_queue_ (tracks consumed items)
+#endif                           /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
