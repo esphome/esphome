@@ -63,7 +63,7 @@ optional<float> SlidingWindowFilter::new_value(float value) {
   // Check if we should send a result
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
-    float result = this->compute_result_();
+    float result = this->compute_result();
     ESP_LOGVV(TAG, "SlidingWindowFilter(%p)::new_value(%f) SENDING %f", this, value, result);
     return result;
   }
@@ -86,7 +86,7 @@ FixedVector<float> SortedWindowFilter::get_sorted_values_() {
 }
 
 // MedianFilter
-float MedianFilter::compute_result_() {
+float MedianFilter::compute_result() {
   FixedVector<float> sorted_values = this->get_sorted_values_();
   if (sorted_values.empty())
     return NAN;
@@ -116,7 +116,7 @@ optional<float> SkipInitialFilter::new_value(float value) {
 QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile)
     : SortedWindowFilter(window_size, send_every, send_first_at), quantile_(quantile) {}
 
-float QuantileFilter::compute_result_() {
+float QuantileFilter::compute_result() {
   FixedVector<float> sorted_values = this->get_sorted_values_();
   if (sorted_values.empty())
     return NAN;
@@ -127,10 +127,10 @@ float QuantileFilter::compute_result_() {
 }
 
 // MinFilter
-float MinFilter::compute_result_() { return this->find_extremum_<std::less<float>>(); }
+float MinFilter::compute_result() { return this->find_extremum_<std::less<float>>(); }
 
 // MaxFilter
-float MaxFilter::compute_result_() { return this->find_extremum_<std::greater<float>>(); }
+float MaxFilter::compute_result() { return this->find_extremum_<std::greater<float>>(); }
 
 // SlidingWindowMovingAverageFilter
 float SlidingWindowMovingAverageFilter::compute_result_() {
