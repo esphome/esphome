@@ -57,6 +57,7 @@ modbus_controller:
     address: 0x1 ## address of the Modbus slave device on the bus
     modbus_id: modbus1
     setup_priority: -10
+    passive_mode: "true"
     on_online:
       then:
         - globals.set:
