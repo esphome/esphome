@@ -214,19 +214,20 @@ def main():
         changed = changed_files(args.branch)
 
         # If any base test file(s) changed, we need to test all components
-        # BUT only for --changed (with dependencies), NOT for --changed-direct
-        # For --changed-direct, we only want components that actually had code changes
+        # BUT only for --changed (with dependencies for old-style output)
+        # NOT for --changed-direct or --changed-with-deps (they need actual code changes only)
         base_test_changed = any(
             "tests/test_build_components" in file for file in changed
         )
 
-        if base_test_changed and not args.changed_direct:
+        if base_test_changed and not args.changed_direct and not args.changed_with_deps:
             # Base test infrastructure changed - test all components with dependencies
+            # This is for the legacy --changed flag only
             files = get_all_component_files()
         else:
             # Only look at changed component files
             # For --changed-direct: only actual component code changes matter
-            # For --changed-with-deps: same if base tests didn't change
+            # For --changed-with-deps: only actual component code changes matter
             files = [f for f in changed if filter_component_files(f)]
     else:
         # Get all component files
