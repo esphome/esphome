@@ -185,17 +185,20 @@ def main():
         "-c",
         "--changed",
         action="store_true",
-        help="List all components required for testing based on changes (includes dependencies)",
+        help="List all components with dependencies (used by clang-tidy). "
+        "When base test infrastructure changes, returns ALL components.",
     )
     parser.add_argument(
         "--changed-direct",
         action="store_true",
-        help="List only directly changed components (without dependencies)",
+        help="List only directly changed components, ignoring infrastructure changes "
+        "(used by CI for isolation decisions)",
     )
     parser.add_argument(
         "--changed-with-deps",
         action="store_true",
-        help="Output JSON with both directly changed and all changed components",
+        help="Output JSON with both directly changed and all changed components "
+        "(with dependencies), ignoring infrastructure changes (used by CI for test determination)",
     )
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
@@ -213,12 +216,34 @@ def main():
         # When --changed* is passed, only get the changed files
         changed = changed_files(args.branch)
 
-        # If any base test file(s) changed, there's no need to filter out components
-        if any("tests/test_build_components" in file for file in changed):
-            # Need to get all component files
+        # If any base test file(s) changed, we need to check all components
+        # BUT only for --changed (used by clang-tidy for comprehensive checking)
+        # NOT for --changed-direct or --changed-with-deps (used by CI for targeted testing)
+        #
+        # Flag usage:
+        # - --changed: Used by clang-tidy (script/helpers.py get_changed_components)
+        #   Returns: All components with dependencies when base test files change
+        #   Reason: Test infrastructure changes may affect any component
+        #
+        # - --changed-direct: Used by CI isolation (script/determine-jobs.py)
+        #   Returns: Only components with actual code changes (not infrastructure)
+        #   Reason: Only directly changed components need isolated testing
+        #
+        # - --changed-with-deps: Used by CI test determination (script/determine-jobs.py)
+        #   Returns: Components with code changes + their dependencies (not infrastructure)
+        #   Reason: CI needs to test changed components and their dependents
+        base_test_changed = any(
+            "tests/test_build_components" in file for file in changed
+        )
+
+        if base_test_changed and not args.changed_direct and not args.changed_with_deps:
+            # Base test infrastructure changed - load all component files
+            # This is for --changed (clang-tidy) which needs comprehensive checking
             files = get_all_component_files()
         else:
-            # Only look at changed component files
+            # Only look at changed component files (ignore infrastructure changes)
+            # For --changed-direct: only actual component code changes matter (for isolation)
+            # For --changed-with-deps: only actual component code changes matter (for testing)
             files = [f for f in changed if filter_component_files(f)]
     else:
         # Get all component files

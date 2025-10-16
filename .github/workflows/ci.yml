@@ -379,7 +379,16 @@ jobs:
 
           # Use intelligent splitter that groups components with same bus configs
           components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
-          directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
+
+          # Only isolate directly changed components when targeting dev branch
+          # For beta/release branches, group everything for faster CI
+          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+            directly_changed='[]'
+            echo "Target branch: ${{ github.base_ref }} - grouping all components"
+          else
+            directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
+            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components"
+          fi
 
           echo "Splitting components intelligently..."
           output=$(python3 script/split_components_for_ci.py --components "$components" --directly-changed "$directly_changed" --batch-size 40 --output github)
@@ -396,7 +405,7 @@ jobs:
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     strategy:
       fail-fast: false
-      max-parallel: ${{ (github.base_ref == 'beta' || github.base_ref == 'release') && 8 || 4 }}
+      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
         components: ${{ fromJson(needs.test-build-components-splitter.outputs.matrix) }}
     steps:
@@ -424,18 +433,31 @@ jobs:
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
-          # Use /mnt for build files (70GB available vs ~29GB on /)
-          # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
-          sudo mkdir -p /mnt/platformio
-          sudo chown $USER:$USER /mnt/platformio
-          mkdir -p ~/.platformio
-          sudo mount --bind /mnt/platformio ~/.platformio
 
-          # Bind mount test build directory to /mnt
-          sudo mkdir -p /mnt/test_build_components_build
-          sudo chown $USER:$USER /mnt/test_build_components_build
-          mkdir -p tests/test_build_components/build
-          sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+          # Check if /mnt has more free space than / before bind mounting
+          # Extract available space in KB for comparison
+          root_avail=$(df -k / | awk 'NR==2 {print $4}')
+          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
+
+          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
+
+          # Only use /mnt if it has more space than /
+          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
+            echo "Using /mnt for build files (more space available)"
+            # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
+            sudo mkdir -p /mnt/platformio
+            sudo chown $USER:$USER /mnt/platformio
+            mkdir -p ~/.platformio
+            sudo mount --bind /mnt/platformio ~/.platformio
+
+            # Bind mount test build directory to /mnt
+            sudo mkdir -p /mnt/test_build_components_build
+            sudo chown $USER:$USER /mnt/test_build_components_build
+            mkdir -p tests/test_build_components/build
+            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
+          else
+            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
+          fi
 
           # Convert space-separated components to comma-separated for Python script
           components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
@@ -448,7 +470,7 @@ jobs:
           # - This catches pin conflicts and other issues in directly changed code
           # - Grouped tests use --testing-mode to allow config merging (disables some checks)
           # - Dependencies are safe to group since they weren't modified in this PR
-          if [ "${{ github.base_ref }}" = "beta" ] || [ "${{ github.base_ref }}" = "release" ]; then
+          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
             directly_changed_csv=""
             echo "Testing components: $components_csv"
             echo "Target branch: ${{ github.base_ref }} - grouping all components"
@@ -459,11 +481,21 @@ jobs:
           fi
           echo ""
 
+          # Show disk space before validation (after bind mounts setup)
+          echo "Disk space before config validation:"
+          df -h
+          echo ""
+
           # Run config validation with grouping and isolation
           python3 script/test_build_components.py -e config -c "$components_csv" -f --isolate "$directly_changed_csv"
 
           echo ""
           echo "Config validation passed! Starting compilation..."
+          echo ""
+
+          # Show disk space before compilation
+          echo "Disk space before compilation:"
+          df -h
           echo ""
 
           # Run compilation with grouping and isolation
@@ -474,7 +506,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - common
-    if: github.event_name == 'pull_request' && github.base_ref != 'beta' && github.base_ref != 'release'
+    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release')
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0

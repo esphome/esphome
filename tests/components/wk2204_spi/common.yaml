@@ -1,28 +1,28 @@
 wk2204_spi:
-  - id: wk2204_spi_id
+  - id: wk2204_spi_bridge
     cs_pin: ${cs_pin}
     crystal: 11059200
     data_rate: 1MHz
     uart:
-      - id: wk2204_spi_id0
+      - id: wk2204_spi_uart0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - id: wk2204_spi_id1
+      - id: wk2204_spi_uart1
         channel: 1
         baud_rate: 921600
-      - id: wk2204_spi_id2
+      - id: wk2204_spi_uart2
         channel: 2
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - id: wk2204_spi_id3
+      - id: wk2204_spi_uart3
         channel: 3
         baud_rate: 9600
 
 # Ensures a sensor doesn't break validation
 sensor:
   - platform: a02yyuw
-    uart_id: wk2204_spi_id3
+    uart_id: wk2204_spi_uart3
     id: distance_sensor
