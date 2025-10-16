@@ -21,6 +21,7 @@ sensor:
       - min:
           window_size: 5
           send_every: 5
+          send_first_at: 1
 
   - platform: copy
     source_id: source_nan_sensor
@@ -30,6 +31,7 @@ sensor:
       - max:
           window_size: 5
           send_every: 5
+          send_first_at: 1
 
 button:
   - platform: template

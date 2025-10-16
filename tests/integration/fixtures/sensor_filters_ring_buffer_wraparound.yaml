@@ -21,6 +21,7 @@ sensor:
       - min:
           window_size: 3
           send_every: 3
+          send_first_at: 1
 
 button:
   - platform: template

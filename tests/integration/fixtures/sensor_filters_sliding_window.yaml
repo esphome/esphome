@@ -23,6 +23,7 @@ sensor:
       - min:
           window_size: 5
           send_every: 5
+          send_first_at: 1
 
   # Max filter sensor
   - platform: copy
@@ -33,6 +34,7 @@ sensor:
       - max:
           window_size: 5
           send_every: 5
+          send_first_at: 1
 
   # Median filter sensor
   - platform: copy
@@ -43,6 +45,7 @@ sensor:
       - median:
           window_size: 5
           send_every: 5
+          send_first_at: 1
 
   # Quantile filter sensor (90th percentile)
   - platform: copy
@@ -53,6 +56,7 @@ sensor:
       - quantile:
           window_size: 5
           send_every: 5
+          send_first_at: 1
           quantile: 0.9
 
   # Moving average filter sensor
@@ -64,6 +68,7 @@ sensor:
       - sliding_window_moving_average:
           window_size: 5
           send_every: 5
+          send_first_at: 1
 
 # Button to trigger publishing test values
 button:
