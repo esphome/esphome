@@ -1110,9 +1110,9 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #endif
   StringRef service_ref_{};
   void set_service(const StringRef &ref) { this->service_ref_ = ref; }
-  std::vector<HomeassistantServiceMap> data{};
-  std::vector<HomeassistantServiceMap> data_template{};
-  std::vector<HomeassistantServiceMap> variables{};
+  FixedVector<HomeassistantServiceMap> data{};
+  FixedVector<HomeassistantServiceMap> data_template{};
+  FixedVector<HomeassistantServiceMap> variables{};
   bool is_event{false};
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   uint32_t call_id{0};
@@ -1263,7 +1263,7 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   uint32_t key{0};
-  std::vector<ListEntitiesServicesArgument> args{};
+  FixedVector<ListEntitiesServicesArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1923,7 +1923,7 @@ class BluetoothGATTCharacteristic final : public ProtoMessage {
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   uint32_t properties{0};
-  std::vector<BluetoothGATTDescriptor> descriptors{};
+  FixedVector<BluetoothGATTDescriptor> descriptors{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1937,7 +1937,7 @@ class BluetoothGATTService final : public ProtoMessage {
  public:
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
-  std::vector<BluetoothGATTCharacteristic> characteristics{};
+  FixedVector<BluetoothGATTCharacteristic> characteristics{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;

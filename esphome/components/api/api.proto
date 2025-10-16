@@ -776,9 +776,9 @@ message HomeassistantActionRequest {
   option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
   string service = 1;
-  repeated HomeassistantServiceMap data = 2;
-  repeated HomeassistantServiceMap data_template = 3;
-  repeated HomeassistantServiceMap variables = 4;
+  repeated HomeassistantServiceMap data = 2 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap data_template = 3 [(fixed_vector) = true];
+  repeated HomeassistantServiceMap variables = 4 [(fixed_vector) = true];
   bool is_event = 5;
   uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
   bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
@@ -866,7 +866,7 @@ message ListEntitiesServicesResponse {
 
   string name = 1;
   fixed32 key = 2;
-  repeated ListEntitiesServicesArgument args = 3;
+  repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
 }
 message ExecuteServiceArgument {
   option (ifdef) = "USE_API_SERVICES";
@@ -1519,7 +1519,7 @@ message BluetoothGATTCharacteristic {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
   uint32 properties = 3;
-  repeated BluetoothGATTDescriptor descriptors = 4;
+  repeated BluetoothGATTDescriptor descriptors = 4 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.
@@ -1531,7 +1531,7 @@ message BluetoothGATTCharacteristic {
 message BluetoothGATTService {
   repeated uint64 uuid = 1 [(fixed_array_size) = 2, (fixed_array_skip_zero) = true];
   uint32 handle = 2;
-  repeated BluetoothGATTCharacteristic characteristics = 3;
+  repeated BluetoothGATTCharacteristic characteristics = 3 [(fixed_vector) = true];
 
   // New field for efficient UUID (v1.12+)
   // Only one of uuid or short_uuid will be set.

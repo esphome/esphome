@@ -127,24 +127,9 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     std::string service_value = this->service_.value(x...);
     resp.set_service(StringRef(service_value));
     resp.is_event = this->flags_.is_event;
-    for (auto &it : this->data_) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
-      kv.set_key(StringRef(it.key));
-      kv.value = it.value.value(x...);
-    }
-    for (auto &it : this->data_template_) {
-      resp.data_template.emplace_back();
-      auto &kv = resp.data_template.back();
-      kv.set_key(StringRef(it.key));
-      kv.value = it.value.value(x...);
-    }
-    for (auto &it : this->variables_) {
-      resp.variables.emplace_back();
-      auto &kv = resp.variables.back();
-      kv.set_key(StringRef(it.key));
-      kv.value = it.value.value(x...);
-    }
+    this->populate_service_map(resp.data, this->data_, x...);
+    this->populate_service_map(resp.data_template, this->data_template_, x...);
+    this->populate_service_map(resp.variables, this->variables_, x...);
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
     if (this->flags_.wants_status) {
@@ -189,6 +174,16 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   }
 
  protected:
+  template<typename VectorType, typename SourceType>
+  static void populate_service_map(VectorType &dest, SourceType &source, Ts... x) {
+    dest.init(source.size());
+    for (auto &it : source) {
+      auto &kv = dest.emplace_back();
+      kv.set_key(StringRef(it.key));
+      kv.value = it.value.value(x...);
+    }
+  }
+
   APIServer *parent_;
   TemplatableStringValue<Ts...> service_{};
   std::vector<TemplatableKeyValuePair<Ts...>> data_;
