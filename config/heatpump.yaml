@@ -44,6 +44,7 @@ modbus:
   flow_control_pin: GPIO4
   id: modbus1
   disable_crc: "false"
+  passive_mode: "true"
 
 globals:
   - id: modbus_connected
