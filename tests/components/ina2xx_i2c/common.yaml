@@ -7,9 +7,21 @@ sensor:
     max_current: 40 A
     adc_range: 1
     temperature_coefficient: 50
-    shunt_voltage: "INA2xx Shunt Voltage"
-    bus_voltage: "INA2xx Bus Voltage"
-    current: "INA2xx Current"
-    power: "INA2xx Power"
-    energy: "INA2xx Energy"
-    charge: "INA2xx Charge"
+    shunt_voltage:
+      id: ina2xx_i2c_shunt_voltage
+      name: "INA2xx Shunt Voltage"
+    bus_voltage:
+      id: ina2xx_i2c_bus_voltage
+      name: "INA2xx Bus Voltage"
+    current:
+      id: ina2xx_i2c_current
+      name: "INA2xx Current"
+    power:
+      id: ina2xx_i2c_power
+      name: "INA2xx Power"
+    energy:
+      id: ina2xx_i2c_energy
+      name: "INA2xx Energy"
+    charge:
+      id: ina2xx_i2c_charge
+      name: "INA2xx Charge"

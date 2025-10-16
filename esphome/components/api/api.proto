@@ -987,8 +987,8 @@ message ListEntitiesClimateResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  bool supports_current_temperature = 5;
-  bool supports_two_point_target_temperature = 6;
+  bool supports_current_temperature = 5; // Deprecated: use feature_flags
+  bool supports_two_point_target_temperature = 6; // Deprecated: use feature_flags
   repeated ClimateMode supported_modes = 7 [(container_pointer) = "std::set<climate::ClimateMode>"];
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
@@ -997,7 +997,7 @@ message ListEntitiesClimateResponse {
   // is if CLIMATE_PRESET_AWAY exists is supported_presets
   // Deprecated in API version 1.5
   bool legacy_supports_away = 11 [deprecated=true];
-  bool supports_action = 12;
+  bool supports_action = 12; // Deprecated: use feature_flags
   repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer) = "std::set<climate::ClimateFanMode>"];
   repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer) = "std::set<climate::ClimateSwingMode>"];
   repeated string supported_custom_fan_modes = 15 [(container_pointer) = "std::set"];
@@ -1007,11 +1007,12 @@ message ListEntitiesClimateResponse {
   string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
-  bool supports_current_humidity = 22;
-  bool supports_target_humidity = 23;
+  bool supports_current_humidity = 22; // Deprecated: use feature_flags
+  bool supports_target_humidity = 23; // Deprecated: use feature_flags
   float visual_min_humidity = 24;
   float visual_max_humidity = 25;
   uint32 device_id = 26 [(field_ifdef) = "USE_DEVICES"];
+  uint32 feature_flags = 27;
 }
 message ClimateStateResponse {
   option (id) = 47;

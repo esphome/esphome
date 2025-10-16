@@ -1201,6 +1201,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_DEVICES
   buffer.encode_uint32(26, this->device_id);
 #endif
+  buffer.encode_uint32(27, this->feature_flags);
 }
 void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
@@ -1255,6 +1256,7 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_DEVICES
   size.add_uint32(2, this->device_id);
 #endif
+  size.add_uint32(2, this->feature_flags);
 }
 void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);

@@ -96,7 +96,8 @@ void ClimateCall::validate_() {
   }
   if (this->target_temperature_.has_value()) {
     auto target = *this->target_temperature_;
-    if (traits.get_supports_two_point_target_temperature()) {
+    if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                                 CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
       ESP_LOGW(TAG, "  Cannot set target temperature for climate device "
                     "with two-point target temperature!");
       this->target_temperature_.reset();
@@ -106,7 +107,8 @@ void ClimateCall::validate_() {
     }
   }
   if (this->target_temperature_low_.has_value() || this->target_temperature_high_.has_value()) {
-    if (!traits.get_supports_two_point_target_temperature()) {
+    if (!traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                                  CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
       ESP_LOGW(TAG, "  Cannot set low/high target temperature for this device!");
       this->target_temperature_low_.reset();
       this->target_temperature_high_.reset();
@@ -350,13 +352,14 @@ void Climate::save_state_() {
 
   state.mode = this->mode;
   auto traits = this->get_traits();
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     state.target_temperature_low = this->target_temperature_low;
     state.target_temperature_high = this->target_temperature_high;
   } else {
     state.target_temperature = this->target_temperature;
   }
-  if (traits.get_supports_target_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     state.target_humidity = this->target_humidity;
   }
   if (traits.get_supports_fan_modes() && fan_mode.has_value()) {
@@ -400,7 +403,7 @@ void Climate::publish_state() {
   auto traits = this->get_traits();
 
   ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
-  if (traits.get_supports_action()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     ESP_LOGD(TAG, "  Action: %s", LOG_STR_ARG(climate_action_to_string(this->action)));
   }
   if (traits.get_supports_fan_modes() && this->fan_mode.has_value()) {
@@ -418,19 +421,20 @@ void Climate::publish_state() {
   if (traits.get_supports_swing_modes()) {
     ESP_LOGD(TAG, "  Swing Mode: %s", LOG_STR_ARG(climate_swing_mode_to_string(this->swing_mode)));
   }
-  if (traits.get_supports_current_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
   }
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     ESP_LOGD(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low,
              this->target_temperature_high);
   } else {
     ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
   }
-  if (traits.get_supports_current_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
     ESP_LOGD(TAG, "  Current Humidity: %.0f%%", this->current_humidity);
   }
-  if (traits.get_supports_target_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     ESP_LOGD(TAG, "  Target Humidity: %.0f%%", this->target_humidity);
   }
 
@@ -485,13 +489,14 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   auto call = climate->make_call();
   auto traits = climate->get_traits();
   call.set_mode(this->mode);
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     call.set_target_temperature_low(this->target_temperature_low);
     call.set_target_temperature_high(this->target_temperature_high);
   } else {
     call.set_target_temperature(this->target_temperature);
   }
-  if (traits.get_supports_target_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     call.set_target_humidity(this->target_humidity);
   }
   if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
@@ -508,13 +513,14 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
 void ClimateDeviceRestoreState::apply(Climate *climate) {
   auto traits = climate->get_traits();
   climate->mode = this->mode;
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     climate->target_temperature_low = this->target_temperature_low;
     climate->target_temperature_high = this->target_temperature_high;
   } else {
     climate->target_temperature = this->target_temperature;
   }
-  if (traits.get_supports_target_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     climate->target_humidity = this->target_humidity;
   }
   if (traits.get_supports_fan_modes() && !this->uses_custom_fan_mode) {
@@ -580,28 +586,30 @@ void Climate::dump_traits_(const char *tag) {
                 "          Target: %.1f",
                 traits.get_visual_min_temperature(), traits.get_visual_max_temperature(),
                 traits.get_visual_target_temperature_step());
-  if (traits.get_supports_current_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
   }
-  if (traits.get_supports_target_humidity() || traits.get_supports_current_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY |
+                               climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
     ESP_LOGCONFIG(tag,
                   "      - Min humidity: %.0f\n"
                   "      - Max humidity: %.0f",
                   traits.get_visual_min_humidity(), traits.get_visual_max_humidity());
   }
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
   }
-  if (traits.get_supports_current_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
     ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
   }
-  if (traits.get_supports_target_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     ESP_LOGCONFIG(tag, "  [x] Supports target humidity");
   }
-  if (traits.get_supports_current_humidity()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
     ESP_LOGCONFIG(tag, "  [x] Supports current humidity");
   }
-  if (traits.get_supports_action()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     ESP_LOGCONFIG(tag, "  [x] Supports action");
   }
   if (!traits.get_supported_modes().empty()) {
