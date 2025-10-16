@@ -7,6 +7,69 @@ namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
+uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id) {
+  uint32_t count = 0;
+  const uint8_t *ptr = buffer;
+  const uint8_t *end = buffer + length;
+
+  while (ptr < end) {
+    uint32_t consumed;
+
+    // Parse field header (tag)
+    auto res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+    if (!res.has_value()) {
+      break;  // Invalid data, stop counting
+    }
+
+    uint32_t tag = res->as_uint32();
+    uint32_t field_type = tag & 0b111;
+    uint32_t field_id = tag >> 3;
+    ptr += consumed;
+
+    // Count if this is the target field
+    if (field_id == target_field_id) {
+      count++;
+    }
+
+    // Skip field data based on wire type
+    switch (field_type) {
+      case 0: {  // VarInt - parse and skip
+        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        if (!res.has_value()) {
+          return count;  // Invalid data, return what we have
+        }
+        ptr += consumed;
+        break;
+      }
+      case 2: {  // Length-delimited - parse length and skip data
+        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        if (!res.has_value()) {
+          return count;
+        }
+        uint32_t field_length = res->as_uint32();
+        ptr += consumed;
+        if (ptr + field_length > end) {
+          return count;  // Out of bounds
+        }
+        ptr += field_length;
+        break;
+      }
+      case 5: {  // 32-bit - skip 4 bytes
+        if (ptr + 4 > end) {
+          return count;
+        }
+        ptr += 4;
+        break;
+      }
+      default:
+        // Unknown wire type, can't continue
+        return count;
+    }
+  }
+
+  return count;
+}
+
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *ptr = buffer;
   const uint8_t *end = buffer + length;

@@ -876,10 +876,10 @@ message ExecuteServiceArgument {
   string string_ = 4;
   // ESPHome 1.14 (api v1.3) make int a signed value
   sint32 int_ = 5;
-  repeated bool bool_array = 6 [packed=false];
-  repeated sint32 int_array = 7 [packed=false];
-  repeated float float_array = 8 [packed=false];
-  repeated string string_array = 9;
+  repeated bool bool_array = 6 [packed=false, (fixed_vector) = true];
+  repeated sint32 int_array = 7 [packed=false, (fixed_vector) = true];
+  repeated float float_array = 8 [packed=false, (fixed_vector) = true];
+  repeated string string_array = 9 [(fixed_vector) = true];
 }
 message ExecuteServiceRequest {
   option (id) = 42;
@@ -888,7 +888,7 @@ message ExecuteServiceRequest {
   option (ifdef) = "USE_API_SERVICES";
 
   fixed32 key = 1;
-  repeated ExecuteServiceArgument args = 2;
+  repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
 }
 
 // ==================== CAMERA ====================
