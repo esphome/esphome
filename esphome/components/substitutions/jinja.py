@@ -1,8 +1,10 @@
+from ast import literal_eval
 import logging
 import math
 import re
+
 import jinja2 as jinja
-from jinja2.nativetypes import NativeEnvironment
+from jinja2.sandbox import SandboxedEnvironment
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
@@ -22,6 +24,24 @@ detect_jinja_re = re.compile(
 
 def has_jinja(st):
     return detect_jinja_re.search(st) is not None
+
+
+# SAFE_GLOBAL_FUNCTIONS defines a allowlist of built-in functions that are considered safe to expose
+# in Jinja templates or other sandboxed evaluation contexts. Only functions that do not allow
+# arbitrary code execution, file access, or other security risks are included.
+#
+# The following functions are considered safe:
+#   - ord: Converts a character to its Unicode code point integer.
+#   - chr: Converts an integer to its corresponding Unicode character.
+#   - len: Returns the length of a sequence or collection.
+#
+# These functions were chosen because they are pure, have no side effects, and do not provide access
+# to the file system, environment, or other potentially sensitive resources.
+SAFE_GLOBAL_FUNCTIONS = {
+    "ord": ord,
+    "chr": chr,
+    "len": len,
+}
 
 
 class JinjaStr(str):
@@ -51,7 +71,7 @@ class Jinja:
     """
 
     def __init__(self, context_vars):
-        self.env = NativeEnvironment(
+        self.env = SandboxedEnvironment(
             trim_blocks=True,
             lstrip_blocks=True,
             block_start_string="<%",
@@ -65,7 +85,20 @@ class Jinja:
         self.env.add_extension("jinja2.ext.do")
         self.env.globals["math"] = math  # Inject entire math module
         self.context_vars = {**context_vars}
-        self.env.globals = {**self.env.globals, **self.context_vars}
+        self.env.globals = {
+            **self.env.globals,
+            **self.context_vars,
+            **SAFE_GLOBAL_FUNCTIONS,
+        }
+
+    def safe_eval(self, expr):
+        try:
+            result = literal_eval(expr)
+            if not isinstance(result, str):
+                return result
+        except (ValueError, SyntaxError, MemoryError, TypeError):
+            pass
+        return expr
 
     def expand(self, content_str):
         """
@@ -83,7 +116,7 @@ class Jinja:
             override_vars = content_str.upvalues
         try:
             template = self.env.from_string(content_str)
-            result = template.render(override_vars)
+            result = self.safe_eval(template.render(override_vars))
             if isinstance(result, Undefined):
                 # This happens when the expression is simply an undefined variable. Jinja does not
                 # raise an exception, instead we get "Undefined".

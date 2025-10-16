@@ -100,6 +100,8 @@ void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
 #else
       // Read the value being used for touch detection
       uint32_t value = this->read_touch_value(child->get_touch_pad());
+      // Store the value for get_value() access in lambdas
+      child->value_ = value;
       ESP_LOGD(TAG, "Touch Pad '%s' (T%d): %d", child->get_name().c_str(), child->get_touch_pad(), value);
 #endif
     }

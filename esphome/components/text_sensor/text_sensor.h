@@ -11,19 +11,9 @@
 namespace esphome {
 namespace text_sensor {
 
-#define LOG_TEXT_SENSOR(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
-    } \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-    if (!(obj)->unique_id().empty()) { \
-      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
-    } \
-  }
+void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj);
+
+#define LOG_TEXT_SENSOR(prefix, type, obj) log_text_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_TEXT_SENSOR(name) \
  protected: \
@@ -64,11 +54,6 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  /** Override this method to set the unique ID of this sensor.
-   *
-   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
-   */
-  virtual std::string unique_id();
 
   void internal_send_state_to_frontend(const std::string &state);
 

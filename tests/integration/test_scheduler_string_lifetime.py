@@ -157,7 +157,7 @@ async def test_scheduler_string_lifetime(
             client.execute_service(test_services["final"], {})
             await asyncio.wait_for(all_tests_complete.wait(), timeout=5.0)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(f"String lifetime test timed out. Stats: {test_stats}")
 
         # Check for any errors

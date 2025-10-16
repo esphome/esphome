@@ -1,0 +1,10 @@
+sensor:
+  - platform: uptime
+    name: Uptime Sensor
+  - platform: uptime
+    name: Uptime Sensor Seconds
+    type: seconds
+
+text_sensor:
+  - platform: uptime
+    name: Uptime Text

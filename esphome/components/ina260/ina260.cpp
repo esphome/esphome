@@ -35,8 +35,6 @@ static const uint8_t INA260_REGISTER_MANUFACTURE_ID = 0xFE;
 static const uint8_t INA260_REGISTER_DEVICE_ID = 0xFF;
 
 void INA260Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Reset device on setup
   if (!this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000)) {
     this->error_code_ = DEVICE_RESET_FAILED;

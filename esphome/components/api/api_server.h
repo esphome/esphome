@@ -12,22 +12,19 @@
 #include "esphome/core/log.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
+#ifdef USE_API_SERVICES
 #include "user_services.h"
+#endif
 
+#include <map>
 #include <vector>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
   psk_t psk;
 } PACKED;  // NOLINT
-#endif
-
-#ifndef USE_API_YAML_SERVICES
-// Forward declaration of helper function
-const std::vector<UserServiceDescriptor *> &get_empty_user_services_instance();
 #endif
 
 class APIServer : public Component, public Controller {
@@ -41,14 +38,15 @@ class APIServer : public Component, public Controller {
   void on_shutdown() override;
   bool teardown() override;
 #ifdef USE_API_PASSWORD
-  bool check_password(const std::string &password) const;
-  bool uses_password() const;
+  bool check_password(const uint8_t *password_data, size_t password_len) const;
   void set_password(const std::string &password);
 #endif
   void set_port(uint16_t port);
   void set_reboot_timeout(uint32_t reboot_timeout);
   void set_batch_delay(uint16_t batch_delay);
   uint16_t get_batch_delay() const { return batch_delay_; }
+  void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
+  void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -111,19 +109,23 @@ class APIServer : public Component, public Controller {
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
-  void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
-  void register_user_service(UserServiceDescriptor *descriptor) {
-#ifdef USE_API_YAML_SERVICES
-    // Vector is pre-allocated when services are defined in YAML
-    this->user_services_.push_back(descriptor);
-#else
-    // Lazy allocate vector on first use for CustomAPIDevice
-    if (!this->user_services_) {
-      this->user_services_ = std::make_unique<std::vector<UserServiceDescriptor *>>();
-    }
-    this->user_services_->push_back(descriptor);
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+  void send_homeassistant_action(const HomeassistantActionRequest &call);
+
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  // Action response handling
+  using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
+  void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+                              const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API_SERVICES
+  void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
-  }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
@@ -137,9 +139,13 @@ class APIServer : public Component, public Controller {
 #ifdef USE_UPDATE
   void on_update(update::UpdateEntity *obj) override;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
+#endif
 
   bool is_connected() const;
 
+#ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
     std::string entity_id;
     optional<std::string> attribute;
@@ -152,17 +158,10 @@ class APIServer : public Component, public Controller {
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
-  const std::vector<UserServiceDescriptor *> &get_user_services() const {
-#ifdef USE_API_YAML_SERVICES
-    return this->user_services_;
-#else
-    if (this->user_services_) {
-      return *this->user_services_;
-    }
-    // Return reference to global empty instance (no guard needed)
-    return get_empty_user_services_instance();
 #endif
-  }
+#ifdef USE_API_SERVICES
+  const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
+#endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
@@ -193,22 +192,29 @@ class APIServer : public Component, public Controller {
   std::string password_;
 #endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+#ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
-#ifdef USE_API_YAML_SERVICES
-  // When services are defined in YAML, we know at compile time that services will be registered
+#endif
+#ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
-#else
-  // Services can still be registered at runtime by CustomAPIDevice components even when not
-  // defined in YAML. Using unique_ptr allows lazy allocation, saving 12 bytes in the common
-  // case where no services (YAML or custom) are used.
-  std::unique_ptr<std::vector<UserServiceDescriptor *>> user_services_;
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  struct PendingActionResponse {
+    uint32_t call_id;
+    ActionResponseCallback callback;
+  };
+  std::vector<PendingActionResponse> action_response_callbacks_;
 #endif
 
   // Group smaller types together
   uint16_t port_{6053};
   uint16_t batch_delay_{100};
+  // Connection limits - these defaults will be overridden by config values
+  // from cv.SplitDefault in __init__.py which sets platform-specific defaults
+  uint8_t listen_backlog_{4};
+  uint8_t max_connections_{8};
   bool shutting_down_ = false;
-  // 5 bytes used, 3 bytes padding
+  // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
@@ -223,6 +229,5 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   bool check(Ts... x) override { return global_api_server->is_connected(); }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

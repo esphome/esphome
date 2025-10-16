@@ -31,7 +31,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -52,9 +52,9 @@ def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+            config[CONF_CSS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.css"
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+            config[CONF_JS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
         if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
@@ -74,13 +74,14 @@ def validate_local(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_ota_removed(config: ConfigType) -> ConfigType:
-    # Only raise error if OTA is explicitly enabled (True)
-    # If it's False or not specified, we can safely ignore it
-    if config.get(CONF_OTA):
+def validate_ota(config: ConfigType) -> ConfigType:
+    # The OTA option only accepts False to explicitly disable OTA for web_server
+    # IMPORTANT: Setting ota: false ONLY affects the web_server component
+    # The captive_portal component will still be able to perform OTA updates
+    if CONF_OTA in config and config[CONF_OTA] is not False:
         raise cv.Invalid(
-            f"The '{CONF_OTA}' option has been removed from 'web_server'. "
-            f"Please use the new OTA platform structure instead:\n\n"
+            f"The '{CONF_OTA}' option in 'web_server' only accepts 'false' to disable OTA. "
+            f"To enable OTA, please use the new OTA platform structure instead:\n\n"
             f"ota:\n"
             f"  - platform: web_server\n\n"
             f"See https://esphome.io/components/ota for more information."
@@ -185,7 +186,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.Optional(CONF_OTA, default=False): cv.boolean,
+            cv.Optional(CONF_OTA): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
@@ -203,7 +204,7 @@ CONFIG_SCHEMA = cv.All(
     default_url,
     validate_local,
     validate_sorting_groups,
-    validate_ota_removed,
+    validate_ota,
 )
 
 
@@ -268,7 +269,7 @@ def add_resource_as_progmem(
     cg.add_global(cg.RawExpression(size_t))
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
@@ -288,11 +289,16 @@ async def to_code(config):
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
     # OTA is now handled by the web_server OTA platform
-    # The CONF_OTA option is kept only for backwards compatibility validation
+    # The CONF_OTA option is kept to allow explicitly disabling OTA for web_server
+    # IMPORTANT: This ONLY affects the web_server component, NOT captive_portal
+    # Captive portal will still be able to perform OTA updates even when this is set
+    if config.get(CONF_OTA) is False:
+        cg.add_define("USE_WEBSERVER_OTA_DISABLED")
     cg.add(var.set_expose_log(config[CONF_LOG]))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
+        cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
@@ -312,3 +318,15 @@ async def to_code(config):
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         cg.add_define("USE_WEBSERVER_SORTING")
         add_sorting_groups(var, sorting_group_config)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out web_server_v1.cpp when version is not 1."""
+    files_to_filter: list[str] = []
+
+    # web_server_v1.cpp is only needed when version is 1
+    config = CORE.config.get("web_server", {})
+    if config.get(CONF_VERSION, 2) != 1:
+        files_to_filter.append("web_server_v1.cpp")
+
+    return files_to_filter

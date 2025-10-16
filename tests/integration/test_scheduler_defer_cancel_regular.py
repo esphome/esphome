@@ -64,7 +64,7 @@ async def test_scheduler_defer_cancels_regular(
         # Wait for test completion
         try:
             await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(f"Test timed out. Log messages: {log_messages}")
 
         # Verify results

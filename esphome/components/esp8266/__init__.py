@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -15,8 +15,9 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP8266,
+    ThreadModel,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -175,7 +176,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 
@@ -187,8 +188,9 @@ async def to_code(config):
     cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
+    cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:iram_fix.py", "post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -228,6 +230,12 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # In testing mode, fake a larger IRAM to allow linking grouped component tests
+    # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 2MB
+    # This is done via a pre-build script that generates a custom linker script
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -243,7 +251,7 @@ async def to_code(config):
         if ver <= cv.Version(2, 3, 0):
             # No ld script support
             ld_script = None
-        if ver <= cv.Version(2, 4, 2):
+        elif ver <= cv.Version(2, 4, 2):
             # Old ld script path
             ld_script = ld_scripts[0]
         else:
@@ -257,9 +265,14 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
+    )
+    iram_fix_file = dir / "iram_fix.py.script"
+    copy_file_if_changed(
+        iram_fix_file,
+        CORE.relative_build_path("iram_fix.py"),
     )

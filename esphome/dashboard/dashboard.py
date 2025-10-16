@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from asyncio import events
 from concurrent.futures import ThreadPoolExecutor
+import contextlib
 import logging
 import os
 import socket
@@ -125,10 +126,8 @@ def start_dashboard(args) -> None:
 
     asyncio.set_event_loop_policy(DashboardEventLoopPolicy(settings.verbose))
 
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(async_start(args))
-    except KeyboardInterrupt:
-        pass
 
 
 async def async_start(args) -> None:

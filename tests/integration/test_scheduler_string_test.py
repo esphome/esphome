@@ -122,22 +122,22 @@ async def test_scheduler_string_test(
         # Wait for static string tests
         try:
             await asyncio.wait_for(static_timeout_1_fired.wait(), timeout=0.5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Static timeout 1 did not fire within 0.5 seconds")
 
         try:
             await asyncio.wait_for(static_timeout_2_fired.wait(), timeout=0.5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Static timeout 2 did not fire within 0.5 seconds")
 
         try:
             await asyncio.wait_for(static_interval_fired.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Static interval did not fire within 1 second")
 
         try:
             await asyncio.wait_for(static_interval_cancelled.wait(), timeout=2.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Static interval was not cancelled within 2 seconds")
 
         # Verify static interval ran at least 3 times
@@ -153,41 +153,41 @@ async def test_scheduler_string_test(
         # Wait for static defer tests
         try:
             await asyncio.wait_for(static_defer_1_fired.wait(), timeout=0.5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Static defer 1 did not fire within 0.5 seconds")
 
         try:
             await asyncio.wait_for(static_defer_2_fired.wait(), timeout=0.5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Static defer 2 did not fire within 0.5 seconds")
 
         # Wait for dynamic string tests
         try:
             await asyncio.wait_for(dynamic_timeout_fired.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Dynamic timeout did not fire within 1 second")
 
         try:
             await asyncio.wait_for(dynamic_interval_fired.wait(), timeout=1.5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Dynamic interval did not fire within 1.5 seconds")
 
         # Wait for dynamic defer test
         try:
             await asyncio.wait_for(dynamic_defer_fired.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Dynamic defer did not fire within 1 second")
 
         # Wait for cancel test
         try:
             await asyncio.wait_for(cancel_test_done.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Cancel test did not complete within 1 second")
 
         # Wait for final results
         try:
             await asyncio.wait_for(final_results_logged.wait(), timeout=4.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Final results were not logged within 4 seconds")
 
         # Verify results

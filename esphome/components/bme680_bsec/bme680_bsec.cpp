@@ -15,8 +15,6 @@ std::vector<BME680BSECComponent *>
 uint8_t BME680BSECComponent::work_buffer_[BSEC_MAX_WORKBUFFER_SIZE] = {0};
 
 void BME680BSECComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->device_id_.c_str());
-
   uint8_t new_idx = BME680BSECComponent::instances.size();
   BME680BSECComponent::instances.push_back(this);
 

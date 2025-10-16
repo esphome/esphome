@@ -118,7 +118,7 @@ async def to_code(config):
 
     # Workaround for crash on IDF 5+
     # See https://github.com/trombik/esp_wireguard/issues/33#issuecomment-1568503651
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
 
     # This flag is added here because the esp_wireguard library statically

@@ -221,11 +221,11 @@ class ExponentialMovingAverageFilter : public Filter {
   void set_alpha(float alpha);
 
  protected:
-  bool first_value_{true};
   float accumulator_{NAN};
+  float alpha_;
   size_t send_every_;
   size_t send_at_;
-  float alpha_;
+  bool first_value_{true};
 };
 
 /** Simple throttle average filter.
@@ -243,9 +243,9 @@ class ThrottleAverageFilter : public Filter, public Component {
   float get_setup_priority() const override;
 
  protected:
-  uint32_t time_period_;
   float sum_{0.0f};
   unsigned int n_{0};
+  uint32_t time_period_;
   bool have_nan_{false};
 };
 
@@ -314,9 +314,24 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
+/// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
+class ThrottleWithPriorityFilter : public Filter {
+ public:
+  explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
+                                      std::vector<TemplatableValue<float>> prioritized_values);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+  std::vector<TemplatableValue<float>> prioritized_values_;
+};
+
 class TimeoutFilter : public Filter, public Component {
  public:
-  explicit TimeoutFilter(uint32_t time_period, TemplatableValue<float> new_value);
+  explicit TimeoutFilter(uint32_t time_period);
+  explicit TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value);
 
   optional<float> new_value(float value) override;
 
@@ -324,7 +339,7 @@ class TimeoutFilter : public Filter, public Component {
 
  protected:
   uint32_t time_period_;
-  TemplatableValue<float> value_;
+  optional<TemplatableValue<float>> value_;
 };
 
 class DebounceFilter : public Filter, public Component {
@@ -364,8 +379,8 @@ class DeltaFilter : public Filter {
  protected:
   float delta_;
   float current_delta_;
-  bool percentage_mode_;
   float last_value_{NAN};
+  bool percentage_mode_;
 };
 
 class OrFilter : public Filter {
@@ -387,8 +402,8 @@ class OrFilter : public Filter {
   };
 
   std::vector<Filter *> filters_;
-  bool has_value_{false};
   PhiNode phi_;
+  bool has_value_{false};
 };
 
 class CalibrateLinearFilter : public Filter {
