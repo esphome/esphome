@@ -28,8 +28,6 @@ void ESPNowTransport::setup() {
   // Register this transport as an ESP-NOW handler
   this->parent_->register_received_handler(static_cast<ESPNowReceivedPacketHandler *>(this));
   this->parent_->register_broadcasted_handler(static_cast<ESPNowBroadcastedHandler *>(this));
-
-  ESP_LOGI(TAG, "ESP-NOW transport setup complete");
 }
 
 void ESPNowTransport::update() {
@@ -39,7 +37,7 @@ void ESPNowTransport::update() {
 
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
   if (this->parent_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot send packet: ESPNow component not set");
+    ESP_LOGE(TAG, "ESPNow component not set");
     return;
   }
 
@@ -62,7 +60,7 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
 }
 
 bool ESPNowTransport::on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) {
-  ESP_LOGD(TAG, "Received packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", size, info.src_addr[0],
+  ESP_LOGV(TAG, "Received packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", size, info.src_addr[0],
            info.src_addr[1], info.src_addr[2], info.src_addr[3], info.src_addr[4], info.src_addr[5]);
 
   if (data == nullptr || size == 0) {
@@ -77,7 +75,7 @@ bool ESPNowTransport::on_received(const ESPNowRecvInfo &info, const uint8_t *dat
 }
 
 bool ESPNowTransport::on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) {
-  ESP_LOGD(TAG, "Received broadcast packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", size, info.src_addr[0],
+  ESP_LOGV(TAG, "Received broadcast packet of size %u from %02X:%02X:%02X:%02X:%02X:%02X", size, info.src_addr[0],
            info.src_addr[1], info.src_addr[2], info.src_addr[3], info.src_addr[4], info.src_addr[5]);
 
   if (data == nullptr || size == 0) {
