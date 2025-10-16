@@ -467,7 +467,9 @@ def _create_sliding_window_filter(config, filter_id, sliding_class, streaming_cl
     # Saves 99.98% memory for large windows (e.g., 20KB → 4 bytes for window_size=5000)
     if window_size == send_every:
         return cg.new_Pvariable(filter_id, streaming_class, window_size, send_first_at)
-    return cg.new_Pvariable(filter_id, window_size, send_every, send_first_at)
+    return cg.new_Pvariable(
+        filter_id, sliding_class, window_size, send_every, send_first_at
+    )
 
 
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
