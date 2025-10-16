@@ -53,9 +53,6 @@ class SlidingWindowFilter : public Filter {
  public:
   SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at);
 
-  void set_send_every(size_t send_every) { this->send_every_ = send_every; }
-  void set_window_size(size_t window_size);
-
   optional<float> new_value(float value) final;
 
  protected:
