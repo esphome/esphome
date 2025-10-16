@@ -98,6 +98,21 @@ enum ClimatePreset : uint8_t {
   CLIMATE_PRESET_ACTIVITY = 7,
 };
 
+enum ClimateFeature : uint32_t {
+  // Reporting current temperature is supported
+  CLIMATE_SUPPORTS_CURRENT_TEMPERATURE = 1 << 0,
+  // Setting two target temperatures is supported (used in conjunction with CLIMATE_MODE_HEAT_COOL)
+  CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE = 1 << 1,
+  // Single-point mode is NOT supported (UI always displays two handles, setting 'target_temperature' is not supported)
+  CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE = 1 << 2,
+  // Reporting current humidity is supported
+  CLIMATE_SUPPORTS_CURRENT_HUMIDITY = 1 << 3,
+  // Setting a target humidity is supported
+  CLIMATE_SUPPORTS_TARGET_HUMIDITY = 1 << 4,
+  // Reporting current climate action is supported
+  CLIMATE_SUPPORTS_ACTION = 1 << 5,
+};
+
 /// Convert the given ClimateMode to a human-readable string.
 const LogString *climate_mode_to_string(ClimateMode mode);
 
