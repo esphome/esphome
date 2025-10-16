@@ -1062,7 +1062,7 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "", Path("custom.bin")
+        ["192.168.1.100"], 3232, None, Path("custom.bin")
     )
 
 
@@ -1119,7 +1119,9 @@ def test_upload_program_ota_with_mqtt_resolution(
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
-    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, None, expected_firmware
+    )
 
 
 @patch("esphome.__main__.importlib.import_module")

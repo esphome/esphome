@@ -606,7 +606,7 @@ def upload_program(
     from esphome import espota2
 
     remote_port = int(ota_conf[CONF_PORT])
-    password = ota_conf.get(CONF_PASSWORD, "")
+    password = ota_conf.get(CONF_PASSWORD)
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
     else:
