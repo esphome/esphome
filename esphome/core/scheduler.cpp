@@ -346,7 +346,7 @@ void HOT Scheduler::call(uint32_t now) {
       LockGuard lock(this->lock_);
       // SAFETY: Moving out the unique_ptr leaves a nullptr in the vector at defer_queue_front_.
       // This is intentional and safe because:
-      // 1. The vector is only cleaned up by cleanup_defer_queue_() at the end of this function
+      // 1. The vector is only cleaned up by cleanup_defer_queue_locked_() at the end of this function
       // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_
       //    and has_cancelled_timeout_in_container_ in scheduler.h)
       // 3. The lock protects concurrent access, but the nullptr remains until cleanup
