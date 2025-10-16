@@ -2,9 +2,11 @@ import glob
 import logging
 from pathlib import Path
 
-from esphome import yaml_util
+from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
+from esphome.config_helpers import merge_config
 from esphome.const import CONF_PACKAGES, CONF_SUBSTITUTIONS
+from esphome.core import CORE
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -181,8 +183,6 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
     This is a regression test for https://github.com/esphome/esphome/issues/11182
     where using packages would cause config to become a regular dict, breaking move_to_end().
     """
-    from esphome.config_helpers import merge_config
-
     # Simulate what happens with packages - merge two OrderedDict configs
     base_config = OrderedDict()
     base_config["esphome"] = {"name": "base"}
@@ -209,3 +209,71 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
     )
     keys = list(merged_config.keys())
     assert keys[0] == CONF_SUBSTITUTIONS, "Substitutions should be first key"
+
+
+def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
+    tmp_path,
+) -> None:
+    """Test that validate_config preserves OrderedDict when merging command-line substitutions.
+
+    This tests the code path in config.py where result[CONF_SUBSTITUTIONS] is set
+    using merge_dicts_ordered() with command-line substitutions provided.
+    """
+    # Create a minimal valid config
+    test_config = OrderedDict()
+    test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
+    test_config[CONF_SUBSTITUTIONS] = {"var1": "value1", "var2": "value2"}
+    test_config["esp32"] = {"board": "esp32dev"}
+
+    # Command line substitutions that should override
+    command_line_subs = {"var2": "override", "var3": "new_value"}
+
+    # Set up CORE for the test with a proper Path object
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("# test config")
+    CORE.config_path = test_yaml
+
+    # Call validate_config with command line substitutions
+    result = config_module.validate_config(test_config, command_line_subs)
+
+    # Verify that result[CONF_SUBSTITUTIONS] is an OrderedDict
+    assert isinstance(result.get(CONF_SUBSTITUTIONS), OrderedDict), (
+        "Result substitutions should be an OrderedDict"
+    )
+
+    # Verify substitutions were properly merged
+    assert result[CONF_SUBSTITUTIONS]["var1"] == "value1"
+    assert result[CONF_SUBSTITUTIONS]["var2"] == "override"
+    assert result[CONF_SUBSTITUTIONS]["var3"] == "new_value"
+
+
+def test_validate_config_without_command_line_substitutions_maintains_ordered_dict(
+    tmp_path,
+) -> None:
+    """Test that validate_config preserves OrderedDict without command-line substitutions.
+
+    This tests the code path in config.py where result[CONF_SUBSTITUTIONS] is set
+    using merge_dicts_ordered() when command_line_substitutions is None.
+    """
+    # Create a minimal valid config
+    test_config = OrderedDict()
+    test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
+    test_config[CONF_SUBSTITUTIONS] = {"var1": "value1", "var2": "value2"}
+    test_config["esp32"] = {"board": "esp32dev"}
+
+    # Set up CORE for the test with a proper Path object
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("# test config")
+    CORE.config_path = test_yaml
+
+    # Call validate_config without command line substitutions
+    result = config_module.validate_config(test_config, None)
+
+    # Verify that result[CONF_SUBSTITUTIONS] is an OrderedDict
+    assert isinstance(result.get(CONF_SUBSTITUTIONS), OrderedDict), (
+        "Result substitutions should be an OrderedDict"
+    )
+
+    # Verify substitutions are unchanged
+    assert result[CONF_SUBSTITUTIONS]["var1"] == "value1"
+    assert result[CONF_SUBSTITUTIONS]["var2"] == "value2"
