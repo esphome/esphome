@@ -6,7 +6,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#else
+extern "C" {
+#include <esp_hosted.h>
+#include <esp_hosted_misc.h>
+#include <esp_hosted_bluedroid.h>
+}
+#endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
@@ -136,6 +144,7 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #ifdef USE_ARDUINO
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
@@ -169,6 +178,28 @@ bool ESP32BLE::ble_setup_() {
 #endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+#else
+  esp_hosted_connect_to_slave();  // NOLINT
+
+  if (esp_hosted_bt_controller_init() != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_init failed");
+    return false;
+  }
+
+  if (esp_hosted_bt_controller_enable() != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_enable failed");
+    return false;
+  }
+
+  hosted_hci_bluedroid_open();
+
+  esp_bluedroid_hci_driver_operations_t operations = {
+      .send = hosted_hci_bluedroid_send,
+      .check_send_available = hosted_hci_bluedroid_check_send_available,
+      .register_host_callback = hosted_hci_bluedroid_register_host_callback,
+  };
+  esp_bluedroid_attach_hci_driver(&operations);
+#endif
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
@@ -257,6 +288,7 @@ bool ESP32BLE::ble_dismantle_() {
     return false;
   }
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #ifdef USE_ARDUINO
   if (!btStop()) {
     ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
@@ -286,6 +318,19 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
+#endif
+#else
+  if (esp_hosted_bt_controller_disable() != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_disable failed");
+    return false;
+  }
+
+  if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
+    ESP_LOGW(TAG, "esp_hosted_bt_controller_deinit failed");
+    return false;
+  }
+
+  hosted_hci_bluedroid_close();
 #endif
   return true;
 }

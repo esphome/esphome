@@ -1564,6 +1564,10 @@ BOARDS = {
         "name": "DFRobot Beetle ESP32-C3",
         "variant": VARIANT_ESP32C3,
     },
+    "dfrobot_firebeetle2_esp32c6": {
+        "name": "DFRobot FireBeetle 2 ESP32-C6",
+        "variant": VARIANT_ESP32C6,
+    },
     "dfrobot_firebeetle2_esp32e": {
         "name": "DFRobot Firebeetle 2 ESP32-E",
         "variant": VARIANT_ESP32,
@@ -1603,6 +1607,22 @@ BOARDS = {
     "esp32-c3-m1i-kit": {
         "name": "Ai-Thinker ESP-C3-M1-I-Kit",
         "variant": VARIANT_ESP32C3,
+    },
+    "esp32-c5-devkitc-1": {
+        "name": "Espressif ESP32-C5-DevKitC-1 4MB no PSRAM",
+        "variant": VARIANT_ESP32C5,
+    },
+    "esp32-c5-devkitc1-n16r4": {
+        "name": "Espressif ESP32-C5-DevKitC-1 N16R4 (16 MB Flash Quad, 4 MB PSRAM Quad)",
+        "variant": VARIANT_ESP32C5,
+    },
+    "esp32-c5-devkitc1-n4": {
+        "name": "Espressif ESP32-C5-DevKitC-1 N4 (4MB no PSRAM)",
+        "variant": VARIANT_ESP32C5,
+    },
+    "esp32-c5-devkitc1-n8r4": {
+        "name": "Espressif ESP32-C5-DevKitC-1 N8R4 (8 MB Flash Quad, 4 MB PSRAM Quad)",
+        "variant": VARIANT_ESP32C5,
     },
     "esp32-c6-devkitc-1": {
         "name": "Espressif ESP32-C6-DevKitC-1",
@@ -2048,6 +2068,10 @@ BOARDS = {
         "name": "M5Stack Station",
         "variant": VARIANT_ESP32,
     },
+    "m5stack-tab5-p4": {
+        "name": "M5STACK Tab5 esp32-p4 Board",
+        "variant": VARIANT_ESP32P4,
+    },
     "m5stack-timer-cam": {
         "name": "M5Stack Timer CAM",
         "variant": VARIANT_ESP32,
@@ -2474,6 +2498,10 @@ BOARDS = {
     },
     "yb_esp32s3_amp_v3": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.3)",
+        "variant": VARIANT_ESP32S3,
+    },
+    "yb_esp32s3_drv": {
+        "name": "YelloByte YB-ESP32-S3-DRV",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_eth": {

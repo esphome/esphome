@@ -1,5 +1,5 @@
 substitutions:
-  irq0_pin: GPIO13
+  irq0_pin: GPIO0
   irq1_pin: GPIO15
   reset_pin: GPIO16
 
