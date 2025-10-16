@@ -60,17 +60,16 @@ class InitialStateHelper:
         not_waiting = {
             (e.device_id, e.key) for e in entities
         } - self._wait_initial_states
-        _LOGGER.debug(
-            "InitialStateHelper: NOT waiting for %d entities: %s",
-            len(not_waiting),
-            [
-                (
-                    type(self._entities_by_id[k]).__name__,
-                    self._entities_by_id[k].object_id,
-                )
+        if not_waiting:
+            not_waiting_info = [
+                f"{type(self._entities_by_id[k]).__name__}:{self._entities_by_id[k].object_id}"
                 for k in not_waiting
-            ],
-        )
+            ]
+            _LOGGER.debug(
+                "InitialStateHelper: NOT waiting for %d entities: %s",
+                len(not_waiting),
+                not_waiting_info,
+            )
 
         # Create future in the running event loop
         self._initial_states_received = asyncio.get_running_loop().create_future()
