@@ -241,9 +241,14 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
 
 climate::ClimateTraits ThermostatClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(true);
+
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION | climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+
+  if (this->supports_two_points_)
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+
   if (this->humidity_sensor_ != nullptr)
-    traits.set_supports_current_humidity(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
 
   if (this->supports_auto_)
     traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
@@ -294,9 +299,6 @@ climate::ClimateTraits ThermostatClimate::traits() {
   for (auto &it : this->custom_preset_config_) {
     traits.add_supported_custom_preset(it.first);
   }
-
-  traits.set_supports_two_point_target_temperature(this->supports_two_points_);
-  traits.set_supports_action(true);
   return traits;
 }
 
