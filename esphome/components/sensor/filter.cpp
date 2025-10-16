@@ -53,7 +53,7 @@ optional<float> SlidingWindowFilter::new_value(float value) {
     // Buffer not yet full - just append
     this->window_.push_back(value);
     this->window_count_++;
-    this->window_head_ = this->window_count_;
+    this->window_head_ = this->window_count_ % this->window_size_;
   } else {
     // Buffer full - overwrite oldest value (ring buffer)
     this->window_[this->window_head_] = value;
@@ -81,7 +81,7 @@ FixedVector<float> SortedWindowFilter::get_sorted_values_() {
       sorted_values.push_back(v);
     }
   }
-  sort(sorted_values.begin(), sorted_values.end());
+  std::sort(sorted_values.begin(), sorted_values.end());
   return sorted_values;
 }
 
