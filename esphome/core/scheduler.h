@@ -290,6 +290,9 @@ class Scheduler {
     size_t count = 0;
     for (auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
+      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
+      // vector as nullptr until cleanup. If cancel_item_locked_() is called from a callback during
+      // defer queue processing, it will iterate over these nullptr items. This check prevents crashes.
       if (!item)
         continue;
       if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
@@ -315,6 +318,9 @@ class Scheduler {
                                            bool match_retry) const {
     for (const auto &item : container) {
       // Skip nullptr items (can happen in defer_queue_ when items are being processed)
+      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
+      // vector as nullptr until cleanup. If this function is called during defer queue processing,
+      // it will iterate over these nullptr items. This check prevents crashes.
       if (!item)
         continue;
       if (is_item_removed_(item.get()) &&
