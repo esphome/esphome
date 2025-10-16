@@ -124,7 +124,8 @@ def test_substitutions_fixtures(fixture_path):
 
 
 def test_substitutions_with_command_line_maintains_ordered_dict() -> None:
-    """Test that substitutions remain an OrderedDict when command line substitutions are provided.
+    """Test that substitutions remain an OrderedDict when command line substitutions are provided,
+    and that move_to_end() can be called successfully.
 
     This is a regression test for https://github.com/esphome/esphome/issues/11182
     where the config would become a regular dict and fail when move_to_end() was called.
