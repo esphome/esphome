@@ -1064,6 +1064,17 @@ bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
+  uint32_t count_bool_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 6);
+  this->bool_array.init(count_bool_array);
+  uint32_t count_int_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 7);
+  this->int_array.init(count_int_array);
+  uint32_t count_float_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 8);
+  this->float_array.init(count_float_array);
+  uint32_t count_string_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 9);
+  this->string_array.init(count_string_array);
+  ProtoDecodableMessage::decode(buffer, length);
+}
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2:
@@ -1084,6 +1095,11 @@ bool ExecuteServiceRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
   return true;
+}
+void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
+  uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
+  this->args.init(count_args);
+  ProtoDecodableMessage::decode(buffer, length);
 }
 #endif
 #ifdef USE_CAMERA

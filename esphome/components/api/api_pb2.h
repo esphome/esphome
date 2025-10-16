@@ -1279,10 +1279,11 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
   float float_{0.0f};
   std::string string_{};
   int32_t int_{0};
-  std::vector<bool> bool_array{};
-  std::vector<int32_t> int_array{};
-  std::vector<float> float_array{};
-  std::vector<std::string> string_array{};
+  FixedVector<bool> bool_array{};
+  FixedVector<int32_t> int_array{};
+  FixedVector<float> float_array{};
+  FixedVector<std::string> string_array{};
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1300,7 +1301,8 @@ class ExecuteServiceRequest final : public ProtoDecodableMessage {
   const char *message_name() const override { return "execute_service_request"; }
 #endif
   uint32_t key{0};
-  std::vector<ExecuteServiceArgument> args{};
+  FixedVector<ExecuteServiceArgument> args{};
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

@@ -354,7 +354,18 @@ class ProtoMessage {
 // Base class for messages that support decoding
 class ProtoDecodableMessage : public ProtoMessage {
  public:
-  void decode(const uint8_t *buffer, size_t length);
+  virtual void decode(const uint8_t *buffer, size_t length);
+
+  /**
+   * Count occurrences of a repeated field in a protobuf buffer.
+   * This is a lightweight scan that only parses tags and skips field data.
+   *
+   * @param buffer Pointer to the protobuf buffer
+   * @param length Length of the buffer in bytes
+   * @param target_field_id The field ID to count
+   * @return Number of times the field appears in the buffer
+   */
+  static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
 
  protected:
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }

@@ -31,6 +31,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+from functools import cache
 import json
 import os
 from pathlib import Path
@@ -45,7 +46,6 @@ from helpers import (
     changed_files,
     get_all_dependencies,
     get_components_from_integration_fixtures,
-    parse_list_components_output,
     root_path,
 )
 
@@ -212,6 +212,24 @@ def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) 
     return any(file.endswith(extensions) for file in changed_files(branch))
 
 
+@cache
+def _component_has_tests(component: str) -> bool:
+    """Check if a component has test files.
+
+    Cached to avoid repeated filesystem operations for the same component.
+
+    Args:
+        component: Component name to check
+
+    Returns:
+        True if the component has test YAML files
+    """
+    tests_dir = Path(root_path) / "tests" / "components" / component
+    if not tests_dir.exists():
+        return False
+    return any(tests_dir.glob("test.*.yaml"))
+
+
 def main() -> None:
     """Main function that determines which CI jobs to run."""
     parser = argparse.ArgumentParser(
@@ -228,23 +246,37 @@ def main() -> None:
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
 
-    # Get changed components using list-components.py for exact compatibility
+    # Get both directly changed and all changed components (with dependencies) in one call
     script_path = Path(__file__).parent / "list-components.py"
-    cmd = [sys.executable, str(script_path), "--changed"]
+    cmd = [sys.executable, str(script_path), "--changed-with-deps"]
     if args.branch:
         cmd.extend(["-b", args.branch])
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    changed_components = parse_list_components_output(result.stdout)
+    component_data = json.loads(result.stdout)
+    directly_changed_components = component_data["directly_changed"]
+    changed_components = component_data["all_changed"]
 
     # Filter to only components that have test files
     # Components without tests shouldn't generate CI test jobs
-    tests_dir = Path(root_path) / "tests" / "components"
     changed_components_with_tests = [
+        component for component in changed_components if _component_has_tests(component)
+    ]
+
+    # Get directly changed components with tests (for isolated testing)
+    # These will be tested WITHOUT --testing-mode in CI to enable full validation
+    # (pin conflicts, etc.) since they contain the actual changes being reviewed
+    directly_changed_with_tests = [
         component
-        for component in changed_components
-        if (component_test_dir := tests_dir / component).exists()
-        and any(component_test_dir.glob("test.*.yaml"))
+        for component in directly_changed_components
+        if _component_has_tests(component)
+    ]
+
+    # Get dependency-only components (for grouped testing)
+    dependency_only_components = [
+        component
+        for component in changed_components_with_tests
+        if component not in directly_changed_components
     ]
 
     # Build output
@@ -255,7 +287,11 @@ def main() -> None:
         "python_linters": run_python_linters,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
+        "directly_changed_components_with_tests": directly_changed_with_tests,
+        "dependency_only_components_with_tests": dependency_only_components,
         "component_test_count": len(changed_components_with_tests),
+        "directly_changed_count": len(directly_changed_with_tests),
+        "dependency_only_count": len(dependency_only_components),
     }
 
     # Output as JSON

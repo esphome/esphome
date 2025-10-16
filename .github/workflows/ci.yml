@@ -114,8 +114,7 @@ jobs:
       matrix:
         python-version:
           - "3.11"
-          - "3.12"
-          - "3.13"
+          - "3.14"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -124,13 +123,9 @@ jobs:
           # Minimize CI resource usage
           # by only running the Python version
           # version used for docker images on Windows and macOS
-          - python-version: "3.13"
+          - python-version: "3.14"
             os: windows-latest
-          - python-version: "3.12"
-            os: windows-latest
-          - python-version: "3.13"
-            os: macOS-latest
-          - python-version: "3.12"
+          - python-version: "3.14"
             os: macOS-latest
     runs-on: ${{ matrix.os }}
     needs:
@@ -178,6 +173,7 @@ jobs:
       python-linters: ${{ steps.determine.outputs.python-linters }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
+      directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
     steps:
       - name: Check out code from GitHub
@@ -206,6 +202,7 @@ jobs:
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
+          echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
 
   integration-tests:
@@ -358,48 +355,13 @@ jobs:
         # yamllint disable-line rule:line-length
         if: always()
 
-  test-build-components:
-    name: Component test ${{ matrix.file }}
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0 && fromJSON(needs.determine-jobs.outputs.component-test-count) < 100
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        file: ${{ fromJson(needs.determine-jobs.outputs.changed-components-with-tests) }}
-    steps:
-      - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
-        with:
-          packages: libsdl2-dev
-          version: 1.0
-
-      - name: Check out code from GitHub
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Validate config for ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          python3 script/test_build_components.py -e config -c ${{ matrix.file }}
-      - name: Compile config for ${{ matrix.file }}
-        run: |
-          . venv/bin/activate
-          python3 script/test_build_components.py -e compile -c ${{ matrix.file }}
-
   test-build-components-splitter:
     name: Split components for intelligent grouping (40 weighted per batch)
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) >= 100
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     outputs:
       matrix: ${{ steps.split.outputs.components }}
     steps:
@@ -417,9 +379,10 @@ jobs:
 
           # Use intelligent splitter that groups components with same bus configs
           components='${{ needs.determine-jobs.outputs.changed-components-with-tests }}'
+          directly_changed='${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}'
 
           echo "Splitting components intelligently..."
-          output=$(python3 script/split_components_for_ci.py --components "$components" --batch-size 40 --output github)
+          output=$(python3 script/split_components_for_ci.py --components "$components" --directly-changed "$directly_changed" --batch-size 40 --output github)
 
           echo "$output" >> $GITHUB_OUTPUT
 
@@ -430,7 +393,7 @@ jobs:
       - common
       - determine-jobs
       - test-build-components-splitter
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) >= 100
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     strategy:
       fail-fast: false
       max-parallel: ${{ (github.base_ref == 'beta' || github.base_ref == 'release') && 8 || 4 }}
@@ -477,18 +440,34 @@ jobs:
           # Convert space-separated components to comma-separated for Python script
           components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
 
-          echo "Testing components: $components_csv"
+          # Only isolate directly changed components when targeting dev branch
+          # For beta/release branches, group everything for faster CI
+          #
+          # WHY ISOLATE DIRECTLY CHANGED COMPONENTS?
+          # - Isolated tests run WITHOUT --testing-mode, enabling full validation
+          # - This catches pin conflicts and other issues in directly changed code
+          # - Grouped tests use --testing-mode to allow config merging (disables some checks)
+          # - Dependencies are safe to group since they weren't modified in this PR
+          if [ "${{ github.base_ref }}" = "beta" ] || [ "${{ github.base_ref }}" = "release" ]; then
+            directly_changed_csv=""
+            echo "Testing components: $components_csv"
+            echo "Target branch: ${{ github.base_ref }} - grouping all components"
+          else
+            directly_changed_csv=$(echo '${{ needs.determine-jobs.outputs.directly-changed-components-with-tests }}' | jq -r 'join(",")')
+            echo "Testing components: $components_csv"
+            echo "Target branch: ${{ github.base_ref }} - isolating directly changed components: $directly_changed_csv"
+          fi
           echo ""
 
-          # Run config validation with grouping
-          python3 script/test_build_components.py -e config -c "$components_csv" -f
+          # Run config validation with grouping and isolation
+          python3 script/test_build_components.py -e config -c "$components_csv" -f --isolate "$directly_changed_csv"
 
           echo ""
           echo "Config validation passed! Starting compilation..."
           echo ""
 
-          # Run compilation with grouping
-          python3 script/test_build_components.py -e compile -c "$components_csv" -f
+          # Run compilation with grouping and isolation
+          python3 script/test_build_components.py -e compile -c "$components_csv" -f --isolate "$directly_changed_csv"
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite
@@ -521,7 +500,6 @@ jobs:
       - integration-tests
       - clang-tidy
       - determine-jobs
-      - test-build-components
       - test-build-components-splitter
       - test-build-components-split
       - pre-commit-ci-lite
