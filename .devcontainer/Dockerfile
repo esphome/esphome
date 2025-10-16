@@ -33,5 +33,6 @@ RUN \
 
 COPY script/platformio_install_deps.py platformio.ini ./
 RUN ./platformio_install_deps.py platformio.ini --libraries --platforms --tools
+RUN python -m ensurepip --upgrade
 
 WORKDIR /workspaces
