@@ -43,12 +43,14 @@ from enum import StrEnum
 from functools import cache
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
 
 from helpers import (
     BASE_BUS_COMPONENTS,
+    CPP_AND_PYTHON_FILE_EXTENSIONS,
     CPP_FILE_EXTENSIONS,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
@@ -60,6 +62,7 @@ from helpers import (
     get_components_from_integration_fixtures,
     get_components_with_dependencies,
     git_ls_files,
+    parse_list_components_output,
     parse_test_filename,
     root_path,
 )
@@ -103,6 +106,27 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
 ]
 
 
+def core_changed(files: list[str]) -> bool:
+    """Check if any core C++ or Python files have changed."""
+    return any(
+        f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def list_components(
+    branch: str | None = None, switches: list[str] | None = None
+) -> list[str]:
+    # Get changed components using list-components.py for exact compatibility
+    script_path = Path(__file__).parent / "list-components.py"
+    cmd = [sys.executable, str(script_path)] + (switches or [])
+    if branch:
+        cmd.extend(["-b", branch])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return parse_list_components_output(result.stdout)
+
+
 def should_run_integration_tests(branch: str | None = None) -> bool:
     """Determine if integration tests should run based on changed files.
 
@@ -143,10 +167,9 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
 
-    # Check if any core files changed (esphome/core/*)
-    for file in files:
-        if file.startswith("esphome/core/"):
-            return True
+    if core_changed(files):
+        # If any core files changed, run integration tests
+        return True
 
     # Check if any integration test files changed
     if any("tests/integration" in file for file in files):
@@ -281,6 +304,33 @@ def should_run_python_linters(branch: str | None = None) -> bool:
         True if Python linters should run, False otherwise.
     """
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
+
+
+def list_cpp_components_to_test(branch: str | None = None) -> bool:
+    """Determine if C++ unit tests should run based on changed files.
+
+    This function is used by the CI workflow to skip C++ unit tests when no relevant files have changed,
+    saving CI time and resources.
+
+    C++ unit tests will run when any of the following conditions are met:
+
+    1. Any C++ core source files changed (esphome/core/*), in which case all cpp unit tests run.
+    2. A test file for a component changed, which triggers tests for that component.
+    3. The code for a component changed, which triggers tests for that component and all components that depend on it.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        List of components that have unit tests to run, an empty list if no tests are needed or
+        the special value ["--all"] if all tests should run.
+    """
+    files = changed_files(branch)
+    return (
+        (["--all"])
+        if core_changed(files)
+        else list_components(branch, ["--cpp-changed"])
+    )
 
 
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
@@ -661,6 +711,7 @@ def main() -> None:
         "dependency_only_count": len(dependency_only_components),
         "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
+        "cpp_unit_tests": list_cpp_components_to_test(args.branch),
     }
 
     # Output as JSON

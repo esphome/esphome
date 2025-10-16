@@ -25,11 +25,17 @@ CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
 # Python file extensions
 PYTHON_FILE_EXTENSIONS = (".py", ".pyi")
 
+# Combined C++ and Python file extensions for convenience
+CPP_AND_PYTHON_FILE_EXTENSIONS = (*CPP_FILE_EXTENSIONS, *PYTHON_FILE_EXTENSIONS)
+
 # YAML file extensions
 YAML_FILE_EXTENSIONS = (".yaml", ".yml")
 
 # Component path prefix
 ESPHOME_COMPONENTS_PATH = "esphome/components/"
+
+# Test components path prefix
+ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
@@ -667,8 +673,17 @@ def filter_component_files(file_path: str) -> bool:
     Returns:
         True if the file is in a component directory
     """
-    return file_path.startswith("esphome/components/") or file_path.startswith(
-        "tests/components/"
+    return (
+        file_path.startswith(ESPHOME_COMPONENTS_PATH)
+        or file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
+        and file_path.endswith(YAML_FILE_EXTENSIONS)
+    )
+
+
+def filter_cpp_files(file):
+    return file.endswith(CPP_FILE_EXTENSIONS) and (
+        file.startswith(ESPHOME_COMPONENTS_PATH)
+        or file.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
     )
 
 
@@ -740,7 +755,7 @@ def create_components_graph() -> dict[str, list[str]]:
 
     # The root directory of the repo
     root = Path(__file__).parent.parent
-    components_dir = root / "esphome" / "components"
+    components_dir = root / ESPHOME_COMPONENTS_PATH
     # Fake some directory so that get_component works
     CORE.config_path = root
     # Various configuration to capture different outcomes used by `AUTO_LOAD` function.

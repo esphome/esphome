@@ -56,6 +56,13 @@ def mock_should_run_python_linters() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
+def mock_list_cpp_components_to_test() -> Generator[Mock, None, None]:
+    """Mock list_cpp_components_to_test from helpers."""
+    with patch.object(determine_jobs, "list_cpp_components_to_test") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_subprocess_run() -> Generator[Mock, None, None]:
     """Mock subprocess.run for list-components.py calls."""
     with patch.object(determine_jobs.subprocess, "run") as mock:
@@ -84,6 +91,7 @@ def test_main_all_tests_should_run(
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
     mock_changed_files: Mock,
+    mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -95,6 +103,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
+    mock_list_cpp_components_to_test.return_value = ["wifi", "api", "sensor"]
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
@@ -120,9 +129,9 @@ def test_main_all_tests_should_run(
         patch.object(
             determine_jobs,
             "get_components_with_dependencies",
-            side_effect=lambda files, deps: ["wifi", "api"]
-            if not deps
-            else ["wifi", "api", "sensor"],
+            side_effect=lambda files, deps: (
+                ["wifi", "api"] if not deps else ["wifi", "api", "sensor"]
+            ),
         ),
     ):
         determine_jobs.main()
@@ -150,6 +159,7 @@ def test_main_all_tests_should_run(
     # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+    assert output["cpp_unit_tests"] == ["wifi", "api", "sensor"]
 
 
 def test_main_no_tests_should_run(
@@ -159,6 +169,7 @@ def test_main_no_tests_should_run(
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
     mock_changed_files: Mock,
+    mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,6 +181,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    mock_list_cpp_components_to_test.return_value = []
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -202,6 +214,7 @@ def test_main_no_tests_should_run(
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+    assert output["cpp_unit_tests"] == []
 
 
 def test_main_list_components_fails(
@@ -210,6 +223,7 @@ def test_main_list_components_fails(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
+    mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Test when list-components.py fails."""
@@ -217,6 +231,7 @@ def test_main_list_components_fails(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
+    mock_list_cpp_components_to_test.return_value = []
 
     # Mock list-components.py failure
     mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd")
@@ -236,6 +251,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters: Mock,
     mock_subprocess_run: Mock,
     mock_changed_files: Mock,
+    mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -247,6 +263,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
+    mock_list_cpp_components_to_test.return_value = ["mqtt"]
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
@@ -296,6 +313,7 @@ def test_main_with_branch_argument(
     # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+    assert output["cpp_unit_tests"] == ["mqtt"]
 
 
 def test_should_run_integration_tests(
@@ -562,10 +580,11 @@ def test_main_filters_components_without_tests(
         patch.object(
             determine_jobs,
             "get_components_with_dependencies",
-            side_effect=lambda files, deps: ["wifi", "sensor"]
-            if not deps
-            else ["wifi", "sensor", "airthings_ble"],
+            side_effect=lambda files, deps: (
+                ["wifi", "sensor"] if not deps else ["wifi", "sensor", "airthings_ble"]
+            ),
         ),
+        patch.object(determine_jobs, "changed_files", return_value=[]),
     ):
         # Clear the cache since we're mocking root_path
         determine_jobs._component_has_tests.cache_clear()
