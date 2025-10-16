@@ -244,6 +244,20 @@ RESERVED_IDS = [
     "uart0",
     "uart1",
     "uart2",
+    # ESP32 ROM functions
+    "crc16_be",
+    "crc16_le",
+    "crc32_be",
+    "crc32_le",
+    "crc8_be",
+    "crc8_le",
+    "dbg_state",
+    "debug_timer",
+    "one_bits",
+    "recv_packet",
+    "send_packet",
+    "check_pos",
+    "software_reset",
 ]
 
 
@@ -1195,6 +1209,13 @@ def validate_bytes(value):
 
 
 def hostname(value):
+    """Validate that the value is a valid hostname.
+
+    Maximum length is 63 characters per RFC 1035.
+
+    Note: If this limit is changed, update MAX_NAME_WITH_SUFFIX_SIZE in
+    esphome/core/helpers.cpp to accommodate the new maximum length.
+    """
     value = string(value)
     if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
         return value

@@ -1,9 +1,9 @@
 rc522_spi:
-  id: rc522_nfcc
+  id: rc522_nfcc_spi
   cs_pin: ${cs_pin}
 
 binary_sensor:
   - platform: rc522
-    rc522_id: rc522_nfcc
-    name: PN532 NFC Tag
+    rc522_id: rc522_nfcc_spi
+    name: RC522 NFC Tag
     uid: 74-10-37-94
