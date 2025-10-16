@@ -12,9 +12,9 @@ void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
   }
-  this->last_read_address_ = 0;
-  this->last_read_length_ = 0;
-  this->last_was_read_ = false;
+  this->last_read_packet_register_ = 0;
+  this->last_read_packet_length_ = 0;
+  this->last_packet_was_read_ = false;
 }
 void Modbus::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -67,25 +67,9 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
-  if (at > 6 && raw[1] == 0x03) {
-    uint16_t read_crc = crc16(raw, 6);
-    uint16_t read_remote_crc = uint16_t(raw[6]) | (uint16_t(raw[7]) << 8);
-    if (read_crc == read_remote_crc) {
-      uint16_t reg_address = uint16_t(raw[2] << 8) + raw[3];
-      uint8_t length = raw[5];
-      ESP_LOGD(TAG,
-               "Valid Read packet Address: %02X Length: %02X -> ignoring it: %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
-               reg_address, length, raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7]);
 
-      for (auto *device : this->devices_) {
-        if (device->address_ == address) {
-          this->last_was_read_ = true;
-          this->last_read_address_ = reg_address;
-          this->last_read_length_ = length;
-        }
-      }
-      return false;  // ignore the read packet
-    }
+  if (this->passive_mode_ && this->packet_is_read_packet()) {
+    return false;
   }
 
   // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
@@ -170,7 +154,6 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       }
     }
   }
-  ESP_LOGD(TAG, "VALID PACKET Len: %02X", at);
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
   bool found = false;
   for (auto *device : this->devices_) {
@@ -201,8 +184,8 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
         }
       }
       // fallthrough for other function codes
-      if (this->last_was_read_) {
-        device->queue_passive_read(this->last_read_address_, this->last_read_length_);
+      if (this->last_packet_was_read_) {
+        device->queue_passive_read(this->last_read_packet_register_, this->last_read_packet_length_);
       }
       device->on_modbus_data(data);
     }
@@ -214,7 +197,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   }
 
   // reset buffer
-  this->last_was_read_ = false;
+  this->last_packet_was_read_ = false;
   ESP_LOGV(TAG, "Clearing buffer of %d bytes - parse succeeded", at);
   this->rx_buffer_.clear();
   return true;
@@ -306,6 +289,38 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   waiting_for_response = payload[0];
   ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty(payload).c_str());
   last_send_ = millis();
+}
+
+bool Modbus::packet_is_read_packet() {
+  size_t at = this->rx_buffer_.size();
+  const uint8_t *raw = &this->rx_buffer_[0];
+  uint8_t address = raw[0];
+  uint8_t function_code = raw[1];
+
+  if (at > 6 && function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+    uint16_t read_crc = crc16(raw, 6);
+    uint16_t read_remote_crc = uint16_t(raw[6]) | (uint16_t(raw[7]) << 8);
+
+    if (read_crc == read_remote_crc) {
+      uint16_t reg_address = uint16_t(raw[2] << 8) + raw[3];
+      uint8_t length = raw[5];
+
+      ESP_LOGV(TAG,
+               "Valid Holding Register Read packet Address: %02X Length: %02X -> ignoring it: "
+               "%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
+               reg_address, length, raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7]);
+
+      for (auto *device : this->devices_) {
+        if (device->address_ == address) {
+          this->last_packet_was_read_ = true;
+          this->last_read_packet_register_ = reg_address;
+          this->last_read_packet_length_ = length;
+        }
+      }
+      return true;  // ignore the read packet
+    }
+  }
+  return false;
 }
 
 }  // namespace modbus

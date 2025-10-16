@@ -839,7 +839,7 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
       break;
   }
   if (error)
-    ESP_LOGE(TAG, "not enough data for value");
+    ESP_LOGE(TAG, "not enough data for value Size: %02X Offset: %02X", size, offset);
   return value;
 }
 
@@ -856,8 +856,7 @@ void ModbusController::add_on_offline_callback(std::function<void(int, int)> &&c
 }
 
 void ModbusController::queue_passive_read(uint16_t start_address, uint8_t register_count) {
-  ESP_LOGW(TAG, "add to queue");
-  // this->command_queue_.clear();
+  ESP_LOGV(TAG, "add to passive queue");
   queue_command(
       ModbusCommandItem::create_read_command(this, ModbusRegisterType::HOLDING, start_address, register_count), true);
 }
