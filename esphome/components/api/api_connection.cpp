@@ -660,6 +660,12 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   auto *climate = static_cast<climate::Climate *>(entity);
   ListEntitiesClimateResponse msg;
   auto traits = climate->get_traits();
+  // Deprecated flags set for backward compatibility
+  msg.supports_current_temperature = traits.get_supports_current_temperature();
+  msg.supports_current_humidity = traits.get_supports_current_humidity();
+  msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
+  msg.supports_target_humidity = traits.get_supports_target_humidity();
+  // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
   msg.supported_modes = &traits.get_supported_modes_for_api_();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
