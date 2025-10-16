@@ -68,45 +68,47 @@ async def test_sensor_filters_sliding_window(
 
         # Get the sensor name from the key mapping
         sensor_name = key_to_sensor.get(state.key)
-        if sensor_name and sensor_name in sensor_states:
-            sensor_states[sensor_name].append(state.state)
+        if not sensor_name or sensor_name not in sensor_states:
+            return
 
-            # Check if we received the expected final value
-            # After publishing 10 values [1.0, 2.0, ..., 10.0], the window has the last 5: [2, 3, 4, 5, 6]
-            # Filters send at position 1 and position 6 (send_every=5 means every 5th value after first)
-            if (
-                sensor_name == "min_sensor"
-                and abs(state.state - 2.0) < 0.01
-                and not min_received.done()
-            ):
-                min_received.set_result(True)
-            elif (
-                sensor_name == "max_sensor"
-                and abs(state.state - 6.0) < 0.01
-                and not max_received.done()
-            ):
-                max_received.set_result(True)
-            elif (
-                sensor_name == "median_sensor"
-                and abs(state.state - 4.0) < 0.01
-                and not median_received.done()
-            ):
-                # Median of [2, 3, 4, 5, 6] = 4
-                median_received.set_result(True)
-            elif (
-                sensor_name == "quantile_sensor"
-                and abs(state.state - 6.0) < 0.01
-                and not quantile_received.done()
-            ):
-                # 90th percentile of [2, 3, 4, 5, 6] = 6
-                quantile_received.set_result(True)
-            elif (
-                sensor_name == "moving_avg_sensor"
-                and abs(state.state - 4.0) < 0.01
-                and not moving_avg_received.done()
-            ):
-                # Average of [2, 3, 4, 5, 6] = 4
-                moving_avg_received.set_result(True)
+        sensor_states[sensor_name].append(state.state)
+
+        # Check if we received the expected final value
+        # After publishing 10 values [1.0, 2.0, ..., 10.0], the window has the last 5: [2, 3, 4, 5, 6]
+        # Filters send at position 1 and position 6 (send_every=5 means every 5th value after first)
+        if (
+            sensor_name == "min_sensor"
+            and abs(state.state - 2.0) < 0.01
+            and not min_received.done()
+        ):
+            min_received.set_result(True)
+        elif (
+            sensor_name == "max_sensor"
+            and abs(state.state - 6.0) < 0.01
+            and not max_received.done()
+        ):
+            max_received.set_result(True)
+        elif (
+            sensor_name == "median_sensor"
+            and abs(state.state - 4.0) < 0.01
+            and not median_received.done()
+        ):
+            # Median of [2, 3, 4, 5, 6] = 4
+            median_received.set_result(True)
+        elif (
+            sensor_name == "quantile_sensor"
+            and abs(state.state - 6.0) < 0.01
+            and not quantile_received.done()
+        ):
+            # 90th percentile of [2, 3, 4, 5, 6] = 6
+            quantile_received.set_result(True)
+        elif (
+            sensor_name == "moving_avg_sensor"
+            and abs(state.state - 4.0) < 0.01
+            and not moving_avg_received.done()
+        ):
+            # Average of [2, 3, 4, 5, 6] = 4
+            moving_avg_received.set_result(True)
 
     async with (
         run_compiled(yaml_config),
