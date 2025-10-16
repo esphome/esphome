@@ -117,6 +117,17 @@ class Purpose(StrEnum):
     LOGGING = "logging"
 
 
+class PortType(StrEnum):
+    SERIAL = "SERIAL"
+    NETWORK = "NETWORK"
+    MQTT = "MQTT"
+    MQTTIP = "MQTTIP"
+
+
+# Magic MQTT port types that require special handling
+_MQTT_PORT_TYPES = frozenset({PortType.MQTT, PortType.MQTTIP})
+
+
 def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
     """Resolve an address using cache if available, otherwise return the address itself."""
     if CORE.address_cache and (cached := CORE.address_cache.get_addresses(address)):
@@ -280,16 +291,67 @@ def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
 
 
-_PORT_TO_PORT_TYPE = {
-    "MQTT": "MQTT",
-    "MQTTIP": "MQTTIP",
-}
+def _resolve_network_devices(
+    devices: list[str], config: ConfigType, args: ArgsProtocol
+) -> list[str]:
+    """Resolve device list, converting MQTT magic strings to actual IP addresses.
+
+    This function filters the devices list to:
+    - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
+    - Deduplicate addresses while preserving order
+    - Only resolve MQTT once even if multiple MQTT strings are present
+    - If MQTT resolution fails, log a warning and continue with other devices
+
+    Args:
+        devices: List of device identifiers (IPs, hostnames, or magic strings)
+        config: ESPHome configuration
+        args: Command-line arguments containing MQTT credentials
+
+    Returns:
+        List of network addresses suitable for connection attempts
+    """
+    network_devices: list[str] = []
+    mqtt_resolved: bool = False
+
+    for device in devices:
+        port_type = get_port_type(device)
+        if port_type in _MQTT_PORT_TYPES:
+            # Only resolve MQTT once, even if multiple MQTT entries
+            if not mqtt_resolved:
+                try:
+                    mqtt_ips = mqtt_get_ip(
+                        config, args.username, args.password, args.client_id
+                    )
+                    network_devices.extend(mqtt_ips)
+                except EsphomeError as err:
+                    _LOGGER.warning(
+                        "MQTT IP discovery failed (%s), will try other devices if available",
+                        err,
+                    )
+                mqtt_resolved = True
+        elif device not in network_devices:
+            # Regular network address or IP - add if not already present
+            network_devices.append(device)
+
+    return network_devices
 
 
-def get_port_type(port: str) -> str:
+def get_port_type(port: str) -> PortType:
+    """Determine the type of port/device identifier.
+
+    Returns:
+        PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
+        PortType.MQTT for MQTT logging
+        PortType.MQTTIP for MQTT IP lookup
+        PortType.NETWORK for IP addresses, hostnames, or mDNS names
+    """
     if port.startswith("/") or port.startswith("COM"):
-        return "SERIAL"
-    return _PORT_TO_PORT_TYPE.get(port, "NETWORK")
+        return PortType.SERIAL
+    if port == "MQTT":
+        return PortType.MQTT
+    if port == "MQTTIP":
+        return PortType.MQTTIP
+    return PortType.NETWORK
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
@@ -489,7 +551,7 @@ def upload_using_platformio(config: ConfigType, port: str):
 
 
 def check_permissions(port: str):
-    if os.name == "posix" and get_port_type(port) == "SERIAL":
+    if os.name == "posix" and get_port_type(port) == PortType.SERIAL:
         # Check if we can open selected serial port
         if not os.access(port, os.F_OK):
             raise EsphomeError(
@@ -517,7 +579,7 @@ def upload_program(
     except AttributeError:
         pass
 
-    if get_port_type(host) == "SERIAL":
+    if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
 
         exit_code = 1
@@ -544,17 +606,16 @@ def upload_program(
     from esphome import espota2
 
     remote_port = int(ota_conf[CONF_PORT])
-    password = ota_conf.get(CONF_PASSWORD, "")
+    password = ota_conf.get(CONF_PASSWORD)
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
     else:
         binary = CORE.firmware_bin
 
-    # MQTT address resolution
-    if get_port_type(host) in ("MQTT", "MQTTIP"):
-        devices = mqtt_get_ip(config, args.username, args.password, args.client_id)
+    # Resolve MQTT magic strings to actual IP addresses
+    network_devices = _resolve_network_devices(devices, config, args)
 
-    return espota2.run_ota(devices, remote_port, password, binary)
+    return espota2.run_ota(network_devices, remote_port, password, binary)
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -569,33 +630,22 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         raise EsphomeError("Logger is not configured!")
 
     port = devices[0]
+    port_type = get_port_type(port)
 
-    if get_port_type(port) == "SERIAL":
+    if port_type == PortType.SERIAL:
         check_permissions(port)
         return run_miniterm(config, port, args)
 
-    port_type = get_port_type(port)
-
     # Check if we should use API for logging
-    if has_api():
-        addresses_to_use: list[str] | None = None
+    # Resolve MQTT magic strings to actual IP addresses
+    if has_api() and (
+        network_devices := _resolve_network_devices(devices, config, args)
+    ):
+        from esphome.components.api.client import run_logs
 
-        if port_type == "NETWORK":
-            # Network addresses (IPs, mDNS names, or regular DNS hostnames) can be used
-            # The resolve_ip_address() function in helpers.py handles all types
-            addresses_to_use = devices
-        elif port_type in ("MQTT", "MQTTIP") and has_mqtt_ip_lookup():
-            # Use MQTT IP lookup for MQTT/MQTTIP types
-            addresses_to_use = mqtt_get_ip(
-                config, args.username, args.password, args.client_id
-            )
+        return run_logs(config, network_devices)
 
-        if addresses_to_use is not None:
-            from esphome.components.api.client import run_logs
-
-            return run_logs(config, addresses_to_use)
-
-    if port_type in ("NETWORK", "MQTT") and has_mqtt_logging():
+    if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
 
         return mqtt.show_logs(

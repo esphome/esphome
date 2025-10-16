@@ -1,6 +1,6 @@
 display:
   - platform: ssd1306_i2c
-    id: ssd1306_display
+    id: ssd1306_i2c_display
     model: SSD1306_128X64
     reset_pin: ${reset_pin}
     pages:
@@ -36,7 +36,7 @@ switch:
 
 graphical_display_menu:
   id: test_graphical_display_menu
-  display: ssd1306_display
+  display: ssd1306_i2c_display
   font: roboto
   active: false
   mode: rotary
