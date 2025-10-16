@@ -107,8 +107,8 @@ class AddressableLight : public LightOutput, public Component {
 
   bool supports_power_management() const override { return true; }
 
-  float calculate_total_power_from_buffer();
-  void scale_all_leds_in_buffer(float scale_factor);
+  float calculate_total_power_from_buffer_();
+  void scale_all_leds_in_buffer_(float scale_factor);
 
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};

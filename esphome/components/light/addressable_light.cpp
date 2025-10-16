@@ -136,7 +136,7 @@ float AddressableLight::get_power_utilization() const {
 
 bool AddressableLight::is_power_limited() const { return this->power_limiting_active_; }
 
-float AddressableLight::calculate_total_power_from_buffer() {
+float AddressableLight::calculate_total_power_from_buffer_() {
   float total_power = 0.0f;
 
   for (int i = 0; i < this->size(); i++) {
@@ -155,7 +155,7 @@ float AddressableLight::calculate_total_power_from_buffer() {
   return total_power;
 }
 
-void AddressableLight::scale_all_leds_in_buffer(float scale_factor) {
+void AddressableLight::scale_all_leds_in_buffer_(float scale_factor) {
   for (int i = 0; i < this->size(); i++) {
     auto view = this->get_view_internal(i);
     Color color = view.get();
@@ -169,11 +169,11 @@ void AddressableLight::scale_all_leds_in_buffer(float scale_factor) {
 
 void AddressableLight::apply_power_limiting() {
   if (this->power_limiting_enabled_ && this->power_limits_.max_watts > 0.0f) {
-    float total_power = this->calculate_total_power_from_buffer();
+    float total_power = this->calculate_total_power_from_buffer_();
 
     if (total_power > this->power_limits_.max_watts) {
       float scale_factor = this->power_limits_.max_watts / total_power;
-      this->scale_all_leds_in_buffer(scale_factor);
+      this->scale_all_leds_in_buffer_(scale_factor);
     }
   }
 }
