@@ -70,16 +70,54 @@ sensor:
           send_every: 5
           send_first_at: 1
 
+# Script to publish values with delays
+script:
+  - id: publish_values_script
+    then:
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 3.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 4.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 5.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 6.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 7.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 8.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 9.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 10.0
+
 # Button to trigger publishing test values
 button:
   - platform: template
     name: "Publish Values Button"
     id: publish_button
     on_press:
-      - lambda: |-
-          // Publish 10 values: 1.0, 2.0, ..., 10.0
-          // Small delay to ensure API can process each state update
-          for (int i = 1; i <= 10; i++) {
-            id(source_sensor).publish_state(float(i));
-            delay(10);
-          }
+      - script.execute: publish_values_script
