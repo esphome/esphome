@@ -1,7 +1,7 @@
 substitutions:
   tx_pin: GPIO0
   rx_pin: GPIO2
-  flow_control_pin: GPIO4
+  flow_control_pin: GPIO15
 
 packages:
   modbus: !include ../../test_build_components/common/modbus/esp8266-ard.yaml
