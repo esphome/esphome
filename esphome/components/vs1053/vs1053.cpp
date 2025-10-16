@@ -219,61 +219,6 @@ void VS1053Component::play_file(const uint8_t *data, size_t length) {
   this->fill_remaining_ = 0;
 }
 
-void VS1053Component::play_test_sine(uint16_t ms, uint32_t freq_hz, uint32_t sample_rate_hz) {
-  // Perform the "new" sine test via SCI
-
-  // Re-init device
-  this->init_();  // TODO check failure? // TODO soft reset instead?
-
-  // New sine test
-  // AICTRLn = Fsin X 65536 / Fs
-  // AICTRLn max value 0x8000
-  // AICTRLn 3 LSB should be zero for best SNR
-
-  // Set sample rate TODO??
-  this->command_write_(SCI_REG_AUDATA, sample_rate_hz & 0xFFFE);
-
-  // Configure sine frequency
-  uint16_t aictrl = std::min((freq_hz * 65536) / sample_rate_hz, 0x8000ul) & ~0x0007;
-  this->command_write_(SCI_REG_AICTRL0, aictrl);  // Left channel
-  this->command_write_(SCI_REG_AICTRL1, aictrl);  // Right channel
-
-  this->command_write_(SCI_REG_AIADDR, 0x4020);  // Start test
-
-  // Stop test after duration
-  this->set_timeout(ms, [this]() {
-    // this->command_write_(SCI_REG_AIADDR, 0);  // TODO Stop tests? Nothing is docs
-    this->init_(true);
-  });
-}
-
-void VS1053Component::play_test_sine_sdi(uint16_t ms) {
-  // Perform the "old" sine test via SDI
-
-  // Re-init device
-  this->init_();  // TODO check failure?
-
-  // Enable test modes
-  uint16_t mode = this->command_read_(SCI_REG_MODE);
-  mode |= MODE_SM_TESTS;
-  this->command_write_(SCI_REG_MODE, mode);
-
-  // Wait for data ready
-  this->wait_data_ready_(1000);
-
-  // Start test with fixed frequency
-  const uint8_t sine_start[16] = {0x53, 0xEF, 0x6E, 0x44, 0x00, 0x00, 0x00, 0x00,
-                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-  this->data_write_(sine_start, sizeof(sine_start));
-
-  // Stop test after duration
-  this->set_timeout(ms, [this]() {
-    uint8_t sine_stop[16] = {0x45, 0x78, 0x69, 0x74, 0x00, 0x00, 0x00, 0x00,
-                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    this->data_write_(sine_stop, sizeof(sine_stop));
-  });
-}
-
 void VS1053Component::finish_playback_() {
   ESP_LOGD(TAG, "Finishing playback.");
 
