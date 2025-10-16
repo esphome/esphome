@@ -66,6 +66,9 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
 #endif
 
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  virtual void on_homeassistant_action_response(const HomeassistantActionResponse &value){};
+#endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
 #endif
@@ -208,6 +211,12 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_UPDATE
   virtual void on_update_command_request(const UpdateCommandRequest &value){};
 #endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void on_z_wave_proxy_frame(const ZWaveProxyFrame &value){};
+#endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
+#endif
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -336,6 +345,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) = 0;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_frame(const ZWaveProxyFrame &msg) = 0;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  virtual void zwave_proxy_request(const ZWaveProxyRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
 #ifdef USE_API_PASSWORD
@@ -459,6 +474,13 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ALARM_CONTROL_PANEL
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) override;
 #endif
+#ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) override;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
+#endif
+  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 }  // namespace esphome::api
