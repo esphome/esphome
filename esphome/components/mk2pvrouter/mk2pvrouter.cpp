@@ -27,7 +27,7 @@ static size_t get_field(std::string &dest, const char *buf_start, const char *bu
   const auto *const field_end = static_cast<const char *>(memchr(buf_start, TAB, buf_end - buf_start));
   if (!field_end)
     return 0;
-  const auto len = field_end - buf_start;
+  const size_t len = field_end - buf_start;
   if (len >= max_len)
     return len;
 
@@ -45,7 +45,7 @@ static size_t get_field(std::string &dest, const char *buf_start, const char *bu
 uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
   uint8_t crc_tmp{0};
   const auto effective_len = grp_len - checksum_area_end_;
-  for (int i = 0; i < effective_len; i++) {
+  for (size_t i = 0; i < effective_len; i++) {
     crc_tmp += grp[i];
   }
   crc_tmp &= 0x3F;
