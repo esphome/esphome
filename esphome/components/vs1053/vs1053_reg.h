@@ -25,10 +25,10 @@ static constexpr const uint8_t SCI_REG_AICTRL1 = 0x0D;     // Application contro
 static constexpr const uint8_t SCI_REG_AICTRL2 = 0x0E;     // Application control register 2
 static constexpr const uint8_t SCI_REG_AICTRL3 = 0x0F;     // Application control register 3
 
-static constexpr const uint16_t MODE_SM_RESET = 0x0004;     // Soft reset
-static constexpr const uint16_t MODE_SM_CANCEL = 0x0008;    // Cancel decoding current file
-static constexpr const uint16_t MODE_SM_TESTS = 0x0020;     // Allow SDI tests
-static constexpr const uint16_t MODE_SM_SDINEW = 0x0800;    // VS1002 native SPI modes
+static constexpr const uint16_t MODE_SM_RESET = 0x0004;   // Soft reset
+static constexpr const uint16_t MODE_SM_CANCEL = 0x0008;  // Cancel decoding current file
+static constexpr const uint16_t MODE_SM_TESTS = 0x0020;   // Allow SDI tests
+static constexpr const uint16_t MODE_SM_SDINEW = 0x0800;  // VS1002 native SPI modes
 
 static constexpr const uint16_t EXTRA_PARAMETER_VERSION = 0x0003;
 static constexpr const uint16_t EXTRA_PARAMETER_ADDR = 0x1E02;
