@@ -289,16 +289,24 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  uint8_t register_count = data.size() / 2;
-
-  for (uint8_t i = 0; i < register_count; i++) {
-    uint16_t sensor_address = start_address + i;
+  if (!this->passive_mode_) {
     // loop through all sensors with the same start address
-    auto sensors = find_sensors_(register_type, sensor_address);
+    auto sensors = find_sensors_(register_type, start_address);
     for (auto *sensor : sensors) {
-      std::vector<uint8_t> sensorData = std::vector<uint8_t>(data.begin() + i * 2, data.end());
-      sensor->parse_and_publish(sensorData);
-      this->last_receive_timestamp_ = millis();
+      sensor->parse_and_publish(data);
+    }
+  } else {
+    // loop through the registers contained in the data
+    uint8_t register_count = data.size() / 2;
+    for (uint8_t i = 0; i < register_count; i++) {
+      uint16_t sensor_address = start_address + i;
+      // loop through all sensors with the same start address
+      auto sensors = find_sensors_(register_type, sensor_address);
+      for (auto *sensor : sensors) {
+        std::vector<uint8_t> sensorData = std::vector<uint8_t>(data.begin() + i * 2, data.end());
+        sensor->parse_and_publish(sensorData);
+        this->last_receive_timestamp_ = millis();
+      }
     }
   }
 }
