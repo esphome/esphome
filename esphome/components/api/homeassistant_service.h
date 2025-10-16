@@ -186,7 +186,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
  protected:
   // Helper to add key-value pairs to FixedVectors with perfect forwarding to avoid copies
-  template<typename K, typename V> void add_kv(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, K &&key, V &&value) {
+  template<typename K, typename V> void add_kv_(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, K &&key, V &&value) {
     auto &kv = vec.emplace_back();
     kv.key = std::forward<K>(key);
     kv.value = std::forward<V>(value);
