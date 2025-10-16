@@ -2025,7 +2025,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100", "192.168.2.50"], 3232, "", expected_firmware
+        ["192.168.1.100", "192.168.2.50"], 3232, None, expected_firmware
     )
 
 
@@ -2068,7 +2068,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.2.50", "192.168.2.51", "192.168.1.100"], 3232, "", expected_firmware
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"], 3232, None, expected_firmware
     )
 
 
@@ -2230,7 +2230,9 @@ def test_upload_program_ota_mqtt_timeout_fallback(
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
-    mock_run_ota.assert_called_once_with(["192.168.1.100"], 3232, "", expected_firmware)
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, None, expected_firmware
+    )
 
 
 @patch("esphome.components.api.client.run_logs")
