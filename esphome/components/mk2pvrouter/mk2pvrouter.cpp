@@ -16,14 +16,14 @@ constexpr uint8_t MAX_ITERATIONS = 128;
 /**
  * @brief Extracts a field (substring) from a buffer, delimited by a TAB character (0x9).
  *
- * @param dest Reference to a std::string where the extracted field will be stored.
+ * @param dest Pointer to the destination buffer where the extracted field will be stored.
  * @param buf_start Pointer to the start of the buffer to extract the field from.
  * @param buf_end Pointer to the end of the buffer.
- * @param max_len Maximum length of the destination buffer.
- * @return int Length of the extracted field if successful, 0 if no TAB delimiter is found,
- *             or the length of the field if it exceeds max_len (but the field is not copied).
+ * @param max_len Maximum length of the destination buffer (including null terminator).
+ * @return size_t Length of the extracted field if successful, 0 if no TAB delimiter is found,
+ *                or the length of the field if it exceeds max_len (but the field is not copied).
  */
-static size_t get_field(std::string &dest, const char *buf_start, const char *buf_end, size_t max_len) {
+static size_t get_field(char *dest, const char *buf_start, const char *buf_end, size_t max_len) {
   const auto *const field_end = static_cast<const char *>(memchr(buf_start, TAB, buf_end - buf_start));
   if (!field_end)
     return 0;
@@ -31,7 +31,8 @@ static size_t get_field(std::string &dest, const char *buf_start, const char *bu
   if (len >= max_len)
     return len;
 
-  dest.assign(buf_start, len);  // Assign the substring to the std::string
+  memcpy(dest, buf_start, len);
+  dest[len] = '\0';  // Null-terminate
   return len;
 }
 
@@ -97,7 +98,7 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
      * Internal buffer is full, switch to OFF mode.
      * Data will be retrieved on next update.
      */
-    if (buf_index_ >= (buf_.size() - 1)) {
+    if (buf_index_ >= (sizeof(buf_) - 1)) {
       ESP_LOGW(TAG, "Internal buffer full");
       state_ = State::OFF;
       return false;
@@ -152,8 +153,8 @@ void Mk2PVRouter::loop() {
       ESP_LOGVV(TAG, "State transition: END_FRAME_RECEIVED -> DoWork");
       size_t field_len;
 
-      auto *buf_finger = buf_.data();
-      auto *buf_end = buf_.data() + buf_index_;
+      auto *buf_finger = buf_;
+      auto *buf_end = buf_ + buf_index_;
 
       /* Each frame is composed of multiple groups starting by 0xa(Line Feed) and ending by
        * 0xd ('\r').
@@ -165,7 +166,7 @@ void Mk2PVRouter::loop() {
        *
        */
       while ((buf_finger = static_cast<char *>(memchr(buf_finger, LINE_FEED, buf_index_ - 1))) &&
-             ((buf_finger - buf_.data()) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
+             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
         /* Point to the first char of the group after 0xa */
         ++buf_finger;
 
@@ -191,7 +192,7 @@ void Mk2PVRouter::loop() {
 
         field_len = get_field(val_, buf_finger, grp_end, MAX_VAL_SIZE);
         if (!field_len || field_len >= MAX_VAL_SIZE) {
-          ESP_LOGE(TAG, "Invalid value for tag %s", tag_.c_str());
+          ESP_LOGE(TAG, "Invalid value for tag %s", tag_);
           continue;
         }
 
