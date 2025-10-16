@@ -15,6 +15,13 @@
 
 namespace esphome::api {
 
+// Protocol Buffer wire type constants
+// See https://protobuf.dev/programming-guides/encoding/#structure
+constexpr uint8_t WIRE_TYPE_VARINT = 0;            // int32, int64, uint32, uint64, sint32, sint64, bool, enum
+constexpr uint8_t WIRE_TYPE_LENGTH_DELIMITED = 2;  // string, bytes, embedded messages, packed repeated fields
+constexpr uint8_t WIRE_TYPE_FIXED32 = 5;           // fixed32, sfixed32, float
+constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type from tag
+
 // Helper functions for ZigZag encoding/decoding
 inline constexpr uint32_t encode_zigzag32(int32_t value) {
   return (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
@@ -241,7 +248,7 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) {
-    uint32_t val = (field_id << 3) | (type & 0b111);
+    uint32_t val = (field_id << 3) | (type & WIRE_TYPE_MASK);
     this->encode_varint_raw(val);
   }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
@@ -493,7 +500,7 @@ class ProtoSize {
    * @return The number of bytes needed to encode the field ID and wire type
    */
   static constexpr uint32_t field(uint32_t field_id, uint32_t type) {
-    uint32_t tag = (field_id << 3) | (type & 0b111);
+    uint32_t tag = (field_id << 3) | (type & WIRE_TYPE_MASK);
     return varint(tag);
   }
 
