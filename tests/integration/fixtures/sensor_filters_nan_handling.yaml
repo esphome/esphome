@@ -38,13 +38,24 @@ button:
     on_press:
       - lambda: |-
           // Publish 10 values with NaN mixed in: 10, NaN, 5, NaN, 15, 8, NaN, 12, 3, NaN
+          // Small delay to ensure API can process each state update
           id(source_nan_sensor).publish_state(10.0);
+          delay(10);
           id(source_nan_sensor).publish_state(NAN);
+          delay(10);
           id(source_nan_sensor).publish_state(5.0);
+          delay(10);
           id(source_nan_sensor).publish_state(NAN);
+          delay(10);
           id(source_nan_sensor).publish_state(15.0);
+          delay(10);
           id(source_nan_sensor).publish_state(8.0);
+          delay(10);
           id(source_nan_sensor).publish_state(NAN);
+          delay(10);
           id(source_nan_sensor).publish_state(12.0);
+          delay(10);
           id(source_nan_sensor).publish_state(3.0);
+          delay(10);
           id(source_nan_sensor).publish_state(NAN);
+          delay(10);

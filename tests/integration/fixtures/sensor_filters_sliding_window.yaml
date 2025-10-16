@@ -73,6 +73,8 @@ button:
     on_press:
       - lambda: |-
           // Publish 10 values: 1.0, 2.0, ..., 10.0
+          // Small delay to ensure API can process each state update
           for (int i = 1; i <= 10; i++) {
             id(source_sensor).publish_state(float(i));
+            delay(10);
           }

@@ -70,6 +70,8 @@ button:
           // - Output at position 5: window=[1,2,3,4,5], min=1, max=5, median=3, avg=3
           // - Output at position 7: window=[3,4,5,6,7], min=3, max=7, median=5, avg=5
           // - Output at position 9: window=[5,6,7,8,9], min=5, max=9, median=7, avg=7
+          // Small delay to ensure API can process each state update
           for (int i = 1; i <= 10; i++) {
             id(source_sensor).publish_state(float(i));
+            delay(10);
           }
