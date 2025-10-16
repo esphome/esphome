@@ -277,3 +277,43 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     # Verify substitutions are unchanged
     assert result[CONF_SUBSTITUTIONS]["var1"] == "value1"
     assert result[CONF_SUBSTITUTIONS]["var2"] == "value2"
+
+
+def test_merge_config_preserves_ordered_dict() -> None:
+    """Test that merge_config preserves OrderedDict type.
+
+    This is a regression test to ensure merge_config doesn't lose OrderedDict type
+    when merging configs, which causes AttributeError on move_to_end().
+    """
+    # Test OrderedDict + dict = OrderedDict
+    od = OrderedDict([("a", 1), ("b", 2)])
+    d = {"b": 20, "c": 3}
+    result = merge_config(od, d)
+    assert isinstance(result, OrderedDict), (
+        "OrderedDict + dict should return OrderedDict"
+    )
+
+    # Test dict + OrderedDict = OrderedDict
+    d = {"a": 1, "b": 2}
+    od = OrderedDict([("b", 20), ("c", 3)])
+    result = merge_config(d, od)
+    assert isinstance(result, OrderedDict), (
+        "dict + OrderedDict should return OrderedDict"
+    )
+
+    # Test OrderedDict + OrderedDict = OrderedDict
+    od1 = OrderedDict([("a", 1), ("b", 2)])
+    od2 = OrderedDict([("b", 20), ("c", 3)])
+    result = merge_config(od1, od2)
+    assert isinstance(result, OrderedDict), (
+        "OrderedDict + OrderedDict should return OrderedDict"
+    )
+
+    # Test that dict + dict still returns regular dict (no unnecessary conversion)
+    d1 = {"a": 1, "b": 2}
+    d2 = {"b": 20, "c": 3}
+    result = merge_config(d1, d2)
+    assert isinstance(result, dict), "dict + dict should return dict"
+    assert not isinstance(result, OrderedDict), (
+        "dict + dict should not return OrderedDict"
+    )

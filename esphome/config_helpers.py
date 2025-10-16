@@ -80,7 +80,11 @@ def merge_config(full_old, full_new):
         if isinstance(new, dict):
             if not isinstance(old, dict):
                 return new
-            res = old.copy()
+            # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
+            if isinstance(old, OrderedDict) or isinstance(new, OrderedDict):
+                res = OrderedDict(old)
+            else:
+                res = old.copy()
             for k, v in new.items():
                 if isinstance(v, Remove) and k in old:
                     del res[k]
