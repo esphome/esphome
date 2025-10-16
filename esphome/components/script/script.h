@@ -2,9 +2,8 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#include <queue>
 namespace esphome {
 namespace script {
 
@@ -96,14 +95,27 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
 /** A script type that queues new instances that are created.
  *
  * Only one instance of the script can be active at a time.
+ *
+ * Ring buffer implementation:
+ * - num_queued_ tracks the number of queued (waiting) instances, NOT including the currently running one
+ * - queue_front_ points to the next item to execute (read position)
+ * - Buffer size is max_runs_ - 1 (max total instances minus the running one)
+ * - Write position is calculated as: (queue_front_ + num_queued_) % (max_runs_ - 1)
+ * - When an item finishes, queue_front_ advances: (queue_front_ + 1) % (max_runs_ - 1)
+ * - First execute() runs immediately without queuing (num_queued_ stays 0)
+ * - Subsequent executes while running are queued starting at position 0
+ * - Maximum total instances = max_runs_ (includes 1 running + (max_runs_ - 1) queued)
  */
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
   void execute(Ts... x) override {
-    if (this->is_action_running() || this->num_runs_ > 0) {
-      // num_runs_ is the number of *queued* instances, so total number of instances is
-      // num_runs_ + 1
-      if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
+    this->lazy_init_queue_();
+
+    if (this->is_action_running() || this->num_queued_ > 0) {
+      // num_queued_ is the number of *queued* instances (waiting, not including currently running)
+      // max_runs_ is the maximum *total* instances (running + queued)
+      // So we reject when num_queued_ + 1 >= max_runs_ (queued + running >= max)
+      if (this->num_queued_ + 1 >= this->max_runs_) {
         this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of queued runs exceeded!"),
                         LOG_STR_ARG(this->name_));
         return;
@@ -111,8 +123,11 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
                       LOG_STR_ARG(this->name_));
-      this->num_runs_++;
-      this->var_queue_.push(std::make_tuple(x...));
+      // Ring buffer: write to (queue_front_ + num_queued_) % (max_runs_ - 1)
+      size_t write_pos = (this->queue_front_ + this->num_queued_) % (this->max_runs_ - 1);
+      // Use reset() to replace the unique_ptr
+      this->var_queue_[write_pos].reset(new std::tuple<Ts...>(std::make_tuple(x...)));
+      this->num_queued_++;
       return;
     }
 
@@ -122,15 +137,17 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   void stop() override {
-    this->num_runs_ = 0;
+    this->num_queued_ = 0;
+    this->queue_front_ = 0;
     Script<Ts...>::stop();
   }
 
   void loop() override {
-    if (this->num_runs_ != 0 && !this->is_action_running()) {
-      this->num_runs_--;
-      auto &vars = this->var_queue_.front();
-      this->var_queue_.pop();
+    if (this->num_queued_ != 0 && !this->is_action_running()) {
+      // Dequeue: decrement count, read from front, advance read position
+      this->num_queued_--;
+      auto &vars = *this->var_queue_[this->queue_front_];
+      this->queue_front_ = (this->queue_front_ + 1) % (this->max_runs_ - 1);
       this->trigger_tuple_(vars, typename gens<sizeof...(Ts)>::type());
     }
   }
@@ -138,13 +155,27 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
  protected:
+  // Lazy init queue on first use - avoids setup() ordering issues and saves memory
+  // if script is never executed during this boot cycle
+  inline void lazy_init_queue_() {
+    if (this->var_queue_.capacity() == 0) {
+      // Allocate max_runs_ - 1 slots for queued items (running item is separate)
+      this->var_queue_.init(this->max_runs_ - 1);
+      // Initialize all unique_ptr slots to nullptr
+      for (int i = 0; i < this->max_runs_ - 1; i++) {
+        this->var_queue_.push_back(nullptr);
+      }
+    }
+  }
+
   template<int... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     this->trigger(std::get<S>(tuple)...);
   }
 
-  int num_runs_ = 0;
-  int max_runs_ = 0;
-  std::queue<std::tuple<Ts...>> var_queue_;
+  int num_queued_ = 0;      // Number of queued instances (not including currently running)
+  int max_runs_ = 0;        // Maximum total instances (running + queued)
+  size_t queue_front_ = 0;  // Ring buffer read position (next item to execute)
+  FixedVector<std::unique_ptr<std::tuple<Ts...>>> var_queue_;  // Ring buffer of queued parameters
 };
 
 /** A script type that executes new instances in parallel.
