@@ -463,7 +463,8 @@ async def min_filter_to_code(config, filter_id):
     # Saves 99.98% memory for large windows (e.g., 20KB → 4 bytes for window_size=5000)
     if window_size == send_every:
         # Use streaming filter - O(1) memory instead of O(n)
-        return cg.Pvariable(filter_id, StreamingMinFilter, window_size, send_first_at)
+        rhs = cg.new_Pvariable(StreamingMinFilter, window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs)
     # Use sliding window filter - maintains ring buffer
     return cg.new_Pvariable(filter_id, window_size, send_every, send_first_at)
 
@@ -488,7 +489,8 @@ async def max_filter_to_code(config, filter_id):
 
     # Optimization: Use streaming filter for batch windows (window_size == send_every)
     if window_size == send_every:
-        return cg.Pvariable(filter_id, StreamingMaxFilter, window_size, send_first_at)
+        rhs = cg.new_Pvariable(StreamingMaxFilter, window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs)
     return cg.new_Pvariable(filter_id, window_size, send_every, send_first_at)
 
 
@@ -516,9 +518,8 @@ async def sliding_window_moving_average_filter_to_code(config, filter_id):
 
     # Optimization: Use streaming filter for batch windows (window_size == send_every)
     if window_size == send_every:
-        return cg.Pvariable(
-            filter_id, StreamingMovingAverageFilter, window_size, send_first_at
-        )
+        rhs = cg.new_Pvariable(StreamingMovingAverageFilter, window_size, send_first_at)
+        return cg.Pvariable(filter_id, rhs)
     return cg.new_Pvariable(filter_id, window_size, send_every, send_first_at)
 
 
