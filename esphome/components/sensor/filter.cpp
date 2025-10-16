@@ -39,14 +39,6 @@ SlidingWindowFilter::SlidingWindowFilter(size_t window_size, size_t send_every, 
   this->window_.init(window_size);
 }
 
-void SlidingWindowFilter::set_window_size(size_t window_size) {
-  this->window_size_ = window_size;
-  // Reallocate buffer with new size
-  this->window_.init(window_size);
-  this->window_head_ = 0;
-  this->window_count_ = 0;
-}
-
 optional<float> SlidingWindowFilter::new_value(float value) {
   // Add value to ring buffer
   if (this->window_count_ < this->window_size_) {
