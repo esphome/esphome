@@ -344,6 +344,12 @@ void HOT Scheduler::call(uint32_t now) {
     std::unique_ptr<SchedulerItem> item;
     {
       LockGuard lock(this->lock_);
+      // SAFETY: Moving out the unique_ptr leaves a nullptr in the vector at defer_queue_front_.
+      // This is intentional and safe because:
+      // 1. The vector is only cleaned up by cleanup_defer_queue_() at the end of this function
+      // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_
+      //    and has_cancelled_timeout_in_container_ in scheduler.h)
+      // 3. The lock protects concurrent access, but the nullptr remains until cleanup
       item = std::move(this->defer_queue_[this->defer_queue_front_]);
       this->defer_queue_front_++;
     }
@@ -361,29 +367,7 @@ void HOT Scheduler::call(uint32_t now) {
   // Single consumer (main loop), so no lock needed for this check
   if (this->defer_queue_front_ >= defer_queue_end) {
     LockGuard lock(this->lock_);
-    // Check if new items were added by producers during processing
-    if (this->defer_queue_front_ >= this->defer_queue_.size()) {
-      // Common case: no new items - clear everything
-      this->defer_queue_.clear();
-    } else {
-      // Rare case: new items were added during processing - compact the vector
-      // This only happens when:
-      // 1. A deferred callback calls defer() again, or
-      // 2. Another thread calls defer() while we're processing
-      //
-      // Move unprocessed items (added during this loop) to the front for next iteration
-      //
-      // SAFETY: Compacted items may include cancelled items (marked for removal via
-      // cancel_item_locked_() during execution). This is safe because should_skip_item_()
-      // checks is_item_removed_() before executing, so cancelled items will be skipped
-      // and recycled on the next loop iteration.
-      size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
-      for (size_t i = 0; i < remaining; i++) {
-        this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
-      }
-      this->defer_queue_.resize(remaining);
-    }
-    this->defer_queue_front_ = 0;
+    this->cleanup_defer_queue_locked_();
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
