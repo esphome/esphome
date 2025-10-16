@@ -70,7 +70,7 @@ async def test_script_queued(
 
         if match := queue_end.search(line):
             item = int(match.group(1))
-            if item == 5 and not test1_complete.done():
+            if item == 6 and not test1_complete.done():
                 test1_complete.set_result(True)
 
         if queue_reject.search(line):
@@ -115,7 +115,7 @@ async def test_script_queued(
 
         if match := reject_end.search(line):
             item = int(match.group(1))
-            if item == 3 and not test4_complete.done():
+            if item == 4 and not test4_complete.done():
                 test4_complete.set_result(True)
 
         if reject_reject.search(line):
@@ -145,11 +145,11 @@ async def test_script_queued(
         await asyncio.sleep(0.1)  # Give time for rejections
 
         # Verify Test 1
-        assert sorted(test_results["queue_depth"]["processed"]) == [1, 2, 3, 4, 5], (
-            f"Test 1: Expected to process items 1-5, got {sorted(test_results['queue_depth']['processed'])}"
+        assert sorted(test_results["queue_depth"]["processed"]) == [1, 2, 3, 4, 5, 6], (
+            f"Test 1: Expected to process items 1-6 (max_runs=5 means 5 queued + 1 running), got {sorted(test_results['queue_depth']['processed'])}"
         )
         assert test_results["queue_depth"]["rejections"] > 0, (
-            "Test 1: Expected at least one rejection warning"
+            "Test 1: Expected at least one rejection warning (item 7 should be rejected)"
         )
 
         # Test 2: Ring buffer order
@@ -188,11 +188,11 @@ async def test_script_queued(
         await asyncio.sleep(0.1)  # Give time for rejections
 
         # Verify Test 4
-        assert sorted(test_results["rejection"]["processed"]) == [1, 2, 3], (
-            f"Test 4: Expected to process items 1-3, got {sorted(test_results['rejection']['processed'])}"
+        assert sorted(test_results["rejection"]["processed"]) == [1, 2, 3, 4], (
+            f"Test 4: Expected to process items 1-4 (max_runs=3 means 3 queued + 1 running), got {sorted(test_results['rejection']['processed'])}"
         )
-        assert test_results["rejection"]["rejections"] == 5, (
-            f"Test 4: Expected 5 rejections (items 4-8), got {test_results['rejection']['rejections']}"
+        assert test_results["rejection"]["rejections"] == 4, (
+            f"Test 4: Expected 4 rejections (items 5-8), got {test_results['rejection']['rejections']}"
         )
 
         # Test 5: No parameters

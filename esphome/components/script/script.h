@@ -99,12 +99,12 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
  * Ring buffer implementation:
  * - num_queued_ tracks the number of queued (waiting) instances, NOT including the currently running one
  * - queue_front_ points to the next item to execute (read position)
- * - Buffer size is (max_runs_ - 1) since one instance is always running (not queued)
- * - Write position is calculated as: (queue_front_ + num_queued_) % (max_runs_ - 1)
- * - When an item finishes, queue_front_ advances: (queue_front_ + 1) % (max_runs_ - 1)
+ * - Buffer size is max_runs_ (the maximum number that can be queued)
+ * - Write position is calculated as: (queue_front_ + num_queued_) % max_runs_
+ * - When an item finishes, queue_front_ advances: (queue_front_ + 1) % max_runs_
  * - First execute() runs immediately without queuing (num_queued_ stays 0)
  * - Subsequent executes while running are queued starting at position 0
- * - Maximum total instances = max_runs_ (one running + max_runs_-1 queued)
+ * - Maximum total instances = 1 running + max_runs_ queued
  */
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
@@ -112,19 +112,19 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
     // Lazy init on first use - avoids setup() ordering issues and saves memory
     // if script is never executed during this boot cycle
     if (this->var_queue_.capacity() == 0) {
-      // Allocate max_runs_ - 1 slots since one instance is always running (not queued)
-      this->var_queue_.init(this->max_runs_ - 1);
+      // Allocate max_runs_ slots for queued items (running item is separate)
+      this->var_queue_.init(this->max_runs_);
       // Initialize all unique_ptr slots to nullptr
-      for (int i = 0; i < this->max_runs_ - 1; i++) {
+      for (int i = 0; i < this->max_runs_; i++) {
         this->var_queue_.push_back(nullptr);
       }
     }
 
     if (this->is_action_running() || this->num_queued_ > 0) {
       // num_queued_ is the number of *queued* instances (waiting, not including currently running)
-      // Total active instances = 1 (running) + num_queued_ (queued)
-      // So we reject when num_queued_ + 1 >= max_runs_
-      if (this->num_queued_ + 1 >= this->max_runs_) {
+      // max_runs_ is the maximum number that can be queued
+      // So we reject when num_queued_ >= max_runs_
+      if (this->num_queued_ >= this->max_runs_) {
         this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of queued runs exceeded!"),
                         LOG_STR_ARG(this->name_));
         return;
@@ -132,8 +132,8 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
                       LOG_STR_ARG(this->name_));
-      // Ring buffer: write to (queue_front_ + num_queued_) % (max_runs_ - 1)
-      size_t write_pos = (this->queue_front_ + this->num_queued_) % (this->max_runs_ - 1);
+      // Ring buffer: write to (queue_front_ + num_queued_) % max_runs_
+      size_t write_pos = (this->queue_front_ + this->num_queued_) % this->max_runs_;
       // Use reset() to replace the unique_ptr
       this->var_queue_[write_pos].reset(new std::tuple<Ts...>(std::make_tuple(x...)));
       this->num_queued_++;
@@ -156,7 +156,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // Dequeue: decrement count, read from front, advance read position
       this->num_queued_--;
       auto &vars = *this->var_queue_[this->queue_front_];
-      this->queue_front_ = (this->queue_front_ + 1) % (this->max_runs_ - 1);
+      this->queue_front_ = (this->queue_front_ + 1) % this->max_runs_;
       this->trigger_tuple_(vars, typename gens<sizeof...(Ts)>::type());
     }
   }
@@ -169,7 +169,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   int num_queued_ = 0;      // Number of queued instances (not including currently running)
-  int max_runs_ = 0;        // Maximum total instances (running + queued)
+  int max_runs_ = 0;        // Maximum number of queued instances (not including running)
   size_t queue_front_ = 0;  // Ring buffer read position (next item to execute)
   FixedVector<std::unique_ptr<std::tuple<Ts...>>> var_queue_;  // Ring buffer of queued parameters
 };

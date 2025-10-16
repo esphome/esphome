@@ -7,7 +7,7 @@ api:
     # Test 1: Queue depth with default max_runs=5
     - action: test_queue_depth
       then:
-        - logger.log: "=== TEST 1: Queue depth (should process 1-5, reject 6) ==="
+        - logger.log: "=== TEST 1: Queue depth (max_runs=5 means 1 running + 5 queued = 6 total, reject 7) ==="
         - script.execute:
             id: queue_depth_script
             value: 1
@@ -26,6 +26,9 @@ api:
         - script.execute:
             id: queue_depth_script
             value: 6
+        - script.execute:
+            id: queue_depth_script
+            value: 7
 
     # Test 2: Ring buffer wrap test
     - action: test_ring_buffer
@@ -61,7 +64,7 @@ api:
     # Test 4: Verify rejection (max_runs=3)
     - action: test_rejection
       then:
-        - logger.log: "=== TEST 4: Verify rejection (max_runs=3, try 8) ==="
+        - logger.log: "=== TEST 4: Verify rejection (max_runs=3 means 1 running + 3 queued = 4 total, reject 5-8) ==="
         - script.execute:
             id: rejection_script
             val: 1
