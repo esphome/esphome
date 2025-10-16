@@ -8,7 +8,7 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
 - `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`)
-- `sensor_test_utils.py` - Sensor-specific test utilities
+- `sensor_utils.py` - Sensor-specific test utilities
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
 

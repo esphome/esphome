@@ -7,8 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .sensor_test_utils import build_key_to_sensor_mapping
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -67,7 +66,7 @@ async def test_sensor_filters_ring_buffer(
         entities, services = await client.list_entities_services()
 
         # Build key-to-sensor mapping
-        key_to_sensor = build_key_to_sensor_mapping(
+        key_to_sensor = build_key_to_entity_mapping(
             entities,
             [
                 "sliding_min",

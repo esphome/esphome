@@ -10,6 +10,28 @@ from aioesphomeapi import ButtonInfo, EntityInfo, EntityState
 _LOGGER = logging.getLogger(__name__)
 
 
+def build_key_to_entity_mapping(
+    entities: list[EntityInfo], entity_names: list[str]
+) -> dict[int, str]:
+    """Build a mapping from entity keys to entity names.
+
+    Args:
+        entities: List of entity info objects from the API
+        entity_names: List of entity names to search for in object_ids
+
+    Returns:
+        Dictionary mapping entity keys to entity names
+    """
+    key_to_entity: dict[int, str] = {}
+    for entity in entities:
+        obj_id = entity.object_id.lower()
+        for entity_name in entity_names:
+            if entity_name in obj_id:
+                key_to_entity[entity.key] = entity_name
+                break
+    return key_to_entity
+
+
 class InitialStateHelper:
     """Helper to wait for initial states before processing test states.
 
