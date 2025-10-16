@@ -97,28 +97,22 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
   template<typename T> void set_service(T service) { this->service_ = service; }
 
-  // Initialize FixedVector members - called from Python codegen with compile-time known sizes
+  // Initialize FixedVector members - called from Python codegen with compile-time known sizes.
+  // Must be called before any add_* methods; capacity must match the number of subsequent add_* calls.
   void init_data(size_t count) { this->data_.init(count); }
   void init_data_template(size_t count) { this->data_template_.init(count); }
   void init_variables(size_t count) { this->variables_.init(count); }
 
   // Keys are always string literals from the Python code generation (e.g., cg.add(var.add_data("tag_id", templ))).
   // The value parameter can be a lambda/template, but keys are never templatable.
-  // Using pass-by-value allows the compiler to optimize for both lvalues and rvalues.
-  template<typename T> void add_data(std::string key, T value) {
-    auto &kv = this->data_.emplace_back();
-    kv.key = std::move(key);
-    kv.value = value;
+  template<typename K, typename V> void add_data(K &&key, V &&value) {
+    this->add_kv_(this->data_, std::forward<K>(key), std::forward<V>(value));
   }
-  template<typename T> void add_data_template(std::string key, T value) {
-    auto &kv = this->data_template_.emplace_back();
-    kv.key = std::move(key);
-    kv.value = value;
+  template<typename K, typename V> void add_data_template(K &&key, V &&value) {
+    this->add_kv_(this->data_template_, std::forward<K>(key), std::forward<V>(value));
   }
-  template<typename T> void add_variable(std::string key, T value) {
-    auto &kv = this->variables_.emplace_back();
-    kv.key = std::move(key);
-    kv.value = value;
+  template<typename K, typename V> void add_variable(K &&key, V &&value) {
+    this->add_kv_(this->variables_, std::forward<K>(key), std::forward<V>(value));
   }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -191,6 +185,13 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   }
 
  protected:
+  // Helper to add key-value pairs to FixedVectors with perfect forwarding to avoid copies
+  template<typename K, typename V> void add_kv_(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, K &&key, V &&value) {
+    auto &kv = vec.emplace_back();
+    kv.key = std::forward<K>(key);
+    kv.value = std::forward<V>(value);
+  }
+
   template<typename VectorType, typename SourceType>
   static void populate_service_map(VectorType &dest, SourceType &source, Ts... x) {
     dest.init(source.size());
