@@ -11,6 +11,7 @@ from typing import Any
 
 import aioesphomeapi.api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
+from google.protobuf.descriptor_pb2 import FieldDescriptorProto
 
 
 class WireType(IntEnum):
@@ -148,7 +149,7 @@ class TypeInfo(ABC):
     @property
     def repeated(self) -> bool:
         """Check if the field is repeated."""
-        return self._field.label == 3
+        return self._field.label == FieldDescriptorProto.LABEL_REPEATED
 
     @property
     def wire_type(self) -> WireType:
@@ -337,7 +338,7 @@ def create_field_type_info(
     needs_encode: bool = True,
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
-    if field.label == 3:  # repeated
+    if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this repeated field has fixed_array_with_length_define option
         if (
             fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
@@ -1890,7 +1891,7 @@ def build_message_type(
         # Validate that fixed_array_size is only used in encode-only messages
         if (
             needs_decode
-            and field.label == 3
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
             and get_field_opt(field, pb.fixed_array_size) is not None
         ):
             raise ValueError(
@@ -1903,7 +1904,7 @@ def build_message_type(
         # Validate that fixed_array_with_length_define is only used in encode-only messages
         if (
             needs_decode
-            and field.label == 3
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
             and get_field_opt(field, pb.fixed_array_with_length_define) is not None
         ):
             raise ValueError(
@@ -1916,7 +1917,7 @@ def build_message_type(
         # Collect fixed_vector repeated fields for custom decode generation
         if (
             needs_decode
-            and field.label == 3
+            and field.label == FieldDescriptorProto.LABEL_REPEATED
             and get_field_opt(field, pb.fixed_vector, False)
         ):
             fixed_vector_fields.append((field.name, field.number))
