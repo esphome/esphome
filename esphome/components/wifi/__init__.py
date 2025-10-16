@@ -402,8 +402,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
     # Disable Enterprise WiFi support if no EAP is configured
-    if CORE.is_esp32 and not has_eap:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+    if CORE.is_esp32:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
