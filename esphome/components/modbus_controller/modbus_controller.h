@@ -491,6 +491,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void set_allow_duplicate_commands(bool allow_duplicate_commands) {
     this->allow_duplicate_commands_ = allow_duplicate_commands;
   }
+  void set_passive_mode(bool passive_mode) { passive_mode_ = passive_mode; }
   /// get if a duplicate command can be sent
   bool get_allow_duplicate_commands() { return this->allow_duplicate_commands_; }
   /// called by esphome generated code to set the command_throttle period
@@ -555,6 +556,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   uint16_t offline_skip_updates_{0};
   /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
+  /// is passive mode enabled
+  bool passive_mode_;
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
   /// Server online callback

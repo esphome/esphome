@@ -28,6 +28,7 @@ from .const import (
     CONF_ON_COMMAND_SENT,
     CONF_ON_OFFLINE,
     CONF_ON_ONLINE,
+    CONF_PASSIVE_MODE,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_LAST_ADDRESS,
     CONF_REGISTER_TYPE,
@@ -198,6 +199,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOfflineTrigger),
                 }
             ),
+            cv.Optional(CONF_PASSIVE_MODE, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -329,6 +331,7 @@ async def to_code(config):
         )
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
+    cg.add(var.set_passive_mode(config[CONF_PASSIVE_MODE]))
     if CONF_SERVER_REGISTERS in config:
         for server_register in config[CONF_SERVER_REGISTERS]:
             server_register_var = cg.new_Pvariable(

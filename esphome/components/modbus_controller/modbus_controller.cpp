@@ -17,25 +17,30 @@ void ModbusController::setup() { this->create_register_ranges_(); }
 */
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
-  uint32_t last_read = millis() - this->last_receive_timestamp_;
-  if (!this->command_queue_.empty()) {
-    auto &firstCmd = this->command_queue_.front();
-    if (firstCmd->function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-      this->command_queue_.pop_front();
+
+  if (this->passive_mode_) {
+    uint32_t last_read = millis() - this->last_receive_timestamp_;
+    if (!this->command_queue_.empty()) {
+      auto &firstCmd = this->command_queue_.front();
+      if (firstCmd->function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+        this->command_queue_.pop_front();
+        return (!this->command_queue_.empty());
+      }
+    }
+
+    // sneak between passively read packets
+    if (last_read > 10) {
       return (!this->command_queue_.empty());
     }
   }
 
-  if (last_read > 10) {
-    // ESP_LOGD(TAG, "have to wait");
-    return (!this->command_queue_.empty());
-  }
-
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !this->command_queue_.empty()) {
     auto &command = this->command_queue_.front();
-    if (command->function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-      this->command_queue_.pop_front();
-      return (!this->command_queue_.empty());
+    if (this->passive_mode_) {  // in passive mode no read Holding register packets will be send
+      if (command->function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+        this->command_queue_.pop_front();
+        return (!this->command_queue_.empty());
+      }
     }
     // remove from queue if command was sent too often
     if (!command->should_retry(this->max_cmd_retries_)) {
@@ -284,9 +289,9 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  uint8_t len = data.size() / 2;
+  uint8_t register_count = data.size() / 2;
 
-  for (uint8_t i = 0; i < len; i++) {
+  for (uint8_t i = 0; i < register_count; i++) {
     uint16_t sensor_address = start_address + i;
     // loop through all sensors with the same start address
     auto sensors = find_sensors_(register_type, sensor_address);
