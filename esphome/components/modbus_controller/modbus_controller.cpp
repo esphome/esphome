@@ -112,6 +112,12 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
            "0x%X.",
            this->address_, function_code, start_address, number_of_registers);
 
+  if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_READ) {
+    ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
+    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    return;
+  }
+
   std::vector<uint16_t> sixteen_bit_response;
   for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
     bool found = false;
@@ -136,9 +142,21 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
     }
 
     if (!found) {
-      ESP_LOGW(TAG, "Could not match any register to address %02X. Sending exception response.", current_address);
-      send_error(function_code, 0x02);
-      return;
+      if (this->server_courtesy_response_.enabled &&
+          (current_address <= this->server_courtesy_response_.register_last_address)) {
+        ESP_LOGD(TAG,
+                 "Could not match any register to address 0x%02X, but default allowed. "
+                 "Returning default value: %d.",
+                 current_address, this->server_courtesy_response_.register_value);
+        sixteen_bit_response.push_back(this->server_courtesy_response_.register_value);
+        current_address += 1;  // Just increment by 1, as the default response is a single register
+      } else {
+        ESP_LOGW(TAG,
+                 "Could not match any register to address 0x%02X and default not allowed. Sending exception response.",
+                 current_address);
+        this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+        return;
+      }
     }
   }
 
@@ -156,27 +174,27 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
   uint16_t number_of_registers;
   uint16_t payload_offset;
 
-  if (function_code == modbus::FunctionCode::WRITE_MULTIPLE_REGISTERS) {
+  if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
     number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
-    if (number_of_registers == 0 || number_of_registers > 0x7B) {
+    if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
       ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
-      send_error(function_code, 3);
+      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
       return;
     }
     uint16_t payload_size = data[4];
     if (payload_size != number_of_registers * 2) {
       ESP_LOGW(TAG, "Payload size of %d bytes is not 2 times the number of registers (%d). Sending exception response.",
                payload_size, number_of_registers);
-      send_error(function_code, 3);
+      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
       return;
     }
     payload_offset = 5;
-  } else if (function_code == modbus::FunctionCode::WRITE_SINGLE_REGISTER) {
+  } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
     number_of_registers = 1;
     payload_offset = 2;
   } else {
     ESP_LOGW(TAG, "Invalid function code 0x%X. Sending exception response.", function_code);
-    send_error(function_code, 1);
+    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
     return;
   }
 
@@ -211,7 +229,7 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
   if (!for_each_register([](ServerRegister *server_register, uint16_t offset) -> bool {
         return server_register->write_lambda != nullptr;
       })) {
-    send_error(function_code, 1);
+    this->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
     return;
   }
 
@@ -220,7 +238,7 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
         int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
         return server_register->write_lambda(number);
       })) {
-    send_error(function_code, 4);
+    this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
     return;
   }
 
@@ -291,7 +309,7 @@ void ModbusController::update_range_(RegisterRange &r) {
             });
         command_item.register_address = (*sensor)->start_address;
         command_item.register_count = (*sensor)->register_count;
-        command_item.function_code = modbus::FunctionCode::CUSTOM;
+        command_item.function_code = ModbusFunctionCode::CUSTOM;
         queue_command(command_item);
       }
     } else {
@@ -431,8 +449,15 @@ void ModbusController::dump_config() {
                 "ModbusController:\n"
                 "  Address: 0x%02X\n"
                 "  Max Command Retries: %d\n"
-                "  Offline Skip Updates: %d",
-                this->address_, this->max_cmd_retries_, this->offline_skip_updates_);
+                "  Offline Skip Updates: %d\n"
+                "  Server Courtesy Response:\n"
+                "    Enabled: %s\n"
+                "    Register Last Address: 0x%02X\n"
+                "    Register Value: %d",
+                this->address_, this->max_cmd_retries_, this->offline_skip_updates_,
+                this->server_courtesy_response_.enabled ? "true" : "false",
+                this->server_courtesy_response_.register_last_address, this->server_courtesy_response_.register_value);
+
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : this->sensorset_) {
@@ -516,7 +541,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::HOLDING;
-  cmd.function_code = modbus::FunctionCode::WRITE_MULTIPLE_REGISTERS;
+  cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -536,7 +561,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::COIL;
-  cmd.function_code = modbus::FunctionCode::WRITE_SINGLE_COIL;
+  cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_COIL;
   cmd.register_address = address;
   cmd.register_count = 1;
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -553,7 +578,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::COIL;
-  cmd.function_code = modbus::FunctionCode::WRITE_MULTIPLE_COILS;
+  cmd.function_code = ModbusFunctionCode::WRITE_MULTIPLE_COILS;
   cmd.register_address = start_address;
   cmd.register_count = values.size();
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -585,7 +610,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::HOLDING;
-  cmd.function_code = modbus::FunctionCode::WRITE_SINGLE_REGISTER;
+  cmd.function_code = ModbusFunctionCode::WRITE_SINGLE_REGISTER;
   cmd.register_address = start_address;
   cmd.register_count = 1;  // not used here anyways
   cmd.on_data_func = [modbusdevice, cmd](ModbusRegisterType register_type, uint16_t start_address,
@@ -605,7 +630,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
         &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
-  cmd.function_code = modbus::FunctionCode::CUSTOM;
+  cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
@@ -624,7 +649,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
         &&handler) {
   ModbusCommandItem cmd = {};
   cmd.modbusdevice = modbusdevice;
-  cmd.function_code = modbus::FunctionCode::CUSTOM;
+  cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
     cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
@@ -641,7 +666,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 }
 
 bool ModbusCommandItem::send() {
-  if (this->function_code != modbus::FunctionCode::CUSTOM) {
+  if (this->function_code != ModbusFunctionCode::CUSTOM) {
     modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
                        this->payload.empty() ? nullptr : &this->payload[0]);
   } else {
@@ -656,7 +681,7 @@ bool ModbusCommandItem::send() {
 bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
   // for custom commands we have to check for identical payloads, since
   // address/count/type fields will be set to zero
-  return this->function_code == modbus::FunctionCode::CUSTOM
+  return this->function_code == ModbusFunctionCode::CUSTOM
              ? this->payload == other.payload
              : other.register_address == this->register_address && other.register_count == this->register_count &&
                    other.register_type == this->register_type && other.function_code == this->function_code;

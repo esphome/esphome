@@ -10,11 +10,31 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.util import OrderedDict
 
 # Pre-build lookup map from (platform, framework) tuples to PlatformFramework enum
 _PLATFORM_FRAMEWORK_LOOKUP = {
     (pf.value[0].value, pf.value[1].value): pf for pf in PlatformFramework
 }
+
+
+def merge_dicts_ordered(*dicts: dict) -> OrderedDict:
+    """Merge multiple dicts into an OrderedDict, preserving key order.
+
+    This is a helper to ensure that dictionary merging preserves OrderedDict type,
+    which is important for operations like move_to_end().
+
+    Args:
+        *dicts: Variable number of dictionaries to merge (later dicts override earlier ones)
+
+    Returns:
+        OrderedDict with merged contents
+    """
+    result = OrderedDict()
+    for d in dicts:
+        if d:
+            result.update(d)
+    return result
 
 
 class Extend:
@@ -60,7 +80,11 @@ def merge_config(full_old, full_new):
         if isinstance(new, dict):
             if not isinstance(old, dict):
                 return new
-            res = old.copy()
+            # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
+            if isinstance(old, OrderedDict) or isinstance(new, OrderedDict):
+                res = OrderedDict(old)
+            else:
+                res = old.copy()
             for k, v in new.items():
                 if isinstance(v, Remove) and k in old:
                     del res[k]

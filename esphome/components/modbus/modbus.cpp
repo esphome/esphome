@@ -113,9 +113,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   uint8_t data_offset = 3;
 
   // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
-  if (((function_code >= FunctionCode::CUSTOM_RANGE_ONE_MIN && (function_code <= FunctionCode::CUSTOM_RANGE_ONE_MAX)) ||
-       ((function_code >= FunctionCode::CUSTOM_RANGE_TWO_MIN) &&
-        (function_code <= FunctionCode::CUSTOM_RANGE_TWO_MAX)))) {
+  if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
+       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END)) ||
+      ((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT) &&
+       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END))) {
     // Handle user-defined function, since we don't know how big this ought to be,
     // ideally we should delegate the entire length detection to whatever handler is
     // installed, but wait, there is the CRC, and if we get a hit there is a good
@@ -140,11 +141,14 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   } else {
     // data starts at 2 and length is 4 for read registers commands
     if (this->role == ModbusRole::SERVER) {
-      if (function_code == FunctionCode::READ_COILS || function_code == FunctionCode::READ_HOLDING_REGISTERS ||
-          function_code == FunctionCode::READ_INPUT_REGISTERS || function_code == FunctionCode::WRITE_SINGLE_REGISTER) {
+      if (function_code == ModbusFunctionCode::READ_COILS ||
+          function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
+          function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+          function_code == ModbusFunctionCode::READ_INPUT_REGISTERS ||
+          function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
         data_offset = 2;
         data_len = 4;
-      } else if (function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      } else if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         if (at < 6) {
           return true;
         }
@@ -154,9 +158,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       }
     } else {
       // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
-      if (function_code == FunctionCode::WRITE_SINGLE_COIL || function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
-          function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
-          function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      if (function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+          function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+          function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+          function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         data_offset = 2;
         data_len = 4;
       }
@@ -164,7 +169,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
     // Error ( msb indicates error )
     // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
-    if ((function_code & FunctionCode::EXCEPTION_BIT_MASK) == FunctionCode::EXCEPTION_BIT_MASK) {
+    if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
       data_offset = 2;
       data_len = 1;
     }
@@ -197,22 +202,22 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     if (device->address_ == address) {
       found = true;
       if (this->role == ModbusRole::SERVER) {
-        if (function_code == FunctionCode::READ_HOLDING_REGISTERS ||
-            function_code == FunctionCode::READ_INPUT_REGISTERS) {
+        if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+            function_code == ModbusFunctionCode::READ_INPUT_REGISTERS) {
           device->on_modbus_read_registers(function_code, uint16_t(data[1]) | (uint16_t(data[0]) << 8),
                                            uint16_t(data[3]) | (uint16_t(data[2]) << 8));
-        } else if (function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
-                   function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
+        } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+                   function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
           device->on_modbus_write_registers(function_code, data);
         }
       } else {  // We're a client
         // Is it an error response?
-        if ((function_code & FunctionCode::EXCEPTION_BIT_MASK) == FunctionCode::EXCEPTION_BIT_MASK) {
+        if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
           uint8_t exception = raw[2];
           ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                    exception, address, millis() - this->last_send_);
           if (waiting_for_response_ == address) {
-            device->on_modbus_error(function_code & FunctionCode::EXCEPTION_FUNCTION_CODE_MASK, exception);
+            device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
           } else {
             // Ignore modbus exception not related to a pending command
             ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d", address);
@@ -299,7 +304,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
 
   // Only check max number of registers for standard function codes
   // Some devices use non standard codes like 0x43
-  if (number_of_entities > MAX_VALUES && function_code <= 0x10) {
+  if (number_of_entities > MAX_VALUES && function_code <= ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
     ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_VALUES);
     return;
   }
@@ -310,16 +315,17 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
   if (this->role == ModbusRole::CLIENT) {
     data.push_back(start_address >> 8);
     data.push_back(start_address >> 0);
-    if (function_code != FunctionCode::WRITE_SINGLE_COIL && function_code != FunctionCode::WRITE_SINGLE_REGISTER) {
+    if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
+        function_code != ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
       data.push_back(number_of_entities >> 8);
       data.push_back(number_of_entities >> 0);
     }
   }
 
   if (payload != nullptr) {
-    if (this->role == ModbusRole::SERVER || function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS) {
-      data.push_back(payload_len);  // Byte count is required for write
+    if (this->role == ModbusRole::SERVER || function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {  // Write multiple
+      data.push_back(payload_len);                                        // Byte count is required for write
     } else {
       payload_len = 2;  // Write single register or coil
     }

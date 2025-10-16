@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -301,6 +302,8 @@ class DriverChip:
         Check if a rotation can be implemented in hardware using the MADCTL register.
         A rotation of 180 is always possible if x and y mirroring are supported, 90 and 270 are possible if the model supports swapping X and Y.
         """
+        if config.get(CONF_TRANSFORM) == CONF_DISABLED:
+            return False
         transforms = self.transforms
         rotation = config.get(CONF_ROTATION, 0)
         if rotation == 0 or not transforms:
@@ -343,11 +346,7 @@ class DriverChip:
             )
             offset_height = native_height - height - offset_height
         # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
-        rotated = not requires_buffer(config) and config.get(CONF_ROTATION, 0) in (
-            90,
-            270,
-        )
-        if transform.get(CONF_SWAP_XY) is True or rotated:
+        if transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
         return width, height, offset_width, offset_height
@@ -362,26 +361,26 @@ class DriverChip:
                 CONF_SWAP_XY: self.get_default(CONF_SWAP_XY),
             },
         )
-        # fill in defaults if not provided
-        mirror_x = transform.get(CONF_MIRROR_X, self.get_default(CONF_MIRROR_X))
-        mirror_y = transform.get(CONF_MIRROR_Y, self.get_default(CONF_MIRROR_Y))
-        swap_xy = transform.get(CONF_SWAP_XY, self.get_default(CONF_SWAP_XY))
-        transform[CONF_MIRROR_X] = mirror_x
-        transform[CONF_MIRROR_Y] = mirror_y
-        transform[CONF_SWAP_XY] = swap_xy
-
+        if not isinstance(transform, dict):
+            # Presumably disabled
+            return {
+                CONF_MIRROR_X: False,
+                CONF_MIRROR_Y: False,
+                CONF_SWAP_XY: False,
+                CONF_TRANSFORM: False,
+            }
         # Can we use the MADCTL register to set the rotation?
         if can_transform and CONF_TRANSFORM not in config:
             rotation = config[CONF_ROTATION]
             if rotation == 180:
-                transform[CONF_MIRROR_X] = not mirror_x
-                transform[CONF_MIRROR_Y] = not mirror_y
+                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
+                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
             elif rotation == 90:
-                transform[CONF_SWAP_XY] = not swap_xy
-                transform[CONF_MIRROR_X] = not mirror_x
+                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
             else:
-                transform[CONF_SWAP_XY] = not swap_xy
-                transform[CONF_MIRROR_Y] = not mirror_y
+                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
             transform[CONF_TRANSFORM] = True
         return transform
 
@@ -400,6 +399,12 @@ class DriverChip:
             madctl |= MADCTL_BGR
         sequence.append((MADCTL, madctl))
         return madctl
+
+    def skip_command(self, command: str):
+        """
+        Allow suppressing a standard command in the init sequence.
+        """
+        return self.get_default(f"no_{command.lower()}", False)
 
     def get_sequence(self, config) -> tuple[tuple[int, ...], int]:
         """
@@ -432,7 +437,9 @@ class DriverChip:
             sequence.append((INVOFF,))
         if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
             sequence.append((BRIGHTNESS, brightness))
-        sequence.append((SLPOUT,))
+        # Add a SLPOUT command if required.
+        if not self.skip_command("SLPOUT"):
+            sequence.append((SLPOUT,))
         sequence.append((DISPON,))
 
         # Flatten the sequence into a list of bytes, with the length of each command

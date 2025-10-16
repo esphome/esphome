@@ -16,13 +16,9 @@ namespace modbus_controller {
 
 class ModbusController;
 
-enum class ModbusRegisterType : uint8_t {
-  CUSTOM = 0x0,
-  COIL = 0x01,
-  DISCRETE_INPUT = 0x02,
-  HOLDING = 0x03,
-  READ = 0x04,
-};
+using modbus::ModbusFunctionCode;
+using modbus::ModbusRegisterType;
+using modbus::ModbusExceptionCode;
 
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
@@ -45,39 +41,39 @@ inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
 
-inline modbus::FunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
-      return modbus::FunctionCode::READ_COILS;
+      return ModbusFunctionCode::READ_COILS;
       break;
     case ModbusRegisterType::DISCRETE_INPUT:
-      return modbus::FunctionCode::READ_DISCRETE_INPUTS;
+      return ModbusFunctionCode::READ_DISCRETE_INPUTS;
       break;
     case ModbusRegisterType::HOLDING:
-      return modbus::FunctionCode::READ_HOLDING_REGISTERS;
+      return ModbusFunctionCode::READ_HOLDING_REGISTERS;
       break;
     case ModbusRegisterType::READ:
-      return modbus::FunctionCode::READ_INPUT_REGISTERS;
+      return ModbusFunctionCode::READ_INPUT_REGISTERS;
       break;
     default:
-      return modbus::FunctionCode::CUSTOM;
+      return ModbusFunctionCode::CUSTOM;
       break;
   }
 }
-inline modbus::FunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
-      return modbus::FunctionCode::WRITE_SINGLE_COIL;
+      return ModbusFunctionCode::WRITE_SINGLE_COIL;
       break;
     case ModbusRegisterType::DISCRETE_INPUT:
-      return modbus::FunctionCode::CUSTOM;
+      return ModbusFunctionCode::CUSTOM;
       break;
     case ModbusRegisterType::HOLDING:
-      return modbus::FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+      return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
       break;
     case ModbusRegisterType::READ:
     default:
-      return modbus::FunctionCode::CUSTOM;
+      return ModbusFunctionCode::CUSTOM;
       break;
   }
 }
@@ -234,6 +230,12 @@ class SensorItem {
   bool force_new_range{false};
 };
 
+struct ServerCourtesyResponse {
+  bool enabled{false};
+  uint16_t register_last_address{0xFFFF};
+  uint16_t register_value{0};
+};
+
 class ServerRegister {
   using ReadLambda = std::function<int64_t()>;
   using WriteLambda = std::function<bool(int64_t value)>;
@@ -345,7 +347,7 @@ class ModbusCommandItem {
   ModbusController *modbusdevice{nullptr};
   uint16_t register_address{0};
   uint16_t register_count{0};
-  modbus::FunctionCode function_code{modbus::FunctionCode::CUSTOM};
+  ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
   ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
   std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
@@ -508,6 +510,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// Called by esphome generated code to set the server courtesy response object
+  void set_server_courtesy_response(const ServerCourtesyResponse &server_courtesy_response) {
+    this->server_courtesy_response_ = server_courtesy_response;
+  }
+  /// Get the server courtesy response object
+  ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -550,6 +558,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   CallbackManager<void(int, int)> online_callback_{};
   /// Server offline callback
   CallbackManager<void(int, int)> offline_callback_{};
+  /// Server courtesy response
+  ServerCourtesyResponse server_courtesy_response_{
+      .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};
 };
 
 /** Convert vector<uint8_t> response payload to float.

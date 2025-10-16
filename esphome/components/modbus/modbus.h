@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include "esphome/components/modbus/modbus_definitions.h"
+
 #include <vector>
 #include <deque>
 
@@ -10,34 +12,6 @@ namespace esphome {
 namespace modbus {
 
 static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
-
-enum FunctionCode : uint8_t {
-  CUSTOM = 0x00,
-  READ_COILS = 0x01,
-  READ_DISCRETE_INPUTS = 0x02,
-  READ_HOLDING_REGISTERS = 0x03,
-  READ_INPUT_REGISTERS = 0x04,
-  WRITE_SINGLE_COIL = 0x05,
-  WRITE_SINGLE_REGISTER = 0x06,
-  READ_EXCEPTION_STATUS = 0x07,   // not implemented
-  DIAGNOSTICS = 0x08,             // not implemented
-  GET_COMM_EVENT_COUNTER = 0x0B,  // not implemented
-  GET_COMM_EVENT_LOG = 0x0C,      // not implemented
-  WRITE_MULTIPLE_COILS = 0x0F,
-  WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
-  CUSTOM_RANGE_ONE_MIN = 65,             // Described in spec in decimal
-  CUSTOM_RANGE_ONE_MAX = 72,             // Described in spec in decimal
-  CUSTOM_RANGE_TWO_MIN = 100,            // Described in spec in decimal
-  CUSTOM_RANGE_TWO_MAX = 110,            // Described in spec in decimal
-  EXCEPTION_BIT_MASK = 0x80,
-  EXCEPTION_FUNCTION_CODE_MASK = 0x7F,
-};
 
 enum ModbusRole {
   CLIENT,
@@ -109,12 +83,12 @@ class ModbusDevice {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
-  void send_error(uint8_t function_code, uint8_t exception_code) {
+  void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
     std::vector<uint8_t> error_response;
     error_response.reserve(3);
     error_response.push_back(this->address_);
-    error_response.push_back(function_code | 0x80);
-    error_response.push_back(exception_code);
+    error_response.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
+    error_response.push_back(static_cast<uint8_t>(exception_code));
     this->send_raw(error_response);
   }
   // If more than one device is connected block sending a new command before a response is received
