@@ -106,13 +106,13 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   // Keys are always string literals from the Python code generation (e.g., cg.add(var.add_data("tag_id", templ))).
   // The value parameter can be a lambda/template, but keys are never templatable.
   template<typename K, typename V> void add_data(K &&key, V &&value) {
-    this->add_kv(this->data_, std::forward<K>(key), std::forward<V>(value));
+    this->add_kv_(this->data_, std::forward<K>(key), std::forward<V>(value));
   }
   template<typename K, typename V> void add_data_template(K &&key, V &&value) {
-    this->add_kv(this->data_template_, std::forward<K>(key), std::forward<V>(value));
+    this->add_kv_(this->data_template_, std::forward<K>(key), std::forward<V>(value));
   }
   template<typename K, typename V> void add_variable(K &&key, V &&value) {
-    this->add_kv(this->variables_, std::forward<K>(key), std::forward<V>(value));
+    this->add_kv_(this->variables_, std::forward<K>(key), std::forward<V>(value));
   }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
