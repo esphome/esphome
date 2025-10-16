@@ -472,7 +472,7 @@ def _create_sliding_window_filter(config, filter_id, sliding_class, streaming_cl
     )
 
 
-@FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
+@FILTER_REGISTRY.register("min", Filter, MIN_SCHEMA)
 async def min_filter_to_code(config, filter_id):
     return _create_sliding_window_filter(
         config, filter_id, MinFilter, StreamingMinFilter
@@ -491,7 +491,7 @@ MAX_SCHEMA = cv.All(
 )
 
 
-@FILTER_REGISTRY.register("max", MaxFilter, MAX_SCHEMA)
+@FILTER_REGISTRY.register("max", Filter, MAX_SCHEMA)
 async def max_filter_to_code(config, filter_id):
     return _create_sliding_window_filter(
         config, filter_id, MaxFilter, StreamingMaxFilter
@@ -512,7 +512,7 @@ SLIDING_AVERAGE_SCHEMA = cv.All(
 
 @FILTER_REGISTRY.register(
     "sliding_window_moving_average",
-    SlidingWindowMovingAverageFilter,
+    Filter,
     SLIDING_AVERAGE_SCHEMA,
 )
 async def sliding_window_moving_average_filter_to_code(config, filter_id):
