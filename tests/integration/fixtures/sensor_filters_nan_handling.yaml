@@ -1,0 +1,50 @@
+esphome:
+  name: test-nan-handling
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Source NaN Sensor"
+    id: source_nan_sensor
+    accuracy_decimals: 2
+
+  - platform: copy
+    source_id: source_nan_sensor
+    name: "Min NaN Sensor"
+    id: min_nan_sensor
+    filters:
+      - min:
+          window_size: 5
+          send_every: 5
+
+  - platform: copy
+    source_id: source_nan_sensor
+    name: "Max NaN Sensor"
+    id: max_nan_sensor
+    filters:
+      - max:
+          window_size: 5
+          send_every: 5
+
+button:
+  - platform: template
+    name: "Publish NaN Values Button"
+    id: publish_nan_button
+    on_press:
+      - lambda: |-
+          // Publish 10 values with NaN mixed in: 10, NaN, 5, NaN, 15, 8, NaN, 12, 3, NaN
+          id(source_nan_sensor).publish_state(10.0);
+          id(source_nan_sensor).publish_state(NAN);
+          id(source_nan_sensor).publish_state(5.0);
+          id(source_nan_sensor).publish_state(NAN);
+          id(source_nan_sensor).publish_state(15.0);
+          id(source_nan_sensor).publish_state(8.0);
+          id(source_nan_sensor).publish_state(NAN);
+          id(source_nan_sensor).publish_state(12.0);
+          id(source_nan_sensor).publish_state(3.0);
+          id(source_nan_sensor).publish_state(NAN);
