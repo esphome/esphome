@@ -231,7 +231,7 @@ class SlidingWindowMovingAverageFilter : public SlidingWindowFilter {
   using SlidingWindowFilter::SlidingWindowFilter;
 
  protected:
-  float compute_result_() override;
+  float compute_result() override;
 };
 
 /** Simple exponential moving average filter.
