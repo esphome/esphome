@@ -256,8 +256,6 @@ RESERVED_IDS = [
     "one_bits",
     "recv_packet",
     "send_packet",
-    "sp",
-    "gpio_init",
     "check_pos",
     "software_reset",
 ]
