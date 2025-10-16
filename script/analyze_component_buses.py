@@ -56,6 +56,10 @@ DIRECT_BUS_TYPES = ("i2c", "spi", "uart", "modbus")
 # These components can be merged with any other group
 NO_BUSES_SIGNATURE = "no_buses"
 
+# Prefix for isolated component signatures
+# Isolated components have unique signatures and cannot be merged with others
+ISOLATED_SIGNATURE_PREFIX = "isolated_"
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {
@@ -75,6 +79,7 @@ ISOLATED_COMPONENTS = {
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
+    "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
     "openthread": "Conflicts with wifi: used by most components",
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
@@ -366,6 +371,143 @@ def analyze_all_components(
             direct_bus_components.add(component_name)
 
     return components, non_groupable, direct_bus_components
+
+
+@lru_cache(maxsize=256)
+def _get_bus_configs(buses: tuple[str, ...]) -> frozenset[tuple[str, str]]:
+    """Map bus type to set of configs for that type.
+
+    Args:
+        buses: Tuple of bus package names (e.g., ("uart_9600", "i2c"))
+
+    Returns:
+        Frozenset of (base_type, full_config) tuples
+        Example: frozenset({("uart", "uart_9600"), ("i2c", "i2c")})
+    """
+    # Split on underscore to get base type: "uart_9600" -> "uart", "i2c" -> "i2c"
+    return frozenset((bus.split("_", 1)[0], bus) for bus in buses)
+
+
+@lru_cache(maxsize=1024)
+def are_buses_compatible(buses1: tuple[str, ...], buses2: tuple[str, ...]) -> bool:
+    """Check if two bus tuples are compatible for merging.
+
+    Two bus lists are compatible if they don't have conflicting configurations
+    for the same bus type. For example:
+    - ("ble", "uart") and ("i2c",) are compatible (different buses)
+    - ("uart_9600",) and ("uart_19200",) are NOT compatible (same bus, different configs)
+    - ("uart_9600",) and ("uart_9600",) are compatible (same bus, same config)
+
+    Args:
+        buses1: First tuple of bus package names
+        buses2: Second tuple of bus package names
+
+    Returns:
+        True if buses can be merged without conflicts
+    """
+    configs1 = _get_bus_configs(buses1)
+    configs2 = _get_bus_configs(buses2)
+
+    # Group configs by base type
+    bus_types1: dict[str, set[str]] = {}
+    for base_type, full_config in configs1:
+        if base_type not in bus_types1:
+            bus_types1[base_type] = set()
+        bus_types1[base_type].add(full_config)
+
+    bus_types2: dict[str, set[str]] = {}
+    for base_type, full_config in configs2:
+        if base_type not in bus_types2:
+            bus_types2[base_type] = set()
+        bus_types2[base_type].add(full_config)
+
+    # Check for conflicts: same bus type with different configs
+    for bus_type, configs in bus_types1.items():
+        if bus_type not in bus_types2:
+            continue  # No conflict - different bus types
+        # Same bus type - check if configs match
+        if configs != bus_types2[bus_type]:
+            return False  # Conflict - same bus type, different configs
+
+    return True  # No conflicts found
+
+
+def merge_compatible_bus_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Merge groups with compatible (non-conflicting) buses.
+
+    This function takes groups keyed by (platform, bus_signature) and merges
+    groups that share the same platform and have compatible bus configurations.
+    Two groups can be merged if their buses don't conflict - meaning they don't
+    have different configurations for the same bus type.
+
+    For example:
+    - ["ble"] + ["uart"] = compatible (different buses)
+    - ["uart_9600"] + ["uart_19200"] = incompatible (same bus, different configs)
+    - ["uart_9600"] + ["uart_9600"] = compatible (same bus, same config)
+
+    Args:
+        grouped_components: Dictionary mapping (platform, signature) to list of component names
+
+    Returns:
+        Dictionary with same structure but with compatible groups merged
+    """
+    merged_groups: dict[tuple[str, str], list[str]] = {}
+    processed_keys: set[tuple[str, str]] = set()
+
+    for (platform1, sig1), comps1 in sorted(grouped_components.items()):
+        if (platform1, sig1) in processed_keys:
+            continue
+
+        # Skip NO_BUSES_SIGNATURE - kept separate for flexible batch distribution
+        # These components have no bus requirements and can be added to any batch
+        # as "fillers" for load balancing across CI runners
+        if sig1 == NO_BUSES_SIGNATURE:
+            merged_groups[(platform1, sig1)] = comps1
+            processed_keys.add((platform1, sig1))
+            continue
+
+        # Skip isolated components - they can't be merged with others
+        if sig1.startswith(ISOLATED_SIGNATURE_PREFIX):
+            merged_groups[(platform1, sig1)] = comps1
+            processed_keys.add((platform1, sig1))
+            continue
+
+        # Start with this group's components
+        merged_comps: list[str] = list(comps1)
+        merged_sig: str = sig1
+        processed_keys.add((platform1, sig1))
+
+        # Get buses for this group as tuple for caching
+        buses1: tuple[str, ...] = tuple(sorted(sig1.split("+")))
+
+        # Try to merge with other groups on same platform
+        for (platform2, sig2), comps2 in sorted(grouped_components.items()):
+            if (platform2, sig2) in processed_keys:
+                continue
+            if platform2 != platform1:
+                continue  # Different platforms can't be merged
+            if sig2 == NO_BUSES_SIGNATURE:
+                continue  # Keep separate for flexible batch distribution
+            if sig2.startswith(ISOLATED_SIGNATURE_PREFIX):
+                continue  # Isolated components can't be merged
+
+            # Check if buses are compatible
+            buses2: tuple[str, ...] = tuple(sorted(sig2.split("+")))
+            if are_buses_compatible(buses1, buses2):
+                # Compatible! Merge this group
+                merged_comps.extend(comps2)
+                processed_keys.add((platform2, sig2))
+                # Update merged signature to include all unique buses
+                all_buses: set[str] = set(buses1) | set(buses2)
+                merged_sig = "+".join(sorted(all_buses))
+                buses1 = tuple(sorted(all_buses))  # Update for next iteration
+
+        # Store merged group
+        merged_groups[(platform1, merged_sig)] = merged_comps
+
+    return merged_groups
 
 
 def create_grouping_signature(
