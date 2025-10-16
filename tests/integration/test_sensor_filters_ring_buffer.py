@@ -8,6 +8,7 @@ from aioesphomeapi import EntityState, SensorState
 import pytest
 
 from .sensor_test_utils import build_key_to_sensor_mapping
+from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -36,7 +37,7 @@ async def test_sensor_filters_ring_buffer(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
@@ -76,8 +77,17 @@ async def test_sensor_filters_ring_buffer(
             ],
         )
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states to be sent before pressing button
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
         publish_button = next(

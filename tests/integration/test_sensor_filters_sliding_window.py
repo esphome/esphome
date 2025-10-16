@@ -8,6 +8,7 @@ from aioesphomeapi import EntityState, SensorState
 import pytest
 
 from .sensor_test_utils import build_key_to_sensor_mapping
+from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -41,7 +42,7 @@ async def test_sensor_filters_sliding_window(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
@@ -108,8 +109,17 @@ async def test_sensor_filters_sliding_window(
             ],
         )
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states to be sent before pressing button
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
         publish_button = next(
@@ -207,11 +217,12 @@ async def test_sensor_filters_nan_handling(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
         sensor_name = key_to_sensor.get(state.key)
+
         if sensor_name == "min_nan":
             min_states.append(state.state)
         elif sensor_name == "max_nan":
@@ -236,8 +247,17 @@ async def test_sensor_filters_nan_handling(
         # Build key-to-sensor mapping
         key_to_sensor = build_key_to_sensor_mapping(entities, ["min_nan", "max_nan"])
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
         publish_button = next(
@@ -305,11 +325,12 @@ async def test_sensor_filters_ring_buffer_wraparound(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
         sensor_name = key_to_sensor.get(state.key)
+
         if sensor_name == "wraparound_min":
             min_states.append(state.state)
             # With batch_delay: 0ms, we should receive all 3 outputs
@@ -326,8 +347,17 @@ async def test_sensor_filters_ring_buffer_wraparound(
         # Build key-to-sensor mapping
         key_to_sensor = build_key_to_sensor_mapping(entities, ["wraparound_min"])
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial state
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial state")
 
         # Find the publish button
         publish_button = next(
