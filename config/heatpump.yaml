@@ -25,9 +25,13 @@ ethernet:
   type: LAN8720
   mdc_pin: GPIO23
   mdio_pin: GPIO18
-  clk_mode: GPIO17_OUT
+  clk:
+    pin: GPIO17
+    mode: CLK_OUT
   phy_addr: 0
-  power_pin: GPIO12
+  power_pin:
+    number: GPIO12
+    ignore_strapping_warning: true
   manual_ip:
     gateway: 10.0.3.1
     subnet: 255.255.255.0
@@ -175,28 +179,28 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
-  # - platform: modbus_controller
-  #   modbus_controller_id: modbus_device
-  #   name: "EVI Inlet temp"
-  #   register_type: holding
-  #   address: 0x110A
-  #   device_class: "temperature"
-  #   state_class: "measurement"
-  #   unit_of_measurement: "°C"
-  #   accuracy_decimals: 1
-  #   filters:
-  #     - multiply: !lambda return 0.1;
-  # - platform: modbus_controller
-  #   modbus_controller_id: modbus_device
-  #   name: "EVI Outlet temp"
-  #   register_type: holding
-  #   address: 0x110B
-  #   device_class: "temperature"
-  #   state_class: "measurement"
-  #   unit_of_measurement: "°C"
-  #   accuracy_decimals: 1
-  #   filters:
-  #     - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "EVI Inlet temp"
+    register_type: holding
+    address: 0x110A
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "EVI Outlet temp"
+    register_type: holding
+    address: 0x110B
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
   - platform: modbus_controller
     modbus_controller_id: modbus_device
     name: "Refrigerant liquid temperature"
@@ -375,28 +379,28 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
-  # - platform: modbus_controller
-  #   modbus_controller_id: modbus_device
-  #   name: "Evaporator temperature"
-  #   register_type: holding
-  #   address: 0x1121
-  #   device_class: "temperature"
-  #   state_class: "measurement"
-  #   unit_of_measurement: "°C"
-  #   accuracy_decimals: 1
-  #   filters:
-  #     - multiply: !lambda return 0.1;
-  # - platform: modbus_controller
-  #   modbus_controller_id: modbus_device
-  #   name: "Condenser temperature"
-  #   register_type: holding
-  #   address: 0x1122
-  #   device_class: "temperature"
-  #   state_class: "measurement"
-  #   unit_of_measurement: "°C"
-  #   accuracy_decimals: 1
-  #   filters:
-  #     - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Evaporator temperature"
+    register_type: holding
+    address: 0x1121
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
+  - platform: modbus_controller
+    modbus_controller_id: modbus_device
+    name: "Condenser temperature"
+    register_type: holding
+    address: 0x1122
+    device_class: "temperature"
+    state_class: "measurement"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: !lambda return 0.1;
 
 number:
   - platform: modbus_controller
@@ -438,69 +442,9 @@ number:
     max_value: 75
     multiply: 10.0
 
-# sensor:
-#   - platform: modbus_controller
-#     modbus_controller_id: modbus_device
-#     name: "Switched ON"
-#     register_type: holding
-#     address: 0x1102
-
 switch:
   - platform: modbus_controller
     modbus_controller_id: modbus_device
     name: "ON / Off"
     register_type: holding
     address: 0x1000
-# sensor:
-#   - platform: modbus_controller
-#     modbus_controller_id: modbus_device
-#     name: "Water flow"
-#     register_type: holding
-#     address: 4368
-#     device_class: "volume_flow_rate"
-#     state_class: "measurement"
-#     unit_of_measurement: "L/min"
-#     accuracy_decimals: 1
-#     filters:
-#       - multiply: !lambda return 0.1;
-#   - platform: modbus_controller
-#     modbus_controller_id: modbus_device
-#     name: "Water inlet temperature"
-#     register_type: holding
-#     address: 4365
-#     device_class: "temperature"
-#     state_class: "measurement"
-#     unit_of_measurement: "°C"
-#     accuracy_decimals: 1
-#     filters:
-#       - multiply: !lambda return 0.1;
-#   - platform: modbus_controller
-#     modbus_controller_id: modbus_device
-#     name: "Water outlet temperature"
-#     register_type: holding
-#     address: 4366
-#     device_class: "temperature"
-#     state_class: "measurement"
-#     unit_of_measurement: "°C"
-#     accuracy_decimals: 1
-#     filters:
-#       - multiply: !lambda return 0.1;
-#   - platform: modbus_controller
-#     modbus_controller_id: modbus_device
-#     name: "Compressor running frequency"
-#     register_type: holding
-#     address: 4373
-#     device_class: "frequency"
-#     state_class: "measurement"
-#     unit_of_measurement: "HZ"
-#   - platform: modbus_controller
-#     modbus_controller_id: modbus_device
-#     name: "Compressor input current"
-#     register_type: holding
-#     address: 4379
-#     device_class: "current"
-#     state_class: "measurement"
-#     unit_of_measurement: "A"
-#     accuracy_decimals: 1
-#     filters:
-#       - multiply: !lambda return 0.1;
