@@ -133,7 +133,7 @@ float MinFilter::compute_result() { return this->find_extremum_<std::less<float>
 float MaxFilter::compute_result() { return this->find_extremum_<std::greater<float>>(); }
 
 // SlidingWindowMovingAverageFilter
-float SlidingWindowMovingAverageFilter::compute_result_() {
+float SlidingWindowMovingAverageFilter::compute_result() {
   float sum = 0;
   size_t valid_count = 0;
   for (size_t i = 0; i < this->window_count_; i++) {
