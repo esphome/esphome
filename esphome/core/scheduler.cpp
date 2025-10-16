@@ -328,17 +328,24 @@ void HOT Scheduler::call(uint32_t now) {
   // Single-core platforms don't use this queue and fall back to the heap-based approach.
   //
   // Note: Items cancelled via cancel_item_locked_() are marked with remove=true but still
-  // processed here. They are removed from the queue normally via pop_front() but skipped
-  // during execution by should_skip_item_(). This is intentional - no memory leak occurs.
-  while (!this->defer_queue_.empty()) {
-    // The outer check is done without a lock for performance. If the queue
-    // appears non-empty, we lock and process an item. We don't need to check
-    // empty() again inside the lock because only this thread can remove items.
+  // processed here. They are skipped during execution by should_skip_item_().
+  // This is intentional - no memory leak occurs.
+  //
+  // We use an index (defer_queue_front_) to track the read position instead of calling
+  // erase() on every pop, which would be O(n). The queue is processed once per loop -
+  // any items added during processing are left for the next loop iteration.
+
+  // Snapshot the queue end point - only process items that existed at loop start
+  // Items added during processing (by callbacks or other threads) run next loop
+  // No lock needed: single consumer (main loop), stale read just means we process less this iteration
+  size_t defer_queue_end = this->defer_queue_.size();
+
+  while (this->defer_queue_front_ < defer_queue_end) {
     std::unique_ptr<SchedulerItem> item;
     {
       LockGuard lock(this->lock_);
-      item = std::move(this->defer_queue_.front());
-      this->defer_queue_.pop_front();
+      item = std::move(this->defer_queue_[this->defer_queue_front_]);
+      this->defer_queue_front_++;
     }
 
     // Execute callback without holding lock to prevent deadlocks
@@ -348,6 +355,35 @@ void HOT Scheduler::call(uint32_t now) {
     }
     // Recycle the defer item after execution
     this->recycle_item_(std::move(item));
+  }
+
+  // If we've consumed all items up to the snapshot point, clean up the dead space
+  // Single consumer (main loop), so no lock needed for this check
+  if (this->defer_queue_front_ >= defer_queue_end) {
+    LockGuard lock(this->lock_);
+    // Check if new items were added by producers during processing
+    if (this->defer_queue_front_ >= this->defer_queue_.size()) {
+      // Common case: no new items - clear everything
+      this->defer_queue_.clear();
+    } else {
+      // Rare case: new items were added during processing - compact the vector
+      // This only happens when:
+      // 1. A deferred callback calls defer() again, or
+      // 2. Another thread calls defer() while we're processing
+      //
+      // Move unprocessed items (added during this loop) to the front for next iteration
+      //
+      // SAFETY: Compacted items may include cancelled items (marked for removal via
+      // cancel_item_locked_() during execution). This is safe because should_skip_item_()
+      // checks is_item_removed_() before executing, so cancelled items will be skipped
+      // and recycled on the next loop iteration.
+      size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
+      for (size_t i = 0; i < remaining; i++) {
+        this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
+      }
+      this->defer_queue_.resize(remaining);
+    }
+    this->defer_queue_front_ = 0;
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
