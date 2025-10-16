@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -34,32 +36,49 @@ from script.analyze_component_buses import (
     analyze_all_components,
     create_grouping_signature,
     is_platform_component,
+    merge_compatible_bus_groups,
     uses_local_file_references,
 )
 from script.merge_component_configs import merge_component_configs
 
-# Platform-specific maximum group sizes
-# ESP8266 has limited IRAM and can't handle large component groups
-PLATFORM_MAX_GROUP_SIZE = {
-    "esp8266-ard": 10,  # ESP8266 Arduino has limited IRAM
-    "esp8266-idf": 10,  # ESP8266 IDF also has limited IRAM
-    # BK72xx now uses BK7252 board (1.62MB flash vs 1.03MB) - no limit needed
-    # Other platforms can handle larger groups
-}
+
+@dataclass
+class TestResult:
+    """Store information about a single test run."""
+
+    test_id: str
+    components: list[str]
+    platform: str
+    success: bool
+    duration: float
+    command: str = ""
+    test_type: str = "compile"  # "config" or "compile"
 
 
 def show_disk_space_if_ci(esphome_command: str) -> None:
     """Show disk space usage if running in CI during compile.
 
+    Only shows output during compilation (not config validation) since
+    disk space is only relevant when actually building firmware.
+
     Args:
         esphome_command: The esphome command being run (config/compile/clean)
     """
-    if os.environ.get("GITHUB_ACTIONS") and esphome_command == "compile":
-        print("\n" + "=" * 80)
-        print("Disk Space After Build:")
-        print("=" * 80)
-        subprocess.run(["df", "-h"], check=False)
-        print("=" * 80 + "\n")
+    # Only show disk space during compilation in CI
+    # Config validation doesn't build anything so disk space isn't relevant
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    if esphome_command != "compile":
+        return
+
+    print("\n" + "=" * 80)
+    print("Disk Space After Build:")
+    print("=" * 80)
+    # Use sys.stdout.flush() to ensure output appears immediately
+    sys.stdout.flush()
+    subprocess.run(["df", "-h"], check=False, stdout=sys.stdout, stderr=sys.stderr)
+    print("=" * 80 + "\n")
+    sys.stdout.flush()
 
 
 def find_component_tests(
@@ -128,6 +147,140 @@ def get_platform_base_files(base_dir: Path) -> dict[str, list[Path]]:
     return dict(platform_files)
 
 
+def group_components_by_platform(
+    failed_results: list[TestResult],
+) -> dict[tuple[str, str], list[str]]:
+    """Group failed components by platform and test type for simplified reproduction commands.
+
+    Args:
+        failed_results: List of failed test results
+
+    Returns:
+        Dictionary mapping (platform, test_type) to list of component names
+    """
+    platform_components: dict[tuple[str, str], list[str]] = {}
+    for result in failed_results:
+        key = (result.platform, result.test_type)
+        if key not in platform_components:
+            platform_components[key] = []
+        platform_components[key].extend(result.components)
+
+    # Remove duplicates and sort for each platform
+    return {
+        key: sorted(set(components)) for key, components in platform_components.items()
+    }
+
+
+def format_github_summary(test_results: list[TestResult]) -> str:
+    """Format test results as GitHub Actions job summary markdown.
+
+    Args:
+        test_results: List of all test results
+
+    Returns:
+        Markdown formatted summary string
+    """
+    # Separate results into passed and failed
+    passed_results = [r for r in test_results if r.success]
+    failed_results = [r for r in test_results if not r.success]
+
+    lines = []
+
+    # Header with emoji based on success/failure
+    if failed_results:
+        lines.append("## :x: Component Tests Failed\n")
+    else:
+        lines.append("## :white_check_mark: Component Tests Passed\n")
+
+    # Summary statistics
+    total_time = sum(r.duration for r in test_results)
+    # Determine test type from results (all should be the same)
+    test_type = test_results[0].test_type if test_results else "unknown"
+    lines.append(
+        f"**Results:** {len(passed_results)} passed, {len(failed_results)} failed\n"
+    )
+    lines.append(f"**Total time:** {total_time:.1f}s\n")
+    lines.append(f"**Test type:** `{test_type}`\n")
+
+    # Show failed tests if any
+    if failed_results:
+        lines.append("### Failed Tests\n")
+        lines.append("| Test | Components | Platform | Duration |\n")
+        lines.append("|------|-----------|----------|----------|\n")
+        for result in failed_results:
+            components_str = ", ".join(result.components)
+            lines.append(
+                f"| `{result.test_id}` | {components_str} | {result.platform} | {result.duration:.1f}s |\n"
+            )
+        lines.append("\n")
+
+        # Show simplified commands to reproduce failures
+        # Group all failed components by platform for a single command per platform
+        lines.append("<details>\n")
+        lines.append("<summary>Commands to reproduce failures</summary>\n\n")
+        lines.append("```bash\n")
+
+        # Generate one command per platform and test type
+        platform_components = group_components_by_platform(failed_results)
+        for platform, test_type in sorted(platform_components.keys()):
+            components_csv = ",".join(platform_components[(platform, test_type)])
+            lines.append(
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}\n"
+            )
+
+        lines.append("```\n")
+        lines.append("</details>\n")
+
+    # Show passed tests
+    if passed_results:
+        lines.append("### Passed Tests\n\n")
+        lines.append(f"{len(passed_results)} tests passed successfully\n")
+
+        # Separate grouped and individual tests
+        grouped_results = [r for r in passed_results if len(r.components) > 1]
+        individual_results = [r for r in passed_results if len(r.components) == 1]
+
+        if grouped_results:
+            lines.append("#### Grouped Tests\n")
+            lines.append("| Components | Platform | Count | Duration |\n")
+            lines.append("|-----------|----------|-------|----------|\n")
+            for result in grouped_results:
+                components_str = ", ".join(result.components)
+                lines.append(
+                    f"| {components_str} | {result.platform} | {len(result.components)} | {result.duration:.1f}s |\n"
+                )
+            lines.append("\n")
+
+        if individual_results:
+            lines.append("#### Individual Tests\n")
+            # Show first 10 individual tests with timing
+            if len(individual_results) <= 10:
+                lines.extend(
+                    f"- `{result.test_id}` - {result.duration:.1f}s\n"
+                    for result in individual_results
+                )
+            else:
+                lines.extend(
+                    f"- `{result.test_id}` - {result.duration:.1f}s\n"
+                    for result in individual_results[:10]
+                )
+                lines.append(f"\n...and {len(individual_results) - 10} more\n")
+            lines.append("\n")
+
+    return "".join(lines)
+
+
+def write_github_summary(test_results: list[TestResult]) -> None:
+    """Write GitHub Actions job summary with test results and timing.
+
+    Args:
+        test_results: List of all test results
+    """
+    summary_content = format_github_summary(test_results)
+    with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+        f.write(summary_content)
+
+
 def extract_platform_with_version(base_file: Path) -> str:
     """Extract platform with version from base filename.
 
@@ -151,7 +304,7 @@ def run_esphome_test(
     esphome_command: str,
     continue_on_fail: bool,
     use_testing_mode: bool = False,
-) -> tuple[bool, str]:
+) -> TestResult:
     """Run esphome test for a single component.
 
     Args:
@@ -166,7 +319,7 @@ def run_esphome_test(
         use_testing_mode: Whether to use --testing-mode flag
 
     Returns:
-        Tuple of (success status, command string)
+        TestResult object with test details and timing
     """
     test_name = test_file.stem.split(".")[0]
 
@@ -221,9 +374,13 @@ def run_esphome_test(
     if use_testing_mode:
         print("  (using --testing-mode)")
 
+    start_time = time.time()
+    test_id = f"{component}.{test_name}.{platform_with_version}"
+
     try:
         result = subprocess.run(cmd, check=False)
         success = result.returncode == 0
+        duration = time.time() - start_time
 
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
@@ -236,12 +393,30 @@ def run_esphome_test(
             print(cmd_str)
             print()
             raise subprocess.CalledProcessError(result.returncode, cmd)
-        return success, cmd_str
+
+        return TestResult(
+            test_id=test_id,
+            components=[component],
+            platform=platform_with_version,
+            success=success,
+            duration=duration,
+            command=cmd_str,
+            test_type=esphome_command,
+        )
     except subprocess.CalledProcessError:
+        duration = time.time() - start_time
         # Re-raise if we're not continuing on fail
         if not continue_on_fail:
             raise
-        return False, cmd_str
+        return TestResult(
+            test_id=test_id,
+            components=[component],
+            platform=platform_with_version,
+            success=False,
+            duration=duration,
+            command=cmd_str,
+            test_type=esphome_command,
+        )
 
 
 def run_grouped_test(
@@ -253,7 +428,7 @@ def run_grouped_test(
     tests_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
-) -> tuple[bool, str]:
+) -> TestResult:
     """Run esphome test for a group of components with shared bus configs.
 
     Args:
@@ -267,7 +442,7 @@ def run_grouped_test(
         continue_on_fail: Whether to continue on failure
 
     Returns:
-        Tuple of (success status, command string)
+        TestResult object with test details and timing
     """
     # Create merged config
     group_name = "_".join(components[:3])  # Use first 3 components for name
@@ -294,8 +469,17 @@ def run_grouped_test(
         print(f"Error merging configs for {components}: {e}")
         if not continue_on_fail:
             raise
-        # Return empty command string since we failed before building the command
-        return False, f"# Failed during config merge: {e}"
+        # Return TestResult for merge failure
+        test_id = f"GROUPED[{','.join(components)}].{platform_with_version}"
+        return TestResult(
+            test_id=test_id,
+            components=components,
+            platform=platform_with_version,
+            success=False,
+            duration=0.0,
+            command=f"# Failed during config merge: {e}",
+            test_type=esphome_command,
+        )
 
     # Create test file that includes merged config
     output_file = build_dir / f"test_{group_name}.{platform_with_version}.yaml"
@@ -334,9 +518,13 @@ def run_grouped_test(
     print(f"> [GROUPED: {components_str}] [{platform_with_version}]")
     print("  (using --testing-mode)")
 
+    start_time = time.time()
+    test_id = f"GROUPED[{','.join(components)}].{platform_with_version}"
+
     try:
         result = subprocess.run(cmd, check=False)
         success = result.returncode == 0
+        duration = time.time() - start_time
 
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
@@ -349,12 +537,30 @@ def run_grouped_test(
             print(cmd_str)
             print()
             raise subprocess.CalledProcessError(result.returncode, cmd)
-        return success, cmd_str
+
+        return TestResult(
+            test_id=test_id,
+            components=components,
+            platform=platform_with_version,
+            success=success,
+            duration=duration,
+            command=cmd_str,
+            test_type=esphome_command,
+        )
     except subprocess.CalledProcessError:
+        duration = time.time() - start_time
         # Re-raise if we're not continuing on fail
         if not continue_on_fail:
             raise
-        return False, cmd_str
+        return TestResult(
+            test_id=test_id,
+            components=components,
+            platform=platform_with_version,
+            success=False,
+            duration=duration,
+            command=cmd_str,
+            test_type=esphome_command,
+        )
 
 
 def run_grouped_component_tests(
@@ -366,7 +572,7 @@ def run_grouped_component_tests(
     esphome_command: str,
     continue_on_fail: bool,
     additional_isolated: set[str] | None = None,
-) -> tuple[set[tuple[str, str]], list[str], list[str], dict[str, str]]:
+) -> tuple[set[tuple[str, str]], list[TestResult]]:
     """Run grouped component tests.
 
     Args:
@@ -380,12 +586,10 @@ def run_grouped_component_tests(
         additional_isolated: Additional components to treat as isolated (not grouped)
 
     Returns:
-        Tuple of (tested_components, passed_tests, failed_tests, failed_commands)
+        Tuple of (tested_components, test_results)
     """
     tested_components = set()
-    passed_tests = []
-    failed_tests = []
-    failed_commands = {}  # Map test_id to command string
+    test_results = []
 
     # Group components by platform and bus signature
     grouped_components: dict[tuple[str, str], list[str]] = defaultdict(list)
@@ -461,6 +665,11 @@ def run_grouped_component_tests(
             # Add to grouped components (including those with no buses)
             if signature:
                 grouped_components[(platform, signature)].append(component)
+
+    # Merge groups with compatible buses (cross-bus grouping optimization)
+    # This allows mixing components with different buses (e.g., ble + uart)
+    # as long as they don't have conflicting configurations for the same bus type
+    grouped_components = merge_compatible_bus_groups(grouped_components)
 
     # Print detailed grouping plan
     print("\nGrouping Plan:")
@@ -560,28 +769,6 @@ def run_grouped_component_tests(
             # No other groups for this platform - keep no_buses components together
             grouped_components[(platform, NO_BUSES_SIGNATURE)] = no_buses_comps
 
-    # Split groups that exceed platform-specific maximum sizes
-    # ESP8266 has limited IRAM and can't handle large component groups
-    split_groups = {}
-    for (platform, signature), components in list(grouped_components.items()):
-        max_size = PLATFORM_MAX_GROUP_SIZE.get(platform)
-        if max_size and len(components) > max_size:
-            # Split this group into smaller groups
-            print(
-                f"\n  ℹ️ Splitting {platform} group (signature: {signature}) "
-                f"from {len(components)} to max {max_size} components per group"
-            )
-            # Remove original group
-            del grouped_components[(platform, signature)]
-            # Create split groups
-            for i in range(0, len(components), max_size):
-                split_components = components[i : i + max_size]
-                # Create unique signature for each split group
-                split_signature = f"{signature}_split{i // max_size + 1}"
-                split_groups[(platform, split_signature)] = split_components
-    # Add split groups back
-    grouped_components.update(split_groups)
-
     groups_to_test = []
     individual_tests = set()  # Use set to avoid duplicates
 
@@ -672,7 +859,7 @@ def run_grouped_component_tests(
                 continue
 
             # Run grouped test
-            success, cmd_str = run_grouped_test(
+            test_result = run_grouped_test(
                 components=components_to_group,
                 platform=platform,
                 platform_with_version=platform_with_version,
@@ -687,17 +874,10 @@ def run_grouped_component_tests(
             for comp in components_to_group:
                 tested_components.add((comp, platform_with_version))
 
-            # Record result for each component - show all components in grouped tests
-            test_id = (
-                f"GROUPED[{','.join(components_to_group)}].{platform_with_version}"
-            )
-            if success:
-                passed_tests.append(test_id)
-            else:
-                failed_tests.append(test_id)
-                failed_commands[test_id] = cmd_str
+            # Store test result
+            test_results.append(test_result)
 
-    return tested_components, passed_tests, failed_tests, failed_commands
+    return tested_components, test_results
 
 
 def run_individual_component_test(
@@ -710,9 +890,7 @@ def run_individual_component_test(
     esphome_command: str,
     continue_on_fail: bool,
     tested_components: set[tuple[str, str]],
-    passed_tests: list[str],
-    failed_tests: list[str],
-    failed_commands: dict[str, str],
+    test_results: list[TestResult],
 ) -> None:
     """Run an individual component test if not already tested in a group.
 
@@ -726,16 +904,13 @@ def run_individual_component_test(
         esphome_command: ESPHome command
         continue_on_fail: Whether to continue on failure
         tested_components: Set of already tested components
-        passed_tests: List to append passed test IDs
-        failed_tests: List to append failed test IDs
-        failed_commands: Dict to store failed test commands
+        test_results: List to append test results
     """
     # Skip if already tested in a group
     if (component, platform_with_version) in tested_components:
         return
 
-    test_name = test_file.stem.split(".")[0]
-    success, cmd_str = run_esphome_test(
+    test_result = run_esphome_test(
         component=component,
         test_file=test_file,
         platform=platform,
@@ -745,12 +920,7 @@ def run_individual_component_test(
         esphome_command=esphome_command,
         continue_on_fail=continue_on_fail,
     )
-    test_id = f"{component}.{test_name}.{platform_with_version}"
-    if success:
-        passed_tests.append(test_id)
-    else:
-        failed_tests.append(test_id)
-        failed_commands[test_id] = cmd_str
+    test_results.append(test_result)
 
 
 def test_components(
@@ -799,19 +969,12 @@ def test_components(
     print(f"Found {len(all_tests)} components to test")
 
     # Run tests
-    failed_tests = []
-    passed_tests = []
+    test_results = []
     tested_components = set()  # Track which components were tested in groups
-    failed_commands = {}  # Track commands for failed tests
 
     # First, run grouped tests if grouping is enabled
     if enable_grouping:
-        (
-            tested_components,
-            passed_tests,
-            failed_tests,
-            failed_commands,
-        ) = run_grouped_component_tests(
+        tested_components, grouped_results = run_grouped_component_tests(
             all_tests=all_tests,
             platform_filter=platform_filter,
             platform_bases=platform_bases,
@@ -821,6 +984,7 @@ def test_components(
             continue_on_fail=continue_on_fail,
             additional_isolated=isolated_components,
         )
+        test_results.extend(grouped_results)
 
     # Then run individual tests for components not in groups
     for component, test_files in sorted(all_tests.items()):
@@ -846,9 +1010,7 @@ def test_components(
                             esphome_command=esphome_command,
                             continue_on_fail=continue_on_fail,
                             tested_components=tested_components,
-                            passed_tests=passed_tests,
-                            failed_tests=failed_tests,
-                            failed_commands=failed_commands,
+                            test_results=test_results,
                         )
             else:
                 # Platform-specific test
@@ -880,31 +1042,40 @@ def test_components(
                         esphome_command=esphome_command,
                         continue_on_fail=continue_on_fail,
                         tested_components=tested_components,
-                        passed_tests=passed_tests,
-                        failed_tests=failed_tests,
-                        failed_commands=failed_commands,
+                        test_results=test_results,
                     )
+
+    # Separate results into passed and failed
+    passed_results = [r for r in test_results if r.success]
+    failed_results = [r for r in test_results if not r.success]
 
     # Print summary
     print("\n" + "=" * 80)
-    print(f"Test Summary: {len(passed_tests)} passed, {len(failed_tests)} failed")
+    print(f"Test Summary: {len(passed_results)} passed, {len(failed_results)} failed")
     print("=" * 80)
 
-    if failed_tests:
+    if failed_results:
         print("\nFailed tests:")
-        for test in failed_tests:
-            print(f"  - {test}")
+        for result in failed_results:
+            print(f"  - {result.test_id}")
 
-        # Print failed commands at the end for easy copy-paste from CI logs
+        # Print simplified commands grouped by platform and test type for easy copy-paste
         print("\n" + "=" * 80)
-        print("Failed test commands (copy-paste to reproduce locally):")
+        print("Commands to reproduce failures (copy-paste to reproduce locally):")
         print("=" * 80)
-        for test in failed_tests:
-            if test in failed_commands:
-                print(f"\n# {test}")
-                print(failed_commands[test])
+        platform_components = group_components_by_platform(failed_results)
+        for platform, test_type in sorted(platform_components.keys()):
+            components_csv = ",".join(platform_components[(platform, test_type)])
+            print(
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}"
+            )
         print()
 
+    # Write GitHub Actions job summary if in CI
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        write_github_summary(test_results)
+
+    if failed_results:
         return 1
 
     return 0
