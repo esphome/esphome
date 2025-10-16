@@ -95,7 +95,7 @@ class LvAnimationTimingEaseInOut : public LvAnimationTiming {
   float slope_;
 };
 
-template<size_t DATA_SIZE> class LvAnimation : public Component {
+template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public Component {
  public:
   LvAnimation(std::function<void(const uint32_t *data)> update_callback, std::vector<TemplatableValue<uint32_t>> from,
               std::vector<TemplatableValue<uint32_t>> to)
@@ -121,6 +121,11 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
 
   void stop() { this->state_ = AnimationState::STOPPED; }
 
+  std::enable_if_t<AUTO_START> setup() override {
+    if (AUTO_START)
+      this->start();
+  }
+
   void loop() override {
     if (this->state_ == AnimationState::STOPPED)
       return;
@@ -138,6 +143,8 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
         if (progress >= 1.0f) {
           progress = 1.0f;
           this->stop();
+          if (this->loop_)
+            this->start();
         }
         break;
       default:
@@ -155,9 +162,11 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
     this->update_callback_(data);
   }
 
+  float get_setup_priority() const override { return setup_priority::PROCESSOR - 20.0; }
   void set_duration(uint32_t duration) { this->duration_ = duration; }
   void set_start_delay(uint32_t start_delay) { this->start_delay_ = start_delay; }
   void add_timing(LvAnimationTiming *timing) { this->timings_.push_back(timing); }
+  void set_loop(bool loop) { this->loop_ = loop; }
 
  protected:
   std::function<void(const uint32_t *)> update_callback_;
@@ -170,6 +179,7 @@ template<size_t DATA_SIZE> class LvAnimation : public Component {
   uint32_t data_to_[DATA_SIZE]{0};
   AnimationState state_{AnimationState::STOPPED};
   std::vector<LvAnimationTiming *> timings_{};
+  bool loop_{false};
 };
 
 }  // namespace esphome::lvgl

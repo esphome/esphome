@@ -1,4 +1,8 @@
 from esphome import automation, codegen as cg, config_validation as cv
+from esphome.automation import Trigger
+from esphome.components.animation import CONF_LOOP
+from esphome.components.esp32_improv import CONF_ON_START
+from esphome.components.lvgl.defines import CONF_AUTO_START, CONF_ON_STOP
 from esphome.components.lvgl.lvcode import LambdaContext, LvglComponent
 from esphome.components.lvgl.schemas import STYLE_PROPS
 from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_color_t, lv_obj_t
@@ -10,6 +14,7 @@ from esphome.const import (
     CONF_ID,
     CONF_TIMING,
     CONF_TO,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_WEIGHT,
 )
@@ -96,18 +101,26 @@ ANIMABLE_STYLES = {
     if isinstance(v, LValidator) and v.animatable
 }
 
-ANIMATION_CONFIG = cv.Schema(
+ANIMATION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_DURATION, default="5s"): cv.positive_time_period_milliseconds,
         cv.Optional(
             CONF_START_DELAY, default="0s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_AUTO_START, default=False): cv.boolean,
+        cv.Optional(CONF_LOOP, default=False): cv.boolean,
         cv.Optional(CONF_TIMING, default={}): cv.ensure_list(TIMING_SCHEMA),
-    }
-)
-ANIMATION_SCHEMA = ANIMATION_CONFIG.extend(
-    {
         cv.Required(CONF_ID): cv.declare_id(LvAnimation),
+        cv.Optional(CONF_ON_START): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template()),
+            }
+        ),
+        cv.Optional(CONF_ON_STOP): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template()),
+            }
+        ),
         cv.Required(CONF_WIDGETS): cv.ensure_list(
             cv.Schema(
                 {
@@ -155,9 +168,11 @@ async def animations_to_code(config):
                     tos.extend(await process_arg(validator, limits[CONF_TO]))
 
         data_size = len(froms)
+        loop = animation.get(CONF_LOOP)
+        start_delay = animation.get(CONF_START_DELAY)
         var = cg.new_Pvariable(
             animation[CONF_ID],
-            TemplateArguments(data_size),
+            TemplateArguments(data_size, animation[CONF_AUTO_START]),
             await ctx.get_lambda(),
             froms,
             tos,
@@ -172,7 +187,10 @@ async def animations_to_code(config):
             cg.add(var.add_timing(timing_var))
 
         cg.add(var.set_duration(animation[CONF_DURATION]))
-        cg.add(var.set_start_delay(animation[CONF_START_DELAY]))
+        if start_delay:
+            cg.add(var.set_start_delay(start_delay))
+        if loop:
+            cg.add(var.set_loop(loop))
         await cg.register_component(var, animation)
 
 
@@ -185,19 +203,25 @@ async def animations_to_code(config):
             cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
             cv.Optional(CONF_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_START_DELAY): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_LOOP): cv.boolean,
         },
         key=CONF_ID,
     ),
 )
 async def start_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
+    loop = config.get(CONF_LOOP)
+    duration = config.get(CONF_DURATION)
+    start_delay = config.get(CONF_START_DELAY)
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
         for animation in animations:
             anim_var = await cg.get_variable(animation)
-            if (duration := config.get(CONF_DURATION)) is not None:
+            if duration is not None:
                 context.add(anim_var.set_duration(duration))
-            if (start_delay := config.get(CONF_START_DELAY)) is not None:
+            if start_delay is not None:
                 context.add(anim_var.set_start_delay(start_delay))
+            if loop is not None:
+                context.add(anim_var.set_loop(loop))
             context.add(anim_var.start())
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_LVGL_ID])
