@@ -31,6 +31,17 @@ class AddressableLight : public LightOutput, public Component {
   ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
   ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
   virtual void clear_effect_data() = 0;
+
+  void set_power_limits(float max_watts, float voltage = 5.0f);
+  void set_led_power_consumption(float red_watts, float green_watts, float blue_watts, float white_watts = 0.0f);
+  float get_current_power_consumption() const;
+  float get_power_utilization() const;  // Returns 0.0 to 1.0
+  bool is_power_limited() const;
+  void set_power_limiting_enabled(bool enabled) { this->power_limiting_enabled_ = enabled; }
+  bool is_power_limiting_enabled() const { return this->power_limiting_enabled_; }
+
+  void apply_power_limiting();
+
   ESPRangeView range(int32_t from, int32_t to) {
     from = interpret_index(from, this->size());
     to = interpret_index(to, this->size());
@@ -94,12 +105,31 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
+  bool supports_power_management() const override { return true; }
+
+  float calculate_total_power_from_buffer();
+  void scale_all_leds_in_buffer(float scale_factor);
+
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
   bool effect_active_{false};
+
+  float current_power_consumption_ = 0.0f;
+  bool power_limiting_active_ = false;
+  bool power_limiting_enabled_ = true;
+
+  // Power management data
+  struct PowerLimits {
+    float max_watts = 0.0f;           // 0 = disabled
+    float voltage = 5.0f;             // Supply voltage
+    float red_watts_per_led = 0.06f;  // Default 60mW per LED at full brightness
+    float green_watts_per_led = 0.06f;
+    float blue_watts_per_led = 0.06f;
+    float white_watts_per_led = 0.06f;
+  } power_limits_;
 };
 
 class AddressableLightTransformer : public LightTransformer {

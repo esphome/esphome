@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 #include "light_output.h"
 #include "transformers.h"
+#include "addressable_light.h"
 
 namespace esphome::light {
 
@@ -131,6 +132,12 @@ void LightState::loop() {
   // Write state to the light
   if (this->next_write_) {
     this->next_write_ = false;
+
+    // Apply power limiting for lights that support it
+    if (this->output_->supports_power_management()) {
+      auto *addressable_light = static_cast<light::AddressableLight *>(this->output_);
+      addressable_light->apply_power_limiting();
+    }
     this->output_->write_state(this);
   }
 }

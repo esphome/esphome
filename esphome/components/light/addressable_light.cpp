@@ -111,4 +111,71 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   return {};
 }
 
+// Power management implementations
+void AddressableLight::set_power_limits(float max_watts, float voltage) {
+  this->power_limits_.max_watts = max_watts;
+  this->power_limits_.voltage = voltage;
+}
+
+void AddressableLight::set_led_power_consumption(float red_watts, float green_watts, float blue_watts,
+                                                 float white_watts) {
+  this->power_limits_.red_watts_per_led = red_watts;
+  this->power_limits_.green_watts_per_led = green_watts;
+  this->power_limits_.blue_watts_per_led = blue_watts;
+  this->power_limits_.white_watts_per_led = white_watts;
+}
+
+float AddressableLight::get_current_power_consumption() const { return this->current_power_consumption_; }
+
+float AddressableLight::get_power_utilization() const {
+  if (this->power_limits_.max_watts <= 0.0f) {
+    return 0.0f;
+  }
+  return this->current_power_consumption_ / this->power_limits_.max_watts;
+}
+
+bool AddressableLight::is_power_limited() const { return this->power_limiting_active_; }
+
+float AddressableLight::calculate_total_power_from_buffer() {
+  float total_power = 0.0f;
+
+  for (int i = 0; i < this->size(); i++) {
+    auto view = this->get_view_internal(i);
+    Color color = view.get();
+
+    // Calculate power for this LED using configured values
+    float red_power = (color.r / 255.0f) * this->power_limits_.red_watts_per_led;
+    float green_power = (color.g / 255.0f) * this->power_limits_.green_watts_per_led;
+    float blue_power = (color.b / 255.0f) * this->power_limits_.blue_watts_per_led;
+    float white_power = (color.w / 255.0f) * this->power_limits_.white_watts_per_led;
+
+    total_power += red_power + green_power + blue_power + white_power;
+  }
+
+  return total_power;
+}
+
+void AddressableLight::scale_all_leds_in_buffer(float scale_factor) {
+  for (int i = 0; i < this->size(); i++) {
+    auto view = this->get_view_internal(i);
+    Color color = view.get();
+
+    Color scaled = Color((uint8_t) (color.r * scale_factor), (uint8_t) (color.g * scale_factor),
+                         (uint8_t) (color.b * scale_factor), (uint8_t) (color.w * scale_factor));
+
+    view.set(scaled);
+  }
+}
+
+void AddressableLight::apply_power_limiting() {
+  if (this->power_limiting_enabled_ && this->power_limits_.max_watts > 0.0f) {
+    float total_power = this->calculate_total_power_from_buffer();
+
+    if (total_power > this->power_limits_.max_watts) {
+      float scale_factor = this->power_limits_.max_watts / total_power;
+      this->scale_all_leds_in_buffer(scale_factor);
+    }
+  }
+}
+
 }  // namespace esphome::light

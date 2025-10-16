@@ -1,0 +1,19 @@
+light:
+  - platform: esp32_rmt_led_strip
+    id: power_managed_strip
+    chipset: ws2812
+    rgb_order: GRB
+    num_leds: 100
+    pin: ${pin}
+    power_limits:
+      max_watts: 5.0
+      voltage: 5.0
+      led_power_consumption:
+        red: 0.06
+        green: 0.06
+        blue: 0.06
+        white: 0.06
+
+  - platform: addressable_light
+    id: power_managed_light
+    addressable_light_id: power_managed_strip
