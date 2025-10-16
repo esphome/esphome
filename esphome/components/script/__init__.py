@@ -45,8 +45,13 @@ def get_script(script_id):
 
 
 def check_max_runs(value):
+    # Set default for queued mode to prevent unbounded queue growth
+    if CONF_MAX_RUNS not in value and value[CONF_MODE] == CONF_QUEUED:
+        value[CONF_MAX_RUNS] = 5
+
     if CONF_MAX_RUNS not in value:
         return value
+
     if value[CONF_MODE] not in [CONF_QUEUED, CONF_PARALLEL]:
         raise cv.Invalid(
             "The option 'max_runs' is only valid in 'queue' and 'parallel' mode.",
@@ -106,7 +111,7 @@ CONFIG_SCHEMA = automation.validate_automation(
         cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(
             *SCRIPT_MODES, lower=True
         ),
-        cv.Optional(CONF_MAX_RUNS): cv.positive_int,
+        cv.Optional(CONF_MAX_RUNS): cv.int_range(min=1, max=100),
         cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
             {
                 validate_parameter_name: validate_parameter_type,
