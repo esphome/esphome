@@ -249,6 +249,9 @@ MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
     "SlidingWindowMovingAverageFilter", Filter
 )
+StreamingMinFilter = sensor_ns.class_("StreamingMinFilter", Filter)
+StreamingMaxFilter = sensor_ns.class_("StreamingMaxFilter", Filter)
+StreamingMovingAverageFilter = sensor_ns.class_("StreamingMovingAverageFilter", Filter)
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
@@ -452,6 +455,19 @@ async def skip_initial_filter_to_code(config, filter_id):
 
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
 async def min_filter_to_code(config, filter_id):
+    window_size = config[CONF_WINDOW_SIZE]
+    send_every = config[CONF_SEND_EVERY]
+    send_first_at = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    # Saves 99.98% memory for large windows (e.g., 20KB → 4 bytes for window_size=5000)
+    if window_size == send_every:
+        return cg.new_Pvariable(
+            filter_id,
+            StreamingMinFilter,
+            window_size,
+            send_first_at,
+        )
     return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
@@ -474,6 +490,19 @@ MAX_SCHEMA = cv.All(
 
 @FILTER_REGISTRY.register("max", MaxFilter, MAX_SCHEMA)
 async def max_filter_to_code(config, filter_id):
+    window_size = config[CONF_WINDOW_SIZE]
+    send_every = config[CONF_SEND_EVERY]
+    send_first_at = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    # Saves 99.98% memory for large windows (e.g., 20KB → 4 bytes for window_size=5000)
+    if window_size == send_every:
+        return cg.new_Pvariable(
+            filter_id,
+            StreamingMaxFilter,
+            window_size,
+            send_first_at,
+        )
     return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
@@ -500,6 +529,19 @@ SLIDING_AVERAGE_SCHEMA = cv.All(
     SLIDING_AVERAGE_SCHEMA,
 )
 async def sliding_window_moving_average_filter_to_code(config, filter_id):
+    window_size = config[CONF_WINDOW_SIZE]
+    send_every = config[CONF_SEND_EVERY]
+    send_first_at = config[CONF_SEND_FIRST_AT]
+
+    # Optimization: Use streaming filter for batch windows (window_size == send_every)
+    # Saves 99.94% memory for large windows (e.g., 20KB → 12 bytes for window_size=5000)
+    if window_size == send_every:
+        return cg.new_Pvariable(
+            filter_id,
+            StreamingMovingAverageFilter,
+            window_size,
+            send_first_at,
+        )
     return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],

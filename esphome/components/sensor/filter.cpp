@@ -468,5 +468,78 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
   return temp;
 }
 
+// StreamingFilter (base class)
+StreamingFilter::StreamingFilter(size_t window_size, size_t send_first_at)
+    : window_size_(window_size), send_first_at_(send_first_at) {}
+
+optional<float> StreamingFilter::new_value(float value) {
+  // Process the value (child class tracks min/max/sum/etc)
+  this->process_value(value);
+
+  this->count_++;
+
+  // Check if we should send (handle send_first_at for first value)
+  bool should_send = false;
+  if (this->first_send_ && this->count_ >= this->send_first_at_) {
+    should_send = true;
+    this->first_send_ = false;
+  } else if (!this->first_send_ && this->count_ >= this->window_size_) {
+    should_send = true;
+  }
+
+  if (should_send) {
+    float result = this->compute_batch_result();
+    // Reset for next batch
+    this->count_ = 0;
+    this->reset_batch();
+    ESP_LOGVV(TAG, "StreamingFilter(%p)::new_value(%f) SENDING %f", this, value, result);
+    return result;
+  }
+
+  return {};
+}
+
+// StreamingMinFilter
+void StreamingMinFilter::process_value(float value) {
+  // Update running minimum (ignore NaN values)
+  if (!std::isnan(value)) {
+    this->current_min_ = std::isnan(this->current_min_) ? value : std::min(this->current_min_, value);
+  }
+}
+
+float StreamingMinFilter::compute_batch_result() { return this->current_min_; }
+
+void StreamingMinFilter::reset_batch() { this->current_min_ = NAN; }
+
+// StreamingMaxFilter
+void StreamingMaxFilter::process_value(float value) {
+  // Update running maximum (ignore NaN values)
+  if (!std::isnan(value)) {
+    this->current_max_ = std::isnan(this->current_max_) ? value : std::max(this->current_max_, value);
+  }
+}
+
+float StreamingMaxFilter::compute_batch_result() { return this->current_max_; }
+
+void StreamingMaxFilter::reset_batch() { this->current_max_ = NAN; }
+
+// StreamingMovingAverageFilter
+void StreamingMovingAverageFilter::process_value(float value) {
+  // Accumulate sum (ignore NaN values)
+  if (!std::isnan(value)) {
+    this->sum_ += value;
+    this->valid_count_++;
+  }
+}
+
+float StreamingMovingAverageFilter::compute_batch_result() {
+  return this->valid_count_ > 0 ? this->sum_ / this->valid_count_ : NAN;
+}
+
+void StreamingMovingAverageFilter::reset_batch() {
+  this->sum_ = 0.0f;
+  this->valid_count_ = 0;
+}
+
 }  // namespace sensor
 }  // namespace esphome

@@ -504,5 +504,81 @@ class ToNTCTemperatureFilter : public Filter {
   double c_;
 };
 
+/** Base class for streaming filters (batch windows where window_size == send_every).
+ *
+ * When window_size equals send_every, we don't need a sliding window.
+ * This base class handles the common batching logic.
+ */
+class StreamingFilter : public Filter {
+ public:
+  StreamingFilter(size_t window_size, size_t send_first_at);
+
+  optional<float> new_value(float value) final;
+
+ protected:
+  /// Called by new_value() to process each value in the batch
+  virtual void process_value(float value) = 0;
+
+  /// Called by new_value() to compute the result after collecting window_size values
+  virtual float compute_batch_result() = 0;
+
+  /// Called by new_value() to reset internal state after sending a result
+  virtual void reset_batch() = 0;
+
+  size_t window_size_;
+  size_t count_{0};
+  size_t send_first_at_;
+  bool first_send_{true};
+};
+
+/** Streaming min filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only the minimum value.
+ */
+class StreamingMinFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float current_min_{NAN};
+};
+
+/** Streaming max filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only the maximum value.
+ */
+class StreamingMaxFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float current_max_{NAN};
+};
+
+/** Streaming moving average filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only sum and count.
+ */
+class StreamingMovingAverageFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float sum_{0.0f};
+  size_t valid_count_{0};
+};
+
 }  // namespace sensor
 }  // namespace esphome
