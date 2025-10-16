@@ -109,16 +109,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
   void execute(Ts... x) override {
-    // Lazy init on first use - avoids setup() ordering issues and saves memory
-    // if script is never executed during this boot cycle
-    if (this->var_queue_.capacity() == 0) {
-      // Allocate max_runs_ slots for queued items (running item is separate)
-      this->var_queue_.init(this->max_runs_);
-      // Initialize all unique_ptr slots to nullptr
-      for (int i = 0; i < this->max_runs_; i++) {
-        this->var_queue_.push_back(nullptr);
-      }
-    }
+    this->lazy_init_queue_();
 
     if (this->is_action_running() || this->num_queued_ > 0) {
       // num_queued_ is the number of *queued* instances (waiting, not including currently running)
@@ -164,6 +155,19 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
  protected:
+  // Lazy init queue on first use - avoids setup() ordering issues and saves memory
+  // if script is never executed during this boot cycle
+  inline void lazy_init_queue_() {
+    if (this->var_queue_.capacity() == 0) {
+      // Allocate max_runs_ slots for queued items (running item is separate)
+      this->var_queue_.init(this->max_runs_);
+      // Initialize all unique_ptr slots to nullptr
+      for (int i = 0; i < this->max_runs_; i++) {
+        this->var_queue_.push_back(nullptr);
+      }
+    }
+  }
+
   template<int... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     this->trigger(std::get<S>(tuple)...);
   }
