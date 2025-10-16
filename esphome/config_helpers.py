@@ -30,11 +30,11 @@ def merge_dicts_ordered(*dicts: dict) -> OrderedDict:
     Returns:
         OrderedDict with merged contents
     """
-    result = {}
+    result = OrderedDict()
     for d in dicts:
         if d:
             result.update(d)
-    return OrderedDict(result)
+    return result
 
 
 class Extend:
