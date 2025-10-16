@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from helpers import BASE_BUS_COMPONENTS
 
 from esphome import yaml_util
-from esphome.config_helpers import Extend, Remove
+from esphome.types import Extend, Remove
 
 # Path to common bus configs
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
