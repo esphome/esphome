@@ -12,14 +12,14 @@
 namespace esphome {
 namespace vs1053 {
 
-static constexpr const uint32_t VS1053_CANCEL_TIMEOUT_US = 1000000;  // 1 sec
-static constexpr const uint32_t VS1053_LOOP_TIMEOUT_US = 8000;       // 8 ms
+static constexpr const uint32_t CANCEL_TIMEOUT_US = 1000000;  // 1 sec
+static constexpr const uint32_t LOOP_TIMEOUT_US = 8000;       // 8 ms
 
-static constexpr const size_t VS1053_FIFO_LENGTH = 2048;
-static constexpr const size_t VS1053_TRANSFER_SIZE = 32;  // DREQ must be checked at least every 32 bytes
+static constexpr const size_t FIFO_LENGTH = 2048;
+static constexpr const size_t MAX_TRANSFER_SIZE = 32;  // DREQ must be checked at least every 32 bytes
 
-static constexpr const size_t VS1053_FILL_LENGTH = 2052;
-static constexpr const size_t VS1053_STOP_FILL_LENGTH = 2048;
+static constexpr const size_t FILL_LENGTH = 2052;
+static constexpr const size_t STOP_FILL_LENGTH = 2048;
 
 static constexpr const uint8_t VS1053_VERSION = 4;  // Per datasheet, VS1053/VS8053 SS_VER = 4
 
@@ -68,7 +68,7 @@ class VS1053Component : public Component {
   PlaybackState state_ = PlaybackState::Idle;
   const uint8_t* buffer_ = nullptr;
   const uint8_t* buffer_end_ = nullptr;
-  uint8_t fill_buffer_[VS1053_TRANSFER_SIZE];
+  uint8_t fill_buffer_[MAX_TRANSFER_SIZE];
   size_t fill_remaining_ = 0;
   uint32_t cancel_start_ = 0;
 

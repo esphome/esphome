@@ -41,21 +41,6 @@ void VS1053Component::setup() {
 }
 
 void VS1053Component::loop() {
-  // Start playback
-  // Send initial data
-  // Get fill byte
-  //
-  // STOP
-  // Send until end of file
-  // Send fill data
-  // Set cancel bit
-  // Send fill data until cancel cleared -> timeout to fault
-  //
-  // CANCEL
-  // Set cancel bit
-  // Keep sending file data until cancel cleared -> timeout to fault
-  // Send fill data
-
   // Device encountered an error. Attempt recovery with a soft reset
   if (this->state_ == PlaybackState::Error) {
     ESP_LOGI(TAG, "Playback error. Attempting soft reset.");
@@ -86,13 +71,13 @@ void VS1053Component::loop() {
 
     // Send as much fill data as possible
     while (this->data_ready_() && this->fill_remaining_ > 0) {
-      size_t write_length = std::min(this->fill_remaining_, VS1053_TRANSFER_SIZE);
+      size_t write_length = std::min(this->fill_remaining_, MAX_TRANSFER_SIZE);
       this->data_write_(this->fill_buffer_, write_length);
 
       this->fill_remaining_ -= write_length;
 
       // Don't tie up the system for too long
-      if ((micros() - start) > VS1053_LOOP_TIMEOUT_US)
+      if ((micros() - start) > LOOP_TIMEOUT_US)
         break;
     }
 
@@ -113,7 +98,7 @@ void VS1053Component::loop() {
   ESP_LOGD(TAG, "%d bytes of file data remaining.", remaining);
 
   while (this->data_ready_() && remaining > 0) {
-    size_t write_length = std::min(remaining, VS1053_TRANSFER_SIZE);
+    size_t write_length = std::min(remaining, MAX_TRANSFER_SIZE);
     this->data_write_(this->buffer_, write_length);
 
     this->buffer_ += write_length;
@@ -123,7 +108,7 @@ void VS1053Component::loop() {
     uint32_t now = micros();
 
     // Don't tie up the system for too long
-    if ((now - start) > VS1053_LOOP_TIMEOUT_US)
+    if ((now - start) > LOOP_TIMEOUT_US)
       break;
 
     // Handle playback cancellation
@@ -131,9 +116,9 @@ void VS1053Component::loop() {
       if (!this->get_cancel_bit_()) {
         // Start fill if cancel bit is cleared
         ESP_LOGI(TAG, "Playback cancelled. Sending fill data.");
-        this->fill_remaining_ = VS1053_FILL_LENGTH;
+        this->fill_remaining_ = FILL_LENGTH;
         this->state_ = PlaybackState::Cancelled;
-      } else if ((now - this->cancel_start_) > VS1053_CANCEL_TIMEOUT_US) {
+      } else if ((now - this->cancel_start_) > CANCEL_TIMEOUT_US) {
         // Device has failed to cancel after 1 second
         ESP_LOGE(TAG, "Playback cancellation failed.");
         this->state_ = PlaybackState::Error;
@@ -146,7 +131,7 @@ void VS1053Component::loop() {
   // End of file, stop playback
   if (this->buffer_ >= this->buffer_end_) {
     ESP_LOGI(TAG, "Playback complete. Sending fill data.");
-    this->fill_remaining_ = VS1053_FILL_LENGTH;
+    this->fill_remaining_ = FILL_LENGTH;
     this->state_ = PlaybackState::Stop;
   }
 }
@@ -215,9 +200,9 @@ void VS1053Component::play_file(const uint8_t* data, size_t length) {
   this->state_ = PlaybackState::Playing;
 
   // Attempt to fill entire FIFO
-  size_t remaining = std::min(length, VS1053_FIFO_LENGTH);
+  size_t remaining = std::min(length, FIFO_LENGTH);
   while (this->data_ready_() && remaining > 0) {
-    size_t write_length = std::min(remaining, VS1053_TRANSFER_SIZE);
+    size_t write_length = std::min(remaining, MAX_TRANSFER_SIZE);
     this->data_write_(this->buffer_, write_length);
 
     this->buffer_ += write_length;
@@ -302,12 +287,12 @@ void VS1053Component::finish_playback_() {
   // Continue writing fill until cancel bit clears
   size_t fill_sent = 0;
   while (this->get_cancel_bit_()) {
-    this->data_write_(this->fill_buffer_, VS1053_TRANSFER_SIZE);
+    this->data_write_(this->fill_buffer_, MAX_TRANSFER_SIZE);
 
-    fill_sent += VS1053_TRANSFER_SIZE;
+    fill_sent += MAX_TRANSFER_SIZE;
 
     // Cancel bit won't clear, device is in error
-    if (fill_sent >= VS1053_STOP_FILL_LENGTH) {
+    if (fill_sent >= STOP_FILL_LENGTH) {
       ESP_LOGE(TAG, "Playback stop failed.");
       this->state_ = PlaybackState::Error;
       return;
