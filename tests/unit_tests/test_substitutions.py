@@ -222,7 +222,7 @@ def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
     # Create a minimal valid config
     test_config = OrderedDict()
     test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
-    test_config[CONF_SUBSTITUTIONS] = {"var1": "value1", "var2": "value2"}
+    test_config[CONF_SUBSTITUTIONS] = OrderedDict({"var1": "value1", "var2": "value2"})
     test_config["esp32"] = {"board": "esp32dev"}
 
     # Command line substitutions that should override
@@ -258,7 +258,7 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     # Create a minimal valid config
     test_config = OrderedDict()
     test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
-    test_config[CONF_SUBSTITUTIONS] = {"var1": "value1", "var2": "value2"}
+    test_config[CONF_SUBSTITUTIONS] = OrderedDict({"var1": "value1", "var2": "value2"})
     test_config["esp32"] = {"board": "esp32dev"}
 
     # Set up CORE for the test with a proper Path object
