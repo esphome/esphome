@@ -180,9 +180,12 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
-    # Create secrets.yaml
+    # Create secrets.yaml with obviously fake test values
     secrets_file = config_dir / "secrets.yaml"
-    secrets_file.write_text("wifi_ssid: TestNetwork\nwifi_password: TestPass123\n")
+    secrets_file.write_text(
+        "wifi_ssid: TEST-DUMMY-SSID\n"
+        "wifi_password: not-a-real-password-just-for-testing\n"
+    )
 
     # Create package file that uses secrets
     package_file = config_dir / "common.yaml"

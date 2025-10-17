@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from argparse import Namespace
 import asyncio
 from collections.abc import Generator
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from tornado.ioloop import IOLoop
 from tornado.testing import bind_unused_port
 from tornado.websocket import WebSocketClientConnection, websocket_connect
 
+from esphome import yaml_util
+from esphome.core import CORE
 from esphome.dashboard import web_server
 from esphome.dashboard.const import DashboardEvent
 from esphome.dashboard.core import DASHBOARD
@@ -1305,25 +1308,27 @@ async def test_dashboard_subscriber_refresh_event(
 
 
 @pytest.mark.asyncio
-async def test_download_list_handler_with_packages_and_secrets(
-    dashboard: DashboardTestHelper,
+async def test_dashboard_yaml_loading_with_packages_and_secrets(
     tmp_path: Path,
-    mock_storage_json: MagicMock,
-    mock_ext_storage_path: MagicMock,
-    mock_dashboard_settings: MagicMock,
 ) -> None:
-    """Test DownloadListRequestHandler with packages referencing secrets.
+    """Test dashboard YAML loading with packages referencing secrets.
 
     This is a regression test for issue #11280 where binary download failed
     when using packages with secrets after the Path migration in 2025.10.0.
+
+    This test verifies that CORE.config_path initialization in the dashboard
+    allows yaml_util.load_yaml() to correctly resolve secrets from packages.
     """
     # Create test directory structure with secrets and packages
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
-    # Create secrets.yaml
+    # Create secrets.yaml with obviously fake test values
     secrets_file = config_dir / "secrets.yaml"
-    secrets_file.write_text("wifi_ssid: TestNetwork\nwifi_password: TestPass123\n")
+    secrets_file.write_text(
+        "wifi_ssid: TEST-DUMMY-SSID\n"
+        "wifi_password: not-a-real-password-just-for-testing\n"
+    )
 
     # Create package file that uses secrets
     package_file = config_dir / "common.yaml"
@@ -1338,37 +1343,33 @@ async def test_download_list_handler_with_packages_and_secrets(
         "packages:\n  common: !include common.yaml\n"
     )
 
-    # Mock storage JSON
-    storage_path = tmp_path / "test-download-secrets.json"
-    mock_ext_storage_path.return_value = str(storage_path)
-
-    mock_storage = Mock()
-    mock_storage.name = "test-download-secrets"
-    mock_storage.target_platform = "ESP32"
-    mock_storage_json.load.return_value = mock_storage
-
-    # Configure mock settings to use our temp directory
-    mock_dashboard_settings.rel_path.return_value = device_config
-    mock_dashboard_settings.absolute_config_dir = config_dir.resolve()
-
-    # Make the request - should successfully load YAML with secrets from packages
-    # This would previously fail with "Secret 'wifi_ssid' not defined" due to
-    # CORE.config_path.parent pointing to "/" instead of the config directory
-    response = await dashboard.fetch(
-        "/downloads?configuration=test-download-secrets.yaml",
-        method="GET",
+    # Initialize DASHBOARD settings with our test config directory
+    # This is what sets CORE.config_path - the critical code path for the bug
+    args = Namespace(
+        configuration=str(config_dir),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
     )
-    assert response.code == 200
-    assert response.headers["content-type"] == "application/json"
+    DASHBOARD.settings.parse_args(args)
 
-    # Verify we got a valid response with download options
-    data = json.loads(response.body.decode())
-    assert isinstance(data, list)
-    assert len(data) > 0
+    # With the fix: CORE.config_path should be config_dir / "___DASHBOARD_SENTINEL___.yaml"
+    # so CORE.config_path.parent would be config_dir
+    # Without the fix: CORE.config_path is config_dir / "." which normalizes to config_dir
+    # so CORE.config_path.parent would be tmp_path (the parent of config_dir)
 
-    # Verify the download list contains expected firmware files
-    # The successful response proves that secrets were resolved correctly from
-    # the package file, which means CORE.config_path.parent correctly pointed
-    # to the config directory where secrets.yaml exists
-    assert any("factory" in download.get("file", "") for download in data)
-    assert any("ota" in download.get("file", "") for download in data)
+    # The fix ensures CORE.config_path.parent points to config_dir
+    assert CORE.config_path.parent == config_dir.resolve(), (
+        f"CORE.config_path.parent should point to config_dir. "
+        f"Got {CORE.config_path.parent}, expected {config_dir.resolve()}. "
+        f"CORE.config_path is {CORE.config_path}"
+    )
+
+    # Now load the YAML with packages that reference secrets
+    # This is where the bug would manifest - yaml_util.load_yaml would fail
+    # to find secrets.yaml because CORE.config_path.parent pointed to the wrong place
+    config = yaml_util.load_yaml(device_config)
+    # If we get here, secret resolution worked!
+    assert "esphome" in config
+    assert config["esphome"]["name"] == "test-download-secrets"
