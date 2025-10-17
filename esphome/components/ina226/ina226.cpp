@@ -37,8 +37,6 @@ static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
 
 void INA226Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ConfigurationRegister config;
 
   config.reset = 1;

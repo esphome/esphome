@@ -1,5 +1,6 @@
 #include "filter.h"
 #include <cmath>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "sensor.h"
@@ -50,6 +51,7 @@ optional<float> MedianFilter::new_value(float value) {
     if (!this->queue_.empty()) {
       // Copy queue without NaN values
       std::vector<float> median_queue;
+      median_queue.reserve(this->queue_.size());
       for (auto v : this->queue_) {
         if (!std::isnan(v)) {
           median_queue.push_back(v);
@@ -223,7 +225,7 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
 
 // ExponentialMovingAverageFilter
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
-    : send_every_(send_every), send_at_(send_every - send_first_at), alpha_(alpha) {}
+    : alpha_(alpha), send_every_(send_every), send_at_(send_every - send_first_at) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
     if (this->first_value_) {
@@ -323,8 +325,42 @@ optional<float> FilterOutValueFilter::new_value(float value) {
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_) {
+    this->last_input_ = now;
+    return value;
+  }
+  return {};
+}
+
+// ThrottleWithPriorityFilter
+ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
+                                                       std::vector<TemplatableValue<float>> prioritized_values)
+    : min_time_between_inputs_(min_time_between_inputs), prioritized_values_(std::move(prioritized_values)) {}
+
+optional<float> ThrottleWithPriorityFilter::new_value(float value) {
+  bool is_prioritized_value = false;
+  int8_t accuracy = this->parent_->get_accuracy_decimals();
+  float accuracy_mult = powf(10.0f, accuracy);
+  const uint32_t now = App.get_loop_component_start_time();
+  // First, determine if the new value is one of the prioritized values
+  for (auto prioritized_value : this->prioritized_values_) {
+    if (std::isnan(prioritized_value.value())) {
+      if (std::isnan(value)) {
+        is_prioritized_value = true;
+        break;
+      }
+      continue;
+    }
+    float rounded_prioritized_value = roundf(accuracy_mult * prioritized_value.value());
+    float rounded_value = roundf(accuracy_mult * value);
+    if (rounded_prioritized_value == rounded_value) {
+      is_prioritized_value = true;
+      break;
+    }
+  }
+  // Finally, determine if the new value should be throttled and pass it through if not
+  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || is_prioritized_value) {
     this->last_input_ = now;
     return value;
   }
@@ -333,19 +369,17 @@ optional<float> ThrottleFilter::new_value(float value) {
 
 // DeltaFilter
 DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), percentage_mode_(percentage_mode), last_value_(NAN) {}
+    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
 optional<float> DeltaFilter::new_value(float value) {
   if (std::isnan(value)) {
     if (std::isnan(this->last_value_)) {
       return {};
     } else {
-      if (this->percentage_mode_) {
-        this->current_delta_ = fabsf(value * this->delta_);
-      }
       return this->last_value_ = value;
     }
   }
-  if (std::isnan(this->last_value_) || fabsf(value - this->last_value_) >= this->current_delta_) {
+  float diff = fabsf(value - this->last_value_);
+  if (std::isnan(this->last_value_) || (diff > 0.0f && diff >= this->current_delta_)) {
     if (this->percentage_mode_) {
       this->current_delta_ = fabsf(value * this->delta_);
     }
@@ -383,12 +417,17 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
 
 // TimeoutFilter
 optional<float> TimeoutFilter::new_value(float value) {
-  this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value()); });
+  if (this->value_.has_value()) {
+    this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value().value()); });
+  } else {
+    this->set_timeout("timeout", this->time_period_, [this, value]() { this->output(value); });
+  }
   return value;
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period, TemplatableValue<float> new_value)
-    : time_period_(time_period), value_(std::move(new_value)) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
+TimeoutFilter::TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value)
+    : time_period_(time_period), value_(new_value) {}
 float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // DebounceFilter

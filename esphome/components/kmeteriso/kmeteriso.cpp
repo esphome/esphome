@@ -14,7 +14,6 @@ static const uint8_t KMETER_INTERNAL_TEMP_VAL_REG = 0x10;
 static const uint8_t KMETER_FIRMWARE_VERSION_REG = 0xFE;
 
 void KMeterISOComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->error_code_ = NONE;
 
   // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
@@ -23,7 +22,7 @@ void KMeterISOComponent::setup() {
     this->reset_to_construction_state();
   }
 
-  auto err = this->bus_->writev(this->address_, nullptr, 0);
+  auto err = this->bus_->write_readv(this->address_, nullptr, 0, nullptr, 0);
   if (err == esphome::i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "Could write to the address %d.", this->address_);
   } else {
@@ -46,7 +45,6 @@ void KMeterISOComponent::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGCONFIG(TAG, "The device was successfully setup.");
 }
 
 float KMeterISOComponent::get_setup_priority() const { return setup_priority::DATA; }

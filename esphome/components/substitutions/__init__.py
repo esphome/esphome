@@ -1,10 +1,10 @@
 import logging
 
 from esphome import core
-from esphome.config_helpers import Extend, Remove, merge_config
+from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
-from esphome.yaml_util import ESPHomeDataBase, make_data_base
+from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
 
 from .jinja import Jinja, JinjaStr, TemplateError, TemplateRuntimeError, has_jinja
 
@@ -49,15 +49,14 @@ def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
         try:
             # Invoke the jinja engine to evaluate the expression.
             value, err = jinja.expand(value)
-            if err is not None:
-                if not ignore_missing and "password" not in path:
-                    _LOGGER.warning(
-                        "Found '%s' (see %s) which looks like an expression,"
-                        " but could not resolve all the variables: %s",
-                        value,
-                        "->".join(str(x) for x in path),
-                        err.message,
-                    )
+            if err is not None and not ignore_missing and "password" not in path:
+                _LOGGER.warning(
+                    "Found '%s' (see %s) which looks like an expression,"
+                    " but could not resolve all the variables: %s",
+                    value,
+                    "->".join(str(x) for x in path),
+                    err.message,
+                )
         except (
             TemplateError,
             TemplateRuntimeError,
@@ -128,6 +127,8 @@ def _expand_substitutions(substitutions, value, path, jinja, ignore_missing):
 
 
 def _substitute_item(substitutions, item, path, jinja, ignore_missing):
+    if isinstance(item, ESPLiteralValue):
+        return None  # do not substitute inside literal blocks
     if isinstance(item, list):
         for i, it in enumerate(item):
             sub = _substitute_item(substitutions, it, path + [i], jinja, ignore_missing)
@@ -169,10 +170,10 @@ def do_substitution_pass(config, command_line_substitutions, ignore_missing=Fals
         return
 
     # Merge substitutions in config, overriding with substitutions coming from command line:
-    substitutions = {
-        **config.get(CONF_SUBSTITUTIONS, {}),
-        **(command_line_substitutions or {}),
-    }
+    # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
+    substitutions = merge_dicts_ordered(
+        config.get(CONF_SUBSTITUTIONS, {}), command_line_substitutions or {}
+    )
     with cv.prepend_path("substitutions"):
         if not isinstance(substitutions, dict):
             raise cv.Invalid(

@@ -28,7 +28,6 @@ static const uint8_t FT63X6_ADDR_CHIP_ID = 0xA3;
 static const char *const TAG = "FT63X6";
 
 void FT63X6Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();

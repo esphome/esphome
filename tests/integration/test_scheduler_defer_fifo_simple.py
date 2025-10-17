@@ -90,7 +90,7 @@ async def test_scheduler_defer_fifo_simple(
         try:
             await asyncio.wait_for(test_complete_future, timeout=5.0)
             test1_passed = await asyncio.wait_for(test_result_future, timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Test set_timeout(0) did not complete within 5 seconds")
 
         assert test1_passed is True, (
@@ -108,7 +108,7 @@ async def test_scheduler_defer_fifo_simple(
         try:
             await asyncio.wait_for(test_complete_future, timeout=5.0)
             test2_passed = await asyncio.wait_for(test_result_future, timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Test defer() did not complete within 5 seconds")
 
         # Verify the test passed

@@ -176,7 +176,7 @@ void SSD1306::setup() {
   // Disable scrolling mode (0x2E)
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
-  // Contrast and brighrness
+  // Contrast and brightness
   // SSD1306 does not have brightness setting
   set_contrast(this->contrast_);
   if (this->is_ssd1305_())
