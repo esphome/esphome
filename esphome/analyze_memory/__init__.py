@@ -9,7 +9,12 @@ from pathlib import Path
 import re
 import subprocess
 
-from .const import DEMANGLED_PATTERNS, ESPHOME_COMPONENT_PATTERN, SYMBOL_PATTERNS
+from .const import (
+    CORE_SUBCATEGORY_PATTERNS,
+    DEMANGLED_PATTERNS,
+    ESPHOME_COMPONENT_PATTERN,
+    SYMBOL_PATTERNS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +40,26 @@ def get_esphome_components():
                 components.add(item.name)
 
     return components
+
+
+@cache
+def get_component_class_patterns(component_name: str) -> list[str]:
+    """Generate component class name patterns for symbol matching.
+
+    Args:
+        component_name: The component name (e.g., "ota", "wifi", "api")
+
+    Returns:
+        List of pattern strings to match against demangled symbols
+    """
+    component_upper = component_name.upper()
+    component_camel = component_name.replace("_", "").title()
+    return [
+        f"esphome::{component_upper}Component",  # e.g., esphome::OTAComponent
+        f"esphome::ESPHome{component_upper}Component",  # e.g., esphome::ESPHomeOTAComponent
+        f"esphome::{component_camel}Component",  # e.g., esphome::OtaComponent
+        f"esphome::ESPHome{component_camel}Component",  # e.g., esphome::ESPHomeOtaComponent
+    ]
 
 
 @dataclass
@@ -289,16 +314,7 @@ class MemoryAnalyzer:
             # Check for special component classes that include component name in the class
             # For example: esphome::ESPHomeOTAComponent -> ota component
             for component_name in get_esphome_components():
-                # Check various naming patterns
-                component_upper = component_name.upper()
-                component_camel = component_name.replace("_", "").title()
-                patterns = [
-                    f"esphome::{component_upper}Component",  # e.g., esphome::OTAComponent
-                    f"esphome::ESPHome{component_upper}Component",  # e.g., esphome::ESPHomeOTAComponent
-                    f"esphome::{component_camel}Component",  # e.g., esphome::OtaComponent
-                    f"esphome::ESPHome{component_camel}Component",  # e.g., esphome::ESPHomeOtaComponent
-                ]
-
+                patterns = get_component_class_patterns(component_name)
                 if any(pattern in demangled for pattern in patterns):
                     return f"[esphome]{component_name}"
 
@@ -394,35 +410,6 @@ class MemoryAnalyzer:
 
     def _categorize_esphome_core_symbol(self, demangled: str) -> str:
         """Categorize ESPHome core symbols into subcategories."""
-        # Dictionary of patterns for core subcategories
-        CORE_SUBCATEGORY_PATTERNS = {
-            "Component Framework": ["Component"],
-            "Application Core": ["Application"],
-            "Scheduler": ["Scheduler"],
-            "Logging": ["Logger", "log_"],
-            "Preferences": ["preferences", "Preferences"],
-            "Synchronization": ["Mutex", "Lock"],
-            "Helpers": ["Helper"],
-            "Network Utilities": ["network", "Network"],
-            "Time Management": ["time", "Time"],
-            "String Utilities": ["str_", "string"],
-            "Parsing/Formatting": ["parse_", "format_"],
-            "Optional Types": ["optional", "Optional"],
-            "Callbacks": ["Callback", "callback"],
-            "Color Utilities": ["Color"],
-            "C++ Operators": ["operator"],
-            "Global Variables": ["global_", "_GLOBAL"],
-            "Setup/Loop": ["setup", "loop"],
-            "System Control": ["reboot", "restart"],
-            "GPIO Management": ["GPIO", "gpio"],
-            "Interrupt Handling": ["ISR", "interrupt"],
-            "Hooks": ["Hook", "hook"],
-            "Entity Base Classes": ["Entity"],
-            "Automation Framework": ["automation", "Automation"],
-            "Automation Components": ["Condition", "Action", "Trigger"],
-            "Lambda Support": ["lambda"],
-        }
-
         # Special patterns that need to be checked separately
         if any(pattern in demangled for pattern in ["vtable", "typeinfo", "thunk"]):
             return "C++ Runtime (vtables/RTTI)"
@@ -430,7 +417,7 @@ class MemoryAnalyzer:
         if demangled.startswith("std::"):
             return "C++ STL"
 
-        # Check against patterns
+        # Check against patterns from const.py
         for category, patterns in CORE_SUBCATEGORY_PATTERNS.items():
             if any(pattern in demangled for pattern in patterns):
                 return category

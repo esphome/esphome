@@ -855,3 +855,31 @@ DEMANGLED_PATTERNS = {
     "filesystem": ["spiffs", "vfs"],
     "libc": ["newlib"],
 }
+
+# Patterns for categorizing ESPHome core symbols into subcategories
+CORE_SUBCATEGORY_PATTERNS = {
+    "Component Framework": ["Component"],
+    "Application Core": ["Application"],
+    "Scheduler": ["Scheduler"],
+    "Component Iterator": ["ComponentIterator"],
+    "Helper Functions": ["Helpers", "helpers"],
+    "Preferences/Storage": ["Preferences", "ESPPreferences"],
+    "I/O Utilities": ["HighFrequencyLoopRequester"],
+    "String Utilities": ["str_"],
+    "Bit Utilities": ["reverse_bits"],
+    "Data Conversion": ["convert_"],
+    "Network Utilities": ["network", "IPAddress"],
+    "API Protocol": ["api::"],
+    "WiFi Manager": ["wifi::"],
+    "MQTT Client": ["mqtt::"],
+    "Logger": ["logger::"],
+    "OTA Updates": ["ota::"],
+    "Web Server": ["web_server::"],
+    "Time Management": ["time::"],
+    "Sensor Framework": ["sensor::"],
+    "Binary Sensor": ["binary_sensor::"],
+    "Switch Framework": ["switch_::"],
+    "Light Framework": ["light::"],
+    "Climate Framework": ["climate::"],
+    "Cover Framework": ["cover::"],
+}
