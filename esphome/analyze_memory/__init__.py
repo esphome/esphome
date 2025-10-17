@@ -13,6 +13,7 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
+    SECTION_MAPPING,
     SYMBOL_PATTERNS,
 )
 
@@ -23,23 +24,21 @@ _LOGGER = logging.getLogger(__name__)
 @cache
 def get_esphome_components():
     """Get set of actual ESPHome components from the components directory."""
-    components = set()
-
     # Find the components directory relative to this file
     # Go up two levels from analyze_memory/__init__.py to esphome/
     current_dir = Path(__file__).parent.parent
     components_dir = current_dir / "components"
 
-    if components_dir.exists() and components_dir.is_dir():
-        for item in components_dir.iterdir():
-            if (
-                item.is_dir()
-                and not item.name.startswith(".")
-                and not item.name.startswith("__")
-            ):
-                components.add(item.name)
+    if not components_dir.exists() or not components_dir.is_dir():
+        return frozenset()
 
-    return components
+    return frozenset(
+        item.name
+        for item in components_dir.iterdir()
+        if item.is_dir()
+        and not item.name.startswith(".")
+        and not item.name.startswith("__")
+    )
 
 
 @cache
@@ -179,13 +178,6 @@ class MemoryAnalyzer:
 
     def _parse_symbols(self) -> None:
         """Parse symbols from ELF file."""
-        # Section mapping - centralizes the logic
-        SECTION_MAPPING = {
-            ".text": [".text", ".iram"],
-            ".rodata": [".rodata"],
-            ".data": [".data", ".dram"],
-            ".bss": [".bss"],
-        }
 
         def map_section_name(raw_section: str) -> str | None:
             """Map raw section name to standard section."""

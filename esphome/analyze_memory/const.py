@@ -5,6 +5,15 @@ import re
 # Pattern to extract ESPHome component namespaces dynamically
 ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 
+# Section mapping for ELF file sections
+# Maps standard section names to their various platform-specific variants
+SECTION_MAPPING = {
+    ".text": frozenset([".text", ".iram"]),
+    ".rodata": frozenset([".rodata"]),
+    ".data": frozenset([".data", ".dram"]),
+    ".bss": frozenset([".bss"]),
+}
+
 # Component identification rules
 # Symbol patterns: patterns found in raw symbol names
 SYMBOL_PATTERNS = {
