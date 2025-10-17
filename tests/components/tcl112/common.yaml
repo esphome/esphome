@@ -9,3 +9,4 @@ climate:
     supports_heat: true
     supports_cool: true
     sensor: tcl112_sensor
+    transmitter_id: xmitr

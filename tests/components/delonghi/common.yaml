@@ -1,3 +1,4 @@
 climate:
   - platform: delonghi
     name: Delonghi Climate
+    transmitter_id: xmitr

@@ -1,3 +1,4 @@
 climate:
   - platform: yashima
     name: Yashima Climate
+    transmitter_id: xmitr
