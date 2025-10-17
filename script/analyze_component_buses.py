@@ -83,8 +83,6 @@ ISOLATED_COMPONENTS = {
     "openthread": "Conflicts with wifi: used by most components",
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
-    "mcp4725": "no YAML config to specify i2c bus id",
-    "mcp47a1": "no YAML config to specify i2c bus id",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
