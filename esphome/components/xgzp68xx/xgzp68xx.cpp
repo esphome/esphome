@@ -93,17 +93,15 @@ void XGZP68XXComponent::setup() {
   uint8_t config1 = 0, config2 = 0;
 
   // Display some sample bits to confirm we are talking to the sensor
-  if(!this->read_register(SYSCONFIG_ADDRESS, &config1, 1).has_value()) {
+  if (i2c::ErrorCode::ERROR_OK != this->read_register(SYSCONFIG_ADDRESS, &config1, 1)) {
     this->mark_failed();
     return;
   }
-  if(!this->read_register(PCONFIG_ADDRESS, &config2, 1).has_value()) {
+  if (i2c::ErrorCode::ERROR_OK != this->read_register(PCONFIG_ADDRESS, &config2, 1)) {
     this->mark_failed();
     return;
   }
-  ESP_LOGCONFIG(TAG,
-                "on setup: sys_config = 0x%x p_config = 0x%x",
-                config1, config2);
+  ESP_LOGCONFIG(TAG, "on setup: sys_config = 0x%x p_config = 0x%x", config1, config2);
 }
 
 void XGZP68XXComponent::dump_config() {
