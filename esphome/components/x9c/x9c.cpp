@@ -6,7 +6,11 @@ namespace x9c {
 
 static const char *const TAG = "x9c.output";
 
-void X9cOutput::trim_value(int change_amount) {
+void X9cOutput::trim_value(int32_t change_amount) {
+  if (change_amount == 0) {
+    return;
+  }
+
   if (change_amount > 0) {  // Set change direction
     this->ud_pin_->digital_write(true);
   } else {
@@ -16,7 +20,7 @@ void X9cOutput::trim_value(int change_amount) {
   this->inc_pin_->digital_write(true);
   this->cs_pin_->digital_write(false);  // Select chip
 
-  for (int i = 0; i < abs(change_amount); i++) {  // Move wiper
+  for (int32_t i = 0; i < abs(change_amount); i++) {  // Move wiper
     this->inc_pin_->digital_write(true);
     delayMicroseconds(this->step_delay_);
     this->inc_pin_->digital_write(false);
@@ -43,17 +47,17 @@ void X9cOutput::setup() {
 
   if (this->initial_value_ <= 0.50) {
     this->trim_value(-101);  // Set min value (beyond 0)
-    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100)));
+    this->trim_value(static_cast<int32_t>(roundf(this->initial_value_ * 100)));
   } else {
     this->trim_value(101);  // Set max value (beyond 100)
-    this->trim_value(static_cast<uint32_t>(roundf(this->initial_value_ * 100) - 100));
+    this->trim_value(static_cast<int32_t>(roundf(this->initial_value_ * 100) - 100));
   }
   this->pot_value_ = this->initial_value_;
   this->write_state(this->initial_value_);
 }
 
 void X9cOutput::write_state(float state) {
-  int change_amount = static_cast<uint32_t>(roundf((state - this->pot_value_) * 100));
+  int32_t change_amount = static_cast<int32_t>(roundf((state - this->pot_value_) * 100));
   if (change_amount != 0) {
     this->trim_value(change_amount);
     this->pot_value_ = roundf(state * 100.0f) / 100.0f;  // Saved as rounded value to avoid error acumulation
