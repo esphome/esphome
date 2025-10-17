@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from typing import Any
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
@@ -18,26 +19,57 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    from os import makedirs
-    from os.path import getmtime, isdir, join
-
     from platformio.run import cli, helpers
 
     def patched_clean_build_dir(build_dir, *args):
         from platformio import fs
         from platformio.project.helpers import get_project_dir
 
-        platformio_ini = join(get_project_dir(), "platformio.ini")
+        platformio_ini = Path(get_project_dir()) / "platformio.ini"
+
+        build_dir = Path(build_dir)
 
         # if project's config is modified
-        if isdir(build_dir) and getmtime(platformio_ini) > getmtime(build_dir):
+        if (
+            build_dir.is_dir()
+            and platformio_ini.stat().st_mtime > build_dir.stat().st_mtime
+        ):
             fs.rmtree(build_dir)
 
-        if not isdir(build_dir):
-            makedirs(build_dir)
+        if not build_dir.is_dir():
+            build_dir.mkdir(parents=True)
 
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir
+
+
+def patch_file_downloader():
+    """Patch PlatformIO's FileDownloader to retry on PackageException errors."""
+    from platformio.package.download import FileDownloader
+    from platformio.package.exception import PackageException
+
+    original_init = FileDownloader.__init__
+
+    def patched_init(self, *args: Any, **kwargs: Any) -> None:
+        max_retries = 3
+
+        for attempt in range(max_retries):
+            try:
+                return original_init(self, *args, **kwargs)
+            except PackageException as e:
+                if attempt < max_retries - 1:
+                    _LOGGER.warning(
+                        "Package download failed: %s. Retrying... (attempt %d/%d)",
+                        str(e),
+                        attempt + 1,
+                        max_retries,
+                    )
+                else:
+                    # Final attempt - re-raise
+                    raise
+        return None
+
+    FileDownloader.__init__ = patched_init
 
 
 IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
@@ -70,14 +102,19 @@ FILTER_PLATFORMIO_LINES = [
     r" - tool-esptool.* \(.*\)",
     r" - toolchain-.* \(.*\)",
     r"Creating BIN file .*",
+    r"Warning! Could not find file \".*.crt\"",
+    r"Warning! Arduino framework as an ESP-IDF component doesn't handle the `variant` field! The default `esp32` variant will be used.",
+    r"Warning: DEPRECATED: 'esptool.py' is deprecated. Please use 'esptool' instead. The '.py' suffix will be removed in a future major release.",
+    r"Warning: esp-idf-size exited with code 2",
+    r"esp_idf_size: error: unrecognized arguments: --ng",
 ]
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
-    os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
+    os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
     os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
+        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
@@ -92,11 +129,12 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     import platformio.__main__
 
     patch_structhash()
+    patch_file_downloader()
     return run_external_command(platformio.__main__.main, *cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
-    command = ["run", "-d", CORE.build_path]
+    command = ["run", "-d", str(CORE.build_path)]
     if verbose:
         command += ["-v"]
     command += list(args)
@@ -128,8 +166,8 @@ def _run_idedata(config):
 
 
 def _load_idedata(config):
-    platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
-    temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    temp_idedata = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
 
     changed = False
     if (
@@ -299,7 +337,7 @@ def process_stacktrace(config, line, backtrace_state):
 
 @dataclass
 class FlashImage:
-    path: str
+    path: Path
     offset: str
 
 
@@ -308,17 +346,17 @@ class IDEData:
         self.raw = raw
 
     @property
-    def firmware_elf_path(self):
-        return self.raw["prog_path"]
+    def firmware_elf_path(self) -> Path:
+        return Path(self.raw["prog_path"])
 
     @property
-    def firmware_bin_path(self) -> str:
-        return str(Path(self.firmware_elf_path).with_suffix(".bin"))
+    def firmware_bin_path(self) -> Path:
+        return self.firmware_elf_path.with_suffix(".bin")
 
     @property
     def extra_flash_images(self) -> list[FlashImage]:
         return [
-            FlashImage(path=entry["path"], offset=entry["offset"])
+            FlashImage(path=Path(entry["path"]), offset=entry["offset"])
             for entry in self.raw["extra"]["flash_images"]
         ]
 

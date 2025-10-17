@@ -241,6 +241,8 @@ float ADCSensor::sample_autorange_() {
     cali_config.bitwidth = ADC_BITWIDTH_DEFAULT;
 
     err = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+    ESP_LOGVV(TAG, "Autorange atten=%d: Calibration handle creation %s (err=%d)", atten,
+              (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
 #else
     adc_cali_line_fitting_config_t cali_config = {
       .unit_id = this->adc_unit_,
@@ -251,10 +253,14 @@ float ADCSensor::sample_autorange_() {
 #endif
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+    ESP_LOGVV(TAG, "Autorange atten=%d: Calibration handle creation %s (err=%d)", atten,
+              (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
 #endif
 
     int raw;
     err = adc_oneshot_read(this->adc_handle_, this->channel_, &raw);
+    ESP_LOGVV(TAG, "Autorange atten=%d: Raw ADC read %s, value=%d (err=%d)", atten,
+              (err == ESP_OK) ? "SUCCESS" : "FAILED", raw, err);
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "ADC read failed in autorange with error %d", err);
@@ -275,8 +281,10 @@ float ADCSensor::sample_autorange_() {
       err = adc_cali_raw_to_voltage(handle, raw, &voltage_mv);
       if (err == ESP_OK) {
         voltage = voltage_mv / 1000.0f;
+        ESP_LOGVV(TAG, "Autorange atten=%d: CALIBRATED - raw=%d -> %dmV -> %.6fV", atten, raw, voltage_mv, voltage);
       } else {
         voltage = raw * 3.3f / 4095.0f;
+        ESP_LOGVV(TAG, "Autorange atten=%d: UNCALIBRATED FALLBACK - raw=%d -> %.6fV (3.3V ref)", atten, raw, voltage);
       }
       // Clean up calibration handle
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
@@ -287,6 +295,7 @@ float ADCSensor::sample_autorange_() {
 #endif
     } else {
       voltage = raw * 3.3f / 4095.0f;
+      ESP_LOGVV(TAG, "Autorange atten=%d: NO CALIBRATION - raw=%d -> %.6fV (3.3V ref)", atten, raw, voltage);
     }
 
     return {raw, voltage};
@@ -324,18 +333,32 @@ float ADCSensor::sample_autorange_() {
   }
 
   const int adc_half = 2048;
-  uint32_t c12 = std::min(raw12, adc_half);
-  uint32_t c6 = adc_half - std::abs(raw6 - adc_half);
-  uint32_t c2 = adc_half - std::abs(raw2 - adc_half);
-  uint32_t c0 = std::min(4095 - raw0, adc_half);
-  uint32_t csum = c12 + c6 + c2 + c0;
+  const uint32_t c12 = std::min(raw12, adc_half);
+
+  const int32_t c6_signed = adc_half - std::abs(raw6 - adc_half);
+  const uint32_t c6 = (c6_signed > 0) ? c6_signed : 0;  // Clamp to prevent underflow
+
+  const int32_t c2_signed = adc_half - std::abs(raw2 - adc_half);
+  const uint32_t c2 = (c2_signed > 0) ? c2_signed : 0;  // Clamp to prevent underflow
+
+  const uint32_t c0 = std::min(4095 - raw0, adc_half);
+  const uint32_t csum = c12 + c6 + c2 + c0;
+
+  ESP_LOGVV(TAG, "Autorange summary:");
+  ESP_LOGVV(TAG, "  Raw readings: 12db=%d, 6db=%d, 2.5db=%d, 0db=%d", raw12, raw6, raw2, raw0);
+  ESP_LOGVV(TAG, "  Voltages: 12db=%.6f, 6db=%.6f, 2.5db=%.6f, 0db=%.6f", mv12, mv6, mv2, mv0);
+  ESP_LOGVV(TAG, "  Coefficients: c12=%u, c6=%u, c2=%u, c0=%u, sum=%u", c12, c6, c2, c0, csum);
 
   if (csum == 0) {
     ESP_LOGE(TAG, "Invalid weight sum in autorange calculation");
     return NAN;
   }
 
-  return (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
+  const float final_result = (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
+  ESP_LOGV(TAG, "Autorange final: (%.6f*%u + %.6f*%u + %.6f*%u + %.6f*%u)/%u = %.6fV", mv12, c12, mv6, c6, mv2, c2, mv0,
+           c0, csum, final_result);
+
+  return final_result;
 }
 
 }  // namespace adc
