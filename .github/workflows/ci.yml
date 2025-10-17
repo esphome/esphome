@@ -559,6 +559,24 @@ jobs:
           echo "Compiling $component for $platform using $test_file"
           python script/test_build_components.py -e compile -c "$component" -t "$platform" --no-grouping 2>&1 | \
             python script/ci_memory_impact_extract.py --output-env
+      - name: Find and upload ELF file
+        run: |
+          # Find the most recently created .elf file in .esphome/build
+          elf_file=$(find ~/.esphome/build -name "*.elf" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+          if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
+            echo "Found ELF file: $elf_file"
+            mkdir -p ./elf-artifacts
+            cp "$elf_file" ./elf-artifacts/target.elf
+          else
+            echo "Warning: No ELF file found"
+          fi
+      - name: Upload ELF artifact
+        uses: actions/upload-artifact@ea05be8e2b5c27c5689e977ed6f65db0a051b1e5 # v4.6.0
+        with:
+          name: memory-impact-target-elf
+          path: ./elf-artifacts/target.elf
+          if-no-files-found: warn
+          retention-days: 1
 
   memory-impact-pr-branch:
     name: Build PR branch for memory impact
@@ -594,6 +612,24 @@ jobs:
           echo "Compiling $component for $platform using $test_file"
           python script/test_build_components.py -e compile -c "$component" -t "$platform" --no-grouping 2>&1 | \
             python script/ci_memory_impact_extract.py --output-env
+      - name: Find and upload ELF file
+        run: |
+          # Find the most recently created .elf file in .esphome/build
+          elf_file=$(find ~/.esphome/build -name "*.elf" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+          if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
+            echo "Found ELF file: $elf_file"
+            mkdir -p ./elf-artifacts
+            cp "$elf_file" ./elf-artifacts/pr.elf
+          else
+            echo "Warning: No ELF file found"
+          fi
+      - name: Upload ELF artifact
+        uses: actions/upload-artifact@ea05be8e2b5c27c5689e977ed6f65db0a051b1e5 # v4.6.0
+        with:
+          name: memory-impact-pr-elf
+          path: ./elf-artifacts/pr.elf
+          if-no-files-found: warn
+          retention-days: 1
 
   memory-impact-comment:
     name: Comment memory impact

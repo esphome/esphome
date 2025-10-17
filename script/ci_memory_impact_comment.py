@@ -10,8 +10,15 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import subprocess
 import sys
+
+# Add esphome to path for analyze_memory import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# pylint: disable=wrong-import-position
+from esphome.analyze_memory import MemoryAnalyzer
 
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
@@ -64,6 +71,105 @@ def format_change(before: int, after: int) -> str:
     return f"{emoji} {delta_str} ({pct_str})"
 
 
+def run_detailed_analysis(
+    elf_path: str, objdump_path: str | None = None, readelf_path: str | None = None
+) -> dict | None:
+    """Run detailed memory analysis on an ELF file.
+
+    Args:
+        elf_path: Path to ELF file
+        objdump_path: Optional path to objdump tool
+        readelf_path: Optional path to readelf tool
+
+    Returns:
+        Dictionary with component memory breakdown or None if analysis fails
+    """
+    try:
+        analyzer = MemoryAnalyzer(elf_path, objdump_path, readelf_path)
+        components = analyzer.analyze()
+
+        # Convert ComponentMemory objects to dictionaries
+        result = {}
+        for name, mem in components.items():
+            result[name] = {
+                "text": mem.text_size,
+                "rodata": mem.rodata_size,
+                "data": mem.data_size,
+                "bss": mem.bss_size,
+                "flash_total": mem.flash_total,
+                "ram_total": mem.ram_total,
+                "symbol_count": mem.symbol_count,
+            }
+        return result
+    except Exception as e:
+        print(f"Warning: Failed to run detailed analysis: {e}", file=sys.stderr)
+        return None
+
+
+def create_detailed_breakdown_table(
+    target_analysis: dict | None, pr_analysis: dict | None
+) -> str:
+    """Create a markdown table showing detailed memory breakdown by component.
+
+    Args:
+        target_analysis: Component memory breakdown for target branch
+        pr_analysis: Component memory breakdown for PR branch
+
+    Returns:
+        Formatted markdown table
+    """
+    if not target_analysis or not pr_analysis:
+        return ""
+
+    # Combine all components from both analyses
+    all_components = set(target_analysis.keys()) | set(pr_analysis.keys())
+
+    # Filter to components that have changed or are significant
+    changed_components = []
+    for comp in all_components:
+        target_mem = target_analysis.get(comp, {})
+        pr_mem = pr_analysis.get(comp, {})
+
+        target_flash = target_mem.get("flash_total", 0)
+        pr_flash = pr_mem.get("flash_total", 0)
+
+        # Include if component has changed or is significant (> 1KB)
+        if target_flash != pr_flash or target_flash > 1024 or pr_flash > 1024:
+            delta = pr_flash - target_flash
+            changed_components.append((comp, target_flash, pr_flash, delta))
+
+    if not changed_components:
+        return ""
+
+    # Sort by absolute delta (largest changes first)
+    changed_components.sort(key=lambda x: abs(x[3]), reverse=True)
+
+    # Build table - limit to top 20 changes
+    lines = [
+        "",
+        "<details>",
+        "<summary>📊 Detailed Memory Breakdown (click to expand)</summary>",
+        "",
+        "| Component | Target Flash | PR Flash | Change |",
+        "|-----------|--------------|----------|--------|",
+    ]
+
+    for comp, target_flash, pr_flash, delta in changed_components[:20]:
+        target_str = format_bytes(target_flash)
+        pr_str = format_bytes(pr_flash)
+        change_str = format_change(target_flash, pr_flash)
+        lines.append(f"| `{comp}` | {target_str} | {pr_str} | {change_str} |")
+
+    if len(changed_components) > 20:
+        lines.append(
+            f"| ... | ... | ... | *({len(changed_components) - 20} more components not shown)* |"
+        )
+
+    lines.extend(["", "</details>", ""])
+
+    return "\n".join(lines)
+
+
 def create_comment_body(
     component: str,
     platform: str,
@@ -71,6 +177,10 @@ def create_comment_body(
     target_flash: int,
     pr_ram: int,
     pr_flash: int,
+    target_elf: str | None = None,
+    pr_elf: str | None = None,
+    objdump_path: str | None = None,
+    readelf_path: str | None = None,
 ) -> str:
     """Create the comment body with memory impact analysis.
 
@@ -81,12 +191,35 @@ def create_comment_body(
         target_flash: Flash usage in target branch
         pr_ram: RAM usage in PR branch
         pr_flash: Flash usage in PR branch
+        target_elf: Optional path to target branch ELF file
+        pr_elf: Optional path to PR branch ELF file
+        objdump_path: Optional path to objdump tool
+        readelf_path: Optional path to readelf tool
 
     Returns:
         Formatted comment body
     """
     ram_change = format_change(target_ram, pr_ram)
     flash_change = format_change(target_flash, pr_flash)
+
+    # Run detailed analysis if ELF files are provided
+    target_analysis = None
+    pr_analysis = None
+    detailed_breakdown = ""
+
+    if target_elf and pr_elf:
+        print(
+            f"Running detailed analysis on {target_elf} and {pr_elf}", file=sys.stderr
+        )
+        target_analysis = run_detailed_analysis(target_elf, objdump_path, readelf_path)
+        pr_analysis = run_detailed_analysis(pr_elf, objdump_path, readelf_path)
+
+        if target_analysis and pr_analysis:
+            detailed_breakdown = create_detailed_breakdown_table(
+                target_analysis, pr_analysis
+            )
+    else:
+        print("No ELF files provided, skipping detailed analysis", file=sys.stderr)
 
     return f"""{COMMENT_MARKER}
 ## Memory Impact Analysis
@@ -98,7 +231,7 @@ def create_comment_body(
 |--------|--------------|---------|--------|
 | **RAM** | {format_bytes(target_ram)} | {format_bytes(pr_ram)} | {ram_change} |
 | **Flash** | {format_bytes(target_flash)} | {format_bytes(pr_flash)} | {flash_change} |
-
+{detailed_breakdown}
 ---
 *This analysis runs automatically when a single component changes. Memory usage is measured from a representative test configuration.*
 """
@@ -263,6 +396,14 @@ def main() -> int:
     parser.add_argument(
         "--pr-flash", type=int, required=True, help="PR branch flash usage"
     )
+    parser.add_argument("--target-elf", help="Optional path to target branch ELF file")
+    parser.add_argument("--pr-elf", help="Optional path to PR branch ELF file")
+    parser.add_argument(
+        "--objdump-path", help="Optional path to objdump tool for detailed analysis"
+    )
+    parser.add_argument(
+        "--readelf-path", help="Optional path to readelf tool for detailed analysis"
+    )
 
     args = parser.parse_args()
 
@@ -274,6 +415,10 @@ def main() -> int:
         target_flash=args.target_flash,
         pr_ram=args.pr_ram,
         pr_flash=args.pr_flash,
+        target_elf=args.target_elf,
+        pr_elf=args.pr_elf,
+        objdump_path=args.objdump_path,
+        readelf_path=args.readelf_path,
     )
 
     # Post or update comment
