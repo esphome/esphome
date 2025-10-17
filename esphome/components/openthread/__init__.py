@@ -21,7 +21,7 @@ from .const import (
     CONF_NETWORK_KEY,
     CONF_NETWORK_NAME,
     CONF_PAN_ID,
-    CONF_POLLING_INTERVAL,
+    CONF_POLL_PERIOD,
     CONF_PSKC,
     CONF_SRP_ID,
     CONF_TLV,
@@ -128,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_POLLING_INTERVAL): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -160,8 +160,8 @@ async def to_code(config):
     ot = cg.new_Pvariable(config[CONF_ID])
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
-    if CONF_POLLING_INTERVAL in config:
-        cg.add(ot.set_poll_period(config[CONF_POLLING_INTERVAL]))
+    if CONF_POLL_PERIOD in config:
+        cg.add(ot.set_poll_period(config[CONF_POLL_PERIOD]))
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])

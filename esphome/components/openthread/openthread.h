@@ -22,6 +22,7 @@ class OpenThreadComponent : public Component {
  public:
   OpenThreadComponent();
   ~OpenThreadComponent();
+  void dump_config() override;
   void setup() override;
   bool teardown() override;
   float get_setup_priority() const override { return setup_priority::WIFI; }
@@ -35,7 +36,7 @@ class OpenThreadComponent : public Component {
 
   const std::string &get_use_address() const;
   void set_use_address(const std::string &use_address);
-  void set_poll_period(uint32_t poll_period) {this->poll_period = poll_period;}
+  void set_poll_period(uint32_t poll_period) { this->poll_period = poll_period; }
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);

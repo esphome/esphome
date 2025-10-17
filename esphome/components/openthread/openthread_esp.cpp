@@ -105,12 +105,11 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
-  otLinkModeConfig link_mode_config = { 0 };
+  otLinkModeConfig link_mode_config = {0};
   link_mode_config.mRxOnWhenIdle = true;
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
-#endif
 #elif CONFIG_OPENTHREAD_MTD
   if (this->poll_period > 0) {
     ESP_LOGI(TAG, "Sleepy End Device (SED)");
