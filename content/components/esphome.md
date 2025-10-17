@@ -17,9 +17,6 @@ esphome:
     name: livingroom
     comment: Living room ESP32 controller
     area: Living Room
-
-esp32:
-    board: nodemcu-32s
 ```
 
 {{< anchor "esphome-configuration_variables" >}}
