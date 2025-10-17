@@ -1,6 +1,7 @@
 """Memory usage analyzer for ESPHome compiled binaries."""
 
 from collections import defaultdict
+from dataclasses import dataclass, field
 from functools import cache
 import json
 import logging
@@ -36,32 +37,36 @@ def get_esphome_components():
     return components
 
 
+@dataclass
 class MemorySection:
     """Represents a memory section with its symbols."""
 
-    def __init__(self, name: str):
-        self.name = name
-        self.symbols: list[tuple[str, int, str]] = []  # (symbol_name, size, component)
-        self.total_size = 0
+    name: str
+    symbols: list[tuple[str, int, str]] = field(
+        default_factory=list
+    )  # (symbol_name, size, component)
+    total_size: int = 0
 
 
+@dataclass
 class ComponentMemory:
     """Tracks memory usage for a component."""
 
-    def __init__(self, name: str):
-        self.name = name
-        self.text_size = 0  # Code in flash
-        self.rodata_size = 0  # Read-only data in flash
-        self.data_size = 0  # Initialized data (flash + ram)
-        self.bss_size = 0  # Uninitialized data (ram only)
-        self.symbol_count = 0
+    name: str
+    text_size: int = 0  # Code in flash
+    rodata_size: int = 0  # Read-only data in flash
+    data_size: int = 0  # Initialized data (flash + ram)
+    bss_size: int = 0  # Uninitialized data (ram only)
+    symbol_count: int = 0
 
     @property
     def flash_total(self) -> int:
+        """Total flash usage (text + rodata + data)."""
         return self.text_size + self.rodata_size + self.data_size
 
     @property
     def ram_total(self) -> int:
+        """Total RAM usage (data + bss)."""
         return self.data_size + self.bss_size
 
 
