@@ -92,7 +92,6 @@ lock:
         return LOCK_STATE_LOCKED;
       }
       return LOCK_STATE_UNLOCKED;
-
     optimistic: true
 
 select:
