@@ -607,10 +607,12 @@ void WiFiComponent::check_scanning_finished() {
     for (auto &ap : this->sta_) {
       if (res.matches(ap)) {
         res.set_matches(true);
-        if (!this->has_sta_priority(res.get_bssid())) {
-          this->set_sta_priority(res.get_bssid(), ap.get_priority());
+        // Cache priority lookup - do single search instead of 2 separate searches
+        const bssid_t &bssid = res.get_bssid();
+        if (!this->has_sta_priority(bssid)) {
+          this->set_sta_priority(bssid, ap.get_priority());
         }
-        res.set_priority(this->get_sta_priority(res.get_bssid()));
+        res.set_priority(this->get_sta_priority(bssid));
         break;
       }
     }
@@ -629,8 +631,9 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
 
-  WiFiAP connect_params;
-  WiFiScanResult scan_res = this->scan_result_[0];
+  // Build connection params directly into selected_ap_ to avoid extra copy
+  const WiFiScanResult &scan_res = this->scan_result_[0];
+  WiFiAP &selected = this->selected_ap_;
   for (auto &config : this->sta_) {
     // search for matching STA config, at least one will match (from checks before)
     if (!scan_res.matches(config)) {
@@ -639,37 +642,36 @@ void WiFiComponent::check_scanning_finished() {
 
     if (config.get_hidden()) {
       // selected network is hidden, we use the data from the config
-      connect_params.set_hidden(true);
-      connect_params.set_ssid(config.get_ssid());
+      selected.set_hidden(true);
+      selected.set_ssid(config.get_ssid());
       // don't set BSSID and channel, there might be multiple hidden networks
       // but we can't know which one is the correct one. Rely on probe-req with just SSID.
     } else {
       // selected network is visible, we use the data from the scan
       // limit the connect params to only connect to exactly this network
       // (network selection is done during scan phase).
-      connect_params.set_hidden(false);
-      connect_params.set_ssid(scan_res.get_ssid());
-      connect_params.set_channel(scan_res.get_channel());
-      connect_params.set_bssid(scan_res.get_bssid());
+      selected.set_hidden(false);
+      selected.set_ssid(scan_res.get_ssid());
+      selected.set_channel(scan_res.get_channel());
+      selected.set_bssid(scan_res.get_bssid());
     }
     // copy manual IP (if set)
-    connect_params.set_manual_ip(config.get_manual_ip());
+    selected.set_manual_ip(config.get_manual_ip());
 
 #ifdef USE_WIFI_WPA2_EAP
     // copy EAP parameters (if set)
-    connect_params.set_eap(config.get_eap());
+    selected.set_eap(config.get_eap());
 #endif
 
     // copy password (if set)
-    connect_params.set_password(config.get_password());
+    selected.set_password(config.get_password());
 
     break;
   }
 
   yield();
 
-  this->selected_ap_ = connect_params;
-  this->start_connecting(connect_params, false);
+  this->start_connecting(this->selected_ap_, false);
 }
 
 void WiFiComponent::dump_config() {
@@ -902,7 +904,7 @@ WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t c
       rssi_(rssi),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
-bool WiFiScanResult::matches(const WiFiAP &config) {
+bool WiFiScanResult::matches(const WiFiAP &config) const {
   if (config.get_hidden()) {
     // User configured a hidden network, only match actually hidden networks
     // don't match SSID

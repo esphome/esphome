@@ -170,7 +170,7 @@ class WiFiScanResult {
  public:
   WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
 
-  bool matches(const WiFiAP &config);
+  bool matches(const WiFiAP &config) const;
 
   bool get_matches() const;
   void set_matches(bool matches);
