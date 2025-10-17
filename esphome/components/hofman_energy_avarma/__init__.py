@@ -1,16 +1,29 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, modbus_controller, sensor
-from esphome.components.modbus_controller import (
-    ModbusController,
-    SensorValueType,
-    modbus_calc_properties,
-)
+from esphome.components import binary_sensor, modbus_controller, number, sensor, switch
+from esphome.components.modbus_controller import ModbusController, SensorValueType
 from esphome.components.modbus_controller.binary_sensor import ModbusBinarySensor
+from esphome.components.modbus_controller.const import CONF_REGISTER_TYPE
+from esphome.components.modbus_controller.number import ModbusNumber
 from esphome.components.modbus_controller.sensor import ModbusSensor
+from esphome.components.modbus_controller.switch import ModbusSwitch
 import esphome.config_validation as cv
-from esphome.const import CONF_FORCE_UPDATE, CONF_ID, CONF_NAME, CONF_PLATFORM
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_FORCE_UPDATE,
+    CONF_ID,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_MULTIPLY,
+    CONF_NAME,
+    CONF_PLATFORM,
+)
 
-from .avarma_registers import AVARMA_BINARY_REGISTERS, AVARMA_SENSOR_REGISTERS
+from .avarma_registers import (
+    AVARMA_BINARY_REGISTERS,
+    AVARMA_NUMBER_REGISTERS,
+    AVARMA_SENSOR_REGISTERS,
+    AVARMA_SWITCH_REGISTERS,
+)
 
 DEPENDENCIES = ["modbus", "modbus_controller"]
 AUTO_LOAD = [
@@ -43,7 +56,7 @@ CONFIG_SCHEMA = (
                 {CONF_NAME: register.name},
             ): sensor.sensor_schema(
                 ModbusSensor,
-                unit_of_measurement=register.parameter_id,
+                unit_of_measurement=register.unit_of_measurement,
                 accuracy_decimals=register.accuracy_decimals,
                 entity_category=register.entity_category,
                 device_class=register.device_class,
@@ -65,6 +78,42 @@ CONFIG_SCHEMA = (
             for flag in register.flags  # type: ignore
         }
     )
+    .extend(
+        {
+            cv.Optional(
+                register.parameter_id,
+                {CONF_NAME: register.name},
+            ): switch.switch_schema(
+                ModbusSwitch,
+                entity_category=register.entity_category,
+                device_class=register.device_class,
+                default_restore_mode="DISABLED",
+            )
+            for register in AVARMA_SWITCH_REGISTERS
+        }
+    )
+    .extend(
+        {
+            cv.Optional(
+                register.parameter_id,
+                {CONF_NAME: register.name},
+            ): switch.switch_schema(
+                ModbusSwitch,
+                entity_category=register.entity_category,
+                device_class=register.device_class,
+                default_restore_mode="DISABLED",
+            )
+            for register in AVARMA_SWITCH_REGISTERS
+        }
+    )
+    .extend(
+        {
+            cv.Optional(
+                register.parameter_id, {CONF_NAME: register.name}
+            ): number.number_schema(ModbusNumber)
+            for register in AVARMA_NUMBER_REGISTERS
+        }
+    )
     .extend(cv.COMPONENT_SCHEMA)
 )
 
@@ -73,7 +122,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
     paren = await cg.get_variable(config[modbus_controller.CONF_MODBUS_CONTROLLER_ID])
-    # config["test"]["id"] = "test1234"
+
     for register in AVARMA_SENSOR_REGISTERS:
         conf = config[register.parameter_id]
 
@@ -86,13 +135,12 @@ async def to_code(config):
             modbus_controller.ModbusRegisterType.HOLDING
         )
 
-        byte_offset, reg_count = modbus_calc_properties(conf)
         value_type = SensorValueType.U_WORD
         var = cg.new_Pvariable(
             conf[CONF_ID],
             conf[modbus_controller.CONF_REGISTER_TYPE],
             conf[modbus_controller.CONF_ADDRESS],
-            byte_offset,
+            0,
             0xFFFFFFFF,
             value_type,
             1,
@@ -125,9 +173,70 @@ async def to_code(config):
                     0,
                     False,
                 )
-                # await cg.register_component(var, conf)
                 await binary_sensor.register_binary_sensor(var, conf)
                 cg.add(paren.add_sensor_item(var))
 
-                # await binary_sensor.new_binary_sensor(conf)
+    for register in AVARMA_SWITCH_REGISTERS:
+        conf = config[register.parameter_id]
+        conf[CONF_PLATFORM] = "modbus_controller"
+        conf[modbus_controller.CONF_MODBUS_CONTROLLER_ID] = config[
+            modbus_controller.CONF_MODBUS_CONTROLLER_ID
+        ]
+        conf[modbus_controller.CONF_ADDRESS] = register.address
+        conf[modbus_controller.CONF_REGISTER_TYPE] = (
+            modbus_controller.ModbusRegisterType.HOLDING
+        )
+
+        var = cg.new_Pvariable(
+            conf[CONF_ID],
+            conf[modbus_controller.CONF_REGISTER_TYPE],
+            conf[modbus_controller.CONF_ADDRESS],
+            0,
+            0xFFFFFFFF,
+            0,
+            False,
+        )
+        await switch.register_switch(var, conf)
+        cg.add(var.set_parent(paren))
+        cg.add(paren.add_sensor_item(var))
+
+    for register in AVARMA_NUMBER_REGISTERS:
+        conf = config[register.parameter_id]
+        conf[CONF_PLATFORM] = "modbus_controller"
+        conf[modbus_controller.CONF_MODBUS_CONTROLLER_ID] = config[
+            modbus_controller.CONF_MODBUS_CONTROLLER_ID
+        ]
+        conf[modbus_controller.CONF_ADDRESS] = register.address
+        conf[modbus_controller.CONF_REGISTER_TYPE] = (
+            modbus_controller.ModbusRegisterType.HOLDING
+        )
+
+        conf[CONF_MIN_VALUE] = register.min
+        conf[CONF_MAX_VALUE] = register.max
+        conf[CONF_MULTIPLY] = register.register_factor
+
+        var = cg.new_Pvariable(
+            conf[CONF_ID],
+            conf[CONF_REGISTER_TYPE],
+            conf[CONF_ADDRESS],
+            0,
+            0xFFFFFFFF,
+            SensorValueType.U_WORD,
+            1.0,
+            0,
+            False,
+        )
+
+        await number.register_number(
+            var,
+            conf,
+            min_value=conf[CONF_MIN_VALUE],
+            max_value=conf[CONF_MAX_VALUE],
+            step=1.0,
+        )
+
+        cg.add(var.set_parent(paren))
+        cg.add(paren.add_sensor_item(var))
+        cg.add(var.set_write_multiply(conf[CONF_MULTIPLY]))
+
     await cg.register_component(var, config)

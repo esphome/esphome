@@ -1,7 +1,11 @@
+from esphome.const import DEVICE_CLASS_SWITCH
+
 from .avarma_register import AvarmaRegister, AvarmaRegisterBinaryRegisterBit
 
 AVARMA_SENSOR_REGISTERS = [
     AvarmaRegister(0x1106, "C00", "Coil temp", -30, 97, register_factor=0.1),
+    AvarmaRegister(0x1107, "C01", "Discharge temp", -30, 128, register_factor=0.1),
+    AvarmaRegister(0x1108, "C02", "Ambient temp", -30, 97, register_factor=0.1),
 ]
 
 AVARMA_BINARY_REGISTERS = [
@@ -42,5 +46,18 @@ AVARMA_BINARY_REGISTERS = [
 ]
 
 AVARMA_SWITCH_REGISTERS = [
-    AvarmaRegister(0x1000, "P00", "ON/OFF"),
+    AvarmaRegister(0x1000, "P00", "ON/OFF", device_class=DEVICE_CLASS_SWITCH),
+]
+
+
+AVARMA_NUMBER_REGISTERS = [
+    AvarmaRegister(
+        8198,
+        "P08",
+        "A/C Heating AU maximum temperature",
+        device_class=None,
+        register_factor=10.0,
+        min=35,
+        max=75,
+    ),
 ]
