@@ -135,7 +135,7 @@ async def test_script_queued(
         api_client_connected() as client,
     ):
         # Get services
-        entities, services = await client.list_entities_services()
+        _, services = await client.list_entities_services()
 
         # Test 1: Queue depth limit
         test_service = next((s for s in services if s.name == "test_queue_depth"), None)
