@@ -20,6 +20,21 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _map_section_name(raw_section: str) -> str | None:
+    """Map raw section name to standard section.
+
+    Args:
+        raw_section: Raw section name from ELF file (e.g., ".iram0.text", ".rodata.str1.1")
+
+    Returns:
+        Standard section name (".text", ".rodata", ".data", ".bss") or None
+    """
+    for standard_section, patterns in SECTION_MAPPING.items():
+        if any(pattern in raw_section for pattern in patterns):
+            return standard_section
+    return None
+
+
 # Get the list of actual ESPHome components by scanning the components directory
 @cache
 def get_esphome_components():
@@ -154,17 +169,8 @@ class MemoryAnalyzer:
                     size_hex = match.group(2)
                     size = int(size_hex, 16)
 
-                    # Map various section names to standard categories
-                    mapped_section = None
-                    if ".text" in section_name or ".iram" in section_name:
-                        mapped_section = ".text"
-                    elif ".rodata" in section_name:
-                        mapped_section = ".rodata"
-                    elif ".data" in section_name and "bss" not in section_name:
-                        mapped_section = ".data"
-                    elif ".bss" in section_name:
-                        mapped_section = ".bss"
-
+                    # Map to standard section name
+                    mapped_section = _map_section_name(section_name)
                     if mapped_section:
                         if mapped_section not in self.sections:
                             self.sections[mapped_section] = MemorySection(
@@ -178,13 +184,6 @@ class MemoryAnalyzer:
 
     def _parse_symbols(self) -> None:
         """Parse symbols from ELF file."""
-
-        def map_section_name(raw_section: str) -> str | None:
-            """Map raw section name to standard section."""
-            for standard_section, patterns in SECTION_MAPPING.items():
-                if any(pattern in raw_section for pattern in patterns):
-                    return standard_section
-            return None
 
         def parse_symbol_line(line: str) -> tuple[str, str, int, str] | None:
             """Parse a single symbol line from objdump output.
@@ -211,7 +210,7 @@ class MemoryAnalyzer:
             # Find section, size, and name
             for i, part in enumerate(parts):
                 if part.startswith("."):
-                    section = map_section_name(part)
+                    section = _map_section_name(part)
                     if section and i + 1 < len(parts):
                         try:
                             size = int(parts[i + 1], 16)
