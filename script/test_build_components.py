@@ -99,7 +99,8 @@ def find_component_tests(
         if not comp_dir.is_dir():
             continue
 
-        for test_file in comp_dir.glob("test.*.yaml"):
+        # Find test files matching test.*.yaml or test-*.yaml patterns
+        for test_file in comp_dir.glob("test[.-]*.yaml"):
             component_tests[comp_dir.name].append(test_file)
 
     return dict(component_tests)
