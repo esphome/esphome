@@ -1477,15 +1477,24 @@ class MemoryAnalyzer:
 
             lines.append("=" * table_width)
 
-        # Add detailed analysis for top 5 ESPHome components
+        # Add detailed analysis for top ESPHome and external components
         esphome_components = [
             (name, mem)
             for name, mem in components
             if name.startswith("[esphome]") and name != "[esphome]core"
         ]
+        external_components = [
+            (name, mem) for name, mem in components if name.startswith("[external]")
+        ]
+
         top_esphome_components = sorted(
             esphome_components, key=lambda x: x[1].flash_total, reverse=True
         )[:30]
+
+        # Include all external components (they're usually important)
+        top_external_components = sorted(
+            external_components, key=lambda x: x[1].flash_total, reverse=True
+        )
 
         # Check if API component exists and ensure it's included
         api_component = None
@@ -1494,8 +1503,10 @@ class MemoryAnalyzer:
                 api_component = (name, mem)
                 break
 
-        # If API exists and not in top 5, add it to the list
-        components_to_analyze = list(top_esphome_components)
+        # Combine all components to analyze: top ESPHome + all external + API if not already included
+        components_to_analyze = list(top_esphome_components) + list(
+            top_external_components
+        )
         if api_component and api_component not in components_to_analyze:
             components_to_analyze.append(api_component)
 
@@ -1518,17 +1529,18 @@ class MemoryAnalyzer:
                     lines.append(f"Total size: {comp_mem.flash_total:,} B")
                     lines.append("")
 
-                    # For API component, show all symbols; for others show top 10
-                    if comp_name == "[esphome]api":
-                        lines.append(f"All {comp_name} Symbols (sorted by size):")
-                        for i, (symbol, demangled, size) in enumerate(sorted_symbols):
-                            lines.append(f"{i + 1}. {demangled} ({size:,} B)")
-                    else:
-                        lines.append(f"Top 12 Largest {comp_name} Symbols:")
-                        for i, (symbol, demangled, size) in enumerate(
-                            sorted_symbols[:12]
-                        ):
-                            lines.append(f"{i + 1}. {demangled} ({size:,} B)")
+                    # Show all symbols > 100 bytes for better visibility
+                    large_symbols = [
+                        (sym, dem, size)
+                        for sym, dem, size in sorted_symbols
+                        if size > 100
+                    ]
+
+                    lines.append(
+                        f"{comp_name} Symbols > 100 B ({len(large_symbols)} symbols):"
+                    )
+                    for i, (symbol, demangled, size) in enumerate(large_symbols):
+                        lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
                     lines.append("=" * table_width)
 
