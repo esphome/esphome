@@ -407,7 +407,8 @@ async def to_code(config):
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
+    if config[CONF_FAST_CONNECT]:
+        cg.add_define("USE_WIFI_FAST_CONNECT")
     cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
