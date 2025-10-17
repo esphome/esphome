@@ -54,7 +54,7 @@ def check_max_runs(value):
 
     if value[CONF_MODE] not in [CONF_QUEUED, CONF_PARALLEL]:
         raise cv.Invalid(
-            "The option 'max_runs' is only valid in 'queue' and 'parallel' mode.",
+            "The option 'max_runs' is only valid in 'queued' and 'parallel' mode.",
             path=[CONF_MAX_RUNS],
         )
 

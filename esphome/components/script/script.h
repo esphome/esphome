@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+#include <tuple>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -137,6 +139,10 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   void stop() override {
+    // Clear all queued items to free memory immediately
+    for (int i = 0; i < this->max_runs_ - 1; i++) {
+      this->var_queue_[i].reset();
+    }
     this->num_queued_ = 0;
     this->queue_front_ = 0;
     Script<Ts...>::stop();
@@ -144,11 +150,11 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
   void loop() override {
     if (this->num_queued_ != 0 && !this->is_action_running()) {
-      // Dequeue: decrement count, read from front, advance read position
+      // Dequeue: decrement count, move tuple out (frees slot), advance read position
       this->num_queued_--;
-      auto &vars = *this->var_queue_[this->queue_front_];
+      auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
       this->queue_front_ = (this->queue_front_ + 1) % (this->max_runs_ - 1);
-      this->trigger_tuple_(vars, typename gens<sizeof...(Ts)>::type());
+      this->trigger_tuple_(*tuple_ptr, typename gens<sizeof...(Ts)>::type());
     }
   }
 
