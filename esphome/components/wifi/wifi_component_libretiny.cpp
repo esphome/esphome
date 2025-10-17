@@ -411,7 +411,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.reserve(static_cast<unsigned int>(num));
+  this->scan_result_.init(static_cast<unsigned int>(num));
   for (int i = 0; i < num; i++) {
     String ssid = WiFi.SSID(i);
     wifi_auth_mode_t authmode = WiFi.encryptionType(i);

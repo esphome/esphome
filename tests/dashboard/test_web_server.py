@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from argparse import Namespace
 import asyncio
 from collections.abc import Generator
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from tornado.ioloop import IOLoop
 from tornado.testing import bind_unused_port
 from tornado.websocket import WebSocketClientConnection, websocket_connect
 
+from esphome import yaml_util
+from esphome.core import CORE
 from esphome.dashboard import web_server
 from esphome.dashboard.const import DashboardEvent
 from esphome.dashboard.core import DASHBOARD
@@ -1302,3 +1305,71 @@ async def test_dashboard_subscriber_refresh_event(
 
         # Give it a moment to clean up
         await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_yaml_loading_with_packages_and_secrets(
+    tmp_path: Path,
+) -> None:
+    """Test dashboard YAML loading with packages referencing secrets.
+
+    This is a regression test for issue #11280 where binary download failed
+    when using packages with secrets after the Path migration in 2025.10.0.
+
+    This test verifies that CORE.config_path initialization in the dashboard
+    allows yaml_util.load_yaml() to correctly resolve secrets from packages.
+    """
+    # Create test directory structure with secrets and packages
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create secrets.yaml with obviously fake test values
+    secrets_file = config_dir / "secrets.yaml"
+    secrets_file.write_text(
+        "wifi_ssid: TEST-DUMMY-SSID\n"
+        "wifi_password: not-a-real-password-just-for-testing\n"
+    )
+
+    # Create package file that uses secrets
+    package_file = config_dir / "common.yaml"
+    package_file.write_text(
+        "wifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n"
+    )
+
+    # Create main device config that includes the package
+    device_config = config_dir / "test-download-secrets.yaml"
+    device_config.write_text(
+        "esphome:\n  name: test-download-secrets\n  platform: ESP32\n  board: esp32dev\n\n"
+        "packages:\n  common: !include common.yaml\n"
+    )
+
+    # Initialize DASHBOARD settings with our test config directory
+    # This is what sets CORE.config_path - the critical code path for the bug
+    args = Namespace(
+        configuration=str(config_dir),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+    )
+    DASHBOARD.settings.parse_args(args)
+
+    # With the fix: CORE.config_path should be config_dir / "___DASHBOARD_SENTINEL___.yaml"
+    # so CORE.config_path.parent would be config_dir
+    # Without the fix: CORE.config_path is config_dir / "." which normalizes to config_dir
+    # so CORE.config_path.parent would be tmp_path (the parent of config_dir)
+
+    # The fix ensures CORE.config_path.parent points to config_dir
+    assert CORE.config_path.parent == config_dir.resolve(), (
+        f"CORE.config_path.parent should point to config_dir. "
+        f"Got {CORE.config_path.parent}, expected {config_dir.resolve()}. "
+        f"CORE.config_path is {CORE.config_path}"
+    )
+
+    # Now load the YAML with packages that reference secrets
+    # This is where the bug would manifest - yaml_util.load_yaml would fail
+    # to find secrets.yaml because CORE.config_path.parent pointed to the wrong place
+    config = yaml_util.load_yaml(device_config)
+    # If we get here, secret resolution worked!
+    assert "esphome" in config
+    assert config["esphome"]["name"] == "test-download-secrets"
