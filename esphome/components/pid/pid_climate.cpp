@@ -54,11 +54,11 @@ void PIDClimate::control(const climate::ClimateCall &call) {
 }
 climate::ClimateTraits PIDClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(true);
-  traits.set_supports_two_point_target_temperature(false);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
 
   if (this->humidity_sensor_ != nullptr)
-    traits.set_supports_current_humidity(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
 
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (supports_cool_())
@@ -68,7 +68,7 @@ climate::ClimateTraits PIDClimate::traits() {
   if (supports_heat_() && supports_cool_())
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
 
-  traits.set_supports_action(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   return traits;
 }
 void PIDClimate::dump_config() {

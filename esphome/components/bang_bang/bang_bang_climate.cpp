@@ -56,9 +56,9 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
 }
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   if (this->humidity_sensor_ != nullptr)
-    traits.set_supports_current_humidity(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   traits.set_supported_modes({
       climate::CLIMATE_MODE_OFF,
   });
@@ -68,14 +68,14 @@ climate::ClimateTraits BangBangClimate::traits() {
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   if (supports_cool_ && supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
-  traits.set_supports_two_point_target_temperature(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
   if (supports_away_) {
     traits.set_supported_presets({
         climate::CLIMATE_PRESET_HOME,
         climate::CLIMATE_PRESET_AWAY,
     });
   }
-  traits.set_supports_action(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   return traits;
 }
 void BangBangClimate::compute_state_() {
