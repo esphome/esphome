@@ -7,6 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/mqtt/mqtt_client.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mqtt_subscribe {
@@ -15,6 +16,7 @@ class MQTTSubscribeTextSensor : public text_sensor::TextSensor, public Component
  public:
   void set_parent(mqtt::MQTTClientComponent *parent) { parent_ = parent; }
   void set_topic(const std::string &topic) { topic_ = topic; }
+  void set_topic_lambda(std::function<std::string()> &&topic_lambda) { topic_lambda_ = std::move(topic_lambda); }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
@@ -23,6 +25,7 @@ class MQTTSubscribeTextSensor : public text_sensor::TextSensor, public Component
  protected:
   mqtt::MQTTClientComponent *parent_;
   std::string topic_;
+  std::function<std::string()> topic_lambda_;
   uint8_t qos_{};
 };
 

@@ -18,7 +18,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MQTTSubscribeTextSensor),
             cv.GenerateID(CONF_MQTT_PARENT_ID): cv.use_id(mqtt.MQTTClientComponent),
-            cv.Required(CONF_TOPIC): cv.subscribe_topic,
+            cv.Required(CONF_TOPIC): cv.templatable(cv.subscribe_topic),
             cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
         }
     )
@@ -32,5 +32,15 @@ async def to_code(config):
 
     parent = await cg.get_variable(config[CONF_MQTT_PARENT_ID])
     cg.add(var.set_parent(parent))
-    cg.add(var.set_topic(config[CONF_TOPIC]))
+
+    # Process topic - handle both static values and lambda expressions
+    topic = config[CONF_TOPIC]
+    if cg.is_template(topic):
+        # Lambda expression - process and use lambda setter
+        lambda_expr = await cg.process_lambda(topic, [], return_type=cg.std_string)
+        cg.add(var.set_topic_lambda(lambda_expr))
+    else:
+        # Static value - use regular setter
+        cg.add(var.set_topic(topic))
+
     cg.add(var.set_qos(config[CONF_QOS]))

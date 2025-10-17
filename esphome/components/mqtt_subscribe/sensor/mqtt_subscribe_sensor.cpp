@@ -10,8 +10,13 @@ namespace mqtt_subscribe {
 static const char *const TAG = "mqtt_subscribe.sensor";
 
 void MQTTSubscribeSensor::setup() {
+  std::string topic = this->topic_;
+  if (this->topic_lambda_) {
+    topic = this->topic_lambda_();
+  }
+
   mqtt::global_mqtt_client->subscribe(
-      this->topic_,
+      topic,
       [this](const std::string &topic, const std::string &payload) {
         auto val = parse_number<float>(payload);
         if (!val.has_value()) {
@@ -29,7 +34,11 @@ float MQTTSubscribeSensor::get_setup_priority() const { return setup_priority::A
 void MQTTSubscribeSensor::set_qos(uint8_t qos) { this->qos_ = qos; }
 void MQTTSubscribeSensor::dump_config() {
   LOG_SENSOR("", "MQTT Subscribe", this);
-  ESP_LOGCONFIG(TAG, "  Topic: %s", this->topic_.c_str());
+  std::string topic = this->topic_;
+  if (this->topic_lambda_) {
+    topic = this->topic_lambda_();
+  }
+  ESP_LOGCONFIG(TAG, "  Topic: %s", topic.c_str());
 }
 
 }  // namespace mqtt_subscribe
