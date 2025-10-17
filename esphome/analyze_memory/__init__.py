@@ -1,6 +1,7 @@
 """Memory usage analyzer for ESPHome compiled binaries."""
 
 from collections import defaultdict
+from functools import cache
 import json
 import logging
 from pathlib import Path
@@ -13,6 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 # Get the list of actual ESPHome components by scanning the components directory
+@cache
 def get_esphome_components():
     """Get set of actual ESPHome components from the components directory."""
     components = set()
@@ -32,10 +34,6 @@ def get_esphome_components():
                 components.add(item.name)
 
     return components
-
-
-# Cache the component list
-ESPHOME_COMPONENTS = get_esphome_components()
 
 
 class MemorySection:
@@ -285,7 +283,7 @@ class MemoryAnalyzer:
         if "esphome::" in demangled:
             # Check for special component classes that include component name in the class
             # For example: esphome::ESPHomeOTAComponent -> ota component
-            for component_name in ESPHOME_COMPONENTS:
+            for component_name in get_esphome_components():
                 # Check various naming patterns
                 component_upper = component_name.upper()
                 component_camel = component_name.replace("_", "").title()
@@ -307,7 +305,7 @@ class MemoryAnalyzer:
             component_name = component_name.rstrip("_")
 
             # Check if this is an actual component in the components directory
-            if component_name in ESPHOME_COMPONENTS:
+            if component_name in get_esphome_components():
                 return f"[esphome]{component_name}"
             # Check if this is a known external component from the config
             if component_name in self.external_components:
