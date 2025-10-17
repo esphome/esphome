@@ -10,7 +10,7 @@ static const char *const TAG = "cap1188";
 void CAP1188Component::setup() {
   this->disable_loop();
 
-  // no reset pin 
+  // no reset pin
   if (this->reset_pin_ == nullptr) {
     this->finish_setup_();
     return;
