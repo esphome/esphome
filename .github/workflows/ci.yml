@@ -561,14 +561,26 @@ jobs:
             python script/ci_memory_impact_extract.py --output-env
       - name: Find and upload ELF file
         run: |
-          # Find the most recently created .elf file in .esphome/build
-          elf_file=$(find ~/.esphome/build -name "*.elf" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+          # Find the ELF file - try both common locations
+          elf_file=""
+
+          # Try .esphome/build first (default location)
+          if [ -d ~/.esphome/build ]; then
+            elf_file=$(find ~/.esphome/build -name "firmware.elf" -o -name "*.elf" | head -1)
+          fi
+
+          # Fallback to finding in .platformio if not found
+          if [ -z "$elf_file" ] && [ -d ~/.platformio ]; then
+            elf_file=$(find ~/.platformio -name "firmware.elf" | head -1)
+          fi
+
           if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
             echo "Found ELF file: $elf_file"
             mkdir -p ./elf-artifacts
             cp "$elf_file" ./elf-artifacts/target.elf
           else
-            echo "Warning: No ELF file found"
+            echo "Warning: No ELF file found in ~/.esphome/build or ~/.platformio"
+            ls -la ~/.esphome/build/ || true
           fi
       - name: Upload ELF artifact
         uses: actions/upload-artifact@ea05be8e2b5c27c5689e977ed6f65db0a051b1e5 # v4.6.0
@@ -614,14 +626,26 @@ jobs:
             python script/ci_memory_impact_extract.py --output-env
       - name: Find and upload ELF file
         run: |
-          # Find the most recently created .elf file in .esphome/build
-          elf_file=$(find ~/.esphome/build -name "*.elf" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+          # Find the ELF file - try both common locations
+          elf_file=""
+
+          # Try .esphome/build first (default location)
+          if [ -d ~/.esphome/build ]; then
+            elf_file=$(find ~/.esphome/build -name "firmware.elf" -o -name "*.elf" | head -1)
+          fi
+
+          # Fallback to finding in .platformio if not found
+          if [ -z "$elf_file" ] && [ -d ~/.platformio ]; then
+            elf_file=$(find ~/.platformio -name "firmware.elf" | head -1)
+          fi
+
           if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
             echo "Found ELF file: $elf_file"
             mkdir -p ./elf-artifacts
             cp "$elf_file" ./elf-artifacts/pr.elf
           else
-            echo "Warning: No ELF file found"
+            echo "Warning: No ELF file found in ~/.esphome/build or ~/.platformio"
+            ls -la ~/.esphome/build/ || true
           fi
       - name: Upload ELF artifact
         uses: actions/upload-artifact@ea05be8e2b5c27c5689e977ed6f65db0a051b1e5 # v4.6.0
@@ -651,6 +675,18 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Download target ELF artifact
+        uses: actions/download-artifact@1a18f44933c290e06e7167a92071e78bb20ab94a # v4.4.2
+        with:
+          name: memory-impact-target-elf
+          path: ./elf-artifacts/target
+        continue-on-error: true
+      - name: Download PR ELF artifact
+        uses: actions/download-artifact@1a18f44933c290e06e7167a92071e78bb20ab94a # v4.4.2
+        with:
+          name: memory-impact-pr-elf
+          path: ./elf-artifacts/pr
+        continue-on-error: true
       - name: Post or update PR comment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -662,6 +698,25 @@ jobs:
           PR_FLASH: ${{ needs.memory-impact-pr-branch.outputs.flash_usage }}
         run: |
           . venv/bin/activate
+
+          # Check if ELF files exist
+          target_elf_arg=""
+          pr_elf_arg=""
+
+          if [ -f ./elf-artifacts/target/target.elf ]; then
+            echo "Found target ELF file"
+            target_elf_arg="--target-elf ./elf-artifacts/target/target.elf"
+          else
+            echo "No target ELF file found"
+          fi
+
+          if [ -f ./elf-artifacts/pr/pr.elf ]; then
+            echo "Found PR ELF file"
+            pr_elf_arg="--pr-elf ./elf-artifacts/pr/pr.elf"
+          else
+            echo "No PR ELF file found"
+          fi
+
           python script/ci_memory_impact_comment.py \
             --pr-number "${{ github.event.pull_request.number }}" \
             --component "$COMPONENT" \
@@ -669,7 +724,9 @@ jobs:
             --target-ram "$TARGET_RAM" \
             --target-flash "$TARGET_FLASH" \
             --pr-ram "$PR_RAM" \
-            --pr-flash "$PR_FLASH"
+            --pr-flash "$PR_FLASH" \
+            $target_elf_arg \
+            $pr_elf_arg
 
   ci-status:
     name: CI Status
