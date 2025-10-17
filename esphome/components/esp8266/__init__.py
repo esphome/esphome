@@ -190,7 +190,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:iram_fix.py", "post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -230,6 +230,12 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # In testing mode, fake a larger IRAM to allow linking grouped component tests
+    # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 2MB
+    # This is done via a pre-build script that generates a custom linker script
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -264,4 +270,9 @@ def copy_files():
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
+    )
+    iram_fix_file = dir / "iram_fix.py.script"
+    copy_file_if_changed(
+        iram_fix_file,
+        CORE.relative_build_path("iram_fix.py"),
     )
