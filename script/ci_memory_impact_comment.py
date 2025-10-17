@@ -18,7 +18,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
-from esphome.analyze_memory import MemoryAnalyzer
+from esphome.analyze_memory import MemoryAnalyzer  # noqa: E402
 
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"

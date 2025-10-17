@@ -583,7 +583,7 @@ jobs:
             ls -la ~/.esphome/build/ || true
           fi
       - name: Upload ELF artifact
-        uses: actions/upload-artifact@ea05be8e2b5c27c5689e977ed6f65db0a051b1e5 # v4.6.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: memory-impact-target-elf
           path: ./elf-artifacts/target.elf
@@ -648,7 +648,7 @@ jobs:
             ls -la ~/.esphome/build/ || true
           fi
       - name: Upload ELF artifact
-        uses: actions/upload-artifact@ea05be8e2b5c27c5689e977ed6f65db0a051b1e5 # v4.6.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: memory-impact-pr-elf
           path: ./elf-artifacts/pr.elf
