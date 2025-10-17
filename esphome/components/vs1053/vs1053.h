@@ -78,7 +78,7 @@ class VS1053Component : public Component {
   void set_cancel_bit_() const;
   uint8_t get_fill_byte_() const;
 
-  uint16_t get_parameter_(uint16_t addr) const;
+  uint16_t get_parameter_(uint16_t param) const;
 
   bool wait_data_ready_(uint32_t timeout_us) const;
   bool data_ready_() const { return this->dreq_pin_->digital_read(); }
