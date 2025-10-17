@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import (
     CONF_DEVICE_TYPE,
@@ -108,9 +109,9 @@ _CONNECTION_SCHEMA = cv.Schema(
 )
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_USE_ADDRESS not in config:
-        config[CONF_USE_ADDRESS] = CORE.name + ".local"
+        config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
     return config
 
 

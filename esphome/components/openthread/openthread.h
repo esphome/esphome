@@ -33,7 +33,7 @@ class OpenThreadComponent : public Component {
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
-  std::string get_use_address() const;
+  const std::string &get_use_address() const;
   void set_use_address(const std::string &use_address);
 
  protected:
