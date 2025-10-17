@@ -185,7 +185,9 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
-            _LOGGER.error("All specified devices: %s could not be resolved.", defaults)
+            raise EsphomeError(
+                f"All specified devices {defaults} could not be resolved. Is the device connected to the network?"
+            )
         return resolved
 
     # No devices specified, show interactive chooser
