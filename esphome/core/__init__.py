@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
@@ -640,6 +641,9 @@ class EsphomeCore:
 
         if CONF_ETHERNET in self.config:
             return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
 
         return None
 
