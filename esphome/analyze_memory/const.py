@@ -5,6 +5,24 @@ import re
 # Pattern to extract ESPHome component namespaces dynamically
 ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 
+# Section mapping for ELF file sections
+# Maps standard section names to their various platform-specific variants
+SECTION_MAPPING = {
+    ".text": frozenset([".text", ".iram"]),
+    ".rodata": frozenset([".rodata"]),
+    ".data": frozenset([".data", ".dram"]),
+    ".bss": frozenset([".bss"]),
+}
+
+# Section to ComponentMemory attribute mapping
+# Maps section names to the attribute name in ComponentMemory dataclass
+SECTION_TO_ATTR = {
+    ".text": "text_size",
+    ".rodata": "rodata_size",
+    ".data": "data_size",
+    ".bss": "bss_size",
+}
+
 # Component identification rules
 # Symbol patterns: patterns found in raw symbol names
 SYMBOL_PATTERNS = {
@@ -854,4 +872,32 @@ DEMANGLED_PATTERNS = {
     "nvs": ["nvs_", "_ZTVN3nvs", "nvs::"],
     "filesystem": ["spiffs", "vfs"],
     "libc": ["newlib"],
+}
+
+# Patterns for categorizing ESPHome core symbols into subcategories
+CORE_SUBCATEGORY_PATTERNS = {
+    "Component Framework": ["Component"],
+    "Application Core": ["Application"],
+    "Scheduler": ["Scheduler"],
+    "Component Iterator": ["ComponentIterator"],
+    "Helper Functions": ["Helpers", "helpers"],
+    "Preferences/Storage": ["Preferences", "ESPPreferences"],
+    "I/O Utilities": ["HighFrequencyLoopRequester"],
+    "String Utilities": ["str_"],
+    "Bit Utilities": ["reverse_bits"],
+    "Data Conversion": ["convert_"],
+    "Network Utilities": ["network", "IPAddress"],
+    "API Protocol": ["api::"],
+    "WiFi Manager": ["wifi::"],
+    "MQTT Client": ["mqtt::"],
+    "Logger": ["logger::"],
+    "OTA Updates": ["ota::"],
+    "Web Server": ["web_server::"],
+    "Time Management": ["time::"],
+    "Sensor Framework": ["sensor::"],
+    "Binary Sensor": ["binary_sensor::"],
+    "Switch Framework": ["switch_::"],
+    "Light Framework": ["light::"],
+    "Climate Framework": ["climate::"],
+    "Cover Framework": ["cover::"],
 }
