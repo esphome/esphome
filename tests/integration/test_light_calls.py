@@ -8,6 +8,7 @@ import asyncio
 from typing import Any
 
 from aioesphomeapi import LightState
+from aioesphomeapi.model import ColorMode
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -39,6 +40,34 @@ async def test_light_calls(
 
         rgbcw_light = next(light for light in lights if "RGBCW" in light.name)
         rgb_light = next(light for light in lights if "RGB Light" in light.name)
+
+        # Test color mode encoding: Verify supported_color_modes contains actual ColorMode enum values
+        # not bit positions. This is critical - the bug was encoding bit position 6 instead of
+        # ColorMode.RGB (value 35).
+
+        # RGB light should support RGB mode (ColorMode.RGB = 35)
+        assert ColorMode.RGB in rgb_light.supported_color_modes, (
+            f"RGB light missing RGB color mode. Got: {rgb_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not a bit position
+        assert 35 in [mode.value for mode in rgb_light.supported_color_modes], (
+            f"RGB light has wrong color mode values. Expected 35 (RGB), got: "
+            f"{[mode.value for mode in rgb_light.supported_color_modes]}"
+        )
+
+        # RGBCW light should support multiple modes including RGB_COLD_WARM_WHITE (value 51)
+        assert ColorMode.RGB_COLD_WARM_WHITE in rgbcw_light.supported_color_modes, (
+            f"RGBCW light missing RGB_COLD_WARM_WHITE mode. Got: {rgbcw_light.supported_color_modes}"
+        )
+        # Verify actual enum values
+        expected_rgbcw_modes = {
+            ColorMode.RGB_COLD_WARM_WHITE,  # 51
+            # May have other modes too
+        }
+        assert expected_rgbcw_modes.issubset(set(rgbcw_light.supported_color_modes)), (
+            f"RGBCW light missing expected color modes. Got: "
+            f"{[f'{mode.name}={mode.value}' for mode in rgbcw_light.supported_color_modes]}"
+        )
 
         async def wait_for_state_change(key: int, timeout: float = 1.0) -> Any:
             """Wait for a state change for the given entity key."""
