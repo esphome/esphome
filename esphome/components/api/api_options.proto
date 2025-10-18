@@ -70,4 +70,13 @@ extend google.protobuf.FieldOptions {
     // init(size) before adding elements. This eliminates std::vector template overhead
     // and is ideal when the exact size is known before populating the array.
     optional bool fixed_vector = 50013 [default=false];
+
+    // enum_as_bitmask: Encode repeated enum fields as a uint32_t bitmask
+    // When set on a repeated enum field, the field will be stored as a single uint32_t
+    // where each bit represents whether that enum value is present. This is ideal for
+    // enums with ≤32 values and eliminates all vector template instantiation overhead.
+    // The enum values should be sequential starting from 0.
+    // Encoding: bit N set means enum value N is present in the set.
+    // Example: {ColorMode::RGB, ColorMode::WHITE} → bitmask with bits 5 and 6 set
+    optional bool enum_as_bitmask = 50014 [default=false];
 }

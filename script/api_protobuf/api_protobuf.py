@@ -1418,6 +1418,8 @@ class RepeatedTypeInfo(TypeInfo):
         self._use_pointer = bool(self._container_type)
         # Check if this should use FixedVector instead of std::vector
         self._use_fixed_vector = get_field_opt(field, pb.fixed_vector, False)
+        # Check if this should be encoded as a bitmask
+        self._use_bitmask = get_field_opt(field, pb.enum_as_bitmask, False)
 
         # For repeated fields, we need to get the base type info
         # but we can't call create_field_type_info as it would cause recursion
@@ -1434,6 +1436,9 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def cpp_type(self) -> str:
+        if self._use_bitmask:
+            # For bitmask fields, store as a single uint32_t
+            return "uint32_t"
         if self._use_pointer and self._container_type:
             # For pointer fields, use the specified container type
             # If the container type already includes the element type (e.g., std::set<climate::ClimateMode>)
@@ -1466,6 +1471,12 @@ class RepeatedTypeInfo(TypeInfo):
         # Pointer fields don't support decoding
         if self._use_pointer:
             return None
+        if self._use_bitmask:
+            # For bitmask fields, decode enum value and set corresponding bit
+            content = self._ti.decode_varint
+            if content is None:
+                return None
+            return f"case {self.number}: this->{self.field_name} |= (1U << static_cast<uint8_t>({content})); break;"
         content = self._ti.decode_varint
         if content is None:
             return None
@@ -1519,6 +1530,18 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self._use_bitmask:
+            # For bitmask fields, iterate through set bits and encode each enum value
+            # The bitmask is stored as uint32_t where bit N represents enum value N
+            assert isinstance(self._ti, EnumType), (
+                "enum_as_bitmask only works with enum fields"
+            )
+            o = "for (uint8_t bit = 0; bit < 32; bit++) {\n"
+            o += f"  if (this->{self.field_name} & (1U << bit)) {{\n"
+            o += f"    buffer.{self._ti.encode_func}({self.number}, bit, true);\n"
+            o += "  }\n"
+            o += "}"
+            return o
         if self._use_pointer:
             # For pointer fields, just dereference (pointer should never be null in our use case)
             o = f"for (const auto &it : *this->{self.field_name}) {{\n"
@@ -1538,6 +1561,13 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self) -> str:
+        if self._use_bitmask:
+            # For bitmask fields, dump the hex value of the bitmask
+            return (
+                f'out.append("  {self.field_name}: 0x");\n'
+                f"out.append(uint32_to_string(this->{self.field_name}));\n"
+                f'out.append("\\n");'
+            )
         if self._use_pointer:
             # For pointer fields, dereference and use the existing helper
             return _generate_array_dump_content(
@@ -1553,6 +1583,18 @@ class RepeatedTypeInfo(TypeInfo):
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # For repeated fields, we always need to pass force=True to the underlying type's calculation
         # This is because the encode method always sets force=true for repeated fields
+
+        if self._use_bitmask:
+            # For bitmask fields, iterate through set bits and calculate size
+            # Each set bit encodes one enum value (as varint)
+            o = f"if ({name} != 0) {{\n"
+            o += "  for (uint8_t bit = 0; bit < 32; bit++) {\n"
+            o += f"    if ({name} & (1U << bit)) {{\n"
+            o += f"      {self._ti.get_size_calculation('bit', True)}\n"
+            o += "    }\n"
+            o += "  }\n"
+            o += "}"
+            return o
 
         # Handle message types separately as they use a dedicated helper
         if isinstance(self._ti, MessageType):
