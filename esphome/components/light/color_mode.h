@@ -169,6 +169,9 @@ class ColorModeMask {
   constexpr Iterator begin() const { return Iterator(mask_, 0); }
   constexpr Iterator end() const { return Iterator(mask_, 16); }
 
+  /// Get the raw bitmask value for API encoding
+  constexpr uint16_t get_mask() const { return this->mask_; }
+
  private:
   uint16_t mask_{0};
 
