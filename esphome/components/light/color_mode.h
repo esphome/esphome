@@ -111,62 +111,38 @@ using color_mode_bitmask_t = uint16_t;
 static constexpr int COLOR_MODE_COUNT = 10;                             // UNKNOWN through RGB_COLD_WARM_WHITE
 static constexpr int MAX_BIT_INDEX = sizeof(color_mode_bitmask_t) * 8;  // Number of bits in bitmask type
 
+// Compile-time array of all ColorMode values in declaration order
+// Bit positions (0-9) map directly to enum declaration order
+static constexpr ColorMode COLOR_MODES[COLOR_MODE_COUNT] = {
+    ColorMode::UNKNOWN,                // bit 0
+    ColorMode::ON_OFF,                 // bit 1
+    ColorMode::BRIGHTNESS,             // bit 2
+    ColorMode::WHITE,                  // bit 3
+    ColorMode::COLOR_TEMPERATURE,      // bit 4
+    ColorMode::COLD_WARM_WHITE,        // bit 5
+    ColorMode::RGB,                    // bit 6
+    ColorMode::RGB_WHITE,              // bit 7
+    ColorMode::RGB_COLOR_TEMPERATURE,  // bit 8
+    ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
+};
+
 /// Map ColorMode enum values to bit positions (0-9)
+/// Bit positions follow the enum declaration order
 static constexpr int mode_to_bit(ColorMode mode) {
-  // Using switch instead of lookup table to avoid RAM usage on ESP8266
-  // The compiler optimizes this efficiently
-  switch (mode) {
-    case ColorMode::UNKNOWN:  // 0
-      return 0;
-    case ColorMode::ON_OFF:  // 1
-      return 1;
-    case ColorMode::BRIGHTNESS:  // 3
-      return 2;
-    case ColorMode::WHITE:  // 7
-      return 3;
-    case ColorMode::COLOR_TEMPERATURE:  // 11
-      return 4;
-    case ColorMode::COLD_WARM_WHITE:  // 19
-      return 5;
-    case ColorMode::RGB:  // 35
-      return 6;
-    case ColorMode::RGB_WHITE:  // 39
-      return 7;
-    case ColorMode::RGB_COLOR_TEMPERATURE:  // 47
-      return 8;
-    case ColorMode::RGB_COLD_WARM_WHITE:  // 51
-      return 9;
-    default:
-      return 0;
+  // Linear search through COLOR_MODES array
+  // Compiler optimizes this to efficient code since array is constexpr
+  for (int i = 0; i < COLOR_MODE_COUNT; ++i) {
+    if (COLOR_MODES[i] == mode)
+      return i;
   }
+  return 0;
 }
 
+/// Map bit positions (0-9) to ColorMode enum values
+/// Bit positions follow the enum declaration order
 static constexpr ColorMode bit_to_mode(int bit) {
-  // Using switch instead of lookup table to avoid RAM usage on ESP8266
-  switch (bit) {
-    case 0:
-      return ColorMode::UNKNOWN;  // 0
-    case 1:
-      return ColorMode::ON_OFF;  // 1
-    case 2:
-      return ColorMode::BRIGHTNESS;  // 3
-    case 3:
-      return ColorMode::WHITE;  // 7
-    case 4:
-      return ColorMode::COLOR_TEMPERATURE;  // 11
-    case 5:
-      return ColorMode::COLD_WARM_WHITE;  // 19
-    case 6:
-      return ColorMode::RGB;  // 35
-    case 7:
-      return ColorMode::RGB_WHITE;  // 39
-    case 8:
-      return ColorMode::RGB_COLOR_TEMPERATURE;  // 47
-    case 9:
-      return ColorMode::RGB_COLD_WARM_WHITE;  // 51
-    default:
-      return ColorMode::UNKNOWN;
-  }
+  // Direct lookup in COLOR_MODES array
+  return (bit >= 0 && bit < COLOR_MODE_COUNT) ? COLOR_MODES[bit] : ColorMode::UNKNOWN;
 }
 
 /// Helper to compute capability bitmask at compile time
