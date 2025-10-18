@@ -1,0 +1,43 @@
+esphome:
+  name: usb-audio-test
+
+logger:
+
+usb_audio:
+  id: usb_audio_id
+  connect_timeout: 2s
+  microphone_buffer_size: 6400
+  speaker_buffer_size: 6400
+
+microphone:
+  - platform: usb_audio
+    id: usb_mic
+    usb_audio_id: usb_audio_id
+    sample_rate: 16000
+    bits_per_sample: 16bit
+
+speaker:
+  - platform: usb_audio
+    id: usb_speaker
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    num_channels: 2
+    write_timeout: 20ms
+
+media_player:
+  - platform: usb_audio
+    id: usb_player
+    usb_audio_id: usb_audio_id
+    buffer_size: 262144
+    codec_support_enabled: false
+    announcement_pipeline:
+      speaker: usb_speaker
+      format: WAV
+      sample_rate: 48000
+      num_channels: 2
+    media_pipeline:
+      speaker: usb_speaker
+      format: WAV
+      sample_rate: 48000
+      num_channels: 2
