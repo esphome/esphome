@@ -418,6 +418,39 @@ async def test_download_binary_handler_idedata_fallback(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_from_subdirectory(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get from subdirectory."""
+    # Create a fake binary file
+    build_dir = tmp_path / ".esphome" / "build" / "test"
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"content")
+
+    build_dir_subdirectory = build_dir / "zephyr"
+    build_dir_subdirectory.mkdir()
+    firmware_file_subdirectory = build_dir_subdirectory / "zephyr.uf2"
+    firmware_file_subdirectory.write_bytes(b"content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=zephyr%2Fzephyr.uf2&download=custom_name.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert "custom_name.bin" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
 async def test_edit_request_handler_post_invalid_file(
     dashboard: DashboardTestHelper,
 ) -> None:
