@@ -259,11 +259,7 @@ class ColorModeMask {
     constexpr bool operator!=(const Iterator &other) const { return !(*this == other); }
 
    private:
-    constexpr void advance_to_next_set_bit_() {
-      while (bit_ < MAX_BIT_INDEX && !(mask_ & (1 << bit_))) {
-        ++bit_;
-      }
-    }
+    constexpr void advance_to_next_set_bit_() { bit_ = ColorModeMask::find_next_set_bit(mask_, bit_); }
 
     color_mode_bitmask_t mask_;
     int bit_;
@@ -275,15 +271,20 @@ class ColorModeMask {
   /// Get the raw bitmask value for API encoding
   constexpr color_mode_bitmask_t get_mask() const { return this->mask_; }
 
-  /// Find the first set bit in a bitmask and return the corresponding ColorMode
-  /// Used for optimizing compute_color_mode_() intersection logic
-  static constexpr ColorMode first_mode_from_mask(color_mode_bitmask_t mask) {
-    // Find the position of the first set bit (least significant bit)
-    int bit = 0;
+  /// Find the next set bit in a bitmask starting from a given position
+  /// Returns the bit position, or MAX_BIT_INDEX if no more bits are set
+  static constexpr int find_next_set_bit(color_mode_bitmask_t mask, int start_bit) {
+    int bit = start_bit;
     while (bit < MAX_BIT_INDEX && !(mask & (1 << bit))) {
       ++bit;
     }
-    return bit_to_mode(bit);
+    return bit;
+  }
+
+  /// Find the first set bit in a bitmask and return the corresponding ColorMode
+  /// Used for optimizing compute_color_mode_() intersection logic
+  static constexpr ColorMode first_mode_from_mask(color_mode_bitmask_t mask) {
+    return bit_to_mode(find_next_set_bit(mask, 0));
   }
 
   /// Check if a ColorMode is present in a raw bitmask value
