@@ -79,15 +79,31 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-xtensa mosquitto mosquitto-clients esptool
+          sudo apt-get install -y qemu-system-xtensa mosquitto mosquitto-clients esptool git libpixman-1-0 libsdl2-2.0-0
+
+      - name: Install Espressif QEMU (esp32)
+        run: |
+          set -e
+          if command -v qemu-system-xtensa >/dev/null && qemu-system-xtensa -machine help 2>&1 | grep -q 'esp32'; then
+            echo "System qemu-system-xtensa supports esp32 machine"
+          else
+            echo "Installing Espressif QEMU via idf_tools.py"
+            git clone --depth 1 https://github.com/espressif/esp-idf.git
+            cd esp-idf
+            python3 ./tools/idf_tools.py install qemu-xtensa
+            # Export is not strictly necessary since we locate the binary explicitly, but it primes the tool cache
+            python3 ./tools/idf_tools.py export --format key-value >> "$GITHUB_ENV" || true
+          fi
 
       - name: Start local Mosquitto broker
         run: |
-          cat <<'CONF' > mosquitto.conf
+          QEMU_WORK_DIR=.qemu
+          mkdir -p "$QEMU_WORK_DIR"
+          cat <<'CONF' > "$QEMU_WORK_DIR"/mosquitto.conf
           allow_anonymous true
-          listener 1883 127.0.0.1
+          listener 1883 0.0.0.0
           CONF
-          mosquitto -c mosquitto.conf -d
+          mosquitto -c "$QEMU_WORK_DIR"/mosquitto.conf -d
 
       - name: Compile ESPHome configuration
         run: |
@@ -95,15 +111,33 @@ jobs:
           esphome compile test_mqtt_openeth.yaml
 
       - name: Run QEMU and verify MQTT topics
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           BUILD_DIR=".esphome/build/qemu-test/.pioenvs/qemu-test"
+          LOG_DIR=".qemu"
+          mkdir -p "$LOG_DIR"
           pushd "$BUILD_DIR"
           esptool.py --chip esp32 merge_bin -o qemu_flash_4mb.bin \
             --flash_mode dio --flash_freq 40m --flash_size 4MB --fill-flash-size 4MB \
             0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 firmware.bin >/dev/null
           python -c "open('qemu_efuse_zero.bin','wb').write(b'\\x00'*1024)"
-          /root/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin/qemu-system-xtensa \
+          QEMU_BIN="$(command -v qemu-system-xtensa || true)"
+          # Prefer a qemu build that supports the esp32 machine
+          if [ -n "$QEMU_BIN" ]; then
+            if ! "$QEMU_BIN" -machine help 2>&1 | grep -q 'esp32'; then
+              QEMU_BIN=""
+            fi
+          fi
+          if [ -z "$QEMU_BIN" ]; then
+            # Try Espressif-provided QEMU under ~/.espressif
+            QEMU_BIN=$(ls -d "$HOME/.espressif/tools/qemu-xtensa"/*/qemu/bin/qemu-system-xtensa 2>/dev/null | head -n 1 || true)
+          fi
+          if [ -z "$QEMU_BIN" ] || ! "$QEMU_BIN" -machine help 2>&1 | grep -q 'esp32'; then
+            echo "No qemu-system-xtensa with esp32 machine found. Install Espressif QEMU (see docs)."
+            exit 1
+          fi
+          timeout 10m "$QEMU_BIN" \
             -nographic -M esp32 -m 4 \
             -drive file=qemu_flash_4mb.bin,if=mtd,format=raw \
             -drive file=qemu_efuse_zero.bin,format=raw,if=none,id=efuse \
@@ -113,14 +147,33 @@ jobs:
             -serial mon:stdio \
             > qemu.log 2>&1 &
           QEMU_PID=$!
+          echo "QEMU started with PID $QEMU_PID"
           popd
-          sleep 12
-          mosquitto_sub -h 127.0.0.1 -p 1883 -u local -P local123 -t 'qemu-test/#' -C 12 -v > mqtt.log
-          kill $QEMU_PID || true
+          # Give firmware time to boot and bring network up
+          sleep 15
+          # Collect a minimal set of MQTT messages with timeouts to avoid hangs
+          : > "$LOG_DIR/mqtt.log"
+          for topic in \
+            "qemu-test/status" \
+            "qemu-test/sensor/Тестовый_сенсор_температуры/state" \
+            "qemu-test/sensor/Тестовый_сенсор_влажности/state" \
+            "qemu-test/switch/Тестовый_переключатель_1/state"; do
+            echo "Waiting for topic: $topic"
+            if ! timeout 120s mosquitto_sub -h 127.0.0.1 -p 1883 -u local -P local123 -t "$topic" -C 1 -v >> "$LOG_DIR/mqtt.log"; then
+              echo "Timeout waiting for $topic"
+              # Stop QEMU before exiting on failure
+              kill $QEMU_PID 2>/dev/null || true
+              wait $QEMU_PID 2>/dev/null || true
+              exit 1
+            fi
+          done
+          # Stop QEMU (if still running)
+          kill $QEMU_PID 2>/dev/null || true
           wait $QEMU_PID 2>/dev/null || true
-          grep -F "qemu-test/sensor/Тестовый_сенсор_температуры/state" mqtt.log
-          grep -F "qemu-test/sensor/Тестовый_сенсор_влажности/state" mqtt.log
-          grep -F "qemu-test/switch/Тестовый_переключатель_1/state" mqtt.log
+          # Verify expected topics seen
+          grep -F "qemu-test/sensor/Тестовый_сенсор_температуры/state" "$LOG_DIR/mqtt.log"
+          grep -F "qemu-test/sensor/Тестовый_сенсор_влажности/state" "$LOG_DIR/mqtt.log"
+          grep -F "qemu-test/switch/Тестовый_переключатель_1/state" "$LOG_DIR/mqtt.log"
 
       - name: Show QEMU log (on failure)
         if: failure()
@@ -134,7 +187,7 @@ jobs:
           name: qemu-openeth-logs
           path: |
             .esphome/build/qemu-test/.pioenvs/qemu-test/qemu.log
-            mqtt.log
+            .qemu/mqtt.log
 
       - name: Stop Mosquitto
         if: always()

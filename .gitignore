@@ -144,3 +144,9 @@ sdkconfig.*
 /managed_components
 
 api-docs/
+
+# QEMU/MQTT local artifacts
+mosquitto.conf
+mqtt*.log
+.qemu/
+qemu.log
