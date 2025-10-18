@@ -238,7 +238,7 @@ def create_detailed_breakdown_table(
     # Combine all components from both analyses
     all_components = set(target_analysis.keys()) | set(pr_analysis.keys())
 
-    # Filter to components that have changed or are significant
+    # Filter to components that have changed
     changed_components = []
     for comp in all_components:
         target_mem = target_analysis.get(comp, {})
@@ -247,8 +247,8 @@ def create_detailed_breakdown_table(
         target_flash = target_mem.get("flash_total", 0)
         pr_flash = pr_mem.get("flash_total", 0)
 
-        # Include if component has changed or is significant (> 1KB)
-        if target_flash != pr_flash or target_flash > 1024 or pr_flash > 1024:
+        # Only include if component has changed
+        if target_flash != pr_flash:
             delta = pr_flash - target_flash
             changed_components.append((comp, target_flash, pr_flash, delta))
 
