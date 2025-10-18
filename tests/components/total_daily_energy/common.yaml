@@ -17,10 +17,10 @@ sensor:
       name: HLW8012 Voltage
     power:
       name: HLW8012 Power
-      id: hlw8012_power
+      id: total_daily_energy_hlw8012_power
     energy:
       name: HLW8012 Energy
-      id: hlw8012_energy
+      id: total_daily_energy_hlw8012_energy
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
@@ -29,4 +29,4 @@ sensor:
     model: hlw8012
   - platform: total_daily_energy
     name: HLW8012 Total Daily Energy
-    power_id: hlw8012_power
+    power_id: total_daily_energy_hlw8012_power
