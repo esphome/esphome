@@ -70,7 +70,7 @@ def extract_from_compile_output(
     # Look for: INFO Compiling app... Build path: /path/to/build
     # Note: Multiple builds reuse the same build path (each overwrites the previous)
     build_dir = None
-    if match := re.search(r"Build path: (.+)", output_text):
+    if match := _BUILD_PATH_PATTERN.search(output_text):
         build_dir = match.group(1).strip()
 
     return total_ram, total_flash, build_dir
@@ -210,11 +210,7 @@ def main() -> int:
         return 1
 
     # Count how many builds were found
-    num_builds = len(
-        re.findall(
-            r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", compile_output
-        )
-    )
+    num_builds = len(_RAM_PATTERN.findall(compile_output))
 
     if num_builds > 1:
         print(
