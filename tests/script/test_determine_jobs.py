@@ -504,3 +504,185 @@ def test_main_filters_components_without_tests(
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+
+
+# Tests for detect_memory_impact_config function
+
+
+def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> None:
+    """Test memory impact detection when components share a common platform."""
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # wifi component with esp32-idf test
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    # api component with esp32-idf test
+    api_dir = tests_dir / "api"
+    api_dir.mkdir(parents=True)
+    (api_dir / "test.esp32-idf.yaml").write_text("test: api")
+
+    # Mock changed_files to return wifi and api component changes
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/components/wifi/wifi.cpp",
+            "esphome/components/api/api.cpp",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    assert result["should_run"] == "true"
+    assert set(result["components"]) == {"wifi", "api"}
+    assert result["platform"] == "esp32-idf"  # Common platform
+    assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
+    """Test memory impact detection with core-only changes (no component changes)."""
+    # Create test directory structure with fallback component
+    tests_dir = tmp_path / "tests" / "components"
+
+    # api component (fallback component) with esp32-idf test
+    api_dir = tests_dir / "api"
+    api_dir.mkdir(parents=True)
+    (api_dir / "test.esp32-idf.yaml").write_text("test: api")
+
+    # Mock changed_files to return only core files (no component files)
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/core/application.cpp",
+            "esphome/core/component.h",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    assert result["should_run"] == "true"
+    assert result["components"] == ["api"]  # Fallback component
+    assert result["platform"] == "esp32-idf"  # Fallback platform
+    assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
+    """Test memory impact detection when components have no common platform."""
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # wifi component only has esp32-idf test
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    # logger component only has esp8266-ard test
+    logger_dir = tests_dir / "logger"
+    logger_dir.mkdir(parents=True)
+    (logger_dir / "test.esp8266-ard.yaml").write_text("test: logger")
+
+    # Mock changed_files to return both components
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/components/wifi/wifi.cpp",
+            "esphome/components/logger/logger.cpp",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Should pick the most frequently supported platform
+    assert result["should_run"] == "true"
+    assert set(result["components"]) == {"wifi", "logger"}
+    # When no common platform, picks most commonly supported
+    # esp8266-ard is preferred over esp32-idf in the preference list
+    assert result["platform"] in ["esp32-idf", "esp8266-ard"]
+    assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_no_changes(tmp_path: Path) -> None:
+    """Test memory impact detection when no files changed."""
+    # Mock changed_files to return empty list
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = []
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_no_components_with_tests(tmp_path: Path) -> None:
+    """Test memory impact detection when changed components have no tests."""
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # Create component directory but no test files
+    custom_component_dir = tests_dir / "my_custom_component"
+    custom_component_dir.mkdir(parents=True)
+
+    # Mock changed_files to return component without tests
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/components/my_custom_component/component.cpp",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    assert result["should_run"] == "false"
+
+
+def test_detect_memory_impact_config_skips_base_bus_components(tmp_path: Path) -> None:
+    """Test that base bus components (i2c, spi, uart) are skipped."""
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # i2c component (should be skipped as it's a base bus component)
+    i2c_dir = tests_dir / "i2c"
+    i2c_dir.mkdir(parents=True)
+    (i2c_dir / "test.esp32-idf.yaml").write_text("test: i2c")
+
+    # wifi component (should not be skipped)
+    wifi_dir = tests_dir / "wifi"
+    wifi_dir.mkdir(parents=True)
+    (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
+
+    # Mock changed_files to return both i2c and wifi
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/components/i2c/i2c.cpp",
+            "esphome/components/wifi/wifi.cpp",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Should only include wifi, not i2c
+    assert result["should_run"] == "true"
+    assert result["components"] == ["wifi"]
+    assert "i2c" not in result["components"]

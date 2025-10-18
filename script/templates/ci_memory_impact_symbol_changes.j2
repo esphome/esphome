@@ -3,7 +3,7 @@
 <details>
 <summary>🔍 Symbol-Level Changes (click to expand)</summary>
 
-{%- if changed_symbols %}
+{% if changed_symbols %}
 
 ### Changed Symbols
 
@@ -16,8 +16,8 @@
 | ... | ... | ... | *({{ changed_symbols|length - max_changed_rows }} more changed symbols not shown)* |
 {% endif -%}
 
-{%- endif %}
-{%- if new_symbols %}
+{% endif %}
+{% if new_symbols %}
 
 ### New Symbols (top {{ max_new_rows }})
 
@@ -31,8 +31,8 @@
 | *{{ new_symbols|length - max_new_rows }} more new symbols...* | *Total: {{ total_new_size|format_bytes }}* |
 {% endif -%}
 
-{%- endif %}
-{%- if removed_symbols %}
+{% endif %}
+{% if removed_symbols %}
 
 ### Removed Symbols (top {{ max_removed_rows }})
 
@@ -46,6 +46,6 @@
 | *{{ removed_symbols|length - max_removed_rows }} more removed symbols...* | *Total: {{ total_removed_size|format_bytes }}* |
 {% endif -%}
 
-{%- endif %}
+{% endif %}
 
 </details>
