@@ -55,8 +55,6 @@ void OneWireBus::search() {
     }
     // Sort the devices by address to have a deterministic order
     std::sort(this->devices_.begin(), this->devices_.end());
-
-    ESP_LOGE(TAG, "Devices searched");
   }
 }
 
