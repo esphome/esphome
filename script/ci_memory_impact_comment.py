@@ -159,14 +159,12 @@ def create_symbol_changes_table(
             change_str = format_change(target_size, pr_size)
             # Truncate very long symbol names but show full name in title attribute
             if len(symbol) <= 100:
-                display_symbol = symbol
+                display_symbol = f"`{symbol}`"
             else:
-                # Use HTML details for very long symbols
-                display_symbol = (
-                    f"<details><summary>{symbol[:97]}...</summary>{symbol}</details>"
-                )
+                # Use HTML details for very long symbols (no backticks inside HTML)
+                display_symbol = f"<details><summary><code>{symbol[:97]}...</code></summary><code>{symbol}</code></details>"
             lines.append(
-                f"| `{display_symbol}` | {target_str} | {pr_str} | {change_str} |"
+                f"| {display_symbol} | {target_str} | {pr_str} | {change_str} |"
             )
 
         if len(changed_symbols) > 30:

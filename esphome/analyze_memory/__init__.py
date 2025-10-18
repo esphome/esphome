@@ -289,20 +289,26 @@ class MemoryAnalyzer:
         # Try to find the appropriate c++filt for the platform
         cppfilt_cmd = "c++filt"
 
+        _LOGGER.warning("Demangling %d symbols", len(symbols))
+        _LOGGER.warning("objdump_path = %s", self.objdump_path)
+
         # Check if we have a toolchain-specific c++filt
         if self.objdump_path and self.objdump_path != "objdump":
             # Replace objdump with c++filt in the path
             potential_cppfilt = self.objdump_path.replace("objdump", "c++filt")
+            _LOGGER.warning("Checking for toolchain c++filt at: %s", potential_cppfilt)
             if Path(potential_cppfilt).exists():
                 cppfilt_cmd = potential_cppfilt
-                _LOGGER.warning("Using toolchain c++filt: %s", cppfilt_cmd)
+                _LOGGER.warning("✓ Using toolchain c++filt: %s", cppfilt_cmd)
             else:
                 _LOGGER.warning(
-                    "Toolchain c++filt not found at %s, using system c++filt",
+                    "✗ Toolchain c++filt not found at %s, using system c++filt",
                     potential_cppfilt,
                 )
         else:
-            _LOGGER.warning("Using system c++filt (objdump_path=%s)", self.objdump_path)
+            _LOGGER.warning(
+                "✗ Using system c++filt (objdump_path=%s)", self.objdump_path
+            )
 
         try:
             # Send all symbols to c++filt at once
@@ -316,15 +322,35 @@ class MemoryAnalyzer:
             if result.returncode == 0:
                 demangled_lines = result.stdout.strip().split("\n")
                 # Map original to demangled names
+                failed_count = 0
                 for original, demangled in zip(symbols, demangled_lines):
                     self._demangle_cache[original] = demangled
                     # Log symbols that failed to demangle (stayed the same)
                     if original == demangled and original.startswith("_Z"):
-                        _LOGGER.debug("Failed to demangle symbol: %s", original)
+                        failed_count += 1
+                        if failed_count <= 5:  # Only log first 5 failures
+                            _LOGGER.warning("Failed to demangle: %s", original[:100])
+
+                if failed_count > 0:
+                    _LOGGER.warning(
+                        "Failed to demangle %d/%d symbols using %s",
+                        failed_count,
+                        len(symbols),
+                        cppfilt_cmd,
+                    )
+                else:
+                    _LOGGER.warning(
+                        "Successfully demangled all %d symbols", len(symbols)
+                    )
                 return
+            _LOGGER.warning(
+                "c++filt exited with code %d: %s",
+                result.returncode,
+                result.stderr[:200] if result.stderr else "(no error output)",
+            )
         except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
             # On error, cache originals
-            _LOGGER.debug("Failed to batch demangle symbols: %s", e)
+            _LOGGER.warning("Failed to batch demangle symbols: %s", e)
 
         # If demangling failed, cache originals
         for symbol in symbols:
