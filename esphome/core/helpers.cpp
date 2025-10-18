@@ -207,8 +207,7 @@ std::string str_sanitize(const std::string &str) {
   std::replace_if(
       out.begin(), out.end(),
       [](const char &c) {
-        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') &&
-               (c < 'A' || c > 'Z');
+        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z');
       },
       '_');
   return out;
