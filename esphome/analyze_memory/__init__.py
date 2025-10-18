@@ -77,7 +77,7 @@ class MemoryAnalyzer:
         readelf_path: str | None = None,
         external_components: set[str] | None = None,
         idedata: "IDEData | None" = None,
-    ):
+    ) -> None:
         """Initialize memory analyzer.
 
         Args:
@@ -316,8 +316,8 @@ class MemoryAnalyzer:
         # Strip GCC optimization suffixes and prefixes before demangling
         # Suffixes like $isra$0, $part$0, $constprop$0 confuse c++filt
         # Prefixes like _GLOBAL__sub_I_ need to be removed and tracked
-        symbols_stripped = []
-        symbols_prefixes = []  # Track removed prefixes
+        symbols_stripped: list[str] = []
+        symbols_prefixes: list[str] = []  # Track removed prefixes
         for symbol in symbols:
             # Remove GCC optimization markers
             stripped = re.sub(r"\$(?:isra|part|constprop)\$\d+", "", symbol)
@@ -325,12 +325,11 @@ class MemoryAnalyzer:
             # Handle GCC global constructor/initializer prefixes
             # _GLOBAL__sub_I_<mangled> -> extract <mangled> for demangling
             prefix = ""
-            if stripped.startswith("_GLOBAL__sub_I_"):
-                prefix = "_GLOBAL__sub_I_"
-                stripped = stripped[len(prefix) :]
-            elif stripped.startswith("_GLOBAL__sub_D_"):
-                prefix = "_GLOBAL__sub_D_"
-                stripped = stripped[len(prefix) :]
+            for gcc_prefix in _GCC_PREFIX_ANNOTATIONS:
+                if stripped.startswith(gcc_prefix):
+                    prefix = gcc_prefix
+                    stripped = stripped[len(prefix) :]
+                    break
 
             symbols_stripped.append(stripped)
             symbols_prefixes.append(prefix)
@@ -403,17 +402,18 @@ class MemoryAnalyzer:
             if stripped == demangled and stripped.startswith("_Z"):
                 failed_count += 1
                 if failed_count <= 5:  # Only log first 5 failures
-                    _LOGGER.warning("Failed to demangle: %s", original[:100])
+                    _LOGGER.warning("Failed to demangle: %s", original)
 
-        if failed_count > 0:
-            _LOGGER.warning(
-                "Failed to demangle %d/%d symbols using %s",
-                failed_count,
-                len(symbols),
-                cppfilt_cmd,
-            )
-        else:
-            _LOGGER.warning("Successfully demangled all %d symbols", len(symbols))
+        if failed_count == 0:
+            _LOGGER.info("Successfully demangled all %d symbols", len(symbols))
+            return
+
+        _LOGGER.warning(
+            "Failed to demangle %d/%d symbols using %s",
+            failed_count,
+            len(symbols),
+            cppfilt_cmd,
+        )
 
     @staticmethod
     def _restore_symbol_prefix(prefix: str, stripped: str, demangled: str) -> str:

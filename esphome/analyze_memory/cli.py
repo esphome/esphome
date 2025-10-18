@@ -83,7 +83,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         total_ram = sum(c.ram_total for _, c in components)
 
         # Build report
-        lines = []
+        lines: list[str] = []
 
         lines.append("=" * self.TABLE_WIDTH)
         lines.append("Component Memory Analysis".center(self.TABLE_WIDTH))
