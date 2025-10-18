@@ -240,7 +240,6 @@ class WiFiComponent : public Component {
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
-  void set_fast_connect(bool fast_connect);
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
 
   void check_connecting_finished();
@@ -364,8 +363,10 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
+#ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_();
   void save_fast_connect_settings_();
+#endif
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -399,7 +400,9 @@ class WiFiComponent : public Component {
   WiFiAP ap_;
   optional<float> output_power_;
   ESPPreferenceObject pref_;
+#ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
+#endif
 
   // Group all 32-bit integers together
   uint32_t action_started_;
@@ -411,14 +414,17 @@ class WiFiComponent : public Component {
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
+#ifdef USE_WIFI_FAST_CONNECT
   uint8_t ap_index_{0};
+#endif
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
 
   // Group all boolean values together
-  bool fast_connect_{false};
+#ifdef USE_WIFI_FAST_CONNECT
   bool trying_loaded_ap_{false};
+#endif
   bool retry_hidden_{false};
   bool has_ap_{false};
   bool handled_connected_state_{false};
