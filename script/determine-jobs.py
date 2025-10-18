@@ -54,6 +54,7 @@ from helpers import (
     changed_files,
     get_all_dependencies,
     get_components_from_integration_fixtures,
+    parse_test_filename,
     root_path,
 )
 
@@ -335,11 +336,8 @@ def detect_memory_impact_config(
         # Check if component has tests for any preferred platform
         available_platforms = []
         for test_file in test_files:
-            parts = test_file.stem.split(".")
-            if len(parts) < 2:
-                continue
-            platform = parts[1]
-            if platform in PLATFORM_PREFERENCE:
+            _, platform = parse_test_filename(test_file)
+            if platform != "all" and platform in PLATFORM_PREFERENCE:
                 available_platforms.append(platform)
 
         if not available_platforms:
