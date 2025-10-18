@@ -301,6 +301,7 @@ def create_comment_body(
     pr_analysis: dict | None = None,
     target_symbols: dict | None = None,
     pr_symbols: dict | None = None,
+    target_cache_hit: bool = False,
 ) -> str:
     """Create the comment body with memory impact analysis.
 
@@ -315,6 +316,7 @@ def create_comment_body(
         pr_analysis: Optional component breakdown for PR branch
         target_symbols: Optional symbol map for target branch
         pr_symbols: Optional symbol map for PR branch
+        target_cache_hit: Whether target branch analysis was loaded from cache
 
     Returns:
         Formatted comment body
@@ -344,6 +346,11 @@ def create_comment_body(
         components_str = ", ".join(f"`{c}`" for c in sorted(components))
         config_note = f"a merged configuration with {len(components)} components"
 
+    # Add cache info note if target was cached
+    cache_note = ""
+    if target_cache_hit:
+        cache_note = "\n\n> ⚡ Target branch analysis was loaded from cache (build skipped for faster CI)."
+
     return f"""{COMMENT_MARKER}
 ## Memory Impact Analysis
 
@@ -354,7 +361,8 @@ def create_comment_body(
 |--------|--------------|---------|--------|
 | **RAM** | {format_bytes(target_ram)} | {format_bytes(pr_ram)} | {ram_change} |
 | **Flash** | {format_bytes(target_flash)} | {format_bytes(pr_flash)} | {flash_change} |
-{component_breakdown}{symbol_changes}
+{component_breakdown}{symbol_changes}{cache_note}
+
 ---
 *This analysis runs automatically when components change. Memory usage is measured from {config_note}.*
 """
@@ -531,6 +539,11 @@ def main() -> int:
         "--pr-json",
         help="Optional path to PR branch analysis JSON (for detailed analysis)",
     )
+    parser.add_argument(
+        "--target-cache-hit",
+        action="store_true",
+        help="Indicates that target branch analysis was loaded from cache",
+    )
 
     args = parser.parse_args()
 
@@ -575,6 +588,7 @@ def main() -> int:
         pr_analysis=pr_analysis,
         target_symbols=target_symbols,
         pr_symbols=pr_symbols,
+        target_cache_hit=args.target_cache_hit,
     )
 
     # Post or update comment
