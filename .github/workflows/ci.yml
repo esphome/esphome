@@ -548,7 +548,7 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
-      - name: Build and compile with test_build_components
+      - name: Build, compile, and analyze memory
         id: extract
         run: |
           . venv/bin/activate
@@ -563,38 +563,32 @@ jobs:
           component_list=$(echo "$components" | jq -r 'join(",")')
 
           echo "Compiling with test_build_components.py..."
-          python script/test_build_components.py \
-            -e compile \
-            -c "$component_list" \
-            -t "$platform" 2>&1 | \
-            python script/ci_memory_impact_extract.py --output-env
-      - name: Find and upload final ELF file
-        run: |
-          # Note: test_build_components.py may run multiple builds, but each overwrites
-          # the previous firmware.elf. The memory totals (RAM/Flash) are already summed
-          # by ci_memory_impact_extract.py. This ELF is from the last build and is used
-          # for detailed component breakdown (if available).
-          mkdir -p ./elf-artifacts/target
 
-          # Find the most recent firmware.elf
-          if [ -d ~/.esphome/build ]; then
-            elf_file=$(find ~/.esphome/build -name "firmware.elf" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+          # Find most recent build directory for detailed analysis
+          build_dir=$(find ~/.esphome/build -type d -maxdepth 1 -mindepth 1 -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || echo "")
 
-            if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
-              echo "Found final ELF file: $elf_file"
-              cp "$elf_file" "./elf-artifacts/target/firmware.elf"
-            else
-              echo "Warning: No ELF file found in ~/.esphome/build"
-              ls -la ~/.esphome/build/ || true
-            fi
+          # Run build and extract memory, with optional detailed analysis
+          if [ -n "$build_dir" ]; then
+            python script/test_build_components.py \
+              -e compile \
+              -c "$component_list" \
+              -t "$platform" 2>&1 | \
+              python script/ci_memory_impact_extract.py \
+                --output-env \
+                --build-dir "$build_dir" \
+                --output-json memory-analysis-target.json
           else
-            echo "Warning: ~/.esphome/build directory not found"
+            python script/test_build_components.py \
+              -e compile \
+              -c "$component_list" \
+              -t "$platform" 2>&1 | \
+              python script/ci_memory_impact_extract.py --output-env
           fi
-      - name: Upload ELF artifact
+      - name: Upload memory analysis JSON
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: memory-impact-target-elf
-          path: ./elf-artifacts/target/firmware.elf
+          name: memory-analysis-target
+          path: memory-analysis-target.json
           if-no-files-found: warn
           retention-days: 1
 
@@ -621,7 +615,7 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
-      - name: Build and compile with test_build_components
+      - name: Build, compile, and analyze memory
         id: extract
         run: |
           . venv/bin/activate
@@ -636,38 +630,32 @@ jobs:
           component_list=$(echo "$components" | jq -r 'join(",")')
 
           echo "Compiling with test_build_components.py..."
-          python script/test_build_components.py \
-            -e compile \
-            -c "$component_list" \
-            -t "$platform" 2>&1 | \
-            python script/ci_memory_impact_extract.py --output-env
-      - name: Find and upload final ELF file
-        run: |
-          # Note: test_build_components.py may run multiple builds, but each overwrites
-          # the previous firmware.elf. The memory totals (RAM/Flash) are already summed
-          # by ci_memory_impact_extract.py. This ELF is from the last build and is used
-          # for detailed component breakdown (if available).
-          mkdir -p ./elf-artifacts/pr
 
-          # Find the most recent firmware.elf
-          if [ -d ~/.esphome/build ]; then
-            elf_file=$(find ~/.esphome/build -name "firmware.elf" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+          # Find most recent build directory for detailed analysis
+          build_dir=$(find ~/.esphome/build -type d -maxdepth 1 -mindepth 1 -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || echo "")
 
-            if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
-              echo "Found final ELF file: $elf_file"
-              cp "$elf_file" "./elf-artifacts/pr/firmware.elf"
-            else
-              echo "Warning: No ELF file found in ~/.esphome/build"
-              ls -la ~/.esphome/build/ || true
-            fi
+          # Run build and extract memory, with optional detailed analysis
+          if [ -n "$build_dir" ]; then
+            python script/test_build_components.py \
+              -e compile \
+              -c "$component_list" \
+              -t "$platform" 2>&1 | \
+              python script/ci_memory_impact_extract.py \
+                --output-env \
+                --build-dir "$build_dir" \
+                --output-json memory-analysis-pr.json
           else
-            echo "Warning: ~/.esphome/build directory not found"
+            python script/test_build_components.py \
+              -e compile \
+              -c "$component_list" \
+              -t "$platform" 2>&1 | \
+              python script/ci_memory_impact_extract.py --output-env
           fi
-      - name: Upload ELF artifact
+      - name: Upload memory analysis JSON
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: memory-impact-pr-elf
-          path: ./elf-artifacts/pr/firmware.elf
+          name: memory-analysis-pr
+          path: memory-analysis-pr.json
           if-no-files-found: warn
           retention-days: 1
 
@@ -691,17 +679,17 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Download target ELF artifact
+      - name: Download target analysis JSON
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: memory-impact-target-elf
-          path: ./elf-artifacts/target
+          name: memory-analysis-target
+          path: ./memory-analysis
         continue-on-error: true
-      - name: Download PR ELF artifact
+      - name: Download PR analysis JSON
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: memory-impact-pr-elf
-          path: ./elf-artifacts/pr
+          name: memory-analysis-pr
+          path: ./memory-analysis
         continue-on-error: true
       - name: Post or update PR comment
         env:
@@ -715,22 +703,22 @@ jobs:
         run: |
           . venv/bin/activate
 
-          # Check if ELF files exist (from final build)
-          target_elf_arg=""
-          pr_elf_arg=""
+          # Check if analysis JSON files exist
+          target_json_arg=""
+          pr_json_arg=""
 
-          if [ -f ./elf-artifacts/target/firmware.elf ]; then
-            echo "Found target ELF file"
-            target_elf_arg="--target-elf ./elf-artifacts/target/firmware.elf"
+          if [ -f ./memory-analysis/memory-analysis-target.json ]; then
+            echo "Found target analysis JSON"
+            target_json_arg="--target-json ./memory-analysis/memory-analysis-target.json"
           else
-            echo "No target ELF file found"
+            echo "No target analysis JSON found"
           fi
 
-          if [ -f ./elf-artifacts/pr/firmware.elf ]; then
-            echo "Found PR ELF file"
-            pr_elf_arg="--pr-elf ./elf-artifacts/pr/firmware.elf"
+          if [ -f ./memory-analysis/memory-analysis-pr.json ]; then
+            echo "Found PR analysis JSON"
+            pr_json_arg="--pr-json ./memory-analysis/memory-analysis-pr.json"
           else
-            echo "No PR ELF file found"
+            echo "No PR analysis JSON found"
           fi
 
           python script/ci_memory_impact_comment.py \
@@ -741,8 +729,8 @@ jobs:
             --target-flash "$TARGET_FLASH" \
             --pr-ram "$PR_RAM" \
             --pr-flash "$PR_FLASH" \
-            $target_elf_arg \
-            $pr_elf_arg
+            $target_json_arg \
+            $pr_json_arg
 
   ci-status:
     name: CI Status

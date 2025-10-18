@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import re
 import subprocess
+from typing import TYPE_CHECKING
 
 from .const import (
     CORE_SUBCATEGORY_PATTERNS,
@@ -22,7 +23,63 @@ from .helpers import (
     parse_symbol_line,
 )
 
+if TYPE_CHECKING:
+    from esphome.platformio_api import IDEData
+
 _LOGGER = logging.getLogger(__name__)
+
+
+def get_toolchain_for_platform(platform: str) -> tuple[str | None, str | None]:
+    """Get objdump and readelf paths for a given platform.
+
+    This function auto-detects the correct toolchain based on the platform name,
+    using the same detection logic as PlatformIO's IDEData class.
+
+    Args:
+        platform: Platform name (e.g., "esp8266-ard", "esp32-idf", "esp32-c3-idf")
+
+    Returns:
+        Tuple of (objdump_path, readelf_path) or (None, None) if not found/supported
+    """
+    home = Path.home()
+    platformio_packages = home / ".platformio" / "packages"
+
+    # Map platform to toolchain and prefix (same logic as PlatformIO uses)
+    toolchain = None
+    prefix = None
+
+    if "esp8266" in platform:
+        toolchain = "toolchain-xtensa"
+        prefix = "xtensa-lx106-elf"
+    elif "esp32-c" in platform or "esp32-h" in platform or "esp32-p4" in platform:
+        # RISC-V variants (C2, C3, C5, C6, H2, P4)
+        toolchain = "toolchain-riscv32-esp"
+        prefix = "riscv32-esp-elf"
+    elif "esp32" in platform:
+        # Xtensa variants (original, S2, S3)
+        toolchain = "toolchain-xtensa-esp-elf"
+        if "s2" in platform:
+            prefix = "xtensa-esp32s2-elf"
+        elif "s3" in platform:
+            prefix = "xtensa-esp32s3-elf"
+        else:
+            prefix = "xtensa-esp32-elf"
+    else:
+        # Other platforms (RP2040, LibreTiny, etc.) - not supported for ELF analysis
+        _LOGGER.debug("Platform %s not supported for ELF analysis", platform)
+        return None, None
+
+    # Construct paths (same pattern as IDEData.objdump_path/readelf_path)
+    toolchain_path = platformio_packages / toolchain / "bin"
+    objdump_path = toolchain_path / f"{prefix}-objdump"
+    readelf_path = toolchain_path / f"{prefix}-readelf"
+
+    if objdump_path.exists() and readelf_path.exists():
+        _LOGGER.debug("Found %s toolchain: %s", platform, prefix)
+        return str(objdump_path), str(readelf_path)
+
+    _LOGGER.warning("Toolchain not found at %s", toolchain_path)
+    return None, None
 
 
 @dataclass
@@ -67,10 +124,26 @@ class MemoryAnalyzer:
         objdump_path: str | None = None,
         readelf_path: str | None = None,
         external_components: set[str] | None = None,
+        idedata: "IDEData | None" = None,
     ):
+        """Initialize memory analyzer.
+
+        Args:
+            elf_path: Path to ELF file to analyze
+            objdump_path: Path to objdump binary (auto-detected from idedata if not provided)
+            readelf_path: Path to readelf binary (auto-detected from idedata if not provided)
+            external_components: Set of external component names
+            idedata: Optional PlatformIO IDEData object to auto-detect toolchain paths
+        """
         self.elf_path = Path(elf_path)
         if not self.elf_path.exists():
             raise FileNotFoundError(f"ELF file not found: {elf_path}")
+
+        # Auto-detect toolchain paths from idedata if not provided
+        if idedata is not None and (objdump_path is None or readelf_path is None):
+            objdump_path = objdump_path or idedata.objdump_path
+            readelf_path = readelf_path or idedata.readelf_path
+            _LOGGER.debug("Using toolchain paths from PlatformIO idedata")
 
         self.objdump_path = objdump_path or "objdump"
         self.readelf_path = readelf_path or "readelf"

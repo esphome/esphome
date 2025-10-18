@@ -9,11 +9,14 @@ The script reads compile output from stdin and looks for the standard
 PlatformIO output format:
     RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)
     Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
+
+Optionally performs detailed memory analysis if a build directory is provided.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import re
 import sys
@@ -60,6 +63,87 @@ def extract_from_compile_output(output_text: str) -> tuple[int | None, int | Non
     return total_ram, total_flash
 
 
+def run_detailed_analysis(build_dir: str) -> dict | None:
+    """Run detailed memory analysis on build directory.
+
+    Args:
+        build_dir: Path to ESPHome build directory
+
+    Returns:
+        Dictionary with analysis results or None if analysis fails
+    """
+    from esphome.analyze_memory import MemoryAnalyzer
+    from esphome.platformio_api import IDEData
+
+    build_path = Path(build_dir)
+    if not build_path.exists():
+        print(f"Build directory not found: {build_dir}", file=sys.stderr)
+        return None
+
+    # Find firmware.elf
+    elf_path = None
+    for elf_candidate in [
+        build_path / "firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "firmware.elf",
+    ]:
+        if elf_candidate.exists():
+            elf_path = str(elf_candidate)
+            break
+
+    if not elf_path:
+        print(f"firmware.elf not found in {build_dir}", file=sys.stderr)
+        return None
+
+    # Find idedata.json
+    device_name = build_path.name
+    idedata_path = Path.home() / ".esphome" / "idedata" / f"{device_name}.json"
+
+    idedata = None
+    if idedata_path.exists():
+        try:
+            with open(idedata_path, encoding="utf-8") as f:
+                raw_data = json.load(f)
+            idedata = IDEData(raw_data)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
+
+    try:
+        analyzer = MemoryAnalyzer(elf_path, idedata=idedata)
+        components = analyzer.analyze()
+
+        # Convert to JSON-serializable format
+        result = {
+            "components": {},
+            "symbols": {},
+        }
+
+        for name, mem in components.items():
+            result["components"][name] = {
+                "text": mem.text_size,
+                "rodata": mem.rodata_size,
+                "data": mem.data_size,
+                "bss": mem.bss_size,
+                "flash_total": mem.flash_total,
+                "ram_total": mem.ram_total,
+                "symbol_count": mem.symbol_count,
+            }
+
+        # Build symbol map
+        for section in analyzer.sections.values():
+            for symbol_name, size, _ in section.symbols:
+                if size > 0:
+                    demangled = analyzer._demangle_symbol(symbol_name)
+                    result["symbols"][demangled] = size
+
+        return result
+    except Exception as e:
+        print(f"Warning: Failed to run detailed analysis: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        return None
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -69,6 +153,14 @@ def main() -> int:
         "--output-env",
         action="store_true",
         help="Output to GITHUB_OUTPUT environment file",
+    )
+    parser.add_argument(
+        "--build-dir",
+        help="Optional build directory for detailed memory analysis",
+    )
+    parser.add_argument(
+        "--output-json",
+        help="Optional path to save detailed analysis JSON",
     )
 
     args = parser.parse_args()
@@ -107,6 +199,26 @@ def main() -> int:
 
     print(f"Total RAM: {ram_bytes} bytes", file=sys.stderr)
     print(f"Total Flash: {flash_bytes} bytes", file=sys.stderr)
+
+    # Run detailed analysis if build directory provided
+    detailed_analysis = None
+    if args.build_dir:
+        print(f"Running detailed analysis on {args.build_dir}", file=sys.stderr)
+        detailed_analysis = run_detailed_analysis(args.build_dir)
+
+    # Save JSON output if requested
+    if args.output_json:
+        output_data = {
+            "ram_bytes": ram_bytes,
+            "flash_bytes": flash_bytes,
+            "detailed_analysis": detailed_analysis,
+        }
+
+        output_path = Path(args.output_json)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(output_data, f, indent=2)
+        print(f"Saved analysis to {args.output_json}", file=sys.stderr)
 
     if args.output_env:
         # Output to GitHub Actions

@@ -412,10 +412,8 @@ def analyze_memory_usage(config: dict[str, Any]) -> None:
 
     idedata = get_idedata(config)
 
-    # Get paths to tools
+    # Get ELF path
     elf_path = idedata.firmware_elf_path
-    objdump_path = idedata.objdump_path
-    readelf_path = idedata.readelf_path
 
     # Debug logging
     _LOGGER.debug("ELF path from idedata: %s", elf_path)
@@ -457,7 +455,10 @@ def analyze_memory_usage(config: dict[str, Any]) -> None:
     _LOGGER.debug("Detected external components: %s", external_components)
 
     # Create analyzer and run analysis
-    analyzer = MemoryAnalyzer(elf_path, objdump_path, readelf_path, external_components)
+    # Pass idedata to auto-detect toolchain paths
+    analyzer = MemoryAnalyzer(
+        elf_path, external_components=external_components, idedata=idedata
+    )
     analyzer.analyze()
 
     # Generate and print report

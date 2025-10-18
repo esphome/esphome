@@ -1,7 +1,6 @@
 """CLI interface for memory analysis with report generation."""
 
 from collections import defaultdict
-import subprocess
 import sys
 
 from . import MemoryAnalyzer
@@ -313,51 +312,91 @@ def analyze_elf(
 def main():
     """CLI entrypoint for memory analysis."""
     if len(sys.argv) < 2:
-        print(
-            "Usage: python -m esphome.analyze_memory <elf_file> [objdump_path] [readelf_path]"
-        )
-        print("\nIf objdump/readelf paths are not provided, you must specify them.")
-        print("\nExample for ESP8266:")
-        print("  python -m esphome.analyze_memory firmware.elf \\")
-        print(
-            "    ~/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-objdump \\"
-        )
-        print(
-            "    ~/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-readelf"
-        )
-        print("\nExample for ESP32:")
-        print("  python -m esphome.analyze_memory firmware.elf \\")
-        print(
-            "    ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-objdump \\"
-        )
-        print(
-            "    ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-readelf"
-        )
-        print("\nExample for ESP32-C3 (RISC-V):")
-        print("  python -m esphome.analyze_memory firmware.elf \\")
-        print(
-            "    ~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-objdump \\"
-        )
-        print(
-            "    ~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-readelf"
-        )
+        print("Usage: python -m esphome.analyze_memory <build_directory>")
+        print("\nAnalyze memory usage from an ESPHome build directory.")
+        print("The build directory should contain firmware.elf and idedata will be")
+        print("loaded from ~/.esphome/.internal/idedata/<device>.json")
+        print("\nExamples:")
+        print("  python -m esphome.analyze_memory ~/.esphome/build/my-device")
+        print("  python -m esphome.analyze_memory .esphome/build/my-device")
+        print("  python -m esphome.analyze_memory my-device  # Short form")
         sys.exit(1)
 
-    elf_file = sys.argv[1]
-    objdump_path = sys.argv[2] if len(sys.argv) > 2 else None
-    readelf_path = sys.argv[3] if len(sys.argv) > 3 else None
+    build_dir = sys.argv[1]
+
+    # Load build directory
+    import json
+    from pathlib import Path
+
+    from esphome.platformio_api import IDEData
+
+    build_path = Path(build_dir)
+
+    # If no path separator in name, assume it's a device name
+    if "/" not in build_dir and not build_path.is_dir():
+        # Try current directory first
+        cwd_path = Path.cwd() / ".esphome" / "build" / build_dir
+        if cwd_path.is_dir():
+            build_path = cwd_path
+            print(f"Using build directory: {build_path}", file=sys.stderr)
+        else:
+            # Fall back to home directory
+            build_path = Path.home() / ".esphome" / "build" / build_dir
+            print(f"Using build directory: {build_path}", file=sys.stderr)
+
+    if not build_path.is_dir():
+        print(f"Error: {build_path} is not a directory", file=sys.stderr)
+        sys.exit(1)
+
+    # Find firmware.elf
+    elf_file = None
+    for elf_candidate in [
+        build_path / "firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "firmware.elf",
+    ]:
+        if elf_candidate.exists():
+            elf_file = str(elf_candidate)
+            break
+
+    if not elf_file:
+        print(f"Error: firmware.elf not found in {build_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Find idedata.json - check current directory first, then home
+    device_name = build_path.name
+    idedata_candidates = [
+        Path.cwd() / ".esphome" / "idedata" / f"{device_name}.json",
+        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
+    ]
+
+    idedata = None
+    for idedata_path in idedata_candidates:
+        if idedata_path.exists():
+            try:
+                with open(idedata_path, encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                idedata = IDEData(raw_data)
+                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+                break
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
+
+    if not idedata:
+        print(
+            f"Warning: idedata not found (searched {idedata_candidates[0]} and {idedata_candidates[1]})",
+            file=sys.stderr,
+        )
 
     try:
-        report = analyze_elf(elf_file, objdump_path, readelf_path)
+        analyzer = MemoryAnalyzerCLI(elf_file, idedata=idedata)
+        analyzer.analyze()
+        report = analyzer.generate_report()
         print(report)
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+    except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        if "readelf" in str(e) or "objdump" in str(e):
-            print(
-                "\nHint: You need to specify the toolchain-specific tools.",
-                file=sys.stderr,
-            )
-            print("See usage above for examples.", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
 

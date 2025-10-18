@@ -18,61 +18,31 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
-from esphome.analyze_memory import MemoryAnalyzer  # noqa: E402
 
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
 
-def get_platform_toolchain(platform: str) -> tuple[str | None, str | None]:
-    """Get platform-specific objdump and readelf paths.
+def load_analysis_json(json_path: str) -> dict | None:
+    """Load memory analysis results from JSON file.
 
     Args:
-        platform: Platform name (e.g., "esp8266-ard", "esp32-idf", "esp32-c3-idf")
+        json_path: Path to analysis JSON file
 
     Returns:
-        Tuple of (objdump_path, readelf_path) or (None, None) if not found/supported
+        Dictionary with analysis results or None if file doesn't exist/can't be loaded
     """
-    from pathlib import Path
+    json_file = Path(json_path)
+    if not json_file.exists():
+        print(f"Analysis JSON not found: {json_path}", file=sys.stderr)
+        return None
 
-    home = Path.home()
-    platformio_packages = home / ".platformio" / "packages"
-
-    # Map platform to toolchain
-    toolchain = None
-    prefix = None
-
-    if "esp8266" in platform:
-        toolchain = "toolchain-xtensa"
-        prefix = "xtensa-lx106-elf"
-    elif "esp32-c" in platform or "esp32-h" in platform or "esp32-p4" in platform:
-        # RISC-V variants (C2, C3, C5, C6, H2, P4)
-        toolchain = "toolchain-riscv32-esp"
-        prefix = "riscv32-esp-elf"
-    elif "esp32" in platform:
-        # Xtensa variants (original, S2, S3)
-        toolchain = "toolchain-xtensa-esp-elf"
-        if "s2" in platform:
-            prefix = "xtensa-esp32s2-elf"
-        elif "s3" in platform:
-            prefix = "xtensa-esp32s3-elf"
-        else:
-            prefix = "xtensa-esp32-elf"
-    else:
-        # Other platforms (RP2040, LibreTiny, etc.) - not supported
-        print(f"Platform {platform} not supported for ELF analysis", file=sys.stderr)
-        return None, None
-
-    toolchain_path = platformio_packages / toolchain / "bin"
-    objdump_path = toolchain_path / f"{prefix}-objdump"
-    readelf_path = toolchain_path / f"{prefix}-readelf"
-
-    if objdump_path.exists() and readelf_path.exists():
-        print(f"Using {platform} toolchain: {prefix}", file=sys.stderr)
-        return str(objdump_path), str(readelf_path)
-
-    print(f"Warning: Toolchain not found at {toolchain_path}", file=sys.stderr)
-    return None, None
+    try:
+        with open(json_file, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Failed to load analysis JSON: {e}", file=sys.stderr)
+        return None
 
 
 def format_bytes(bytes_value: int) -> str:
@@ -120,56 +90,6 @@ def format_change(before: int, after: int) -> str:
         pct_str = "0.00%"
 
     return f"{emoji} {delta_str} ({pct_str})"
-
-
-def run_detailed_analysis(
-    elf_path: str, objdump_path: str | None = None, readelf_path: str | None = None
-) -> tuple[dict | None, dict | None]:
-    """Run detailed memory analysis on an ELF file.
-
-    Args:
-        elf_path: Path to ELF file
-        objdump_path: Optional path to objdump tool
-        readelf_path: Optional path to readelf tool
-
-    Returns:
-        Tuple of (component_breakdown, symbol_map) or (None, None) if analysis fails
-        component_breakdown: Dictionary with component memory breakdown
-        symbol_map: Dictionary mapping symbol names to their sizes
-    """
-    try:
-        analyzer = MemoryAnalyzer(elf_path, objdump_path, readelf_path)
-        components = analyzer.analyze()
-
-        # Convert ComponentMemory objects to dictionaries
-        component_result = {}
-        for name, mem in components.items():
-            component_result[name] = {
-                "text": mem.text_size,
-                "rodata": mem.rodata_size,
-                "data": mem.data_size,
-                "bss": mem.bss_size,
-                "flash_total": mem.flash_total,
-                "ram_total": mem.ram_total,
-                "symbol_count": mem.symbol_count,
-            }
-
-        # Build symbol map from all sections
-        symbol_map = {}
-        for section in analyzer.sections.values():
-            for symbol_name, size, _ in section.symbols:
-                if size > 0:  # Only track non-zero sized symbols
-                    # Demangle the symbol for better readability
-                    demangled = analyzer._demangle_symbol(symbol_name)
-                    symbol_map[demangled] = size
-
-        return component_result, symbol_map
-    except Exception as e:
-        print(f"Warning: Failed to run detailed analysis: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
-        return None, None
 
 
 def create_symbol_changes_table(
@@ -371,10 +291,10 @@ def create_comment_body(
     target_flash: int,
     pr_ram: int,
     pr_flash: int,
-    target_elf: str | None = None,
-    pr_elf: str | None = None,
-    objdump_path: str | None = None,
-    readelf_path: str | None = None,
+    target_analysis: dict | None = None,
+    pr_analysis: dict | None = None,
+    target_symbols: dict | None = None,
+    pr_symbols: dict | None = None,
 ) -> str:
     """Create the comment body with memory impact analysis.
 
@@ -385,10 +305,10 @@ def create_comment_body(
         target_flash: Flash usage in target branch
         pr_ram: RAM usage in PR branch
         pr_flash: Flash usage in PR branch
-        target_elf: Optional path to target branch ELF file
-        pr_elf: Optional path to PR branch ELF file
-        objdump_path: Optional path to objdump tool
-        readelf_path: Optional path to readelf tool
+        target_analysis: Optional component breakdown for target branch
+        pr_analysis: Optional component breakdown for PR branch
+        target_symbols: Optional symbol map for target branch
+        pr_symbols: Optional symbol map for PR branch
 
     Returns:
         Formatted comment body
@@ -396,29 +316,14 @@ def create_comment_body(
     ram_change = format_change(target_ram, pr_ram)
     flash_change = format_change(target_flash, pr_flash)
 
-    # Run detailed analysis if ELF files are provided
-    target_analysis = None
-    pr_analysis = None
-    target_symbols = None
-    pr_symbols = None
+    # Use provided analysis data if available
     component_breakdown = ""
     symbol_changes = ""
 
-    if target_elf and pr_elf:
-        print(
-            f"Running detailed analysis on {target_elf} and {pr_elf}", file=sys.stderr
+    if target_analysis and pr_analysis:
+        component_breakdown = create_detailed_breakdown_table(
+            target_analysis, pr_analysis
         )
-        target_analysis, target_symbols = run_detailed_analysis(
-            target_elf, objdump_path, readelf_path
-        )
-        pr_analysis, pr_symbols = run_detailed_analysis(
-            pr_elf, objdump_path, readelf_path
-        )
-
-        if target_analysis and pr_analysis:
-            component_breakdown = create_detailed_breakdown_table(
-                target_analysis, pr_analysis
-            )
 
         if target_symbols and pr_symbols:
             symbol_changes = create_symbol_changes_table(target_symbols, pr_symbols)
@@ -612,13 +517,13 @@ def main() -> int:
     parser.add_argument(
         "--pr-flash", type=int, required=True, help="PR branch flash usage"
     )
-    parser.add_argument("--target-elf", help="Optional path to target branch ELF file")
-    parser.add_argument("--pr-elf", help="Optional path to PR branch ELF file")
     parser.add_argument(
-        "--objdump-path", help="Optional path to objdump tool for detailed analysis"
+        "--target-json",
+        help="Optional path to target branch analysis JSON (for detailed analysis)",
     )
     parser.add_argument(
-        "--readelf-path", help="Optional path to readelf tool for detailed analysis"
+        "--pr-json",
+        help="Optional path to PR branch analysis JSON (for detailed analysis)",
     )
 
     args = parser.parse_args()
@@ -633,17 +538,26 @@ def main() -> int:
         print(f"Error parsing --components JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Detect platform-specific toolchain paths
-    objdump_path = args.objdump_path
-    readelf_path = args.readelf_path
+    # Load analysis JSON files
+    target_analysis = None
+    pr_analysis = None
+    target_symbols = None
+    pr_symbols = None
 
-    if not objdump_path or not readelf_path:
-        # Auto-detect based on platform
-        objdump_path, readelf_path = get_platform_toolchain(args.platform)
+    if args.target_json:
+        target_data = load_analysis_json(args.target_json)
+        if target_data and target_data.get("detailed_analysis"):
+            target_analysis = target_data["detailed_analysis"].get("components")
+            target_symbols = target_data["detailed_analysis"].get("symbols")
+
+    if args.pr_json:
+        pr_data = load_analysis_json(args.pr_json)
+        if pr_data and pr_data.get("detailed_analysis"):
+            pr_analysis = pr_data["detailed_analysis"].get("components")
+            pr_symbols = pr_data["detailed_analysis"].get("symbols")
 
     # Create comment body
-    # Note: ELF files (if provided) are from the final build when test_build_components
-    # runs multiple builds. Memory totals (RAM/Flash) are already summed across all builds.
+    # Note: Memory totals (RAM/Flash) are summed across all builds if multiple were run.
     comment_body = create_comment_body(
         components=components,
         platform=args.platform,
@@ -651,10 +565,10 @@ def main() -> int:
         target_flash=args.target_flash,
         pr_ram=args.pr_ram,
         pr_flash=args.pr_flash,
-        target_elf=args.target_elf,
-        pr_elf=args.pr_elf,
-        objdump_path=objdump_path,
-        readelf_path=readelf_path,
+        target_analysis=target_analysis,
+        pr_analysis=pr_analysis,
+        target_symbols=target_symbols,
+        pr_symbols=pr_symbols,
     )
 
     # Post or update comment
