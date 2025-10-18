@@ -13,26 +13,11 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
-    SECTION_MAPPING,
     SYMBOL_PATTERNS,
 )
+from .helpers import map_section_name, parse_symbol_line
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _map_section_name(raw_section: str) -> str | None:
-    """Map raw section name to standard section.
-
-    Args:
-        raw_section: Raw section name from ELF file (e.g., ".iram0.text", ".rodata.str1.1")
-
-    Returns:
-        Standard section name (".text", ".rodata", ".data", ".bss") or None
-    """
-    for standard_section, patterns in SECTION_MAPPING.items():
-        if any(pattern in raw_section for pattern in patterns):
-            return standard_section
-    return None
 
 
 # Get the list of actual ESPHome components by scanning the components directory
@@ -170,7 +155,7 @@ class MemoryAnalyzer:
                     size = int(size_hex, 16)
 
                     # Map to standard section name
-                    mapped_section = _map_section_name(section_name)
+                    mapped_section = map_section_name(section_name)
                     if mapped_section:
                         if mapped_section not in self.sections:
                             self.sections[mapped_section] = MemorySection(
@@ -184,44 +169,6 @@ class MemoryAnalyzer:
 
     def _parse_symbols(self) -> None:
         """Parse symbols from ELF file."""
-
-        def parse_symbol_line(line: str) -> tuple[str, str, int, str] | None:
-            """Parse a single symbol line from objdump output.
-
-            Returns (section, name, size, address) or None if not a valid symbol.
-            Format: address l/g w/d F/O section size name
-            Example: 40084870 l     F .iram0.text    00000000 _xt_user_exc
-            """
-            parts = line.split()
-            if len(parts) < 5:
-                return None
-
-            try:
-                # Validate and extract address
-                address = parts[0]
-                int(address, 16)
-            except ValueError:
-                return None
-
-            # Look for F (function) or O (object) flag
-            if "F" not in parts and "O" not in parts:
-                return None
-
-            # Find section, size, and name
-            for i, part in enumerate(parts):
-                if part.startswith("."):
-                    section = _map_section_name(part)
-                    if section and i + 1 < len(parts):
-                        try:
-                            size = int(parts[i + 1], 16)
-                            if i + 2 < len(parts) and size > 0:
-                                name = " ".join(parts[i + 2 :])
-                                return (section, name, size, address)
-                        except ValueError:
-                            pass
-                    break
-            return None
-
         try:
             result = subprocess.run(
                 [self.objdump_path, "-t", str(self.elf_path)],
@@ -234,13 +181,17 @@ class MemoryAnalyzer:
             seen_addresses: set[str] = set()
 
             for line in result.stdout.splitlines():
-                symbol_info = parse_symbol_line(line)
-                if symbol_info:
-                    section, name, size, address = symbol_info
-                    # Skip duplicate symbols at the same address (e.g., C1/C2 constructors)
-                    if address not in seen_addresses and section in self.sections:
-                        self.sections[section].symbols.append((name, size, ""))
-                        seen_addresses.add(address)
+                if not (symbol_info := parse_symbol_line(line)):
+                    continue
+
+                section, name, size, address = symbol_info
+
+                # Skip duplicate symbols at the same address (e.g., C1/C2 constructors)
+                if address in seen_addresses or section not in self.sections:
+                    continue
+
+                self.sections[section].symbols.append((name, size, ""))
+                seen_addresses.add(address)
 
         except subprocess.CalledProcessError as e:
             _LOGGER.error("Failed to parse symbols: %s", e)
