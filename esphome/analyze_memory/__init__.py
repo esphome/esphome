@@ -29,59 +29,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_toolchain_for_platform(platform: str) -> tuple[str | None, str | None]:
-    """Get objdump and readelf paths for a given platform.
-
-    This function auto-detects the correct toolchain based on the platform name,
-    using the same detection logic as PlatformIO's IDEData class.
-
-    Args:
-        platform: Platform name (e.g., "esp8266-ard", "esp32-idf", "esp32-c3-idf")
-
-    Returns:
-        Tuple of (objdump_path, readelf_path) or (None, None) if not found/supported
-    """
-    home = Path.home()
-    platformio_packages = home / ".platformio" / "packages"
-
-    # Map platform to toolchain and prefix (same logic as PlatformIO uses)
-    toolchain = None
-    prefix = None
-
-    if "esp8266" in platform:
-        toolchain = "toolchain-xtensa"
-        prefix = "xtensa-lx106-elf"
-    elif "esp32-c" in platform or "esp32-h" in platform or "esp32-p4" in platform:
-        # RISC-V variants (C2, C3, C5, C6, H2, P4)
-        toolchain = "toolchain-riscv32-esp"
-        prefix = "riscv32-esp-elf"
-    elif "esp32" in platform:
-        # Xtensa variants (original, S2, S3)
-        toolchain = "toolchain-xtensa-esp-elf"
-        if "s2" in platform:
-            prefix = "xtensa-esp32s2-elf"
-        elif "s3" in platform:
-            prefix = "xtensa-esp32s3-elf"
-        else:
-            prefix = "xtensa-esp32-elf"
-    else:
-        # Other platforms (RP2040, LibreTiny, etc.) - not supported for ELF analysis
-        _LOGGER.debug("Platform %s not supported for ELF analysis", platform)
-        return None, None
-
-    # Construct paths (same pattern as IDEData.objdump_path/readelf_path)
-    toolchain_path = platformio_packages / toolchain / "bin"
-    objdump_path = toolchain_path / f"{prefix}-objdump"
-    readelf_path = toolchain_path / f"{prefix}-readelf"
-
-    if objdump_path.exists() and readelf_path.exists():
-        _LOGGER.debug("Found %s toolchain: %s", platform, prefix)
-        return str(objdump_path), str(readelf_path)
-
-    _LOGGER.warning("Toolchain not found at %s", toolchain_path)
-    return None, None
-
-
 @dataclass
 class MemorySection:
     """Represents a memory section with its symbols."""
@@ -171,71 +118,61 @@ class MemoryAnalyzer:
 
     def _parse_sections(self) -> None:
         """Parse section headers from ELF file."""
-        try:
-            result = subprocess.run(
-                [self.readelf_path, "-S", str(self.elf_path)],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
+        result = subprocess.run(
+            [self.readelf_path, "-S", str(self.elf_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
-            # Parse section headers
-            for line in result.stdout.splitlines():
-                # Look for section entries
-                if not (
-                    match := re.match(
-                        r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)",
-                        line,
-                    )
-                ):
-                    continue
+        # Parse section headers
+        for line in result.stdout.splitlines():
+            # Look for section entries
+            if not (
+                match := re.match(
+                    r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)",
+                    line,
+                )
+            ):
+                continue
 
-                section_name = match.group(1)
-                size_hex = match.group(2)
-                size = int(size_hex, 16)
+            section_name = match.group(1)
+            size_hex = match.group(2)
+            size = int(size_hex, 16)
 
-                # Map to standard section name
-                mapped_section = map_section_name(section_name)
-                if not mapped_section:
-                    continue
+            # Map to standard section name
+            mapped_section = map_section_name(section_name)
+            if not mapped_section:
+                continue
 
-                if mapped_section not in self.sections:
-                    self.sections[mapped_section] = MemorySection(mapped_section)
-                self.sections[mapped_section].total_size += size
-
-        except subprocess.CalledProcessError as e:
-            _LOGGER.error("Failed to parse sections: %s", e)
-            raise
+            if mapped_section not in self.sections:
+                self.sections[mapped_section] = MemorySection(mapped_section)
+            self.sections[mapped_section].total_size += size
 
     def _parse_symbols(self) -> None:
         """Parse symbols from ELF file."""
-        try:
-            result = subprocess.run(
-                [self.objdump_path, "-t", str(self.elf_path)],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
+        result = subprocess.run(
+            [self.objdump_path, "-t", str(self.elf_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
-            # Track seen addresses to avoid duplicates
-            seen_addresses: set[str] = set()
+        # Track seen addresses to avoid duplicates
+        seen_addresses: set[str] = set()
 
-            for line in result.stdout.splitlines():
-                if not (symbol_info := parse_symbol_line(line)):
-                    continue
+        for line in result.stdout.splitlines():
+            if not (symbol_info := parse_symbol_line(line)):
+                continue
 
-                section, name, size, address = symbol_info
+            section, name, size, address = symbol_info
 
-                # Skip duplicate symbols at the same address (e.g., C1/C2 constructors)
-                if address in seen_addresses or section not in self.sections:
-                    continue
+            # Skip duplicate symbols at the same address (e.g., C1/C2 constructors)
+            if address in seen_addresses or section not in self.sections:
+                continue
 
-                self.sections[section].symbols.append((name, size, ""))
-                seen_addresses.add(address)
-
-        except subprocess.CalledProcessError as e:
-            _LOGGER.error("Failed to parse symbols: %s", e)
-            raise
+            self.sections[section].symbols.append((name, size, ""))
+            seen_addresses.add(address)
 
     def _categorize_symbols(self) -> None:
         """Categorize symbols by component."""
@@ -373,15 +310,14 @@ class MemoryAnalyzer:
                 # Map original to demangled names
                 for original, demangled in zip(symbols, demangled_lines):
                     self._demangle_cache[original] = demangled
-            else:
-                # If batch fails, cache originals
-                for symbol in symbols:
-                    self._demangle_cache[symbol] = symbol
+                return
         except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
             # On error, cache originals
             _LOGGER.debug("Failed to batch demangle symbols: %s", e)
-            for symbol in symbols:
-                self._demangle_cache[symbol] = symbol
+
+        # If demangling failed, cache originals
+        for symbol in symbols:
+            self._demangle_cache[symbol] = symbol
 
     def _demangle_symbol(self, symbol: str) -> str:
         """Get demangled C++ symbol name from cache."""
