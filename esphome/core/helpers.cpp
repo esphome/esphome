@@ -203,20 +203,21 @@ std::string str_snake_case(const std::string &str) {
 }
 std::string str_sanitize(const std::string &str) {
   std::string out = str;
-  std::replace_if(out.begin(), out.end(),
-                  [](const char &c) {
-                    return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') &&
-                           (c < 'A' || c > 'Z');
-                  },
-                  '_');
+  std::replace_if(
+      out.begin(), out.end(),
+      [](const char &c) {
+        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') &&
+               (c < 'A' || c > 'Z');
+      },
+      '_');
   return out;
 }
 
 namespace {
 
-bool is_utf8_continuation_byte_(unsigned char byte) { return (byte & 0b11000000u) == 0b10000000u; }
+bool is_utf8_continuation_byte(unsigned char byte) { return (byte & 0b11000000u) == 0b10000000u; }
 
-size_t utf8_sequence_length_(unsigned char lead) {
+size_t utf8_sequence_length(unsigned char lead) {
   if ((lead & 0b11110000u) == 0b11110000u)
     return 4;
   if ((lead & 0b11100000u) == 0b11100000u)
@@ -250,7 +251,7 @@ std::string str_sanitize_topic_fragment(const std::string &str) {
       continue;
     }
 
-    size_t seq_len = utf8_sequence_length_(byte);
+    size_t seq_len = utf8_sequence_length(byte);
     if (seq_len == 1 || i + seq_len > str.size()) {
       out.push_back('_');
       ++i;
@@ -275,7 +276,7 @@ std::string str_sanitize_topic_fragment(const std::string &str) {
     bool valid = true;
     for (size_t j = 1; j < seq_len; j++) {
       unsigned char continuation = static_cast<unsigned char>(str[i + j]);
-      if (!is_utf8_continuation_byte_(continuation)) {
+      if (!is_utf8_continuation_byte(continuation)) {
         valid = false;
         break;
       }
