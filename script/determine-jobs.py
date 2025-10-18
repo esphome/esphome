@@ -38,6 +38,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from enum import StrEnum
 from functools import cache
 import json
@@ -48,11 +49,13 @@ import sys
 from typing import Any
 
 from helpers import (
+    BASE_BUS_COMPONENTS,
     CPP_FILE_EXTENSIONS,
-    ESPHOME_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
     get_all_dependencies,
+    get_component_from_path,
+    get_component_test_files,
     get_components_from_integration_fixtures,
     parse_test_filename,
     root_path,
@@ -142,12 +145,9 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
 
     # Check if any required components changed
     for file in files:
-        if file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 3:
-                component = parts[2]
-                if component in all_required_components:
-                    return True
+        component = get_component_from_path(file)
+        if component and component in all_required_components:
+            return True
 
     return False
 
@@ -261,10 +261,7 @@ def _component_has_tests(component: str) -> bool:
     Returns:
         True if the component has test YAML files
     """
-    tests_dir = Path(root_path) / "tests" / "components" / component
-    if not tests_dir.exists():
-        return False
-    return any(tests_dir.glob("test.*.yaml"))
+    return bool(get_component_test_files(component))
 
 
 def detect_memory_impact_config(
@@ -291,17 +288,15 @@ def detect_memory_impact_config(
     files = changed_files(branch)
 
     # Find all changed components (excluding core and base bus components)
-    changed_component_set = set()
+    changed_component_set: set[str] = set()
     has_core_changes = False
 
     for file in files:
-        if file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 3:
-                component = parts[2]
-                # Skip base bus components as they're used across many builds
-                if component not in ["i2c", "spi", "uart", "modbus", "canbus"]:
-                    changed_component_set.add(component)
+        component = get_component_from_path(file)
+        if component:
+            # Skip base bus components as they're used across many builds
+            if component not in BASE_BUS_COMPONENTS:
+                changed_component_set.add(component)
         elif file.startswith("esphome/"):
             # Core ESPHome files changed (not component-specific)
             has_core_changes = True
@@ -321,25 +316,24 @@ def detect_memory_impact_config(
         return {"should_run": "false"}
 
     # Find components that have tests and collect their supported platforms
-    components_with_tests = []
-    component_platforms_map = {}  # Track which platforms each component supports
+    components_with_tests: list[str] = []
+    component_platforms_map: dict[
+        str, set[Platform]
+    ] = {}  # Track which platforms each component supports
 
     for component in sorted(changed_component_set):
-        tests_dir = Path(root_path) / "tests" / "components" / component
-        if not tests_dir.exists():
-            continue
-
         # Look for test files on preferred platforms
-        test_files = list(tests_dir.glob("test.*.yaml"))
+        test_files = get_component_test_files(component)
         if not test_files:
             continue
 
         # Check if component has tests for any preferred platform
-        available_platforms = []
-        for test_file in test_files:
-            _, platform = parse_test_filename(test_file)
-            if platform != "all" and platform in MEMORY_IMPACT_PLATFORM_PREFERENCE:
-                available_platforms.append(platform)
+        available_platforms = [
+            platform
+            for test_file in test_files
+            if (platform := parse_test_filename(test_file)[1]) != "all"
+            and platform in MEMORY_IMPACT_PLATFORM_PREFERENCE
+        ]
 
         if not available_platforms:
             continue
@@ -367,10 +361,10 @@ def detect_memory_impact_config(
     else:
         # No common platform - pick the most commonly supported platform
         # This allows testing components individually even if they can't be merged
-        platform_counts = {}
-        for platforms in component_platforms_map.values():
-            for p in platforms:
-                platform_counts[p] = platform_counts.get(p, 0) + 1
+        # Count how many components support each platform
+        platform_counts = Counter(
+            p for platforms in component_platforms_map.values() for p in platforms
+        )
         # Pick the platform supported by most components, preferring earlier in MEMORY_IMPACT_PLATFORM_PREFERENCE
         platform = max(
             platform_counts.keys(),
