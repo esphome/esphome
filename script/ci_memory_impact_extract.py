@@ -27,6 +27,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # pylint: disable=wrong-import-position
 from script.ci_helpers import write_github_output
 
+# Regex patterns for extracting memory usage from PlatformIO output
+_RAM_PATTERN = re.compile(r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
+_FLASH_PATTERN = re.compile(r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
+_BUILD_PATH_PATTERN = re.compile(r"Build path: (.+)")
+
 
 def extract_from_compile_output(
     output_text: str,
@@ -42,7 +47,7 @@ def extract_from_compile_output(
         Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
 
     Also extracts build directory from lines like:
-        INFO Deleting /path/to/build/.esphome/build/componenttestesp8266ard/.pioenvs
+        INFO Compiling app... Build path: /path/to/build
 
     Args:
         output_text: Compile output text (may contain multiple builds)
@@ -51,12 +56,8 @@ def extract_from_compile_output(
         Tuple of (total_ram_bytes, total_flash_bytes, build_dir) or (None, None, None) if not found
     """
     # Find all RAM and Flash matches (may be multiple builds)
-    ram_matches = re.findall(
-        r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", output_text
-    )
-    flash_matches = re.findall(
-        r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", output_text
-    )
+    ram_matches = _RAM_PATTERN.findall(output_text)
+    flash_matches = _FLASH_PATTERN.findall(output_text)
 
     if not ram_matches or not flash_matches:
         return None, None, None
