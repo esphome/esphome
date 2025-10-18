@@ -667,7 +667,7 @@ jobs:
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
 
   memory-impact-pr-branch:
