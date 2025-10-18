@@ -64,6 +64,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   - **roomba**: Decode and dump Roomba infrared codes.
   - **samsung**: Decode and dump Samsung infrared codes.
   - **samsung36**: Decode and dump Samsung36 infrared codes.
+  - **symphony**: Decode and dump Symphony infrared codes.
   - **sony**: Decode and dump Sony infrared codes.
   - **toshiba_ac**: Decode and dump Toshiba AC infrared codes.
   - **mirage**: Decode and dump Mirage infrared codes.
@@ -265,6 +266,10 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
 
 - **on_sony** (*Optional*, [Automation](#automation)): An automation to perform when a
   Sony remote code has been decoded. A variable `x` of type {{< apistruct "remote_base::SonyData" "remote_base::SonyData" >}}
+  is passed to the automation for use in lambdas.
+
+- **on_symphony** (*Optional*, [Automation](#automation)): An automation to perform when a
+  Symphony remote code has been decoded. A variable `x` of type {{< apistruct "remote_base::SymphonyData" "remote_base::SymphonyData" >}}
   is passed to the automation for use in lambdas.
 
 - **on_toshiba_ac** (*Optional*, [Automation](#automation)): An automation to perform when a
@@ -566,6 +571,11 @@ Remote code selection (exactly one of these has to be included):
 
   - **data** (**Required**, int): The Sony code to trigger on, see dumper output for more info.
   - **nbits** (*Optional*, int): The number of bits of the remote code. Defaults to `12`.
+
+- **symphony**: Trigger on a decoded Symphony remote code with the given data.
+
+  - **data** (**Required**, int): The Symphony code to trigger on, see dumper output for more info.
+  - **nbits** (**Required**, int): The number of bits of the remote code. Typical values: `8`, `12`, or `16`.
 
 - **toshiba_ac**: Trigger on a decoded Toshiba AC remote code with the given data.
 

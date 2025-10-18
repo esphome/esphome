@@ -923,6 +923,32 @@ on_...:
 - **command** (**Required**, int): The Samsung36 command to send, see dumper output for more details.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
+{{< anchor "remote_transmitter-transmit_symphony" >}}
+
+### `remote_transmitter.transmit_symphony` **Action**
+
+This [action](#config-action) sends a Symphony infrared remote code to a remote transmitter.
+It transmits constant bit-time frames with a footer gap. Physical Symphony remotes typically
+send the same frame twice separated by a ~35 ms gap. Use `command_repeats` to control how
+many identical frames are sent; defaults to 2.
+
+```yaml
+on_...:
+  - remote_transmitter.transmit_symphony:
+      data: 0x0E88
+      nbits: 12
+      command_repeats: 2
+```
+
+#### Configuration variables
+
+- **data** (**Required**, int): The Symphony code to send, see dumper output for more info.
+- **nbits** (**Required**, int): The number of bits to send. Typical values: `8`, `12`, or `16`.
+- **command_repeats** (*Optional*, int): Number of times to send the same frame in one transmission.
+  Defaults to `2` to match typical handsets.
+
+- All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
+
 {{< anchor "remote_transmitter-transmit_sony" >}}
 
 ### `remote_transmitter.transmit_sony` **Action**
