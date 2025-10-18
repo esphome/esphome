@@ -6,11 +6,11 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import tempfile
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
-import re
 
 from esphome.const import __version__ as ESPHOME_VERSION
 

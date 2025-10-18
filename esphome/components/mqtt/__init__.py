@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -47,12 +48,8 @@ from esphome.const import (
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
-    CONF_TOPIC_PREFIX,
     CONF_TOPIC_NAME_SOURCE,
-    TOPIC_NAME_SOURCE_NAME,
-    TOPIC_NAME_SOURCE_OPTIONS,
-    TOPIC_NAME_SOURCE_ID,
-    CONF_MQTT,
+    CONF_TOPIC_PREFIX,
     CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
@@ -60,6 +57,9 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    TOPIC_NAME_SOURCE_NAME,
+    TOPIC_NAME_SOURCE_OPTIONS,
+    TOPIC_NAME_SOURCE_ID,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -391,7 +391,11 @@ async def to_code(config):
         )
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
-    cg.add(var.set_topic_name_source(MQTT_TOPIC_NAME_SOURCE_ENUM[config[CONF_TOPIC_NAME_SOURCE]]))
+    cg.add(
+        var.set_topic_name_source(
+            MQTT_TOPIC_NAME_SOURCE_ENUM[config[CONF_TOPIC_NAME_SOURCE]]
+        )
+    )
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
