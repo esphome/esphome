@@ -61,9 +61,9 @@ class LightTraits {
   void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
 
  protected:
-  ColorModeMask supported_color_modes_{};
   float min_mireds_{0};
   float max_mireds_{0};
+  ColorModeMask supported_color_modes_{};
 };
 
 }  // namespace light
