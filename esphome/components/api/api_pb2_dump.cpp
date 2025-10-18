@@ -913,7 +913,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   dump_field(out, "object_id", this->object_id_ref_);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name_ref_);
-  char buffer[32];
+  char buffer[64];
   snprintf(buffer, sizeof(buffer), "  supported_color_modes: 0x%08" PRIX32 "\n", this->supported_color_modes);
   out.append(buffer);
   dump_field(out, "min_mireds", this->min_mireds);
