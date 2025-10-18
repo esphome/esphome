@@ -295,7 +295,7 @@ class MemoryAnalyzer:
         cppfilt_cmd = "c++filt"
 
         _LOGGER.warning("Demangling %d symbols", len(symbols))
-        _LOGGER.warning("objdump_path = %s", self.objdump_path)
+        _LOGGER.debug("objdump_path = %s", self.objdump_path)
 
         # Check if we have a toolchain-specific c++filt
         if self.objdump_path and self.objdump_path != "objdump":
