@@ -1,7 +1,6 @@
 #include "usb_audio_speaker.h"
 
-#ifdef USE_ESP32
-#ifdef USE_USB_AUDIO
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include "esphome/components/usb_audio/usb_audio.h"
 
@@ -120,5 +119,4 @@ bool USBAudioSpeaker::ensure_started_() { return this->parent_->ensure_started()
 }  // namespace usb_audio
 }  // namespace esphome
 
-#endif  // USE_USB_AUDIO
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)

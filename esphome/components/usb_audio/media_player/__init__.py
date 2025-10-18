@@ -5,18 +5,12 @@ import esphome.components.speaker.media_player as speaker_mp
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_FILE,
     CONF_FILES,
     CONF_FORMAT,
     CONF_ID,
-    CONF_NUM_CHANNELS,
-    CONF_PATH,
     CONF_RAW_DATA_ID,
-    CONF_SAMPLE_RATE,
     CONF_SPEAKER,
     CONF_TASK_STACK_IN_PSRAM,
-    CONF_TYPE,
-    CONF_URL,
 )
 from esphome.core import HexInt
 
@@ -24,6 +18,7 @@ from .. import CONF_USB_AUDIO_ID, USBAudioComponent, usb_audio_ns
 
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["usb_audio", "speaker"]
+EXTRA_COMPONENTS = ["speaker.media_player"]
 
 
 def AUTO_LOAD(config):
@@ -43,19 +38,31 @@ CONFIG_SCHEMA = cv.All(
     media_player.media_player_schema(USBAudioMediaPlayer).extend(
         {
             cv.GenerateID(CONF_USB_AUDIO_ID): cv.use_id(USBAudioComponent),
-            cv.Required(speaker_mp.CONF_ANNOUNCEMENT_PIPELINE): speaker_mp.PIPELINE_SCHEMA,
+            cv.Required(
+                speaker_mp.CONF_ANNOUNCEMENT_PIPELINE
+            ): speaker_mp.PIPELINE_SCHEMA,
             cv.Optional(speaker_mp.CONF_MEDIA_PIPELINE): speaker_mp.PIPELINE_SCHEMA,
-            cv.Optional(CONF_BUFFER_SIZE, default=1_000_000): cv.int_range(min=4000, max=4_000_000),
-            cv.Optional(speaker_mp.CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()): cv.boolean,
+            cv.Optional(CONF_BUFFER_SIZE, default=1_000_000): cv.int_range(
+                min=4000, max=4_000_000
+            ),
+            cv.Optional(
+                speaker_mp.CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
+            ): cv.boolean,
             cv.Optional(CONF_FILES): cv.ensure_list(speaker_mp.MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
             cv.Optional(speaker_mp.CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(speaker_mp.CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(speaker_mp.CONF_VOLUME_MAX, default=1.0): cv.percentage,
             cv.Optional(speaker_mp.CONF_VOLUME_MIN, default=0.0): cv.percentage,
-            cv.Optional(speaker_mp.CONF_ON_MUTE): automation.validate_automation(single=True),
-            cv.Optional(speaker_mp.CONF_ON_UNMUTE): automation.validate_automation(single=True),
-            cv.Optional(speaker_mp.CONF_ON_VOLUME): automation.validate_automation(single=True),
+            cv.Optional(speaker_mp.CONF_ON_MUTE): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(speaker_mp.CONF_ON_UNMUTE): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(speaker_mp.CONF_ON_VOLUME): automation.validate_automation(
+                single=True
+            ),
         }
     ),
     cv.only_with_esp_idf,
@@ -86,7 +93,7 @@ async def to_code(config):
 
         esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
 
     await cg.register_parented(var, config[CONF_USB_AUDIO_ID])
@@ -97,7 +104,9 @@ async def to_code(config):
 
     cg.add(var.set_task_stack_in_psram(config[CONF_TASK_STACK_IN_PSRAM]))
     if config[CONF_TASK_STACK_IN_PSRAM]:
-        esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+        )
 
     cg.add(var.set_volume_increment(config[speaker_mp.CONF_VOLUME_INCREMENT]))
     cg.add(var.set_volume_initial(config[speaker_mp.CONF_VOLUME_INITIAL]))
@@ -122,7 +131,9 @@ async def to_code(config):
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
-                    speaker_mp._get_supported_format_struct(media_pipeline_config, "MEDIA")
+                    speaker_mp._get_supported_format_struct(
+                        media_pipeline_config, "MEDIA"
+                    )
                 )
             )
 
@@ -131,7 +142,9 @@ async def to_code(config):
     if on_unmute := config.get(speaker_mp.CONF_ON_UNMUTE):
         await automation.build_automation(var.get_unmute_trigger(), [], on_unmute)
     if on_volume := config.get(speaker_mp.CONF_ON_VOLUME):
-        await automation.build_automation(var.get_volume_trigger(), [(cg.float_, "x")], on_volume)
+        await automation.build_automation(
+            var.get_volume_trigger(), [(cg.float_, "x")], on_volume
+        )
 
     for file_config in config.get(CONF_FILES, []):
         data, media_file_type = speaker_mp._read_audio_file_and_type(file_config)
@@ -147,4 +160,3 @@ async def to_code(config):
         )
 
         cg.new_Pvariable(file_config[CONF_ID], media_files_struct)
-

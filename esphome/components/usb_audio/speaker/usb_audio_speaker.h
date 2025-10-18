@@ -1,7 +1,8 @@
 #pragma once
 
-#ifdef USE_ESP32
-#ifdef USE_USB_AUDIO
+#include "esphome/core/defines.h"
+
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include "esphome/components/usb_audio/usb_audio.h"
 
@@ -51,5 +52,4 @@ class USBAudioSpeaker : public speaker::Speaker, public Component, public Parent
 }  // namespace usb_audio
 }  // namespace esphome
 
-#endif  // USE_USB_AUDIO
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)

@@ -1,7 +1,6 @@
 #include "usb_audio_microphone.h"
 
-#ifdef USE_ESP32
-#ifdef USE_USB_AUDIO
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include "esphome/components/usb_audio/usb_audio.h"
 
@@ -45,9 +44,8 @@ void USBAudioMicrophone::start() {
 
   if (this->task_handle_ == nullptr) {
     this->running_ = true;
-    BaseType_t created =
-        xTaskCreate(&USBAudioMicrophone::mic_task_, "usb_mic", MIC_TASK_STACK_SIZE, this, MIC_TASK_PRIORITY,
-                    &this->task_handle_);
+    BaseType_t created = xTaskCreate(&USBAudioMicrophone::mic_task_, "usb_mic", MIC_TASK_STACK_SIZE, this,
+                                     MIC_TASK_PRIORITY, &this->task_handle_);
     if (created != pdPASS) {
       ESP_LOGE(TAG_MIC, "Failed to create microphone task");
       this->running_ = false;
@@ -144,5 +142,4 @@ void USBAudioMicrophone::enqueue_frame_(const uint8_t *data, size_t length) {
 }  // namespace usb_audio
 }  // namespace esphome
 
-#endif  // USE_USB_AUDIO
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)

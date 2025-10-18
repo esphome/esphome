@@ -29,9 +29,15 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(USBAudioComponent),
-            cv.Optional(CONF_CONNECT_TIMEOUT, default="5000ms"): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MIC_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE): cv.positive_int,
-            cv.Optional(CONF_SPEAKER_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE): cv.positive_int,
+            cv.Optional(
+                CONF_CONNECT_TIMEOUT, default="5000ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_MIC_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE
+            ): cv.positive_int,
+            cv.Optional(
+                CONF_SPEAKER_BUFFER_SIZE, default=CONF_DEFAULT_BUFFER_SIZE
+            ): cv.positive_int,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_esp_idf,
@@ -46,8 +52,19 @@ def _ensure_buffer_size(value: int) -> int:
 
 
 async def to_code(config):
-    esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.0.0")
-    esp32.add_idf_component(name="espressif/usb_stream", ref="1.4.0")
+    esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.3.1")
+
+    variant = esp32.get_esp32_variant()
+    if variant == esp32.const.VARIANT_ESP32P4:
+        # use a locally vendored usb_stream copy because upstream packages do not yet declare esp32p4 support
+        component_dir = __file__.replace("\\", "/").rsplit("/", 1)[0]
+        component_dir = f"{component_dir}/external/usb_stream"
+        esp32.add_idf_component(
+            name="espressif/usb_stream",
+            path=component_dir,
+        )
+    else:
+        esp32.add_idf_component(name="espressif/usb_stream", ref="1.5.1")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -56,5 +73,13 @@ async def to_code(config):
 
     connect_timeout = config[CONF_CONNECT_TIMEOUT].total_milliseconds
     cg.add(var.set_connect_timeout(connect_timeout))
-    cg.add(var.set_microphone_buffer_size(_ensure_buffer_size(config[CONF_MIC_BUFFER_SIZE])))
-    cg.add(var.set_speaker_buffer_size(_ensure_buffer_size(config[CONF_SPEAKER_BUFFER_SIZE])))
+    cg.add(
+        var.set_microphone_buffer_size(
+            _ensure_buffer_size(config[CONF_MIC_BUFFER_SIZE])
+        )
+    )
+    cg.add(
+        var.set_speaker_buffer_size(
+            _ensure_buffer_size(config[CONF_SPEAKER_BUFFER_SIZE])
+        )
+    )

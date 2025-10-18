@@ -24,6 +24,17 @@ speaker:
     bits_per_sample: 16bit
     num_channels: 2
     write_timeout: 20ms
+  - platform: mixer
+    id: usb_speaker_mixer
+    output_speaker: usb_speaker
+    num_channels: 2
+    source_speakers:
+      - id: usb_speaker_announcement
+        sample_rate: 48000
+        num_channels: 2
+      - id: usb_speaker_media
+        sample_rate: 48000
+        num_channels: 2
 
 media_player:
   - platform: usb_audio
@@ -32,12 +43,12 @@ media_player:
     buffer_size: 262144
     codec_support_enabled: false
     announcement_pipeline:
-      speaker: usb_speaker
+      speaker: usb_speaker_announcement
       format: WAV
       sample_rate: 48000
       num_channels: 2
     media_pipeline:
-      speaker: usb_speaker
+      speaker: usb_speaker_media
       format: WAV
       sample_rate: 48000
       num_channels: 2

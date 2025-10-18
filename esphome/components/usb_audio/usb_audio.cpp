@@ -1,7 +1,6 @@
 #include "usb_audio.h"
 
-#ifdef USE_ESP32
-#ifdef USE_USB_AUDIO
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include "esphome/core/log.h"
 
@@ -126,8 +125,7 @@ void USBAudioComponent::suspend_speaker() {
   }
 }
 
-esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read,
-                                             uint32_t timeout_ms) {
+esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms) {
   if (!this->stream_started_) {
     return ESP_ERR_INVALID_STATE;
   }
@@ -181,5 +179,4 @@ void USBAudioComponent::state_callback_(usb_stream_state_t state, void *user_dat
 }  // namespace usb_audio
 }  // namespace esphome
 
-#endif  // USE_USB_AUDIO
-#endif  // USE_ESP32
+#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)

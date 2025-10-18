@@ -1,5 +1,5 @@
-from esphome.components import audio, speaker
 import esphome.codegen as cg
+from esphome.components import audio, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -17,13 +17,17 @@ BITS_PER_SAMPLE_OPTIONS = [8, 16, 24, 32]
 
 
 def _bits_validator():
-    return cv.All(cv.float_with_unit("bits", "bit"), cv.one_of(*BITS_PER_SAMPLE_OPTIONS))
+    return cv.All(
+        cv.float_with_unit("bits", "bit"), cv.one_of(*BITS_PER_SAMPLE_OPTIONS)
+    )
 
 
 def _set_stream_limits(config):
+    bits_per_sample = int(config[CONF_BITS_PER_SAMPLE])
+
     audio.set_stream_limits(
-        min_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
-        max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+        min_bits_per_sample=bits_per_sample,
+        max_bits_per_sample=bits_per_sample,
         min_channels=config[CONF_NUM_CHANNELS],
         max_channels=config[CONF_NUM_CHANNELS],
         min_sample_rate=config[CONF_SAMPLE_RATE],
@@ -38,10 +42,14 @@ CONFIG_SCHEMA = cv.All(
             {
                 cv.GenerateID(): cv.declare_id(USBAudioSpeaker),
                 cv.GenerateID(CONF_USB_AUDIO_ID): cv.use_id(USBAudioComponent),
-                cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(min=8000, max=96000),
+                cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(
+                    min=8000, max=96000
+                ),
                 cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): _bits_validator(),
                 cv.Optional(CONF_NUM_CHANNELS, default=2): cv.int_range(min=1, max=2),
-                cv.Optional(CONF_WRITE_TIMEOUT, default="20ms"): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_WRITE_TIMEOUT, default="20ms"
+                ): cv.positive_time_period_milliseconds,
             }
         ).extend(cv.COMPONENT_SCHEMA)
     ),
@@ -69,4 +77,3 @@ async def to_code(config):
 
     cg.add(parent.set_speaker(var))
     cg.add(parent.set_speaker_params(channels, bits_per_sample, sample_rate))
-
