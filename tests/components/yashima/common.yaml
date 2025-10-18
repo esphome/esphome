@@ -1,7 +1,4 @@
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: yashima
     name: Yashima Climate
+    transmitter_id: xmitr

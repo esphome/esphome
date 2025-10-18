@@ -39,6 +39,7 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
     uses_local_file_references,
 )
+from script.helpers import get_component_test_files
 from script.merge_component_configs import merge_component_configs
 
 
@@ -100,10 +101,10 @@ def find_component_tests(
         if not comp_dir.is_dir():
             continue
 
-        # Find test files - either base only (test.*.yaml) or all (test[.-]*.yaml)
-        pattern = "test.*.yaml" if base_only else "test[.-]*.yaml"
-        for test_file in comp_dir.glob(pattern):
-            component_tests[comp_dir.name].append(test_file)
+        # Get test files using helper function
+        test_files = get_component_test_files(comp_dir.name, all_variants=not base_only)
+        if test_files:
+            component_tests[comp_dir.name] = test_files
 
     return dict(component_tests)
 

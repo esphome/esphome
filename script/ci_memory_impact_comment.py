@@ -304,9 +304,9 @@ def create_detailed_breakdown_table(
     for comp, target_flash, pr_flash, delta in changed_components[:20]:
         target_str = format_bytes(target_flash)
         pr_str = format_bytes(pr_flash)
-        change_str = format_change(
-            target_flash, pr_flash, threshold=COMPONENT_CHANGE_THRESHOLD
-        )
+        # Only apply threshold to ESPHome components, not framework/infrastructure
+        threshold = COMPONENT_CHANGE_THRESHOLD if comp.startswith("[esphome]") else None
+        change_str = format_change(target_flash, pr_flash, threshold=threshold)
         lines.append(f"| `{comp}` | {target_str} | {pr_str} | {change_str} |")
 
     if len(changed_components) > 20:
