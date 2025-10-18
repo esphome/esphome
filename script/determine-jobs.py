@@ -26,7 +26,7 @@ The CI workflow uses this information to:
 - Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
-- Run memory impact analysis when components change
+- Run memory impact analysis whenever there are changed components (merged config), and also for core-only changes
 
 Usage:
   python script/determine-jobs.py [-b BRANCH]
