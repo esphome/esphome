@@ -13,6 +13,7 @@ from .const import (
     CORE_SUBCATEGORY_PATTERNS,
     DEMANGLED_PATTERNS,
     ESPHOME_COMPONENT_PATTERN,
+    SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
 from .helpers import map_section_name, parse_symbol_line
@@ -219,14 +220,9 @@ class MemoryAnalyzer:
                 comp_mem = self.components[component]
                 comp_mem.symbol_count += 1
 
-                if section_name == ".text":
-                    comp_mem.text_size += size
-                elif section_name == ".rodata":
-                    comp_mem.rodata_size += size
-                elif section_name == ".data":
-                    comp_mem.data_size += size
-                elif section_name == ".bss":
-                    comp_mem.bss_size += size
+                # Update the appropriate size attribute based on section
+                if attr_name := SECTION_TO_ATTR.get(section_name):
+                    setattr(comp_mem, attr_name, getattr(comp_mem, attr_name) + size)
 
                 # Track uncategorized symbols
                 if component == "other" and size > 0:

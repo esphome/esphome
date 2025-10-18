@@ -10,6 +10,69 @@ from . import MemoryAnalyzer
 class MemoryAnalyzerCLI(MemoryAnalyzer):
     """Memory analyzer with CLI-specific report generation."""
 
+    # Column width constants
+    COL_COMPONENT: int = 29
+    COL_FLASH_TEXT: int = 14
+    COL_FLASH_DATA: int = 14
+    COL_RAM_DATA: int = 12
+    COL_RAM_BSS: int = 12
+    COL_TOTAL_FLASH: int = 15
+    COL_TOTAL_RAM: int = 12
+    COL_SEPARATOR: int = 3  # " | "
+
+    # Core analysis column widths
+    COL_CORE_SUBCATEGORY: int = 30
+    COL_CORE_SIZE: int = 12
+    COL_CORE_COUNT: int = 6
+    COL_CORE_PERCENT: int = 10
+
+    # Calculate table width once at class level
+    TABLE_WIDTH: int = (
+        COL_COMPONENT
+        + COL_SEPARATOR
+        + COL_FLASH_TEXT
+        + COL_SEPARATOR
+        + COL_FLASH_DATA
+        + COL_SEPARATOR
+        + COL_RAM_DATA
+        + COL_SEPARATOR
+        + COL_RAM_BSS
+        + COL_SEPARATOR
+        + COL_TOTAL_FLASH
+        + COL_SEPARATOR
+        + COL_TOTAL_RAM
+    )
+
+    @staticmethod
+    def _make_separator_line(*widths: int) -> str:
+        """Create a separator line with given column widths.
+
+        Args:
+            widths: Column widths to create separators for
+
+        Returns:
+            Separator line like "----+---------+-----"
+        """
+        return "-+-".join("-" * width for width in widths)
+
+    # Pre-computed separator lines
+    MAIN_TABLE_SEPARATOR: str = _make_separator_line(
+        COL_COMPONENT,
+        COL_FLASH_TEXT,
+        COL_FLASH_DATA,
+        COL_RAM_DATA,
+        COL_RAM_BSS,
+        COL_TOTAL_FLASH,
+        COL_TOTAL_RAM,
+    )
+
+    CORE_TABLE_SEPARATOR: str = _make_separator_line(
+        COL_CORE_SUBCATEGORY,
+        COL_CORE_SIZE,
+        COL_CORE_COUNT,
+        COL_CORE_PERCENT,
+    )
+
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
         components = sorted(
@@ -23,92 +86,31 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # Build report
         lines = []
 
-        # Column width constants
-        COL_COMPONENT = 29
-        COL_FLASH_TEXT = 14
-        COL_FLASH_DATA = 14
-        COL_RAM_DATA = 12
-        COL_RAM_BSS = 12
-        COL_TOTAL_FLASH = 15
-        COL_TOTAL_RAM = 12
-        COL_SEPARATOR = 3  # " | "
-
-        # Core analysis column widths
-        COL_CORE_SUBCATEGORY = 30
-        COL_CORE_SIZE = 12
-        COL_CORE_COUNT = 6
-        COL_CORE_PERCENT = 10
-
-        # Calculate the exact table width
-        table_width = (
-            COL_COMPONENT
-            + COL_SEPARATOR
-            + COL_FLASH_TEXT
-            + COL_SEPARATOR
-            + COL_FLASH_DATA
-            + COL_SEPARATOR
-            + COL_RAM_DATA
-            + COL_SEPARATOR
-            + COL_RAM_BSS
-            + COL_SEPARATOR
-            + COL_TOTAL_FLASH
-            + COL_SEPARATOR
-            + COL_TOTAL_RAM
-        )
-
-        lines.append("=" * table_width)
-        lines.append("Component Memory Analysis".center(table_width))
-        lines.append("=" * table_width)
+        lines.append("=" * self.TABLE_WIDTH)
+        lines.append("Component Memory Analysis".center(self.TABLE_WIDTH))
+        lines.append("=" * self.TABLE_WIDTH)
         lines.append("")
 
         # Main table - fixed column widths
         lines.append(
-            f"{'Component':<{COL_COMPONENT}} | {'Flash (text)':>{COL_FLASH_TEXT}} | {'Flash (data)':>{COL_FLASH_DATA}} | {'RAM (data)':>{COL_RAM_DATA}} | {'RAM (bss)':>{COL_RAM_BSS}} | {'Total Flash':>{COL_TOTAL_FLASH}} | {'Total RAM':>{COL_TOTAL_RAM}}"
+            f"{'Component':<{self.COL_COMPONENT}} | {'Flash (text)':>{self.COL_FLASH_TEXT}} | {'Flash (data)':>{self.COL_FLASH_DATA}} | {'RAM (data)':>{self.COL_RAM_DATA}} | {'RAM (bss)':>{self.COL_RAM_BSS}} | {'Total Flash':>{self.COL_TOTAL_FLASH}} | {'Total RAM':>{self.COL_TOTAL_RAM}}"
         )
-        lines.append(
-            "-" * COL_COMPONENT
-            + "-+-"
-            + "-" * COL_FLASH_TEXT
-            + "-+-"
-            + "-" * COL_FLASH_DATA
-            + "-+-"
-            + "-" * COL_RAM_DATA
-            + "-+-"
-            + "-" * COL_RAM_BSS
-            + "-+-"
-            + "-" * COL_TOTAL_FLASH
-            + "-+-"
-            + "-" * COL_TOTAL_RAM
-        )
+        lines.append(self.MAIN_TABLE_SEPARATOR)
 
         for name, mem in components:
             if mem.flash_total > 0 or mem.ram_total > 0:
                 flash_rodata = mem.rodata_size + mem.data_size
                 lines.append(
-                    f"{name:<{COL_COMPONENT}} | {mem.text_size:>{COL_FLASH_TEXT - 2},} B | {flash_rodata:>{COL_FLASH_DATA - 2},} B | "
-                    f"{mem.data_size:>{COL_RAM_DATA - 2},} B | {mem.bss_size:>{COL_RAM_BSS - 2},} B | "
-                    f"{mem.flash_total:>{COL_TOTAL_FLASH - 2},} B | {mem.ram_total:>{COL_TOTAL_RAM - 2},} B"
+                    f"{name:<{self.COL_COMPONENT}} | {mem.text_size:>{self.COL_FLASH_TEXT - 2},} B | {flash_rodata:>{self.COL_FLASH_DATA - 2},} B | "
+                    f"{mem.data_size:>{self.COL_RAM_DATA - 2},} B | {mem.bss_size:>{self.COL_RAM_BSS - 2},} B | "
+                    f"{mem.flash_total:>{self.COL_TOTAL_FLASH - 2},} B | {mem.ram_total:>{self.COL_TOTAL_RAM - 2},} B"
                 )
 
+        lines.append(self.MAIN_TABLE_SEPARATOR)
         lines.append(
-            "-" * COL_COMPONENT
-            + "-+-"
-            + "-" * COL_FLASH_TEXT
-            + "-+-"
-            + "-" * COL_FLASH_DATA
-            + "-+-"
-            + "-" * COL_RAM_DATA
-            + "-+-"
-            + "-" * COL_RAM_BSS
-            + "-+-"
-            + "-" * COL_TOTAL_FLASH
-            + "-+-"
-            + "-" * COL_TOTAL_RAM
-        )
-        lines.append(
-            f"{'TOTAL':<{COL_COMPONENT}} | {' ':>{COL_FLASH_TEXT}} | {' ':>{COL_FLASH_DATA}} | "
-            f"{' ':>{COL_RAM_DATA}} | {' ':>{COL_RAM_BSS}} | "
-            f"{total_flash:>{COL_TOTAL_FLASH - 2},} B | {total_ram:>{COL_TOTAL_RAM - 2},} B"
+            f"{'TOTAL':<{self.COL_COMPONENT}} | {' ':>{self.COL_FLASH_TEXT}} | {' ':>{self.COL_FLASH_DATA}} | "
+            f"{' ':>{self.COL_RAM_DATA}} | {' ':>{self.COL_RAM_BSS}} | "
+            f"{total_flash:>{self.COL_TOTAL_FLASH - 2},} B | {total_ram:>{self.COL_TOTAL_RAM - 2},} B"
         )
 
         # Top consumers
@@ -137,14 +139,14 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         lines.append(
             "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."
         )
-        lines.append("=" * table_width)
+        lines.append("=" * self.TABLE_WIDTH)
 
         # Add ESPHome core detailed analysis if there are core symbols
         if self._esphome_core_symbols:
             lines.append("")
-            lines.append("=" * table_width)
-            lines.append("[esphome]core Detailed Analysis".center(table_width))
-            lines.append("=" * table_width)
+            lines.append("=" * self.TABLE_WIDTH)
+            lines.append("[esphome]core Detailed Analysis".center(self.TABLE_WIDTH))
+            lines.append("=" * self.TABLE_WIDTH)
             lines.append("")
 
             # Group core symbols by subcategory
@@ -168,26 +170,18 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             )
 
             lines.append(
-                f"{'Subcategory':<{COL_CORE_SUBCATEGORY}} | {'Size':>{COL_CORE_SIZE}} | "
-                f"{'Count':>{COL_CORE_COUNT}} | {'% of Core':>{COL_CORE_PERCENT}}"
+                f"{'Subcategory':<{self.COL_CORE_SUBCATEGORY}} | {'Size':>{self.COL_CORE_SIZE}} | "
+                f"{'Count':>{self.COL_CORE_COUNT}} | {'% of Core':>{self.COL_CORE_PERCENT}}"
             )
-            lines.append(
-                "-" * COL_CORE_SUBCATEGORY
-                + "-+-"
-                + "-" * COL_CORE_SIZE
-                + "-+-"
-                + "-" * COL_CORE_COUNT
-                + "-+-"
-                + "-" * COL_CORE_PERCENT
-            )
+            lines.append(self.CORE_TABLE_SEPARATOR)
 
             core_total = sum(size for _, _, size in self._esphome_core_symbols)
 
             for subcategory, symbols, total_size in sorted_subcategories:
                 percentage = (total_size / core_total * 100) if core_total > 0 else 0
                 lines.append(
-                    f"{subcategory:<{COL_CORE_SUBCATEGORY}} | {total_size:>{COL_CORE_SIZE - 2},} B | "
-                    f"{len(symbols):>{COL_CORE_COUNT}} | {percentage:>{COL_CORE_PERCENT - 1}.1f}%"
+                    f"{subcategory:<{self.COL_CORE_SUBCATEGORY}} | {total_size:>{self.COL_CORE_SIZE - 2},} B | "
+                    f"{len(symbols):>{self.COL_CORE_COUNT}} | {percentage:>{self.COL_CORE_PERCENT - 1}.1f}%"
                 )
 
             # Top 10 largest core symbols
@@ -200,7 +194,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             for i, (symbol, demangled, size) in enumerate(sorted_core_symbols[:15]):
                 lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
-            lines.append("=" * table_width)
+            lines.append("=" * self.TABLE_WIDTH)
 
         # Add detailed analysis for top ESPHome and external components
         esphome_components = [
@@ -240,9 +234,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 comp_symbols = self._component_symbols.get(comp_name, [])
                 if comp_symbols:
                     lines.append("")
-                    lines.append("=" * table_width)
-                    lines.append(f"{comp_name} Detailed Analysis".center(table_width))
-                    lines.append("=" * table_width)
+                    lines.append("=" * self.TABLE_WIDTH)
+                    lines.append(
+                        f"{comp_name} Detailed Analysis".center(self.TABLE_WIDTH)
+                    )
+                    lines.append("=" * self.TABLE_WIDTH)
                     lines.append("")
 
                     # Sort symbols by size
@@ -267,7 +263,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     for i, (symbol, demangled, size) in enumerate(large_symbols):
                         lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
-                    lines.append("=" * table_width)
+                    lines.append("=" * self.TABLE_WIDTH)
 
         return "\n".join(lines)
 
