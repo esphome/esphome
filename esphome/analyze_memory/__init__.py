@@ -320,7 +320,7 @@ class MemoryAnalyzer:
                     self._demangle_cache[original] = demangled
                     # Log symbols that failed to demangle (stayed the same)
                     if original == demangled and original.startswith("_Z"):
-                        _LOGGER.debug("Failed to demangle symbol: %s", original[:100])
+                        _LOGGER.debug("Failed to demangle symbol: %s", original)
                 return
         except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
             # On error, cache originals
