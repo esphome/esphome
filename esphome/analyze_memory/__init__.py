@@ -33,15 +33,41 @@ _GCC_PREFIX_ANNOTATIONS = {
     "_GLOBAL__sub_D_": "global destructor for",
 }
 
+# GCC optimization suffix pattern (e.g., $isra$0, $part$1, $constprop$2)
+_GCC_OPTIMIZATION_SUFFIX_PATTERN = re.compile(r"(\$(?:isra|part|constprop)\$\d+)")
+
+# C++ runtime patterns for categorization
+_CPP_RUNTIME_PATTERNS = frozenset(["vtable", "typeinfo", "thunk"])
+
+# libc printf/scanf family base names (used to detect variants like _printf_r, vfprintf, etc.)
+_LIBC_PRINTF_SCANF_FAMILY = frozenset(["printf", "fprintf", "sprintf", "scanf"])
+
+# Regex pattern for parsing readelf section headers
+# Format: [ #] name type addr off size
+_READELF_SECTION_PATTERN = re.compile(
+    r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)"
+)
+
+# Component category prefixes
+_COMPONENT_PREFIX_ESPHOME = "[esphome]"
+_COMPONENT_PREFIX_EXTERNAL = "[external]"
+_COMPONENT_CORE = f"{_COMPONENT_PREFIX_ESPHOME}core"
+_COMPONENT_API = f"{_COMPONENT_PREFIX_ESPHOME}api"
+
+# C++ namespace prefixes
+_NAMESPACE_ESPHOME = "esphome::"
+_NAMESPACE_STD = "std::"
+
+# Type alias for symbol information: (symbol_name, size, component)
+SymbolInfoType = tuple[str, int, str]
+
 
 @dataclass
 class MemorySection:
     """Represents a memory section with its symbols."""
 
     name: str
-    symbols: list[tuple[str, int, str]] = field(
-        default_factory=list
-    )  # (symbol_name, size, component)
+    symbols: list[SymbolInfoType] = field(default_factory=list)
     total_size: int = 0
 
 
@@ -133,12 +159,7 @@ class MemoryAnalyzer:
         # Parse section headers
         for line in result.stdout.splitlines():
             # Look for section entries
-            if not (
-                match := re.match(
-                    r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)",
-                    line,
-                )
-            ):
+            if not (match := _READELF_SECTION_PATTERN.match(line)):
                 continue
 
             section_name = match.group(1)
@@ -212,7 +233,7 @@ class MemoryAnalyzer:
                     self._uncategorized_symbols.append((symbol_name, demangled, size))
 
                 # Track ESPHome core symbols for detailed analysis
-                if component == "[esphome]core" and size > 0:
+                if component == _COMPONENT_CORE and size > 0:
                     demangled = self._demangle_symbol(symbol_name)
                     self._esphome_core_symbols.append((symbol_name, demangled, size))
 
@@ -230,13 +251,13 @@ class MemoryAnalyzer:
 
         # Check for special component classes first (before namespace pattern)
         # This handles cases like esphome::ESPHomeOTAComponent which should map to ota
-        if "esphome::" in demangled:
+        if _NAMESPACE_ESPHOME in demangled:
             # Check for special component classes that include component name in the class
             # For example: esphome::ESPHomeOTAComponent -> ota component
             for component_name in get_esphome_components():
                 patterns = get_component_class_patterns(component_name)
                 if any(pattern in demangled for pattern in patterns):
-                    return f"[esphome]{component_name}"
+                    return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
 
         # Check for ESPHome component namespaces
         match = ESPHOME_COMPONENT_PATTERN.search(demangled)
@@ -247,17 +268,17 @@ class MemoryAnalyzer:
 
             # Check if this is an actual component in the components directory
             if component_name in get_esphome_components():
-                return f"[esphome]{component_name}"
+                return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
             # Check if this is a known external component from the config
             if component_name in self.external_components:
-                return f"[external]{component_name}"
+                return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
             # Everything else in esphome:: namespace is core
-            return "[esphome]core"
+            return _COMPONENT_CORE
 
         # Check for esphome core namespace (no component namespace)
-        if "esphome::" in demangled:
+        if _NAMESPACE_ESPHOME in demangled:
             # If no component match found, it's core
-            return "[esphome]core"
+            return _COMPONENT_CORE
 
         # Check against symbol patterns
         for component, patterns in SYMBOL_PATTERNS.items():
@@ -273,14 +294,14 @@ class MemoryAnalyzer:
 
         # Check if spi_flash vs spi_driver
         if "spi_" in symbol_name or "SPI" in symbol_name:
-            if "spi_flash" in symbol_name:
-                return "spi_flash"
-            return "spi_driver"
+            return "spi_flash" if "spi_flash" in symbol_name else "spi_driver"
 
         # libc special printf variants
-        if symbol_name.startswith("_") and symbol_name[1:].replace("_r", "").replace(
-            "v", ""
-        ).replace("s", "") in ["printf", "fprintf", "sprintf", "scanf"]:
+        if (
+            symbol_name.startswith("_")
+            and symbol_name[1:].replace("_r", "").replace("v", "").replace("s", "")
+            in _LIBC_PRINTF_SCANF_FAMILY
+        ):
             return "libc"
 
         # Track uncategorized symbols for analysis
@@ -320,7 +341,7 @@ class MemoryAnalyzer:
         symbols_prefixes: list[str] = []  # Track removed prefixes
         for symbol in symbols:
             # Remove GCC optimization markers
-            stripped = re.sub(r"\$(?:isra|part|constprop)\$\d+", "", symbol)
+            stripped = _GCC_OPTIMIZATION_SUFFIX_PATTERN.sub("", symbol)
 
             # Handle GCC global constructor/initializer prefixes
             # _GLOBAL__sub_I_<mangled> -> extract <mangled> for demangling
@@ -450,8 +471,7 @@ class MemoryAnalyzer:
         Returns:
             Demangled name with suffix annotation
         """
-        suffix_match = re.search(r"(\$(?:isra|part|constprop)\$\d+)", original)
-        if suffix_match:
+        if suffix_match := _GCC_OPTIMIZATION_SUFFIX_PATTERN.search(original):
             return f"{demangled} [{suffix_match.group(1)}]"
         return demangled
 
@@ -462,10 +482,10 @@ class MemoryAnalyzer:
     def _categorize_esphome_core_symbol(self, demangled: str) -> str:
         """Categorize ESPHome core symbols into subcategories."""
         # Special patterns that need to be checked separately
-        if any(pattern in demangled for pattern in ["vtable", "typeinfo", "thunk"]):
+        if any(pattern in demangled for pattern in _CPP_RUNTIME_PATTERNS):
             return "C++ Runtime (vtables/RTTI)"
 
-        if demangled.startswith("std::"):
+        if demangled.startswith(_NAMESPACE_STD):
             return "C++ STL"
 
         # Check against patterns from const.py

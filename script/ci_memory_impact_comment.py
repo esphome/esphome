@@ -409,6 +409,54 @@ def find_existing_comment(pr_number: str) -> str | None:
     return None
 
 
+def update_existing_comment(comment_id: str, comment_body: str) -> None:
+    """Update an existing comment.
+
+    Args:
+        comment_id: Comment ID to update
+        comment_body: New comment body text
+
+    Raises:
+        subprocess.CalledProcessError: If gh command fails
+    """
+    print(f"DEBUG: Updating existing comment {comment_id}", file=sys.stderr)
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"/repos/{{owner}}/{{repo}}/issues/comments/{comment_id}",
+            "-X",
+            "PATCH",
+            "-f",
+            f"body={comment_body}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    print(f"DEBUG: Update response: {result.stdout}", file=sys.stderr)
+
+
+def create_new_comment(pr_number: str, comment_body: str) -> None:
+    """Create a new PR comment.
+
+    Args:
+        pr_number: PR number
+        comment_body: Comment body text
+
+    Raises:
+        subprocess.CalledProcessError: If gh command fails
+    """
+    print(f"DEBUG: Posting new comment on PR #{pr_number}", file=sys.stderr)
+    result = subprocess.run(
+        ["gh", "pr", "comment", pr_number, "--body", comment_body],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
+
+
 def post_or_update_comment(pr_number: str, comment_body: str) -> None:
     """Post a new comment or update existing one.
 
@@ -423,39 +471,9 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> None:
     existing_comment_id = find_existing_comment(pr_number)
 
     if existing_comment_id and existing_comment_id != "None":
-        # Update existing comment
-        print(
-            f"DEBUG: Updating existing comment {existing_comment_id}",
-            file=sys.stderr,
-        )
-        result = subprocess.run(
-            [
-                "gh",
-                "api",
-                f"/repos/{{owner}}/{{repo}}/issues/comments/{existing_comment_id}",
-                "-X",
-                "PATCH",
-                "-f",
-                f"body={comment_body}",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        print(f"DEBUG: Update response: {result.stdout}", file=sys.stderr)
+        update_existing_comment(existing_comment_id, comment_body)
     else:
-        # Post new comment
-        print(
-            f"DEBUG: Posting new comment (existing_comment_id={existing_comment_id})",
-            file=sys.stderr,
-        )
-        result = subprocess.run(
-            ["gh", "pr", "comment", pr_number, "--body", comment_body],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
+        create_new_comment(pr_number, comment_body)
 
     print("Comment posted/updated successfully", file=sys.stderr)
 

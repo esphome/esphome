@@ -10,10 +10,10 @@
 | **Flash** | {{ target_flash }} | {{ pr_flash }} | {{ flash_change }} |
 {% if component_breakdown %}
 {{ component_breakdown }}
-{%- endif %}
-{%- if symbol_changes %}
+{% endif %}
+{% if symbol_changes %}
 {{ symbol_changes }}
-{%- endif %}
+{% endif %}
 {%- if target_cache_hit %}
 
 > ⚡ Target branch analysis was loaded from cache (build skipped for faster CI).
