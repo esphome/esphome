@@ -1081,13 +1081,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (value.timezone_len > 0) {
-      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
-      // Compare without allocating a string
-      if (current_tz.length() != value.timezone_len ||
-          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
-        homeassistant::global_homeassistant_time->set_timezone(
-            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
-      }
+      homeassistant::global_homeassistant_time->set_timezone(reinterpret_cast<const char *>(value.timezone),
+                                                             value.timezone_len);
     }
 #endif
   }
