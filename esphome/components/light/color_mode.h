@@ -132,6 +132,8 @@ class ColorModeMask {
     return count;
   }
 
+  constexpr bool empty() const { return this->mask_ == 0; }
+
   /// Iterator support for API encoding
   class Iterator {
    public:

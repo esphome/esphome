@@ -71,12 +71,13 @@ extend google.protobuf.FieldOptions {
     // and is ideal when the exact size is known before populating the array.
     optional bool fixed_vector = 50013 [default=false];
 
-    // enum_as_bitmask: Encode repeated enum fields as a uint32_t bitmask
-    // When set on a repeated enum field, the field will be stored as a single uint32_t
-    // where each bit represents whether that enum value is present. This is ideal for
-    // enums with ≤32 values and eliminates all vector template instantiation overhead.
-    // The enum values should be sequential starting from 0.
-    // Encoding: bit N set means enum value N is present in the set.
-    // Example: {ColorMode::RGB, ColorMode::WHITE} → bitmask with bits 5 and 6 set
-    optional bool enum_as_bitmask = 50014 [default=false];
+    // container_pointer_no_template: Use a non-template container type for repeated fields
+    // Similar to container_pointer, but for containers that don't take template parameters.
+    // The container type is used as-is without appending element type.
+    // The container must have:
+    // - begin() and end() methods returning iterators
+    // - empty() method
+    // Example: [(container_pointer_no_template) = "light::ColorModeMask"]
+    //   generates: const light::ColorModeMask *supported_color_modes{};
+    optional string container_pointer_no_template = 50014;
 }
