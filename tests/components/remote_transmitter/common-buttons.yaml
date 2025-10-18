@@ -54,6 +54,12 @@ button:
         data: 0xABCDEF
         nbits: 12
   - platform: template
+    name: Symphony
+    on_press:
+      remote_transmitter.transmit_symphony:
+        data: 0xE88
+        nbits: 12
+  - platform: template
     name: Panasonic
     on_press:
       remote_transmitter.transmit_panasonic:

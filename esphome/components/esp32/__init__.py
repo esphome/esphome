@@ -304,6 +304,17 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
 
 
+def _is_framework_url(source: str) -> str:
+    # platformio accepts many URL schemes for framework repositories and archives including http, https, git, file, and symlink
+    import urllib.parse
+
+    try:
+        parsed = urllib.parse.urlparse(source)
+    except ValueError:
+        return False
+    return bool(parsed.scheme)
+
+
 # NOTE: Keep this in mind when updating the recommended version:
 #  * New framework historically have had some regressions, especially for WiFi.
 #    The new version needs to be thoroughly validated before changing the
@@ -313,12 +324,13 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 2, 1),
-    "latest": cv.Version(3, 3, 1),
-    "dev": cv.Version(3, 3, 1),
+    "recommended": cv.Version(3, 3, 2),
+    "latest": cv.Version(3, 3, 2),
+    "dev": cv.Version(3, 3, 2),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(3, 3, 1): cv.Version(55, 3, 31),
+    cv.Version(3, 3, 2): cv.Version(55, 3, 31, "1"),
+    cv.Version(3, 3, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(3, 3, 0): cv.Version(55, 3, 30, "2"),
     cv.Version(3, 2, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(3, 2, 0): cv.Version(54, 3, 20),
@@ -331,13 +343,13 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 4, 2),
+    "recommended": cv.Version(5, 5, 1),
     "latest": cv.Version(5, 5, 1),
     "dev": cv.Version(5, 5, 1),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(5, 5, 1): cv.Version(55, 3, 31),
-    cv.Version(5, 5, 0): cv.Version(55, 3, 31),
+    cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
@@ -351,9 +363,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(54, 3, 21, "2"),
-    "latest": cv.Version(55, 3, 31),
-    "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
+    "recommended": cv.Version(55, 3, 31, "1"),
+    "latest": cv.Version(55, 3, 31, "1"),
+    "dev": cv.Version(55, 3, 31, "1"),
 }
 
 
@@ -386,6 +398,10 @@ def _check_versions(value):
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
+        if _is_framework_url(value[CONF_SOURCE]):
+            value[CONF_SOURCE] = (
+                f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
+            )
     else:
         if version < cv.Version(5, 0, 0):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
@@ -395,6 +411,8 @@ def _check_versions(value):
             CONF_SOURCE,
             _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
         )
+        if _is_framework_url(value[CONF_SOURCE]):
+            value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
 
     if CONF_PLATFORM_VERSION not in value:
         if platform_lookup is None:
@@ -526,6 +544,7 @@ CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
 CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
+CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -588,6 +607,9 @@ FRAMEWORK_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
                     ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
+                    ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                 }
             ),
@@ -639,6 +661,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Why change? ESP-IDF offers:\n"
         + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
         + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
         + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
         + color(
             AnsiFore.GREEN,
@@ -646,7 +669,6 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         )
         + "\n"
         + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  ⏱️  Compile times are ~25% longer\n")
         + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
         + "\n"
         + "What should I do?\n"
@@ -806,6 +828,9 @@ async def to_code(config):
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
 
+    # Reduce PHY TX power in the event of a brownout
+    add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
+
     # Set default CPU frequency
     add_idf_sdkconfig_option(
         f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{config[CONF_CPU_FREQUENCY][:-3]}", True
@@ -845,6 +870,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", True)
     if advanced.get(CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, True):
         add_idf_sdkconfig_option("CONFIG_LWIP_CHECK_THREAD_SAFETY", True)
+
+    # Disable placing libc locks in IRAM to save RAM
+    # This is safe for ESPHome since no IRAM ISRs (interrupts that run while cache is disabled)
+    # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
+    if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
+        add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:

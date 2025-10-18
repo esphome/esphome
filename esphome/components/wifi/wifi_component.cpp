@@ -265,12 +265,9 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
     return this->wifi_dns_ip_(num);
   return {};
 }
-std::string WiFiComponent::get_use_address() const {
-  if (this->use_address_.empty()) {
-    return App.get_name() + ".local";
-  }
-  return this->use_address_;
-}
+// set_use_address() is guaranteed to be called during component setup by Python code generation,
+// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
+const std::string &WiFiComponent::get_use_address() const { return this->use_address_; }
 void WiFiComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
@@ -552,7 +549,7 @@ void WiFiComponent::start_scanning() {
 // Using insertion sort instead of std::stable_sort saves flash memory
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements)
-static void insertion_sort_scan_results(std::vector<WiFiScanResult> &results) {
+template<typename VectorType> static void insertion_sort_scan_results(VectorType &results) {
   const size_t size = results.size();
   for (size_t i = 1; i < size; i++) {
     // Make a copy to avoid issues with move semantics during comparison
@@ -576,8 +573,9 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
   format_mac_addr_upper(bssid.data(), bssid_s);
 
   if (res.get_matches()) {
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), res.get_is_hidden() ? "(HIDDEN) " : "",
-             bssid_s, LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
     ESP_LOGD(TAG,
              "    Channel: %u\n"
              "    RSSI: %d dB",
@@ -714,6 +712,12 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+
+    // Free scan results memory unless a component needs them
+    if (!this->keep_scan_results_) {
+      this->scan_result_.clear();
+      this->scan_result_.shrink_to_fit();
+    }
 
     if (this->fast_connect_) {
       this->save_fast_connect_settings_();
