@@ -1472,15 +1472,9 @@ class RepeatedTypeInfo(TypeInfo):
         if self._use_pointer:
             return None
         if self._use_bitmask:
-            # For bitmask fields, decode enum value and set corresponding bit, with bounds checking
-            content = self._ti.decode_varint
-            if content is None:
-                return None
-            return (
-                f"case {self.number}: "
-                f"if (static_cast<uint8_t>({content}) < 32) "
-                f"this->{self.field_name} |= (1U << static_cast<uint8_t>({content})); "
-                f"break;"
+            # Bitmask fields don't support decoding (only used for device->client messages)
+            raise RuntimeError(
+                f"enum_as_bitmask fields do not support decoding: {self.field_name}"
             )
         content = self._ti.decode_varint
         if content is None:
