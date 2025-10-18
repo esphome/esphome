@@ -157,8 +157,14 @@ def create_symbol_changes_table(
             target_str = format_bytes(target_size)
             pr_str = format_bytes(pr_size)
             change_str = format_change(target_size, pr_size)
-            # Truncate very long symbol names
-            display_symbol = symbol if len(symbol) <= 80 else symbol[:77] + "..."
+            # Truncate very long symbol names but show full name in title attribute
+            if len(symbol) <= 100:
+                display_symbol = symbol
+            else:
+                # Use HTML details for very long symbols
+                display_symbol = (
+                    f"<details><summary>{symbol[:97]}...</summary>{symbol}</details>"
+                )
             lines.append(
                 f"| `{display_symbol}` | {target_str} | {pr_str} | {change_str} |"
             )
@@ -261,8 +267,8 @@ def create_detailed_breakdown_table(
     # Build table - limit to top 20 changes
     lines = [
         "",
-        "<details>",
-        "<summary>📊 Component Memory Breakdown (click to expand)</summary>",
+        "<details open>",
+        "<summary>📊 Component Memory Breakdown</summary>",
         "",
         "| Component | Target Flash | PR Flash | Change |",
         "|-----------|--------------|----------|--------|",
