@@ -1,7 +1,6 @@
 """CLI interface for memory analysis with report generation."""
 
 from collections import defaultdict
-import subprocess
 import sys
 
 from . import MemoryAnalyzer
@@ -313,14 +312,91 @@ def analyze_elf(
 def main():
     """CLI entrypoint for memory analysis."""
     if len(sys.argv) < 2:
-        print("Usage: analyze_memory.py <elf_file>")
+        print("Usage: python -m esphome.analyze_memory <build_directory>")
+        print("\nAnalyze memory usage from an ESPHome build directory.")
+        print("The build directory should contain firmware.elf and idedata will be")
+        print("loaded from ~/.esphome/.internal/idedata/<device>.json")
+        print("\nExamples:")
+        print("  python -m esphome.analyze_memory ~/.esphome/build/my-device")
+        print("  python -m esphome.analyze_memory .esphome/build/my-device")
+        print("  python -m esphome.analyze_memory my-device  # Short form")
         sys.exit(1)
 
+    build_dir = sys.argv[1]
+
+    # Load build directory
+    import json
+    from pathlib import Path
+
+    from esphome.platformio_api import IDEData
+
+    build_path = Path(build_dir)
+
+    # If no path separator in name, assume it's a device name
+    if "/" not in build_dir and not build_path.is_dir():
+        # Try current directory first
+        cwd_path = Path.cwd() / ".esphome" / "build" / build_dir
+        if cwd_path.is_dir():
+            build_path = cwd_path
+            print(f"Using build directory: {build_path}", file=sys.stderr)
+        else:
+            # Fall back to home directory
+            build_path = Path.home() / ".esphome" / "build" / build_dir
+            print(f"Using build directory: {build_path}", file=sys.stderr)
+
+    if not build_path.is_dir():
+        print(f"Error: {build_path} is not a directory", file=sys.stderr)
+        sys.exit(1)
+
+    # Find firmware.elf
+    elf_file = None
+    for elf_candidate in [
+        build_path / "firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "firmware.elf",
+    ]:
+        if elf_candidate.exists():
+            elf_file = str(elf_candidate)
+            break
+
+    if not elf_file:
+        print(f"Error: firmware.elf not found in {build_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Find idedata.json - check current directory first, then home
+    device_name = build_path.name
+    idedata_candidates = [
+        Path.cwd() / ".esphome" / "idedata" / f"{device_name}.json",
+        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
+    ]
+
+    idedata = None
+    for idedata_path in idedata_candidates:
+        if idedata_path.exists():
+            try:
+                with open(idedata_path, encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                idedata = IDEData(raw_data)
+                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+                break
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
+
+    if not idedata:
+        print(
+            f"Warning: idedata not found (searched {idedata_candidates[0]} and {idedata_candidates[1]})",
+            file=sys.stderr,
+        )
+
     try:
-        report = analyze_elf(sys.argv[1])
+        analyzer = MemoryAnalyzerCLI(elf_file, idedata=idedata)
+        analyzer.analyze()
+        report = analyzer.generate_report()
         print(report)
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
-        print(f"Error: {e}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
 
