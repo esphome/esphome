@@ -61,16 +61,15 @@ def format_bytes(bytes_value: int) -> str:
     return f"{bytes_value:,} bytes"
 
 
-def format_change(
-    before: int, after: int, use_trend_icons: bool = False, threshold: float = 1.0
-) -> str:
+def format_change(before: int, after: int, threshold: float | None = None) -> str:
     """Format memory change with delta and percentage.
 
     Args:
         before: Memory usage before change (in bytes)
         after: Memory usage after change (in bytes)
-        use_trend_icons: If True, use 📈/📉 chart icons; if False, use status emojis
-        threshold: Percentage threshold for "significant" change (default 1.0%)
+        threshold: Optional percentage threshold for "significant" change.
+                   If provided, adds supplemental emoji (🎉/🚨/🔸/✅) to chart icons.
+                   If None, only shows chart icons (📈/📉/➡️).
 
     Returns:
         Formatted string with delta and percentage
@@ -78,21 +77,25 @@ def format_change(
     delta = after - before
     percentage = 0.0 if before == 0 else (delta / before) * 100
 
-    # Format delta with sign and always show in bytes for precision
+    # Always use chart icons to show direction
     if delta > 0:
         delta_str = f"+{delta:,} bytes"
-        if use_trend_icons:
-            emoji = "📈"
+        trend_icon = "📈"
+        # Add supplemental emoji based on threshold if provided
+        if threshold is not None:
+            significance = "🚨" if abs(percentage) > threshold else "🔸"
+            emoji = f"{trend_icon} {significance}"
         else:
-            # Use 🚨 for significant increases, 🔸 for smaller ones
-            emoji = "🚨" if abs(percentage) > threshold else "🔸"
+            emoji = trend_icon
     elif delta < 0:
         delta_str = f"{delta:,} bytes"
-        if use_trend_icons:
-            emoji = "📉"
+        trend_icon = "📉"
+        # Add supplemental emoji based on threshold if provided
+        if threshold is not None:
+            significance = "🎉" if abs(percentage) > threshold else "✅"
+            emoji = f"{trend_icon} {significance}"
         else:
-            # Use 🎉 for significant reductions, ✅ for smaller ones
-            emoji = "🎉" if abs(percentage) > threshold else "✅"
+            emoji = trend_icon
     else:
         delta_str = "+0 bytes"
         emoji = "➡️"
@@ -187,7 +190,7 @@ def create_symbol_changes_table(
         for symbol, target_size, pr_size, delta in changed_symbols[:30]:
             target_str = format_bytes(target_size)
             pr_str = format_bytes(pr_size)
-            change_str = format_change(target_size, pr_size, use_trend_icons=True)
+            change_str = format_change(target_size, pr_size)  # Chart icons only
             display_symbol = format_symbol_for_display(symbol)
             lines.append(
                 f"| {display_symbol} | {target_str} | {pr_str} | {change_str} |"
