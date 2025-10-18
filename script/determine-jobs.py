@@ -13,9 +13,9 @@ what files have changed. It outputs JSON with the following structure:
   "component_test_count": 5,
   "memory_impact": {
     "should_run": "true/false",
-    "component": "component_name",
-    "test_file": "test.esp32-idf.yaml",
-    "platform": "esp32-idf"
+    "components": ["component1", "component2", ...],
+    "platform": "esp32-idf",
+    "use_merged_config": "true"
   }
 }
 
@@ -26,7 +26,7 @@ The CI workflow uses this information to:
 - Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
-- Run memory impact analysis when exactly one component changes
+- Run memory impact analysis when components change
 
 Usage:
   python script/determine-jobs.py [-b BRANCH]

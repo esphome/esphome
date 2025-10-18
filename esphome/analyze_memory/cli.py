@@ -183,9 +183,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     f"{len(symbols):>{self.COL_CORE_COUNT}} | {percentage:>{self.COL_CORE_PERCENT - 1}.1f}%"
                 )
 
-            # Top 10 largest core symbols
+            # Top 15 largest core symbols
             lines.append("")
-            lines.append("Top 10 Largest [esphome]core Symbols:")
+            lines.append("Top 15 Largest [esphome]core Symbols:")
             sorted_core_symbols = sorted(
                 self._esphome_core_symbols, key=lambda x: x[2], reverse=True
             )
