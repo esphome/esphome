@@ -18,6 +18,7 @@ class OneWireDevice {
   void set_address(uint64_t address) { this->address_ = address; }
 
   void set_index(int index) {
+    ESP_LOGE(TAG, "Set index called");
     this->address_ = this->bus_->get_devices().at(index);
   }
 
@@ -35,7 +36,7 @@ class OneWireDevice {
 
   /// @brief find an address if necessary
   /// should be called from setup
-  bool check_address_();
+  bool check_address_or_index_();
 
   /// @brief send command on the bus
   /// @param cmd command to send

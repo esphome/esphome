@@ -18,7 +18,7 @@ bool OneWireDevice::send_command_(uint8_t cmd) {
   return true;
 }
 
-bool OneWireDevice::check_address_() {
+bool OneWireDevice::check_address_or_index_() {
   if (this->address_ != 0)
     return true;
   auto devices = this->bus_->get_devices();
