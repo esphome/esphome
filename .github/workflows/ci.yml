@@ -564,26 +564,14 @@ jobs:
 
           echo "Compiling with test_build_components.py..."
 
-          # Find most recent build directory for detailed analysis
-          build_dir=$(find ~/.esphome/build -type d -maxdepth 1 -mindepth 1 -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || echo "")
-
-          # Run build and extract memory, with optional detailed analysis
-          if [ -n "$build_dir" ]; then
-            python script/test_build_components.py \
-              -e compile \
-              -c "$component_list" \
-              -t "$platform" 2>&1 | \
-              python script/ci_memory_impact_extract.py \
-                --output-env \
-                --build-dir "$build_dir" \
-                --output-json memory-analysis-target.json
-          else
-            python script/test_build_components.py \
-              -e compile \
-              -c "$component_list" \
-              -t "$platform" 2>&1 | \
-              python script/ci_memory_impact_extract.py --output-env
-          fi
+          # Run build and extract memory with auto-detection of build directory for detailed analysis
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
+            python script/ci_memory_impact_extract.py \
+              --output-env \
+              --output-json memory-analysis-target.json
       - name: Upload memory analysis JSON
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -631,26 +619,14 @@ jobs:
 
           echo "Compiling with test_build_components.py..."
 
-          # Find most recent build directory for detailed analysis
-          build_dir=$(find ~/.esphome/build -type d -maxdepth 1 -mindepth 1 -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || echo "")
-
-          # Run build and extract memory, with optional detailed analysis
-          if [ -n "$build_dir" ]; then
-            python script/test_build_components.py \
-              -e compile \
-              -c "$component_list" \
-              -t "$platform" 2>&1 | \
-              python script/ci_memory_impact_extract.py \
-                --output-env \
-                --build-dir "$build_dir" \
-                --output-json memory-analysis-pr.json
-          else
-            python script/test_build_components.py \
-              -e compile \
-              -c "$component_list" \
-              -t "$platform" 2>&1 | \
-              python script/ci_memory_impact_extract.py --output-env
-          fi
+          # Run build and extract memory with auto-detection of build directory for detailed analysis
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
+            python script/ci_memory_impact_extract.py \
+              --output-env \
+              --output-json memory-analysis-pr.json
       - name: Upload memory analysis JSON
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
