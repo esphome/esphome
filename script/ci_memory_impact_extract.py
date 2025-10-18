@@ -137,20 +137,20 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
 
         # Convert to JSON-serializable format
         result = {
-            "components": {},
+            "components": {
+                name: {
+                    "text": mem.text_size,
+                    "rodata": mem.rodata_size,
+                    "data": mem.data_size,
+                    "bss": mem.bss_size,
+                    "flash_total": mem.flash_total,
+                    "ram_total": mem.ram_total,
+                    "symbol_count": mem.symbol_count,
+                }
+                for name, mem in components.items()
+            },
             "symbols": {},
         }
-
-        for name, mem in components.items():
-            result["components"][name] = {
-                "text": mem.text_size,
-                "rodata": mem.rodata_size,
-                "data": mem.data_size,
-                "bss": mem.bss_size,
-                "flash_total": mem.flash_total,
-                "ram_total": mem.ram_total,
-                "symbol_count": mem.symbol_count,
-            }
 
         # Build symbol map
         for section in analyzer.sections.values():

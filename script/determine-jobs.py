@@ -303,16 +303,18 @@ def detect_memory_impact_config(
         # Check if component has tests for any preferred platform
         for test_file in test_files:
             parts = test_file.stem.split(".")
-            if len(parts) >= 2:
-                platform = parts[1]
-                if platform in PLATFORM_PREFERENCE:
-                    components_with_tests.append(component)
-                    # Select the most preferred platform across all components
-                    if selected_platform is None or PLATFORM_PREFERENCE.index(
-                        platform
-                    ) < PLATFORM_PREFERENCE.index(selected_platform):
-                        selected_platform = platform
-                    break
+            if len(parts) < 2:
+                continue
+            platform = parts[1]
+            if platform not in PLATFORM_PREFERENCE:
+                continue
+            components_with_tests.append(component)
+            # Select the most preferred platform across all components
+            if selected_platform is None or PLATFORM_PREFERENCE.index(
+                platform
+            ) < PLATFORM_PREFERENCE.index(selected_platform):
+                selected_platform = platform
+            break
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
