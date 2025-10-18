@@ -387,17 +387,10 @@ def main():
             file=sys.stderr,
         )
 
-    try:
-        analyzer = MemoryAnalyzerCLI(elf_file, idedata=idedata)
-        analyzer.analyze()
-        report = analyzer.generate_report()
-        print(report)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
-        sys.exit(1)
+    analyzer = MemoryAnalyzerCLI(elf_file, idedata=idedata)
+    analyzer.analyze()
+    report = analyzer.generate_report()
+    print(report)
 
 
 if __name__ == "__main__":
