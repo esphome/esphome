@@ -73,10 +73,12 @@ def format_change(before: int, after: int) -> str:
     # Format delta with sign and always show in bytes for precision
     if delta > 0:
         delta_str = f"+{delta:,} bytes"
-        emoji = "📈"
+        # Use 🚨 for significant increases (>1%), 🔸 for smaller ones
+        emoji = "🚨" if abs(percentage) > 1.0 else "🔸"
     elif delta < 0:
         delta_str = f"{delta:,} bytes"
-        emoji = "📉"
+        # Use 🎉 for significant reductions (>1%), ✅ for smaller ones
+        emoji = "🎉" if abs(percentage) > 1.0 else "✅"
     else:
         delta_str = "+0 bytes"
         emoji = "➡️"
