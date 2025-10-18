@@ -313,14 +313,42 @@ def analyze_elf(
 def main():
     """CLI entrypoint for memory analysis."""
     if len(sys.argv) < 2:
-        print("Usage: analyze_memory.py <elf_file>")
+        print(
+            "Usage: python -m esphome.analyze_memory <elf_file> [objdump_path] [readelf_path]"
+        )
+        print("\nExample for ESP8266:")
+        print("  python -m esphome.analyze_memory firmware.elf \\")
+        print(
+            "    ~/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-objdump \\"
+        )
+        print(
+            "    ~/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-readelf"
+        )
+        print("\nExample for ESP32:")
+        print("  python -m esphome.analyze_memory firmware.elf \\")
+        print(
+            "    ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-objdump \\"
+        )
+        print(
+            "    ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-readelf"
+        )
         sys.exit(1)
 
+    elf_file = sys.argv[1]
+    objdump_path = sys.argv[2] if len(sys.argv) > 2 else None
+    readelf_path = sys.argv[3] if len(sys.argv) > 3 else None
+
     try:
-        report = analyze_elf(sys.argv[1])
+        report = analyze_elf(elf_file, objdump_path, readelf_path)
         print(report)
     except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
-        print(f"Error: {e}")
+        print(f"Error: {e}", file=sys.stderr)
+        if "readelf" in str(e) or "objdump" in str(e):
+            print(
+                "\nHint: You need to specify the toolchain-specific tools.",
+                file=sys.stderr,
+            )
+            print("See usage above for examples.", file=sys.stderr)
         sys.exit(1)
 
 
