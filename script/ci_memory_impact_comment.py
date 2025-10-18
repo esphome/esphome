@@ -14,6 +14,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from jinja2 import Environment, FileSystemLoader
+
 # Add esphome to path for analyze_memory import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -25,6 +27,22 @@ COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 # Thresholds for emoji significance indicators (percentage)
 OVERALL_CHANGE_THRESHOLD = 1.0  # Overall RAM/Flash changes
 COMPONENT_CHANGE_THRESHOLD = 3.0  # Component breakdown changes
+
+# Display limits for tables
+MAX_COMPONENT_BREAKDOWN_ROWS = 20  # Maximum components to show in breakdown table
+MAX_CHANGED_SYMBOLS_ROWS = 30  # Maximum changed symbols to show
+MAX_NEW_SYMBOLS_ROWS = 15  # Maximum new symbols to show
+MAX_REMOVED_SYMBOLS_ROWS = 15  # Maximum removed symbols to show
+
+# Symbol display formatting
+SYMBOL_DISPLAY_MAX_LENGTH = 100  # Max length before using <details> tag
+SYMBOL_DISPLAY_TRUNCATE_LENGTH = 97  # Length to truncate in summary
+
+# Component change noise threshold
+COMPONENT_CHANGE_NOISE_THRESHOLD = 2  # Ignore component changes ≤ this many bytes
+
+# Template directory
+TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
 def load_analysis_json(json_path: str) -> dict | None:
@@ -111,35 +129,20 @@ def format_change(before: int, after: int, threshold: float | None = None) -> st
     return f"{emoji} {delta_str} ({pct_str})"
 
 
-def format_symbol_for_display(symbol: str) -> str:
-    """Format a symbol name for display in markdown table.
-
-    Args:
-        symbol: Symbol name to format
-
-    Returns:
-        Formatted symbol with backticks or HTML details tag for long names
-    """
-    if len(symbol) <= 100:
-        return f"`{symbol}`"
-    # Use HTML details for very long symbols (no backticks inside HTML)
-    return f"<details><summary><code>{symbol[:97]}...</code></summary><code>{symbol}</code></details>"
-
-
-def create_symbol_changes_table(
+def prepare_symbol_changes_data(
     target_symbols: dict | None, pr_symbols: dict | None
-) -> str:
-    """Create a markdown table showing symbols that changed size.
+) -> dict | None:
+    """Prepare symbol changes data for template rendering.
 
     Args:
         target_symbols: Symbol name to size mapping for target branch
         pr_symbols: Symbol name to size mapping for PR branch
 
     Returns:
-        Formatted markdown table
+        Dictionary with changed, new, and removed symbols, or None if no changes
     """
     if not target_symbols or not pr_symbols:
-        return ""
+        return None
 
     # Find all symbols that exist in both branches or only in one
     all_symbols = set(target_symbols.keys()) | set(pr_symbols.keys())
@@ -165,113 +168,39 @@ def create_symbol_changes_table(
             changed_symbols.append((symbol, target_size, pr_size, delta))
 
     if not changed_symbols and not new_symbols and not removed_symbols:
-        return ""
+        return None
 
-    lines = [
-        "",
-        "<details>",
-        "<summary>🔍 Symbol-Level Changes (click to expand)</summary>",
-        "",
-    ]
+    # Sort by size/delta
+    changed_symbols.sort(key=lambda x: abs(x[3]), reverse=True)
+    new_symbols.sort(key=lambda x: x[1], reverse=True)
+    removed_symbols.sort(key=lambda x: x[1], reverse=True)
 
-    # Show changed symbols (sorted by absolute delta)
-    if changed_symbols:
-        changed_symbols.sort(key=lambda x: abs(x[3]), reverse=True)
-        lines.extend(
-            [
-                "### Changed Symbols",
-                "",
-                "| Symbol | Target Size | PR Size | Change |",
-                "|--------|-------------|---------|--------|",
-            ]
-        )
-
-        # Show top 30 changes
-        for symbol, target_size, pr_size, delta in changed_symbols[:30]:
-            target_str = format_bytes(target_size)
-            pr_str = format_bytes(pr_size)
-            change_str = format_change(target_size, pr_size)  # Chart icons only
-            display_symbol = format_symbol_for_display(symbol)
-            lines.append(
-                f"| {display_symbol} | {target_str} | {pr_str} | {change_str} |"
-            )
-
-        if len(changed_symbols) > 30:
-            lines.append(
-                f"| ... | ... | ... | *({len(changed_symbols) - 30} more changed symbols not shown)* |"
-            )
-        lines.append("")
-
-    # Show new symbols
-    if new_symbols:
-        new_symbols.sort(key=lambda x: x[1], reverse=True)
-        lines.extend(
-            [
-                "### New Symbols (top 15)",
-                "",
-                "| Symbol | Size |",
-                "|--------|------|",
-            ]
-        )
-
-        for symbol, size in new_symbols[:15]:
-            display_symbol = format_symbol_for_display(symbol)
-            lines.append(f"| {display_symbol} | {format_bytes(size)} |")
-
-        if len(new_symbols) > 15:
-            total_new_size = sum(s[1] for s in new_symbols)
-            lines.append(
-                f"| *{len(new_symbols) - 15} more new symbols...* | *Total: {format_bytes(total_new_size)}* |"
-            )
-        lines.append("")
-
-    # Show removed symbols
-    if removed_symbols:
-        removed_symbols.sort(key=lambda x: x[1], reverse=True)
-        lines.extend(
-            [
-                "### Removed Symbols (top 15)",
-                "",
-                "| Symbol | Size |",
-                "|--------|------|",
-            ]
-        )
-
-        for symbol, size in removed_symbols[:15]:
-            display_symbol = format_symbol_for_display(symbol)
-            lines.append(f"| {display_symbol} | {format_bytes(size)} |")
-
-        if len(removed_symbols) > 15:
-            total_removed_size = sum(s[1] for s in removed_symbols)
-            lines.append(
-                f"| *{len(removed_symbols) - 15} more removed symbols...* | *Total: {format_bytes(total_removed_size)}* |"
-            )
-        lines.append("")
-
-    lines.extend(["</details>", ""])
-
-    return "\n".join(lines)
+    return {
+        "changed_symbols": changed_symbols,
+        "new_symbols": new_symbols,
+        "removed_symbols": removed_symbols,
+    }
 
 
-def create_detailed_breakdown_table(
+def prepare_component_breakdown_data(
     target_analysis: dict | None, pr_analysis: dict | None
-) -> str:
-    """Create a markdown table showing detailed memory breakdown by component.
+) -> list[tuple[str, int, int, int]] | None:
+    """Prepare component breakdown data for template rendering.
 
     Args:
         target_analysis: Component memory breakdown for target branch
         pr_analysis: Component memory breakdown for PR branch
 
     Returns:
-        Formatted markdown table
+        List of tuples (component, target_flash, pr_flash, delta), or None if no changes
     """
     if not target_analysis or not pr_analysis:
-        return ""
+        return None
 
     # Combine all components from both analyses
     all_components = set(target_analysis.keys()) | set(pr_analysis.keys())
 
-    # Filter to components that have changed (ignoring noise ≤2 bytes)
+    # Filter to components that have changed (ignoring noise)
     changed_components = []
     for comp in all_components:
         target_mem = target_analysis.get(comp, {})
@@ -280,43 +209,18 @@ def create_detailed_breakdown_table(
         target_flash = target_mem.get("flash_total", 0)
         pr_flash = pr_mem.get("flash_total", 0)
 
-        # Only include if component has meaningful change (>2 bytes)
+        # Only include if component has meaningful change (above noise threshold)
         delta = pr_flash - target_flash
-        if abs(delta) > 2:
+        if abs(delta) > COMPONENT_CHANGE_NOISE_THRESHOLD:
             changed_components.append((comp, target_flash, pr_flash, delta))
 
     if not changed_components:
-        return ""
+        return None
 
     # Sort by absolute delta (largest changes first)
     changed_components.sort(key=lambda x: abs(x[3]), reverse=True)
 
-    # Build table - limit to top 20 changes
-    lines = [
-        "",
-        "<details open>",
-        "<summary>📊 Component Memory Breakdown</summary>",
-        "",
-        "| Component | Target Flash | PR Flash | Change |",
-        "|-----------|--------------|----------|--------|",
-    ]
-
-    for comp, target_flash, pr_flash, delta in changed_components[:20]:
-        target_str = format_bytes(target_flash)
-        pr_str = format_bytes(pr_flash)
-        # Only apply threshold to ESPHome components, not framework/infrastructure
-        threshold = COMPONENT_CHANGE_THRESHOLD if comp.startswith("[esphome]") else None
-        change_str = format_change(target_flash, pr_flash, threshold=threshold)
-        lines.append(f"| `{comp}` | {target_str} | {pr_str} | {change_str} |")
-
-    if len(changed_components) > 20:
-        lines.append(
-            f"| ... | ... | ... | *({len(changed_components) - 20} more components not shown)* |"
-        )
-
-    lines.extend(["", "</details>", ""])
-
-    return "\n".join(lines)
+    return changed_components
 
 
 def create_comment_body(
@@ -332,7 +236,7 @@ def create_comment_body(
     pr_symbols: dict | None = None,
     target_cache_hit: bool = False,
 ) -> str:
-    """Create the comment body with memory impact analysis.
+    """Create the comment body with memory impact analysis using Jinja2 templates.
 
     Args:
         components: List of component names (merged config)
@@ -350,57 +254,87 @@ def create_comment_body(
     Returns:
         Formatted comment body
     """
-    ram_change = format_change(target_ram, pr_ram, threshold=OVERALL_CHANGE_THRESHOLD)
-    flash_change = format_change(
-        target_flash, pr_flash, threshold=OVERALL_CHANGE_THRESHOLD
+    # Set up Jinja2 environment
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        trim_blocks=True,
+        lstrip_blocks=True,
     )
 
-    # Use provided analysis data if available
-    component_breakdown = ""
-    symbol_changes = ""
+    # Register custom filters
+    env.filters["format_bytes"] = format_bytes
+    env.filters["format_change"] = format_change
 
-    if target_analysis and pr_analysis:
-        component_breakdown = create_detailed_breakdown_table(
-            target_analysis, pr_analysis
-        )
-
-        if target_symbols and pr_symbols:
-            symbol_changes = create_symbol_changes_table(target_symbols, pr_symbols)
-    else:
-        print("No ELF files provided, skipping detailed analysis", file=sys.stderr)
+    # Prepare template context
+    context = {
+        "comment_marker": COMMENT_MARKER,
+        "platform": platform,
+        "target_ram": format_bytes(target_ram),
+        "pr_ram": format_bytes(pr_ram),
+        "target_flash": format_bytes(target_flash),
+        "pr_flash": format_bytes(pr_flash),
+        "ram_change": format_change(
+            target_ram, pr_ram, threshold=OVERALL_CHANGE_THRESHOLD
+        ),
+        "flash_change": format_change(
+            target_flash, pr_flash, threshold=OVERALL_CHANGE_THRESHOLD
+        ),
+        "target_cache_hit": target_cache_hit,
+        "component_change_threshold": COMPONENT_CHANGE_THRESHOLD,
+    }
 
     # Format components list
     if len(components) == 1:
-        components_str = f"`{components[0]}`"
-        config_note = "a representative test configuration"
+        context["components_str"] = f"`{components[0]}`"
+        context["config_note"] = "a representative test configuration"
     else:
-        components_str = ", ".join(f"`{c}`" for c in sorted(components))
-        config_note = f"a merged configuration with {len(components)} components"
+        context["components_str"] = ", ".join(f"`{c}`" for c in sorted(components))
+        context["config_note"] = (
+            f"a merged configuration with {len(components)} components"
+        )
 
-    # Add cache info note if target was cached
-    cache_note = ""
-    if target_cache_hit:
-        cache_note = "\n\n> ⚡ Target branch analysis was loaded from cache (build skipped for faster CI)."
+    # Prepare component breakdown if available
+    component_breakdown = ""
+    if target_analysis and pr_analysis:
+        changed_components = prepare_component_breakdown_data(
+            target_analysis, pr_analysis
+        )
+        if changed_components:
+            template = env.get_template("ci_memory_impact_component_breakdown.j2")
+            component_breakdown = template.render(
+                changed_components=changed_components,
+                format_bytes=format_bytes,
+                format_change=format_change,
+                component_change_threshold=COMPONENT_CHANGE_THRESHOLD,
+                max_rows=MAX_COMPONENT_BREAKDOWN_ROWS,
+            )
 
-    return f"""{COMMENT_MARKER}
-## Memory Impact Analysis
+    # Prepare symbol changes if available
+    symbol_changes = ""
+    if target_symbols and pr_symbols:
+        symbol_data = prepare_symbol_changes_data(target_symbols, pr_symbols)
+        if symbol_data:
+            template = env.get_template("ci_memory_impact_symbol_changes.j2")
+            symbol_changes = template.render(
+                **symbol_data,
+                format_bytes=format_bytes,
+                format_change=format_change,
+                max_changed_rows=MAX_CHANGED_SYMBOLS_ROWS,
+                max_new_rows=MAX_NEW_SYMBOLS_ROWS,
+                max_removed_rows=MAX_REMOVED_SYMBOLS_ROWS,
+                symbol_max_length=SYMBOL_DISPLAY_MAX_LENGTH,
+                symbol_truncate_length=SYMBOL_DISPLAY_TRUNCATE_LENGTH,
+            )
 
-**Components:** {components_str}
-**Platform:** `{platform}`
+    if not target_analysis or not pr_analysis:
+        print("No ELF files provided, skipping detailed analysis", file=sys.stderr)
 
-| Metric | Target Branch | This PR | Change |
-|--------|--------------|---------|--------|
-| **RAM** | {format_bytes(target_ram)} | {format_bytes(pr_ram)} | {ram_change} |
-| **Flash** | {format_bytes(target_flash)} | {format_bytes(pr_flash)} | {flash_change} |
-{component_breakdown}{symbol_changes}{cache_note}
+    context["component_breakdown"] = component_breakdown
+    context["symbol_changes"] = symbol_changes
 
----
-> **Note:** This analysis measures **static RAM and Flash usage** only (compile-time allocation).
-> **Dynamic memory (heap)** cannot be measured automatically.
-> **⚠️ You must test this PR on a real device** to measure free heap and ensure no runtime memory issues.
-
-*This analysis runs automatically when components change. Memory usage is measured from {config_note}.*
-"""
+    # Render main template
+    template = env.get_template("ci_memory_impact_comment_template.j2")
+    return template.render(**context)
 
 
 def find_existing_comment(pr_number: str) -> str | None:
@@ -605,9 +539,9 @@ def main() -> int:
     )
 
     # Post or update comment
-    success = post_or_update_comment(args.pr_number, comment_body)
+    post_or_update_comment(args.pr_number, comment_body)
 
-    return 0 if success else 1
+    return 0
 
 
 if __name__ == "__main__":
