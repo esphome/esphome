@@ -74,6 +74,18 @@ class Platform(StrEnum):
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 
+# Platform preference order for memory impact analysis
+# Prefer newer platforms first as they represent the future of ESPHome
+# ESP8266 is most constrained but many new features don't support it
+MEMORY_IMPACT_PLATFORM_PREFERENCE = [
+    Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
+    Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
+    Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
+    Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
+    Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
+    Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
+]
+
 
 def should_run_integration_tests(branch: str | None = None) -> bool:
     """Determine if integration tests should run based on changed files.
@@ -274,17 +286,6 @@ def detect_memory_impact_config(
         - platform: platform name for the merged build
         - use_merged_config: "true" (always use merged config)
     """
-    # Platform preference order for memory impact analysis
-    # Prefer newer platforms first as they represent the future of ESPHome
-    # ESP8266 is most constrained but many new features don't support it
-    PLATFORM_PREFERENCE = [
-        Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
-        Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
-        Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
-        Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
-        Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
-        Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
-    ]
 
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
@@ -337,7 +338,7 @@ def detect_memory_impact_config(
         available_platforms = []
         for test_file in test_files:
             _, platform = parse_test_filename(test_file)
-            if platform != "all" and platform in PLATFORM_PREFERENCE:
+            if platform != "all" and platform in MEMORY_IMPACT_PLATFORM_PREFERENCE:
                 available_platforms.append(platform)
 
         if not available_platforms:
@@ -352,7 +353,7 @@ def detect_memory_impact_config(
 
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
-    common_platforms = set(PLATFORM_PREFERENCE)
+    common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
     for component, platforms in component_platforms_map.items():
         common_platforms &= platforms
 
@@ -362,7 +363,7 @@ def detect_memory_impact_config(
         platform = MEMORY_IMPACT_FALLBACK_PLATFORM
     elif common_platforms:
         # Pick the most preferred platform that all components support
-        platform = min(common_platforms, key=PLATFORM_PREFERENCE.index)
+        platform = min(common_platforms, key=MEMORY_IMPACT_PLATFORM_PREFERENCE.index)
     else:
         # No common platform - pick the most commonly supported platform
         # This allows testing components individually even if they can't be merged
@@ -370,10 +371,13 @@ def detect_memory_impact_config(
         for platforms in component_platforms_map.values():
             for p in platforms:
                 platform_counts[p] = platform_counts.get(p, 0) + 1
-        # Pick the platform supported by most components, preferring earlier in PLATFORM_PREFERENCE
+        # Pick the platform supported by most components, preferring earlier in MEMORY_IMPACT_PLATFORM_PREFERENCE
         platform = max(
             platform_counts.keys(),
-            key=lambda p: (platform_counts[p], -PLATFORM_PREFERENCE.index(p)),
+            key=lambda p: (
+                platform_counts[p],
+                -MEMORY_IMPACT_PLATFORM_PREFERENCE.index(p),
+            ),
         )
 
     # Debug output
