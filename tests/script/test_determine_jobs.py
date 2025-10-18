@@ -17,6 +17,9 @@ script_dir = os.path.abspath(
 )
 sys.path.insert(0, script_dir)
 
+# Import helpers module for patching
+import helpers  # noqa: E402
+
 spec = importlib.util.spec_from_file_location(
     "determine_jobs", os.path.join(script_dir, "determine-jobs.py")
 )
@@ -478,9 +481,10 @@ def test_main_filters_components_without_tests(
     airthings_dir = tests_dir / "airthings_ble"
     airthings_dir.mkdir(parents=True)
 
-    # Mock root_path to use tmp_path
+    # Mock root_path to use tmp_path (need to patch both determine_jobs and helpers)
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
         patch("sys.argv", ["determine-jobs.py"]),
     ):
         # Clear the cache since we're mocking root_path
