@@ -476,9 +476,8 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
-  // msg.supported_color_modes is uint32_t, but get_mask() returns uint16_t
-  // The upper 16 bits are zero-extended during assignment (ColorMode only has 10 values)
-  msg.supported_color_modes = traits.get_supported_color_modes().get_mask();
+  // Pass pointer to ColorModeMask so the iterator can encode actual ColorMode enum values
+  msg.supported_color_modes = &traits.get_supported_color_modes();
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
