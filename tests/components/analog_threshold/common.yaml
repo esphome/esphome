@@ -5,9 +5,8 @@ sensor:
     lambda: |-
       if (millis() > 10000) {
         return 42.0;
-      } else {
-        return 0.0;
       }
+      return 0.0;
     update_interval: 15s
 
 binary_sensor:
