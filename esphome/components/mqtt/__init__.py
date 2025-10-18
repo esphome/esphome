@@ -57,9 +57,9 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    TOPIC_NAME_SOURCE_ID,
     TOPIC_NAME_SOURCE_NAME,
     TOPIC_NAME_SOURCE_OPTIONS,
-    TOPIC_NAME_SOURCE_ID,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
