@@ -90,13 +90,12 @@ void HomeassistantNumber::control(float value) {
   api::HomeassistantActionRequest resp;
   resp.set_service(SERVICE_NAME);
 
-  resp.data.emplace_back();
-  auto &entity_id = resp.data.back();
+  resp.data.init(2);
+  auto &entity_id = resp.data.emplace_back();
   entity_id.set_key(ENTITY_ID_KEY);
   entity_id.value = this->entity_id_;
 
-  resp.data.emplace_back();
-  auto &entity_value = resp.data.back();
+  auto &entity_value = resp.data.emplace_back();
   entity_value.set_key(VALUE_KEY);
   entity_value.value = to_string(value);
 

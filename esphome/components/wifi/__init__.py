@@ -402,8 +402,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
     # Disable Enterprise WiFi support if no EAP is configured
-    if CORE.is_esp32 and not has_eap:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+    if CORE.is_esp32:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
@@ -447,6 +447,8 @@ async def to_code(config):
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
 
+    CORE.add_job(final_step)
+
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
 async def wifi_connected_to_code(config, condition_id, template_arg, args):
@@ -466,6 +468,28 @@ async def wifi_enable_to_code(config, action_id, template_arg, args):
 @automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
+
+
+KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
+
+
+def request_wifi_scan_results():
+    """Request that WiFi scan results be kept in memory after connection.
+
+    Components that need access to scan results after WiFi is connected should
+    call this function during their code generation. This prevents the WiFi component from
+    freeing scan result memory after successful connection.
+    """
+    CORE.data[KEEP_SCAN_RESULTS_KEY] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure scan result retention."""
+    if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
+        cg.add(
+            cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
+        )
 
 
 @automation.register_action(
