@@ -148,9 +148,11 @@ def prepare_symbol_changes_data(
     all_symbols = set(target_symbols.keys()) | set(pr_symbols.keys())
 
     # Track changes
-    changed_symbols = []
-    new_symbols = []
-    removed_symbols = []
+    changed_symbols: list[
+        tuple[str, int, int, int]
+    ] = []  # (symbol, target_size, pr_size, delta)
+    new_symbols: list[tuple[str, int]] = []  # (symbol, size)
+    removed_symbols: list[tuple[str, int]] = []  # (symbol, size)
 
     for symbol in all_symbols:
         target_size = target_symbols.get(symbol, 0)
@@ -201,7 +203,9 @@ def prepare_component_breakdown_data(
     all_components = set(target_analysis.keys()) | set(pr_analysis.keys())
 
     # Filter to components that have changed (ignoring noise)
-    changed_components = []
+    changed_components: list[
+        tuple[str, int, int, int]
+    ] = []  # (comp, target_flash, pr_flash, delta)
     for comp in all_components:
         target_mem = target_analysis.get(comp, {})
         pr_mem = pr_analysis.get(comp, {})
