@@ -37,6 +37,38 @@ jobs:
         uses: actions/setup-python@v6.0.0
         with:
           python-version: "3.11"
+      
+             
+      - name: Ensure user-local pip bin is on PATH
+        run: echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+      
+      - name: Upgrade pip and install Python tools (esptool, platformio, pyserial)
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          # Install esptool so esptool.py executable is available
+          python -m pip install --user esptool
+          # PlatformIO may be required for .pioenvs builds — install if not already present
+          python -m pip install --user platformio
+          # pyserial used for serial operations/flashing
+          python -m pip install --user pyserial
+          # (optional) install esphome CLI here if your workflow relies on it
+          # python -m pip install --user esphome
+      
+      - name: (Optional) Install QEMU packages on runner (if your tests require system qemu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # install common qemu packages — adjust specific packages if you need particular arch
+          sudo apt-get install -y qemu-system qemu-user-static qemu-utils || true
+      
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') || 'esphome-ci' }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
 
       - name: Install Python dependencies
         run: |
