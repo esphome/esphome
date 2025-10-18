@@ -242,7 +242,6 @@ APIError APINoiseFrameHelper::state_action_() {
     const std::string &name = App.get_name();
     const std::string &mac = get_mac_address();
 
-    std::vector<uint8_t> msg;
     // Calculate positions and sizes
     size_t name_len = name.size() + 1;  // including null terminator
     size_t mac_len = mac.size() + 1;    // including null terminator
@@ -250,17 +249,17 @@ APIError APINoiseFrameHelper::state_action_() {
     size_t mac_offset = name_offset + name_len;
     size_t total_size = 1 + name_len + mac_len;
 
-    msg.resize(total_size);
+    auto msg = std::make_unique<uint8_t[]>(total_size);
 
     // chosen proto
     msg[0] = 0x01;
 
     // node name, terminated by null byte
-    std::memcpy(msg.data() + name_offset, name.c_str(), name_len);
+    std::memcpy(msg.get() + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg.data() + mac_offset, mac.c_str(), mac_len);
+    std::memcpy(msg.get() + mac_offset, mac.c_str(), mac_len);
 
-    aerr = write_frame_(msg.data(), msg.size());
+    aerr = write_frame_(msg.get(), total_size);
     if (aerr != APIError::OK)
       return aerr;
 
@@ -339,32 +338,32 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
   size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
-  std::vector<uint8_t> data;
-  data.resize(reason_len + 1);
+  size_t data_size = reason_len + 1;
+  auto data = std::make_unique<uint8_t[]>(data_size);
   data[0] = 0x01;  // failure
 
   // Copy error message from PROGMEM
   if (reason_len > 0) {
-    memcpy_P(data.data() + 1, reinterpret_cast<PGM_P>(reason), reason_len);
+    memcpy_P(data.get() + 1, reinterpret_cast<PGM_P>(reason), reason_len);
   }
 #else
   // Normal memory access
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
-  std::vector<uint8_t> data;
-  data.resize(reason_len + 1);
+  size_t data_size = reason_len + 1;
+  auto data = std::make_unique<uint8_t[]>(data_size);
   data[0] = 0x01;  // failure
 
   // Copy error message in bulk
   if (reason_len > 0) {
-    std::memcpy(data.data() + 1, reason_str, reason_len);
+    std::memcpy(data.get() + 1, reason_str, reason_len);
   }
 #endif
 
   // temporarily remove failed state
   auto orig_state = state_;
   state_ = State::EXPLICIT_REJECT;
-  write_frame_(data.data(), data.size());
+  write_frame_(data.get(), data_size);
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {

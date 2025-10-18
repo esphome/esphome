@@ -244,6 +244,20 @@ RESERVED_IDS = [
     "uart0",
     "uart1",
     "uart2",
+    # ESP32 ROM functions
+    "crc16_be",
+    "crc16_le",
+    "crc32_be",
+    "crc32_le",
+    "crc8_be",
+    "crc8_le",
+    "dbg_state",
+    "debug_timer",
+    "one_bits",
+    "recv_packet",
+    "send_packet",
+    "check_pos",
+    "software_reset",
 ]
 
 
