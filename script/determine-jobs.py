@@ -237,14 +237,14 @@ def _component_has_tests(component: str) -> bool:
     return any(tests_dir.glob("test.*.yaml"))
 
 
-def detect_single_component_for_memory_impact(
+def detect_memory_impact_config(
     branch: str | None = None,
 ) -> dict[str, Any]:
-    """Detect if exactly one component changed for memory impact analysis.
+    """Determine memory impact analysis configuration.
 
-    This analyzes the actual changed files (not dependencies) to determine if
-    exactly one component has been modified. This is different from the
-    changed_components list which includes all dependencies.
+    Always runs memory impact analysis when there are changed components,
+    building a merged configuration with all changed components (like
+    test_build_components.py does) to get comprehensive memory analysis.
 
     Args:
         branch: Branch to compare against
@@ -252,37 +252,25 @@ def detect_single_component_for_memory_impact(
     Returns:
         Dictionary with memory impact analysis parameters:
         - should_run: "true" or "false"
-        - component: component name (if should_run is true)
-        - test_file: test file name (if should_run is true)
-        - platform: platform name (if should_run is true)
+        - components: list of component names to analyze
+        - platform: platform name for the merged build
+        - use_merged_config: "true" (always use merged config)
     """
     # Platform preference order for memory impact analysis
-    # Ordered by production relevance and memory constraint importance
+    # Prefer ESP8266 for memory impact as it's the most constrained platform
     PLATFORM_PREFERENCE = [
+        "esp8266-ard",  # ESP8266 Arduino (most memory constrained - best for impact analysis)
         "esp32-idf",  # Primary ESP32 IDF platform
         "esp32-c3-idf",  # ESP32-C3 IDF
         "esp32-c6-idf",  # ESP32-C6 IDF
         "esp32-s2-idf",  # ESP32-S2 IDF
         "esp32-s3-idf",  # ESP32-S3 IDF
-        "esp32-c2-idf",  # ESP32-C2 IDF
-        "esp32-c5-idf",  # ESP32-C5 IDF
-        "esp32-h2-idf",  # ESP32-H2 IDF
-        "esp32-p4-idf",  # ESP32-P4 IDF
-        "esp8266-ard",  # ESP8266 Arduino (memory constrained)
-        "esp32-ard",  # ESP32 Arduino
-        "esp32-c3-ard",  # ESP32-C3 Arduino
-        "esp32-s2-ard",  # ESP32-S2 Arduino
-        "esp32-s3-ard",  # ESP32-S3 Arduino
-        "bk72xx-ard",  # BK72xx Arduino
-        "rp2040-ard",  # RP2040 Arduino
-        "nrf52-adafruit",  # nRF52 Adafruit
-        "host",  # Host platform (development/testing)
     ]
 
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
 
-    # Find all changed components (excluding core)
+    # Find all changed components (excluding core and base bus components)
     changed_component_set = set()
 
     for file in files:
@@ -291,49 +279,53 @@ def detect_single_component_for_memory_impact(
             if len(parts) >= 3:
                 component = parts[2]
                 # Skip base bus components as they're used across many builds
-                if component not in ["i2c", "spi", "uart", "modbus"]:
+                if component not in ["i2c", "spi", "uart", "modbus", "canbus"]:
                     changed_component_set.add(component)
 
-    # Only proceed if exactly one component changed
-    if len(changed_component_set) != 1:
+    # If no components changed, don't run memory impact
+    if not changed_component_set:
         return {"should_run": "false"}
 
-    component = list(changed_component_set)[0]
+    # Find components that have tests on the preferred platform
+    components_with_tests = []
+    selected_platform = None
 
-    # Find a test configuration for this component
-    tests_dir = Path(root_path) / "tests" / "components" / component
+    for component in sorted(changed_component_set):
+        tests_dir = Path(root_path) / "tests" / "components" / component
+        if not tests_dir.exists():
+            continue
 
-    if not tests_dir.exists():
-        return {"should_run": "false"}
+        # Look for test files on preferred platforms
+        test_files = list(tests_dir.glob("test.*.yaml"))
+        if not test_files:
+            continue
 
-    # Look for test files
-    test_files = list(tests_dir.glob("test.*.yaml"))
-    if not test_files:
-        return {"should_run": "false"}
-
-    # Try each preferred platform in order
-    for preferred_platform in PLATFORM_PREFERENCE:
+        # Check if component has tests for any preferred platform
         for test_file in test_files:
             parts = test_file.stem.split(".")
             if len(parts) >= 2:
                 platform = parts[1]
-                if platform == preferred_platform:
-                    return {
-                        "should_run": "true",
-                        "component": component,
-                        "test_file": test_file.name,
-                        "platform": platform,
-                    }
+                if platform in PLATFORM_PREFERENCE:
+                    components_with_tests.append(component)
+                    # Select the most preferred platform across all components
+                    if selected_platform is None or PLATFORM_PREFERENCE.index(
+                        platform
+                    ) < PLATFORM_PREFERENCE.index(selected_platform):
+                        selected_platform = platform
+                    break
 
-    # Fall back to first test file
-    test_file = test_files[0]
-    parts = test_file.stem.split(".")
-    platform = parts[1] if len(parts) >= 2 else "esp32-idf"
+    # If no components have tests, don't run memory impact
+    if not components_with_tests:
+        return {"should_run": "false"}
+
+    # Use the most preferred platform found, or fall back to esp8266-ard
+    platform = selected_platform or "esp8266-ard"
+
     return {
         "should_run": "true",
-        "component": component,
-        "test_file": test_file.name,
+        "components": components_with_tests,
         "platform": platform,
+        "use_merged_config": "true",
     }
 
 
@@ -386,8 +378,8 @@ def main() -> None:
         if component not in directly_changed_components
     ]
 
-    # Detect single component change for memory impact analysis
-    memory_impact = detect_single_component_for_memory_impact(args.branch)
+    # Detect components for memory impact analysis (merged config)
+    memory_impact = detect_memory_impact_config(args.branch)
 
     # Build output
     output: dict[str, Any] = {

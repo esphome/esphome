@@ -28,27 +28,36 @@ from script.ci_helpers import write_github_output
 def extract_from_compile_output(output_text: str) -> tuple[int | None, int | None]:
     """Extract memory usage from PlatformIO compile output.
 
+    Supports multiple builds (for component groups or isolated components).
+    When test_build_components.py creates multiple builds, this sums the
+    memory usage across all builds.
+
     Looks for lines like:
         RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)
         Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
 
     Args:
-        output_text: Compile output text
+        output_text: Compile output text (may contain multiple builds)
 
     Returns:
-        Tuple of (ram_bytes, flash_bytes) or (None, None) if not found
+        Tuple of (total_ram_bytes, total_flash_bytes) or (None, None) if not found
     """
-    ram_match = re.search(
+    # Find all RAM and Flash matches (may be multiple builds)
+    ram_matches = re.findall(
         r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", output_text
     )
-    flash_match = re.search(
+    flash_matches = re.findall(
         r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", output_text
     )
 
-    if ram_match and flash_match:
-        return int(ram_match.group(1)), int(flash_match.group(1))
+    if not ram_matches or not flash_matches:
+        return None, None
 
-    return None, None
+    # Sum all builds (handles multiple component groups)
+    total_ram = sum(int(match) for match in ram_matches)
+    total_flash = sum(int(match) for match in flash_matches)
+
+    return total_ram, total_flash
 
 
 def main() -> int:
@@ -83,8 +92,21 @@ def main() -> int:
         )
         return 1
 
-    print(f"RAM: {ram_bytes} bytes", file=sys.stderr)
-    print(f"Flash: {flash_bytes} bytes", file=sys.stderr)
+    # Count how many builds were found
+    num_builds = len(
+        re.findall(
+            r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", compile_output
+        )
+    )
+
+    if num_builds > 1:
+        print(
+            f"Found {num_builds} builds - summing memory usage across all builds",
+            file=sys.stderr,
+        )
+
+    print(f"Total RAM: {ram_bytes} bytes", file=sys.stderr)
+    print(f"Total Flash: {flash_bytes} bytes", file=sys.stderr)
 
     if args.output_env:
         # Output to GitHub Actions

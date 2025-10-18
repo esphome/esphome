@@ -548,45 +548,53 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
-      - name: Compile test configuration and extract memory usage
+      - name: Build and compile with test_build_components
         id: extract
         run: |
           . venv/bin/activate
-          component="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).component }}"
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
-          test_file="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).test_file }}"
 
-          echo "Compiling $component for $platform using $test_file"
-          python script/test_build_components.py -e compile -c "$component" -t "$platform" --no-grouping 2>&1 | \
+          echo "Building with test_build_components.py for $platform with components:"
+          echo "$components" | jq -r '.[]' | sed 's/^/  - /'
+
+          # Use test_build_components.py which handles grouping automatically
+          # Pass components as comma-separated list
+          component_list=$(echo "$components" | jq -r 'join(",")')
+
+          echo "Compiling with test_build_components.py..."
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
             python script/ci_memory_impact_extract.py --output-env
-      - name: Find and upload ELF file
+      - name: Find and upload final ELF file
         run: |
-          # Find the ELF file - try both common locations
-          elf_file=""
+          # Note: test_build_components.py may run multiple builds, but each overwrites
+          # the previous firmware.elf. The memory totals (RAM/Flash) are already summed
+          # by ci_memory_impact_extract.py. This ELF is from the last build and is used
+          # for detailed component breakdown (if available).
+          mkdir -p ./elf-artifacts/target
 
-          # Try .esphome/build first (default location)
+          # Find the most recent firmware.elf
           if [ -d ~/.esphome/build ]; then
-            elf_file=$(find ~/.esphome/build -name "firmware.elf" -o -name "*.elf" | head -1)
-          fi
+            elf_file=$(find ~/.esphome/build -name "firmware.elf" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
 
-          # Fallback to finding in .platformio if not found
-          if [ -z "$elf_file" ] && [ -d ~/.platformio ]; then
-            elf_file=$(find ~/.platformio -name "firmware.elf" | head -1)
-          fi
-
-          if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
-            echo "Found ELF file: $elf_file"
-            mkdir -p ./elf-artifacts
-            cp "$elf_file" ./elf-artifacts/target.elf
+            if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
+              echo "Found final ELF file: $elf_file"
+              cp "$elf_file" "./elf-artifacts/target/firmware.elf"
+            else
+              echo "Warning: No ELF file found in ~/.esphome/build"
+              ls -la ~/.esphome/build/ || true
+            fi
           else
-            echo "Warning: No ELF file found in ~/.esphome/build or ~/.platformio"
-            ls -la ~/.esphome/build/ || true
+            echo "Warning: ~/.esphome/build directory not found"
           fi
       - name: Upload ELF artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: memory-impact-target-elf
-          path: ./elf-artifacts/target.elf
+          path: ./elf-artifacts/target/firmware.elf
           if-no-files-found: warn
           retention-days: 1
 
@@ -613,45 +621,53 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
-      - name: Compile test configuration and extract memory usage
+      - name: Build and compile with test_build_components
         id: extract
         run: |
           . venv/bin/activate
-          component="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).component }}"
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
-          test_file="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).test_file }}"
 
-          echo "Compiling $component for $platform using $test_file"
-          python script/test_build_components.py -e compile -c "$component" -t "$platform" --no-grouping 2>&1 | \
+          echo "Building with test_build_components.py for $platform with components:"
+          echo "$components" | jq -r '.[]' | sed 's/^/  - /'
+
+          # Use test_build_components.py which handles grouping automatically
+          # Pass components as comma-separated list
+          component_list=$(echo "$components" | jq -r 'join(",")')
+
+          echo "Compiling with test_build_components.py..."
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
             python script/ci_memory_impact_extract.py --output-env
-      - name: Find and upload ELF file
+      - name: Find and upload final ELF file
         run: |
-          # Find the ELF file - try both common locations
-          elf_file=""
+          # Note: test_build_components.py may run multiple builds, but each overwrites
+          # the previous firmware.elf. The memory totals (RAM/Flash) are already summed
+          # by ci_memory_impact_extract.py. This ELF is from the last build and is used
+          # for detailed component breakdown (if available).
+          mkdir -p ./elf-artifacts/pr
 
-          # Try .esphome/build first (default location)
+          # Find the most recent firmware.elf
           if [ -d ~/.esphome/build ]; then
-            elf_file=$(find ~/.esphome/build -name "firmware.elf" -o -name "*.elf" | head -1)
-          fi
+            elf_file=$(find ~/.esphome/build -name "firmware.elf" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
 
-          # Fallback to finding in .platformio if not found
-          if [ -z "$elf_file" ] && [ -d ~/.platformio ]; then
-            elf_file=$(find ~/.platformio -name "firmware.elf" | head -1)
-          fi
-
-          if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
-            echo "Found ELF file: $elf_file"
-            mkdir -p ./elf-artifacts
-            cp "$elf_file" ./elf-artifacts/pr.elf
+            if [ -n "$elf_file" ] && [ -f "$elf_file" ]; then
+              echo "Found final ELF file: $elf_file"
+              cp "$elf_file" "./elf-artifacts/pr/firmware.elf"
+            else
+              echo "Warning: No ELF file found in ~/.esphome/build"
+              ls -la ~/.esphome/build/ || true
+            fi
           else
-            echo "Warning: No ELF file found in ~/.esphome/build or ~/.platformio"
-            ls -la ~/.esphome/build/ || true
+            echo "Warning: ~/.esphome/build directory not found"
           fi
       - name: Upload ELF artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: memory-impact-pr-elf
-          path: ./elf-artifacts/pr.elf
+          path: ./elf-artifacts/pr/firmware.elf
           if-no-files-found: warn
           retention-days: 1
 
@@ -690,7 +706,7 @@ jobs:
       - name: Post or update PR comment
         env:
           GH_TOKEN: ${{ github.token }}
-          COMPONENT: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).component }}
+          COMPONENTS: ${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}
           PLATFORM: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}
           TARGET_RAM: ${{ needs.memory-impact-target-branch.outputs.ram_usage }}
           TARGET_FLASH: ${{ needs.memory-impact-target-branch.outputs.flash_usage }}
@@ -699,27 +715,27 @@ jobs:
         run: |
           . venv/bin/activate
 
-          # Check if ELF files exist
+          # Check if ELF files exist (from final build)
           target_elf_arg=""
           pr_elf_arg=""
 
-          if [ -f ./elf-artifacts/target/target.elf ]; then
+          if [ -f ./elf-artifacts/target/firmware.elf ]; then
             echo "Found target ELF file"
-            target_elf_arg="--target-elf ./elf-artifacts/target/target.elf"
+            target_elf_arg="--target-elf ./elf-artifacts/target/firmware.elf"
           else
             echo "No target ELF file found"
           fi
 
-          if [ -f ./elf-artifacts/pr/pr.elf ]; then
+          if [ -f ./elf-artifacts/pr/firmware.elf ]; then
             echo "Found PR ELF file"
-            pr_elf_arg="--pr-elf ./elf-artifacts/pr/pr.elf"
+            pr_elf_arg="--pr-elf ./elf-artifacts/pr/firmware.elf"
           else
             echo "No PR ELF file found"
           fi
 
           python script/ci_memory_impact_comment.py \
             --pr-number "${{ github.event.pull_request.number }}" \
-            --component "$COMPONENT" \
+            --components "$COMPONENTS" \
             --platform "$PLATFORM" \
             --target-ram "$TARGET_RAM" \
             --target-flash "$TARGET_FLASH" \

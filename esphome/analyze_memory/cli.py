@@ -316,6 +316,7 @@ def main():
         print(
             "Usage: python -m esphome.analyze_memory <elf_file> [objdump_path] [readelf_path]"
         )
+        print("\nIf objdump/readelf paths are not provided, you must specify them.")
         print("\nExample for ESP8266:")
         print("  python -m esphome.analyze_memory firmware.elf \\")
         print(
@@ -331,6 +332,14 @@ def main():
         )
         print(
             "    ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-readelf"
+        )
+        print("\nExample for ESP32-C3 (RISC-V):")
+        print("  python -m esphome.analyze_memory firmware.elf \\")
+        print(
+            "    ~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-objdump \\"
+        )
+        print(
+            "    ~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-readelf"
         )
         sys.exit(1)
 

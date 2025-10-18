@@ -24,6 +24,57 @@ from esphome.analyze_memory import MemoryAnalyzer  # noqa: E402
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
 
+def get_platform_toolchain(platform: str) -> tuple[str | None, str | None]:
+    """Get platform-specific objdump and readelf paths.
+
+    Args:
+        platform: Platform name (e.g., "esp8266-ard", "esp32-idf", "esp32-c3-idf")
+
+    Returns:
+        Tuple of (objdump_path, readelf_path) or (None, None) if not found/supported
+    """
+    from pathlib import Path
+
+    home = Path.home()
+    platformio_packages = home / ".platformio" / "packages"
+
+    # Map platform to toolchain
+    toolchain = None
+    prefix = None
+
+    if "esp8266" in platform:
+        toolchain = "toolchain-xtensa"
+        prefix = "xtensa-lx106-elf"
+    elif "esp32-c" in platform or "esp32-h" in platform or "esp32-p4" in platform:
+        # RISC-V variants (C2, C3, C5, C6, H2, P4)
+        toolchain = "toolchain-riscv32-esp"
+        prefix = "riscv32-esp-elf"
+    elif "esp32" in platform:
+        # Xtensa variants (original, S2, S3)
+        toolchain = "toolchain-xtensa-esp-elf"
+        if "s2" in platform:
+            prefix = "xtensa-esp32s2-elf"
+        elif "s3" in platform:
+            prefix = "xtensa-esp32s3-elf"
+        else:
+            prefix = "xtensa-esp32-elf"
+    else:
+        # Other platforms (RP2040, LibreTiny, etc.) - not supported
+        print(f"Platform {platform} not supported for ELF analysis", file=sys.stderr)
+        return None, None
+
+    toolchain_path = platformio_packages / toolchain / "bin"
+    objdump_path = toolchain_path / f"{prefix}-objdump"
+    readelf_path = toolchain_path / f"{prefix}-readelf"
+
+    if objdump_path.exists() and readelf_path.exists():
+        print(f"Using {platform} toolchain: {prefix}", file=sys.stderr)
+        return str(objdump_path), str(readelf_path)
+
+    print(f"Warning: Toolchain not found at {toolchain_path}", file=sys.stderr)
+    return None, None
+
+
 def format_bytes(bytes_value: int) -> str:
     """Format bytes value with comma separators.
 
@@ -314,7 +365,7 @@ def create_detailed_breakdown_table(
 
 
 def create_comment_body(
-    component: str,
+    components: list[str],
     platform: str,
     target_ram: int,
     target_flash: int,
@@ -328,7 +379,7 @@ def create_comment_body(
     """Create the comment body with memory impact analysis.
 
     Args:
-        component: Component name
+        components: List of component names (merged config)
         platform: Platform name
         target_ram: RAM usage in target branch
         target_flash: Flash usage in target branch
@@ -374,10 +425,18 @@ def create_comment_body(
     else:
         print("No ELF files provided, skipping detailed analysis", file=sys.stderr)
 
+    # Format components list
+    if len(components) == 1:
+        components_str = f"`{components[0]}`"
+        config_note = "a representative test configuration"
+    else:
+        components_str = ", ".join(f"`{c}`" for c in sorted(components))
+        config_note = f"a merged configuration with {len(components)} components"
+
     return f"""{COMMENT_MARKER}
 ## Memory Impact Analysis
 
-**Component:** `{component}`
+**Components:** {components_str}
 **Platform:** `{platform}`
 
 | Metric | Target Branch | This PR | Change |
@@ -386,7 +445,7 @@ def create_comment_body(
 | **Flash** | {format_bytes(target_flash)} | {format_bytes(pr_flash)} | {flash_change} |
 {component_breakdown}{symbol_changes}
 ---
-*This analysis runs automatically when a single component changes. Memory usage is measured from a representative test configuration.*
+*This analysis runs automatically when components change. Memory usage is measured from {config_note}.*
 """
 
 
@@ -537,7 +596,11 @@ def main() -> int:
         description="Post or update PR comment with memory impact analysis"
     )
     parser.add_argument("--pr-number", required=True, help="PR number")
-    parser.add_argument("--component", required=True, help="Component name")
+    parser.add_argument(
+        "--components",
+        required=True,
+        help='JSON array of component names (e.g., \'["api", "wifi"]\')',
+    )
     parser.add_argument("--platform", required=True, help="Platform name")
     parser.add_argument(
         "--target-ram", type=int, required=True, help="Target branch RAM usage"
@@ -560,9 +623,29 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # Parse components from JSON
+    try:
+        components = json.loads(args.components)
+        if not isinstance(components, list):
+            print("Error: --components must be a JSON array", file=sys.stderr)
+            sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing --components JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Detect platform-specific toolchain paths
+    objdump_path = args.objdump_path
+    readelf_path = args.readelf_path
+
+    if not objdump_path or not readelf_path:
+        # Auto-detect based on platform
+        objdump_path, readelf_path = get_platform_toolchain(args.platform)
+
     # Create comment body
+    # Note: ELF files (if provided) are from the final build when test_build_components
+    # runs multiple builds. Memory totals (RAM/Flash) are already summed across all builds.
     comment_body = create_comment_body(
-        component=args.component,
+        components=components,
         platform=args.platform,
         target_ram=args.target_ram,
         target_flash=args.target_flash,
@@ -570,8 +653,8 @@ def main() -> int:
         pr_flash=args.pr_flash,
         target_elf=args.target_elf,
         pr_elf=args.pr_elf,
-        objdump_path=args.objdump_path,
-        readelf_path=args.readelf_path,
+        objdump_path=objdump_path,
+        readelf_path=readelf_path,
     )
 
     # Post or update comment
