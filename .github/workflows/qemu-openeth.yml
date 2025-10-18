@@ -92,7 +92,7 @@ jobs:
       - name: Compile ESPHome configuration
         run: |
           . venv/bin/activate
-          esphome compile test_mqtt_openeth_ci.yaml
+          esphome compile test_mqtt_openeth.yaml
 
       - name: Run QEMU and verify MQTT topics
         run: |
