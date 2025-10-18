@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS
+from esphome.const import CONF_ADDRESS, CONF_INDEX
 
 CODEOWNERS = ["@ssieb"]
 
@@ -22,6 +22,7 @@ def one_wire_device_schema():
         {
             cv.GenerateID(CONF_ONE_WIRE_ID): cv.use_id(OneWireBus),
             cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
+            cv.Optional(CONF_INDEX): cv.int,
         }
     )
 

@@ -17,6 +17,10 @@ class OneWireDevice {
   /// @param address of the device
   void set_address(uint64_t address) { this->address_ = address; }
 
+  void set_index(int index) {
+    this->address_ = this->bus_->get_devices().at(index);
+  }
+
   /// @brief store the pointer to the OneWireBus to use
   /// @param bus pointer to the OneWireBus object
   void set_one_wire_bus(OneWireBus *bus) { this->bus_ = bus; }
