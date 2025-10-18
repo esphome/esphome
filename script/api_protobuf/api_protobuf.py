@@ -1472,11 +1472,10 @@ class RepeatedTypeInfo(TypeInfo):
         if self._use_pointer:
             return None
         if self._use_bitmask:
-            # For bitmask fields, decode enum value and set corresponding bit
-            content = self._ti.decode_varint
-            if content is None:
-                return None
-            return f"case {self.number}: this->{self.field_name} |= (1U << static_cast<uint8_t>({content})); break;"
+            # Bitmask fields don't support decoding (only used for device->client messages)
+            raise RuntimeError(
+                f"enum_as_bitmask fields do not support decoding: {self.field_name}"
+            )
         content = self._ti.decode_varint
         if content is None:
             return None
@@ -1533,6 +1532,9 @@ class RepeatedTypeInfo(TypeInfo):
         if self._use_bitmask:
             # For bitmask fields, iterate through set bits and encode each enum value
             # The bitmask is stored as uint32_t where bit N represents enum value N
+            # Note: We iterate through all 32 bits to support the full range of enum_as_bitmask
+            # (enums with up to 32 values). Specific uses may have fewer values, but the
+            # generated code is general-purpose.
             assert isinstance(self._ti, EnumType), (
                 "enum_as_bitmask only works with enum fields"
             )
@@ -1587,6 +1589,9 @@ class RepeatedTypeInfo(TypeInfo):
         if self._use_bitmask:
             # For bitmask fields, iterate through set bits and calculate size
             # Each set bit encodes one enum value (as varint)
+            # Note: We iterate through all 32 bits to support the full range of enum_as_bitmask
+            # (enums with up to 32 values). Specific uses may have fewer values, but the
+            # generated code is general-purpose.
             o = f"if ({name} != 0) {{\n"
             o += "  for (uint8_t bit = 0; bit < 32; bit++) {\n"
             o += f"    if ({name} & (1U << bit)) {{\n"
