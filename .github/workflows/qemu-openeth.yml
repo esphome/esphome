@@ -68,7 +68,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-
       - name: Install Python dependencies
         run: |
           python -m venv venv
@@ -89,22 +88,6 @@ jobs:
           listener 1883 127.0.0.1
           CONF
           mosquitto -c mosquitto.conf -d
-
-      - name: Prepare CI configuration (no Python)
-        run: |
-          curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o ./yq
-          chmod +x ./yq
-          ./yq eval '
-            .api.password = "local-key" |
-            .mqtt = (.mqtt // {}) |
-            .mqtt.broker = "127.0.0.1" |
-            .mqtt.port = 1883 |
-            .mqtt.username = "local" |
-            .mqtt.password = "local123" |
-            .mqtt.discovery = false |
-            .mqtt.discover_ip = false |
-            del(.mqtt.certificate_authority)
-          ' test_mqtt_openeth.yaml > test_mqtt_openeth_ci.yaml
 
       - name: Compile ESPHome configuration
         run: |
