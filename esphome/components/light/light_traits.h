@@ -28,11 +28,7 @@ class LightTraits {
 
   bool supports_color_mode(ColorMode color_mode) const { return this->supported_color_modes_.contains(color_mode); }
   bool supports_color_capability(ColorCapability color_capability) const {
-    for (auto mode : this->supported_color_modes_) {
-      if (mode & color_capability)
-        return true;
-    }
-    return false;
+    return this->supported_color_modes_.has_capability(color_capability);
   }
 
   ESPDEPRECATED("get_supports_brightness() is deprecated, use color modes instead.", "v1.21")
