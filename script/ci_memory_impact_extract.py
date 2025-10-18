@@ -65,13 +65,11 @@ def extract_from_compile_output(
     total_ram = sum(int(match) for match in ram_matches)
     total_flash = sum(int(match) for match in flash_matches)
 
-    # Extract build directory from ESPHome's delete messages
-    # Look for: INFO Deleting /path/to/build/.esphome/build/componenttest.../.pioenvs
+    # Extract build directory from ESPHome's explicit build path output
+    # Look for: INFO Compiling app... Build path: /path/to/build
     build_dir = None
-    if match := re.search(
-        r"INFO Deleting (.+/\.esphome/build/componenttest[^/]+)/\.pioenvs", output_text
-    ):
-        build_dir = match.group(1)
+    if match := re.search(r"Build path: (.+)", output_text):
+        build_dir = match.group(1).strip()
 
     return total_ram, total_flash, build_dir
 
