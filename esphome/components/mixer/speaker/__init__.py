@@ -50,20 +50,10 @@ SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
 
 
 def _set_stream_limits(config):
-    stream_limits = {
-        "min_bits_per_sample": 16,
-        "max_bits_per_sample": 16,
-    }
-
-    if CONF_NUM_CHANNELS in config:
-        stream_limits["min_channels"] = config[CONF_NUM_CHANNELS]
-        stream_limits["max_channels"] = config[CONF_NUM_CHANNELS]
-
-    if CONF_SAMPLE_RATE in config:
-        stream_limits["min_sample_rate"] = config[CONF_SAMPLE_RATE]
-        stream_limits["max_sample_rate"] = config[CONF_SAMPLE_RATE]
-
-    audio.set_stream_limits(**stream_limits)(config)
+    audio.set_stream_limits(
+        min_bits_per_sample=16,
+        max_bits_per_sample=16,
+    )(config)
 
     return config
 
