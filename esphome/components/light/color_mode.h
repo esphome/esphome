@@ -198,9 +198,9 @@ class ColorModeMask {
   /// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
   bool has_capability(ColorCapability capability) const {
     uint8_t cap_mask = static_cast<uint8_t>(capability);
-    // Check each set bit to see if any mode has this capability
-    for (int bit = 1; bit < COLOR_MODE_COUNT; ++bit) {
-      if ((this->mask_ & (1 << bit)) && (static_cast<uint8_t>(bit_to_mode(bit)) & cap_mask)) {
+    // Iterate through each mode and check if it has the capability
+    for (auto mode : *this) {
+      if (static_cast<uint8_t>(mode) & cap_mask) {
         return true;
       }
     }
