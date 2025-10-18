@@ -65,32 +65,41 @@ optional<float> SlidingWindowFilter::new_value(float value) {
 }
 
 // SortedWindowFilter
-FixedVector<float> SortedWindowFilter::get_sorted_values_() {
+FixedVector<float> SortedWindowFilter::get_window_values_() {
   // Copy window without NaN values using FixedVector (no heap allocation)
-  FixedVector<float> sorted_values;
-  sorted_values.init(this->window_count_);
+  // Returns unsorted values - caller will use std::nth_element for partial sorting as needed
+  FixedVector<float> values;
+  values.init(this->window_count_);
   for (size_t i = 0; i < this->window_count_; i++) {
     float v = this->window_[i];
     if (!std::isnan(v)) {
-      sorted_values.push_back(v);
+      values.push_back(v);
     }
   }
-  std::sort(sorted_values.begin(), sorted_values.end());
-  return sorted_values;
+  return values;
 }
 
 // MedianFilter
 float MedianFilter::compute_result() {
-  FixedVector<float> sorted_values = this->get_sorted_values_();
-  if (sorted_values.empty())
+  FixedVector<float> values = this->get_window_values_();
+  if (values.empty())
     return NAN;
 
-  size_t size = sorted_values.size();
+  size_t size = values.size();
+  size_t mid = size / 2;
+
   if (size % 2) {
-    return sorted_values[size / 2];
-  } else {
-    return (sorted_values[size / 2] + sorted_values[(size / 2) - 1]) / 2.0f;
+    // Odd number of elements - use nth_element to find middle element
+    std::nth_element(values.begin(), values.begin() + mid, values.end());
+    return values[mid];
   }
+  // Even number of elements - need both middle elements
+  // Use nth_element to find upper middle element
+  std::nth_element(values.begin(), values.begin() + mid, values.end());
+  float upper = values[mid];
+  // Find the maximum of the lower half (which is now everything before mid)
+  float lower = *std::max_element(values.begin(), values.begin() + mid);
+  return (lower + upper) / 2.0f;
 }
 
 // SkipInitialFilter
@@ -111,13 +120,16 @@ QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t sen
     : SortedWindowFilter(window_size, send_every, send_first_at), quantile_(quantile) {}
 
 float QuantileFilter::compute_result() {
-  FixedVector<float> sorted_values = this->get_sorted_values_();
-  if (sorted_values.empty())
+  FixedVector<float> values = this->get_window_values_();
+  if (values.empty())
     return NAN;
 
-  size_t position = ceilf(sorted_values.size() * this->quantile_) - 1;
-  ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, sorted_values.size());
-  return sorted_values[position];
+  size_t position = ceilf(values.size() * this->quantile_) - 1;
+  ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, values.size());
+
+  // Use nth_element to find the quantile element (O(n) instead of O(n log n))
+  std::nth_element(values.begin(), values.begin() + position, values.end());
+  return values[position];
 }
 
 // MinFilter
