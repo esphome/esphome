@@ -540,13 +540,22 @@ jobs:
         with:
           ref: ${{ github.base_ref }}
 
-      # Create cache key based on:
-      # 1. Target branch commit SHA
-      # 2. Hash of build infrastructure files (scripts and CI workflow)
-      # 3. Platform being tested
-      # 4. Component list
+      # Check if memory impact extraction script exists on target branch
+      # If not, skip the analysis (this handles older branches that don't have the feature)
+      - name: Check for memory impact script
+        id: check-script
+        run: |
+          if [ -f "script/ci_memory_impact_extract.py" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
+          fi
+
+      # All remaining steps only run if script exists
       - name: Generate cache key
         id: cache-key
+        if: steps.check-script.outputs.skip != 'true'
         run: |
           # Get the commit SHA of the target branch
           target_sha=$(git rev-parse HEAD)
@@ -571,15 +580,16 @@ jobs:
           echo "cache-key=${cache_key}" >> $GITHUB_OUTPUT
           echo "Cache key: ${cache_key}"
 
-      # Try to restore cached analysis results
       - name: Restore cached memory analysis
         id: cache-memory-analysis
+        if: steps.check-script.outputs.skip != 'true'
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
 
       - name: Cache status
+        if: steps.check-script.outputs.skip != 'true'
         run: |
           if [ "${{ steps.cache-memory-analysis.outputs.cache-hit }}" == "true" ]; then
             echo "✓ Cache hit! Using cached memory analysis results."
@@ -588,23 +598,22 @@ jobs:
             echo "✗ Cache miss. Will build and analyze memory usage."
           fi
 
-      # Only restore Python and build if cache miss
       - name: Restore Python
-        if: steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache platformio
-        if: steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
 
       - name: Build, compile, and analyze memory
-        if: steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         id: build
         run: |
           . venv/bin/activate
@@ -631,17 +640,16 @@ jobs:
               --output-env \
               --output-json memory-analysis-target.json
 
-      # Save build results to cache for future runs
       - name: Save memory analysis to cache
-        if: steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
 
-      # Extract outputs from cached or freshly built analysis
       - name: Extract memory usage for outputs
         id: extract
+        if: steps.check-script.outputs.skip != 'true'
         run: |
           if [ -f memory-analysis-target.json ]; then
             ram=$(jq -r '.ram_bytes' memory-analysis-target.json)
