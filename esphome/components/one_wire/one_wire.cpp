@@ -32,7 +32,6 @@ bool OneWireDevice::check_address_or_index_() {
     return true;
   }
 
-
   if (devices.empty()) {
     ESP_LOGE(TAG, "No devices, can't auto-select address");
     return false;
