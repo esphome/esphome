@@ -3,7 +3,13 @@
 from collections import defaultdict
 import sys
 
-from . import MemoryAnalyzer
+from . import (
+    _COMPONENT_API,
+    _COMPONENT_CORE,
+    _COMPONENT_PREFIX_ESPHOME,
+    _COMPONENT_PREFIX_EXTERNAL,
+    MemoryAnalyzer,
+)
 
 
 class MemoryAnalyzerCLI(MemoryAnalyzer):
@@ -83,7 +89,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         total_ram = sum(c.ram_total for _, c in components)
 
         # Build report
-        lines = []
+        lines: list[str] = []
 
         lines.append("=" * self.TABLE_WIDTH)
         lines.append("Component Memory Analysis".center(self.TABLE_WIDTH))
@@ -144,7 +150,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         if self._esphome_core_symbols:
             lines.append("")
             lines.append("=" * self.TABLE_WIDTH)
-            lines.append("[esphome]core Detailed Analysis".center(self.TABLE_WIDTH))
+            lines.append(
+                f"{_COMPONENT_CORE} Detailed Analysis".center(self.TABLE_WIDTH)
+            )
             lines.append("=" * self.TABLE_WIDTH)
             lines.append("")
 
@@ -183,9 +191,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     f"{len(symbols):>{self.COL_CORE_COUNT}} | {percentage:>{self.COL_CORE_PERCENT - 1}.1f}%"
                 )
 
-            # Top 10 largest core symbols
+            # Top 15 largest core symbols
             lines.append("")
-            lines.append("Top 10 Largest [esphome]core Symbols:")
+            lines.append(f"Top 15 Largest {_COMPONENT_CORE} Symbols:")
             sorted_core_symbols = sorted(
                 self._esphome_core_symbols, key=lambda x: x[2], reverse=True
             )
@@ -199,10 +207,12 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         esphome_components = [
             (name, mem)
             for name, mem in components
-            if name.startswith("[esphome]") and name != "[esphome]core"
+            if name.startswith(_COMPONENT_PREFIX_ESPHOME) and name != _COMPONENT_CORE
         ]
         external_components = [
-            (name, mem) for name, mem in components if name.startswith("[external]")
+            (name, mem)
+            for name, mem in components
+            if name.startswith(_COMPONENT_PREFIX_EXTERNAL)
         ]
 
         top_esphome_components = sorted(
@@ -217,7 +227,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # Check if API component exists and ensure it's included
         api_component = None
         for name, mem in components:
-            if name == "[esphome]api":
+            if name == _COMPONENT_API:
                 api_component = (name, mem)
                 break
 
@@ -371,15 +381,16 @@ def main():
 
     idedata = None
     for idedata_path in idedata_candidates:
-        if idedata_path.exists():
-            try:
-                with open(idedata_path, encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                idedata = IDEData(raw_data)
-                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
-                break
-            except (json.JSONDecodeError, OSError) as e:
-                print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
+        if not idedata_path.exists():
+            continue
+        try:
+            with open(idedata_path, encoding="utf-8") as f:
+                raw_data = json.load(f)
+            idedata = IDEData(raw_data)
+            print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+            break
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
 
     if not idedata:
         print(

@@ -25,7 +25,14 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
+from esphome.analyze_memory import MemoryAnalyzer
+from esphome.platformio_api import IDEData
 from script.ci_helpers import write_github_output
+
+# Regex patterns for extracting memory usage from PlatformIO output
+_RAM_PATTERN = re.compile(r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
+_FLASH_PATTERN = re.compile(r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
+_BUILD_PATH_PATTERN = re.compile(r"Build path: (.+)")
 
 
 def extract_from_compile_output(
@@ -42,7 +49,7 @@ def extract_from_compile_output(
         Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
 
     Also extracts build directory from lines like:
-        INFO Deleting /path/to/build/.esphome/build/componenttestesp8266ard/.pioenvs
+        INFO Compiling app... Build path: /path/to/build
 
     Args:
         output_text: Compile output text (may contain multiple builds)
@@ -51,12 +58,8 @@ def extract_from_compile_output(
         Tuple of (total_ram_bytes, total_flash_bytes, build_dir) or (None, None, None) if not found
     """
     # Find all RAM and Flash matches (may be multiple builds)
-    ram_matches = re.findall(
-        r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", output_text
-    )
-    flash_matches = re.findall(
-        r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", output_text
-    )
+    ram_matches = _RAM_PATTERN.findall(output_text)
+    flash_matches = _FLASH_PATTERN.findall(output_text)
 
     if not ram_matches or not flash_matches:
         return None, None, None
@@ -69,7 +72,7 @@ def extract_from_compile_output(
     # Look for: INFO Compiling app... Build path: /path/to/build
     # Note: Multiple builds reuse the same build path (each overwrites the previous)
     build_dir = None
-    if match := re.search(r"Build path: (.+)", output_text):
+    if match := _BUILD_PATH_PATTERN.search(output_text):
         build_dir = match.group(1).strip()
 
     return total_ram, total_flash, build_dir
@@ -84,9 +87,6 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
     Returns:
         Dictionary with analysis results or None if analysis fails
     """
-    from esphome.analyze_memory import MemoryAnalyzer
-    from esphome.platformio_api import IDEData
-
     build_path = Path(build_dir)
     if not build_path.exists():
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
@@ -119,18 +119,19 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
 
     idedata = None
     for idedata_path in idedata_candidates:
-        if idedata_path.exists():
-            try:
-                with open(idedata_path, encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                idedata = IDEData(raw_data)
-                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
-                break
-            except (json.JSONDecodeError, OSError) as e:
-                print(
-                    f"Warning: Failed to load idedata from {idedata_path}: {e}",
-                    file=sys.stderr,
-                )
+        if not idedata_path.exists():
+            continue
+        try:
+            with open(idedata_path, encoding="utf-8") as f:
+                raw_data = json.load(f)
+            idedata = IDEData(raw_data)
+            print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+            break
+        except (json.JSONDecodeError, OSError) as e:
+            print(
+                f"Warning: Failed to load idedata from {idedata_path}: {e}",
+                file=sys.stderr,
+            )
 
     analyzer = MemoryAnalyzer(elf_path, idedata=idedata)
     components = analyzer.analyze()
@@ -209,11 +210,7 @@ def main() -> int:
         return 1
 
     # Count how many builds were found
-    num_builds = len(
-        re.findall(
-            r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes", compile_output
-        )
-    )
+    num_builds = len(_RAM_PATTERN.findall(compile_output))
 
     if num_builds > 1:
         print(

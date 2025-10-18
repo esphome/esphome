@@ -5,6 +5,11 @@ from pathlib import Path
 
 from .const import SECTION_MAPPING
 
+# Import namespace constant from parent module
+# Note: This would create a circular import if done at module level,
+# so we'll define it locally here as well
+_NAMESPACE_ESPHOME = "esphome::"
+
 
 # Get the list of actual ESPHome components by scanning the components directory
 @cache
@@ -40,10 +45,10 @@ def get_component_class_patterns(component_name: str) -> list[str]:
     component_upper = component_name.upper()
     component_camel = component_name.replace("_", "").title()
     return [
-        f"esphome::{component_upper}Component",  # e.g., esphome::OTAComponent
-        f"esphome::ESPHome{component_upper}Component",  # e.g., esphome::ESPHomeOTAComponent
-        f"esphome::{component_camel}Component",  # e.g., esphome::OtaComponent
-        f"esphome::ESPHome{component_camel}Component",  # e.g., esphome::ESPHomeOtaComponent
+        f"{_NAMESPACE_ESPHOME}{component_upper}Component",  # e.g., esphome::OTAComponent
+        f"{_NAMESPACE_ESPHOME}ESPHome{component_upper}Component",  # e.g., esphome::ESPHomeOTAComponent
+        f"{_NAMESPACE_ESPHOME}{component_camel}Component",  # e.g., esphome::OtaComponent
+        f"{_NAMESPACE_ESPHOME}ESPHome{component_camel}Component",  # e.g., esphome::ESPHomeOtaComponent
     ]
 
 
