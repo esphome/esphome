@@ -219,7 +219,7 @@ class ColorModeMask {
       ColorMode mode = bit_to_mode(bit);
       uint8_t mode_val = static_cast<uint8_t>(mode);
       // Mode matches if it has all required caps and none of the excluded caps
-      if ((mode_val & require_caps) == require_caps && (exclude_caps == 0 || (mode_val & exclude_caps) == 0)) {
+      if ((mode_val & require_caps) == require_caps && (mode_val & exclude_caps) == 0) {
         mask |= (1 << bit);
       }
     }
