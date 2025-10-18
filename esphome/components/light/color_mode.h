@@ -173,6 +173,10 @@ class ColorModeMask {
   constexpr uint16_t get_mask() const { return this->mask_; }
 
  private:
+  // Using uint16_t instead of uint32_t for more efficient iteration (fewer bits to scan).
+  // Currently only 10 ColorMode values exist, so 16 bits is sufficient.
+  // Can be changed to uint32_t if more than 16 color modes are needed in the future.
+  // Note: Due to struct padding, uint16_t and uint32_t result in same LightTraits size (12 bytes).
   uint16_t mask_{0};
 
   /// Map ColorMode enum values to bit positions (0-9)
