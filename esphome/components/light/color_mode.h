@@ -209,17 +209,16 @@ class ColorModeMask {
 
   /// Build a bitmask of modes that match the given capability requirements
   /// @param require_caps Capabilities that must be present in the mode
-  /// @param exclude_caps Capabilities that must not be present in the mode (for none case)
   /// @return Raw bitmask value
-  static constexpr color_mode_bitmask_t build_mask_matching(uint8_t require_caps, uint8_t exclude_caps = 0) {
+  static constexpr color_mode_bitmask_t build_mask_matching(uint8_t require_caps) {
     color_mode_bitmask_t mask = 0;
     // Check each mode to see if it matches the requirements
     // Skip UNKNOWN (bit 0), iterate through actual color modes (bits 1-9)
     for (int bit = 1; bit < COLOR_MODE_COUNT; ++bit) {
       ColorMode mode = bit_to_mode(bit);
       uint8_t mode_val = static_cast<uint8_t>(mode);
-      // Mode matches if it has all required caps and none of the excluded caps
-      if ((mode_val & require_caps) == require_caps && (mode_val & exclude_caps) == 0) {
+      // Mode matches if it has all required caps
+      if ((mode_val & require_caps) == require_caps) {
         mask |= (1 << bit);
       }
     }

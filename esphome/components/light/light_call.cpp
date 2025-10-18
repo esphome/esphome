@@ -469,16 +469,7 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
   if (has_cwww)
     require_caps |= static_cast<uint8_t>(ColorCapability::COLD_WARM_WHITE);
 
-  // If no specific color parameters set, exclude modes with color capabilities
-  uint8_t exclude_caps = 0;
-  if (!has_rgb && !has_white && !has_ct && !has_cwww) {
-    // For "none" case, we want all modes but don't exclude anything
-    // Just require ON_OFF + BRIGHTNESS which all modes have
-    return ColorModeMask::build_mask_matching(
-        static_cast<uint8_t>(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS), exclude_caps);
-  }
-
-  return ColorModeMask::build_mask_matching(require_caps, exclude_caps);
+  return ColorModeMask::build_mask_matching(require_caps);
 }
 
 LightCall &LightCall::set_effect(const std::string &effect) {
