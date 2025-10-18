@@ -534,6 +534,7 @@ jobs:
       ram_usage: ${{ steps.extract.outputs.ram_usage }}
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
       cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
+      skip: ${{ steps.check-script.outputs.skip }}
     steps:
       - name: Check out target branch
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -735,7 +736,7 @@ jobs:
       - determine-jobs
       - memory-impact-target-branch
       - memory-impact-pr-branch
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
     permissions:
       contents: read
       pull-requests: write
