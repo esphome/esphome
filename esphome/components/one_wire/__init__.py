@@ -22,7 +22,7 @@ def one_wire_device_schema():
         {
             cv.GenerateID(CONF_ONE_WIRE_ID): cv.use_id(OneWireBus),
             cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
-            cv.Optional(CONF_INDEX): cv.int,
+            cv.Optional(CONF_INDEX): cv.uint8_t,
         }
     )
 
