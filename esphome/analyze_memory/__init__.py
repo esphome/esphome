@@ -294,24 +294,24 @@ class MemoryAnalyzer:
         # Try to find the appropriate c++filt for the platform
         cppfilt_cmd = "c++filt"
 
-        _LOGGER.warning("Demangling %d symbols", len(symbols))
+        _LOGGER.info("Demangling %d symbols", len(symbols))
         _LOGGER.debug("objdump_path = %s", self.objdump_path)
 
         # Check if we have a toolchain-specific c++filt
         if self.objdump_path and self.objdump_path != "objdump":
             # Replace objdump with c++filt in the path
             potential_cppfilt = self.objdump_path.replace("objdump", "c++filt")
-            _LOGGER.warning("Checking for toolchain c++filt at: %s", potential_cppfilt)
+            _LOGGER.info("Checking for toolchain c++filt at: %s", potential_cppfilt)
             if Path(potential_cppfilt).exists():
                 cppfilt_cmd = potential_cppfilt
-                _LOGGER.warning("✓ Using toolchain c++filt: %s", cppfilt_cmd)
+                _LOGGER.info("✓ Using toolchain c++filt: %s", cppfilt_cmd)
             else:
-                _LOGGER.warning(
+                _LOGGER.info(
                     "✗ Toolchain c++filt not found at %s, using system c++filt",
                     potential_cppfilt,
                 )
         else:
-            _LOGGER.warning(
+            _LOGGER.info(
                 "✗ Using system c++filt (objdump_path=%s)", self.objdump_path
             )
 
