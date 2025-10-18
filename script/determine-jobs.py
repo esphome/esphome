@@ -38,6 +38,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+from enum import StrEnum
 from functools import cache
 import json
 import os
@@ -56,9 +57,21 @@ from helpers import (
     root_path,
 )
 
+
+class Platform(StrEnum):
+    """Platform identifiers for memory impact analysis."""
+
+    ESP8266_ARD = "esp8266-ard"
+    ESP32_IDF = "esp32-idf"
+    ESP32_C3_IDF = "esp32-c3-idf"
+    ESP32_C6_IDF = "esp32-c6-idf"
+    ESP32_S2_IDF = "esp32-s2-idf"
+    ESP32_S3_IDF = "esp32-s3-idf"
+
+
 # Memory impact analysis constants
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
-MEMORY_IMPACT_FALLBACK_PLATFORM = "esp32-idf"  # Most representative platform
+MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 
 
 def should_run_integration_tests(branch: str | None = None) -> bool:
@@ -262,14 +275,14 @@ def detect_memory_impact_config(
     """
     # Platform preference order for memory impact analysis
     # Prefer ESP8266 for memory impact as it's the most constrained platform
-    # ESP32-IDF is preferred over ESP32-Arduino as it's faster to build and more commonly used
+    # ESP32-IDF is preferred over ESP32-Arduino as it's the most representative of codebase
     PLATFORM_PREFERENCE = [
-        "esp8266-ard",  # ESP8266 Arduino (most memory constrained - best for impact analysis)
-        "esp32-idf",  # ESP32 IDF platform (primary ESP32 platform, faster builds)
-        "esp32-c3-idf",  # ESP32-C3 IDF
-        "esp32-c6-idf",  # ESP32-C6 IDF
-        "esp32-s2-idf",  # ESP32-S2 IDF
-        "esp32-s3-idf",  # ESP32-S3 IDF
+        Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
+        Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
+        Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
+        Platform.ESP32_C6_IDF,  # ESP32-C6 IDF
+        Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
+        Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
     ]
 
     # Get actually changed files (not dependencies)
@@ -353,7 +366,7 @@ def detect_memory_impact_config(
     if force_fallback_platform:
         platform = MEMORY_IMPACT_FALLBACK_PLATFORM
     else:
-        platform = selected_platform or "esp8266-ard"
+        platform = selected_platform or Platform.ESP8266_ARD
 
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
