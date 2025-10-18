@@ -477,8 +477,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
-  const auto &color_modes_mask = traits.get_supported_color_modes();
-  msg.supported_color_modes = color_modes_mask.get_mask();
+  msg.supported_color_modes = traits.get_supported_color_modes().get_mask();
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
