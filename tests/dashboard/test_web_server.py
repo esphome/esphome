@@ -489,6 +489,44 @@ async def test_download_binary_handler_subdirectory_file(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_subdirectory_file_url_encoded(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with URL-encoded subdirectory path.
+
+    Verifies that URL-encoded paths (e.g., zephyr%2Fzephyr.uf2) are correctly
+    decoded and handled, and that custom download names work with subdirectories.
+    """
+    # Create a fake build structure with firmware in subdirectory
+    build_dir = get_build_path(tmp_path, "test")
+    zephyr_dir = build_dir / "zephyr"
+    zephyr_dir.mkdir(parents=True)
+
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"content")
+
+    uf2_file = zephyr_dir / "zephyr.uf2"
+    uf2_file.write_bytes(b"content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Request with URL-encoded path and custom download name
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=zephyr%2Fzephyr.uf2&download=custom_name.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert "custom_name.bin" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
 @pytest.mark.parametrize(
     "attack_path",
     [
