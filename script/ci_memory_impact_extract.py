@@ -28,8 +28,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from script.ci_helpers import write_github_output
 
 
-def extract_from_compile_output(output_text: str) -> tuple[int | None, int | None]:
-    """Extract memory usage from PlatformIO compile output.
+def extract_from_compile_output(
+    output_text: str,
+) -> tuple[int | None, int | None, str | None]:
+    """Extract memory usage and build directory from PlatformIO compile output.
 
     Supports multiple builds (for component groups or isolated components).
     When test_build_components.py creates multiple builds, this sums the
@@ -39,11 +41,14 @@ def extract_from_compile_output(output_text: str) -> tuple[int | None, int | Non
         RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)
         Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)
 
+    Also extracts build directory from lines like:
+        INFO Deleting /path/to/build/.esphome/build/componenttestesp8266ard/.pioenvs
+
     Args:
         output_text: Compile output text (may contain multiple builds)
 
     Returns:
-        Tuple of (total_ram_bytes, total_flash_bytes) or (None, None) if not found
+        Tuple of (total_ram_bytes, total_flash_bytes, build_dir) or (None, None, None) if not found
     """
     # Find all RAM and Flash matches (may be multiple builds)
     ram_matches = re.findall(
@@ -54,13 +59,21 @@ def extract_from_compile_output(output_text: str) -> tuple[int | None, int | Non
     )
 
     if not ram_matches or not flash_matches:
-        return None, None
+        return None, None, None
 
     # Sum all builds (handles multiple component groups)
     total_ram = sum(int(match) for match in ram_matches)
     total_flash = sum(int(match) for match in flash_matches)
 
-    return total_ram, total_flash
+    # Extract build directory from ESPHome's delete messages
+    # Look for: INFO Deleting /path/to/build/.esphome/build/componenttest.../.pioenvs
+    build_dir = None
+    if match := re.search(
+        r"INFO Deleting (.+/\.esphome/build/componenttest[^/]+)/\.pioenvs", output_text
+    ):
+        build_dir = match.group(1)
+
+    return total_ram, total_flash, build_dir
 
 
 def run_detailed_analysis(build_dir: str) -> dict | None:
@@ -94,18 +107,31 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         print(f"firmware.elf not found in {build_dir}", file=sys.stderr)
         return None
 
-    # Find idedata.json
+    # Find idedata.json - check multiple locations
     device_name = build_path.name
-    idedata_path = Path.home() / ".esphome" / "idedata" / f"{device_name}.json"
+    idedata_candidates = [
+        # In .pioenvs for test builds
+        build_path / ".pioenvs" / device_name / "idedata.json",
+        # In .esphome/idedata for regular builds
+        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
+        # Check parent directories for .esphome/idedata (for test_build_components)
+        build_path.parent.parent.parent / "idedata" / f"{device_name}.json",
+    ]
 
     idedata = None
-    if idedata_path.exists():
-        try:
-            with open(idedata_path, encoding="utf-8") as f:
-                raw_data = json.load(f)
-            idedata = IDEData(raw_data)
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
+    for idedata_path in idedata_candidates:
+        if idedata_path.exists():
+            try:
+                with open(idedata_path, encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                idedata = IDEData(raw_data)
+                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+                break
+            except (json.JSONDecodeError, OSError) as e:
+                print(
+                    f"Warning: Failed to load idedata from {idedata_path}: {e}",
+                    file=sys.stderr,
+                )
 
     try:
         analyzer = MemoryAnalyzer(elf_path, idedata=idedata)
@@ -156,11 +182,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--build-dir",
-        help="Optional build directory for detailed memory analysis",
+        help="Optional build directory for detailed memory analysis (overrides auto-detection)",
     )
     parser.add_argument(
         "--output-json",
         help="Optional path to save detailed analysis JSON",
+    )
+    parser.add_argument(
+        "--output-build-dir",
+        help="Optional path to write the detected build directory",
     )
 
     args = parser.parse_args()
@@ -168,8 +198,10 @@ def main() -> int:
     # Read compile output from stdin
     compile_output = sys.stdin.read()
 
-    # Extract memory usage
-    ram_bytes, flash_bytes = extract_from_compile_output(compile_output)
+    # Extract memory usage and build directory
+    ram_bytes, flash_bytes, detected_build_dir = extract_from_compile_output(
+        compile_output
+    )
 
     if ram_bytes is None or flash_bytes is None:
         print("Failed to extract memory usage from compile output", file=sys.stderr)
@@ -200,11 +232,24 @@ def main() -> int:
     print(f"Total RAM: {ram_bytes} bytes", file=sys.stderr)
     print(f"Total Flash: {flash_bytes} bytes", file=sys.stderr)
 
-    # Run detailed analysis if build directory provided
+    # Determine which build directory to use (explicit arg overrides auto-detection)
+    build_dir = args.build_dir or detected_build_dir
+
+    if detected_build_dir:
+        print(f"Detected build directory: {detected_build_dir}", file=sys.stderr)
+
+    # Write build directory to file if requested
+    if args.output_build_dir and build_dir:
+        build_dir_path = Path(args.output_build_dir)
+        build_dir_path.parent.mkdir(parents=True, exist_ok=True)
+        build_dir_path.write_text(build_dir)
+        print(f"Wrote build directory to {args.output_build_dir}", file=sys.stderr)
+
+    # Run detailed analysis if build directory available
     detailed_analysis = None
-    if args.build_dir:
-        print(f"Running detailed analysis on {args.build_dir}", file=sys.stderr)
-        detailed_analysis = run_detailed_analysis(args.build_dir)
+    if build_dir:
+        print(f"Running detailed analysis on {build_dir}", file=sys.stderr)
+        detailed_analysis = run_detailed_analysis(build_dir)
 
     # Save JSON output if requested
     if args.output_json:
