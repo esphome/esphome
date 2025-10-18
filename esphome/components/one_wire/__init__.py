@@ -38,3 +38,5 @@ async def register_one_wire_device(var, config):
     cg.add(var.set_one_wire_bus(parent))
     if (address := config.get(CONF_ADDRESS)) is not None:
         cg.add(var.set_address(address))
+    if (index := config.get(CONF_INDEX)) is not None:
+        cg.add(var.set_index(index))
