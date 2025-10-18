@@ -22,6 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
+# Thresholds for emoji significance indicators (percentage)
+OVERALL_CHANGE_THRESHOLD = 1.0  # Overall RAM/Flash changes
+COMPONENT_CHANGE_THRESHOLD = 3.0  # Component breakdown changes
+
 
 def load_analysis_json(json_path: str) -> dict | None:
     """Load memory analysis results from JSON file.
@@ -57,12 +61,15 @@ def format_bytes(bytes_value: int) -> str:
     return f"{bytes_value:,} bytes"
 
 
-def format_change(before: int, after: int) -> str:
+def format_change(before: int, after: int, threshold: float | None = None) -> str:
     """Format memory change with delta and percentage.
 
     Args:
         before: Memory usage before change (in bytes)
         after: Memory usage after change (in bytes)
+        threshold: Optional percentage threshold for "significant" change.
+                   If provided, adds supplemental emoji (🎉/🚨/🔸/✅) to chart icons.
+                   If None, only shows chart icons (📈/📉/➡️).
 
     Returns:
         Formatted string with delta and percentage
@@ -70,13 +77,25 @@ def format_change(before: int, after: int) -> str:
     delta = after - before
     percentage = 0.0 if before == 0 else (delta / before) * 100
 
-    # Format delta with sign and always show in bytes for precision
+    # Always use chart icons to show direction
     if delta > 0:
         delta_str = f"+{delta:,} bytes"
-        emoji = "📈"
+        trend_icon = "📈"
+        # Add supplemental emoji based on threshold if provided
+        if threshold is not None:
+            significance = "🚨" if abs(percentage) > threshold else "🔸"
+            emoji = f"{trend_icon} {significance}"
+        else:
+            emoji = trend_icon
     elif delta < 0:
         delta_str = f"{delta:,} bytes"
-        emoji = "📉"
+        trend_icon = "📉"
+        # Add supplemental emoji based on threshold if provided
+        if threshold is not None:
+            significance = "🎉" if abs(percentage) > threshold else "✅"
+            emoji = f"{trend_icon} {significance}"
+        else:
+            emoji = trend_icon
     else:
         delta_str = "+0 bytes"
         emoji = "➡️"
@@ -171,7 +190,7 @@ def create_symbol_changes_table(
         for symbol, target_size, pr_size, delta in changed_symbols[:30]:
             target_str = format_bytes(target_size)
             pr_str = format_bytes(pr_size)
-            change_str = format_change(target_size, pr_size)
+            change_str = format_change(target_size, pr_size)  # Chart icons only
             display_symbol = format_symbol_for_display(symbol)
             lines.append(
                 f"| {display_symbol} | {target_str} | {pr_str} | {change_str} |"
@@ -285,7 +304,9 @@ def create_detailed_breakdown_table(
     for comp, target_flash, pr_flash, delta in changed_components[:20]:
         target_str = format_bytes(target_flash)
         pr_str = format_bytes(pr_flash)
-        change_str = format_change(target_flash, pr_flash)
+        change_str = format_change(
+            target_flash, pr_flash, threshold=COMPONENT_CHANGE_THRESHOLD
+        )
         lines.append(f"| `{comp}` | {target_str} | {pr_str} | {change_str} |")
 
     if len(changed_components) > 20:
@@ -329,8 +350,10 @@ def create_comment_body(
     Returns:
         Formatted comment body
     """
-    ram_change = format_change(target_ram, pr_ram)
-    flash_change = format_change(target_flash, pr_flash)
+    ram_change = format_change(target_ram, pr_ram, threshold=OVERALL_CHANGE_THRESHOLD)
+    flash_change = format_change(
+        target_flash, pr_flash, threshold=OVERALL_CHANGE_THRESHOLD
+    )
 
     # Use provided analysis data if available
     component_breakdown = ""
