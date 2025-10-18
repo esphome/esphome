@@ -85,7 +85,7 @@ jobs:
         run: |
           cat <<'CONF' > mosquitto.conf
           allow_anonymous true
-          listener 1883 127.0.0.1
+          listener 1883 0.0.0.0
           CONF
           mosquitto -c mosquitto.conf -d
 
@@ -103,7 +103,12 @@ jobs:
             --flash_mode dio --flash_freq 40m --flash_size 4MB --fill-flash-size 4MB \
             0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 firmware.bin >/dev/null
           python -c "open('qemu_efuse_zero.bin','wb').write(b'\\x00'*1024)"
-          /root/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin/qemu-system-xtensa \
+          QEMU_BIN="$(command -v qemu-system-xtensa || true)"
+          if [ -z "$QEMU_BIN" ]; then
+            echo "qemu-system-xtensa not found in PATH"
+            exit 1
+          fi
+          "$QEMU_BIN" \
             -nographic -M esp32 -m 4 \
             -drive file=qemu_flash_4mb.bin,if=mtd,format=raw \
             -drive file=qemu_efuse_zero.bin,format=raw,if=none,id=efuse \
@@ -113,11 +118,30 @@ jobs:
             -serial mon:stdio \
             > qemu.log 2>&1 &
           QEMU_PID=$!
+          echo "QEMU started with PID $QEMU_PID"
           popd
-          sleep 12
-          mosquitto_sub -h 127.0.0.1 -p 1883 -u local -P local123 -t 'qemu-test/#' -C 12 -v > mqtt.log
-          kill $QEMU_PID || true
+          # Give firmware time to boot and bring network up
+          sleep 15
+          # Collect a minimal set of MQTT messages with timeouts to avoid hangs
+          : > mqtt.log
+          for topic in \
+            "qemu-test/status" \
+            "qemu-test/sensor/Тестовый_сенсор_температуры/state" \
+            "qemu-test/sensor/Тестовый_сенсор_влажности/state" \
+            "qemu-test/switch/Тестовый_переключатель_1/state"; do
+            echo "Waiting for topic: $topic"
+            if ! timeout 120s mosquitto_sub -h 127.0.0.1 -p 1883 -u local -P local123 -t "$topic" -C 1 -v >> mqtt.log; then
+              echo "Timeout waiting for $topic"
+              # Stop QEMU before exiting on failure
+              kill $QEMU_PID 2>/dev/null || true
+              wait $QEMU_PID 2>/dev/null || true
+              exit 1
+            fi
+          done
+          # Stop QEMU (if still running)
+          kill $QEMU_PID 2>/dev/null || true
           wait $QEMU_PID 2>/dev/null || true
+          # Verify expected topics seen
           grep -F "qemu-test/sensor/Тестовый_сенсор_температуры/state" mqtt.log
           grep -F "qemu-test/sensor/Тестовый_сенсор_влажности/state" mqtt.log
           grep -F "qemu-test/switch/Тестовый_переключатель_1/state" mqtt.log

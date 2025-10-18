@@ -16,7 +16,7 @@ logger:
   level: DEBUG
 
 mqtt:
-  broker: 127.0.0.1
+  broker: 10.0.2.2
   port: 1883
   username: local
   password: local123
