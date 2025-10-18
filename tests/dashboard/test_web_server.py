@@ -41,7 +41,8 @@ def get_build_path(base_path: Path, device_name: str) -> Path:
     This is a test helper that constructs the standard ESPHome build directory
     structure. Note: This helper does NOT perform path traversal sanitization
     because it's only used in tests where we control the inputs. The actual
-    web_server.py code handles sanitization at line 1055.
+    web_server.py code handles sanitization in DownloadBinaryRequestHandler.get()
+    via file_name.replace("..", "").lstrip("/").
 
     Args:
         base_path: The base temporary path (typically tmp_path from pytest)
