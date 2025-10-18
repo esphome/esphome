@@ -23,8 +23,6 @@ static const uint8_t REGISTER_AGC = 0x1A;        // 8 bytes  / R
 static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
 void AS5600Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!this->read_byte(REGISTER_STATUS).has_value()) {
     this->mark_failed();
     return;

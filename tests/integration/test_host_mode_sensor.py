@@ -40,7 +40,7 @@ async def test_host_mode_with_sensor(
         # Wait for sensor with specific value (42.0) with timeout
         try:
             test_sensor_state = await asyncio.wait_for(sensor_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Sensor with value 42.0 not received within 5 seconds. "
                 f"Received states: {list(states.values())}"

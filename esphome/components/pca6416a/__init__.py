@@ -14,6 +14,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@Mat931"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["gpio_expander"]
 MULTI_CONF = True
 pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
 

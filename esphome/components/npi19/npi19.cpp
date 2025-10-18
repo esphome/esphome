@@ -11,8 +11,6 @@ static const char *const TAG = "npi19";
 static const uint8_t READ_COMMAND = 0xAC;
 
 void NPI19Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);
   i2c::ErrorCode err = this->read_(raw_temperature, raw_pressure);
@@ -35,7 +33,7 @@ float NPI19Component::get_setup_priority() const { return setup_priority::DATA; 
 
 i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pressure) {
   // initiate data read from device
-  i2c::ErrorCode w_err = write(&READ_COMMAND, sizeof(READ_COMMAND), true);
+  i2c::ErrorCode w_err = write(&READ_COMMAND, sizeof(READ_COMMAND));
   if (w_err != i2c::ERROR_OK) {
     return w_err;
   }

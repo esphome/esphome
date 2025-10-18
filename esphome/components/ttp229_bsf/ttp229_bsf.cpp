@@ -7,7 +7,6 @@ namespace ttp229_bsf {
 static const char *const TAG = "ttp229_bsf";
 
 void TTP229BSFComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->sdo_pin_->setup();
   this->scl_pin_->setup();
   this->scl_pin_->digital_write(true);

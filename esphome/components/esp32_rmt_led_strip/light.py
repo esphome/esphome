@@ -4,6 +4,7 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, light
+from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -57,7 +58,6 @@ CHIPSETS = {
     "SM16703": LEDStripTimings(300, 900, 900, 300, 0, 0),
 }
 
-CONF_USE_PSRAM = "use_psram"
 CONF_IS_WRGB = "is_wrgb"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"

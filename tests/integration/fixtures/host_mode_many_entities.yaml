@@ -210,6 +210,15 @@ sensor:
     name: "Test Sensor 50"
     lambda: return 50.0;
     update_interval: 0.1s
+  # Temperature sensor for the thermostat
+  - platform: template
+    name: "Temperature Sensor"
+    id: temp_sensor
+    lambda: return 22.5;
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    update_interval: 5s
 
 # Mixed entity types for comprehensive batching test
 binary_sensor:
@@ -285,6 +294,50 @@ valve:
     stop_action:
       - logger.log: "Valve stopping"
 
+output:
+  - platform: template
+    id: heater_output
+    type: binary
+    write_action:
+      - logger.log: "Heater output changed"
+  - platform: template
+    id: cooler_output
+    type: binary
+    write_action:
+      - logger.log: "Cooler output changed"
+
+climate:
+  - platform: thermostat
+    name: "Test Thermostat"
+    sensor: temp_sensor
+    default_preset: Home
+    on_boot_restore_from: default_preset
+    min_heating_off_time: 1s
+    min_heating_run_time: 1s
+    min_cooling_off_time: 1s
+    min_cooling_run_time: 1s
+    min_idle_time: 1s
+    heat_action:
+      - output.turn_on: heater_output
+    cool_action:
+      - output.turn_on: cooler_output
+    idle_action:
+      - output.turn_off: heater_output
+      - output.turn_off: cooler_output
+    preset:
+      - name: Home
+        default_target_temperature_low: 20
+        default_target_temperature_high: 24
+        mode: heat_cool
+      - name: Away
+        default_target_temperature_low: 16
+        default_target_temperature_high: 26
+        mode: heat_cool
+      - name: Sleep
+        default_target_temperature_low: 18
+        default_target_temperature_high: 22
+        mode: heat_cool
+
 alarm_control_panel:
   - platform: template
     name: "Test Alarm"
@@ -320,3 +373,20 @@ button:
     name: "Test Button"
     on_press:
       - logger.log: "Button pressed"
+
+# Date, Time, and DateTime entities
+datetime:
+  - platform: template
+    type: date
+    name: "Test Date"
+    initial_value: "2023-05-13"
+    optimistic: true
+  - platform: template
+    type: time
+    name: "Test Time"
+    initial_value: "12:30:00"
+    optimistic: true
+  - platform: template
+    type: datetime
+    name: "Test DateTime"
+    optimistic: true

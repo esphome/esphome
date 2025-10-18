@@ -4,7 +4,13 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_NUMBER, CONF_PIN
+from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
+    CONF_ID,
+    CONF_NAME,
+    CONF_NUMBER,
+    CONF_PIN,
+)
 from esphome.core import CORE
 
 from .. import gpio_ns
@@ -29,7 +35,21 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_USE_INTERRUPT, default=True): cv.boolean,
+            # Interrupts are disabled by default for bk72xx, ln882x, and rtl87xx platforms
+            # due to hardware limitations or lack of reliable interrupt support. This ensures
+            # stable operation on these platforms. Future maintainers should verify platform
+            # capabilities before changing this default behavior.
+            cv.SplitDefault(
+                CONF_USE_INTERRUPT,
+                bk72xx=False,
+                esp32=True,
+                esp8266=True,
+                host=True,
+                ln882x=False,
+                nrf52=True,
+                rp2040=True,
+                rtl87xx=False,
+            ): cv.boolean,
             cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(
                 INTERRUPT_TYPES, upper=True
             ),
@@ -59,6 +79,18 @@ async def to_code(config):
             "The sensor will work exactly as before, but other pins have better "
             "performance with interrupts.",
             config.get(CONF_NAME, config[CONF_ID]),
+        )
+        use_interrupt = False
+
+    # Check if pin is shared with other components (allow_other_uses)
+    # When a pin is shared, interrupts can interfere with other components
+    # (e.g., duty_cycle sensor) that need to monitor the pin's state changes
+    if use_interrupt and config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
+        _LOGGER.info(
+            "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared with other components. "
+            "The sensor will use polling mode for compatibility with other pin uses.",
+            config.get(CONF_NAME, config[CONF_ID]),
+            config[CONF_PIN][CONF_NUMBER],
         )
         use_interrupt = False
 
