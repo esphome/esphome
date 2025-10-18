@@ -288,15 +288,16 @@ class ColorModeMask {
   /// Check if any mode in the bitmask has a specific capability
   /// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
   bool has_capability(ColorCapability capability) const {
-    // Convert capability bit to array index (log2 of the bit value)
-    uint8_t cap_bit = static_cast<uint8_t>(capability);
-    // Count trailing zeros to get the bit position (0-5)
+    // Lookup the pre-computed bitmask for this capability and check intersection with our mask
+    // ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
+    // We need to convert the power-of-2 value to an index
+    uint8_t cap_val = static_cast<uint8_t>(capability);
     int index = 0;
-    while (index < COLOR_CAPABILITY_COUNT && !(cap_bit & (1 << index))) {
+    while (cap_val > 1) {
+      cap_val >>= 1;
       ++index;
     }
-    // Look up the pre-computed bitmask and check if any of our set bits match
-    return (index < COLOR_CAPABILITY_COUNT) && ((this->mask_ & CAPABILITY_BITMASKS[index]) != 0);
+    return (this->mask_ & CAPABILITY_BITMASKS[index]) != 0;
   }
 
   /// Build a bitmask of modes that match the given capability requirements
