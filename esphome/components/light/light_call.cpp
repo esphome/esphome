@@ -458,18 +458,54 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
   bool has_rgb = (this->has_color_brightness() && this->color_brightness_ > 0.0f) ||
                  (this->has_red() || this->has_green() || this->has_blue());
 
-  // Build required capabilities mask
-  uint8_t require_caps = static_cast<uint8_t>(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS);
-  if (has_rgb)
-    require_caps |= static_cast<uint8_t>(ColorCapability::RGB);
-  if (has_white)
-    require_caps |= static_cast<uint8_t>(ColorCapability::WHITE);
-  if (has_ct)
-    require_caps |= static_cast<uint8_t>(ColorCapability::COLOR_TEMPERATURE);
-  if (has_cwww)
-    require_caps |= static_cast<uint8_t>(ColorCapability::COLD_WARM_WHITE);
+  // Build key from flags: [rgb][cwww][ct][white]
+#define KEY(white, ct, cwww, rgb) ((white) << 0 | (ct) << 1 | (cwww) << 2 | (rgb) << 3)
 
-  return ColorModeMask::build_mask_matching(require_caps);
+  uint8_t key = KEY(has_white, has_ct, has_cwww, has_rgb);
+
+  // Build bitmask from suitable ColorModes
+  ColorModeMask suitable;
+
+  switch (key) {
+    case KEY(true, false, false, false):  // white only
+      suitable.add({ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+                    ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    case KEY(false, true, false, false):  // ct only
+      suitable.add({ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+                    ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    case KEY(true, true, false, false):  // white + ct
+      suitable.add({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    case KEY(false, false, true, false):  // cwww only
+      suitable.add({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    case KEY(false, false, false, false):  // none
+      suitable.add({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE,
+                    ColorMode::RGB, ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE});
+      break;
+    case KEY(true, false, false, true):  // rgb + white
+      suitable.add({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    case KEY(false, true, false, true):  // rgb + ct
+    case KEY(true, true, false, true):   // rgb + white + ct
+      suitable.add({ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    case KEY(false, false, true, true):  // rgb + cwww
+      suitable.add(ColorMode::RGB_COLD_WARM_WHITE);
+      break;
+    case KEY(false, false, false, true):  // rgb only
+      suitable.add(
+          {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
+      break;
+    default:
+      break;  // conflicting flags - return empty mask
+  }
+
+#undef KEY
+
+  return suitable.get_mask();
 }
 
 LightCall &LightCall::set_effect(const std::string &effect) {

@@ -213,6 +213,13 @@ class ColorModeMask {
 
   constexpr void add(ColorMode mode) { this->mask_ |= (1 << mode_to_bit(mode)); }
 
+  /// Add multiple modes at once using initializer list
+  constexpr void add(std::initializer_list<ColorMode> modes) {
+    for (auto mode : modes) {
+      this->add(mode);
+    }
+  }
+
   constexpr bool contains(ColorMode mode) const { return (this->mask_ & (1 << mode_to_bit(mode))) != 0; }
 
   constexpr size_t size() const {
@@ -298,23 +305,6 @@ class ColorModeMask {
       ++index;
     }
     return (this->mask_ & CAPABILITY_BITMASKS[index]) != 0;
-  }
-
-  /// Build a bitmask of modes that match the given capability requirements
-  /// @param require_caps Capabilities that must be present in the mode
-  /// @return Raw bitmask value
-  static constexpr color_mode_bitmask_t build_mask_matching(uint8_t require_caps) {
-    color_mode_bitmask_t mask = 0;
-    // Check each mode to see if it matches the requirements
-    // Skip UNKNOWN (bit 0), iterate through actual color modes (bits 1-9)
-    for (int bit = 1; bit < COLOR_MODE_COUNT; ++bit) {
-      uint8_t mode_val = static_cast<uint8_t>(bit_to_mode(bit));
-      // Mode matches if it has all required caps
-      if ((mode_val & require_caps) == require_caps) {
-        mask |= (1 << bit);
-      }
-    }
-    return mask;
   }
 
  private:
