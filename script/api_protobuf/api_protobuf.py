@@ -1564,7 +1564,7 @@ class RepeatedTypeInfo(TypeInfo):
         if self._use_bitmask:
             # For bitmask fields, dump the hex value of the bitmask
             return (
-                f"char buffer[32];\n"
+                f"char buffer[64];\n"
                 f'snprintf(buffer, sizeof(buffer), "  {self.field_name}: 0x%08" PRIX32 "\\n", this->{self.field_name});\n'
                 f"out.append(buffer);"
             )
