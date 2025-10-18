@@ -95,17 +95,17 @@ class MinMaxFilter : public SlidingWindowFilter {
 
 /** Base class for filters that need a sorted window (Median, Quantile).
  *
- * Extends SlidingWindowFilter to provide a helper that creates a sorted copy
- * of non-NaN values from the window.
+ * Extends SlidingWindowFilter to provide a helper that filters out NaN values.
+ * Derived classes use std::nth_element for efficient partial sorting.
  */
 class SortedWindowFilter : public SlidingWindowFilter {
  public:
   using SlidingWindowFilter::SlidingWindowFilter;
 
  protected:
-  /// Helper to get sorted non-NaN values from the window
+  /// Helper to get non-NaN values from the window (not sorted - caller will use nth_element)
   /// Returns empty FixedVector if all values are NaN
-  FixedVector<float> get_sorted_values_();
+  FixedVector<float> get_window_values_();
 };
 
 /** Simple quantile filter.
