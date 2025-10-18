@@ -101,13 +101,16 @@ void XGZP68XXComponent::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGCONFIG(TAG, "on setup: sys_config = 0x%x p_config = 0x%x", config1, config2);
+  ESP_LOGD(TAG, "sys_config 0x%x, p_config 0x%x", config1, config2);
 }
 
 void XGZP68XXComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "XGZP68xx:\n    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+  ESP_LOGCONFIG(TAG, "XGZP68xx:");
   LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
+  if (this->pressure_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+  }
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Connection failed");
