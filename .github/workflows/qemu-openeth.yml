@@ -95,6 +95,7 @@ jobs:
           esphome compile test_mqtt_openeth.yaml
 
       - name: Run QEMU and verify MQTT topics
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           BUILD_DIR=".esphome/build/qemu-test/.pioenvs/qemu-test"
@@ -104,11 +105,21 @@ jobs:
             0x1000 bootloader.bin 0x8000 partitions.bin 0x10000 firmware.bin >/dev/null
           python -c "open('qemu_efuse_zero.bin','wb').write(b'\\x00'*1024)"
           QEMU_BIN="$(command -v qemu-system-xtensa || true)"
+          # Prefer a qemu build that supports the esp32 machine
+          if [ -n "$QEMU_BIN" ]; then
+            if ! "$QEMU_BIN" -machine help 2>&1 | grep -q 'esp32'; then
+              QEMU_BIN=""
+            fi
+          fi
           if [ -z "$QEMU_BIN" ]; then
-            echo "qemu-system-xtensa not found in PATH"
+            # Try Espressif-provided QEMU under ~/.espressif
+            QEMU_BIN=$(ls -d "$HOME/.espressif/tools/qemu-xtensa"/*/qemu/bin/qemu-system-xtensa 2>/dev/null | head -n 1 || true)
+          fi
+          if [ -z "$QEMU_BIN" ] || ! "$QEMU_BIN" -machine help 2>&1 | grep -q 'esp32'; then
+            echo "No qemu-system-xtensa with esp32 machine found. Install Espressif QEMU (see docs)."
             exit 1
           fi
-          "$QEMU_BIN" \
+          timeout 10m "$QEMU_BIN" \
             -nographic -M esp32 -m 4 \
             -drive file=qemu_flash_4mb.bin,if=mtd,format=raw \
             -drive file=qemu_efuse_zero.bin,format=raw,if=none,id=efuse \
