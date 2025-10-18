@@ -25,6 +25,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
+from esphome.analyze_memory import MemoryAnalyzer
+from esphome.platformio_api import IDEData
 from script.ci_helpers import write_github_output
 
 # Regex patterns for extracting memory usage from PlatformIO output
@@ -85,9 +87,6 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
     Returns:
         Dictionary with analysis results or None if analysis fails
     """
-    from esphome.analyze_memory import MemoryAnalyzer
-    from esphome.platformio_api import IDEData
-
     build_path = Path(build_dir)
     if not build_path.exists():
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
@@ -120,18 +119,19 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
 
     idedata = None
     for idedata_path in idedata_candidates:
-        if idedata_path.exists():
-            try:
-                with open(idedata_path, encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                idedata = IDEData(raw_data)
-                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
-                break
-            except (json.JSONDecodeError, OSError) as e:
-                print(
-                    f"Warning: Failed to load idedata from {idedata_path}: {e}",
-                    file=sys.stderr,
-                )
+        if not idedata_path.exists():
+            continue
+        try:
+            with open(idedata_path, encoding="utf-8") as f:
+                raw_data = json.load(f)
+            idedata = IDEData(raw_data)
+            print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+            break
+        except (json.JSONDecodeError, OSError) as e:
+            print(
+                f"Warning: Failed to load idedata from {idedata_path}: {e}",
+                file=sys.stderr,
+            )
 
     analyzer = MemoryAnalyzer(elf_path, idedata=idedata)
     components = analyzer.analyze()

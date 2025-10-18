@@ -371,15 +371,16 @@ def main():
 
     idedata = None
     for idedata_path in idedata_candidates:
-        if idedata_path.exists():
-            try:
-                with open(idedata_path, encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                idedata = IDEData(raw_data)
-                print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
-                break
-            except (json.JSONDecodeError, OSError) as e:
-                print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
+        if not idedata_path.exists():
+            continue
+        try:
+            with open(idedata_path, encoding="utf-8") as f:
+                raw_data = json.load(f)
+            idedata = IDEData(raw_data)
+            print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
+            break
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Warning: Failed to load idedata: {e}", file=sys.stderr)
 
     if not idedata:
         print(
