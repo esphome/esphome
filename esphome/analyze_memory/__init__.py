@@ -33,6 +33,21 @@ _GCC_PREFIX_ANNOTATIONS = {
     "_GLOBAL__sub_D_": "global destructor for",
 }
 
+# GCC optimization suffix pattern (e.g., $isra$0, $part$1, $constprop$2)
+_GCC_OPTIMIZATION_SUFFIX_PATTERN = re.compile(r"(\$(?:isra|part|constprop)\$\d+)")
+
+# C++ runtime patterns for categorization
+_CPP_RUNTIME_PATTERNS = frozenset(["vtable", "typeinfo", "thunk"])
+
+# libc printf/scanf family base names (used to detect variants like _printf_r, vfprintf, etc.)
+_LIBC_PRINTF_SCANF_FAMILY = frozenset(["printf", "fprintf", "sprintf", "scanf"])
+
+# Regex pattern for parsing readelf section headers
+# Format: [ #] name type addr off size
+_READELF_SECTION_PATTERN = re.compile(
+    r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)"
+)
+
 
 @dataclass
 class MemorySection:
@@ -133,12 +148,7 @@ class MemoryAnalyzer:
         # Parse section headers
         for line in result.stdout.splitlines():
             # Look for section entries
-            if not (
-                match := re.match(
-                    r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)",
-                    line,
-                )
-            ):
+            if not (match := _READELF_SECTION_PATTERN.match(line)):
                 continue
 
             section_name = match.group(1)
@@ -273,14 +283,14 @@ class MemoryAnalyzer:
 
         # Check if spi_flash vs spi_driver
         if "spi_" in symbol_name or "SPI" in symbol_name:
-            if "spi_flash" in symbol_name:
-                return "spi_flash"
-            return "spi_driver"
+            return "spi_flash" if "spi_flash" in symbol_name else "spi_driver"
 
         # libc special printf variants
-        if symbol_name.startswith("_") and symbol_name[1:].replace("_r", "").replace(
-            "v", ""
-        ).replace("s", "") in ["printf", "fprintf", "sprintf", "scanf"]:
+        if (
+            symbol_name.startswith("_")
+            and symbol_name[1:].replace("_r", "").replace("v", "").replace("s", "")
+            in _LIBC_PRINTF_SCANF_FAMILY
+        ):
             return "libc"
 
         # Track uncategorized symbols for analysis
@@ -320,7 +330,7 @@ class MemoryAnalyzer:
         symbols_prefixes: list[str] = []  # Track removed prefixes
         for symbol in symbols:
             # Remove GCC optimization markers
-            stripped = re.sub(r"\$(?:isra|part|constprop)\$\d+", "", symbol)
+            stripped = _GCC_OPTIMIZATION_SUFFIX_PATTERN.sub("", symbol)
 
             # Handle GCC global constructor/initializer prefixes
             # _GLOBAL__sub_I_<mangled> -> extract <mangled> for demangling
@@ -450,7 +460,7 @@ class MemoryAnalyzer:
         Returns:
             Demangled name with suffix annotation
         """
-        suffix_match = re.search(r"(\$(?:isra|part|constprop)\$\d+)", original)
+        suffix_match = _GCC_OPTIMIZATION_SUFFIX_PATTERN.search(original)
         if suffix_match:
             return f"{demangled} [{suffix_match.group(1)}]"
         return demangled
@@ -462,7 +472,7 @@ class MemoryAnalyzer:
     def _categorize_esphome_core_symbol(self, demangled: str) -> str:
         """Categorize ESPHome core symbols into subcategories."""
         # Special patterns that need to be checked separately
-        if any(pattern in demangled for pattern in ["vtable", "typeinfo", "thunk"]):
+        if any(pattern in demangled for pattern in _CPP_RUNTIME_PATTERNS):
             return "C++ Runtime (vtables/RTTI)"
 
         if demangled.startswith("std::"):
