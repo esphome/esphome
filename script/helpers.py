@@ -46,6 +46,23 @@ def parse_list_components_output(output: str) -> list[str]:
     return [c.strip() for c in output.strip().split("\n") if c.strip()]
 
 
+def parse_test_filename(test_file: Path) -> tuple[str, str]:
+    """Parse test filename to extract test name and platform.
+
+    Test files follow the naming pattern: test.<platform>.yaml or test-<variant>.<platform>.yaml
+
+    Args:
+        test_file: Path to test file
+
+    Returns:
+        Tuple of (test_name, platform)
+    """
+    parts = test_file.stem.split(".")
+    if len(parts) == 2:
+        return parts[0], parts[1]  # test, platform
+    return parts[0], "all"
+
+
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     prefix = "".join(color) if isinstance(color, tuple) else color
     suffix = colorama.Style.RESET_ALL if reset else ""

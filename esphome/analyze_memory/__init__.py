@@ -2,7 +2,6 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-import json
 import logging
 from pathlib import Path
 import re
@@ -421,28 +420,6 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
-
-    def to_json(self) -> str:
-        """Export analysis results as JSON."""
-        data = {
-            "components": {
-                name: {
-                    "text": mem.text_size,
-                    "rodata": mem.rodata_size,
-                    "data": mem.data_size,
-                    "bss": mem.bss_size,
-                    "flash_total": mem.flash_total,
-                    "ram_total": mem.ram_total,
-                    "symbol_count": mem.symbol_count,
-                }
-                for name, mem in self.components.items()
-            },
-            "totals": {
-                "flash": sum(c.flash_total for c in self.components.values()),
-                "ram": sum(c.ram_total for c in self.components.values()),
-            },
-        }
-        return json.dumps(data, indent=2)
 
 
 if __name__ == "__main__":
