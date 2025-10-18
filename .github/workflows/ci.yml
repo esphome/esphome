@@ -565,10 +565,12 @@ jobs:
           echo "Compiling with test_build_components.py..."
 
           # Run build and extract memory with auto-detection of build directory for detailed analysis
+          # Use tee to show output in CI while also piping to extraction script
           python script/test_build_components.py \
             -e compile \
             -c "$component_list" \
             -t "$platform" 2>&1 | \
+            tee /dev/stderr | \
             python script/ci_memory_impact_extract.py \
               --output-env \
               --output-json memory-analysis-target.json
@@ -620,10 +622,12 @@ jobs:
           echo "Compiling with test_build_components.py..."
 
           # Run build and extract memory with auto-detection of build directory for detailed analysis
+          # Use tee to show output in CI while also piping to extraction script
           python script/test_build_components.py \
             -e compile \
             -c "$component_list" \
             -t "$platform" 2>&1 | \
+            tee /dev/stderr | \
             python script/ci_memory_impact_extract.py \
               --output-env \
               --output-json memory-analysis-pr.json
