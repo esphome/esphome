@@ -67,6 +67,7 @@ def extract_from_compile_output(
 
     # Extract build directory from ESPHome's explicit build path output
     # Look for: INFO Compiling app... Build path: /path/to/build
+    # Note: Multiple builds reuse the same build path (each overwrites the previous)
     build_dir = None
     if match := re.search(r"Build path: (.+)", output_text):
         build_dir = match.group(1).strip()
@@ -226,6 +227,10 @@ def main() -> int:
             f"Found {num_builds} builds - summing memory usage across all builds",
             file=sys.stderr,
         )
+        print(
+            "WARNING: Detailed analysis will only cover the last build",
+            file=sys.stderr,
+        )
 
     print(f"Total RAM: {ram_bytes} bytes", file=sys.stderr)
     print(f"Total Flash: {flash_bytes} bytes", file=sys.stderr)
@@ -235,6 +240,11 @@ def main() -> int:
 
     if detected_build_dir:
         print(f"Detected build directory: {detected_build_dir}", file=sys.stderr)
+        if num_builds > 1:
+            print(
+                f"  (using last of {num_builds} builds for detailed analysis)",
+                file=sys.stderr,
+            )
 
     # Write build directory to file if requested
     if args.output_build_dir and build_dir:
