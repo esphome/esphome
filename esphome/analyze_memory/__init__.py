@@ -310,11 +310,19 @@ class MemoryAnalyzer:
                 "✗ Using system c++filt (objdump_path=%s)", self.objdump_path
             )
 
+        # Strip GCC optimization suffixes before demangling
+        # Suffixes like $isra$0, $part$0, $constprop$0 confuse c++filt
+        symbols_stripped = []
+        for symbol in symbols:
+            # Remove GCC optimization markers
+            stripped = re.sub(r"\$(?:isra|part|constprop)\$\d+", "", symbol)
+            symbols_stripped.append(stripped)
+
         try:
             # Send all symbols to c++filt at once
             result = subprocess.run(
                 [cppfilt_cmd],
-                input="\n".join(symbols),
+                input="\n".join(symbols_stripped),
                 capture_output=True,
                 text=True,
                 check=False,
@@ -323,10 +331,22 @@ class MemoryAnalyzer:
                 demangled_lines = result.stdout.strip().split("\n")
                 # Map original to demangled names
                 failed_count = 0
-                for original, demangled in zip(symbols, demangled_lines):
+                for original, stripped, demangled in zip(
+                    symbols, symbols_stripped, demangled_lines
+                ):
+                    # If we stripped a suffix, add it back to the demangled name for clarity
+                    if original != stripped:
+                        # Find what was stripped
+                        suffix_match = re.search(
+                            r"(\$(?:isra|part|constprop)\$\d+)", original
+                        )
+                        if suffix_match:
+                            demangled = f"{demangled} [{suffix_match.group(1)}]"
+
                     self._demangle_cache[original] = demangled
-                    # Log symbols that failed to demangle (stayed the same)
-                    if original == demangled and original.startswith("_Z"):
+
+                    # Log symbols that failed to demangle (stayed the same as stripped version)
+                    if stripped == demangled and stripped.startswith("_Z"):
                         failed_count += 1
                         if failed_count <= 5:  # Only log first 5 failures
                             _LOGGER.warning("Failed to demangle: %s", original[:100])
