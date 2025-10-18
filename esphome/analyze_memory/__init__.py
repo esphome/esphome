@@ -48,6 +48,12 @@ _READELF_SECTION_PATTERN = re.compile(
     r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)"
 )
 
+# Component category prefixes
+_COMPONENT_PREFIX_ESPHOME = "[esphome]"
+_COMPONENT_PREFIX_EXTERNAL = "[external]"
+_COMPONENT_CORE = f"{_COMPONENT_PREFIX_ESPHOME}core"
+_COMPONENT_API = f"{_COMPONENT_PREFIX_ESPHOME}api"
+
 
 @dataclass
 class MemorySection:
@@ -222,7 +228,7 @@ class MemoryAnalyzer:
                     self._uncategorized_symbols.append((symbol_name, demangled, size))
 
                 # Track ESPHome core symbols for detailed analysis
-                if component == "[esphome]core" and size > 0:
+                if component == _COMPONENT_CORE and size > 0:
                     demangled = self._demangle_symbol(symbol_name)
                     self._esphome_core_symbols.append((symbol_name, demangled, size))
 
@@ -246,7 +252,7 @@ class MemoryAnalyzer:
             for component_name in get_esphome_components():
                 patterns = get_component_class_patterns(component_name)
                 if any(pattern in demangled for pattern in patterns):
-                    return f"[esphome]{component_name}"
+                    return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
 
         # Check for ESPHome component namespaces
         match = ESPHOME_COMPONENT_PATTERN.search(demangled)
@@ -257,17 +263,17 @@ class MemoryAnalyzer:
 
             # Check if this is an actual component in the components directory
             if component_name in get_esphome_components():
-                return f"[esphome]{component_name}"
+                return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
             # Check if this is a known external component from the config
             if component_name in self.external_components:
-                return f"[external]{component_name}"
+                return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
             # Everything else in esphome:: namespace is core
-            return "[esphome]core"
+            return _COMPONENT_CORE
 
         # Check for esphome core namespace (no component namespace)
         if "esphome::" in demangled:
             # If no component match found, it's core
-            return "[esphome]core"
+            return _COMPONENT_CORE
 
         # Check against symbol patterns
         for component, patterns in SYMBOL_PATTERNS.items():
@@ -460,8 +466,7 @@ class MemoryAnalyzer:
         Returns:
             Demangled name with suffix annotation
         """
-        suffix_match = _GCC_OPTIMIZATION_SUFFIX_PATTERN.search(original)
-        if suffix_match:
+        if suffix_match := _GCC_OPTIMIZATION_SUFFIX_PATTERN.search(original):
             return f"{demangled} [{suffix_match.group(1)}]"
         return demangled
 
