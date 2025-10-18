@@ -453,7 +453,6 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto traits = light->get_traits();
   auto values = light->remote_values;
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
@@ -477,7 +476,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
-  msg.supported_color_modes = &traits.get_supported_color_modes_for_api_();
+  msg.supported_color_modes = traits.get_supported_color_modes().get_mask();
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();

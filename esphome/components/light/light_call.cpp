@@ -406,7 +406,7 @@ void LightCall::transform_parameters_() {
   }
 }
 ColorMode LightCall::compute_color_mode_() {
-  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
+  const auto &supported_modes = this->parent_->get_traits().get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
@@ -425,10 +425,10 @@ ColorMode LightCall::compute_color_mode_() {
   // If no color mode is specified, we try to guess the color mode. This is needed for backward compatibility to
   // pre-colormode clients and automations, but also for the MQTT API, where HA doesn't let us know which color mode
   // was used for some reason.
-  std::set<ColorMode> suitable_modes = this->get_suitable_color_modes_();
+  ColorModeMask suitable_modes = this->get_suitable_color_modes_();
 
   // Don't change if the current mode is suitable.
-  if (suitable_modes.count(current_mode) > 0) {
+  if (suitable_modes.contains(current_mode)) {
     ESP_LOGI(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
@@ -436,7 +436,7 @@ ColorMode LightCall::compute_color_mode_() {
 
   // Use the preferred suitable mode.
   for (auto mode : suitable_modes) {
-    if (supported_modes.count(mode) == 0)
+    if (!supported_modes.contains(mode))
       continue;
 
     ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
@@ -451,7 +451,7 @@ ColorMode LightCall::compute_color_mode_() {
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
-std::set<ColorMode> LightCall::get_suitable_color_modes_() {
+ColorModeMask LightCall::get_suitable_color_modes_() {
   bool has_white = this->has_white() && this->white_ > 0.0f;
   bool has_ct = this->has_color_temperature();
   bool has_cwww =
