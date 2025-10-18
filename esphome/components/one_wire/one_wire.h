@@ -18,7 +18,7 @@ class OneWireDevice {
   void set_address(uint64_t address) { this->address_ = address; }
 
   void set_index(int index) {
-    ESP_LOGE(TAG, "Set index called");
+    ESP_LOGE("LEO", "Set index called");
     this->address_ = this->bus_->get_devices().at(index);
   }
 
