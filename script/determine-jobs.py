@@ -56,6 +56,10 @@ from helpers import (
     root_path,
 )
 
+# Memory impact analysis constants
+MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
+MEMORY_IMPACT_FALLBACK_PLATFORM = "esp32-idf"  # Most representative platform
+
 
 def should_run_integration_tests(branch: str | None = None) -> bool:
     """Determine if integration tests should run based on changed files.
@@ -273,6 +277,7 @@ def detect_memory_impact_config(
 
     # Find all changed components (excluding core and base bus components)
     changed_component_set = set()
+    has_core_changes = False
 
     for file in files:
         if file.startswith(ESPHOME_COMPONENTS_PATH):
@@ -282,9 +287,22 @@ def detect_memory_impact_config(
                 # Skip base bus components as they're used across many builds
                 if component not in ["i2c", "spi", "uart", "modbus", "canbus"]:
                     changed_component_set.add(component)
+        elif file.startswith("esphome/"):
+            # Core ESPHome files changed (not component-specific)
+            has_core_changes = True
 
-    # If no components changed, don't run memory impact
-    if not changed_component_set:
+    # If no components changed but core changed, test representative component
+    force_fallback_platform = False
+    if not changed_component_set and has_core_changes:
+        print(
+            f"Memory impact: No components changed, but core files changed. "
+            f"Testing {MEMORY_IMPACT_FALLBACK_COMPONENT} component on {MEMORY_IMPACT_FALLBACK_PLATFORM}.",
+            file=sys.stderr,
+        )
+        changed_component_set.add(MEMORY_IMPACT_FALLBACK_COMPONENT)
+        force_fallback_platform = True  # Use fallback platform (most representative)
+    elif not changed_component_set:
+        # No components and no core changes
         return {"should_run": "false"}
 
     # Find components that have tests on the preferred platform
@@ -331,7 +349,11 @@ def detect_memory_impact_config(
         return {"should_run": "false"}
 
     # Use the most preferred platform found, or fall back to esp8266-ard
-    platform = selected_platform or "esp8266-ard"
+    # Exception: for core changes, use fallback platform (most representative of codebase)
+    if force_fallback_platform:
+        platform = MEMORY_IMPACT_FALLBACK_PLATFORM
+    else:
+        platform = selected_platform or "esp8266-ard"
 
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
