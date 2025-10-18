@@ -275,13 +275,13 @@ def detect_memory_impact_config(
         - use_merged_config: "true" (always use merged config)
     """
     # Platform preference order for memory impact analysis
-    # Prefer ESP8266 for memory impact as it's the most constrained platform
-    # ESP32-IDF is preferred over ESP32-Arduino as it's the most representative of codebase
+    # Prefer newer platforms first as they represent the future of ESPHome
+    # ESP8266 is most constrained but many new features don't support it
     PLATFORM_PREFERENCE = [
+        Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
         Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
         Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
         Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
-        Platform.ESP32_C6_IDF,  # ESP32-C6 IDF
         Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
         Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
     ]
@@ -364,8 +364,8 @@ def detect_memory_impact_config(
         # Pick the most preferred platform that all components support
         platform = min(common_platforms, key=PLATFORM_PREFERENCE.index)
     else:
-        # No common platform - fall back to testing each component individually
-        # Pick the most commonly supported platform
+        # No common platform - pick the most commonly supported platform
+        # This allows testing components individually even if they can't be merged
         platform_counts = {}
         for platforms in component_platforms_map.values():
             for p in platforms:
