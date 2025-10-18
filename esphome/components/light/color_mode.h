@@ -104,5 +104,132 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
   return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
+/// Bitmask for storing a set of ColorMode values efficiently.
+/// Replaces std::set<ColorMode> to eliminate red-black tree overhead (~586 bytes).
+class ColorModeMask {
+ public:
+  constexpr ColorModeMask() = default;
+
+  /// Support initializer list syntax: {ColorMode::RGB, ColorMode::WHITE}
+  constexpr ColorModeMask(std::initializer_list<ColorMode> modes) {
+    for (auto mode : modes) {
+      this->add(mode);
+    }
+  }
+
+  constexpr void add(ColorMode mode) { this->mask_ |= (1 << mode_to_bit(mode)); }
+
+  constexpr bool contains(ColorMode mode) const { return (this->mask_ & (1 << mode_to_bit(mode))) != 0; }
+
+  constexpr size_t size() const {
+    // Count set bits
+    uint16_t n = this->mask_;
+    size_t count = 0;
+    while (n) {
+      count += n & 1;
+      n >>= 1;
+    }
+    return count;
+  }
+
+  /// Iterator support for API encoding
+  class Iterator {
+   public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = ColorMode;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const ColorMode *;
+    using reference = ColorMode;
+
+    constexpr Iterator(uint16_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit(); }
+
+    constexpr ColorMode operator*() const { return bit_to_mode(bit_); }
+
+    constexpr Iterator &operator++() {
+      ++bit_;
+      advance_to_next_set_bit();
+      return *this;
+    }
+
+    constexpr bool operator==(const Iterator &other) const { return bit_ == other.bit_; }
+
+    constexpr bool operator!=(const Iterator &other) const { return !(*this == other); }
+
+   private:
+    constexpr void advance_to_next_set_bit() {
+      while (bit_ < 16 && !(mask_ & (1 << bit_))) {
+        ++bit_;
+      }
+    }
+
+    uint16_t mask_;
+    int bit_;
+  };
+
+  constexpr Iterator begin() const { return Iterator(mask_, 0); }
+  constexpr Iterator end() const { return Iterator(mask_, 16); }
+
+ private:
+  uint16_t mask_{0};
+
+  /// Map ColorMode enum values to bit positions (0-9)
+  static constexpr int mode_to_bit(ColorMode mode) {
+    // Using switch instead of lookup table to avoid RAM usage on ESP8266
+    // The compiler optimizes this efficiently
+    switch (mode) {
+      case ColorMode::UNKNOWN:
+        return 0;
+      case ColorMode::ON_OFF:
+        return 1;
+      case ColorMode::BRIGHTNESS:
+        return 2;
+      case ColorMode::WHITE:
+        return 3;
+      case ColorMode::COLOR_TEMPERATURE:
+        return 4;
+      case ColorMode::COLD_WARM_WHITE:
+        return 5;
+      case ColorMode::RGB:
+        return 6;
+      case ColorMode::RGB_WHITE:
+        return 7;
+      case ColorMode::RGB_COLOR_TEMPERATURE:
+        return 8;
+      case ColorMode::RGB_COLD_WARM_WHITE:
+        return 9;
+      default:
+        return 0;
+    }
+  }
+
+  static constexpr ColorMode bit_to_mode(int bit) {
+    // Using switch instead of lookup table to avoid RAM usage on ESP8266
+    switch (bit) {
+      case 0:
+        return ColorMode::UNKNOWN;
+      case 1:
+        return ColorMode::ON_OFF;
+      case 2:
+        return ColorMode::BRIGHTNESS;
+      case 3:
+        return ColorMode::WHITE;
+      case 4:
+        return ColorMode::COLOR_TEMPERATURE;
+      case 5:
+        return ColorMode::COLD_WARM_WHITE;
+      case 6:
+        return ColorMode::RGB;
+      case 7:
+        return ColorMode::RGB_WHITE;
+      case 8:
+        return ColorMode::RGB_COLOR_TEMPERATURE;
+      case 9:
+        return ColorMode::RGB_COLD_WARM_WHITE;
+      default:
+        return ColorMode::UNKNOWN;
+    }
+  }
+};
+
 }  // namespace light
 }  // namespace esphome

@@ -471,7 +471,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id_ref_);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name_ref_);
-  for (const auto &it : *this->supported_color_modes) {
+  for (auto &it : this->supported_color_modes) {
     buffer.encode_uint32(12, static_cast<uint32_t>(it), true);
   }
   buffer.encode_float(9, this->min_mireds);
@@ -492,8 +492,8 @@ void ListEntitiesLightResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_length(1, this->name_ref_.size());
-  if (!this->supported_color_modes->empty()) {
-    for (const auto &it : *this->supported_color_modes) {
+  if (!this->supported_color_modes.empty()) {
+    for (const auto &it : this->supported_color_modes) {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }

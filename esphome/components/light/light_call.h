@@ -1,7 +1,6 @@
 #pragma once
 
 #include "light_color_values.h"
-#include <set>
 
 namespace esphome {
 
@@ -187,7 +186,7 @@ class LightCall {
   //// Compute the color mode that should be used for this call.
   ColorMode compute_color_mode_();
   /// Get potential color modes for this light call.
-  std::set<ColorMode> get_suitable_color_modes_();
+  ColorModeMask get_suitable_color_modes_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_();
 
