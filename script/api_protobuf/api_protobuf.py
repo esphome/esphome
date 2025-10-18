@@ -1478,7 +1478,7 @@ class RepeatedTypeInfo(TypeInfo):
                 return None
             return (
                 f"case {self.number}: "
-                f"if (static_cast<uint8_t>({content}) <= 31) "
+                f"if (static_cast<uint8_t>({content}) < 32) "
                 f"this->{self.field_name} |= (1U << static_cast<uint8_t>({content})); "
                 f"break;"
             )
