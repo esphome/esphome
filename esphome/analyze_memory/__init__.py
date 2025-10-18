@@ -2,7 +2,6 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-import json
 import logging
 from pathlib import Path
 import re
@@ -27,6 +26,12 @@ if TYPE_CHECKING:
     from esphome.platformio_api import IDEData
 
 _LOGGER = logging.getLogger(__name__)
+
+# GCC global constructor/destructor prefix annotations
+_GCC_PREFIX_ANNOTATIONS = {
+    "_GLOBAL__sub_I_": "global constructor for",
+    "_GLOBAL__sub_D_": "global destructor for",
+}
 
 
 @dataclass
@@ -341,66 +346,116 @@ class MemoryAnalyzer:
                 text=True,
                 check=False,
             )
-            if result.returncode == 0:
-                demangled_lines = result.stdout.strip().split("\n")
-                # Map original to demangled names
-                failed_count = 0
-                for original, stripped, prefix, demangled in zip(
-                    symbols, symbols_stripped, symbols_prefixes, demangled_lines
-                ):
-                    # Add back any prefix that was removed
-                    if prefix:
-                        if demangled != stripped:
-                            # Successfully demangled - add descriptive prefix
-                            if prefix == "_GLOBAL__sub_I_":
-                                demangled = f"[global constructor for: {demangled}]"
-                            elif prefix == "_GLOBAL__sub_D_":
-                                demangled = f"[global destructor for: {demangled}]"
-                        else:
-                            # Failed to demangle - restore original prefix
-                            demangled = prefix + demangled
+        except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
+            # On error, cache originals
+            _LOGGER.warning("Failed to batch demangle symbols: %s", e)
+            for symbol in symbols:
+                self._demangle_cache[symbol] = symbol
+            return
 
-                    # If we stripped a suffix, add it back to the demangled name for clarity
-                    if original != stripped and not prefix:
-                        # Find what was stripped
-                        suffix_match = re.search(
-                            r"(\$(?:isra|part|constprop)\$\d+)", original
-                        )
-                        if suffix_match:
-                            demangled = f"{demangled} [{suffix_match.group(1)}]"
-
-                    self._demangle_cache[original] = demangled
-
-                    # Log symbols that failed to demangle (stayed the same as stripped version)
-                    if stripped == demangled and stripped.startswith("_Z"):
-                        failed_count += 1
-                        if failed_count <= 5:  # Only log first 5 failures
-                            _LOGGER.warning("Failed to demangle: %s", original[:100])
-
-                if failed_count > 0:
-                    _LOGGER.warning(
-                        "Failed to demangle %d/%d symbols using %s",
-                        failed_count,
-                        len(symbols),
-                        cppfilt_cmd,
-                    )
-                else:
-                    _LOGGER.warning(
-                        "Successfully demangled all %d symbols", len(symbols)
-                    )
-                return
+        if result.returncode != 0:
             _LOGGER.warning(
                 "c++filt exited with code %d: %s",
                 result.returncode,
                 result.stderr[:200] if result.stderr else "(no error output)",
             )
-        except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
-            # On error, cache originals
-            _LOGGER.warning("Failed to batch demangle symbols: %s", e)
+            # Cache originals on failure
+            for symbol in symbols:
+                self._demangle_cache[symbol] = symbol
+            return
 
-        # If demangling failed, cache originals
-        for symbol in symbols:
-            self._demangle_cache[symbol] = symbol
+        # Process demangled output
+        self._process_demangled_output(
+            symbols, symbols_stripped, symbols_prefixes, result.stdout, cppfilt_cmd
+        )
+
+    def _process_demangled_output(
+        self,
+        symbols: list[str],
+        symbols_stripped: list[str],
+        symbols_prefixes: list[str],
+        demangled_output: str,
+        cppfilt_cmd: str,
+    ) -> None:
+        """Process demangled symbol output and populate cache.
+
+        Args:
+            symbols: Original symbol names
+            symbols_stripped: Stripped symbol names sent to c++filt
+            symbols_prefixes: Removed prefixes to restore
+            demangled_output: Output from c++filt
+            cppfilt_cmd: Path to c++filt command (for logging)
+        """
+        demangled_lines = demangled_output.strip().split("\n")
+        failed_count = 0
+
+        for original, stripped, prefix, demangled in zip(
+            symbols, symbols_stripped, symbols_prefixes, demangled_lines
+        ):
+            # Add back any prefix that was removed
+            demangled = self._restore_symbol_prefix(prefix, stripped, demangled)
+
+            # If we stripped a suffix, add it back to the demangled name for clarity
+            if original != stripped and not prefix:
+                demangled = self._restore_symbol_suffix(original, demangled)
+
+            self._demangle_cache[original] = demangled
+
+            # Log symbols that failed to demangle (stayed the same as stripped version)
+            if stripped == demangled and stripped.startswith("_Z"):
+                failed_count += 1
+                if failed_count <= 5:  # Only log first 5 failures
+                    _LOGGER.warning("Failed to demangle: %s", original[:100])
+
+        if failed_count > 0:
+            _LOGGER.warning(
+                "Failed to demangle %d/%d symbols using %s",
+                failed_count,
+                len(symbols),
+                cppfilt_cmd,
+            )
+        else:
+            _LOGGER.warning("Successfully demangled all %d symbols", len(symbols))
+
+    @staticmethod
+    def _restore_symbol_prefix(prefix: str, stripped: str, demangled: str) -> str:
+        """Restore prefix that was removed before demangling.
+
+        Args:
+            prefix: Prefix that was removed (e.g., "_GLOBAL__sub_I_")
+            stripped: Stripped symbol name
+            demangled: Demangled symbol name
+
+        Returns:
+            Demangled name with prefix restored/annotated
+        """
+        if not prefix:
+            return demangled
+
+        # Successfully demangled - add descriptive prefix
+        if demangled != stripped and (
+            annotation := _GCC_PREFIX_ANNOTATIONS.get(prefix)
+        ):
+            return f"[{annotation}: {demangled}]"
+
+        # Failed to demangle - restore original prefix
+        return prefix + demangled
+
+    @staticmethod
+    def _restore_symbol_suffix(original: str, demangled: str) -> str:
+        """Restore GCC optimization suffix that was removed before demangling.
+
+        Args:
+            original: Original symbol name with suffix
+            demangled: Demangled symbol name without suffix
+
+        Returns:
+            Demangled name with suffix annotation
+        """
+        suffix_match = re.search(r"(\$(?:isra|part|constprop)\$\d+)", original)
+        if suffix_match:
+            return f"{demangled} [{suffix_match.group(1)}]"
+        return demangled
 
     def _demangle_symbol(self, symbol: str) -> str:
         """Get demangled C++ symbol name from cache."""
@@ -421,28 +476,6 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
-
-    def to_json(self) -> str:
-        """Export analysis results as JSON."""
-        data = {
-            "components": {
-                name: {
-                    "text": mem.text_size,
-                    "rodata": mem.rodata_size,
-                    "data": mem.data_size,
-                    "bss": mem.bss_size,
-                    "flash_total": mem.flash_total,
-                    "ram_total": mem.ram_total,
-                    "symbol_count": mem.symbol_count,
-                }
-                for name, mem in self.components.items()
-            },
-            "totals": {
-                "flash": sum(c.flash_total for c in self.components.values()),
-                "ram": sum(c.ram_total for c in self.components.values()),
-            },
-        }
-        return json.dumps(data, indent=2)
 
 
 if __name__ == "__main__":
