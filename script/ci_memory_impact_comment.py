@@ -92,6 +92,21 @@ def format_change(before: int, after: int) -> str:
     return f"{emoji} {delta_str} ({pct_str})"
 
 
+def format_symbol_for_display(symbol: str) -> str:
+    """Format a symbol name for display in markdown table.
+
+    Args:
+        symbol: Symbol name to format
+
+    Returns:
+        Formatted symbol with backticks or HTML details tag for long names
+    """
+    if len(symbol) <= 100:
+        return f"`{symbol}`"
+    # Use HTML details for very long symbols (no backticks inside HTML)
+    return f"<details><summary><code>{symbol[:97]}...</code></summary><code>{symbol}</code></details>"
+
+
 def create_symbol_changes_table(
     target_symbols: dict | None, pr_symbols: dict | None
 ) -> str:
@@ -157,12 +172,7 @@ def create_symbol_changes_table(
             target_str = format_bytes(target_size)
             pr_str = format_bytes(pr_size)
             change_str = format_change(target_size, pr_size)
-            # Truncate very long symbol names but show full name in title attribute
-            if len(symbol) <= 100:
-                display_symbol = f"`{symbol}`"
-            else:
-                # Use HTML details for very long symbols (no backticks inside HTML)
-                display_symbol = f"<details><summary><code>{symbol[:97]}...</code></summary><code>{symbol}</code></details>"
+            display_symbol = format_symbol_for_display(symbol)
             lines.append(
                 f"| {display_symbol} | {target_str} | {pr_str} | {change_str} |"
             )
@@ -186,8 +196,8 @@ def create_symbol_changes_table(
         )
 
         for symbol, size in new_symbols[:15]:
-            display_symbol = symbol if len(symbol) <= 80 else symbol[:77] + "..."
-            lines.append(f"| `{display_symbol}` | {format_bytes(size)} |")
+            display_symbol = format_symbol_for_display(symbol)
+            lines.append(f"| {display_symbol} | {format_bytes(size)} |")
 
         if len(new_symbols) > 15:
             total_new_size = sum(s[1] for s in new_symbols)
@@ -209,8 +219,8 @@ def create_symbol_changes_table(
         )
 
         for symbol, size in removed_symbols[:15]:
-            display_symbol = symbol if len(symbol) <= 80 else symbol[:77] + "..."
-            lines.append(f"| `{display_symbol}` | {format_bytes(size)} |")
+            display_symbol = format_symbol_for_display(symbol)
+            lines.append(f"| {display_symbol} | {format_bytes(size)} |")
 
         if len(removed_symbols) > 15:
             total_removed_size = sum(s[1] for s in removed_symbols)
@@ -242,7 +252,7 @@ def create_detailed_breakdown_table(
     # Combine all components from both analyses
     all_components = set(target_analysis.keys()) | set(pr_analysis.keys())
 
-    # Filter to components that have changed
+    # Filter to components that have changed (ignoring noise ≤2 bytes)
     changed_components = []
     for comp in all_components:
         target_mem = target_analysis.get(comp, {})
@@ -251,9 +261,9 @@ def create_detailed_breakdown_table(
         target_flash = target_mem.get("flash_total", 0)
         pr_flash = pr_mem.get("flash_total", 0)
 
-        # Only include if component has changed
-        if target_flash != pr_flash:
-            delta = pr_flash - target_flash
+        # Only include if component has meaningful change (>2 bytes)
+        delta = pr_flash - target_flash
+        if abs(delta) > 2:
             changed_components.append((comp, target_flash, pr_flash, delta))
 
     if not changed_components:
@@ -362,6 +372,10 @@ def create_comment_body(
 {component_breakdown}{symbol_changes}{cache_note}
 
 ---
+> **Note:** This analysis measures **static RAM and Flash usage** only (compile-time allocation).
+> **Dynamic memory (heap)** cannot be measured automatically.
+> **⚠️ You must test this PR on a real device** to measure free heap and ensure no runtime memory issues.
+
 *This analysis runs automatically when components change. Memory usage is measured from {config_note}.*
 """
 
