@@ -533,23 +533,79 @@ jobs:
     outputs:
       ram_usage: ${{ steps.extract.outputs.ram_usage }}
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
+      cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
     steps:
       - name: Check out target branch
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ github.base_ref }}
+
+      # Create cache key based on:
+      # 1. Target branch commit SHA
+      # 2. Hash of build infrastructure files (scripts and CI workflow)
+      # 3. Platform being tested
+      # 4. Component list
+      - name: Generate cache key
+        id: cache-key
+        run: |
+          # Get the commit SHA of the target branch
+          target_sha=$(git rev-parse HEAD)
+
+          # Hash the build infrastructure files (all files that affect build/analysis)
+          infra_hash=$(cat \
+            script/test_build_components.py \
+            script/ci_memory_impact_extract.py \
+            script/analyze_component_buses.py \
+            script/merge_component_configs.py \
+            script/ci_helpers.py \
+            .github/workflows/ci.yml \
+            | sha256sum | cut -d' ' -f1)
+
+          # Get platform and components from job inputs
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          components_hash=$(echo "$components" | sha256sum | cut -d' ' -f1)
+
+          # Combine into cache key
+          cache_key="memory-analysis-target-${target_sha}-${infra_hash}-${platform}-${components_hash}"
+          echo "cache-key=${cache_key}" >> $GITHUB_OUTPUT
+          echo "Cache key: ${cache_key}"
+
+      # Try to restore cached analysis results
+      - name: Restore cached memory analysis
+        id: cache-memory-analysis
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: memory-analysis-target.json
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      - name: Cache status
+        run: |
+          if [ "${{ steps.cache-memory-analysis.outputs.cache-hit }}" == "true" ]; then
+            echo "✓ Cache hit! Using cached memory analysis results."
+            echo "  Skipping build step to save time."
+          else
+            echo "✗ Cache miss. Will build and analyze memory usage."
+          fi
+
+      # Only restore Python and build if cache miss
       - name: Restore Python
+        if: steps.cache-memory-analysis.outputs.cache-hit != 'true'
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+
       - name: Cache platformio
+        if: steps.cache-memory-analysis.outputs.cache-hit != 'true'
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+
       - name: Build, compile, and analyze memory
-        id: extract
+        if: steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        id: build
         run: |
           . venv/bin/activate
           components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
@@ -574,12 +630,36 @@ jobs:
             python script/ci_memory_impact_extract.py \
               --output-env \
               --output-json memory-analysis-target.json
+
+      # Save build results to cache for future runs
+      - name: Save memory analysis to cache
+        if: steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: memory-analysis-target.json
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      # Extract outputs from cached or freshly built analysis
+      - name: Extract memory usage for outputs
+        id: extract
+        run: |
+          if [ -f memory-analysis-target.json ]; then
+            ram=$(jq -r '.ram_bytes' memory-analysis-target.json)
+            flash=$(jq -r '.flash_bytes' memory-analysis-target.json)
+            echo "ram_usage=${ram}" >> $GITHUB_OUTPUT
+            echo "flash_usage=${flash}" >> $GITHUB_OUTPUT
+            echo "RAM: ${ram} bytes, Flash: ${flash} bytes"
+          else
+            echo "Error: memory-analysis-target.json not found"
+            exit 1
+          fi
+
       - name: Upload memory analysis JSON
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
 
   memory-impact-pr-branch:
@@ -680,6 +760,7 @@ jobs:
           TARGET_FLASH: ${{ needs.memory-impact-target-branch.outputs.flash_usage }}
           PR_RAM: ${{ needs.memory-impact-pr-branch.outputs.ram_usage }}
           PR_FLASH: ${{ needs.memory-impact-pr-branch.outputs.flash_usage }}
+          TARGET_CACHE_HIT: ${{ needs.memory-impact-target-branch.outputs.cache_hit }}
         run: |
           . venv/bin/activate
 
@@ -701,6 +782,12 @@ jobs:
             echo "No PR analysis JSON found"
           fi
 
+          # Add cache flag if target was cached
+          cache_flag=""
+          if [ "$TARGET_CACHE_HIT" == "true" ]; then
+            cache_flag="--target-cache-hit"
+          fi
+
           python script/ci_memory_impact_comment.py \
             --pr-number "${{ github.event.pull_request.number }}" \
             --components "$COMPONENTS" \
@@ -710,7 +797,8 @@ jobs:
             --pr-ram "$PR_RAM" \
             --pr-flash "$PR_FLASH" \
             $target_json_arg \
-            $pr_json_arg
+            $pr_json_arg \
+            $cache_flag
 
   ci-status:
     name: CI Status
