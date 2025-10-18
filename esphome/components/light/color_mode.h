@@ -141,13 +141,13 @@ class ColorModeMask {
     using pointer = const ColorMode *;
     using reference = ColorMode;
 
-    constexpr Iterator(uint16_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit(); }
+    constexpr Iterator(uint16_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit_(); }
 
     constexpr ColorMode operator*() const { return bit_to_mode(bit_); }
 
     constexpr Iterator &operator++() {
       ++bit_;
-      advance_to_next_set_bit();
+      advance_to_next_set_bit_();
       return *this;
     }
 
@@ -156,7 +156,7 @@ class ColorModeMask {
     constexpr bool operator!=(const Iterator &other) const { return !(*this == other); }
 
    private:
-    constexpr void advance_to_next_set_bit() {
+    constexpr void advance_to_next_set_bit_() {
       while (bit_ < 16 && !(mask_ & (1 << bit_))) {
         ++bit_;
       }
