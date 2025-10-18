@@ -6,13 +6,13 @@ light:
     num_leds: 50
     pin: ${pin}
     power_limits:
-      max_watts: 2.5
+      max_current: 2.5A
       voltage: 5.0
-      led_power_consumption:
-        red: 0.05
-        green: 0.05
-        blue: 0.05
-        white: 0.05
+      led_current_consumption:
+        red: 50mA
+        green: 50mA
+        blue: 50mA
+        white: 50mA
 
   - platform: addressable_light
     id: power_managed_light

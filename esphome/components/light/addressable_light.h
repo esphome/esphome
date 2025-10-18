@@ -32,8 +32,8 @@ class AddressableLight : public LightOutput, public Component {
   ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
   virtual void clear_effect_data() = 0;
 
-  void set_power_limits(float max_watts, float voltage = 5.0f);
-  void set_led_power_consumption(float red_watts, float green_watts, float blue_watts, float white_watts = 0.0f);
+  void set_power_limits(float max_current, float voltage = 5.0f);
+  void set_led_current_consumption(float red_amps, float green_amps, float blue_amps, float white_amps = 0.0f);
   float get_current_power_consumption() const;
   float get_power_utilization() const;  // Returns 0.0 to 1.0
   bool is_power_limited() const;
@@ -107,7 +107,7 @@ class AddressableLight : public LightOutput, public Component {
 
   bool supports_power_management() const override { return true; }
 
-  float calculate_total_power_from_buffer_();
+  float calculate_total_current_from_buffer_();
   void scale_all_leds_in_buffer_(float scale_factor);
 
   ESPColorCorrection correction_{};
@@ -123,12 +123,12 @@ class AddressableLight : public LightOutput, public Component {
 
   // Power management data
   struct PowerLimits {
-    float max_watts = 0.0f;           // 0 = disabled
-    float voltage = 5.0f;             // Supply voltage
-    float red_watts_per_led = 0.06f;  // Default 60mW per LED at full brightness
-    float green_watts_per_led = 0.06f;
-    float blue_watts_per_led = 0.06f;
-    float white_watts_per_led = 0.06f;
+    float max_current = 0.0f;        // 0 = disabled
+    float voltage = 5.0f;            // Supply voltage
+    float red_amps_per_led = 0.06f;  // Default 60mA per LED at full brightness
+    float green_amps_per_led = 0.06f;
+    float blue_amps_per_led = 0.06f;
+    float white_amps_per_led = 0.06f;
   } power_limits_;
 };
 

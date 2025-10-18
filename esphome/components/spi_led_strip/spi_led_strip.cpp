@@ -45,7 +45,6 @@ void SpiLedStrip::dump_config() {
 void SpiLedStrip::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
-
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
     char strbuf[49];
     size_t len = std::min(this->buffer_size_, (size_t) (sizeof(strbuf) - 1) / 3);

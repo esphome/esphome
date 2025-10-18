@@ -112,47 +112,47 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
 }
 
 // Power management implementations
-void AddressableLight::set_power_limits(float max_watts, float voltage) {
-  this->power_limits_.max_watts = max_watts;
+void AddressableLight::set_power_limits(float max_current, float voltage) {
+  this->power_limits_.max_current = max_current;
   this->power_limits_.voltage = voltage;
 }
 
-void AddressableLight::set_led_power_consumption(float red_watts, float green_watts, float blue_watts,
-                                                 float white_watts) {
-  this->power_limits_.red_watts_per_led = red_watts;
-  this->power_limits_.green_watts_per_led = green_watts;
-  this->power_limits_.blue_watts_per_led = blue_watts;
-  this->power_limits_.white_watts_per_led = white_watts;
+void AddressableLight::set_led_current_consumption(float red_amps, float green_amps, float blue_amps,
+                                                   float white_amps) {
+  this->power_limits_.red_amps_per_led = red_amps;
+  this->power_limits_.green_amps_per_led = green_amps;
+  this->power_limits_.blue_amps_per_led = blue_amps;
+  this->power_limits_.white_amps_per_led = white_amps;
 }
 
 float AddressableLight::get_current_power_consumption() const { return this->current_power_consumption_; }
 
 float AddressableLight::get_power_utilization() const {
-  if (this->power_limits_.max_watts <= 0.0f) {
+  if (this->power_limits_.max_current <= 0.0f) {
     return 0.0f;
   }
-  return this->current_power_consumption_ / this->power_limits_.max_watts;
+  return this->current_power_consumption_ / this->power_limits_.max_current;
 }
 
 bool AddressableLight::is_power_limited() const { return this->power_limiting_active_; }
 
-float AddressableLight::calculate_total_power_from_buffer_() {
-  float total_power = 0.0f;
+float AddressableLight::calculate_total_current_from_buffer_() {
+  float total_current = 0.0f;
 
   for (int i = 0; i < this->size(); i++) {
     auto view = this->get_view_internal(i);
     Color color = view.get();
 
-    // Calculate power for this LED using configured values
-    float red_power = (color.r / 255.0f) * this->power_limits_.red_watts_per_led;
-    float green_power = (color.g / 255.0f) * this->power_limits_.green_watts_per_led;
-    float blue_power = (color.b / 255.0f) * this->power_limits_.blue_watts_per_led;
-    float white_power = (color.w / 255.0f) * this->power_limits_.white_watts_per_led;
+    // Calculate current for this LED using configured values
+    float red_current = (color.r / 255.0f) * this->power_limits_.red_amps_per_led;
+    float green_current = (color.g / 255.0f) * this->power_limits_.green_amps_per_led;
+    float blue_current = (color.b / 255.0f) * this->power_limits_.blue_amps_per_led;
+    float white_current = (color.w / 255.0f) * this->power_limits_.white_amps_per_led;
 
-    total_power += red_power + green_power + blue_power + white_power;
+    total_current += red_current + green_current + blue_current + white_current;
   }
 
-  return total_power;
+  return total_current;
 }
 
 void AddressableLight::scale_all_leds_in_buffer_(float scale_factor) {
@@ -168,11 +168,11 @@ void AddressableLight::scale_all_leds_in_buffer_(float scale_factor) {
 }
 
 void AddressableLight::apply_power_limiting() {
-  if (this->power_limiting_enabled_ && this->power_limits_.max_watts > 0.0f) {
-    float total_power = this->calculate_total_power_from_buffer_();
+  if (this->power_limiting_enabled_ && this->power_limits_.max_current > 0.0f) {
+    float total_current = this->calculate_total_current_from_buffer_();
 
-    if (total_power > this->power_limits_.max_watts) {
-      float scale_factor = this->power_limits_.max_watts / total_power;
+    if (total_current > this->power_limits_.max_current) {
+      float scale_factor = this->power_limits_.max_current / total_current;
       this->scale_all_leds_in_buffer_(scale_factor);
     }
   }

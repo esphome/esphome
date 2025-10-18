@@ -147,22 +147,22 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
         cv.Optional("power_limits"): cv.Schema(
             {
-                cv.Required("max_watts"): cv.positive_float,
-                cv.Optional("voltage", default=5.0): cv.positive_float,
-                cv.Optional("led_power_consumption"): cv.Schema(
+                cv.Required("max_current"): cv.All(cv.current, cv.Range(min=0.0)),
+                cv.Optional("voltage", default=5.0): cv.voltage,
+                cv.Optional("led_current_consumption"): cv.Schema(
                     {
-                        cv.Optional(
-                            "red", default=0.06
-                        ): cv.positive_float,  # 60mW per LED
-                        cv.Optional(
-                            "green", default=0.06
-                        ): cv.positive_float,  # 60mW per LED
-                        cv.Optional(
-                            "blue", default=0.06
-                        ): cv.positive_float,  # 60mW per LED
-                        cv.Optional(
-                            "white", default=0.06
-                        ): cv.positive_float,  # 60mW per LED
+                        cv.Optional("red", default="20mA"): cv.All(
+                            cv.current, cv.Range(min=0.0)
+                        ),
+                        cv.Optional("green", default="20mA"): cv.All(
+                            cv.current, cv.Range(min=0.0)
+                        ),
+                        cv.Optional("blue", default="20mA"): cv.All(
+                            cv.current, cv.Range(min=0.0)
+                        ),
+                        cv.Optional("white", default="20mA"): cv.All(
+                            cv.current, cv.Range(min=0.0)
+                        ),
                     }
                 ),
             }
@@ -287,16 +287,16 @@ async def setup_light_core_(light_var, output_var, config):
     if (power_limits := config.get("power_limits")) is not None:
         cg.add(
             output_var.set_power_limits(
-                power_limits["max_watts"], power_limits["voltage"]
+                power_limits["max_current"], power_limits["voltage"]
             )
         )
-        if led_power := power_limits.get("led_power_consumption"):
+        if led_current := power_limits.get("led_current_consumption"):
             cg.add(
-                output_var.set_led_power_consumption(
-                    led_power["red"],
-                    led_power["green"],
-                    led_power["blue"],
-                    led_power["white"],
+                output_var.set_led_current_consumption(
+                    led_current["red"],
+                    led_current["green"],
+                    led_current["blue"],
+                    led_current["white"],
                 )
             )
 
