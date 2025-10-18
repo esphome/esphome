@@ -295,6 +295,14 @@ class MemoryAnalyzer:
             potential_cppfilt = self.objdump_path.replace("objdump", "c++filt")
             if Path(potential_cppfilt).exists():
                 cppfilt_cmd = potential_cppfilt
+                _LOGGER.warning("Using toolchain c++filt: %s", cppfilt_cmd)
+            else:
+                _LOGGER.warning(
+                    "Toolchain c++filt not found at %s, using system c++filt",
+                    potential_cppfilt,
+                )
+        else:
+            _LOGGER.warning("Using system c++filt (objdump_path=%s)", self.objdump_path)
 
         try:
             # Send all symbols to c++filt at once
@@ -310,6 +318,9 @@ class MemoryAnalyzer:
                 # Map original to demangled names
                 for original, demangled in zip(symbols, demangled_lines):
                     self._demangle_cache[original] = demangled
+                    # Log symbols that failed to demangle (stayed the same)
+                    if original == demangled and original.startswith("_Z"):
+                        _LOGGER.debug("Failed to demangle symbol: %s", original[:100])
                 return
         except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
             # On error, cache originals
