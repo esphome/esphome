@@ -1,6 +1,50 @@
 """Helper functions for memory analysis."""
 
+from functools import cache
+from pathlib import Path
+
 from .const import SECTION_MAPPING
+
+
+# Get the list of actual ESPHome components by scanning the components directory
+@cache
+def get_esphome_components():
+    """Get set of actual ESPHome components from the components directory."""
+    # Find the components directory relative to this file
+    # Go up two levels from analyze_memory/helpers.py to esphome/
+    current_dir = Path(__file__).parent.parent
+    components_dir = current_dir / "components"
+
+    if not components_dir.exists() or not components_dir.is_dir():
+        return frozenset()
+
+    return frozenset(
+        item.name
+        for item in components_dir.iterdir()
+        if item.is_dir()
+        and not item.name.startswith(".")
+        and not item.name.startswith("__")
+    )
+
+
+@cache
+def get_component_class_patterns(component_name: str) -> list[str]:
+    """Generate component class name patterns for symbol matching.
+
+    Args:
+        component_name: The component name (e.g., "ota", "wifi", "api")
+
+    Returns:
+        List of pattern strings to match against demangled symbols
+    """
+    component_upper = component_name.upper()
+    component_camel = component_name.replace("_", "").title()
+    return [
+        f"esphome::{component_upper}Component",  # e.g., esphome::OTAComponent
+        f"esphome::ESPHome{component_upper}Component",  # e.g., esphome::ESPHomeOTAComponent
+        f"esphome::{component_camel}Component",  # e.g., esphome::OtaComponent
+        f"esphome::ESPHome{component_camel}Component",  # e.g., esphome::ESPHomeOtaComponent
+    ]
 
 
 def map_section_name(raw_section: str) -> str | None:

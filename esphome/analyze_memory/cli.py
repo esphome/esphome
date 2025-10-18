@@ -231,39 +231,33 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         if components_to_analyze:
             for comp_name, comp_mem in components_to_analyze:
-                comp_symbols = self._component_symbols.get(comp_name, [])
-                if comp_symbols:
-                    lines.append("")
-                    lines.append("=" * self.TABLE_WIDTH)
-                    lines.append(
-                        f"{comp_name} Detailed Analysis".center(self.TABLE_WIDTH)
-                    )
-                    lines.append("=" * self.TABLE_WIDTH)
-                    lines.append("")
+                if not (comp_symbols := self._component_symbols.get(comp_name, [])):
+                    continue
+                lines.append("")
+                lines.append("=" * self.TABLE_WIDTH)
+                lines.append(f"{comp_name} Detailed Analysis".center(self.TABLE_WIDTH))
+                lines.append("=" * self.TABLE_WIDTH)
+                lines.append("")
 
-                    # Sort symbols by size
-                    sorted_symbols = sorted(
-                        comp_symbols, key=lambda x: x[2], reverse=True
-                    )
+                # Sort symbols by size
+                sorted_symbols = sorted(comp_symbols, key=lambda x: x[2], reverse=True)
 
-                    lines.append(f"Total symbols: {len(sorted_symbols)}")
-                    lines.append(f"Total size: {comp_mem.flash_total:,} B")
-                    lines.append("")
+                lines.append(f"Total symbols: {len(sorted_symbols)}")
+                lines.append(f"Total size: {comp_mem.flash_total:,} B")
+                lines.append("")
 
-                    # Show all symbols > 100 bytes for better visibility
-                    large_symbols = [
-                        (sym, dem, size)
-                        for sym, dem, size in sorted_symbols
-                        if size > 100
-                    ]
+                # Show all symbols > 100 bytes for better visibility
+                large_symbols = [
+                    (sym, dem, size) for sym, dem, size in sorted_symbols if size > 100
+                ]
 
-                    lines.append(
-                        f"{comp_name} Symbols > 100 B ({len(large_symbols)} symbols):"
-                    )
-                    for i, (symbol, demangled, size) in enumerate(large_symbols):
-                        lines.append(f"{i + 1}. {demangled} ({size:,} B)")
+                lines.append(
+                    f"{comp_name} Symbols > 100 B ({len(large_symbols)} symbols):"
+                )
+                for i, (symbol, demangled, size) in enumerate(large_symbols):
+                    lines.append(f"{i + 1}. {demangled} ({size:,} B)")
 
-                    lines.append("=" * self.TABLE_WIDTH)
+                lines.append("=" * self.TABLE_WIDTH)
 
         return "\n".join(lines)
 
@@ -284,10 +278,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         lines.append("-" * 10 + "-+-" + "-" * 60 + "-+-" + "-" * 40)
 
         for symbol, demangled, size in sorted_symbols[:100]:  # Top 100
-            if symbol != demangled:
-                lines.append(f"{size:>10,} | {symbol[:60]:<60} | {demangled[:100]}")
-            else:
-                lines.append(f"{size:>10,} | {symbol[:60]:<60} | [not demangled]")
+            demangled_display = (
+                demangled[:100] if symbol != demangled else "[not demangled]"
+            )
+            lines.append(f"{size:>10,} | {symbol[:60]:<60} | {demangled_display}")
 
         if len(sorted_symbols) > 100:
             lines.append(f"\n... and {len(sorted_symbols) - 100} more symbols")

@@ -2,7 +2,6 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from functools import cache
 import json
 import logging
 from pathlib import Path
@@ -16,50 +15,14 @@ from .const import (
     SECTION_TO_ATTR,
     SYMBOL_PATTERNS,
 )
-from .helpers import map_section_name, parse_symbol_line
+from .helpers import (
+    get_component_class_patterns,
+    get_esphome_components,
+    map_section_name,
+    parse_symbol_line,
+)
 
 _LOGGER = logging.getLogger(__name__)
-
-
-# Get the list of actual ESPHome components by scanning the components directory
-@cache
-def get_esphome_components():
-    """Get set of actual ESPHome components from the components directory."""
-    # Find the components directory relative to this file
-    # Go up two levels from analyze_memory/__init__.py to esphome/
-    current_dir = Path(__file__).parent.parent
-    components_dir = current_dir / "components"
-
-    if not components_dir.exists() or not components_dir.is_dir():
-        return frozenset()
-
-    return frozenset(
-        item.name
-        for item in components_dir.iterdir()
-        if item.is_dir()
-        and not item.name.startswith(".")
-        and not item.name.startswith("__")
-    )
-
-
-@cache
-def get_component_class_patterns(component_name: str) -> list[str]:
-    """Generate component class name patterns for symbol matching.
-
-    Args:
-        component_name: The component name (e.g., "ota", "wifi", "api")
-
-    Returns:
-        List of pattern strings to match against demangled symbols
-    """
-    component_upper = component_name.upper()
-    component_camel = component_name.replace("_", "").title()
-    return [
-        f"esphome::{component_upper}Component",  # e.g., esphome::OTAComponent
-        f"esphome::ESPHome{component_upper}Component",  # e.g., esphome::ESPHomeOTAComponent
-        f"esphome::{component_camel}Component",  # e.g., esphome::OtaComponent
-        f"esphome::ESPHome{component_camel}Component",  # e.g., esphome::ESPHomeOtaComponent
-    ]
 
 
 @dataclass
@@ -146,23 +109,26 @@ class MemoryAnalyzer:
             # Parse section headers
             for line in result.stdout.splitlines():
                 # Look for section entries
-                match = re.match(
-                    r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)",
-                    line,
-                )
-                if match:
-                    section_name = match.group(1)
-                    size_hex = match.group(2)
-                    size = int(size_hex, 16)
+                if not (
+                    match := re.match(
+                        r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)",
+                        line,
+                    )
+                ):
+                    continue
 
-                    # Map to standard section name
-                    mapped_section = map_section_name(section_name)
-                    if mapped_section:
-                        if mapped_section not in self.sections:
-                            self.sections[mapped_section] = MemorySection(
-                                mapped_section
-                            )
-                        self.sections[mapped_section].total_size += size
+                section_name = match.group(1)
+                size_hex = match.group(2)
+                size = int(size_hex, 16)
+
+                # Map to standard section name
+                mapped_section = map_section_name(section_name)
+                if not mapped_section:
+                    continue
+
+                if mapped_section not in self.sections:
+                    self.sections[mapped_section] = MemorySection(mapped_section)
+                self.sections[mapped_section].total_size += size
 
         except subprocess.CalledProcessError as e:
             _LOGGER.error("Failed to parse sections: %s", e)
@@ -201,10 +167,11 @@ class MemoryAnalyzer:
     def _categorize_symbols(self) -> None:
         """Categorize symbols by component."""
         # First, collect all unique symbol names for batch demangling
-        all_symbols = set()
-        for section in self.sections.values():
-            for symbol_name, _, _ in section.symbols:
-                all_symbols.add(symbol_name)
+        all_symbols = {
+            symbol_name
+            for section in self.sections.values()
+            for symbol_name, _, _ in section.symbols
+        }
 
         # Batch demangle all symbols at once
         self._batch_demangle_symbols(list(all_symbols))
