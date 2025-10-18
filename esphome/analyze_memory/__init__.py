@@ -310,13 +310,27 @@ class MemoryAnalyzer:
                 "✗ Using system c++filt (objdump_path=%s)", self.objdump_path
             )
 
-        # Strip GCC optimization suffixes before demangling
+        # Strip GCC optimization suffixes and prefixes before demangling
         # Suffixes like $isra$0, $part$0, $constprop$0 confuse c++filt
+        # Prefixes like _GLOBAL__sub_I_ need to be removed and tracked
         symbols_stripped = []
+        symbols_prefixes = []  # Track removed prefixes
         for symbol in symbols:
             # Remove GCC optimization markers
             stripped = re.sub(r"\$(?:isra|part|constprop)\$\d+", "", symbol)
+
+            # Handle GCC global constructor/initializer prefixes
+            # _GLOBAL__sub_I_<mangled> -> extract <mangled> for demangling
+            prefix = ""
+            if stripped.startswith("_GLOBAL__sub_I_"):
+                prefix = "_GLOBAL__sub_I_"
+                stripped = stripped[len(prefix) :]
+            elif stripped.startswith("_GLOBAL__sub_D_"):
+                prefix = "_GLOBAL__sub_D_"
+                stripped = stripped[len(prefix) :]
+
             symbols_stripped.append(stripped)
+            symbols_prefixes.append(prefix)
 
         try:
             # Send all symbols to c++filt at once
@@ -331,11 +345,23 @@ class MemoryAnalyzer:
                 demangled_lines = result.stdout.strip().split("\n")
                 # Map original to demangled names
                 failed_count = 0
-                for original, stripped, demangled in zip(
-                    symbols, symbols_stripped, demangled_lines
+                for original, stripped, prefix, demangled in zip(
+                    symbols, symbols_stripped, symbols_prefixes, demangled_lines
                 ):
+                    # Add back any prefix that was removed
+                    if prefix:
+                        if demangled != stripped:
+                            # Successfully demangled - add descriptive prefix
+                            if prefix == "_GLOBAL__sub_I_":
+                                demangled = f"[global constructor for: {demangled}]"
+                            elif prefix == "_GLOBAL__sub_D_":
+                                demangled = f"[global destructor for: {demangled}]"
+                        else:
+                            # Failed to demangle - restore original prefix
+                            demangled = prefix + demangled
+
                     # If we stripped a suffix, add it back to the demangled name for clarity
-                    if original != stripped:
+                    if original != stripped and not prefix:
                         # Find what was stripped
                         suffix_match = re.search(
                             r"(\$(?:isra|part|constprop)\$\d+)", original

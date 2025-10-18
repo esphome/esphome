@@ -318,10 +318,9 @@ def detect_memory_impact_config(
         # No components and no core changes
         return {"should_run": "false"}
 
-    # Find components that have tests on the preferred platform
+    # Find components that have tests and collect their supported platforms
     components_with_tests = []
-    selected_platform = None
-    component_platforms = {}  # Track which platforms each component has
+    component_platforms_map = {}  # Track which platforms each component supports
 
     for component in sorted(changed_component_set):
         tests_dir = Path(root_path) / "tests" / "components" / component
@@ -346,33 +345,48 @@ def detect_memory_impact_config(
         if not available_platforms:
             continue
 
-        # Find the most preferred platform for this component
-        component_platform = min(available_platforms, key=PLATFORM_PREFERENCE.index)
-        component_platforms[component] = component_platform
+        component_platforms_map[component] = set(available_platforms)
         components_with_tests.append(component)
-
-        # Select the most preferred platform across all components
-        if selected_platform is None or PLATFORM_PREFERENCE.index(
-            component_platform
-        ) < PLATFORM_PREFERENCE.index(selected_platform):
-            selected_platform = component_platform
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
         return {"should_run": "false"}
 
-    # Use the most preferred platform found, or fall back to esp8266-ard
+    # Find common platforms supported by ALL components
+    # This ensures we can build all components together in a merged config
+    common_platforms = set(PLATFORM_PREFERENCE)
+    for component, platforms in component_platforms_map.items():
+        common_platforms &= platforms
+
+    # Select the most preferred platform from the common set
     # Exception: for core changes, use fallback platform (most representative of codebase)
     if force_fallback_platform:
         platform = MEMORY_IMPACT_FALLBACK_PLATFORM
+    elif common_platforms:
+        # Pick the most preferred platform that all components support
+        platform = min(common_platforms, key=PLATFORM_PREFERENCE.index)
     else:
-        platform = selected_platform or Platform.ESP8266_ARD
+        # No common platform - fall back to testing each component individually
+        # Pick the most commonly supported platform
+        platform_counts = {}
+        for platforms in component_platforms_map.values():
+            for p in platforms:
+                platform_counts[p] = platform_counts.get(p, 0) + 1
+        # Pick the platform supported by most components, preferring earlier in PLATFORM_PREFERENCE
+        platform = max(
+            platform_counts.keys(),
+            key=lambda p: (platform_counts[p], -PLATFORM_PREFERENCE.index(p)),
+        )
 
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
     print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
     print(f"  Components with tests: {components_with_tests}", file=sys.stderr)
-    print(f"  Component platforms: {component_platforms}", file=sys.stderr)
+    print(
+        f"  Component platforms: {dict(sorted(component_platforms_map.items()))}",
+        file=sys.stderr,
+    )
+    print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
     print(f"  Selected platform: {platform}", file=sys.stderr)
 
     return {
