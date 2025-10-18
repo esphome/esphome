@@ -107,6 +107,97 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
 // Type alias for raw color mode bitmask values
 using color_mode_bitmask_t = uint16_t;
 
+// Constants for ColorMode count and bit range
+static constexpr int COLOR_MODE_COUNT = 10;                             // UNKNOWN through RGB_COLD_WARM_WHITE
+static constexpr int MAX_BIT_INDEX = sizeof(color_mode_bitmask_t) * 8;  // Number of bits in bitmask type
+
+/// Map ColorMode enum values to bit positions (0-9)
+static constexpr int mode_to_bit(ColorMode mode) {
+  // Using switch instead of lookup table to avoid RAM usage on ESP8266
+  // The compiler optimizes this efficiently
+  switch (mode) {
+    case ColorMode::UNKNOWN:  // 0
+      return 0;
+    case ColorMode::ON_OFF:  // 1
+      return 1;
+    case ColorMode::BRIGHTNESS:  // 3
+      return 2;
+    case ColorMode::WHITE:  // 7
+      return 3;
+    case ColorMode::COLOR_TEMPERATURE:  // 11
+      return 4;
+    case ColorMode::COLD_WARM_WHITE:  // 19
+      return 5;
+    case ColorMode::RGB:  // 35
+      return 6;
+    case ColorMode::RGB_WHITE:  // 39
+      return 7;
+    case ColorMode::RGB_COLOR_TEMPERATURE:  // 47
+      return 8;
+    case ColorMode::RGB_COLD_WARM_WHITE:  // 51
+      return 9;
+    default:
+      return 0;
+  }
+}
+
+static constexpr ColorMode bit_to_mode(int bit) {
+  // Using switch instead of lookup table to avoid RAM usage on ESP8266
+  switch (bit) {
+    case 0:
+      return ColorMode::UNKNOWN;  // 0
+    case 1:
+      return ColorMode::ON_OFF;  // 1
+    case 2:
+      return ColorMode::BRIGHTNESS;  // 3
+    case 3:
+      return ColorMode::WHITE;  // 7
+    case 4:
+      return ColorMode::COLOR_TEMPERATURE;  // 11
+    case 5:
+      return ColorMode::COLD_WARM_WHITE;  // 19
+    case 6:
+      return ColorMode::RGB;  // 35
+    case 7:
+      return ColorMode::RGB_WHITE;  // 39
+    case 8:
+      return ColorMode::RGB_COLOR_TEMPERATURE;  // 47
+    case 9:
+      return ColorMode::RGB_COLD_WARM_WHITE;  // 51
+    default:
+      return ColorMode::UNKNOWN;
+  }
+}
+
+/// Helper to compute capability bitmask at compile time
+static constexpr color_mode_bitmask_t compute_capability_bitmask(ColorCapability capability) {
+  color_mode_bitmask_t mask = 0;
+  uint8_t cap_bit = static_cast<uint8_t>(capability);
+
+  // Check each ColorMode to see if it has this capability
+  for (int bit = 0; bit < COLOR_MODE_COUNT; ++bit) {
+    uint8_t mode_val = static_cast<uint8_t>(bit_to_mode(bit));
+    if ((mode_val & cap_bit) != 0) {
+      mask |= (1 << bit);
+    }
+  }
+  return mask;
+}
+
+// Number of ColorCapability enum values
+static constexpr int COLOR_CAPABILITY_COUNT = 6;
+
+/// Compile-time lookup table mapping ColorCapability to bitmask
+/// This array is computed at compile time using constexpr
+static constexpr color_mode_bitmask_t CAPABILITY_BITMASKS[] = {
+    compute_capability_bitmask(ColorCapability::ON_OFF),             // 1 << 0
+    compute_capability_bitmask(ColorCapability::BRIGHTNESS),         // 1 << 1
+    compute_capability_bitmask(ColorCapability::WHITE),              // 1 << 2
+    compute_capability_bitmask(ColorCapability::COLOR_TEMPERATURE),  // 1 << 3
+    compute_capability_bitmask(ColorCapability::COLD_WARM_WHITE),    // 1 << 4
+    compute_capability_bitmask(ColorCapability::RGB),                // 1 << 5
+};
+
 /// Bitmask for storing a set of ColorMode values efficiently.
 /// Replaces std::set<ColorMode> to eliminate red-black tree overhead (~586 bytes).
 class ColorModeMask {
@@ -197,14 +288,15 @@ class ColorModeMask {
   /// Check if any mode in the bitmask has a specific capability
   /// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
   bool has_capability(ColorCapability capability) const {
-    uint8_t cap_mask = static_cast<uint8_t>(capability);
-    // Iterate through each mode and check if it has the capability
-    for (auto mode : *this) {
-      if (static_cast<uint8_t>(mode) & cap_mask) {
-        return true;
-      }
+    // Convert capability bit to array index (log2 of the bit value)
+    uint8_t cap_bit = static_cast<uint8_t>(capability);
+    // Count trailing zeros to get the bit position (0-5)
+    int index = 0;
+    while (index < COLOR_CAPABILITY_COUNT && !(cap_bit & (1 << index))) {
+      ++index;
     }
-    return false;
+    // Look up the pre-computed bitmask and check if any of our set bits match
+    return (index < COLOR_CAPABILITY_COUNT) && ((this->mask_ & CAPABILITY_BITMASKS[index]) != 0);
   }
 
   /// Build a bitmask of modes that match the given capability requirements
@@ -230,68 +322,6 @@ class ColorModeMask {
   // Can be changed to uint32_t if more than 16 color modes are needed in the future.
   // Note: Due to struct padding, uint16_t and uint32_t result in same LightTraits size (12 bytes).
   color_mode_bitmask_t mask_{0};
-
-  // Constants for ColorMode count and bit range
-  static constexpr int COLOR_MODE_COUNT = 10;                             // UNKNOWN through RGB_COLD_WARM_WHITE
-  static constexpr int MAX_BIT_INDEX = sizeof(color_mode_bitmask_t) * 8;  // Number of bits in bitmask type
-
-  /// Map ColorMode enum values to bit positions (0-9)
-  static constexpr int mode_to_bit(ColorMode mode) {
-    // Using switch instead of lookup table to avoid RAM usage on ESP8266
-    // The compiler optimizes this efficiently
-    switch (mode) {
-      case ColorMode::UNKNOWN:  // 0
-        return 0;
-      case ColorMode::ON_OFF:  // 1
-        return 1;
-      case ColorMode::BRIGHTNESS:  // 3
-        return 2;
-      case ColorMode::WHITE:  // 7
-        return 3;
-      case ColorMode::COLOR_TEMPERATURE:  // 11
-        return 4;
-      case ColorMode::COLD_WARM_WHITE:  // 19
-        return 5;
-      case ColorMode::RGB:  // 35
-        return 6;
-      case ColorMode::RGB_WHITE:  // 39
-        return 7;
-      case ColorMode::RGB_COLOR_TEMPERATURE:  // 47
-        return 8;
-      case ColorMode::RGB_COLD_WARM_WHITE:  // 51
-        return 9;
-      default:
-        return 0;
-    }
-  }
-
-  static constexpr ColorMode bit_to_mode(int bit) {
-    // Using switch instead of lookup table to avoid RAM usage on ESP8266
-    switch (bit) {
-      case 0:
-        return ColorMode::UNKNOWN;  // 0
-      case 1:
-        return ColorMode::ON_OFF;  // 1
-      case 2:
-        return ColorMode::BRIGHTNESS;  // 3
-      case 3:
-        return ColorMode::WHITE;  // 7
-      case 4:
-        return ColorMode::COLOR_TEMPERATURE;  // 11
-      case 5:
-        return ColorMode::COLD_WARM_WHITE;  // 19
-      case 6:
-        return ColorMode::RGB;  // 35
-      case 7:
-        return ColorMode::RGB_WHITE;  // 39
-      case 8:
-        return ColorMode::RGB_COLOR_TEMPERATURE;  // 47
-      case 9:
-        return ColorMode::RGB_COLD_WARM_WHITE;  // 51
-      default:
-        return ColorMode::UNKNOWN;
-    }
-  }
 };
 
 }  // namespace light
