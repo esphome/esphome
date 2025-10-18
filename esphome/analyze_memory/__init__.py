@@ -311,9 +311,7 @@ class MemoryAnalyzer:
                     potential_cppfilt,
                 )
         else:
-            _LOGGER.info(
-                "✗ Using system c++filt (objdump_path=%s)", self.objdump_path
-            )
+            _LOGGER.info("✗ Using system c++filt (objdump_path=%s)", self.objdump_path)
 
         # Strip GCC optimization suffixes and prefixes before demangling
         # Suffixes like $isra$0, $part$0, $constprop$0 confuse c++filt
