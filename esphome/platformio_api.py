@@ -378,17 +378,19 @@ class IDEData:
     @property
     def objdump_path(self) -> str:
         # replace gcc at end with objdump
+        path = self.cc_path
         return (
-            f"{self.cc_path[:-7]}objdump.exe"
-            if self.cc_path.endswith(".exe")
-            else f"{self.cc_path[:-3]}objdump"
+            f"{path[:-7]}objdump.exe"
+            if path.endswith(".exe")
+            else f"{path[:-3]}objdump"
         )
 
     @property
     def readelf_path(self) -> str:
         # replace gcc at end with readelf
+        path = self.cc_path
         return (
-            f"{self.cc_path[:-7]}readelf.exe"
-            if self.cc_path.endswith(".exe")
-            else f"{self.cc_path[:-3]}readelf"
+            f"{path[:-7]}readelf.exe"
+            if path.endswith(".exe")
+            else f"{path[:-3]}readelf"
         )

@@ -54,15 +54,20 @@ _COMPONENT_PREFIX_EXTERNAL = "[external]"
 _COMPONENT_CORE = f"{_COMPONENT_PREFIX_ESPHOME}core"
 _COMPONENT_API = f"{_COMPONENT_PREFIX_ESPHOME}api"
 
+# C++ namespace prefixes
+_NAMESPACE_ESPHOME = "esphome::"
+_NAMESPACE_STD = "std::"
+
+# Type alias for symbol information: (symbol_name, size, component)
+SymbolInfoType = tuple[str, int, str]
+
 
 @dataclass
 class MemorySection:
     """Represents a memory section with its symbols."""
 
     name: str
-    symbols: list[tuple[str, int, str]] = field(
-        default_factory=list
-    )  # (symbol_name, size, component)
+    symbols: list[SymbolInfoType] = field(default_factory=list)
     total_size: int = 0
 
 
@@ -246,7 +251,7 @@ class MemoryAnalyzer:
 
         # Check for special component classes first (before namespace pattern)
         # This handles cases like esphome::ESPHomeOTAComponent which should map to ota
-        if "esphome::" in demangled:
+        if _NAMESPACE_ESPHOME in demangled:
             # Check for special component classes that include component name in the class
             # For example: esphome::ESPHomeOTAComponent -> ota component
             for component_name in get_esphome_components():
@@ -271,7 +276,7 @@ class MemoryAnalyzer:
             return _COMPONENT_CORE
 
         # Check for esphome core namespace (no component namespace)
-        if "esphome::" in demangled:
+        if _NAMESPACE_ESPHOME in demangled:
             # If no component match found, it's core
             return _COMPONENT_CORE
 
@@ -480,7 +485,7 @@ class MemoryAnalyzer:
         if any(pattern in demangled for pattern in _CPP_RUNTIME_PATTERNS):
             return "C++ Runtime (vtables/RTTI)"
 
-        if demangled.startswith("std::"):
+        if demangled.startswith(_NAMESPACE_STD):
             return "C++ STL"
 
         # Check against patterns from const.py
