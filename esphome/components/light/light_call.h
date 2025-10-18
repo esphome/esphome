@@ -185,8 +185,8 @@ class LightCall {
 
   //// Compute the color mode that should be used for this call.
   ColorMode compute_color_mode_();
-  /// Get potential color modes for this light call.
-  ColorModeMask get_suitable_color_modes_();
+  /// Get potential color modes bitmask for this light call.
+  color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_();
 
