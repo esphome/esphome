@@ -258,9 +258,10 @@ def detect_memory_impact_config(
     """
     # Platform preference order for memory impact analysis
     # Prefer ESP8266 for memory impact as it's the most constrained platform
+    # ESP32-IDF is preferred over ESP32-Arduino as it's faster to build and more commonly used
     PLATFORM_PREFERENCE = [
         "esp8266-ard",  # ESP8266 Arduino (most memory constrained - best for impact analysis)
-        "esp32-idf",  # Primary ESP32 IDF platform
+        "esp32-idf",  # ESP32 IDF platform (primary ESP32 platform, faster builds)
         "esp32-c3-idf",  # ESP32-C3 IDF
         "esp32-c6-idf",  # ESP32-C6 IDF
         "esp32-s2-idf",  # ESP32-S2 IDF
@@ -289,6 +290,7 @@ def detect_memory_impact_config(
     # Find components that have tests on the preferred platform
     components_with_tests = []
     selected_platform = None
+    component_platforms = {}  # Track which platforms each component has
 
     for component in sorted(changed_component_set):
         tests_dir = Path(root_path) / "tests" / "components" / component
@@ -301,20 +303,28 @@ def detect_memory_impact_config(
             continue
 
         # Check if component has tests for any preferred platform
+        available_platforms = []
         for test_file in test_files:
             parts = test_file.stem.split(".")
             if len(parts) < 2:
                 continue
             platform = parts[1]
-            if platform not in PLATFORM_PREFERENCE:
-                continue
-            components_with_tests.append(component)
-            # Select the most preferred platform across all components
-            if selected_platform is None or PLATFORM_PREFERENCE.index(
-                platform
-            ) < PLATFORM_PREFERENCE.index(selected_platform):
-                selected_platform = platform
-            break
+            if platform in PLATFORM_PREFERENCE:
+                available_platforms.append(platform)
+
+        if not available_platforms:
+            continue
+
+        # Find the most preferred platform for this component
+        component_platform = min(available_platforms, key=PLATFORM_PREFERENCE.index)
+        component_platforms[component] = component_platform
+        components_with_tests.append(component)
+
+        # Select the most preferred platform across all components
+        if selected_platform is None or PLATFORM_PREFERENCE.index(
+            component_platform
+        ) < PLATFORM_PREFERENCE.index(selected_platform):
+            selected_platform = component_platform
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
@@ -322,6 +332,13 @@ def detect_memory_impact_config(
 
     # Use the most preferred platform found, or fall back to esp8266-ard
     platform = selected_platform or "esp8266-ard"
+
+    # Debug output
+    print("Memory impact analysis:", file=sys.stderr)
+    print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
+    print(f"  Components with tests: {components_with_tests}", file=sys.stderr)
+    print(f"  Component platforms: {component_platforms}", file=sys.stderr)
+    print(f"  Selected platform: {platform}", file=sys.stderr)
 
     return {
         "should_run": "true",
