@@ -215,8 +215,7 @@ class ColorModeMask {
     // Check each mode to see if it matches the requirements
     // Skip UNKNOWN (bit 0), iterate through actual color modes (bits 1-9)
     for (int bit = 1; bit < COLOR_MODE_COUNT; ++bit) {
-      ColorMode mode = bit_to_mode(bit);
-      uint8_t mode_val = static_cast<uint8_t>(mode);
+      uint8_t mode_val = static_cast<uint8_t>(bit_to_mode(bit));
       // Mode matches if it has all required caps
       if ((mode_val & require_caps) == require_caps) {
         mask |= (1 << bit);
