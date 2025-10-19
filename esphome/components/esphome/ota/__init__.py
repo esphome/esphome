@@ -103,7 +103,16 @@ def ota_esphome_final_validate(config):
         )
 
 
-CONFIG_SCHEMA = (
+def _consume_ota_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for OTA component."""
+    from esphome.components import socket
+
+    # OTA needs 1 listening socket (client connections are temporary during updates)
+    socket.consume_sockets(1, "ota")(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
@@ -130,7 +139,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(BASE_OTA_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _consume_ota_sockets,
 )
 
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
