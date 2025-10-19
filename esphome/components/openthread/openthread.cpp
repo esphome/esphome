@@ -47,7 +47,7 @@ void OpenThreadComponent::dump_config() {
 #endif
   if (this->poll_period > 0) {
     uint32_t duration = this->poll_period / 1000;
-    ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 " ms", duration);
+    ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
   }
 #endif
 }
