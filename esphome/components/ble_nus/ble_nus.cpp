@@ -16,10 +16,10 @@ BLENUS *global_ble_nus;  // NOLINT(cppcoreguidelines-avoid-non-const-global-vari
 static const char *const TAG = "ble_nus";
 
 size_t BLENUS::write_array(const uint8_t *data, size_t len) {
-  if (atomic_get(&tx_status_) == TX_DISABLED) {
+  if (atomic_get(&this->tx_status_) == TX_DISABLED) {
     return 0;
   }
-  return ring_buf_put(&tx_ringbuf_, data, len);
+  return ring_buf_put(&this->tx_ringbuf_, data, len);
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {
@@ -62,7 +62,7 @@ void BLENUS::rx_callback(bt_conn *conn, const uint8_t *const data, uint16_t len)
 
 BLENUS::BLENUS(size_t buffer_size) {
   uint8_t *buffer = new uint8_t[buffer_size];
-  ring_buf_init(&tx_ringbuf_, buffer_size, buffer);
+  ring_buf_init(&this->tx_ringbuf_, buffer_size, buffer);
 }
 
 void BLENUS::setup() {
@@ -101,13 +101,13 @@ void BLENUS::dump_config() {
 }
 
 void BLENUS::loop() {
-  if (ring_buf_is_empty(&tx_ringbuf_)) {
+  if (ring_buf_is_empty(&this->tx_ringbuf_)) {
     return;
   }
 
-  if (!atomic_cas(&tx_status_, TX_ENABLED, TX_BUSY)) {
-    if (atomic_get(&tx_status_) == TX_DISABLED) {
-      ring_buf_reset(&tx_ringbuf_);
+  if (!atomic_cas(&this->tx_status_, TX_ENABLED, TX_BUSY)) {
+    if (atomic_get(&this->tx_status_) == TX_DISABLED) {
+      ring_buf_reset(&this->tx_ringbuf_);
     }
     return;
   }
@@ -115,19 +115,19 @@ void BLENUS::loop() {
   bt_conn *conn = bt_conn_ref(conn_);
 
   if (nullptr == conn) {
-    atomic_cas(&tx_status_, TX_BUSY, TX_ENABLED);
+    atomic_cas(&this->tx_status_, TX_BUSY, TX_ENABLED);
     return;
   }
 
   uint32_t req_len = bt_nus_get_mtu(conn);
 
   uint8_t *buf;
-  uint32_t size = ring_buf_get_claim(&tx_ringbuf_, &buf, req_len);
+  uint32_t size = ring_buf_get_claim(&this->tx_ringbuf_, &buf, req_len);
 
   int err, err2;
 
   err = bt_nus_send(conn, buf, size);
-  err2 = ring_buf_get_finish(&tx_ringbuf_, size);
+  err2 = ring_buf_get_finish(&this->tx_ringbuf_, size);
   if (err2) {
     ESP_LOGE(TAG, "Failed to ring buf finish (%d error)", err2);
   }
@@ -135,7 +135,7 @@ void BLENUS::loop() {
     ESP_LOGVV(TAG, "Sent %d bytes", size);
   } else {
     ESP_LOGE(TAG, "Failed to send %d bytes (%d error)", size, err);
-    atomic_cas(&tx_status_, TX_BUSY, TX_ENABLED);
+    atomic_cas(&this->tx_status_, TX_BUSY, TX_ENABLED);
   }
   bt_conn_unref(conn);
 }

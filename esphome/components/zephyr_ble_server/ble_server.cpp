@@ -72,9 +72,9 @@ void BLEServer::setup() {
 }
 
 void BLEServer::loop() {
-  if (suspended_) {
+  if (this->suspended_) {
     resume_();
-    suspended_ = false;
+    this->suspended_ = false;
   }
 }
 
@@ -88,7 +88,7 @@ void BLEServer::resume_() {
 
 void BLEServer::on_shutdown() {
   bt_disable();
-  suspended_ = true;
+  this->suspended_ = true;
 }
 
 }  // namespace zephyr_ble_server
