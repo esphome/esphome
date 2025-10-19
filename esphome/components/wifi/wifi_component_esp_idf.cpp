@@ -776,13 +776,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    std::vector<wifi_ap_record_t> records(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.data());
+    auto records = std::make_unique<wifi_ap_record_t[]>(number);
+    err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
       return;
     }
-    records.resize(number);
 
     scan_result_.init(number);
     for (int i = 0; i < number; i++) {
