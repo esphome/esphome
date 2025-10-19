@@ -49,6 +49,8 @@ class CAP1188Component : public Component, public i2c::I2CDevice {
   void loop() override;
 
  protected:
+  void finish_setup_();
+
   std::vector<CAP1188Channel *> channels_{};
   uint8_t touch_threshold_{0x20};
   uint8_t allow_multiple_touches_{0x80};
