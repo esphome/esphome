@@ -123,6 +123,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
 "ESP32 BLE Server","components/esp32_ble_server","bluetooth.svg","dark-invert"
 "Bluetooth Proxy","components/bluetooth_proxy","bluetooth.svg","dark-invert"
 "Improv via BLE","components/esp32_improv","improv.svg","dark-invert"
+"Nordic UART Service (NUS)","components/ble_nus","uart.svg",""
 {{< /imgtable >}}
 
 ## Management and Monitoring
