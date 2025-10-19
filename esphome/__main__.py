@@ -954,7 +954,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int | None
 
     # Generate and display report
     report = analyzer.generate_report()
-    print("\n" + report)
+    print()
+    print(report)
 
     return 0
 
