@@ -269,7 +269,6 @@ def create_comment_body(
     pr_analysis: dict | None = None,
     target_symbols: dict | None = None,
     pr_symbols: dict | None = None,
-    target_cache_hit: bool = False,
 ) -> str:
     """Create the comment body with memory impact analysis using Jinja2 templates.
 
@@ -284,7 +283,6 @@ def create_comment_body(
         pr_analysis: Optional component breakdown for PR branch
         target_symbols: Optional symbol map for target branch
         pr_symbols: Optional symbol map for PR branch
-        target_cache_hit: Whether target branch analysis was loaded from cache
 
     Returns:
         Formatted comment body
@@ -314,7 +312,6 @@ def create_comment_body(
         "flash_change": format_change(
             target_flash, pr_flash, threshold=OVERALL_CHANGE_THRESHOLD
         ),
-        "target_cache_hit": target_cache_hit,
         "component_change_threshold": COMPONENT_CHANGE_THRESHOLD,
     }
 
@@ -556,7 +553,6 @@ def main() -> int:
     target_flash = target_data.get("flash_bytes")
     pr_ram = pr_data.get("ram_bytes")
     pr_flash = pr_data.get("flash_bytes")
-    target_cache_hit = target_data.get("cache_hit", False)
 
     # Validate required fields
     if not all(
@@ -585,7 +581,6 @@ def main() -> int:
         pr_analysis=pr_analysis,
         target_symbols=target_symbols,
         pr_symbols=pr_symbols,
-        target_cache_hit=target_cache_hit,
     )
 
     # Post or update comment
