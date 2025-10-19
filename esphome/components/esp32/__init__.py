@@ -751,6 +751,72 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
+def _configure_lwip_max_sockets(conf: dict) -> None:
+    """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
+
+    Socket component tracks consumer needs via consume_sockets() called during config validation.
+    This function runs in to_code() after all components have registered their socket needs.
+    User-provided sdkconfig_options take precedence.
+    """
+    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+
+    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
+    user_max_sockets = conf.get(CONF_SDKCONFIG_OPTIONS, {}).get(
+        "CONFIG_LWIP_MAX_SOCKETS"
+    )
+
+    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
+    total_sockets = sum(socket_consumers.values())
+
+    # Early return if no sockets registered and no user override
+    if total_sockets == 0 and user_max_sockets is None:
+        add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", DEFAULT_MAX_SOCKETS)
+        return
+
+    components_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(socket_consumers.items())
+    )
+
+    # User specified their own value - respect it but warn if insufficient
+    if user_max_sockets is not None:
+        _LOGGER.info(
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            user_max_sockets,
+        )
+
+        # Warn if user's value is less than what components need
+        if total_sockets > 0:
+            user_sockets_int = 0
+            with contextlib.suppress(ValueError, TypeError):
+                user_sockets_int = int(user_max_sockets)
+
+            if user_sockets_int < total_sockets:
+                _LOGGER.warning(
+                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration needs %d sockets (registered: %s). "
+                    "You may experience socket exhaustion errors. Consider increasing to at least %d.",
+                    user_sockets_int,
+                    total_sockets,
+                    components_list,
+                    total_sockets,
+                )
+        # User's value already added via sdkconfig_options processing
+        return
+
+    # Auto-calculate based on component needs
+    # Use at least the ESP-IDF default (10), or the total needed by components
+    max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
+
+    log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    _LOGGER.log(
+        log_level,
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        max_sockets,
+        components_list,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
+
+
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
@@ -861,65 +927,7 @@ async def to_code(config):
     if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
 
-    # Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs
-    # Socket component tracks consumer needs via consume_sockets() called during config validation
-    # This code runs in to_code() after all components have registered their socket needs
-    # User-provided sdkconfig_options take precedence
-    from esphome.components.socket import KEY_SOCKET_CONSUMERS
-
-    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
-    user_max_sockets = conf.get(CONF_SDKCONFIG_OPTIONS, {}).get(
-        "CONFIG_LWIP_MAX_SOCKETS"
-    )
-
-    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
-    total_sockets = sum(socket_consumers.values())
-    components_list = (
-        ", ".join(f"{name}={count}" for name, count in sorted(socket_consumers.items()))
-        if total_sockets > 0
-        else ""
-    )
-
-    if user_max_sockets is None:
-        # Auto-calculate based on component needs
-        # Use at least the ESP-IDF default (10), or the total needed by components
-        max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
-
-        if total_sockets > 0:
-            log_level = (
-                logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
-            )
-            _LOGGER.log(
-                log_level,
-                "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
-                max_sockets,
-                components_list,
-            )
-
-        add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
-    else:
-        # User specified their own value - respect it
-        _LOGGER.info(
-            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
-            user_max_sockets,
-        )
-
-        # Warn if user's value is less than what components need
-        if total_sockets > 0:
-            user_sockets_int = 0
-            with contextlib.suppress(ValueError, TypeError):
-                user_sockets_int = int(user_max_sockets)
-
-            if user_sockets_int < total_sockets:
-                _LOGGER.warning(
-                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration needs %d sockets (registered: %s). "
-                    "You may experience socket exhaustion errors. Consider increasing to at least %d.",
-                    user_sockets_int,
-                    total_sockets,
-                    components_list,
-                    total_sockets,
-                )
-        # User's value already added via sdkconfig_options processing
+    _configure_lwip_max_sockets(conf)
 
     if advanced.get(CONF_EXECUTE_FROM_PSRAM, False):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
