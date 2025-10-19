@@ -142,13 +142,8 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
   void stop() override {
     // Clear all queued items to free memory immediately
-    if (this->var_queue_) {
-      const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
-      for (size_t i = 0; i < queue_capacity; i++) {
-        this->var_queue_[i].reset();
-      }
-      this->var_queue_.reset();
-    }
+    // Resetting the array automatically destroys all unique_ptrs and their contents
+    this->var_queue_.reset();
     this->num_queued_ = 0;
     this->queue_front_ = 0;
     Script<Ts...>::stop();
