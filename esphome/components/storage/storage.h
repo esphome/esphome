@@ -8,43 +8,43 @@ namespace storage {
 //
 //  Storage read/write return errors
 //
-static const uint8_t RC_OK = 0;      // NOLINT /* 0: Successful */
-static const uint8_t RC_ERROR = 1;   // NOLINT /* 1: R/W Error */
-static const uint8_t RC_WRPRT = 2;   // NOLINT /* 2: Write Protected */
-static const uint8_t RC_NOTRDY = 3;  // NOLINT /* 3: Not Ready */
-static const uint8_t RC_PARERR = 4;  // NOLINT /* 4: Invalid Parameter */
+static const uint8_t RC_OK = 0;     /* 0: Successful */
+static const uint8_t RC_ERROR = 1;  /* 1: R/W Error */
+static const uint8_t RC_WRPRT = 2;  /* 2: Write Protected */
+static const uint8_t RC_NOTRDY = 3; /* 3: Not Ready */
+static const uint8_t RC_PARERR = 4; /* 4: Invalid Parameter */
 
 //
 //  Command code for disk_ioctrl fucntion
 //
 // Generic command
-static const uint8_t CMD_CTRL_SYNC = 0;  // NOLINT // Complete pending write process (needed at FF_FS_READONLY == 0)
-static const uint8_t CMD_GET_SECTOR_COUNT = 1;  // NOLINT // Get media size (needed at FF_USE_MKFS == 1)
-static const uint8_t CMD_GET_SECTOR_SIZE = 2;   // NOLINT // Get sector size (needed at FF_MAX_SS != FF_MIN_SS)
-static const uint8_t CMD_GET_BLOCK_SIZE = 3;    // NOLINT //  Get erase block size (needed at FF_USE_MKFS == 1)
-static const uint8_t CMD_CTRL_TRIM =
-    4;  // Inform device that the data on the block of sectors is no longer used (needed at FF_USE_TRIM == 1)
+static const uint8_t CMD_CTRL_SYNC = 0;         // Complete pending write process (needed at FF_FS_READONLY == 0)
+static const uint8_t CMD_GET_SECTOR_COUNT = 1;  // Get media size (needed at FF_USE_MKFS == 1)
+static const uint8_t CMD_GET_SECTOR_SIZE = 2;   // Get sector size (needed at FF_MAX_SS != FF_MIN_SS)
+static const uint8_t CMD_GET_BLOCK_SIZE = 3;    //  Get erase block size (needed at FF_USE_MKFS == 1)
+static const uint8_t CMD_CTRL_TRIM = 4;         // Inform device that
+// the data on the block of sectors is no longer used (needed at FF_USE_TRIM == 1)
 
 // Generic command
-static const uint8_t CMD_CTRL_POWER = 5;   // NOLINT // Get/Set power status
-static const uint8_t CMD_CTRL_LOCK = 6;    // NOLINT // Lock/Unlock media removal
-static const uint8_t CMD_CTRL_EJECT = 7;   // NOLINT // Eject media
-static const uint8_t CMD_CTRL_FORMAT = 8;  // NOLINT // Create physical format on the media
+static const uint8_t CMD_CTRL_POWER = 5;   // Get/Set power status
+static const uint8_t CMD_CTRL_LOCK = 6;    // Lock/Unlock media removal
+static const uint8_t CMD_CTRL_EJECT = 7;   // Eject media
+static const uint8_t CMD_CTRL_FORMAT = 8;  // Create physical format on the media
 
 // MMC/SDC specific ioctl command
-static const uint8_t CMD_MMC_GET_TYPE = 10;    // NOLINT // Get card type
-static const uint8_t CMD_MMC_GET_CSD = 11;     // NOLINT // Get CSD
-static const uint8_t CMD_MMC_GET_CID = 12;     // NOLINT // Get CID
-static const uint8_t CMD_MMC_GET_OCR = 13;     // NOLINT // Get OCR
-static const uint8_t CMD_MMC_GET_SDSTAT = 14;  // NOLINT // Get SD status
-static const uint8_t CMD_ISDIO_READ = 55;      // NOLINT // Read data form SD iSDIO register
-static const uint8_t CMD_ISDIO_WRITE = 56;     // NOLINT // Write data to SD iSDIO register
-static const uint8_t CMD_ISDIO_MRITE = 57;     // NOLINT // Masked write data to SD iSDIO register
+static const uint8_t CMD_MMC_GET_TYPE = 10;    // Get card type
+static const uint8_t CMD_MMC_GET_CSD = 11;     // Get CSD
+static const uint8_t CMD_MMC_GET_CID = 12;     // Get CID
+static const uint8_t CMD_MMC_GET_OCR = 13;     // Get OCR
+static const uint8_t CMD_MMC_GET_SDSTAT = 14;  // Get SD status
+static const uint8_t CMD_ISDIO_READ = 55;      // Read data form SD iSDIO register
+static const uint8_t CMD_ISDIO_WRITE = 56;     // Write data to SD iSDIO register
+static const uint8_t CMD_ISDIO_MRITE = 57;     // Masked write data to SD iSDIO register
 
 //  ATA/CF specific ioctl command
-static const uint8_t CMD_ATA_GET_REV = 20;    // NOLINT // Get F/W revision
-static const uint8_t CMD_ATA_GET_MODEL = 21;  // NOLINT // Get model name
-static const uint8_t CMD_ATA_GET_SN = 22;     // NOLINT // Get serial number
+static const uint8_t CMD_ATA_GET_REV = 20;    // Get F/W revision
+static const uint8_t CMD_ATA_GET_MODEL = 21;  // Get model name
+static const uint8_t CMD_ATA_GET_SN = 22;     // Get serial number
 
 enum class StorageIntState : uint8_t {
   MEDIA_UNUSED = 0,
