@@ -301,7 +301,6 @@ template<typename T> class FixedVector {
   const T &back() const { return data_[size_ - 1]; }
 
   size_t size() const { return size_; }
-  size_t capacity() const { return capacity_; }
   bool empty() const { return size_ == 0; }
 
   /// Access element without bounds checking (matches std::vector behavior)
