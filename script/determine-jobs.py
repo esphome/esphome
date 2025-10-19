@@ -78,11 +78,16 @@ MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core ch
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 
 # Platform preference order for memory impact analysis
-# Prefer newer platforms first as they represent the future of ESPHome
-# ESP8266 is most constrained but many new features don't support it
+# This order is used when no platform-specific hints are detected from filenames
+# Priority rationale:
+# 1. ESP32-C6 IDF - Newest platform, supports Thread/Zigbee
+# 2. ESP8266 Arduino - Most memory constrained (best for detecting memory impact),
+#                      fastest build times, most sensitive to code size changes
+# 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
+# 4-6. Other ESP32 variants - Less commonly used but still supported
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
-    Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
+    Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
     Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
     Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
