@@ -111,8 +111,6 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
   void execute(Ts... x) override {
-    this->lazy_init_queue_();
-
     if (this->is_action_running() || this->num_queued_ > 0) {
       // num_queued_ is the number of *queued* instances (waiting, not including currently running)
       // max_runs_ is the maximum *total* instances (running + queued)
@@ -123,12 +121,15 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
         return;
       }
 
+      // Initialize queue on first queued item (after capacity check)
+      this->lazy_init_queue_();
+
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
                       LOG_STR_ARG(this->name_));
       // Ring buffer: write to (queue_front_ + num_queued_) % (max_runs_ - 1)
       size_t write_pos = (this->queue_front_ + this->num_queued_) % (this->max_runs_ - 1);
-      // Use reset() to replace the unique_ptr
-      this->var_queue_[write_pos].reset(new std::tuple<Ts...>(std::make_tuple(x...)));
+      // Use std::make_unique to replace the unique_ptr
+      this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
       this->num_queued_++;
       return;
     }
@@ -144,6 +145,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       for (int i = 0; i < this->max_runs_ - 1; i++) {
         this->var_queue_[i].reset();
       }
+      this->var_queue_.reset();
     }
     this->num_queued_ = 0;
     this->queue_front_ = 0;
