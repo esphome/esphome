@@ -32,7 +32,7 @@ async def test_script_queued(
     queue_start = re.compile(r"Queue test: START item (\d+)")
     queue_end = re.compile(r"Queue test: END item (\d+)")
     queue_reject = re.compile(
-        r"Script 'queue_depth_script' maximum number of queued runs exceeded!"
+        r"Script 'queue_depth_script' maximum total instances \(running \+ queued\) exceeded!"
     )
 
     # Patterns for Test 2: Ring buffer
