@@ -31,7 +31,8 @@ void MDNSComponent::setup() {
   mdns_instance_name_set(this->hostname_.c_str());
 
   for (const auto &service : services) {
-    std::vector<mdns_txt_item_t> txt_records;
+    FixedVector<mdns_txt_item_t> txt_records;
+    txt_records.init(service.txt_records.size());
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
       // key and value are either compile-time string literals in flash or pointers to dynamic_txt_values_
@@ -42,7 +43,7 @@ void MDNSComponent::setup() {
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
     err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
-                           txt_records.data(), txt_records.size());
+                           txt_records.begin(), txt_records.size());
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
