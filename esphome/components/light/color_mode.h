@@ -104,6 +104,76 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
   return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
+// Type alias for raw color mode bitmask values
+using color_mode_bitmask_t = uint16_t;
+
+// Constants for ColorMode count and bit range
+static constexpr int COLOR_MODE_COUNT = 10;                             // UNKNOWN through RGB_COLD_WARM_WHITE
+static constexpr int MAX_BIT_INDEX = sizeof(color_mode_bitmask_t) * 8;  // Number of bits in bitmask type
+
+// Compile-time array of all ColorMode values in declaration order
+// Bit positions (0-9) map directly to enum declaration order
+static constexpr ColorMode COLOR_MODES[COLOR_MODE_COUNT] = {
+    ColorMode::UNKNOWN,                // bit 0
+    ColorMode::ON_OFF,                 // bit 1
+    ColorMode::BRIGHTNESS,             // bit 2
+    ColorMode::WHITE,                  // bit 3
+    ColorMode::COLOR_TEMPERATURE,      // bit 4
+    ColorMode::COLD_WARM_WHITE,        // bit 5
+    ColorMode::RGB,                    // bit 6
+    ColorMode::RGB_WHITE,              // bit 7
+    ColorMode::RGB_COLOR_TEMPERATURE,  // bit 8
+    ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
+};
+
+/// Map ColorMode enum values to bit positions (0-9)
+/// Bit positions follow the enum declaration order
+static constexpr int mode_to_bit(ColorMode mode) {
+  // Linear search through COLOR_MODES array
+  // Compiler optimizes this to efficient code since array is constexpr
+  for (int i = 0; i < COLOR_MODE_COUNT; ++i) {
+    if (COLOR_MODES[i] == mode)
+      return i;
+  }
+  return 0;
+}
+
+/// Map bit positions (0-9) to ColorMode enum values
+/// Bit positions follow the enum declaration order
+static constexpr ColorMode bit_to_mode(int bit) {
+  // Direct lookup in COLOR_MODES array
+  return (bit >= 0 && bit < COLOR_MODE_COUNT) ? COLOR_MODES[bit] : ColorMode::UNKNOWN;
+}
+
+/// Helper to compute capability bitmask at compile time
+static constexpr color_mode_bitmask_t compute_capability_bitmask(ColorCapability capability) {
+  color_mode_bitmask_t mask = 0;
+  uint8_t cap_bit = static_cast<uint8_t>(capability);
+
+  // Check each ColorMode to see if it has this capability
+  for (int bit = 0; bit < COLOR_MODE_COUNT; ++bit) {
+    uint8_t mode_val = static_cast<uint8_t>(bit_to_mode(bit));
+    if ((mode_val & cap_bit) != 0) {
+      mask |= (1 << bit);
+    }
+  }
+  return mask;
+}
+
+// Number of ColorCapability enum values
+static constexpr int COLOR_CAPABILITY_COUNT = 6;
+
+/// Compile-time lookup table mapping ColorCapability to bitmask
+/// This array is computed at compile time using constexpr
+static constexpr color_mode_bitmask_t CAPABILITY_BITMASKS[] = {
+    compute_capability_bitmask(ColorCapability::ON_OFF),             // 1 << 0
+    compute_capability_bitmask(ColorCapability::BRIGHTNESS),         // 1 << 1
+    compute_capability_bitmask(ColorCapability::WHITE),              // 1 << 2
+    compute_capability_bitmask(ColorCapability::COLOR_TEMPERATURE),  // 1 << 3
+    compute_capability_bitmask(ColorCapability::COLD_WARM_WHITE),    // 1 << 4
+    compute_capability_bitmask(ColorCapability::RGB),                // 1 << 5
+};
+
 /// Bitmask for storing a set of ColorMode values efficiently.
 /// Replaces std::set<ColorMode> to eliminate red-black tree overhead (~586 bytes).
 class ColorModeMask {
@@ -119,6 +189,13 @@ class ColorModeMask {
 
   constexpr void add(ColorMode mode) { this->mask_ |= (1 << mode_to_bit(mode)); }
 
+  /// Add multiple modes at once using initializer list
+  constexpr void add(std::initializer_list<ColorMode> modes) {
+    for (auto mode : modes) {
+      this->add(mode);
+    }
+  }
+
   constexpr bool contains(ColorMode mode) const { return (this->mask_ & (1 << mode_to_bit(mode))) != 0; }
 
   constexpr size_t size() const {
@@ -132,6 +209,8 @@ class ColorModeMask {
     return count;
   }
 
+  constexpr bool empty() const { return this->mask_ == 0; }
+
   /// Iterator support for API encoding
   class Iterator {
    public:
@@ -141,7 +220,7 @@ class ColorModeMask {
     using pointer = const ColorMode *;
     using reference = ColorMode;
 
-    constexpr Iterator(uint16_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit_(); }
+    constexpr Iterator(color_mode_bitmask_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit_(); }
 
     constexpr ColorMode operator*() const { return bit_to_mode(bit_); }
 
@@ -156,86 +235,61 @@ class ColorModeMask {
     constexpr bool operator!=(const Iterator &other) const { return !(*this == other); }
 
    private:
-    constexpr void advance_to_next_set_bit_() {
-      while (bit_ < 16 && !(mask_ & (1 << bit_))) {
-        ++bit_;
-      }
-    }
+    constexpr void advance_to_next_set_bit_() { bit_ = ColorModeMask::find_next_set_bit(mask_, bit_); }
 
-    uint16_t mask_;
+    color_mode_bitmask_t mask_;
     int bit_;
   };
 
   constexpr Iterator begin() const { return Iterator(mask_, 0); }
-  constexpr Iterator end() const { return Iterator(mask_, 16); }
+  constexpr Iterator end() const { return Iterator(mask_, MAX_BIT_INDEX); }
 
   /// Get the raw bitmask value for API encoding
-  constexpr uint16_t get_mask() const { return this->mask_; }
+  constexpr color_mode_bitmask_t get_mask() const { return this->mask_; }
+
+  /// Find the next set bit in a bitmask starting from a given position
+  /// Returns the bit position, or MAX_BIT_INDEX if no more bits are set
+  static constexpr int find_next_set_bit(color_mode_bitmask_t mask, int start_bit) {
+    int bit = start_bit;
+    while (bit < MAX_BIT_INDEX && !(mask & (1 << bit))) {
+      ++bit;
+    }
+    return bit;
+  }
+
+  /// Find the first set bit in a bitmask and return the corresponding ColorMode
+  /// Used for optimizing compute_color_mode_() intersection logic
+  static constexpr ColorMode first_mode_from_mask(color_mode_bitmask_t mask) {
+    return bit_to_mode(find_next_set_bit(mask, 0));
+  }
+
+  /// Check if a ColorMode is present in a raw bitmask value
+  /// Useful for checking intersection results without creating a temporary ColorModeMask
+  static constexpr bool mask_contains(color_mode_bitmask_t mask, ColorMode mode) {
+    return (mask & (1 << mode_to_bit(mode))) != 0;
+  }
+
+  /// Check if any mode in the bitmask has a specific capability
+  /// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
+  bool has_capability(ColorCapability capability) const {
+    // Lookup the pre-computed bitmask for this capability and check intersection with our mask
+    // ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
+    // We need to convert the power-of-2 value to an index
+    uint8_t cap_val = static_cast<uint8_t>(capability);
+    int index = 0;
+    while (cap_val > 1) {
+      cap_val >>= 1;
+      ++index;
+    }
+    return (this->mask_ & CAPABILITY_BITMASKS[index]) != 0;
+  }
 
  private:
   // Using uint16_t instead of uint32_t for more efficient iteration (fewer bits to scan).
   // Currently only 10 ColorMode values exist, so 16 bits is sufficient.
   // Can be changed to uint32_t if more than 16 color modes are needed in the future.
   // Note: Due to struct padding, uint16_t and uint32_t result in same LightTraits size (12 bytes).
-  uint16_t mask_{0};
-
-  /// Map ColorMode enum values to bit positions (0-9)
-  static constexpr int mode_to_bit(ColorMode mode) {
-    // Using switch instead of lookup table to avoid RAM usage on ESP8266
-    // The compiler optimizes this efficiently
-    switch (mode) {
-      case ColorMode::UNKNOWN:
-        return 0;
-      case ColorMode::ON_OFF:
-        return 1;
-      case ColorMode::BRIGHTNESS:
-        return 2;
-      case ColorMode::WHITE:
-        return 3;
-      case ColorMode::COLOR_TEMPERATURE:
-        return 4;
-      case ColorMode::COLD_WARM_WHITE:
-        return 5;
-      case ColorMode::RGB:
-        return 6;
-      case ColorMode::RGB_WHITE:
-        return 7;
-      case ColorMode::RGB_COLOR_TEMPERATURE:
-        return 8;
-      case ColorMode::RGB_COLD_WARM_WHITE:
-        return 9;
-      default:
-        return 0;
-    }
-  }
-
-  static constexpr ColorMode bit_to_mode(int bit) {
-    // Using switch instead of lookup table to avoid RAM usage on ESP8266
-    switch (bit) {
-      case 0:
-        return ColorMode::UNKNOWN;
-      case 1:
-        return ColorMode::ON_OFF;
-      case 2:
-        return ColorMode::BRIGHTNESS;
-      case 3:
-        return ColorMode::WHITE;
-      case 4:
-        return ColorMode::COLOR_TEMPERATURE;
-      case 5:
-        return ColorMode::COLD_WARM_WHITE;
-      case 6:
-        return ColorMode::RGB;
-      case 7:
-        return ColorMode::RGB_WHITE;
-      case 8:
-        return ColorMode::RGB_COLOR_TEMPERATURE;
-      case 9:
-        return ColorMode::RGB_COLD_WARM_WHITE;
-      default:
-        return ColorMode::UNKNOWN;
-    }
-  }
+  color_mode_bitmask_t mask_{0};
 };
 
 }  // namespace light
