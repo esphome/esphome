@@ -29,9 +29,12 @@ static const struct bt_data SD[] = {
 const struct bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
 
 static void advertise(struct k_work *work) {
-  bt_le_adv_stop();
+  int rc = bt_le_adv_stop();
+  if (rc) {
+    ESP_LOGE(TAG, "Advertising failed to stop (rc %d)", rc);
+  }
 
-  int rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), SD, ARRAY_SIZE(SD));
+  rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), SD, ARRAY_SIZE(SD));
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;
@@ -86,6 +89,8 @@ void BLEServer::resume_() {
 }
 
 void BLEServer::on_shutdown() {
+  struct k_work_sync sync;
+  k_work_cancel_sync(&advertise_work, &sync);
   bt_disable();
   this->suspended_ = true;
 }

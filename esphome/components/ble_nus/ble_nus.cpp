@@ -28,13 +28,16 @@ size_t BLENUS::write_array(const uint8_t *data, size_t len) {
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {
   if (err == 0) {
-    global_ble_nus->conn_ = bt_conn_ref(conn);
+    global_ble_nus->conn_.store(bt_conn_ref(conn));
   }
 }
 
 void BLENUS::disconnected(bt_conn *conn, uint8_t reason) {
-  bt_conn_unref(global_ble_nus->conn_);
-  global_ble_nus->conn_ = nullptr;
+  if (global_ble_nus->conn_) {
+    bt_conn_unref(global_ble_nus->conn_.load());
+    // connection array is global static.
+    // Reference can be kept reference if disconnected.
+  }
 }
 
 void BLENUS::tx_callback(bt_conn *conn) {
@@ -97,6 +100,12 @@ void BLENUS::setup() {
 void BLENUS::dump_config() {
   ESP_LOGCONFIG(TAG, "ble nus:");
   ESP_LOGCONFIG(TAG, "  log: %s", YESNO(this->expose_log_));
+  uint32_t mtu = 0;
+  bt_conn *conn = this->conn_.load();
+  if (conn) {
+    mtu = bt_nus_get_mtu(conn);
+  }
+  ESP_LOGCONFIG(TAG, "  MTU: %u", mtu);
 }
 
 void BLENUS::loop() {
@@ -111,7 +120,10 @@ void BLENUS::loop() {
     return;
   }
 
-  bt_conn *conn = bt_conn_ref(this->conn_);
+  bt_conn *conn = this->conn_.load();
+  if (conn) {
+    conn = bt_conn_ref(conn);
+  }
 
   if (nullptr == conn) {
     atomic_cas(&this->tx_status_, TX_BUSY, TX_ENABLED);
@@ -128,7 +140,8 @@ void BLENUS::loop() {
   err = bt_nus_send(conn, buf, size);
   err2 = ring_buf_get_finish(&global_ble_tx_ring_buf, size);
   if (err2) {
-    ESP_LOGE(TAG, "Failed to ring buf finish (%d error)", err2);
+    // It should no happen.
+    ESP_LOGE(TAG, "Size %u exceeds valid bytes in the ring buffer (%d error)", size, err2);
   }
   if (err == 0) {
     ESP_LOGVV(TAG, "Sent %d bytes", size);

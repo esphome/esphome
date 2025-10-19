@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include <shell/shell_bt_nus.h>
+#include <atomic>
 
 namespace esphome::ble_nus {
 
@@ -27,7 +28,7 @@ class BLENUS : public Component {
   static void connected(bt_conn *conn, uint8_t err);
   static void disconnected(bt_conn *conn, uint8_t reason);
 
-  bt_conn *conn_ = nullptr;
+  std::atomic<bt_conn *> conn_ = nullptr;
   bool expose_log_ = false;
   atomic_t tx_status_ = ATOMIC_INIT(TX_DISABLED);
 };
