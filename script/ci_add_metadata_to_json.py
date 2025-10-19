@@ -34,11 +34,6 @@ def main() -> int:
         required=True,
         help="Platform name",
     )
-    parser.add_argument(
-        "--cache-hit",
-        action="store_true",
-        help="Mark this analysis as loaded from cache",
-    )
 
     args = parser.parse_args()
 
@@ -68,8 +63,6 @@ def main() -> int:
     # Add metadata
     data["components"] = components
     data["platform"] = args.platform
-    if args.cache_hit:
-        data["cache_hit"] = True
 
     # Write back
     try:
