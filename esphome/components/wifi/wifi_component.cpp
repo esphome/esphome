@@ -644,8 +644,10 @@ void WiFiComponent::check_scanning_finished() {
       // selected network is hidden, we use the data from the config
       selected.set_hidden(true);
       selected.set_ssid(config.get_ssid());
-      // don't set BSSID and channel, there might be multiple hidden networks
+      // Clear BSSID and channel for hidden networks - there might be multiple hidden networks
       // but we can't know which one is the correct one. Rely on probe-req with just SSID.
+      selected.set_bssid({});
+      selected.set_channel(0);
     } else {
       // selected network is visible, we use the data from the scan
       // limit the connect params to only connect to exactly this network
