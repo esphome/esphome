@@ -321,12 +321,14 @@ def test_choose_upload_log_host_with_serial_device_no_ports(
 ) -> None:
     """Test SERIAL device when no serial ports are found."""
     setup_core()
-    result = choose_upload_log_host(
-        default="SERIAL",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="SERIAL",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
     assert "No serial ports found, skipping SERIAL device" in caplog.text
 
 
@@ -367,12 +369,14 @@ def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
-    result = choose_upload_log_host(
-        default="OTA",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> None:
@@ -405,12 +409,14 @@ def test_choose_upload_log_host_with_ota_device_no_fallback() -> None:
     """Test OTA device with no valid fallback options."""
     setup_core()
 
-    result = choose_upload_log_host(
-        default="OTA",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 @pytest.mark.usefixtures("mock_choose_prompt")
@@ -615,21 +621,19 @@ def test_choose_upload_log_host_empty_defaults_list() -> None:
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports", "mock_no_mqtt_logging")
-def test_choose_upload_log_host_all_devices_unresolved(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+def test_choose_upload_log_host_all_devices_unresolved() -> None:
     """Test when all specified devices cannot be resolved."""
     setup_core()
 
-    result = choose_upload_log_host(
-        default=["SERIAL", "OTA"],
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
-    assert (
-        "All specified devices: ['SERIAL', 'OTA'] could not be resolved." in caplog.text
-    )
+    with pytest.raises(
+        EsphomeError,
+        match=r"All specified devices \['SERIAL', 'OTA'\] could not be resolved",
+    ):
+        choose_upload_log_host(
+            default=["SERIAL", "OTA"],
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 @pytest.mark.usefixtures("mock_no_serial_ports", "mock_no_mqtt_logging")
@@ -762,12 +766,14 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
     """Test OTA device when OTA is configured but no address is set."""
     setup_core(config={CONF_OTA: {}})
 
-    result = choose_upload_log_host(
-        default="OTA",
-        check_default=None,
-        purpose=Purpose.UPLOADING,
-    )
-    assert result == []
+    with pytest.raises(
+        EsphomeError, match="All specified devices .* could not be resolved"
+    ):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
 
 
 @dataclass
