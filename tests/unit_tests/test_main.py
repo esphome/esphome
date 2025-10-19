@@ -874,7 +874,7 @@ def test_upload_program_serial_esp8266_with_file(
 
 def test_upload_using_esptool_path_conversion(
     tmp_path: Path,
-    mock_run_external_command: Mock,
+    mock_run_external_command_main: Mock,
     mock_get_idedata: Mock,
 ) -> None:
     """Test upload_using_esptool properly converts Path objects to strings for esptool.
@@ -910,10 +910,10 @@ def test_upload_using_esptool_path_conversion(
     assert result == 0
 
     # Verify that run_external_command was called
-    assert mock_run_external_command.call_count == 1
+    assert mock_run_external_command_main.call_count == 1
 
     # Get the actual call arguments
-    call_args = mock_run_external_command.call_args[0]
+    call_args = mock_run_external_command_main.call_args[0]
 
     # The first argument should be esptool.main function,
     # followed by the command arguments
@@ -952,7 +952,7 @@ def test_upload_using_esptool_path_conversion(
 
 def test_upload_using_esptool_with_file_path(
     tmp_path: Path,
-    mock_run_external_command: Mock,
+    mock_run_external_command_main: Mock,
 ) -> None:
     """Test upload_using_esptool with a custom file that's a Path object."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
@@ -969,10 +969,10 @@ def test_upload_using_esptool_with_file_path(
     assert result == 0
 
     # Verify that run_external_command was called
-    mock_run_external_command.assert_called_once()
+    mock_run_external_command_main.assert_called_once()
 
     # Get the actual call arguments
-    call_args = mock_run_external_command.call_args[0]
+    call_args = mock_run_external_command_main.call_args[0]
     cmd_list = list(call_args[1:])  # Skip the esptool.main function
 
     # Find the firmware path in the command

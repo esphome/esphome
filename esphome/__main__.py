@@ -910,8 +910,6 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int | None
     This command compiles the configuration and performs memory analysis.
     Compilation is fast if sources haven't changed (just relinking).
     """
-    from pathlib import Path
-
     from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.helpers import get_esphome_components
