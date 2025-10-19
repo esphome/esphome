@@ -70,24 +70,16 @@ jobs:
 
           mkdir -p memory-analysis
 
-          # Download target analysis
-          target_url=$(gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
-            --jq '.artifacts[] | select(.name == "memory-analysis-target") | .archive_download_url')
-          if [ -n "$target_url" ]; then
-            echo "Found memory-analysis-target artifact, downloading..."
-            gh api "$target_url" > memory-analysis-target.zip
-            unzip -q memory-analysis-target.zip -d memory-analysis/
+          # Download target analysis artifact
+          if gh run download --name "memory-analysis-target" --dir memory-analysis --repo "${{ github.repository }}" "$run_id"; then
+            echo "Downloaded memory-analysis-target artifact."
           else
             echo "No memory-analysis-target artifact found."
           fi
 
-          # Download PR analysis
-          pr_url=$(gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
-            --jq '.artifacts[] | select(.name == "memory-analysis-pr") | .archive_download_url')
-          if [ -n "$pr_url" ]; then
-            echo "Found memory-analysis-pr artifact, downloading..."
-            gh api "$pr_url" > memory-analysis-pr.zip
-            unzip -q memory-analysis-pr.zip -d memory-analysis/
+          # Download PR analysis artifact
+          if gh run download --name "memory-analysis-pr" --dir memory-analysis --repo "${{ github.repository }}" "$run_id"; then
+            echo "Downloaded memory-analysis-pr artifact."
           else
             echo "No memory-analysis-pr artifact found."
           fi
@@ -108,6 +100,7 @@ jobs:
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         run: |
+          . venv/bin/activate
           # Pass PR number and JSON file paths directly to Python script
           # Let Python parse the JSON to avoid shell injection risks
           # The script will validate and sanitize all inputs

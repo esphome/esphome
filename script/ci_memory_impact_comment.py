@@ -571,13 +571,32 @@ def main() -> int:
         type_errors.append(f"platform must be a string, got {type(platform).__name__}")
 
     if target_ram is None:
-        missing_fields.append("target_ram")
+        missing_fields.append("target.ram_bytes")
+    elif not isinstance(target_ram, int):
+        type_errors.append(
+            f"target.ram_bytes must be an integer, got {type(target_ram).__name__}"
+        )
+
     if target_flash is None:
-        missing_fields.append("target_flash")
+        missing_fields.append("target.flash_bytes")
+    elif not isinstance(target_flash, int):
+        type_errors.append(
+            f"target.flash_bytes must be an integer, got {type(target_flash).__name__}"
+        )
+
     if pr_ram is None:
-        missing_fields.append("pr_ram")
+        missing_fields.append("pr.ram_bytes")
+    elif not isinstance(pr_ram, int):
+        type_errors.append(
+            f"pr.ram_bytes must be an integer, got {type(pr_ram).__name__}"
+        )
+
     if pr_flash is None:
-        missing_fields.append("pr_flash")
+        missing_fields.append("pr.flash_bytes")
+    elif not isinstance(pr_flash, int):
+        type_errors.append(
+            f"pr.flash_bytes must be an integer, got {type(pr_flash).__name__}"
+        )
 
     if missing_fields or type_errors:
         if missing_fields:
