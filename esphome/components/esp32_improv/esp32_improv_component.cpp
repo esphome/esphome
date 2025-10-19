@@ -375,7 +375,7 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 }
 
 void ESP32ImprovComponent::check_wifi_connection_() {
-  if !wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected()) {
+  if (wifi::global_wifi_component == nullptr || !wifi::global_wifi_component->is_connected()) {
     return;
   }
 
