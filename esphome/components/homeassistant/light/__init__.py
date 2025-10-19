@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_GAMMA_CORRECT,
     CONF_INTERNAL,
     CONF_OUTPUT_ID,
+    CONF_RESTORE_MODE,
 )
 
 from .. import (
@@ -38,6 +39,7 @@ async def to_code(config):
     config[CONF_DEFAULT_TRANSITION_LENGTH] = 0
     config[CONF_GAMMA_CORRECT] = 0
     config[CONF_INTERNAL] = True
+    config[CONF_RESTORE_MODE] = light.RESTORE_MODES["DISABLED"]
 
     var = await light.new_light(config)
     await cg.register_component(var, config)

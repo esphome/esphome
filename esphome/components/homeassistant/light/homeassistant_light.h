@@ -32,6 +32,7 @@ class HomeassistantLight : public light::LightOutput, public Component {
   std::string entity_id_;
   light::LightTraits traits_{};
   light::LightState *state_{nullptr};
+  bool inited_{false};
 };
 
 }  // namespace homeassistant

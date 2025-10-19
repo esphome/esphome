@@ -39,7 +39,6 @@ void HomeassistantLight::state_changed_(const std::string &state) {
   switch (parse_on_off(state.c_str())) {
     case ParseOnOffState::PARSE_NONE:
       ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_.c_str(), state.c_str());
-      // this->invalidate_state();
       return;
     case ParseOnOffState::PARSE_ON:
       this->state_->turn_on().set_save(false).perform();
@@ -52,6 +51,7 @@ void HomeassistantLight::state_changed_(const std::string &state) {
       break;
   }
   ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), state.c_str());
+  this->inited_ = true;
 }
 
 void HomeassistantLight::brightness_retrieved_(const std::string &brightness) {
@@ -171,6 +171,10 @@ float HomeassistantLight::get_setup_priority() const { return setup_priority::AF
 void HomeassistantLight::setup_state(LightState *state) { this->state_ = state; }
 
 void HomeassistantLight::write_state(LightState *state) {
+  if (!this->inited_) {
+    return;
+  }
+
   if (!api::global_api_server->is_connected()) {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
