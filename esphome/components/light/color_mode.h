@@ -199,12 +199,13 @@ class ColorModeMask {
   constexpr bool contains(ColorMode mode) const { return (this->mask_ & (1 << mode_to_bit(mode))) != 0; }
 
   constexpr size_t size() const {
-    // Count set bits
+    // Count set bits using Brian Kernighan's algorithm
+    // More efficient for sparse bitmasks (typical case: 2-4 modes out of 10)
     uint16_t n = this->mask_;
     size_t count = 0;
     while (n) {
-      count += n & 1;
-      n >>= 1;
+      n &= n - 1;  // Clear the least significant set bit
+      count++;
     }
     return count;
   }
@@ -276,11 +277,17 @@ class ColorModeMask {
     // ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
     // We need to convert the power-of-2 value to an index
     uint8_t cap_val = static_cast<uint8_t>(capability);
+#if defined(__GNUC__) || defined(__clang__)
+    // Use compiler intrinsic for efficient bit position lookup (O(1) vs O(log n))
+    int index = __builtin_ctz(cap_val);
+#else
+    // Fallback for compilers without __builtin_ctz
     int index = 0;
     while (cap_val > 1) {
       cap_val >>= 1;
       ++index;
     }
+#endif
     return (this->mask_ & CAPABILITY_BITMASKS[index]) != 0;
   }
 
