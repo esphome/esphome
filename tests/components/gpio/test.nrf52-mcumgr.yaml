@@ -5,10 +5,10 @@ binary_sensor:
 
 output:
   - platform: gpio
-    pin: 3
+    pin: P0.3
     id: gpio_output
 
 switch:
   - platform: gpio
-    pin: 4
+    pin: P1.2
     id: gpio_switch

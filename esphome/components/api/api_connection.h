@@ -10,24 +10,15 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 
-#include <vector>
 #include <functional>
+#include <vector>
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Client information structure
 struct ClientInfo {
   std::string name;      // Client name from Hello message
   std::string peername;  // IP:port from socket
-
-  std::string get_combined_info() const {
-    if (name == peername) {
-      // Before Hello message, both are the same
-      return name;
-    }
-    return name + " (" + peername + ")";
-  }
 };
 
 // Keepalive timeout in milliseconds
@@ -45,7 +36,7 @@ static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HO
 static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
 #endif
 
-class APIConnection : public APIServerConnection {
+class APIConnection final : public APIServerConnection {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
@@ -132,11 +123,16 @@ class APIConnection : public APIServerConnection {
   void media_player_command(const MediaPlayerCommandRequest &msg) override;
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
-  void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+  void send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call, HomeassistantServiceResponse::MESSAGE_TYPE);
+    this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
   }
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  void on_homeassistant_action_response(const HomeassistantActionResponse &msg) override;
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_BLUETOOTH_PROXY
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
   void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
@@ -170,6 +166,11 @@ class APIConnection : public APIServerConnection {
   void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
 #endif
 
+#ifdef USE_ZWAVE_PROXY
+  void zwave_proxy_frame(const ZWaveProxyFrame &msg) override;
+  void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
@@ -189,12 +190,16 @@ class APIConnection : public APIServerConnection {
     // we initiated ping
     this->flags_.sent_ping = false;
   }
+#ifdef USE_API_HOMEASSISTANT_STATES
   void on_home_assistant_state_response(const HomeAssistantStateResponse &msg) override;
+#endif
 #ifdef USE_HOMEASSISTANT_TIME
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
   bool send_hello_response(const HelloRequest &msg) override;
-  bool send_connect_response(const ConnectRequest &msg) override;
+#ifdef USE_API_PASSWORD
+  bool send_authenticate_response(const AuthenticationRequest &msg) override;
+#endif
   bool send_disconnect_response(const DisconnectRequest &msg) override;
   bool send_ping_response(const PingRequest &msg) override;
   bool send_device_info_response(const DeviceInfoRequest &msg) override;
@@ -208,11 +213,14 @@ class APIConnection : public APIServerConnection {
     if (msg.dump_config)
       App.schedule_dump_config();
   }
+#ifdef USE_API_HOMEASSISTANT_SERVICES
   void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
     this->flags_.service_call_subscription = true;
   }
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
-  bool send_get_time_response(const GetTimeRequest &msg) override;
+#endif
 #ifdef USE_API_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
 #endif
@@ -228,66 +236,53 @@ class APIConnection : public APIServerConnection {
            this->is_authenticated();
   }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
+
+  // Get client API version for feature detection
+  bool client_supports_api_version(uint16_t major, uint16_t minor) const {
+    return this->client_api_version_major_ > major ||
+           (this->client_api_version_major_ == major && this->client_api_version_minor_ >= minor);
+  }
+
   void on_fatal_error() override;
+#ifdef USE_API_PASSWORD
   void on_unauthenticated_access() override;
+#endif
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen
 
     // Get header padding size - used for both reserve and insert
     uint8_t header_padding = this->helper_->frame_header_padding();
-
     // Get shared buffer from parent server
     std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
+    this->prepare_first_message_buffer(shared_buf, header_padding,
+                                       reserve_size + header_padding + this->helper_->frame_footer_size());
+    return {&shared_buf};
+  }
+
+  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    shared_buf.reserve(reserve_size + header_padding + this->helper_->frame_footer_size());
+    shared_buf.reserve(total_size);
     // Resize to add header padding so message encoding starts at the correct position
     shared_buf.resize(header_padding);
-    return {&shared_buf};
-  }
-
-  // Prepare buffer for next message in batch
-  ProtoWriteBuffer prepare_message_buffer(uint16_t message_size, bool is_first_message) {
-    // Get reference to shared buffer (it maintains state between batch messages)
-    std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-
-    if (is_first_message) {
-      shared_buf.clear();
-    }
-
-    size_t current_size = shared_buf.size();
-
-    // Calculate padding to add:
-    // - First message: just header padding
-    // - Subsequent messages: footer for previous message + header padding for this message
-    size_t padding_to_add = is_first_message
-                                ? this->helper_->frame_header_padding()
-                                : this->helper_->frame_header_padding() + this->helper_->frame_footer_size();
-
-    // Reserve space for padding + message
-    shared_buf.reserve(current_size + padding_to_add + message_size);
-
-    // Resize to add the padding bytes
-    shared_buf.resize(current_size + padding_to_add);
-
-    return {&shared_buf};
   }
 
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
-  std::string get_client_combined_info() const { return this->client_info_.get_combined_info(); }
-
-  // Buffer allocator methods for batch processing
-  ProtoWriteBuffer allocate_single_message_buffer(uint16_t size);
-  ProtoWriteBuffer allocate_batch_message_buffer(uint16_t size);
+  const std::string &get_name() const { return this->client_info_.name; }
+  const std::string &get_peername() const { return this->client_info_.peername; }
 
  protected:
   // Helper function to handle authentication completion
   void complete_authentication_();
+
+#ifdef USE_API_HOMEASSISTANT_STATES
+  void process_state_subscriptions_();
+#endif
 
   // Non-template helper to encode any ProtoMessage
   static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint8_t message_type, APIConnection *conn,
@@ -308,9 +303,17 @@ class APIConnection : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // IMPORTANT: get_object_id() may return a temporary std::string
-    std::string object_id = entity->get_object_id();
-    msg.set_object_id(StringRef(object_id));
+    // Try to use static reference first to avoid allocation
+    StringRef static_ref = entity->get_object_id_ref_for_api_();
+    // Store dynamic string outside the if-else to maintain lifetime
+    std::string object_id;
+    if (!static_ref.empty()) {
+      msg.set_object_id(static_ref);
+    } else {
+      // Dynamic case - need to allocate
+      object_id = entity->get_object_id();
+      msg.set_object_id(StringRef(object_id));
+    }
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());
@@ -493,7 +496,9 @@ class APIConnection : public APIServerConnection {
 
   // Group 4: 4-byte types
   uint32_t last_traffic_;
+#ifdef USE_API_HOMEASSISTANT_STATES
   int state_subs_at_ = -1;
+#endif
 
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);
@@ -681,10 +686,16 @@ class APIConnection : public APIServerConnection {
   bool send_message_smart_(EntityBase *entity, MessageCreatorPtr creator, uint8_t message_type,
                            uint8_t estimated_size) {
     // Try to send immediately if:
-    // 1. We should try to send immediately (should_try_send_immediately = true)
-    // 2. Batch delay is 0 (user has opted in to immediate sending)
-    // 3. Buffer has space available
-    if (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0 &&
+    // 1. It's an UpdateStateResponse (always send immediately to handle cases where
+    //    the main loop is blocked, e.g., during OTA updates)
+    // 2. OR: We should try to send immediately (should_try_send_immediately = true)
+    //        AND Batch delay is 0 (user has opted in to immediate sending)
+    // 3. AND: Buffer has space available
+    if ((
+#ifdef USE_UPDATE
+            message_type == UpdateStateResponse::MESSAGE_TYPE ||
+#endif
+            (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0)) &&
         this->helper_->can_write_without_blocking()) {
       // Now actually encode and send
       if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true) &&
@@ -721,8 +732,15 @@ class APIConnection : public APIServerConnection {
     this->deferred_batch_.add_item_front(entity, MessageCreator(function_ptr), message_type, estimated_size);
     return this->schedule_batch_();
   }
+
+  // Helper function to log API errors with errno
+  void log_warning_(const LogString *message, APIError err);
+  // Helper to handle fatal errors with logging
+  inline void fatal_error_with_log_(const LogString *message, APIError err) {
+    this->on_fatal_error();
+    this->log_warning_(message, err);
+  }
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

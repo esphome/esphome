@@ -22,15 +22,20 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
+
 namespace esphome {
 namespace ld2410 {
 
-static const uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
-static const uint8_t TOTAL_GATES = 9;       // Total number of gates supported by the LD2410
+using namespace ld24xx;
+
+static constexpr uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
+static constexpr uint8_t TOTAL_GATES = 9;       // Total number of gates supported by the LD2410
 
 class LD2410Component : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
@@ -40,12 +45,12 @@ class LD2410Component : public Component, public uart::UARTDevice {
   SUB_BINARY_SENSOR(target)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(light)
-  SUB_SENSOR(detection_distance)
-  SUB_SENSOR(moving_target_distance)
-  SUB_SENSOR(moving_target_energy)
-  SUB_SENSOR(still_target_distance)
-  SUB_SENSOR(still_target_energy)
+  SUB_SENSOR_WITH_DEDUP(light, uint8_t)
+  SUB_SENSOR_WITH_DEDUP(detection_distance, int)
+  SUB_SENSOR_WITH_DEDUP(moving_target_distance, int)
+  SUB_SENSOR_WITH_DEDUP(moving_target_energy, uint8_t)
+  SUB_SENSOR_WITH_DEDUP(still_target_distance, int)
+  SUB_SENSOR_WITH_DEDUP(still_target_energy, uint8_t)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
@@ -88,7 +93,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_gate_move_sensor(uint8_t gate, sensor::Sensor *s);
   void set_gate_still_sensor(uint8_t gate, sensor::Sensor *s);
 #endif
-  void set_throttle(uint16_t value) { this->throttle_ = value; };
   void set_bluetooth_password(const std::string &password);
   void set_engineering_mode(bool enable);
   void read_all_info();
@@ -111,8 +115,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
 
-  uint32_t last_periodic_millis_ = 0;
-  uint16_t throttle_ = 0;
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
   uint8_t out_pin_level_ = 0;
@@ -122,12 +124,12 @@ class LD2410Component : public Component, public uart::UARTDevice {
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
 #ifdef USE_NUMBER
-  std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(TOTAL_GATES);
-  std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(TOTAL_GATES);
+  std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
+  std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
 #endif
 #ifdef USE_SENSOR
-  std::vector<sensor::Sensor *> gate_move_sensors_ = std::vector<sensor::Sensor *>(TOTAL_GATES);
-  std::vector<sensor::Sensor *> gate_still_sensors_ = std::vector<sensor::Sensor *>(TOTAL_GATES);
+  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_move_sensors_{};
+  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 

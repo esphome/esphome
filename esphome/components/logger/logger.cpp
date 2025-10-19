@@ -8,8 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -149,9 +148,11 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
 inline uint8_t Logger::level_for(const char *tag) {
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   auto it = this->log_levels_.find(tag);
   if (it != this->log_levels_.end())
     return it->second;
+#endif
   return this->current_level_;
 }
 
@@ -174,24 +175,8 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 }
 #endif
 
-#ifndef USE_ZEPHYR
-#if defined(USE_LOGGER_USB_CDC) || defined(USE_ESP32)
-void Logger::loop() {
-#if defined(USE_LOGGER_USB_CDC) && defined(USE_ARDUINO)
-  if (this->uart_ == UART_SELECTION_USB_CDC) {
-    static bool opened = false;
-    if (opened == Serial) {
-      return;
-    }
-    if (false == opened) {
-      App.schedule_dump_config();
-    }
-    opened = !opened;
-  }
-#endif
-  this->process_messages_();
-}
-#endif
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+void Logger::loop() { this->process_messages_(); }
 #endif
 
 void Logger::process_messages_() {
@@ -237,7 +222,9 @@ void Logger::process_messages_() {
 }
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-void Logger::set_log_level(const std::string &tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
+#endif
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 UARTSelection Logger::get_uart() const { return this->uart_; }
@@ -247,19 +234,40 @@ void Logger::add_on_log_callback(std::function<void(uint8_t, const char *, const
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+// ESP8266: PSTR() cannot be used in array initializers, so we need to declare
+// each string separately as a global constant first
+static const char LOG_LEVEL_NONE[] PROGMEM = "NONE";
+static const char LOG_LEVEL_ERROR[] PROGMEM = "ERROR";
+static const char LOG_LEVEL_WARN[] PROGMEM = "WARN";
+static const char LOG_LEVEL_INFO[] PROGMEM = "INFO";
+static const char LOG_LEVEL_CONFIG[] PROGMEM = "CONFIG";
+static const char LOG_LEVEL_DEBUG[] PROGMEM = "DEBUG";
+static const char LOG_LEVEL_VERBOSE[] PROGMEM = "VERBOSE";
+static const char LOG_LEVEL_VERY_VERBOSE[] PROGMEM = "VERY_VERBOSE";
+
+static const LogString *const LOG_LEVELS[] = {
+    reinterpret_cast<const LogString *>(LOG_LEVEL_NONE),    reinterpret_cast<const LogString *>(LOG_LEVEL_ERROR),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_WARN),    reinterpret_cast<const LogString *>(LOG_LEVEL_INFO),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_CONFIG),  reinterpret_cast<const LogString *>(LOG_LEVEL_DEBUG),
+    reinterpret_cast<const LogString *>(LOG_LEVEL_VERBOSE), reinterpret_cast<const LogString *>(LOG_LEVEL_VERY_VERBOSE),
+};
+#else
 static const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
+#endif
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_LEVELS[ESPHOME_LOG_LEVEL], LOG_LEVELS[this->current_level_]);
+                LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]), LOG_STR_ARG(LOG_LEVELS[this->current_level_]));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
                 "  Hardware UART: %s",
-                this->baud_rate_, get_uart_selection_());
+                this->baud_rate_, LOG_STR_ARG(get_uart_selection_()));
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   if (this->log_buffer_) {
@@ -267,15 +275,17 @@ void Logger::dump_config() {
   }
 #endif
 
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first.c_str(), LOG_LEVELS[it.second]);
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LOG_LEVELS[it.second]));
   }
+#endif
 }
 
 void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
-    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
+    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LOG_STR_ARG(LOG_LEVELS[ESPHOME_LOG_LEVEL]));
   }
   this->current_level_ = level;
   this->level_callback_.call(level);
@@ -283,5 +293,4 @@ void Logger::set_log_level(uint8_t level) {
 
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger

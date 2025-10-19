@@ -29,6 +29,18 @@ YAML_FILE_EXTENSIONS = (".yaml", ".yml")
 # Component path prefix
 ESPHOME_COMPONENTS_PATH = "esphome/components/"
 
+# Base bus components - these ARE the bus implementations and should not
+# be flagged as needing migration since they are the platform/base components
+BASE_BUS_COMPONENTS = {
+    "i2c",
+    "spi",
+    "uart",
+    "modbus",
+    "canbus",
+    "remote_transmitter",
+    "remote_receiver",
+}
+
 
 def parse_list_components_output(output: str) -> list[str]:
     """Parse the output from list-components.py script.
@@ -46,16 +58,75 @@ def parse_list_components_output(output: str) -> list[str]:
     return [c.strip() for c in output.strip().split("\n") if c.strip()]
 
 
+def parse_test_filename(test_file: Path) -> tuple[str, str]:
+    """Parse test filename to extract test name and platform.
+
+    Test files follow the naming pattern: test.<platform>.yaml or test-<variant>.<platform>.yaml
+
+    Args:
+        test_file: Path to test file
+
+    Returns:
+        Tuple of (test_name, platform)
+    """
+    parts = test_file.stem.split(".")
+    if len(parts) == 2:
+        return parts[0], parts[1]  # test, platform
+    return parts[0], "all"
+
+
+def get_component_from_path(file_path: str) -> str | None:
+    """Extract component name from a file path.
+
+    Args:
+        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp")
+
+    Returns:
+        Component name if path is in components directory, None otherwise
+    """
+    if not file_path.startswith(ESPHOME_COMPONENTS_PATH):
+        return None
+    parts = file_path.split("/")
+    if len(parts) >= 3:
+        return parts[2]
+    return None
+
+
+def get_component_test_files(
+    component: str, *, all_variants: bool = False
+) -> list[Path]:
+    """Get test files for a component.
+
+    Args:
+        component: Component name (e.g., "wifi")
+        all_variants: If True, returns all test files including variants (test-*.yaml).
+                     If False, returns only base test files (test.*.yaml).
+                     Default is False.
+
+    Returns:
+        List of test file paths for the component, or empty list if none exist
+    """
+    tests_dir = Path(root_path) / "tests" / "components" / component
+    if not tests_dir.exists():
+        return []
+
+    if all_variants:
+        # Match both test.*.yaml and test-*.yaml patterns
+        return list(tests_dir.glob("test[.-]*.yaml"))
+    # Match only test.*.yaml (base tests)
+    return list(tests_dir.glob("test.*.yaml"))
+
+
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
     prefix = "".join(color) if isinstance(color, tuple) else color
     suffix = colorama.Style.RESET_ALL if reset else ""
     return prefix + msg + suffix
 
 
-def print_error_for_file(file: str, body: str | None) -> None:
+def print_error_for_file(file: str | Path, body: str | None) -> None:
     print(
         styled(colorama.Fore.GREEN, "### File ")
-        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
+        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), str(file))
     )
     print()
     if body is not None:
@@ -139,9 +210,24 @@ def _get_changed_files_github_actions() -> list[str] | None:
     if event_name == "pull_request":
         pr_number = _get_pr_number_from_github_env()
         if pr_number:
-            # Use GitHub CLI to get changed files directly
+            # Try gh pr diff first (faster for small PRs)
             cmd = ["gh", "pr", "diff", pr_number, "--name-only"]
-            return _get_changed_files_from_command(cmd)
+            try:
+                return _get_changed_files_from_command(cmd)
+            except Exception as e:
+                # If it fails due to the 300 file limit, use the API method
+                if "maximum" in str(e) and "files" in str(e):
+                    cmd = [
+                        "gh",
+                        "api",
+                        f"repos/esphome/esphome/pulls/{pr_number}/files",
+                        "--paginate",
+                        "--jq",
+                        ".[].filename",
+                    ]
+                    return _get_changed_files_from_command(cmd)
+                # Re-raise for other errors
+                raise
 
     # For pushes (including squash-and-merge)
     elif event_name == "push":
@@ -299,11 +385,9 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
     # because changes in one file can affect other files in the same component.
     filtered_files = []
     for f in files:
-        if f.startswith(ESPHOME_COMPONENTS_PATH):
-            # Check if file belongs to any of the changed components
-            parts = f.split("/")
-            if len(parts) >= 3 and parts[2] in component_set:
-                filtered_files.append(f)
+        component = get_component_from_path(f)
+        if component and component in component_set:
+            filtered_files.append(f)
 
     return filtered_files
 
@@ -338,12 +422,12 @@ def filter_changed(files: list[str]) -> list[str]:
     return files
 
 
-def filter_grep(files: list[str], value: str) -> list[str]:
+def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
         with open(file, encoding="utf-8") as handle:
             contents = handle.read()
-        if value in contents:
+        if any(v in contents for v in value):
             matched.append(file)
     return matched
 
@@ -365,9 +449,11 @@ def load_idedata(environment: str) -> dict[str, Any]:
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if "idf" in environment:
@@ -496,7 +582,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
-    CORE.config_path = str(root)
+    CORE.config_path = root
     CORE.data[KEY_CORE] = {}
 
     # Keep finding dependencies until no new ones are found
@@ -512,7 +598,16 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
             new_components.update(dep.split(".")[0] for dep in comp.dependencies)
 
             # Add auto_load components
-            new_components.update(comp.auto_load)
+            auto_load = comp.auto_load
+            if callable(auto_load):
+                import inspect
+
+                if inspect.signature(auto_load).parameters:
+                    auto_load = auto_load(None)
+                else:
+                    auto_load = auto_load()
+
+            new_components.update(auto_load)
 
         # Check if we found any new components
         new_components -= all_components
@@ -536,7 +631,7 @@ def get_components_from_integration_fixtures() -> set[str]:
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(str(yaml_file))
+        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 

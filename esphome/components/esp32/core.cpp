@@ -6,6 +6,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_idf_version.h>
+#include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
 #include <esp_timer.h>
 #include <soc/rtc.h>
@@ -52,6 +53,16 @@ void arch_init() {
   disableCore1WDT();
 #endif
 #endif
+
+  // If the bootloader was compiled with CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE the current
+  // partition will get rolled back unless it is marked as valid.
+  esp_ota_img_states_t state;
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  if (esp_ota_get_state_partition(running, &state) == ESP_OK) {
+    if (state == ESP_OTA_IMG_PENDING_VERIFY) {
+      esp_ota_mark_app_valid_cancel_rollback();
+    }
+  }
 }
 void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 

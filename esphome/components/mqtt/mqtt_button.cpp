@@ -27,7 +27,7 @@ void MQTTButtonComponent::setup() {
 }
 void MQTTButtonComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Button '%s': ", this->button_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
+  LOG_MQTT_COMPONENT(false, true);
 }
 
 void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {

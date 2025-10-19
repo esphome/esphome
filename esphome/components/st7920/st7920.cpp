@@ -32,7 +32,6 @@ static const uint8_t LCD_LINE2 = 0x88;
 static const uint8_t LCD_LINE3 = 0x98;
 
 void ST7920::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());

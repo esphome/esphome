@@ -1,10 +1,5 @@
-i2c:
-  sda: 0
-  scl: 1
-  id: bus_external
-
 m5stack_8angle:
-  i2c_id: bus_external
+  i2c_id: i2c_bus
   id: m5stack_8angle_base
 
 light:
