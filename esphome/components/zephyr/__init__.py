@@ -234,6 +234,9 @@ def copy_files():
     "url": "https://esphome.io/",
     "vendor": "esphome",
     "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
         "softdevice": {
             "sd_fwid": "0x00B6"
         }
