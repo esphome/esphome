@@ -135,7 +135,8 @@ bool MQTTComponent::send_discovery_() {
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
           root[MQTT_OBJECT_ID] = node_name + "_" + this->get_default_object_id_();
 
-        const std::string &node_friendly_name = App.get_friendly_name().empty() ? node_name : App.get_friendly_name();
+        const std::string &friendly_name_ref = App.get_friendly_name();
+        const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
         std::string node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
