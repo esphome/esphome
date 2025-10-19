@@ -227,6 +227,14 @@ def mock_run_external_process() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_run_external_command_main() -> Generator[Mock]:
+    """Mock run_external_command in __main__ module (different from platformio_api)."""
+    with patch("esphome.__main__.run_external_command") as mock:
+        mock.return_value = 0  # Default to success
+        yield mock
+
+
+@pytest.fixture
 def mock_write_cpp() -> Generator[Mock]:
     """Mock write_cpp for testing."""
     with patch("esphome.__main__.write_cpp") as mock:
