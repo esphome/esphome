@@ -697,13 +697,6 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    # Set memory analysis options in config
-    if args.analyze_memory:
-        config.setdefault(CONF_ESPHOME, {})["analyze_memory"] = True
-
-    if args.memory_report:
-        config.setdefault(CONF_ESPHOME, {})["memory_report_file"] = args.memory_report
-
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -899,6 +892,46 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
+def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int | None:
+    """Analyze memory usage by component.
+
+    This command compiles the configuration and performs memory analysis.
+    Compilation is fast if sources haven't changed (just relinking).
+    """
+    from pathlib import Path
+
+    from esphome import platformio_api
+    from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+
+    # Always compile to ensure fresh data (fast if no changes - just relinks)
+    exit_code = write_cpp(config)
+    if exit_code != 0:
+        return exit_code
+    exit_code = compile_program(args, config)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info("Successfully compiled program.")
+
+    # Get idedata for analysis
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        _LOGGER.error("Failed to get IDE data for memory analysis")
+        return 1
+
+    firmware_elf = Path(idedata.firmware_elf_path)
+
+    # Perform memory analysis
+    _LOGGER.info("Analyzing memory usage...")
+    analyzer = MemoryAnalyzerCLI(str(firmware_elf), idedata=idedata)
+    analyzer.analyze()
+
+    # Generate and display report
+    report = analyzer.generate_report()
+    print("\n" + report)
+
+    return 0
+
+
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
@@ -1014,6 +1047,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
+    "analyze-memory": command_analyze_memory,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1115,17 +1149,6 @@ def parse_args(argv):
         "--only-generate",
         help="Only generate source code, do not compile.",
         action="store_true",
-    )
-    parser_compile.add_argument(
-        "--analyze-memory",
-        help="Analyze and display memory usage by component after compilation.",
-        action="store_true",
-    )
-    parser_compile.add_argument(
-        "--memory-report",
-        help="Save memory analysis report to a file (supports .json or .txt).",
-        type=str,
-        metavar="FILE",
     )
 
     parser_upload = subparsers.add_parser(
@@ -1309,6 +1332,14 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs=1
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
+
+    parser_analyze_memory = subparsers.add_parser(
+        "analyze-memory",
+        help="Analyze memory usage by component.",
+    )
+    parser_analyze_memory.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
