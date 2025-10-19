@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_RESET_PIN,
+    CONF_VOLTAGE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -101,6 +102,7 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
+CONF_REG0 = "reg0"
 
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
@@ -113,6 +115,17 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
                     cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                }
+            ),
+            cv.Optional(CONF_REG0): cv.Schema(
+                {
+                    cv.Required(CONF_VOLTAGE): cv.Any(
+                        cv.one_of(*["default"], lower=True),
+                        cv.All(
+                            cv.voltage,
+                            cv.one_of(1.8, 2.1, 2.4, 2.7, 3.0, 3.3, float=True),
+                        ),
+                    ),
                 }
             ),
         }
