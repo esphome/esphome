@@ -426,7 +426,7 @@ ColorMode LightCall::compute_color_mode_() {
   // pre-colormode clients and automations, but also for the MQTT API, where HA doesn't let us know which color mode
   // was used for some reason.
   // Compute intersection of suitable and supported modes using bitwise AND
-  color_mode_bitmask_t intersection = this->get_suitable_color_modes_() & supported_modes.get_mask();
+  color_mode_bitmask_t intersection = this->get_suitable_color_modes_mask_() & supported_modes.get_mask();
 
   // Don't change if the current mode is in the intersection (suitable AND supported)
   if (ColorModeMask::mask_contains(intersection, current_mode)) {
@@ -450,7 +450,7 @@ ColorMode LightCall::compute_color_mode_() {
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
-color_mode_bitmask_t LightCall::get_suitable_color_modes_() {
+color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
   bool has_white = this->has_white() && this->white_ > 0.0f;
   bool has_ct = this->has_color_temperature();
   bool has_cwww =
