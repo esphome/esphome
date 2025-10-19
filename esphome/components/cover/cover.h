@@ -1,10 +1,11 @@
 #pragma once
 
-#include "cover_traits.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+
+#include "cover_traits.h"
 
 namespace esphome {
 namespace cover {
