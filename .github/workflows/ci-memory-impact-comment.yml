@@ -29,10 +29,8 @@ jobs:
           # Get PR details by searching for PR with matching head SHA
           # The workflow_run.pull_requests field is often empty for forks
           head_sha="${{ github.event.workflow_run.head_sha }}"
-          pr_data=$(gh api --paginate "/repos/${{ github.repository }}/pulls" \
-            --jq ".[] | select(.head.sha == \"$head_sha\") | {number: .number, base_ref: .base.ref}" \
-            | head -1)
-
+          pr_data=$(gh api "/repos/${{ github.repository }}/commits/$head_sha/pulls" \
+            --jq '.[0] | {number: .number, base_ref: .base.ref}')
           if [ -z "$pr_data" ] || [ "$pr_data" == "null" ]; then
             echo "No PR found for SHA $head_sha, skipping"
             echo "skip=true" >> $GITHUB_OUTPUT
