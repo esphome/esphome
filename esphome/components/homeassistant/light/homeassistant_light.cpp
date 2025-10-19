@@ -39,6 +39,7 @@ void HomeassistantLight::state_changed_(const std::string &state) {
   switch (parse_on_off(state.c_str())) {
     case ParseOnOffState::PARSE_NONE:
       ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_.c_str(), state.c_str());
+      this->state_->make_call().set_save(false).perform();
       return;
     case ParseOnOffState::PARSE_ON:
       this->state_->turn_on().set_save(false).perform();
@@ -64,7 +65,7 @@ void HomeassistantLight::brightness_retrieved_(const std::string &brightness) {
     return;
   }
   ESP_LOGD(TAG, "'%s': Brightness retrieved: %s", this->entity_id_.c_str(), brightness.c_str());
-  this->state_->make_call().set_brightness(brightness_value.value() / 255.f).set_save(false).perform();
+  this->state_->make_call().set_brightness(brightness_value.value() / 255.f).set_publish(false).set_save(false).perform();
 }
 
 void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
@@ -77,7 +78,7 @@ void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
     return;
   }
   ESP_LOGD(TAG, "'%s': Color temperature retrieved: %s", this->entity_id_.c_str(), color_temp.c_str());
-  this->state_->make_call().set_color_temperature(color_temp_value.value()).set_save(false).perform();
+  this->state_->make_call().set_color_temperature(color_temp_value.value()).set_publish(false).set_save(false).perform();
 }
 
 void HomeassistantLight::color_mode_retrieved_(const std::string &color_mode) {
@@ -90,7 +91,7 @@ void HomeassistantLight::color_mode_retrieved_(const std::string &color_mode) {
     return;
   }
   ESP_LOGD(TAG, "'%s': Color mode retrieved: %s", this->entity_id_.c_str(), color_mode.c_str());
-  this->state_->make_call().set_color_mode(color_mode_value.value()).set_save(false).perform();
+  this->state_->make_call().set_color_mode(color_mode_value.value()).set_publish(false).set_save(false).perform();
 }
 
 void HomeassistantLight::supported_color_modes_retrieved_(const std::string &supported_color_modes) {
@@ -147,13 +148,13 @@ void HomeassistantLight::setup() {
       this->entity_id_, optional<std::string>("max_mireds"),
       std::bind(&HomeassistantLight::max_mireds_retrieved_, this, std::placeholders::_1));
 
-  api::global_api_server->get_home_assistant_state(
+  api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, optional<std::string>("color_mode"),
       std::bind(&HomeassistantLight::color_mode_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
+  api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, optional<std::string>("brightness"),
       std::bind(&HomeassistantLight::brightness_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
+  api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, optional<std::string>("color_temp"),
       std::bind(&HomeassistantLight::color_temp_retrieved_, this, std::placeholders::_1));
 
