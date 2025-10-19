@@ -286,9 +286,8 @@ climate::ClimateTraits TuyaClimate::traits() {
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   if (this->current_temperature_id_.has_value()) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  } else {
-    traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
+
   if (supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   if (supports_cool_)

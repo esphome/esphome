@@ -83,8 +83,6 @@ climate::ClimateTraits YashimaClimate::traits() {
   auto traits = climate::ClimateTraits();
   if (this->sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  } else {
-    traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
 
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
@@ -93,7 +91,6 @@ climate::ClimateTraits YashimaClimate::traits() {
   if (supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
 
-  traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
   traits.set_visual_min_temperature(YASHIMA_TEMP_MIN);
   traits.set_visual_max_temperature(YASHIMA_TEMP_MAX);
   traits.set_visual_temperature_step(1);

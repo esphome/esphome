@@ -90,7 +90,6 @@ class DemoClimate : public climate::Climate, public Component {
         traits.set_visual_temperature_step(0.5);
         break;
       case DemoClimateType::TYPE_2:
-        traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
         traits.set_supported_modes({
             climate::CLIMATE_MODE_OFF,
             climate::CLIMATE_MODE_HEAT,

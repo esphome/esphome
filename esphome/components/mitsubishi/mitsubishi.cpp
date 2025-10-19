@@ -54,10 +54,7 @@ climate::ClimateTraits MitsubishiClimate::traits() {
   auto traits = climate::ClimateTraits();
   if (this->sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  } else {
-    traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
-  traits.clear_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
   traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
   traits.set_visual_temperature_step(1.0f);
