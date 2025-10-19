@@ -555,17 +555,27 @@ def main() -> int:
     pr_flash = pr_data.get("flash_bytes")
 
     # Validate required fields
-    if not all(
-        [
-            components,
-            platform,
-            target_ram is not None,
-            target_flash is not None,
-            pr_ram is not None,
-            pr_flash is not None,
-        ]
-    ):
-        print("Error: JSON files missing required fields", file=sys.stderr)
+    missing_fields = []
+    if not components:
+        missing_fields.append("components")
+    if not platform:
+        missing_fields.append("platform")
+    if target_ram is None:
+        missing_fields.append("target_ram")
+    if target_flash is None:
+        missing_fields.append("target_flash")
+    if pr_ram is None:
+        missing_fields.append("pr_ram")
+    if pr_flash is None:
+        missing_fields.append("pr_flash")
+
+    if missing_fields:
+        print(
+            f"Error: JSON files missing required fields: {', '.join(missing_fields)}",
+            file=sys.stderr,
+        )
+        print(f"Target JSON keys: {list(target_data.keys())}", file=sys.stderr)
+        print(f"PR JSON keys: {list(pr_data.keys())}", file=sys.stderr)
         sys.exit(1)
 
     # Create comment body

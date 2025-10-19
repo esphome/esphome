@@ -600,7 +600,7 @@ jobs:
           fi
 
       - name: Restore Python
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true'
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
@@ -649,13 +649,13 @@ jobs:
           key: ${{ steps.cache-key.outputs.cache-key }}
 
       - name: Add metadata to JSON
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true'
         run: |
           . venv/bin/activate
           components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
 
-          # Add metadata to newly generated JSON (cache miss means we just built it)
+          # Add metadata to JSON (works for both cache hit and cache miss)
           python script/ci_add_metadata_to_json.py \
             --json-file memory-analysis-target.json \
             --components "$components" \
