@@ -25,5 +25,5 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT_NUS", True)
-    cg.add(var.set_expose_log(CONF_TYPE in config))
+    cg.add(var.set_expose_log(config[CONF_TYPE] == CONF_LOGS))
     await cg.register_component(var, config)
