@@ -828,6 +828,9 @@ async def to_code(config):
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
 
+    # Reduce PHY TX power in the event of a brownout
+    add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
+
     # Set default CPU frequency
     add_idf_sdkconfig_option(
         f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{config[CONF_CPU_FREQUENCY][:-3]}", True
