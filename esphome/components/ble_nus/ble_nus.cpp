@@ -35,8 +35,8 @@ void BLENUS::connected(bt_conn *conn, uint8_t err) {
 void BLENUS::disconnected(bt_conn *conn, uint8_t reason) {
   if (global_ble_nus->conn_) {
     bt_conn_unref(global_ble_nus->conn_.load());
-    // connection array is global static.
-    // Reference can be kept reference if disconnected.
+    // Connection array is global static.
+    // Reference can be kept even if disconnected.
   }
 }
 

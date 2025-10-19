@@ -6,7 +6,6 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -466,9 +465,6 @@ async def to_code(config: ConfigType) -> None:
     CORE.add_job(_add_platform_defines)
 
     CORE.add_job(_add_automations, config)
-
-    if CORE.using_zephyr:
-        zephyr_add_prj_conf("BT_DEVICE_NAME", config[CONF_NAME])
 
     cg.add_build_flag("-fno-exceptions")
 
