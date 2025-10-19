@@ -61,7 +61,7 @@ void HomeassistantLight::state_changed_(const std::string &state) {
   switch (parse_on_off(state.c_str())) {
     case ParseOnOffState::PARSE_NONE:
       ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_.c_str(), state.c_str());
-      //this->invalidate_state();
+      // this->invalidate_state();
       return;
     case ParseOnOffState::PARSE_ON:
       this->state_->turn_on().set_save(false).perform();
@@ -81,7 +81,8 @@ void HomeassistantLight::brightness_retrieved_(const std::string &brightness) {
     return;
   auto brightness_value = parse_number<float>(brightness);
   if (!brightness_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'brightness' value '%s' to number!", this->entity_id_.c_str(), brightness.c_str());
+    ESP_LOGE(TAG, "'%s': Can't convert 'brightness' value '%s' to number!", this->entity_id_.c_str(),
+             brightness.c_str());
     return;
   }
   ESP_LOGD(TAG, "'%s': Brightness retrieved: %s", this->entity_id_.c_str(), brightness.c_str());
@@ -93,7 +94,8 @@ void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
     return;
   auto color_temp_value = parse_number<float>(color_temp);
   if (!color_temp_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'color_temp' value '%s' to number!", this->entity_id_.c_str(), color_temp.c_str());
+    ESP_LOGE(TAG, "'%s': Can't convert 'color_temp' value '%s' to number!", this->entity_id_.c_str(),
+             color_temp.c_str());
     return;
   }
   ESP_LOGD(TAG, "'%s': Color temperature retrieved: %s", this->entity_id_.c_str(), color_temp.c_str());
@@ -105,7 +107,8 @@ void HomeassistantLight::color_mode_retrieved_(const std::string &color_mode) {
     return;
   auto color_mode_value = _parse_color_mode(color_mode);
   if (!color_mode_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_.c_str(), color_mode.c_str());
+    ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_.c_str(),
+             color_mode.c_str());
     return;
   }
   ESP_LOGD(TAG, "'%s': Color mode retrieved: %s", this->entity_id_.c_str(), color_mode.c_str());
@@ -123,7 +126,8 @@ void HomeassistantLight::supported_color_modes_retrieved_(const std::string &sup
       std::getline(color_mode_repr_s, color_mode, '\'');
     auto color_mode_value = _parse_color_mode(color_mode);
     if (!color_mode_value.has_value()) {
-      ESP_LOGW(TAG, "'%s': Can't parse 'supported_color_modes' value '%s' as color mode!", this->entity_id_.c_str(), color_mode.c_str());
+      ESP_LOGW(TAG, "'%s': Can't parse 'supported_color_modes' value '%s' as color mode!", this->entity_id_.c_str(),
+               color_mode.c_str());
       continue;
     }
     modes.insert(color_mode_value.value());
@@ -135,7 +139,8 @@ void HomeassistantLight::supported_color_modes_retrieved_(const std::string &sup
 void HomeassistantLight::min_mireds_retrieved_(const std::string &min_mireds) {
   auto min_mireds_value = parse_number<float>(min_mireds);
   if (!min_mireds_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'min_mireds' value '%s' to number!", this->entity_id_.c_str(), min_mireds.c_str());
+    ESP_LOGE(TAG, "'%s': Can't convert 'min_mireds' value '%s' to number!", this->entity_id_.c_str(),
+             min_mireds.c_str());
     return;
   }
   ESP_LOGD(TAG, "'%s': Min mireds retrieved: %s", this->entity_id_.c_str(), min_mireds.c_str());
@@ -145,7 +150,8 @@ void HomeassistantLight::min_mireds_retrieved_(const std::string &min_mireds) {
 void HomeassistantLight::max_mireds_retrieved_(const std::string &max_mireds) {
   auto max_mireds_value = parse_number<float>(max_mireds);
   if (!max_mireds_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'max_mireds' value '%s' to number!", this->entity_id_.c_str(), max_mireds.c_str());
+    ESP_LOGE(TAG, "'%s': Can't convert 'max_mireds' value '%s' to number!", this->entity_id_.c_str(),
+             max_mireds.c_str());
     return;
   }
   ESP_LOGD(TAG, "'%s': Max mireds retrieved: %s", this->entity_id_.c_str(), max_mireds.c_str());
@@ -226,7 +232,8 @@ void HomeassistantLight::write_state(LightState *state) {
     }
 
     switch (color_mode) {
-      case ColorMode::ON_OFF: break;
+      case ColorMode::ON_OFF:
+        break;
 
       case ColorMode::BRIGHTNESS:
       case ColorMode::WHITE:
@@ -235,8 +242,8 @@ void HomeassistantLight::write_state(LightState *state) {
 
         if (brightness) {
           auto &entity_brightness = resp.data.emplace_back();
-          entity_brightness.set_key(color_mode==ColorMode::WHITE?WHITE_KEY:BRIGHTNESS_KEY);
-          entity_brightness.value = to_string((unsigned)(brightness * 255));
+          entity_brightness.set_key(color_mode == ColorMode::WHITE ? WHITE_KEY : BRIGHTNESS_KEY);
+          entity_brightness.value = to_string((unsigned) (brightness * 255));
         }
 
         break;
@@ -254,28 +261,28 @@ void HomeassistantLight::write_state(LightState *state) {
         {
           auto &entity_red = resp.data.emplace_back();
           entity_red.set_key(RED_KEY);
-          entity_red.value = to_string((unsigned)(red * 255));
+          entity_red.value = to_string((unsigned) (red * 255));
 
           auto &entity_green = resp.data.emplace_back();
           entity_green.set_key(GREEN_KEY);
-          entity_green.value = to_string((unsigned)(green * 255));
+          entity_green.value = to_string((unsigned) (green * 255));
 
           auto &entity_blue = resp.data.emplace_back();
           entity_blue.set_key(BLUE_KEY);
-          entity_blue.value = to_string((unsigned)(blue * 255));
+          entity_blue.value = to_string((unsigned) (blue * 255));
 
           if (color_mode == ColorMode::RGB_COLD_WARM_WHITE) {
             auto &entity_warm_white = resp.data.emplace_back();
             entity_warm_white.set_key(WARM_WHITE_KEY);
-            entity_warm_white.value = to_string((unsigned)(warm_white * 255));
+            entity_warm_white.value = to_string((unsigned) (warm_white * 255));
 
             auto &entity_cold_white = resp.data.emplace_back();
             entity_cold_white.set_key(COLD_WHITE_KEY);
-            entity_cold_white.value = to_string((unsigned)(white * 255));
+            entity_cold_white.value = to_string((unsigned) (white * 255));
           } else if (color_mode == ColorMode::RGB_WHITE) {
             auto &entity_white = resp.data.emplace_back();
             entity_white.set_key(WHITE_KEY);
-            entity_white.value = to_string((unsigned)(white * 255));
+            entity_white.value = to_string((unsigned) (white * 255));
           }
         }
 
@@ -288,13 +295,15 @@ void HomeassistantLight::write_state(LightState *state) {
         if (color_temp) {
           auto &entity_color_temp = resp.data.emplace_back();
           entity_color_temp.set_key(COLOR_TEMP_KEY);
-          entity_color_temp.value = to_string((unsigned)(this->traits_.get_min_mireds() + color_temp * (this->traits_.get_max_mireds() - this->traits_.get_min_mireds())));
+          entity_color_temp.value =
+              to_string((unsigned) (this->traits_.get_min_mireds() +
+                                    color_temp * (this->traits_.get_max_mireds() - this->traits_.get_min_mireds())));
         }
 
         if (color_brightness) {
           auto &entity_color_brightness = resp.data.emplace_back();
           entity_color_brightness.set_key(COLOR_BRIGHTNESS_KEY);
-          entity_color_brightness.value = to_string((unsigned)(color_brightness * 255));
+          entity_color_brightness.value = to_string((unsigned) (color_brightness * 255));
         }
     }
   } else {

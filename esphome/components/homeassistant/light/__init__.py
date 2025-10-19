@@ -1,12 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import light
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
     CONF_INTERNAL,
     CONF_OUTPUT_ID,
 )
-import esphome.config_validation as cv
 
 from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
@@ -26,8 +26,7 @@ HOME_ASSISTANT_LIGHT_SCHEMA = {
 }
 
 CONFIG_SCHEMA = (
-    light.LIGHT_SCHEMA
-    .extend(HOME_ASSISTANT_LIGHT_SCHEMA)
+    light.LIGHT_SCHEMA.extend(HOME_ASSISTANT_LIGHT_SCHEMA)
     .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
