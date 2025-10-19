@@ -697,6 +697,13 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
+    # Set memory analysis options in config
+    if args.analyze_memory:
+        config.setdefault(CONF_ESPHOME, {})["analyze_memory"] = True
+
+    if args.memory_report:
+        config.setdefault(CONF_ESPHOME, {})["memory_report_file"] = args.memory_report
+
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -1108,6 +1115,17 @@ def parse_args(argv):
         "--only-generate",
         help="Only generate source code, do not compile.",
         action="store_true",
+    )
+    parser_compile.add_argument(
+        "--analyze-memory",
+        help="Analyze and display memory usage by component after compilation.",
+        action="store_true",
+    )
+    parser_compile.add_argument(
+        "--memory-report",
+        help="Save memory analysis report to a file (supports .json or .txt).",
+        type=str,
+        metavar="FILE",
     )
 
     parser_upload = subparsers.add_parser(
