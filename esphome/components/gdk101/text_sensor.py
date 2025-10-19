@@ -19,5 +19,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_GDK101_ID])
-    var = await text_sensor.new_text_sensor(config[CONF_VERSION])
-    cg.add(hub.set_fw_version_text_sensor(var))
+    if version_config := config.get(CONF_VERSION):
+        var = await text_sensor.new_text_sensor(version_config)
+        cg.add(hub.set_fw_version_text_sensor(var))

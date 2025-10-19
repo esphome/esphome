@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_MEASUREMENT_DURATION,
     CONF_STATUS,
+    CONF_VERSION,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -38,6 +39,9 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_VERSION): cv.invalid(
+            "The 'version' option has been moved to the `text_sensor` component."
         ),
         cv.Optional(CONF_STATUS): sensor.sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

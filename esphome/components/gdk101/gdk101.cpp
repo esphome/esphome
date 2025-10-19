@@ -163,9 +163,7 @@ bool GDK101Component::read_fw_version_(uint8_t *data) {
       return false;
     }
 
-    char buffer[8];
-    snprintf(buffer, sizeof(buffer), "%u.%u", data[0], data[1]);
-    const std::string fw_version_str(buffer);
+    const std::string fw_version_str = std::to_string(data[0]) + "." + std::to_string(data[1]);
 
     this->fw_version_text_sensor_->publish_state(fw_version_str);
   }

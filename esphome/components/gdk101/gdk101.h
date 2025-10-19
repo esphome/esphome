@@ -7,8 +7,8 @@
 #endif  // USE_SENSOR
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#endif  // USE_TEXT_SENSOR
-#ifdef USE_BINARY_SENSOR
+#endif  // USE_BINARY_SENSOR
+#ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif  // USE_TEXT_SENSOR
 #include "esphome/components/i2c/i2c.h"
