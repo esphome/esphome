@@ -641,6 +641,12 @@ jobs:
               --output-env \
               --output-json memory-analysis-target.json
 
+          # Add metadata to JSON before caching
+          python script/ci_add_metadata_to_json.py \
+            --json-file memory-analysis-target.json \
+            --components "$components" \
+            --platform "$platform"
+
       - name: Save memory analysis to cache
         if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -720,6 +726,13 @@ jobs:
             python script/ci_memory_impact_extract.py \
               --output-env \
               --output-json memory-analysis-pr.json
+
+          # Add metadata to JSON (components and platform are in shell variables above)
+          python script/ci_add_metadata_to_json.py \
+            --json-file memory-analysis-pr.json \
+            --components "$components" \
+            --platform "$platform"
+
       - name: Upload memory analysis JSON
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -736,10 +749,12 @@ jobs:
       - determine-jobs
       - memory-impact-target-branch
       - memory-impact-pr-branch
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
     permissions:
       contents: read
       pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -762,52 +777,16 @@ jobs:
         continue-on-error: true
       - name: Post or update PR comment
         env:
-          GH_TOKEN: ${{ github.token }}
-          COMPONENTS: ${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}
-          PLATFORM: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}
-          TARGET_RAM: ${{ needs.memory-impact-target-branch.outputs.ram_usage }}
-          TARGET_FLASH: ${{ needs.memory-impact-target-branch.outputs.flash_usage }}
-          PR_RAM: ${{ needs.memory-impact-pr-branch.outputs.ram_usage }}
-          PR_FLASH: ${{ needs.memory-impact-pr-branch.outputs.flash_usage }}
-          TARGET_CACHE_HIT: ${{ needs.memory-impact-target-branch.outputs.cache_hit }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           . venv/bin/activate
 
-          # Check if analysis JSON files exist
-          target_json_arg=""
-          pr_json_arg=""
-
-          if [ -f ./memory-analysis/memory-analysis-target.json ]; then
-            echo "Found target analysis JSON"
-            target_json_arg="--target-json ./memory-analysis/memory-analysis-target.json"
-          else
-            echo "No target analysis JSON found"
-          fi
-
-          if [ -f ./memory-analysis/memory-analysis-pr.json ]; then
-            echo "Found PR analysis JSON"
-            pr_json_arg="--pr-json ./memory-analysis/memory-analysis-pr.json"
-          else
-            echo "No PR analysis JSON found"
-          fi
-
-          # Add cache flag if target was cached
-          cache_flag=""
-          if [ "$TARGET_CACHE_HIT" == "true" ]; then
-            cache_flag="--target-cache-hit"
-          fi
-
+          # Pass JSON file paths directly to Python script
+          # All data is extracted from JSON files for security
           python script/ci_memory_impact_comment.py \
-            --pr-number "${{ github.event.pull_request.number }}" \
-            --components "$COMPONENTS" \
-            --platform "$PLATFORM" \
-            --target-ram "$TARGET_RAM" \
-            --target-flash "$TARGET_FLASH" \
-            --pr-ram "$PR_RAM" \
-            --pr-flash "$PR_FLASH" \
-            $target_json_arg \
-            $pr_json_arg \
-            $cache_flag
+            --pr-number "$PR_NUMBER" \
+            --target-json ./memory-analysis/memory-analysis-target.json \
+            --pr-json ./memory-analysis/memory-analysis-pr.json
 
   ci-status:
     name: CI Status
