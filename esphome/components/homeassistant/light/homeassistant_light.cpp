@@ -33,29 +33,6 @@ optional<ColorMode> parse_color_mode(const std::string &color_mode) {
   return nullopt;
 }
 
-std::string _color_mode_name(const ColorMode color_mode) {
-  switch (color_mode) {
-    case ColorMode::UNKNOWN:
-      return "unknown";
-    case ColorMode::ON_OFF:
-      return "onoff";
-    case ColorMode::BRIGHTNESS:
-      return "brightness";
-    case ColorMode::WHITE:
-      return "white";
-    case ColorMode::COLOR_TEMPERATURE:
-      return "color_temp";
-    case ColorMode::RGB:
-      return "rgb";
-    case ColorMode::RGB_WHITE:
-      return "rgbw";
-    case ColorMode::RGB_COLD_WARM_WHITE:
-      return "rgbww";
-  }
-  ESP_LOGW(TAG, "Unknown 'ColorMode' enum value '%d'!", color_mode);
-  return "";
-}
-
 void HomeassistantLight::state_changed_(const std::string &state) {
   if (state == "None")
     return;
@@ -202,16 +179,15 @@ void HomeassistantLight::write_state(LightState *state) {
   static constexpr auto SERVICE_ON = StringRef::from_lit("light.turn_on");
   static constexpr auto SERVICE_OFF = StringRef::from_lit("light.turn_off");
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto COLOR_MODE_KEY = StringRef::from_lit("color_mode");
   static constexpr auto BRIGHTNESS_KEY = StringRef::from_lit("brightness");
   static constexpr auto COLOR_TEMP_KEY = StringRef::from_lit("color_temp");
   static constexpr auto COLOR_BRIGHTNESS_KEY = StringRef::from_lit("color_brightness");
-  static constexpr auto RED_KEY = StringRef::from_lit("red");
-  static constexpr auto GREEN_KEY = StringRef::from_lit("green");
-  static constexpr auto BLUE_KEY = StringRef::from_lit("blue");
-  static constexpr auto WHITE_KEY = StringRef::from_lit("white");
+  static constexpr auto RGB_COLOR_KEY = StringRef::from_lit("rgb_color");
+  static constexpr auto RGBW_COLOR_KEY = StringRef::from_lit("rgbw_color");
+  static constexpr auto RGBWW_COLOR_KEY = StringRef::from_lit("rgbww_color");
   static constexpr auto COLD_WHITE_KEY = StringRef::from_lit("cold_white");
   static constexpr auto WARM_WHITE_KEY = StringRef::from_lit("warm_white");
+  static constexpr auto WHITE_KEY = StringRef::from_lit("white");
 
   api::HomeassistantServiceResponse resp;
 
@@ -225,19 +201,12 @@ void HomeassistantLight::write_state(LightState *state) {
     resp.set_service(SERVICE_ON);
 
     auto color_mode = state->current_values.get_color_mode();
-
-    if (color_mode != ColorMode::UNKNOWN) {
-      auto &entity_color_mode = resp.data.emplace_back();
-      entity_color_mode.set_key(COLOR_MODE_KEY);
-      entity_color_mode.value = _color_mode_name(color_mode);
-    }
-
     switch (color_mode) {
       case ColorMode::ON_OFF:
         break;
 
       case ColorMode::BRIGHTNESS:
-      case ColorMode::WHITE:
+      case ColorMode::WHITE: {
         float brightness;
         state->current_values_as_brightness(&brightness);
 
@@ -247,49 +216,71 @@ void HomeassistantLight::write_state(LightState *state) {
           entity_brightness.value = to_string((unsigned) (brightness * 255));
         }
 
-        break;
+        if (color_mode == ColorMode::WHITE) {
+          auto &entity_white = resp.data.emplace_back();
+          entity_white.set_key(WHITE_KEY);
+          entity_white.value = "true";
+        }
+      }; break;
 
-      case ColorMode::RGB:
+      case ColorMode::RGB: {
         float red, green, blue;
         state->current_values_as_rgb(&red, &green, &blue);
-      case ColorMode::RGB_WHITE:
-        float white;
+
+        auto &entity_rgb_color = resp.data_template.emplace_back();
+        entity_rgb_color.set_key(RGB_COLOR_KEY);
+        entity_rgb_color.value = (
+          '[' +
+          to_string((unsigned)(red * 255)) +
+          ',' +
+          to_string((unsigned)(green * 255)) +
+          ',' +
+          to_string((unsigned)(blue * 255)) +
+          ']'
+        );
+      }; break;
+
+      case ColorMode::RGB_WHITE: {
+        float red, green, blue, white;
         state->current_values_as_rgbw(&red, &green, &blue, &white);
-      case ColorMode::RGB_COLD_WARM_WHITE:
-        float warm_white;
-        state->current_values_as_rgbww(&red, &green, &blue, &white, &warm_white);
 
-        {
-          auto &entity_red = resp.data.emplace_back();
-          entity_red.set_key(RED_KEY);
-          entity_red.value = to_string((unsigned) (red * 255));
+        auto &entity_rgbw_color = resp.data_template.emplace_back();
+        entity_rgbw_color.set_key(RGBW_COLOR_KEY);
+        entity_rgbw_color.value = (
+          '[' +
+          to_string((unsigned)(red * 255)) +
+          ',' +
+          to_string((unsigned)(green * 255)) +
+          ',' +
+          to_string((unsigned)(blue * 255)) +
+          ',' +
+          to_string((unsigned)(white * 255)) +
+          ']'
+        );
+      }; break;
 
-          auto &entity_green = resp.data.emplace_back();
-          entity_green.set_key(GREEN_KEY);
-          entity_green.value = to_string((unsigned) (green * 255));
+      case ColorMode::RGB_COLD_WARM_WHITE: {
+        float red, green, blue, cold_white, warm_white;
+        state->current_values_as_rgbww(&red, &green, &blue, &cold_white, &warm_white);
 
-          auto &entity_blue = resp.data.emplace_back();
-          entity_blue.set_key(BLUE_KEY);
-          entity_blue.value = to_string((unsigned) (blue * 255));
+        auto &entity_rgbww_color = resp.data_template.emplace_back();
+        entity_rgbww_color.set_key(RGBWW_COLOR_KEY);
+        entity_rgbww_color.value = (
+          '[' +
+          to_string((unsigned)(red * 255)) +
+          ',' +
+          to_string((unsigned)(green * 255)) +
+          ',' +
+          to_string((unsigned)(blue * 255)) +
+          ',' +
+          to_string((unsigned)(cold_white * 255)) +
+          ',' +
+          to_string((unsigned)(warm_white * 255)) +
+          ']'
+        );
+      }; break;
 
-          if (color_mode == ColorMode::RGB_COLD_WARM_WHITE) {
-            auto &entity_warm_white = resp.data.emplace_back();
-            entity_warm_white.set_key(WARM_WHITE_KEY);
-            entity_warm_white.value = to_string((unsigned) (warm_white * 255));
-
-            auto &entity_cold_white = resp.data.emplace_back();
-            entity_cold_white.set_key(COLD_WHITE_KEY);
-            entity_cold_white.value = to_string((unsigned) (white * 255));
-          } else if (color_mode == ColorMode::RGB_WHITE) {
-            auto &entity_white = resp.data.emplace_back();
-            entity_white.set_key(WHITE_KEY);
-            entity_white.value = to_string((unsigned) (white * 255));
-          }
-        }
-
-        break;
-
-      default:
+      default: {
         float color_temp, color_brightness;
         state->current_values_as_ct(&color_temp, &color_brightness);
 
@@ -306,6 +297,7 @@ void HomeassistantLight::write_state(LightState *state) {
           entity_color_brightness.set_key(COLOR_BRIGHTNESS_KEY);
           entity_color_brightness.value = to_string((unsigned) (color_brightness * 255));
         }
+      }
     }
   } else {
     resp.set_service(SERVICE_OFF);
