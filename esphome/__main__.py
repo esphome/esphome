@@ -62,6 +62,18 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Special non-component keys that appear in configs
+_NON_COMPONENT_KEYS = frozenset(
+    {
+        CONF_ESPHOME,
+        "substitutions",
+        "packages",
+        "globals",
+        "external_components",
+        "<<",
+    }
+)
+
 
 class ArgsProtocol(Protocol):
     device: list[str] | None
@@ -902,6 +914,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int | None
 
     from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+    from esphome.analyze_memory.helpers import get_esphome_components
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -920,9 +933,23 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int | None
 
     firmware_elf = Path(idedata.firmware_elf_path)
 
+    # Extract external components from config
+    builtin_components = get_esphome_components()
+    external_components = {
+        key
+        for key in config
+        if key not in builtin_components and key not in _NON_COMPONENT_KEYS
+    }
+    _LOGGER.debug("Detected external components: %s", external_components)
+
     # Perform memory analysis
     _LOGGER.info("Analyzing memory usage...")
-    analyzer = MemoryAnalyzerCLI(str(firmware_elf), idedata=idedata)
+    analyzer = MemoryAnalyzerCLI(
+        str(firmware_elf),
+        idedata.objdump_path,
+        idedata.readelf_path,
+        external_components,
+    )
     analyzer.analyze()
 
     # Generate and display report
