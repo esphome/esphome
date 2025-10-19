@@ -250,7 +250,7 @@ class Climate : public EntityBase {
   ClimateAction action{CLIMATE_ACTION_OFF};
 
   /// The active swing mode of the climate device.
-  ClimateSwingMode swing_mode;
+  ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
 
  protected:
   friend ClimateCall;
