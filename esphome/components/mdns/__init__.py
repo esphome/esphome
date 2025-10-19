@@ -46,6 +46,19 @@ SERVICE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _consume_mdns_sockets(config):
+    """Register socket needs for mDNS component."""
+    if config.get(CONF_DISABLED):
+        return config
+
+    from esphome.components import socket
+
+    # mDNS needs 2 sockets (IPv4 + IPv6 multicast)
+    socket.consume_sockets(2, "mdns")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -55,6 +68,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _remove_id_if_disabled,
+    _consume_mdns_sockets,
 )
 
 
