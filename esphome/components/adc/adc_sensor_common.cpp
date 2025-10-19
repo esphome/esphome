@@ -18,15 +18,15 @@ const LogString *sampling_mode_to_str(SamplingMode mode) {
   return LOG_STR("unknown");
 }
 
-Aggregator::Aggregator(SamplingMode mode) {
+template<typename T> Aggregator<T>::Aggregator(SamplingMode mode) {
   this->mode_ = mode;
   // set to max uint if mode is "min"
   if (mode == SamplingMode::MIN) {
-    this->aggr_ = UINT32_MAX;
+    this->aggr_ = std::numeric_limits<T>::max();
   }
 }
 
-void Aggregator::add_sample(uint32_t value) {
+template<typename T> void Aggregator<T>::add_sample(T value) {
   this->samples_ += 1;
 
   switch (this->mode_) {
@@ -47,7 +47,7 @@ void Aggregator::add_sample(uint32_t value) {
   }
 }
 
-uint32_t Aggregator::aggregate() {
+template<typename T> T Aggregator<T>::aggregate() {
   if (this->mode_ == SamplingMode::AVG) {
     if (this->samples_ == 0) {
       return this->aggr_;
@@ -58,6 +58,12 @@ uint32_t Aggregator::aggregate() {
 
   return this->aggr_;
 }
+
+#ifdef USE_ZEPHYR
+template class Aggregator<int32_t>;
+#else
+template class Aggregator<uint32_t>;
+#endif
 
 void ADCSensor::update() {
   float value_v = this->sample();

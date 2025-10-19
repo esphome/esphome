@@ -58,8 +58,13 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   if (this->sensor_->get_force_update())
     root[MQTT_FORCE_UPDATE] = true;
 
-  if (this->sensor_->get_state_class() != STATE_CLASS_NONE)
-    root[MQTT_STATE_CLASS] = state_class_to_string(this->sensor_->get_state_class());
+  if (this->sensor_->get_state_class() != STATE_CLASS_NONE) {
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+    root[MQTT_STATE_CLASS] = (const __FlashStringHelper *) state_class_to_string(this->sensor_->get_state_class());
+#else
+    root[MQTT_STATE_CLASS] = LOG_STR_ARG(state_class_to_string(this->sensor_->get_state_class()));
+#endif
+  }
 
   config.command_topic = false;
 }
@@ -76,7 +81,6 @@ bool MQTTSensorComponent::publish_state(float value) {
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
 }
-std::string MQTTSensorComponent::unique_id() { return this->sensor_->unique_id(); }
 
 }  // namespace mqtt
 }  // namespace esphome

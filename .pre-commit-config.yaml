@@ -11,7 +11,7 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.12.3
+    rev: v0.14.1
     hooks:
       # Run the linter.
       - id: ruff
@@ -40,7 +40,7 @@ repos:
     rev: v3.20.0
     hooks:
       - id: pyupgrade
-        args: [--py310-plus]
+        args: [--py311-plus]
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:

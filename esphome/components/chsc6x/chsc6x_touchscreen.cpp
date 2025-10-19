@@ -4,7 +4,6 @@ namespace esphome {
 namespace chsc6x {
 
 void CHSC6XTouchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
@@ -15,8 +14,6 @@ void CHSC6XTouchscreen::setup() {
   if (this->y_raw_max_ == this->y_raw_min_) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-
-  ESP_LOGCONFIG(TAG, "CHSC6X Touchscreen setup complete");
 }
 
 void CHSC6XTouchscreen::update_touches() {
