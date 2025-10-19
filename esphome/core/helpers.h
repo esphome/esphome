@@ -281,13 +281,13 @@ template<typename T> class FixedVector {
     }
   }
 
-  /// Emplace element without bounds checking - constructs in-place
+  /// Emplace element without bounds checking - constructs in-place with arguments
   /// Caller must ensure sufficient capacity was allocated via init()
   /// Returns reference to the newly constructed element
   /// NOTE: Caller MUST ensure size_ < capacity_ before calling
-  T &emplace_back() {
-    // Use placement new to default-construct the object in pre-allocated memory
-    new (&data_[size_]) T();
+  template<typename... Args> T &emplace_back(Args &&...args) {
+    // Use placement new to construct the object in pre-allocated memory
+    new (&data_[size_]) T(std::forward<Args>(args)...);
     size_++;
     return data_[size_ - 1];
   }
