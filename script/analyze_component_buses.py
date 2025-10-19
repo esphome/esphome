@@ -50,7 +50,14 @@ PACKAGE_DEPENDENCIES = {
 
 # Bus types that can be defined directly in config files
 # Components defining these directly cannot be grouped (they create unique bus IDs)
-DIRECT_BUS_TYPES = ("i2c", "spi", "uart", "modbus")
+DIRECT_BUS_TYPES = (
+    "i2c",
+    "spi",
+    "uart",
+    "modbus",
+    "remote_transmitter",
+    "remote_receiver",
+)
 
 # Signature for components with no bus requirements
 # These components can be merged with any other group
@@ -68,6 +75,8 @@ BASE_BUS_COMPONENTS = {
     "uart",
     "modbus",
     "canbus",
+    "remote_transmitter",
+    "remote_receiver",
 }
 
 # Components that must be tested in isolation (not grouped or batched with others)
@@ -83,8 +92,6 @@ ISOLATED_COMPONENTS = {
     "openthread": "Conflicts with wifi: used by most components",
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
-    "mcp4725": "no YAML config to specify i2c bus id",
-    "mcp47a1": "no YAML config to specify i2c bus id",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
