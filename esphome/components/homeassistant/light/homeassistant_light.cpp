@@ -11,23 +11,24 @@ static const char *const TAG = "homeassistant.light";
 
 using namespace esphome::light;
 
-optional<ColorMode> _parse_color_mode(const std::string color_mode) {
-  if (color_mode == "unknown")
+optional<ColorMode> parse_color_mode(const std::string &color_mode) {
+  if (color_mode == "unknown") {
     return optional<ColorMode>(ColorMode::UNKNOWN);
-  else if (color_mode == "onoff")
+  } else if (color_mode == "onoff") {
     return optional<ColorMode>(ColorMode::ON_OFF);
-  else if (color_mode == "brightness")
+  } else if (color_mode == "brightness") {
     return optional<ColorMode>(ColorMode::BRIGHTNESS);
-  else if (color_mode == "white")
+  } else if (color_mode == "white") {
     return optional<ColorMode>(ColorMode::WHITE);
-  else if (color_mode == "color_temp")
+  } else if (color_mode == "color_temp") {
     return optional<ColorMode>(ColorMode::COLOR_TEMPERATURE);
-  else if (color_mode == "rgb" || color_mode == "hs" || color_mode == "xy")
+  } else if (color_mode == "rgb" || color_mode == "hs" || color_mode == "xy") {
     return optional<ColorMode>(ColorMode::RGB);
-  else if (color_mode == "rgbw")
+  } else if (color_mode == "rgbw") {
     return optional<ColorMode>(ColorMode::RGB_WHITE);
-  else if (color_mode == "rgbww")
+  }else if (color_mode == "rgbww") {
     return optional<ColorMode>(ColorMode::RGB_COLD_WARM_WHITE);
+  }
 
   return nullopt;
 }
@@ -105,7 +106,7 @@ void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
 void HomeassistantLight::color_mode_retrieved_(const std::string &color_mode) {
   if (color_mode == "None")
     return;
-  auto color_mode_value = _parse_color_mode(color_mode);
+  auto color_mode_value = parse_color_mode(color_mode);
   if (!color_mode_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_.c_str(),
              color_mode.c_str());
@@ -124,7 +125,7 @@ void HomeassistantLight::supported_color_modes_retrieved_(const std::string &sup
     std::string color_mode;
     for (unsigned i = 0; i < 2; i++)  // <ColorMode.XY: 'xy'>
       std::getline(color_mode_repr_s, color_mode, '\'');
-    auto color_mode_value = _parse_color_mode(color_mode);
+    auto color_mode_value = parse_color_mode(color_mode);
     if (!color_mode_value.has_value()) {
       ESP_LOGW(TAG, "'%s': Can't parse 'supported_color_modes' value '%s' as color mode!", this->entity_id_.c_str(),
                color_mode.c_str());
