@@ -58,6 +58,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -210,6 +211,15 @@ def validate_fingerprint(value):
     return value
 
 
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for MQTT component."""
+    from esphome.components import socket
+
+    # MQTT needs 1 socket for the broker connection
+    socket.consume_sockets(1, "mqtt")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -306,6 +316,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_config,
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    _consume_mqtt_sockets,
 )
 
 

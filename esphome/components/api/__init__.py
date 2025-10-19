@@ -155,6 +155,17 @@ def _validate_api_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _consume_api_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for API component."""
+    from esphome.components import socket
+
+    # API needs 1 listening socket + typically 3 concurrent client connections
+    # (not max_connections, which is the upper limit rarely reached)
+    sockets_needed = 1 + 3
+    socket.consume_sockets(sockets_needed, "api")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -222,6 +233,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
     _validate_api_config,
+    _consume_api_sockets,
 )
 
 
