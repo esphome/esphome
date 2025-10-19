@@ -15,7 +15,7 @@ async def test_oversized_payload_plaintext(
     run_compiled: RunCompiledFunction,
     api_client_connected_with_disconnect: APIClientConnectedWithDisconnectFactory,
 ) -> None:
-    """Test that oversized payloads (>100KiB) from client cause disconnection without crashing."""
+    """Test that oversized payloads (>32768 bytes) from client cause disconnection without crashing."""
     process_exited = False
     helper_log_found = False
 
@@ -39,8 +39,8 @@ async def test_oversized_payload_plaintext(
             assert device_info is not None
             assert device_info.name == "oversized-plaintext"
 
-            # Create an oversized payload (>100KiB)
-            oversized_data = b"X" * (100 * 1024 + 1)  # 100KiB + 1 byte
+            # Create an oversized payload (>32768 bytes which is our new limit)
+            oversized_data = b"X" * 40000  # ~40KiB, exceeds the 32768 byte limit
 
             # Access the internal connection to send raw data
             frame_helper = client._connection._frame_helper
@@ -132,22 +132,24 @@ async def test_oversized_payload_noise(
     run_compiled: RunCompiledFunction,
     api_client_connected_with_disconnect: APIClientConnectedWithDisconnectFactory,
 ) -> None:
-    """Test that oversized payloads (>100KiB) from client cause disconnection without crashing with noise encryption."""
+    """Test that oversized payloads from client cause disconnection without crashing with noise encryption."""
     noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
     process_exited = False
-    cipherstate_failed = False
+    helper_log_found = False
 
     def check_logs(line: str) -> None:
-        nonlocal process_exited, cipherstate_failed
+        nonlocal process_exited, helper_log_found
         # Check for signs that the process exited/crashed
         if "Segmentation fault" in line or "core dumped" in line:
             process_exited = True
-        # Check for the expected warning about decryption failure
+        # Check for HELPER_LOG message about message size exceeding maximum
+        # With our new protection, oversized messages are rejected at frame level
         if (
-            "[W][api.connection" in line
-            and "Reading failed CIPHERSTATE_DECRYPT_FAILED" in line
+            "[VV]" in line
+            and "Bad packet: message size" in line
+            and "exceeds maximum" in line
         ):
-            cipherstate_failed = True
+            helper_log_found = True
 
     async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
@@ -159,8 +161,8 @@ async def test_oversized_payload_noise(
             assert device_info is not None
             assert device_info.name == "oversized-noise"
 
-            # Create an oversized payload (>100KiB)
-            oversized_data = b"Y" * (100 * 1024 + 1)  # 100KiB + 1 byte
+            # Create an oversized payload (>32768 bytes which is our new limit)
+            oversized_data = b"Y" * 40000  # ~40KiB, exceeds the 32768 byte limit
 
             # Access the internal connection to send raw data
             frame_helper = client._connection._frame_helper
@@ -175,9 +177,9 @@ async def test_oversized_payload_noise(
 
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
-        # Verify we saw the expected warning message
-        assert cipherstate_failed, (
-            "Expected to see warning about CIPHERSTATE_DECRYPT_FAILED"
+        # Verify we saw the expected HELPER_LOG message
+        assert helper_log_found, (
+            "Expected to see HELPER_LOG about message size exceeding maximum"
         )
 
         # Try to reconnect to verify the process is still running

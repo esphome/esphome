@@ -1,0 +1,15 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+display:
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 7.3in-spectra-e6
+    cs_pin: GPIO5
+    dc_pin: GPIO17
+    reset_pin: GPIO16
+    busy_pin: GPIO4
+    rotation: 0
+    update_interval: 60s
+    lambda: |-
+      it.circle(64, 64, 50, Color::BLACK);

@@ -3,7 +3,9 @@
 
 #ifdef USE_ESP32
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>
@@ -13,10 +15,6 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-
-#ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
-#endif
 
 namespace esphome {
 namespace esp32_ble_beacon {
