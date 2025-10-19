@@ -736,7 +736,7 @@ jobs:
       - determine-jobs
       - memory-impact-target-branch
       - memory-impact-pr-branch
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
     permissions:
       contents: read
       pull-requests: write
@@ -764,7 +764,6 @@ jobs:
         continue-on-error: true
       - name: Post or update PR comment
         env:
-          GH_TOKEN: ${{ github.token }}
           COMPONENTS: ${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}
           PLATFORM: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}
           TARGET_RAM: ${{ needs.memory-impact-target-branch.outputs.ram_usage }}
