@@ -23,9 +23,8 @@ binary_sensor:
       - lambda: |-
           if (id(some_binary_sensor).state) {
             return x;
-          } else {
-            return {};
           }
+          return {};
       - settle: 100ms
       - timeout: 10s
 

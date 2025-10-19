@@ -8,17 +8,30 @@ namespace cap1188 {
 static const char *const TAG = "cap1188";
 
 void CAP1188Component::setup() {
-  // Reset device using the reset pin
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
-    delay(100);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(100);  // NOLINT
-    this->reset_pin_->digital_write(false);
-    delay(100);  // NOLINT
+  this->disable_loop();
+
+  // no reset pin
+  if (this->reset_pin_ == nullptr) {
+    this->finish_setup_();
+    return;
   }
 
+  // reset pin configured so reset before finishing setup
+  this->reset_pin_->setup();
+  this->reset_pin_->digital_write(false);
+  // delay after reset pin write
+  this->set_timeout(100, [this]() {
+    this->reset_pin_->digital_write(true);
+    // delay after reset pin write
+    this->set_timeout(100, [this]() {
+      this->reset_pin_->digital_write(false);
+      // delay after reset pin write
+      this->set_timeout(100, [this]() { this->finish_setup_(); });
+    });
+  });
+}
+
+void CAP1188Component::finish_setup_() {
   // Check if CAP1188 is actually connected
   this->read_byte(CAP1188_PRODUCT_ID, &this->cap1188_product_id_);
   this->read_byte(CAP1188_MANUFACTURE_ID, &this->cap1188_manufacture_id_);
@@ -44,6 +57,9 @@ void CAP1188Component::setup() {
 
   // Speed up a bit
   this->write_byte(CAP1188_STAND_BY_CONFIGURATION, 0x30);
+
+  // Setup successful, so enable loop
+  this->enable_loop();
 }
 
 void CAP1188Component::dump_config() {
