@@ -426,7 +426,8 @@ ColorMode LightCall::compute_color_mode_() {
   // pre-colormode clients and automations, but also for the MQTT API, where HA doesn't let us know which color mode
   // was used for some reason.
   // Compute intersection of suitable and supported modes using bitwise AND
-  color_mode_bitmask_t intersection = this->get_suitable_color_modes_mask_() & supported_modes.get_mask();
+  ColorModeMask suitable = this->get_suitable_color_modes_();
+  color_mode_bitmask_t intersection = suitable.get_mask() & supported_modes.get_mask();
 
   // Don't change if the current mode is in the intersection (suitable AND supported)
   if (ColorModeMask::mask_contains(intersection, current_mode)) {
@@ -450,7 +451,7 @@ ColorMode LightCall::compute_color_mode_() {
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
-color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
+ColorModeMask LightCall::get_suitable_color_modes_() {
   bool has_white = this->has_white() && this->white_ > 0.0f;
   bool has_ct = this->has_color_temperature();
   bool has_cwww =
@@ -463,49 +464,34 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 
   uint8_t key = KEY(has_white, has_ct, has_cwww, has_rgb);
 
-  // Build bitmask from suitable ColorModes
-  ColorModeMask suitable;
-
   switch (key) {
     case KEY(true, false, false, false):  // white only
-      suitable.add({ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
-                    ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+              ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(false, true, false, false):  // ct only
-      suitable.add({ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-                    ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+              ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(true, true, false, false):  // white + ct
-      suitable.add({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(false, false, true, false):  // cwww only
-      suitable.add({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(false, false, false, false):  // none
-      suitable.add({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE,
-                    ColorMode::RGB, ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE});
-      break;
+      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
+              ColorMode::WHITE,     ColorMode::COLOR_TEMPERATURE,     ColorMode::COLD_WARM_WHITE};
     case KEY(true, false, false, true):  // rgb + white
-      suitable.add({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(false, true, false, true):  // rgb + ct
     case KEY(true, true, false, true):   // rgb + white + ct
-      suitable.add({ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(false, false, true, true):  // rgb + cwww
-      suitable.add(ColorMode::RGB_COLD_WARM_WHITE);
-      break;
+      return {ColorMode::RGB_COLD_WARM_WHITE};
     case KEY(false, false, false, true):  // rgb only
-      suitable.add(
-          {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE});
-      break;
+      return {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
     default:
-      break;  // conflicting flags - return empty mask
+      return {};  // conflicting flags
   }
 
 #undef KEY
-
-  return suitable.get_mask();
 }
 
 LightCall &LightCall::set_effect(const std::string &effect) {
