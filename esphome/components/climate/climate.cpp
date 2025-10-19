@@ -154,7 +154,7 @@ void ClimateCall::validate_() {
     this->target_temperature_low_.reset();
   }
   if (this->target_temperature_high_.has_value() && std::isnan(*this->target_temperature_high_)) {
-    ESP_LOGW(TAG, "  Target temperature low must not be NAN");
+    ESP_LOGW(TAG, "  Target temperature high must not be NAN");
     this->target_temperature_high_.reset();
   }
   if (this->target_temperature_low_.has_value() && this->target_temperature_high_.has_value()) {
