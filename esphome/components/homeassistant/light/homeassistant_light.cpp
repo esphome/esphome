@@ -26,7 +26,7 @@ optional<ColorMode> parse_color_mode(const std::string &color_mode) {
     return optional<ColorMode>(ColorMode::RGB);
   } else if (color_mode == "rgbw") {
     return optional<ColorMode>(ColorMode::RGB_WHITE);
-  }else if (color_mode == "rgbww") {
+  } else if (color_mode == "rgbww") {
     return optional<ColorMode>(ColorMode::RGB_COLD_WARM_WHITE);
   }
 
@@ -233,15 +233,8 @@ void HomeassistantLight::write_state(LightState *state) {
 
         auto &entity_rgb_color = resp.data_template.emplace_back();
         entity_rgb_color.set_key(RGB_COLOR_KEY);
-        entity_rgb_color.value = (
-          '[' +
-          to_string((unsigned)(red * 255)) +
-          ',' +
-          to_string((unsigned)(green * 255)) +
-          ',' +
-          to_string((unsigned)(blue * 255)) +
-          ']'
-        );
+        entity_rgb_color.value = ('[' + to_string((unsigned) (red * 255)) + ',' + to_string((unsigned) (green * 255)) +
+                                  ',' + to_string((unsigned) (blue * 255)) + ']');
       }; break;
 
       case ColorMode::RGB_WHITE: {
@@ -250,17 +243,9 @@ void HomeassistantLight::write_state(LightState *state) {
 
         auto &entity_rgbw_color = resp.data_template.emplace_back();
         entity_rgbw_color.set_key(RGBW_COLOR_KEY);
-        entity_rgbw_color.value = (
-          '[' +
-          to_string((unsigned)(red * 255)) +
-          ',' +
-          to_string((unsigned)(green * 255)) +
-          ',' +
-          to_string((unsigned)(blue * 255)) +
-          ',' +
-          to_string((unsigned)(white * 255)) +
-          ']'
-        );
+        entity_rgbw_color.value =
+            ('[' + to_string((unsigned) (red * 255)) + ',' + to_string((unsigned) (green * 255)) + ',' +
+             to_string((unsigned) (blue * 255)) + ',' + to_string((unsigned) (white * 255)) + ']');
       }; break;
 
       case ColorMode::RGB_COLD_WARM_WHITE: {
@@ -269,19 +254,10 @@ void HomeassistantLight::write_state(LightState *state) {
 
         auto &entity_rgbww_color = resp.data_template.emplace_back();
         entity_rgbww_color.set_key(RGBWW_COLOR_KEY);
-        entity_rgbww_color.value = (
-          '[' +
-          to_string((unsigned)(red * 255)) +
-          ',' +
-          to_string((unsigned)(green * 255)) +
-          ',' +
-          to_string((unsigned)(blue * 255)) +
-          ',' +
-          to_string((unsigned)(cold_white * 255)) +
-          ',' +
-          to_string((unsigned)(warm_white * 255)) +
-          ']'
-        );
+        entity_rgbww_color.value =
+            ('[' + to_string((unsigned) (red * 255)) + ',' + to_string((unsigned) (green * 255)) + ',' +
+             to_string((unsigned) (blue * 255)) + ',' + to_string((unsigned) (cold_white * 255)) + ',' +
+             to_string((unsigned) (warm_white * 255)) + ']');
       }; break;
 
       default: {
