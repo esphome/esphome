@@ -1,6 +1,9 @@
 substitutions:
-  cs_pin: GPIO3
-  inc_pin: GPIO4
-  ud_pin: GPIO5
+  cs_pin: GPIO6
+  inc_pin: GPIO7
+  ud_pin: GPIO8
+
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
 
 <<: !include common.yaml

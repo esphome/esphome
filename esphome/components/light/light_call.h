@@ -4,6 +4,10 @@
 #include <set>
 
 namespace esphome {
+
+// Forward declaration
+struct LogString;
+
 namespace light {
 
 class LightState;
@@ -207,20 +211,26 @@ class LightCall {
     FLAG_SAVE = 1 << 15,
   };
 
-  bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
-  bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
-  bool has_effect_() { return (this->flags_ & FLAG_HAS_EFFECT) != 0; }
-  bool get_publish_() { return (this->flags_ & FLAG_PUBLISH) != 0; }
-  bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
+  inline bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
+  inline bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
+  inline bool has_effect_() { return (this->flags_ & FLAG_HAS_EFFECT) != 0; }
+  inline bool get_publish_() { return (this->flags_ & FLAG_PUBLISH) != 0; }
+  inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
 
-  // Helper to set flag
-  void set_flag_(FieldFlags flag, bool value) {
+  // Helper to set flag - defaults to true for common case
+  void set_flag_(FieldFlags flag, bool value = true) {
     if (value) {
       this->flags_ |= flag;
     } else {
       this->flags_ &= ~flag;
     }
   }
+
+  // Helper to clear flag - reduces code size for common case
+  void clear_flag_(FieldFlags flag) { this->flags_ &= ~flag; }
+
+  // Helper to log unsupported feature and clear flag - reduces code duplication
+  void log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log);
 
   LightState *parent_;
 

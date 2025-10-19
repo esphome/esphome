@@ -1,0 +1,44 @@
+import os
+import re
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+
+def patch_linker_script_after_preprocess(source, target, env):
+    """Patch the local linker script after PlatformIO preprocesses it."""
+    # Check if we're in testing mode by looking for the define
+    build_flags = env.get("BUILD_FLAGS", [])
+    testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
+
+    if not testing_mode:
+        return
+
+    # Get the local linker script path
+    build_dir = env.subst("$BUILD_DIR")
+    local_ld = os.path.join(build_dir, "ld", "local.eagle.app.v6.common.ld")
+
+    if not os.path.exists(local_ld):
+        return
+
+    # Read the linker script
+    with open(local_ld, "r") as f:
+        content = f.read()
+
+    # Replace IRAM size from 0x8000 (32KB) to 0x200000 (2MB)
+    # The line looks like: iram1_0_seg : org = 0x40100000, len = 0x8000
+    updated = re.sub(
+        r"(iram1_0_seg\s*:\s*org\s*=\s*0x40100000\s*,\s*len\s*=\s*)0x8000",
+        r"\g<1>0x200000",
+        content,
+    )
+
+    if updated != content:
+        with open(local_ld, "w") as f:
+            f.write(updated)
+        print("ESPHome: Patched IRAM size to 2MB for testing mode")
+
+
+# Hook into the build process right before linking
+# This runs after PlatformIO has already preprocessed the linker scripts
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_linker_script_after_preprocess)

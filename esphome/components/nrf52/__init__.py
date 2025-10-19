@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from esphome import pins
@@ -48,6 +49,7 @@ from .gpio import nrf52_pin_to_code  # noqa
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr"]
 IS_TARGET_PLATFORM = True
+_LOGGER = logging.getLogger(__name__)
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
@@ -127,6 +129,10 @@ def _validate_mcumgr(config):
 def _final_validate(config):
     if CONF_DFU in config:
         _validate_mcumgr(config)
+    if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
+        _LOGGER.warning(
+            "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -157,6 +163,13 @@ async def to_code(config: ConfigType) -> None:
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
     else:
+        if "_sd" in config[KEY_BOOTLOADER]:
+            bootloader = config[KEY_BOOTLOADER].split("_")
+            sd_id = bootloader[2][2:]
+            cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
+            if (len(bootloader)) > 3:
+                sd_version = bootloader[3][1:]
+                cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
         # make sure that firmware.zip is created
         # for Adafruit_nRF52_Bootloader
         cg.add_platformio_option("board_upload.protocol", "nrfutil")

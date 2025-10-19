@@ -12,16 +12,16 @@ template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &
 template<> float get_execute_arg_value<float>(const ExecuteServiceArgument &arg) { return arg.float_; }
 template<> std::string get_execute_arg_value<std::string>(const ExecuteServiceArgument &arg) { return arg.string_; }
 template<> std::vector<bool> get_execute_arg_value<std::vector<bool>>(const ExecuteServiceArgument &arg) {
-  return arg.bool_array;
+  return std::vector<bool>(arg.bool_array.begin(), arg.bool_array.end());
 }
 template<> std::vector<int32_t> get_execute_arg_value<std::vector<int32_t>>(const ExecuteServiceArgument &arg) {
-  return arg.int_array;
+  return std::vector<int32_t>(arg.int_array.begin(), arg.int_array.end());
 }
 template<> std::vector<float> get_execute_arg_value<std::vector<float>>(const ExecuteServiceArgument &arg) {
-  return arg.float_array;
+  return std::vector<float>(arg.float_array.begin(), arg.float_array.end());
 }
 template<> std::vector<std::string> get_execute_arg_value<std::vector<std::string>>(const ExecuteServiceArgument &arg) {
-  return arg.string_array;
+  return std::vector<std::string>(arg.string_array.begin(), arg.string_array.end());
 }
 
 template<> enums::ServiceArgType to_service_arg_type<bool>() { return enums::SERVICE_ARG_TYPE_BOOL; }
