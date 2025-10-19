@@ -562,8 +562,8 @@ void PrometheusHandler::text_sensor_row_(AsyncResponseStream *stream, text_senso
 // Type-specific implementation
 #ifdef USE_TEXT
 void PrometheusHandler::text_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_text_value gauge\n"));
-  stream->print(F("#TYPE esphome_text_failed gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_text_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_text_failed gauge\n"));
 }
 void PrometheusHandler::text_row_(AsyncResponseStream *stream, text::Text *obj, std::string &area, std::string &node,
                                   std::string &friendly_name) {
@@ -571,37 +571,37 @@ void PrometheusHandler::text_row_(AsyncResponseStream *stream, text::Text *obj, 
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(F("esphome_text_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_text_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 0\n"));
+    stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
-    stream->print(F("esphome_text_value{id=\""));
+    stream->print(ESPHOME_F("esphome_text_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\",value=\""));
+    stream->print(ESPHOME_F("\",value=\""));
     stream->print(obj->state.c_str());
-    stream->print(F("\"} "));
-    stream->print(F("1.0"));
-    stream->print(F("\n"));
+    stream->print(ESPHOME_F("\"} "));
+    stream->print(ESPHOME_F("1.0"));
+    stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(F("esphome_text_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_text_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
 #endif
@@ -609,8 +609,8 @@ void PrometheusHandler::text_row_(AsyncResponseStream *stream, text::Text *obj, 
 // Type-specific implementation
 #ifdef USE_EVENT
 void PrometheusHandler::event_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_event_value gauge\n"));
-  stream->print(F("#TYPE esphome_event_failed gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_event_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_event_failed gauge\n"));
 }
 void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *obj, std::string &area, std::string &node,
                                    std::string &friendly_name) {
@@ -618,37 +618,37 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
     return;
   if (obj->last_event_type != nullptr) {
     // We have a valid event type, output this value
-    stream->print(F("esphome_event_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_event_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 0\n"));
+    stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
-    stream->print(F("esphome_event_value{id=\""));
+    stream->print(ESPHOME_F("esphome_event_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\",last_event_type=\""));
+    stream->print(ESPHOME_F("\",last_event_type=\""));
     stream->print(obj->last_event_type->c_str());
-    stream->print(F("\"} "));
-    stream->print(F("1.0"));
-    stream->print(F("\n"));
+    stream->print(ESPHOME_F("\"} "));
+    stream->print(ESPHOME_F("1.0"));
+    stream->print(ESPHOME_F("\n"));
   } else {
     // No event triggered yet
-    stream->print(F("esphome_event_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_event_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
 #endif
