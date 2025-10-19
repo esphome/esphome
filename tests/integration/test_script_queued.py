@@ -47,7 +47,7 @@ async def test_script_queued(
     reject_start = re.compile(r"Rejection test: START (\d+)")
     reject_end = re.compile(r"Rejection test: END (\d+)")
     reject_reject = re.compile(
-        r"Script 'rejection_script' maximum number of queued runs exceeded!"
+        r"Script 'rejection_script' maximum total instances \(running \+ queued\) exceeded!"
     )
 
     # Patterns for Test 5: No params
