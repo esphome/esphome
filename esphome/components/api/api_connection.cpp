@@ -141,7 +141,7 @@ APIConnection::~APIConnection() {
 }
 
 void APIConnection::loop() {
-  ESP_LOGE("use more flash");
+  ESP_LOGE("debug", "use more flash %s", "test");
   if (this->flags_.next_close) {
     // requested a disconnect
     this->helper_->close();
