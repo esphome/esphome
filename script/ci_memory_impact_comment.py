@@ -512,109 +512,65 @@ def main() -> int:
     )
     parser.add_argument("--pr-number", required=True, help="PR number")
     parser.add_argument(
-        "--components",
-        help='JSON array of component names (e.g., \'["api", "wifi"]\')',
-    )
-    parser.add_argument("--platform", help="Platform name")
-    parser.add_argument("--target-ram", type=int, help="Target branch RAM usage")
-    parser.add_argument("--target-flash", type=int, help="Target branch flash usage")
-    parser.add_argument("--pr-ram", type=int, help="PR branch RAM usage")
-    parser.add_argument("--pr-flash", type=int, help="PR branch flash usage")
-    parser.add_argument(
         "--target-json",
-        help="Path to target branch analysis JSON (required if other args not provided)",
+        required=True,
+        help="Path to target branch analysis JSON file",
     )
     parser.add_argument(
         "--pr-json",
-        help="Path to PR branch analysis JSON (required if other args not provided)",
-    )
-    parser.add_argument(
-        "--target-cache-hit",
-        action="store_true",
-        help="Indicates that target branch analysis was loaded from cache",
+        required=True,
+        help="Path to PR branch analysis JSON file",
     )
 
     args = parser.parse_args()
 
-    # Load analysis JSON files first (safer to parse from base branch JSON than shell args)
-    target_data: dict | None = None
-    pr_data: dict | None = None
+    # Load analysis JSON files (all data comes from JSON for security)
+    target_data: dict | None = load_analysis_json(args.target_json)
+    if not target_data:
+        print("Error: Failed to load target analysis JSON", file=sys.stderr)
+        sys.exit(1)
+
+    pr_data: dict | None = load_analysis_json(args.pr_json)
+    if not pr_data:
+        print("Error: Failed to load PR analysis JSON", file=sys.stderr)
+        sys.exit(1)
+
+    # Extract detailed analysis if available
     target_analysis: dict | None = None
     pr_analysis: dict | None = None
     target_symbols: dict | None = None
     pr_symbols: dict | None = None
 
-    if args.target_json:
-        target_data = load_analysis_json(args.target_json)
-        if target_data and target_data.get("detailed_analysis"):
-            target_analysis = target_data["detailed_analysis"].get("components")
-            target_symbols = target_data["detailed_analysis"].get("symbols")
+    if target_data.get("detailed_analysis"):
+        target_analysis = target_data["detailed_analysis"].get("components")
+        target_symbols = target_data["detailed_analysis"].get("symbols")
 
-    if args.pr_json:
-        pr_data = load_analysis_json(args.pr_json)
-        if pr_data and pr_data.get("detailed_analysis"):
-            pr_analysis = pr_data["detailed_analysis"].get("components")
-            pr_symbols = pr_data["detailed_analysis"].get("symbols")
+    if pr_data.get("detailed_analysis"):
+        pr_analysis = pr_data["detailed_analysis"].get("components")
+        pr_symbols = pr_data["detailed_analysis"].get("symbols")
 
-    # Get values from JSON files or command-line arguments
-    # Prefer JSON files as they're generated from base branch code (safer)
-    if target_data and pr_data:
-        # Extract all values from JSON (prevents shell injection from PR code)
-        components = target_data.get("components")
-        platform = target_data.get("platform")
-        target_ram = target_data.get("ram_bytes")
-        target_flash = target_data.get("flash_bytes")
-        pr_ram = pr_data.get("ram_bytes")
-        pr_flash = pr_data.get("flash_bytes")
-        target_cache_hit = target_data.get("cache_hit", False)
+    # Extract all values from JSON files (prevents shell injection from PR code)
+    components = target_data.get("components")
+    platform = target_data.get("platform")
+    target_ram = target_data.get("ram_bytes")
+    target_flash = target_data.get("flash_bytes")
+    pr_ram = pr_data.get("ram_bytes")
+    pr_flash = pr_data.get("flash_bytes")
+    target_cache_hit = target_data.get("cache_hit", False)
 
-        # Validate required fields
-        if not all(
-            [
-                components,
-                platform,
-                target_ram is not None,
-                target_flash is not None,
-                pr_ram is not None,
-                pr_flash is not None,
-            ]
-        ):
-            print("Error: JSON files missing required fields", file=sys.stderr)
-            sys.exit(1)
-    else:
-        # Fall back to command-line arguments (for backwards compatibility)
-        if not all(
-            [
-                args.components,
-                args.platform,
-                args.target_ram is not None,
-                args.target_flash is not None,
-                args.pr_ram is not None,
-                args.pr_flash is not None,
-            ]
-        ):
-            print(
-                "Error: Must provide either JSON files or all command-line arguments",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        # Parse components from JSON string
-        try:
-            components = json.loads(args.components)
-            if not isinstance(components, list):
-                print("Error: --components must be a JSON array", file=sys.stderr)
-                sys.exit(1)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing --components JSON: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        platform = args.platform
-        target_ram = args.target_ram
-        target_flash = args.target_flash
-        pr_ram = args.pr_ram
-        pr_flash = args.pr_flash
-        target_cache_hit = args.target_cache_hit
+    # Validate required fields
+    if not all(
+        [
+            components,
+            platform,
+            target_ram is not None,
+            target_flash is not None,
+            pr_ram is not None,
+            pr_flash is not None,
+        ]
+    ):
+        print("Error: JSON files missing required fields", file=sys.stderr)
+        sys.exit(1)
 
     # Create comment body
     # Note: Memory totals (RAM/Flash) are summed across all builds if multiple were run.
