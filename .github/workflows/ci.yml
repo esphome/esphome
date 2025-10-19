@@ -175,6 +175,7 @@ jobs:
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
+      memory_impact: ${{ steps.determine.outputs.memory-impact }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -204,6 +205,7 @@ jobs:
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
+          echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
 
   integration-tests:
     name: Run integration tests
@@ -521,6 +523,292 @@ jobs:
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
+  memory-impact-target-branch:
+    name: Build target branch for memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    outputs:
+      ram_usage: ${{ steps.extract.outputs.ram_usage }}
+      flash_usage: ${{ steps.extract.outputs.flash_usage }}
+      cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
+      skip: ${{ steps.check-script.outputs.skip }}
+    steps:
+      - name: Check out target branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.base_ref }}
+
+      # Check if memory impact extraction script exists on target branch
+      # If not, skip the analysis (this handles older branches that don't have the feature)
+      - name: Check for memory impact script
+        id: check-script
+        run: |
+          if [ -f "script/ci_memory_impact_extract.py" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
+          fi
+
+      # All remaining steps only run if script exists
+      - name: Generate cache key
+        id: cache-key
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          # Get the commit SHA of the target branch
+          target_sha=$(git rev-parse HEAD)
+
+          # Hash the build infrastructure files (all files that affect build/analysis)
+          infra_hash=$(cat \
+            script/test_build_components.py \
+            script/ci_memory_impact_extract.py \
+            script/analyze_component_buses.py \
+            script/merge_component_configs.py \
+            script/ci_helpers.py \
+            .github/workflows/ci.yml \
+            | sha256sum | cut -d' ' -f1)
+
+          # Get platform and components from job inputs
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          components_hash=$(echo "$components" | sha256sum | cut -d' ' -f1)
+
+          # Combine into cache key
+          cache_key="memory-analysis-target-${target_sha}-${infra_hash}-${platform}-${components_hash}"
+          echo "cache-key=${cache_key}" >> $GITHUB_OUTPUT
+          echo "Cache key: ${cache_key}"
+
+      - name: Restore cached memory analysis
+        id: cache-memory-analysis
+        if: steps.check-script.outputs.skip != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: memory-analysis-target.json
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      - name: Cache status
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          if [ "${{ steps.cache-memory-analysis.outputs.cache-hit }}" == "true" ]; then
+            echo "✓ Cache hit! Using cached memory analysis results."
+            echo "  Skipping build step to save time."
+          else
+            echo "✗ Cache miss. Will build and analyze memory usage."
+          fi
+
+      - name: Restore Python
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache platformio
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Build, compile, and analyze memory
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        id: build
+        run: |
+          . venv/bin/activate
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+
+          echo "Building with test_build_components.py for $platform with components:"
+          echo "$components" | jq -r '.[]' | sed 's/^/  - /'
+
+          # Use test_build_components.py which handles grouping automatically
+          # Pass components as comma-separated list
+          component_list=$(echo "$components" | jq -r 'join(",")')
+
+          echo "Compiling with test_build_components.py..."
+
+          # Run build and extract memory with auto-detection of build directory for detailed analysis
+          # Use tee to show output in CI while also piping to extraction script
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
+            tee /dev/stderr | \
+            python script/ci_memory_impact_extract.py \
+              --output-env \
+              --output-json memory-analysis-target.json
+
+      - name: Save memory analysis to cache
+        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: memory-analysis-target.json
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      - name: Extract memory usage for outputs
+        id: extract
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          if [ -f memory-analysis-target.json ]; then
+            ram=$(jq -r '.ram_bytes' memory-analysis-target.json)
+            flash=$(jq -r '.flash_bytes' memory-analysis-target.json)
+            echo "ram_usage=${ram}" >> $GITHUB_OUTPUT
+            echo "flash_usage=${flash}" >> $GITHUB_OUTPUT
+            echo "RAM: ${ram} bytes, Flash: ${flash} bytes"
+          else
+            echo "Error: memory-analysis-target.json not found"
+            exit 1
+          fi
+
+      - name: Upload memory analysis JSON
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-analysis-target
+          path: memory-analysis-target.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  memory-impact-pr-branch:
+    name: Build PR branch for memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true'
+    outputs:
+      ram_usage: ${{ steps.extract.outputs.ram_usage }}
+      flash_usage: ${{ steps.extract.outputs.flash_usage }}
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache platformio
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Build, compile, and analyze memory
+        id: extract
+        run: |
+          . venv/bin/activate
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+
+          echo "Building with test_build_components.py for $platform with components:"
+          echo "$components" | jq -r '.[]' | sed 's/^/  - /'
+
+          # Use test_build_components.py which handles grouping automatically
+          # Pass components as comma-separated list
+          component_list=$(echo "$components" | jq -r 'join(",")')
+
+          echo "Compiling with test_build_components.py..."
+
+          # Run build and extract memory with auto-detection of build directory for detailed analysis
+          # Use tee to show output in CI while also piping to extraction script
+          python script/test_build_components.py \
+            -e compile \
+            -c "$component_list" \
+            -t "$platform" 2>&1 | \
+            tee /dev/stderr | \
+            python script/ci_memory_impact_extract.py \
+              --output-env \
+              --output-json memory-analysis-pr.json
+      - name: Upload memory analysis JSON
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-analysis-pr
+          path: memory-analysis-pr.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  memory-impact-comment:
+    name: Comment memory impact
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+      - memory-impact-target-branch
+      - memory-impact-pr-branch
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Download target analysis JSON
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: memory-analysis-target
+          path: ./memory-analysis
+        continue-on-error: true
+      - name: Download PR analysis JSON
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: memory-analysis-pr
+          path: ./memory-analysis
+        continue-on-error: true
+      - name: Post or update PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENTS: ${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}
+          PLATFORM: ${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}
+          TARGET_RAM: ${{ needs.memory-impact-target-branch.outputs.ram_usage }}
+          TARGET_FLASH: ${{ needs.memory-impact-target-branch.outputs.flash_usage }}
+          PR_RAM: ${{ needs.memory-impact-pr-branch.outputs.ram_usage }}
+          PR_FLASH: ${{ needs.memory-impact-pr-branch.outputs.flash_usage }}
+          TARGET_CACHE_HIT: ${{ needs.memory-impact-target-branch.outputs.cache_hit }}
+        run: |
+          . venv/bin/activate
+
+          # Check if analysis JSON files exist
+          target_json_arg=""
+          pr_json_arg=""
+
+          if [ -f ./memory-analysis/memory-analysis-target.json ]; then
+            echo "Found target analysis JSON"
+            target_json_arg="--target-json ./memory-analysis/memory-analysis-target.json"
+          else
+            echo "No target analysis JSON found"
+          fi
+
+          if [ -f ./memory-analysis/memory-analysis-pr.json ]; then
+            echo "Found PR analysis JSON"
+            pr_json_arg="--pr-json ./memory-analysis/memory-analysis-pr.json"
+          else
+            echo "No PR analysis JSON found"
+          fi
+
+          # Add cache flag if target was cached
+          cache_flag=""
+          if [ "$TARGET_CACHE_HIT" == "true" ]; then
+            cache_flag="--target-cache-hit"
+          fi
+
+          python script/ci_memory_impact_comment.py \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --components "$COMPONENTS" \
+            --platform "$PLATFORM" \
+            --target-ram "$TARGET_RAM" \
+            --target-flash "$TARGET_FLASH" \
+            --pr-ram "$PR_RAM" \
+            --pr-flash "$PR_FLASH" \
+            $target_json_arg \
+            $pr_json_arg \
+            $cache_flag
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-24.04
@@ -535,6 +823,9 @@ jobs:
       - test-build-components-splitter
       - test-build-components-split
       - pre-commit-ci-lite
+      - memory-impact-target-branch
+      - memory-impact-pr-branch
+      - memory-impact-comment
     if: always()
     steps:
       - name: Success
