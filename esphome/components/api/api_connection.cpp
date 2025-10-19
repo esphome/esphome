@@ -661,11 +661,12 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   ListEntitiesClimateResponse msg;
   auto traits = climate->get_traits();
   // Flags set for backward compatibility, deprecated in 2025.11.0
-  msg.supports_current_temperature = traits.get_supports_current_temperature();
-  msg.supports_current_humidity = traits.get_supports_current_humidity();
-  msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
-  msg.supports_target_humidity = traits.get_supports_target_humidity();
-  msg.supports_action = traits.get_supports_action();
+  msg.supports_current_temperature = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  msg.supports_current_humidity = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+  msg.supports_two_point_target_temperature = traits.has_feature_flags(
+      climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE | climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
+  msg.supports_target_humidity = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
+  msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
   msg.supported_modes = &traits.get_supported_modes_for_api_();
