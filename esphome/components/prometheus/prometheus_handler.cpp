@@ -306,17 +306,8 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   float brightness, r, g, b, w;
   color.as_brightness(&brightness);
   color.as_rgbw(&r, &g, &b, &w);
-<<<<<<< HEAD
   if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::BRIGHTNESS) > 0) {
     stream->print(ESPHOME_F("esphome_light_color{id=\""));
-=======
-  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::BRIGHTNESS) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_COLD_WARM_WHITE) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_COLOR_TEMPERATURE) > 0) {
-    stream->print(F("esphome_light_color{id=\""));
->>>>>>> f143fcda8 (Reduce /metrics output for lights which do not support RGB, effects, ...)
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
@@ -327,16 +318,8 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     stream->print(brightness);
     stream->print(ESPHOME_F("\n"));
   }
-<<<<<<< HEAD
   if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB) > 0) {
     stream->print(ESPHOME_F("esphome_light_color{id=\""));
-=======
-  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_COLD_WARM_WHITE) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_COLOR_TEMPERATURE) > 0) {
-    stream->print(F("esphome_light_color{id=\""));
->>>>>>> f143fcda8 (Reduce /metrics output for lights which do not support RGB, effects, ...)
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
@@ -367,15 +350,8 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     stream->print(b);
     stream->print(ESPHOME_F("\n"));
   }
-<<<<<<< HEAD
   if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0) {
     stream->print(ESPHOME_F("esphome_light_color{id=\""));
-=======
-  if (obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_COLD_WARM_WHITE) > 0
-    || obj->get_traits().get_supported_color_modes().count(light::ColorMode::RGB_WHITE) > 0) {
-    stream->print(F("esphome_light_color{id=\""));
->>>>>>> f143fcda8 (Reduce /metrics output for lights which do not support RGB, effects, ...)
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
@@ -387,7 +363,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     stream->print(ESPHOME_F("\n"));
   }
   // No effects, so we can skip this
-  if(!obj->get_effects().empty()) {
+  if (!obj->get_effects().empty()) {
     // Effect
     std::string effect = obj->get_effect_name();
     if (effect == "None") {
