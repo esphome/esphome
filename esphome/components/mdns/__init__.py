@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -47,7 +48,7 @@ SERVICE_SCHEMA = cv.Schema(
 )
 
 
-def _consume_mdns_sockets(config):
+def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for mDNS component."""
     if config.get(CONF_DISABLED):
         return config

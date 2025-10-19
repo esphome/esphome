@@ -58,6 +58,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -210,7 +211,7 @@ def validate_fingerprint(value):
     return value
 
 
-def _consume_mqtt_sockets(config):
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     from esphome.components import socket
 
