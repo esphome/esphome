@@ -19,8 +19,8 @@ def _consume_camera_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for camera web server."""
     from esphome.components import socket
 
-    # Each camera web server instance needs 1 listening socket + 1-2 client connections
-    sockets_needed = 2
+    # Each camera web server instance needs 1 listening socket + 2 client connections
+    sockets_needed = 3
     socket.consume_sockets(sockets_needed, "esp32_camera_web_server")(config)
     return config
 
