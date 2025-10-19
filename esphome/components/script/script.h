@@ -140,8 +140,10 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
   void stop() override {
     // Clear all queued items to free memory immediately
-    for (int i = 0; i < this->max_runs_ - 1; i++) {
-      this->var_queue_[i].reset();
+    if (this->var_queue_) {
+      for (int i = 0; i < this->max_runs_ - 1; i++) {
+        this->var_queue_[i].reset();
+      }
     }
     this->num_queued_ = 0;
     this->queue_front_ = 0;
@@ -164,13 +166,10 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   // Lazy init queue on first use - avoids setup() ordering issues and saves memory
   // if script is never executed during this boot cycle
   inline void lazy_init_queue_() {
-    if (this->var_queue_.capacity() == 0) {
-      // Allocate max_runs_ - 1 slots for queued items (running item is separate)
-      this->var_queue_.init(this->max_runs_ - 1);
-      // Initialize all unique_ptr slots to nullptr
-      for (int i = 0; i < this->max_runs_ - 1; i++) {
-        this->var_queue_.push_back(nullptr);
-      }
+    if (!this->var_queue_) {
+      // Allocate array of max_runs_ - 1 slots for queued items (running item is separate)
+      // unique_ptr array is zero-initialized, so all slots start as nullptr
+      this->var_queue_ = std::make_unique<std::unique_ptr<std::tuple<Ts...>>[]>(this->max_runs_ - 1);
     }
   }
 
@@ -181,7 +180,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   int num_queued_ = 0;      // Number of queued instances (not including currently running)
   int max_runs_ = 0;        // Maximum total instances (running + queued)
   size_t queue_front_ = 0;  // Ring buffer read position (next item to execute)
-  FixedVector<std::unique_ptr<std::tuple<Ts...>>> var_queue_;  // Ring buffer of queued parameters
+  std::unique_ptr<std::unique_ptr<std::tuple<Ts...>>[]> var_queue_;  // Ring buffer of queued parameters
 };
 
 /** A script type that executes new instances in parallel.
