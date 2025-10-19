@@ -7,11 +7,15 @@
 #include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
 #endif
+#include <zephyr/sys/ring_buffer.h>
 
-namespace esphome {
-namespace ble_nus {
+namespace esphome::ble_nus {
 
 BLENUS *global_ble_nus;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+constexpr size_t BLE_TX_BUF_SIZE = 2048;
+
+RING_BUF_DECLARE(global_ble_tx_ring_buf, BLE_TX_BUF_SIZE);
 
 static const char *const TAG = "ble_nus";
 
@@ -19,7 +23,7 @@ size_t BLENUS::write_array(const uint8_t *data, size_t len) {
   if (atomic_get(&this->tx_status_) == TX_DISABLED) {
     return 0;
   }
-  return ring_buf_put(&this->tx_ringbuf_, data, len);
+  return ring_buf_put(&global_ble_tx_ring_buf, data, len);
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {
@@ -60,11 +64,6 @@ void BLENUS::rx_callback(bt_conn *conn, const uint8_t *const data, uint16_t len)
   ESP_LOGD(TAG, "Received %d bytes.", len);
 }
 
-BLENUS::BLENUS(size_t buffer_size) {
-  uint8_t *buffer = new uint8_t[buffer_size];
-  ring_buf_init(&this->tx_ringbuf_, buffer_size, buffer);
-}
-
 void BLENUS::setup() {
   bt_nus_cb callbacks = {
       .received = rx_callback,
@@ -101,13 +100,13 @@ void BLENUS::dump_config() {
 }
 
 void BLENUS::loop() {
-  if (ring_buf_is_empty(&this->tx_ringbuf_)) {
+  if (ring_buf_is_empty(&global_ble_tx_ring_buf)) {
     return;
   }
 
   if (!atomic_cas(&this->tx_status_, TX_ENABLED, TX_BUSY)) {
     if (atomic_get(&this->tx_status_) == TX_DISABLED) {
-      ring_buf_reset(&this->tx_ringbuf_);
+      ring_buf_reset(&global_ble_tx_ring_buf);
     }
     return;
   }
@@ -122,12 +121,12 @@ void BLENUS::loop() {
   uint32_t req_len = bt_nus_get_mtu(conn);
 
   uint8_t *buf;
-  uint32_t size = ring_buf_get_claim(&this->tx_ringbuf_, &buf, req_len);
+  uint32_t size = ring_buf_get_claim(&global_ble_tx_ring_buf, &buf, req_len);
 
   int err, err2;
 
   err = bt_nus_send(conn, buf, size);
-  err2 = ring_buf_get_finish(&this->tx_ringbuf_, size);
+  err2 = ring_buf_get_finish(&global_ble_tx_ring_buf, size);
   if (err2) {
     ESP_LOGE(TAG, "Failed to ring buf finish (%d error)", err2);
   }
@@ -140,6 +139,5 @@ void BLENUS::loop() {
   bt_conn_unref(conn);
 }
 
-}  // namespace ble_nus
-}  // namespace esphome
+}  // namespace esphome::ble_nus
 #endif

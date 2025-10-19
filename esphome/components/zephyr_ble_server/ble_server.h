@@ -2,8 +2,7 @@
 #ifdef USE_ZEPHYR
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace zephyr_ble_server {
+namespace esphome::zephyr_ble_server {
 
 class BLEServer : public Component {
  public:
@@ -16,6 +15,5 @@ class BLEServer : public Component {
   bool suspended_ = false;
 };
 
-}  // namespace zephyr_ble_server
-}  // namespace esphome
+}  // namespace esphome::zephyr_ble_server
 #endif

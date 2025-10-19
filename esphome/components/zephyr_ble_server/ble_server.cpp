@@ -5,8 +5,7 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 
-namespace esphome {
-namespace zephyr_ble_server {
+namespace esphome::zephyr_ble_server {
 
 static const char *const TAG = "zephyr_ble_server";
 
@@ -91,7 +90,6 @@ void BLEServer::on_shutdown() {
   this->suspended_ = true;
 }
 
-}  // namespace zephyr_ble_server
-}  // namespace esphome
+}  // namespace esphome::zephyr_ble_server
 
 #endif

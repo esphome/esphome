@@ -2,11 +2,9 @@
 #ifdef USE_ZEPHYR
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
-#include <zephyr/sys/ring_buffer.h>
 #include <shell/shell_bt_nus.h>
 
-namespace esphome {
-namespace ble_nus {
+namespace esphome::ble_nus {
 
 class BLENUS : public Component {
   enum TxStatus {
@@ -16,7 +14,6 @@ class BLENUS : public Component {
   };
 
  public:
-  BLENUS(size_t buffer_size = 2048);
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -31,11 +28,9 @@ class BLENUS : public Component {
   static void disconnected(bt_conn *conn, uint8_t reason);
 
   bt_conn *conn_ = nullptr;
-  ring_buf tx_ringbuf_;
   bool expose_log_ = false;
   atomic_t tx_status_ = ATOMIC_INIT(TX_DISABLED);
 };
 
-}  // namespace ble_nus
-}  // namespace esphome
+}  // namespace esphome::ble_nus
 #endif
