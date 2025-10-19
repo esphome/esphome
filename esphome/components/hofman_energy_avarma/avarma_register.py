@@ -1,3 +1,4 @@
+from esphome.components.modbus_controller import SensorValueType
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_TEMPERATURE
 
@@ -22,6 +23,7 @@ class AvarmaRegister:
         entity_category=cv.ENTITY_CATEGORY_NONE,
         device_class=DEVICE_CLASS_TEMPERATURE,
         flags=None,
+        value_type=SensorValueType.S_WORD,
     ):
         self.address = address
         self.parameter_id = parameter_id
@@ -34,4 +36,19 @@ class AvarmaRegister:
         self.accuracy_decimals = accuracy_decimals
         self.device_class = device_class
         self.flags = flags
+        self.value_type = value_type
         self.name = f"{parameter_id} - {description}"
+
+
+class TempRegister(AvarmaRegister):
+    def __init__(
+        self,
+        address,
+        parameter_id,
+        description="",
+        min=None,
+        max=None,
+    ):
+        super().__init__(
+            address, parameter_id, description, min, max, register_factor=0.1
+        )

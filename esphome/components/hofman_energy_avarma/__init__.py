@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, modbus_controller, number, sensor, switch
-from esphome.components.modbus_controller import ModbusController, SensorValueType
+from esphome.components.modbus_controller import ModbusController
 from esphome.components.modbus_controller.binary_sensor import ModbusBinarySensor
 from esphome.components.modbus_controller.const import CONF_REGISTER_TYPE
 from esphome.components.modbus_controller.number import ModbusNumber
@@ -135,7 +135,7 @@ async def to_code(config):
             modbus_controller.ModbusRegisterType.HOLDING
         )
 
-        value_type = SensorValueType.U_WORD
+        value_type = register.value_type
         var = cg.new_Pvariable(
             conf[CONF_ID],
             conf[modbus_controller.CONF_REGISTER_TYPE],
@@ -221,7 +221,7 @@ async def to_code(config):
             conf[CONF_ADDRESS],
             0,
             0xFFFFFFFF,
-            SensorValueType.U_WORD,
+            register.value_type,
             1.0,
             0,
             False,

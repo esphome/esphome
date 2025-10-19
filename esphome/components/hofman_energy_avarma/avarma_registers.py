@@ -1,11 +1,91 @@
-from esphome.const import DEVICE_CLASS_SWITCH
+from esphome.const import (
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_SWITCH,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+)
 
-from .avarma_register import AvarmaRegister, AvarmaRegisterBinaryRegisterBit
+from .avarma_register import (
+    AvarmaRegister,
+    AvarmaRegisterBinaryRegisterBit,
+    TempRegister,
+)
 
 AVARMA_SENSOR_REGISTERS = [
-    AvarmaRegister(0x1106, "C00", "Coil temp", -30, 97, register_factor=0.1),
-    AvarmaRegister(0x1107, "C01", "Discharge temp", -30, 128, register_factor=0.1),
-    AvarmaRegister(0x1108, "C02", "Ambient temp", -30, 97, register_factor=0.1),
+    TempRegister(0x1106, "C00", "Coil temp", -30, 97),
+    TempRegister(0x1107, "C01", "Discharge temp", -30, 128),
+    TempRegister(0x1108, "C02", "Ambient temp", -30, 97),
+    TempRegister(0x1109, "C03", "Suction temp", -30, 97),
+    TempRegister(0x110A, "C04", "EVI inlet temp", -30, 97),
+    TempRegister(0x110B, "C05", "EVI outlet temp", -30, 97),
+    TempRegister(0x110C, "C06", "Refrigerant liquid temperature", -30, 97),
+    TempRegister(0x110D, "C07", "Water inlet temperature", -30, 97),
+    TempRegister(0x110E, "C08", "Water outlet temperature", -30, 97),
+    TempRegister(0x110F, "C09", "DHW tank temperature", -30, 97),
+    AvarmaRegister(
+        0x1110,
+        "C10",
+        "Water flow",
+        0,
+        100,
+        unit_of_measurement="L/min",
+        device_class=DEVICE_CLASS_VOLUME_FLOW_RATE,
+        register_factor=0.1,
+    ),
+    TempRegister(0x1111, "C11", "Main circulation temperature differential", -30, 97),
+    TempRegister(0x1112, "C12", "EVI circulation temperature differential", -30, 97),
+    AvarmaRegister(
+        0x1113,
+        "C13",
+        "High pressure",
+        -100,
+        100,
+        unit_of_measurement="MPa",
+        device_class=DEVICE_CLASS_PRESSURE,
+        accuracy_decimals=2,
+        register_factor=0.01,
+    ),
+    AvarmaRegister(
+        0x1114,
+        "C14",
+        "Low pressure",
+        -100,
+        100,
+        unit_of_measurement="MPa",
+        device_class=DEVICE_CLASS_PRESSURE,
+        accuracy_decimals=2,
+        register_factor=0.01,
+    ),
+    AvarmaRegister(
+        0x1115,
+        "C15",
+        "Compressor running frequency",
+        unit_of_measurement="HZ",
+        device_class=DEVICE_CLASS_FREQUENCY,
+    ),
+    AvarmaRegister(
+        0x1116,
+        "C16",
+        "Fan motor 1 speed",
+        unit_of_measurement="rpm",
+        device_class=DEVICE_CLASS_FREQUENCY,
+    ),
+    AvarmaRegister(
+        0x111A,
+        "C20",
+        "Compressor target frequency",
+        unit_of_measurement="HZ",
+        device_class=DEVICE_CLASS_FREQUENCY,
+    ),
+    AvarmaRegister(
+        0x111B,
+        "C21",
+        "Compressor input current",
+        unit_of_measurement="A",
+        device_class=DEVICE_CLASS_CURRENT,
+        register_factor=0.1,
+    ),
 ]
 
 AVARMA_BINARY_REGISTERS = [
