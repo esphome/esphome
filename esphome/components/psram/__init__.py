@@ -45,6 +45,7 @@ TYPE_HEX = "hex"
 SDK_MODES = {TYPE_QUAD: "QUAD", TYPE_OCTAL: "OCT", TYPE_HEX: "HEX"}
 
 CONF_ENABLE_ECC = "enable_ecc"
+CONF_IGNORE_NOT_FOUND = "ignore_not_found"
 
 SPIRAM_MODES = {
     VARIANT_ESP32: (TYPE_QUAD,),
@@ -111,6 +112,7 @@ def get_config_schema(config):
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
             cv.Optional(CONF_SPEED, default=speeds[0]): cv.one_of(*speeds, upper=True),
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+            cv.Optional(CONF_IGNORE_NOT_FOUND, default=True): cv.boolean,
         }
     )(config)
 
@@ -135,7 +137,9 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
-    add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_SPIRAM_IGNORE_NOTFOUND", config[CONF_IGNORE_NOT_FOUND]
+    )
 
     add_idf_sdkconfig_option(f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True)
 
