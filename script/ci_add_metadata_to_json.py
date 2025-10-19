@@ -56,6 +56,11 @@ def main() -> int:
         if not isinstance(components, list):
             print("Error: --components must be a JSON array", file=sys.stderr)
             return 1
+        # Element-level validation: ensure each component is a non-empty string
+        for idx, comp in enumerate(components):
+            if not isinstance(comp, str) or not comp.strip():
+                print(f"Error: component at index {idx} is not a non-empty string: {comp!r}", file=sys.stderr)
+                return 1
     except json.JSONDecodeError as e:
         print(f"Error parsing components: {e}", file=sys.stderr)
         return 1

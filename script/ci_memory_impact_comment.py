@@ -564,7 +564,12 @@ def main() -> int:
         type_errors.append(
             f"components must be a list, got {type(components).__name__}"
         )
-
+    else:
+        for idx, comp in enumerate(components):
+            if not isinstance(comp, dict):
+                type_errors.append(
+                    f"components[{idx}] must be a dict, got {type(comp).__name__}"
+                )
     if platform is None:
         missing_fields.append("platform")
     elif not isinstance(platform, str):
