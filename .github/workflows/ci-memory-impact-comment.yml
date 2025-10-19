@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  actions: read
 
 jobs:
   memory-impact-comment:
@@ -28,7 +29,7 @@ jobs:
           # Get PR details by searching for PR with matching head SHA
           # The workflow_run.pull_requests field is often empty for forks
           head_sha="${{ github.event.workflow_run.head_sha }}"
-          pr_data=$(gh api "/repos/${{ github.repository }}/pulls" \
+          pr_data=$(gh api --paginate "/repos/${{ github.repository }}/pulls" \
             --jq ".[] | select(.head.sha == \"$head_sha\") | {number: .number, base_ref: .base.ref}" \
             | head -1)
 
@@ -67,23 +68,28 @@ jobs:
           run_id="${{ github.event.workflow_run.id }}"
           echo "Downloading artifacts from workflow run $run_id"
 
+          mkdir -p memory-analysis
+
           # Download target analysis
-          gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
-            --jq '.artifacts[] | select(.name == "memory-analysis-target") | .archive_download_url' \
-            | xargs -I {} gh api {} > memory-analysis-target.zip || true
+          target_url=$(gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
+            --jq '.artifacts[] | select(.name == "memory-analysis-target") | .archive_download_url')
+          if [ -n "$target_url" ]; then
+            echo "Found memory-analysis-target artifact, downloading..."
+            gh api "$target_url" > memory-analysis-target.zip
+            unzip -q memory-analysis-target.zip -d memory-analysis/
+          else
+            echo "No memory-analysis-target artifact found."
+          fi
 
           # Download PR analysis
-          gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
-            --jq '.artifacts[] | select(.name == "memory-analysis-pr") | .archive_download_url' \
-            | xargs -I {} gh api {} > memory-analysis-pr.zip || true
-
-          # Extract artifacts
-          mkdir -p memory-analysis
-          if [ -f memory-analysis-target.zip ]; then
-            unzip -q memory-analysis-target.zip -d memory-analysis/
-          fi
-          if [ -f memory-analysis-pr.zip ]; then
+          pr_url=$(gh api "/repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" \
+            --jq '.artifacts[] | select(.name == "memory-analysis-pr") | .archive_download_url')
+          if [ -n "$pr_url" ]; then
+            echo "Found memory-analysis-pr artifact, downloading..."
+            gh api "$pr_url" > memory-analysis-pr.zip
             unzip -q memory-analysis-pr.zip -d memory-analysis/
+          else
+            echo "No memory-analysis-pr artifact found."
           fi
 
       - name: Check if artifacts exist
