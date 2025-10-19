@@ -641,25 +641,18 @@ jobs:
               --output-env \
               --output-json memory-analysis-target.json
 
+          # Add metadata to JSON before caching
+          python script/ci_add_metadata_to_json.py \
+            --json-file memory-analysis-target.json \
+            --components "$components" \
+            --platform "$platform"
+
       - name: Save memory analysis to cache
         if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
-
-      - name: Add metadata to JSON
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
-        run: |
-          . venv/bin/activate
-          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
-          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
-
-          # Add metadata to newly generated JSON (cache miss means we just built it)
-          python script/ci_add_metadata_to_json.py \
-            --json-file memory-analysis-target.json \
-            --components "$components" \
-            --platform "$platform"
 
       - name: Extract memory usage for outputs
         id: extract
