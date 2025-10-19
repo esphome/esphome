@@ -93,35 +93,13 @@ jobs:
 
       - name: Post or update PR comment
         if: steps.pr.outputs.skip != 'true' && steps.check.outputs.found == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         run: |
-          # Extract data from JSON files
-          target_json="./memory-analysis/memory-analysis-target.json"
-          pr_json="./memory-analysis/memory-analysis-pr.json"
-
-          # Parse memory values
-          target_ram=$(jq -r '.ram_bytes' "$target_json")
-          target_flash=$(jq -r '.flash_bytes' "$target_json")
-          pr_ram=$(jq -r '.ram_bytes' "$pr_json")
-          pr_flash=$(jq -r '.flash_bytes' "$pr_json")
-
-          # Get platform and components from target JSON
-          platform=$(jq -r '.platform' "$target_json")
-          components=$(jq -r '.components | @json' "$target_json")
-
-          # Check for target cache hit (assume false if not present)
-          target_cache_hit=""
-          if [ "$(jq -r '.cache_hit // false' "$target_json")" == "true" ]; then
-            target_cache_hit="--target-cache-hit"
-          fi
-
+          # Pass PR number and JSON file paths directly to Python script
+          # Let Python parse the JSON to avoid shell injection risks
+          # The script will validate and sanitize all inputs
           python script/ci_memory_impact_comment.py \
-            --pr-number "${{ steps.pr.outputs.pr_number }}" \
-            --components "$components" \
-            --platform "$platform" \
-            --target-ram "$target_ram" \
-            --target-flash "$target_flash" \
-            --pr-ram "$pr_ram" \
-            --pr-flash "$pr_flash" \
-            --target-json "$target_json" \
-            --pr-json "$pr_json" \
-            $target_cache_hit
+            --pr-number "$PR_NUMBER" \
+            --target-json ./memory-analysis/memory-analysis-target.json \
+            --pr-json ./memory-analysis/memory-analysis-pr.json
