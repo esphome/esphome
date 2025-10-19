@@ -141,6 +141,7 @@ APIConnection::~APIConnection() {
 }
 
 void APIConnection::loop() {
+  ESP_LOGE("use more flash");
   if (this->flags_.next_close) {
     // requested a disconnect
     this->helper_->close();
@@ -151,6 +152,7 @@ void APIConnection::loop() {
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
     this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Use more flash Socket operation failed"), err);
     return;
   }
 
