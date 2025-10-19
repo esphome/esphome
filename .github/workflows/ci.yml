@@ -641,13 +641,6 @@ jobs:
               --output-env \
               --output-json memory-analysis-target.json
 
-      - name: Add metadata to JSON
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
-        run: |
-          . venv/bin/activate
-          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
-          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
-
           # Add metadata to JSON before caching
           python script/ci_add_metadata_to_json.py \
             --json-file memory-analysis-target.json \
