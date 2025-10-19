@@ -512,79 +512,80 @@ def main() -> int:
     )
     parser.add_argument("--pr-number", required=True, help="PR number")
     parser.add_argument(
-        "--components",
-        required=True,
-        help='JSON array of component names (e.g., \'["api", "wifi"]\')',
-    )
-    parser.add_argument("--platform", required=True, help="Platform name")
-    parser.add_argument(
-        "--target-ram", type=int, required=True, help="Target branch RAM usage"
-    )
-    parser.add_argument(
-        "--target-flash", type=int, required=True, help="Target branch flash usage"
-    )
-    parser.add_argument("--pr-ram", type=int, required=True, help="PR branch RAM usage")
-    parser.add_argument(
-        "--pr-flash", type=int, required=True, help="PR branch flash usage"
-    )
-    parser.add_argument(
         "--target-json",
-        help="Optional path to target branch analysis JSON (for detailed analysis)",
+        required=True,
+        help="Path to target branch analysis JSON file",
     )
     parser.add_argument(
         "--pr-json",
-        help="Optional path to PR branch analysis JSON (for detailed analysis)",
-    )
-    parser.add_argument(
-        "--target-cache-hit",
-        action="store_true",
-        help="Indicates that target branch analysis was loaded from cache",
+        required=True,
+        help="Path to PR branch analysis JSON file",
     )
 
     args = parser.parse_args()
 
-    # Parse components from JSON
-    try:
-        components = json.loads(args.components)
-        if not isinstance(components, list):
-            print("Error: --components must be a JSON array", file=sys.stderr)
-            sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing --components JSON: {e}", file=sys.stderr)
+    # Load analysis JSON files (all data comes from JSON for security)
+    target_data: dict | None = load_analysis_json(args.target_json)
+    if not target_data:
+        print("Error: Failed to load target analysis JSON", file=sys.stderr)
         sys.exit(1)
 
-    # Load analysis JSON files
-    target_analysis = None
-    pr_analysis = None
-    target_symbols = None
-    pr_symbols = None
+    pr_data: dict | None = load_analysis_json(args.pr_json)
+    if not pr_data:
+        print("Error: Failed to load PR analysis JSON", file=sys.stderr)
+        sys.exit(1)
 
-    if args.target_json:
-        target_data = load_analysis_json(args.target_json)
-        if target_data and target_data.get("detailed_analysis"):
-            target_analysis = target_data["detailed_analysis"].get("components")
-            target_symbols = target_data["detailed_analysis"].get("symbols")
+    # Extract detailed analysis if available
+    target_analysis: dict | None = None
+    pr_analysis: dict | None = None
+    target_symbols: dict | None = None
+    pr_symbols: dict | None = None
 
-    if args.pr_json:
-        pr_data = load_analysis_json(args.pr_json)
-        if pr_data and pr_data.get("detailed_analysis"):
-            pr_analysis = pr_data["detailed_analysis"].get("components")
-            pr_symbols = pr_data["detailed_analysis"].get("symbols")
+    if target_data.get("detailed_analysis"):
+        target_analysis = target_data["detailed_analysis"].get("components")
+        target_symbols = target_data["detailed_analysis"].get("symbols")
+
+    if pr_data.get("detailed_analysis"):
+        pr_analysis = pr_data["detailed_analysis"].get("components")
+        pr_symbols = pr_data["detailed_analysis"].get("symbols")
+
+    # Extract all values from JSON files (prevents shell injection from PR code)
+    components = target_data.get("components")
+    platform = target_data.get("platform")
+    target_ram = target_data.get("ram_bytes")
+    target_flash = target_data.get("flash_bytes")
+    pr_ram = pr_data.get("ram_bytes")
+    pr_flash = pr_data.get("flash_bytes")
+    target_cache_hit = target_data.get("cache_hit", False)
+
+    # Validate required fields
+    if not all(
+        [
+            components,
+            platform,
+            target_ram is not None,
+            target_flash is not None,
+            pr_ram is not None,
+            pr_flash is not None,
+        ]
+    ):
+        print("Error: JSON files missing required fields", file=sys.stderr)
+        sys.exit(1)
 
     # Create comment body
     # Note: Memory totals (RAM/Flash) are summed across all builds if multiple were run.
     comment_body = create_comment_body(
         components=components,
-        platform=args.platform,
-        target_ram=args.target_ram,
-        target_flash=args.target_flash,
-        pr_ram=args.pr_ram,
-        pr_flash=args.pr_flash,
+        platform=platform,
+        target_ram=target_ram,
+        target_flash=target_flash,
+        pr_ram=pr_ram,
+        pr_flash=pr_flash,
         target_analysis=target_analysis,
         pr_analysis=pr_analysis,
         target_symbols=target_symbols,
         pr_symbols=pr_symbols,
-        target_cache_hit=args.target_cache_hit,
+        target_cache_hit=target_cache_hit,
     )
 
     # Post or update comment
