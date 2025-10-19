@@ -116,7 +116,8 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // max_runs_ is the maximum *total* instances (running + queued)
       // So we reject when num_queued_ + 1 >= max_runs_ (queued + running >= max)
       if (this->num_queued_ + 1 >= this->max_runs_) {
-        this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum total instances (running + queued) exceeded!"),
+        this->esp_logw_(__LINE__,
+                        ESPHOME_LOG_FORMAT("Script '%s' maximum total instances (running + queued) exceeded!"),
                         LOG_STR_ARG(this->name_));
         return;
       }
@@ -126,8 +127,9 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' queueing new instance (mode: queued)"),
                       LOG_STR_ARG(this->name_));
-      // Ring buffer: write to (queue_front_ + num_queued_) % (max_runs_ - 1)
-      size_t write_pos = (this->queue_front_ + this->num_queued_) % (this->max_runs_ - 1);
+      // Ring buffer: write to (queue_front_ + num_queued_) % queue_capacity
+      const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
+      size_t write_pos = (this->queue_front_ + this->num_queued_) % queue_capacity;
       // Use std::make_unique to replace the unique_ptr
       this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
       this->num_queued_++;
@@ -142,7 +144,8 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   void stop() override {
     // Clear all queued items to free memory immediately
     if (this->var_queue_) {
-      for (int i = 0; i < this->max_runs_ - 1; i++) {
+      const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
+      for (size_t i = 0; i < queue_capacity; i++) {
         this->var_queue_[i].reset();
       }
       this->var_queue_.reset();
@@ -156,8 +159,9 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
     if (this->num_queued_ != 0 && !this->is_action_running()) {
       // Dequeue: decrement count, move tuple out (frees slot), advance read position
       this->num_queued_--;
+      const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
       auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
-      this->queue_front_ = (this->queue_front_ + 1) % (this->max_runs_ - 1);
+      this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
       this->trigger_tuple_(*tuple_ptr, typename gens<sizeof...(Ts)>::type());
     }
   }
