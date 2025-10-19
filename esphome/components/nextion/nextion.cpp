@@ -1291,9 +1291,6 @@ void Nextion::check_pending_waveform_() {
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 
-ESPDEPRECATED("set_wait_for_ack(bool) deprecated, no effect", "v1.20")
-void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "Deprecated"); }
-
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 
 }  // namespace nextion
