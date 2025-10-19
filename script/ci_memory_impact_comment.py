@@ -554,12 +554,22 @@ def main() -> int:
     pr_ram = pr_data.get("ram_bytes")
     pr_flash = pr_data.get("flash_bytes")
 
-    # Validate required fields
-    missing_fields = []
-    if not components:
+    # Validate required fields and types
+    missing_fields: list[str] = []
+    type_errors: list[str] = []
+
+    if components is None:
         missing_fields.append("components")
-    if not platform:
+    elif not isinstance(components, list):
+        type_errors.append(
+            f"components must be a list, got {type(components).__name__}"
+        )
+
+    if platform is None:
         missing_fields.append("platform")
+    elif not isinstance(platform, str):
+        type_errors.append(f"platform must be a string, got {type(platform).__name__}")
+
     if target_ram is None:
         missing_fields.append("target_ram")
     if target_flash is None:
@@ -569,11 +579,17 @@ def main() -> int:
     if pr_flash is None:
         missing_fields.append("pr_flash")
 
-    if missing_fields:
-        print(
-            f"Error: JSON files missing required fields: {', '.join(missing_fields)}",
-            file=sys.stderr,
-        )
+    if missing_fields or type_errors:
+        if missing_fields:
+            print(
+                f"Error: JSON files missing required fields: {', '.join(missing_fields)}",
+                file=sys.stderr,
+            )
+        if type_errors:
+            print(
+                f"Error: Type validation failed: {'; '.join(type_errors)}",
+                file=sys.stderr,
+            )
         print(f"Target JSON keys: {list(target_data.keys())}", file=sys.stderr)
         print(f"PR JSON keys: {list(pr_data.keys())}", file=sys.stderr)
         sys.exit(1)

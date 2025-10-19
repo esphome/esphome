@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Add metadata to memory analysis JSON file.
 
-This script adds components, platform, and cache_hit metadata to an existing
+This script adds components and platform metadata to an existing
 memory analysis JSON file. Used by CI to ensure all required fields are present
 for the comment script.
 """
