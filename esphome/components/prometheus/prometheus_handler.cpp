@@ -1018,8 +1018,8 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
 
 #ifdef USE_DATETIME_DATE
 void PrometheusHandler::date_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_date_value gauge\n"));
-  stream->print(F("#TYPE esphome_date_failed gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_date_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_date_failed gauge\n"));
 }
 void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area,
                                   std::string &node, std::string &friendly_name) {
@@ -1027,22 +1027,22 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(F("esphome_date_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_date_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 0\n"));
-    stream->print(F("esphome_date_value{id=\""));
+    stream->print(ESPHOME_F("\"} 0\n"));
+    stream->print(ESPHOME_F("esphome_date_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} "));
+    stream->print(ESPHOME_F("\"} "));
     // Construct a date time object
     ESPTime date_time = obj->state_as_esptime();
     // Set time to midnight UTC for date
@@ -1055,25 +1055,25 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     // date_time.recalc_timestamp_utc(false);
     date_time.recalc_timestamp_local();
     stream->print(static_cast<int64_t>(date_time.timestamp));
-    stream->print(F("\n"));
+    stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(F("esphome_date_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_date_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
 #endif
 
 #ifdef USE_DATETIME_TIME
 void PrometheusHandler::time_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_time_value gauge\n"));
-  stream->print(F("#TYPE esphome_time_failed gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_time_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_time_failed gauge\n"));
 }
 void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area,
                                   std::string &node, std::string &friendly_name) {
@@ -1081,44 +1081,44 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(F("esphome_time_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_time_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 0\n"));
-    stream->print(F("esphome_time_value{id=\""));
+    stream->print(ESPHOME_F("\"} 0\n"));
+    stream->print(ESPHOME_F("esphome_time_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} "));
+    stream->print(ESPHOME_F("\"} "));
     // Data itself - convert to seconds since midnight
     uint32_t seconds_since_midnight = obj->hour * 3600 + obj->minute * 60 + obj->second;
     stream->print(static_cast<int64_t>(seconds_since_midnight));
-    stream->print(F("\n"));
+    stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(F("esphome_time_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_time_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
 #endif
 
 #ifdef USE_DATETIME_DATETIME
 void PrometheusHandler::datetime_type_(AsyncResponseStream *stream) {
-  stream->print(F("#TYPE esphome_datetime_value gauge\n"));
-  stream->print(F("#TYPE esphome_datetime_failed gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_datetime_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_datetime_failed gauge\n"));
 }
 void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area,
                                       std::string &node, std::string &friendly_name) {
@@ -1126,22 +1126,22 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(F("esphome_datetime_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_datetime_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 0\n"));
-    stream->print(F("esphome_datetime_value{id=\""));
+    stream->print(ESPHOME_F("\"} 0\n"));
+    stream->print(ESPHOME_F("esphome_datetime_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} "));
+    stream->print(ESPHOME_F("\"} "));
     // Construct a date time object manually to ensure UTC interpretation
     ESPTime date_time_utc = {};
     date_time_utc.year = obj->year;
@@ -1158,17 +1158,17 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     // Convert local to UTC by adding the current timezone offset
     time_t utc_timestamp = date_time_utc.timestamp + ESPTime::timezone_offset();
     stream->print(static_cast<int64_t>(utc_timestamp));
-    stream->print(F("\n"));
+    stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(F("esphome_datetime_failed{id=\""));
+    stream->print(ESPHOME_F("esphome_datetime_failed{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
-    stream->print(F("\",name=\""));
+    stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
 #endif
