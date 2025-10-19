@@ -37,6 +37,8 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
 void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+  ESP_LOGD("use more flash");
+  int dog = 5;
   this->hostname_ = App.get_name();
 
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
