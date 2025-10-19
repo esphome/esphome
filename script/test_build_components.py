@@ -39,6 +39,7 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
     uses_local_file_references,
 )
+from script.helpers import get_component_test_files
 from script.merge_component_configs import merge_component_configs
 
 
@@ -82,13 +83,14 @@ def show_disk_space_if_ci(esphome_command: str) -> None:
 
 
 def find_component_tests(
-    components_dir: Path, component_pattern: str = "*"
+    components_dir: Path, component_pattern: str = "*", base_only: bool = False
 ) -> dict[str, list[Path]]:
     """Find all component test files.
 
     Args:
         components_dir: Path to tests/components directory
         component_pattern: Glob pattern for component names
+        base_only: If True, only find base test files (test.*.yaml), not variant files (test-*.yaml)
 
     Returns:
         Dictionary mapping component name to list of test files
@@ -99,9 +101,10 @@ def find_component_tests(
         if not comp_dir.is_dir():
             continue
 
-        # Find test files matching test.*.yaml or test-*.yaml patterns
-        for test_file in comp_dir.glob("test[.-]*.yaml"):
-            component_tests[comp_dir.name].append(test_file)
+        # Get test files using helper function
+        test_files = get_component_test_files(comp_dir.name, all_variants=not base_only)
+        if test_files:
+            component_tests[comp_dir.name] = test_files
 
     return dict(component_tests)
 
@@ -931,6 +934,7 @@ def test_components(
     continue_on_fail: bool,
     enable_grouping: bool = True,
     isolated_components: set[str] | None = None,
+    base_only: bool = False,
 ) -> int:
     """Test components with optional intelligent grouping.
 
@@ -944,6 +948,7 @@ def test_components(
             These are tested WITHOUT --testing-mode to enable full validation
             (pin conflicts, etc). This is used in CI for directly changed components
             to catch issues that would be missed with --testing-mode.
+        base_only: If True, only test base test files (test.*.yaml), not variant files (test-*.yaml)
 
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -961,7 +966,7 @@ def test_components(
     # Find all component tests
     all_tests = {}
     for pattern in component_patterns:
-        all_tests.update(find_component_tests(tests_dir, pattern))
+        all_tests.update(find_component_tests(tests_dir, pattern, base_only))
 
     if not all_tests:
         print(f"No components found matching: {component_patterns}")
@@ -1122,6 +1127,11 @@ def main() -> int:
         "These are tested WITHOUT --testing-mode to enable full validation. "
         "Used in CI for directly changed components to catch pin conflicts and other issues.",
     )
+    parser.add_argument(
+        "--base-only",
+        action="store_true",
+        help="Only test base test files (test.*.yaml), not variant files (test-*.yaml)",
+    )
 
     args = parser.parse_args()
 
@@ -1140,6 +1150,7 @@ def main() -> int:
         continue_on_fail=args.continue_on_fail,
         enable_grouping=not args.no_grouping,
         isolated_components=isolated_components,
+        base_only=args.base_only,
     )
 
 
