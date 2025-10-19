@@ -94,7 +94,7 @@ class Storage {
    *
    * @return false if any error
    */
-  virtual void reset(bool hard = false) = 0;
+  virtual void reset(bool hard) = 0;
 
   /**
    * @brief Provide writing one or more sectors
