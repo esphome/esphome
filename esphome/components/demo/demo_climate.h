@@ -82,12 +82,11 @@ class DemoClimate : public climate::Climate, public Component {
     climate::ClimateTraits traits{};
     switch (type_) {
       case DemoClimateType::TYPE_1:
-        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
         traits.set_supported_modes({
             climate::CLIMATE_MODE_OFF,
             climate::CLIMATE_MODE_HEAT,
         });
-        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
         traits.set_visual_temperature_step(0.5);
         break;
       case DemoClimateType::TYPE_2:
@@ -123,8 +122,8 @@ class DemoClimate : public climate::Climate, public Component {
         traits.set_supported_custom_presets({"My Preset"});
         break;
       case DemoClimateType::TYPE_3:
-        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
+                                 climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
         traits.set_supported_modes({
             climate::CLIMATE_MODE_OFF,
             climate::CLIMATE_MODE_COOL,
