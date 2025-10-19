@@ -4,7 +4,7 @@ from esphome.const import CONF_TEXT
 from ..defines import CONF_INDICATOR, CONF_MAIN, CONF_PAD_COLUMN
 from ..lv_validation import lv_text, padding
 from ..lvcode import lv
-from ..schemas import TEXT_SCHEMA
+from ..schemas import TEXT_SCHEMA, register_lvgl_widget
 from ..types import LvBoolean
 from . import Widget, WidgetType
 
@@ -30,3 +30,9 @@ class CheckboxType(WidgetType):
 
 
 checkbox_spec = CheckboxType()
+
+
+@register_lvgl_widget(checkbox_spec)
+async def checkbox_to_code(w, config):
+    """Code generation for checkbox widget - registered via decorator"""
+    return await checkbox_spec.to_code(w, config)

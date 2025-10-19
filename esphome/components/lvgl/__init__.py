@@ -1,6 +1,6 @@
 import logging
 
-from esphome.automation import build_automation, register_action, validate_automation
+from esphome.automation import build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_COLOR_DEPTH, CONF_DRAW_ROUNDING
 from esphome.components.display import Display
@@ -26,7 +26,7 @@ from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
-from .automation import disp_update, focused_widgets, refreshed_widgets, update_to_code
+from .automation import disp_update, focused_widgets, refreshed_widgets
 from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
@@ -48,7 +48,6 @@ from .schemas import (
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
-    create_modify_schema,
     obj_schema,
 )
 from .styles import add_top_layer, styles_to_code, theme_to_code
@@ -57,47 +56,54 @@ from .trigger import add_on_boot_triggers, generate_triggers
 from .types import (
     FontEngine,
     IdleTrigger,
-    ObjUpdateAction,
     PauseTrigger,
     lv_font_t,
     lv_group_t,
     lv_style_t,
     lvgl_ns,
 )
-from .widgets import (
+
+# Import widget modules to trigger @register_lvgl_widget decorators
+from .widgets import (  # noqa: F401
     LvScrActType,
     Widget,
     add_widgets,
+    animimg,
+    arc,
+    button,
+    buttonmatrix,
+    canvas,
+    checkbox,
+    dropdown,
     get_scr_act,
+    img,
+    keyboard,
+    label,
+    led,
+    line,
+    lv_bar,
+    meter,
+    qrcode,
+    roller,
     set_obj_properties,
+    slider,
+    spinbox,
+    spinner,
     styles_used,
+    switch,
+    tabview,
+    textarea,
+    tileview,
 )
-from .widgets.animimg import animimg_spec
-from .widgets.arc import arc_spec
-from .widgets.button import button_spec
-from .widgets.buttonmatrix import buttonmatrix_spec
-from .widgets.canvas import canvas_spec
-from .widgets.checkbox import checkbox_spec
-from .widgets.dropdown import dropdown_spec
-from .widgets.img import img_spec
-from .widgets.keyboard import keyboard_spec
-from .widgets.label import label_spec
-from .widgets.led import led_spec
-from .widgets.line import line_spec
-from .widgets.lv_bar import bar_spec
-from .widgets.meter import meter_spec
+
+# Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
-from .widgets.obj import obj_spec
-from .widgets.page import add_pages, generate_page_triggers, page_spec
-from .widgets.qrcode import qr_code_spec
-from .widgets.roller import roller_spec
-from .widgets.slider import slider_spec
-from .widgets.spinbox import spinbox_spec
-from .widgets.spinner import spinner_spec
-from .widgets.switch import switch_spec
-from .widgets.tabview import tabview_spec
-from .widgets.textarea import textarea_spec
-from .widgets.tileview import tileview_spec
+from .widgets.obj import obj_spec  # Used in LVGL_SCHEMA
+from .widgets.page import (  # page_spec used in LVGL_SCHEMA
+    add_pages,
+    generate_page_triggers,
+    page_spec,
+)
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
@@ -105,33 +111,8 @@ AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
 LOGGER = logging.getLogger(__name__)
 
-for w_type in (
-    label_spec,
-    obj_spec,
-    button_spec,
-    bar_spec,
-    slider_spec,
-    arc_spec,
-    line_spec,
-    spinner_spec,
-    led_spec,
-    animimg_spec,
-    checkbox_spec,
-    img_spec,
-    switch_spec,
-    tabview_spec,
-    buttonmatrix_spec,
-    meter_spec,
-    dropdown_spec,
-    roller_spec,
-    textarea_spec,
-    spinbox_spec,
-    keyboard_spec,
-    tileview_spec,
-    qr_code_spec,
-    canvas_spec,
-):
-    WIDGET_TYPES[w_type.name] = w_type
+# Widget registration happens via decorators in individual widget files
+# The imports above trigger the @register_lvgl_widget decorators
 
 WIDGET_SCHEMA = any_widget_schema()
 
@@ -144,12 +125,9 @@ LAYOUT_SCHEMAS[df.TYPE_FLEX] = {
 LAYOUT_SCHEMAS[df.TYPE_NONE] = {
     cv.Optional(df.CONF_WIDGETS): cv.ensure_list(any_widget_schema())
 }
-for w_type in WIDGET_TYPES.values():
-    register_action(
-        f"lvgl.{w_type.name}.update",
-        ObjUpdateAction,
-        create_modify_schema(w_type),
-    )(update_to_code)
+
+# Action registration (lvgl.{widget}.update) happens automatically
+# in register_lvgl_widget() decorator
 
 
 def as_macro(macro, value):
@@ -407,6 +385,25 @@ def add_hello_world(config):
     return config
 
 
+def _theme_schema():
+    """Generate theme schema with lazy widget type evaluation.
+
+    This ensures that external components can register widgets before
+    the theme schema is built during validation.
+    """
+
+    def validator(value):
+        schema = cv.Schema(
+            {
+                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+                for name, w in WIDGET_TYPES.items()
+            }
+        )
+        return schema(value)
+
+    return validator
+
+
 FINAL_VALIDATE_SCHEMA = final_validation
 
 LVGL_SCHEMA = cv.All(
@@ -465,12 +462,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,
-                cv.Optional(df.CONF_THEME): cv.Schema(
-                    {
-                        cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-                        for name, w in WIDGET_TYPES.items()
-                    }
-                ),
+                cv.Optional(df.CONF_THEME): _theme_schema(),
                 cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
                 cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
                 cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,

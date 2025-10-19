@@ -20,7 +20,7 @@ from ..defines import (
 from ..helpers import lvgl_components_required
 from ..lv_validation import key_code, lv_bool, padding
 from ..lvcode import lv, lv_add, lv_expr
-from ..schemas import automation_schema
+from ..schemas import automation_schema, register_lvgl_widget
 from ..types import (
     LV_BTNMATRIX_CTRL,
     LV_STATE,
@@ -217,6 +217,12 @@ def set_btn_data(obj, ctrl_list, width_list):
 
 
 buttonmatrix_spec = ButtonMatrixType()
+
+
+@register_lvgl_widget(buttonmatrix_spec)
+async def buttonmatrix_to_code(w, config):
+    """Code generation for buttonmatrix widget - registered via decorator"""
+    return await buttonmatrix_spec.to_code(w, config)
 
 
 @automation.register_action(

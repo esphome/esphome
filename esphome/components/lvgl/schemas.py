@@ -38,6 +38,48 @@ from .types import (
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
 
+
+def register_lvgl_widget(widget_spec: WidgetType):
+    """
+    Register an LVGL widget for use in configurations.
+
+    This function can be called by external components to add custom widgets.
+    It handles all necessary registration including:
+    - Adding to WIDGET_TYPES dict for schema generation
+    - Registering the update action (lvgl.{name}.update)
+
+    Usage:
+        @register_lvgl_widget(my_widget_spec)
+        async def my_widget_to_code(w, config):
+            # widget code generation
+            pass
+
+    :param widget_spec: The WidgetType instance describing the widget
+    :return: Decorator function
+    """
+
+    def decorator(func):
+        # Add to WIDGET_TYPES dict
+        WIDGET_TYPES[widget_spec.name] = widget_spec
+
+        # Import here to avoid circular dependency at module load time
+        from esphome.automation import register_action
+
+        from .automation import update_to_code
+        from .types import ObjUpdateAction
+
+        # Register the update action automatically
+        register_action(
+            f"lvgl.{widget_spec.name}.update",
+            ObjUpdateAction,
+            create_modify_schema(widget_spec),
+        )(update_to_code)
+
+        return func
+
+    return decorator
+
+
 TIME_TEXT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_TIME_FORMAT): cv.string,
@@ -570,10 +612,20 @@ def widget_schema(widget_type: WidgetType, extras=None):
 
 def any_widget_schema(extras=None):
     """
-    Generate schemas for all possible LVGL widgets. This is what implements the ability to have a list of any kind of
-    widget under the widgets: key.
+    Generate schemas for all registered LVGL widgets.
+
+    This uses lazy evaluation - the schema is built when called during validation,
+    not at import time. This allows external components to register widgets
+    before schema validation begins.
 
     :param extras: Additional schema to be applied to each generated one
-    :return:
+    :return: Validator function that builds the schema on-demand
     """
-    return cv.Any(dict(widget_schema(wt, extras) for wt in WIDGET_TYPES.values()))
+
+    def _make_schema(value):
+        # Build the schema on-demand during validation
+        return cv.Any(dict(widget_schema(wt, extras) for wt in WIDGET_TYPES.values()))(
+            value
+        )
+
+    return _make_schema
