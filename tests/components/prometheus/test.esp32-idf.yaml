@@ -1,8 +1,8 @@
 substitutions:
   verify_ssl: "false"
-  pin: GPIO2
 
 packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml
