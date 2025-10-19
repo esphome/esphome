@@ -566,9 +566,9 @@ def main() -> int:
         )
     else:
         for idx, comp in enumerate(components):
-            if not isinstance(comp, dict):
+            if not isinstance(comp, str):
                 type_errors.append(
-                    f"components[{idx}] must be a dict, got {type(comp).__name__}"
+                    f"components[{idx}] must be a string, got {type(comp).__name__}"
                 )
     if platform is None:
         missing_fields.append("platform")
