@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 #include <string>
 #include "opentherm_base.h"

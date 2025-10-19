@@ -6,7 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 #include "opentherm_rmt.h"
 #endif
 #ifdef ESP8266

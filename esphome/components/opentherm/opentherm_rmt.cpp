@@ -1,4 +1,4 @@
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 #include "opentherm_rmt.h"
 #include "esphome/core/helpers.h"
