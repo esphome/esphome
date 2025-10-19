@@ -17,6 +17,7 @@ from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     choose_upload_log_host,
+    command_analyze_memory,
     command_clean_all,
     command_rename,
     command_update_all,
@@ -226,11 +227,37 @@ def mock_run_external_process() -> Generator[Mock]:
 
 
 @pytest.fixture
-def mock_run_external_command() -> Generator[Mock]:
-    """Mock run_external_command for testing."""
-    with patch("esphome.__main__.run_external_command") as mock:
+def mock_write_cpp() -> Generator[Mock]:
+    """Mock write_cpp for testing."""
+    with patch("esphome.__main__.write_cpp") as mock:
         mock.return_value = 0  # Default to success
         yield mock
+
+
+@pytest.fixture
+def mock_compile_program() -> Generator[Mock]:
+    """Mock compile_program for testing."""
+    with patch("esphome.__main__.compile_program") as mock:
+        mock.return_value = 0  # Default to success
+        yield mock
+
+
+@pytest.fixture
+def mock_get_esphome_components() -> Generator[Mock]:
+    """Mock get_esphome_components for testing."""
+    with patch("esphome.analyze_memory.helpers.get_esphome_components") as mock:
+        mock.return_value = {"logger", "api", "ota"}
+        yield mock
+
+
+@pytest.fixture
+def mock_memory_analyzer_cli() -> Generator[Mock]:
+    """Mock MemoryAnalyzerCLI for testing."""
+    with patch("esphome.analyze_memory.cli.MemoryAnalyzerCLI") as mock_class:
+        mock_analyzer = MagicMock()
+        mock_analyzer.generate_report.return_value = "Mock Memory Report"
+        mock_class.return_value = mock_analyzer
+        yield mock_class
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
@@ -2273,3 +2300,171 @@ def test_show_logs_api_mqtt_timeout_fallback(
 
     # Verify run_logs was called with only the static IP (MQTT failed)
     mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+
+
+def test_command_analyze_memory_success(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_idedata: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+) -> None:
+    """Test command_analyze_memory with successful compilation and analysis."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    # Create firmware.elf file
+    firmware_path = (
+        tmp_path / ".esphome" / "build" / "test_device" / ".pioenvs" / "test_device"
+    )
+    firmware_path.mkdir(parents=True, exist_ok=True)
+    firmware_elf = firmware_path / "firmware.elf"
+    firmware_elf.write_text("mock elf file")
+
+    # Mock idedata
+    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj.firmware_elf_path = str(firmware_elf)
+    mock_idedata_obj.objdump_path = "/path/to/objdump"
+    mock_idedata_obj.readelf_path = "/path/to/readelf"
+    mock_get_idedata.return_value = mock_idedata_obj
+
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},
+    }
+
+    args = MockArgs()
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 0
+
+    # Verify compilation was done
+    mock_write_cpp.assert_called_once_with(config)
+    mock_compile_program.assert_called_once_with(args, config)
+
+    # Verify analyzer was created with correct parameters
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(firmware_elf),
+        "/path/to/objdump",
+        "/path/to/readelf",
+        set(),  # No external components
+    )
+
+    # Verify analysis was run
+    mock_analyzer = mock_memory_analyzer_cli.return_value
+    mock_analyzer.analyze.assert_called_once()
+    mock_analyzer.generate_report.assert_called_once()
+
+    # Verify report was printed
+    captured = capfd.readouterr()
+    assert "Mock Memory Report" in captured.out
+
+
+def test_command_analyze_memory_with_external_components(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_idedata: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+) -> None:
+    """Test command_analyze_memory detects external components."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    # Create firmware.elf file
+    firmware_path = (
+        tmp_path / ".esphome" / "build" / "test_device" / ".pioenvs" / "test_device"
+    )
+    firmware_path.mkdir(parents=True, exist_ok=True)
+    firmware_elf = firmware_path / "firmware.elf"
+    firmware_elf.write_text("mock elf file")
+
+    # Mock idedata
+    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj.firmware_elf_path = str(firmware_elf)
+    mock_idedata_obj.objdump_path = "/path/to/objdump"
+    mock_idedata_obj.readelf_path = "/path/to/readelf"
+    mock_get_idedata.return_value = mock_idedata_obj
+
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},
+        "my_custom_component": {"param": "value"},  # External component
+        "external_components": [{"source": "github://user/repo"}],  # Not a component
+    }
+
+    args = MockArgs()
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 0
+
+    # Verify analyzer was created with external components detected
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(firmware_elf),
+        "/path/to/objdump",
+        "/path/to/readelf",
+        {"my_custom_component"},  # External component detected
+    )
+
+
+def test_command_analyze_memory_write_cpp_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+) -> None:
+    """Test command_analyze_memory when write_cpp fails."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    mock_write_cpp.return_value = 1  # Failure
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 1
+    mock_write_cpp.assert_called_once_with(config)
+
+
+def test_command_analyze_memory_compile_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    """Test command_analyze_memory when compilation fails."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    mock_compile_program.return_value = 1  # Compilation failed
+
+    result = command_analyze_memory(args, config)
+
+    assert result == 1
+    mock_write_cpp.assert_called_once_with(config)
+    mock_compile_program.assert_called_once_with(args, config)
+
+
+def test_command_analyze_memory_no_idedata(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test command_analyze_memory when idedata cannot be retrieved."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    mock_get_idedata.return_value = None  # Failed to get idedata
+
+    with caplog.at_level(logging.ERROR):
+        result = command_analyze_memory(args, config)
+
+    assert result == 1
+    assert "Failed to get IDE data for memory analysis" in caplog.text
