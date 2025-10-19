@@ -236,11 +236,25 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
             if existing_component != "unknown":
                 conflict_msg += f" from component '{existing_component}'"
 
-            raise cv.Invalid(
-                f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
-                f"{conflict_msg}. "
-                f"Each entity on a device must have a unique name within its platform."
-            )
+            # Show both original names and their ASCII-only versions if they differ
+            sanitized_msg = ""
+            if entity_name != existing_name:
+                sanitized_msg = (
+                    f"\n  Original names: '{entity_name}' and '{existing_name}'"
+                    f"\n  Both convert to ASCII ID: '{name_key}'"
+                    "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
+                    "\n          to distinguish them"
+                )
+
+            # Skip duplicate entity name validation when testing_mode is enabled
+            # This flag is used for grouped component testing
+            if not CORE.testing_mode:
+                raise cv.Invalid(
+                    f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
+                    f"{conflict_msg}. "
+                    "Each entity on a device must have a unique name within its platform."
+                    f"{sanitized_msg}"
+                )
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {
