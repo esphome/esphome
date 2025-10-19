@@ -112,7 +112,7 @@ void BLENUS::loop() {
     return;
   }
 
-  bt_conn *conn = bt_conn_ref(conn_);
+  bt_conn *conn = bt_conn_ref(this->conn_);
 
   if (nullptr == conn) {
     atomic_cas(&this->tx_status_, TX_BUSY, TX_ENABLED);
