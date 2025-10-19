@@ -116,8 +116,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // max_runs_ is the maximum *total* instances (running + queued)
       // So we reject when num_queued_ + 1 >= max_runs_ (queued + running >= max)
       if (this->num_queued_ + 1 >= this->max_runs_) {
-        this->esp_logw_(__LINE__,
-                        ESPHOME_LOG_FORMAT("Script '%s' maximum total instances (running + queued) exceeded!"),
+        this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' max instances (running + queued) reached!"),
                         LOG_STR_ARG(this->name_));
         return;
       }

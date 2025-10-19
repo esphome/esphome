@@ -31,9 +31,7 @@ async def test_script_queued(
     # Patterns for Test 1: Queue depth
     queue_start = re.compile(r"Queue test: START item (\d+)")
     queue_end = re.compile(r"Queue test: END item (\d+)")
-    queue_reject = re.compile(
-        r"Script 'queue_depth_script' maximum total instances \(running \+ queued\) exceeded!"
-    )
+    queue_reject = re.compile(r"Script 'queue_depth_script' max instances")
 
     # Patterns for Test 2: Ring buffer
     ring_start = re.compile(r"Ring buffer: START '([A-Z])'")
@@ -46,9 +44,7 @@ async def test_script_queued(
     # Patterns for Test 4: Rejection
     reject_start = re.compile(r"Rejection test: START (\d+)")
     reject_end = re.compile(r"Rejection test: END (\d+)")
-    reject_reject = re.compile(
-        r"Script 'rejection_script' maximum total instances \(running \+ queued\) exceeded!"
-    )
+    reject_reject = re.compile(r"Script 'rejection_script' max instances")
 
     # Patterns for Test 5: No params
     no_params_end = re.compile(r"No params: END")
