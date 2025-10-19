@@ -770,7 +770,6 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
     # Early return if no sockets registered and no user override
     if total_sockets == 0 and user_max_sockets is None:
-        add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", DEFAULT_MAX_SOCKETS)
         return
 
     components_list = ", ".join(
@@ -792,8 +791,9 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
             if user_sockets_int < total_sockets:
                 _LOGGER.warning(
-                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration needs %d sockets (registered: %s). "
-                    "You may experience socket exhaustion errors. Consider increasing to at least %d.",
+                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                    "needs %d sockets (registered: %s). You may experience socket "
+                    "exhaustion errors. Consider increasing to at least %d.",
                     user_sockets_int,
                     total_sockets,
                     components_list,
