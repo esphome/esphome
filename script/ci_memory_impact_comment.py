@@ -24,6 +24,37 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
+
+def run_gh_command(args: list[str], operation: str) -> subprocess.CompletedProcess:
+    """Run a gh CLI command with error handling.
+
+    Args:
+        args: Command arguments (including 'gh')
+        operation: Description of the operation for error messages
+
+    Returns:
+        CompletedProcess result
+
+    Raises:
+        subprocess.CalledProcessError: If command fails (with detailed error output)
+    """
+    try:
+        return subprocess.run(
+            args,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        print(
+            f"ERROR: {operation} failed with exit code {e.returncode}", file=sys.stderr
+        )
+        print(f"ERROR: Command: {' '.join(args)}", file=sys.stderr)
+        print(f"ERROR: stdout: {e.stdout}", file=sys.stderr)
+        print(f"ERROR: stderr: {e.stderr}", file=sys.stderr)
+        raise
+
+
 # Thresholds for emoji significance indicators (percentage)
 OVERALL_CHANGE_THRESHOLD = 1.0  # Overall RAM/Flash changes
 COMPONENT_CHANGE_THRESHOLD = 3.0  # Component breakdown changes
@@ -356,7 +387,7 @@ def find_existing_comment(pr_number: str) -> str | None:
     print(f"DEBUG: Looking for existing comment on PR #{pr_number}", file=sys.stderr)
 
     # Use gh api to get comments directly - this returns the numeric id field
-    result = subprocess.run(
+    result = run_gh_command(
         [
             "gh",
             "api",
@@ -364,9 +395,7 @@ def find_existing_comment(pr_number: str) -> str | None:
             "--jq",
             ".[] | {id, body}",
         ],
-        capture_output=True,
-        text=True,
-        check=True,
+        operation="Get PR comments",
     )
 
     print(
@@ -420,7 +449,8 @@ def update_existing_comment(comment_id: str, comment_body: str) -> None:
         subprocess.CalledProcessError: If gh command fails
     """
     print(f"DEBUG: Updating existing comment {comment_id}", file=sys.stderr)
-    result = subprocess.run(
+    print(f"DEBUG: Comment body length: {len(comment_body)} bytes", file=sys.stderr)
+    result = run_gh_command(
         [
             "gh",
             "api",
@@ -430,9 +460,7 @@ def update_existing_comment(comment_id: str, comment_body: str) -> None:
             "-f",
             f"body={comment_body}",
         ],
-        check=True,
-        capture_output=True,
-        text=True,
+        operation="Update PR comment",
     )
     print(f"DEBUG: Update response: {result.stdout}", file=sys.stderr)
 
@@ -448,11 +476,10 @@ def create_new_comment(pr_number: str, comment_body: str) -> None:
         subprocess.CalledProcessError: If gh command fails
     """
     print(f"DEBUG: Posting new comment on PR #{pr_number}", file=sys.stderr)
-    result = subprocess.run(
+    print(f"DEBUG: Comment body length: {len(comment_body)} bytes", file=sys.stderr)
+    result = run_gh_command(
         ["gh", "pr", "comment", pr_number, "--body", comment_body],
-        check=True,
-        capture_output=True,
-        text=True,
+        operation="Create PR comment",
     )
     print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
 
