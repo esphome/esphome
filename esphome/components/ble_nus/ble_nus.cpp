@@ -11,12 +11,12 @@
 
 namespace esphome::ble_nus {
 
-BLENUS *global_ble_nus;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 constexpr size_t BLE_TX_BUF_SIZE = 2048;
 
-RING_BUF_DECLARE(global_ble_tx_ring_buf,
-                 BLE_TX_BUF_SIZE);  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+BLENUS *global_ble_nus;
+RING_BUF_DECLARE(global_ble_tx_ring_buf, BLE_TX_BUF_SIZE);
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const char *const TAG = "ble_nus";
 
