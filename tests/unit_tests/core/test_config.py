@@ -476,6 +476,55 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
             preload_core_config(config, result)
 
 
+def test_preload_core_config_skips_package_keys_with_periods(setup_core: Path) -> None:
+    """Test preload_core_config skips package keys containing periods.
+
+    Package keys can contain periods (e.g., "ratgdo.esphome") and should be
+    skipped when searching for target platforms to avoid triggering the
+    assertion in get_component() that component names cannot contain periods.
+
+    Regression test for: https://github.com/esphome/esphome/issues/11182
+    """
+    config = {
+        CONF_ESPHOME: {
+            CONF_NAME: "test_device",
+        },
+        "esp32": {},
+        # Package key with period should be ignored
+        "ratgdo.esphome": "github://ratgdo/esphome-ratgdo/v32disco_secplusv1.yaml",
+    }
+    result = {}
+
+    # Should not raise AssertionError from get_component()
+    platform = preload_core_config(config, result)
+
+    assert platform == "esp32"
+    assert CORE.name == "test_device"
+
+
+def test_preload_core_config_skips_keys_starting_with_period(setup_core: Path) -> None:
+    """Test preload_core_config skips keys starting with period.
+
+    Keys starting with "." are special ESPHome internal keys and should be
+    skipped when searching for target platforms.
+    """
+    config = {
+        CONF_ESPHOME: {
+            CONF_NAME: "test_device",
+        },
+        "esp8266": {},
+        # Internal key starting with period should be ignored
+        ".platformio_options": {"board_build.flash_mode": "dout"},
+    }
+    result = {}
+
+    # Should not raise any errors
+    platform = preload_core_config(config, result)
+
+    assert platform == "esp8266"
+    assert CORE.name == "test_device"
+
+
 def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) -> None:
     """Test include_file adds include statement for header files."""
     src_file = tmp_path / "source.h"

@@ -318,7 +318,8 @@ def preload_core_config(config, result) -> str:
     target_platforms = []
 
     for domain in config:
-        if domain.startswith("."):
+        # Skip package keys which may contain periods (e.g., "ratgdo.esphome")
+        if "." in domain:
             continue
         if _is_target_platform(domain):
             target_platforms += [domain]
