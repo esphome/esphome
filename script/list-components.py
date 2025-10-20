@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 import sys
 
-from helpers import changed_files, git_ls_files
+from helpers import changed_files, get_component_from_path, git_ls_files
 
 from esphome.const import (
     KEY_CORE,
@@ -30,11 +30,9 @@ def get_all_component_files() -> list[str]:
 def extract_component_names_array_from_files_array(files):
     components = []
     for file in files:
-        file_parts = file.split("/")
-        if len(file_parts) >= 4:
-            component_name = file_parts[2]
-            if component_name not in components:
-                components.append(component_name)
+        component_name = get_component_from_path(file)
+        if component_name and component_name not in components:
+            components.append(component_name)
     return components
 
 
