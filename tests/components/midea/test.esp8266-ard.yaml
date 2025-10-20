@@ -1,6 +1,5 @@
-substitutions:
-  tx_pin: GPIO4
-  rx_pin: GPIO5
-  pin: GPIO15
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp8266-ard.yaml
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
 <<: !include common.yaml
