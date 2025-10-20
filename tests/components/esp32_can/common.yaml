@@ -19,9 +19,9 @@ canbus:
     can_id: 4
     bit_rate: 50kbps
     advanced_bit_rate:
-        prescaler: 80
-        tseg_1: 15
-        tseg_2: 4
+      prescaler: 80
+      tseg_1: 15
+      tseg_2: 4
     on_frame:
       - can_id: 500
         then:
