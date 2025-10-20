@@ -60,6 +60,10 @@ static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Test: Add diagnostic buffer for ESP-IDF wifi debugging
+// This intentionally increases memory usage to test platform hint detection
+static char s_wifi_diagnostic_buffer[2048];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 struct IDFWiFiEvent {
   esp_event_base_t event_base;
   int32_t event_id;
