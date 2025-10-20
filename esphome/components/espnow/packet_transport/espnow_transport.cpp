@@ -29,8 +29,7 @@ void ESPNowTransport::setup() {
   this->parent_->register_received_handler(static_cast<ESPNowReceivedPacketHandler *>(this));
 
   // Only register broadcast handler if peer is broadcast address
-  static const uint8_t BROADCAST_ADDR[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-  if (memcmp(this->peer_address_.data(), BROADCAST_ADDR, 6) == 0) {
+  if (memcmp(this->peer_address_.data(), ESPNOW_BROADCAST_ADDR, 6) == 0) {
     this->parent_->register_broadcasted_handler(static_cast<ESPNowBroadcastedHandler *>(this));
   }
 }
