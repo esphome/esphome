@@ -8,9 +8,9 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
-#include <utility>
 #include <functional>
 #include <limits>
+#include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -26,6 +26,9 @@
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
+#endif
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate_mode.h"
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #include "esphome/components/voice_assistant/voice_assistant.h"
@@ -116,8 +119,7 @@ void APIConnection::start() {
 
   APIError err = this->helper_->init();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Helper init failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
   this->client_info_.peername = helper_->getpeername();
@@ -147,8 +149,7 @@ void APIConnection::loop() {
 
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return;
   }
 
@@ -163,17 +164,13 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
-        on_fatal_error();
-        this->log_warning_(LOG_STR("Reading failed"), err);
+        this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
         // read a packet
-        if (buffer.data_len > 0) {
-          this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
-        } else {
-          this->read_message(0, buffer.type, nullptr);
-        }
+        this->read_message(buffer.data_len, buffer.type,
+                           buffer.data_len > 0 ? &buffer.container[buffer.data_offset] : nullptr);
         if (this->flags_.remove)
           return;
       }
@@ -456,7 +453,6 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto traits = light->get_traits();
   auto values = light->remote_values;
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
@@ -480,7 +476,8 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
-  msg.supported_color_modes = &traits.get_supported_color_modes_for_api_();
+  // Pass pointer to ColorModeMask so the iterator can encode actual ColorMode enum values
+  msg.supported_color_modes = &traits.get_supported_color_modes();
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
@@ -629,9 +626,10 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   auto traits = climate->get_traits();
   resp.mode = static_cast<enums::ClimateMode>(climate->mode);
   resp.action = static_cast<enums::ClimateAction>(climate->action);
-  if (traits.get_supports_current_temperature())
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE))
     resp.current_temperature = climate->current_temperature;
-  if (traits.get_supports_two_point_target_temperature()) {
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                               climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     resp.target_temperature_low = climate->target_temperature_low;
     resp.target_temperature_high = climate->target_temperature_high;
   } else {
@@ -650,9 +648,9 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
-  if (traits.get_supports_current_humidity())
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY))
     resp.current_humidity = climate->current_humidity;
-  if (traits.get_supports_target_humidity())
+  if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY))
     resp.target_humidity = climate->target_humidity;
   return fill_and_encode_entity_state(climate, resp, ClimateStateResponse::MESSAGE_TYPE, conn, remaining_size,
                                       is_single);
@@ -662,10 +660,15 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   auto *climate = static_cast<climate::Climate *>(entity);
   ListEntitiesClimateResponse msg;
   auto traits = climate->get_traits();
-  msg.supports_current_temperature = traits.get_supports_current_temperature();
-  msg.supports_current_humidity = traits.get_supports_current_humidity();
-  msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
-  msg.supports_target_humidity = traits.get_supports_target_humidity();
+  // Flags set for backward compatibility, deprecated in 2025.11.0
+  msg.supports_current_temperature = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  msg.supports_current_humidity = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+  msg.supports_two_point_target_temperature = traits.has_feature_flags(
+      climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE | climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
+  msg.supports_target_humidity = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
+  msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+  // Current feature flags and other supported parameters
+  msg.feature_flags = traits.get_feature_flags();
   msg.supported_modes = &traits.get_supported_modes_for_api_();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
@@ -673,7 +676,6 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
-  msg.supports_action = traits.get_supports_action();
   msg.supported_fan_modes = &traits.get_supported_fan_modes_for_api_();
   msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes_for_api_();
   msg.supported_presets = &traits.get_supported_presets_for_api_();
@@ -1080,13 +1082,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (value.timezone_len > 0) {
-      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
-      // Compare without allocating a string
-      if (current_tz.length() != value.timezone_len ||
-          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
-        homeassistant::global_homeassistant_time->set_timezone(
-            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
-      }
+      homeassistant::global_homeassistant_time->set_timezone(reinterpret_cast<const char *>(value.timezone),
+                                                             value.timezone_len);
     }
 #endif
   }
@@ -1395,6 +1392,11 @@ void APIConnection::complete_authentication_() {
     this->send_time_request();
   }
 #endif
+#ifdef USE_ZWAVE_PROXY
+  if (zwave_proxy::global_zwave_proxy != nullptr) {
+    zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
+  }
+#endif
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
@@ -1407,7 +1409,7 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 12;
+  resp.api_version_minor = 13;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
@@ -1550,6 +1552,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   }
 }
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  if (msg.response_data_len > 0) {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message, msg.response_data,
+                                          msg.response_data_len);
+  } else
+#endif
+  {
+    this->parent_->handle_action_response(msg.call_id, msg.success, msg.error_message);
+  }
+};
+#endif
 #ifdef USE_API_NOISE
 bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
@@ -1580,8 +1596,7 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_socket_operation_failed_(err);
+    this->fatal_error_with_log_(LOG_STR("Socket operation failed"), err);
     return false;
   }
   if (this->helper_->can_write_without_blocking())
@@ -1600,8 +1615,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   if (err == APIError::WOULD_BLOCK)
     return false;
   if (err != APIError::OK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Packet write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Packet write failed"), err);
     return false;
   }
   // Do not set last_traffic_ on send
@@ -1787,8 +1801,7 @@ void APIConnection::process_batch_() {
   APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
                                                        std::span<const PacketInfo>(packet_info, packet_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    on_fatal_error();
-    this->log_warning_(LOG_STR("Batch write failed"), err);
+    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1869,10 +1882,6 @@ void APIConnection::process_state_subscriptions_() {
 void APIConnection::log_warning_(const LogString *message, APIError err) {
   ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
-}
-
-void APIConnection::log_socket_operation_failed_(APIError err) {
-  this->log_warning_(LOG_STR("Socket operation failed"), err);
 }
 
 }  // namespace esphome::api

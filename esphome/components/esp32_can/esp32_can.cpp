@@ -68,7 +68,7 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
 
 bool ESP32Can::setup_internal() {
   static int next_twai_ctrl_num = 0;
-  if (next_twai_ctrl_num >= SOC_TWAI_CONTROLLER_NUM) {
+  if (static_cast<unsigned>(next_twai_ctrl_num) >= SOC_TWAI_CONTROLLER_NUM) {
     ESP_LOGW(TAG, "Maximum number of esp32_can components created already");
     this->mark_failed();
     return false;

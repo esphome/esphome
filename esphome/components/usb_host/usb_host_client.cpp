@@ -228,12 +228,6 @@ void USBClient::loop() {
       case EVENT_DEVICE_GONE:
         this->on_removed(event->data.device_gone.handle);
         break;
-      case EVENT_TRANSFER_COMPLETE:
-      case EVENT_CONTROL_COMPLETE: {
-        auto *trq = event->data.transfer.trq;
-        this->release_trq(trq);
-        break;
-      }
     }
     // Return event to pool for reuse
     this->event_pool.release(event);
@@ -313,25 +307,6 @@ void USBClient::on_removed(usb_device_handle_t handle) {
   }
 }
 
-// Helper to queue transfer cleanup to main loop
-static void queue_transfer_cleanup(TransferRequest *trq, EventType type) {
-  auto *client = trq->client;
-
-  // Allocate event from pool
-  UsbEvent *event = client->event_pool.allocate();
-  if (event == nullptr) {
-    // No events available - increment counter for periodic logging
-    client->event_queue.increment_dropped_count();
-    return;
-  }
-
-  event->type = type;
-  event->data.transfer.trq = trq;
-
-  // Push to lock-free queue (always succeeds since pool size == queue size)
-  client->event_queue.push(event);
-}
-
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void control_callback(const usb_transfer_t *xfer) {
   auto *trq = static_cast<TransferRequest *>(xfer->context);
@@ -346,8 +321,9 @@ static void control_callback(const usb_transfer_t *xfer) {
     trq->callback(trq->status);
   }
 
-  // Queue cleanup to main loop
-  queue_transfer_cleanup(trq, EVENT_CONTROL_COMPLETE);
+  // Release transfer slot immediately in USB task
+  // The release_trq() uses thread-safe atomic operations
+  trq->client->release_trq(trq);
 }
 
 // THREAD CONTEXT: Called from both USB task and main loop threads (multi-consumer)
@@ -358,20 +334,20 @@ static void control_callback(const usb_transfer_t *xfer) {
 // This multi-threaded access is intentional for performance - USB task can
 // immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
-  uint16_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
+  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
 
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
   size_t i = 0;
   while (i != MAX_REQUESTS) {
-    if (mask & (1U << i)) {
+    if (mask & (static_cast<trq_bitmask_t>(1) << i)) {
       // Slot is in use, move to next slot
       i++;
       continue;
     }
 
     // Slot i appears available, try to claim it atomically
-    uint16_t desired = mask | (1U << i);  // Set bit i to mark as in-use
+    trq_bitmask_t desired = mask | (static_cast<trq_bitmask_t>(1) << i);  // Set bit i to mark as in-use
 
     if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order_acquire, std::memory_order_relaxed)) {
       // Successfully claimed slot i - prepare the TransferRequest
@@ -386,7 +362,7 @@ TransferRequest *USBClient::get_trq_() {
     i = 0;
   }
 
-  ESP_LOGE(TAG, "All %d transfer slots in use", MAX_REQUESTS);
+  ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
   return nullptr;
 }
 void USBClient::disconnect() {
@@ -452,8 +428,11 @@ static void transfer_callback(usb_transfer_t *xfer) {
     trq->callback(trq->status);
   }
 
-  // Queue cleanup to main loop
-  queue_transfer_cleanup(trq, EVENT_TRANSFER_COMPLETE);
+  // Release transfer slot AFTER callback completes to prevent slot exhaustion
+  // This is critical for high-throughput transfers (e.g., USB UART at 115200 baud)
+  // The callback has finished accessing xfer->data_buffer, so it's safe to release
+  // The release_trq() uses thread-safe atomic operations
+  trq->client->release_trq(trq);
 }
 /**
  * Performs a transfer input operation.
@@ -521,12 +500,12 @@ void USBClient::dump_config() {
                 "  Product id %04X",
                 this->vid_, this->pid_);
 }
-// THREAD CONTEXT: Only called from main loop thread (single producer for deallocation)
-// - Via event processing when handling EVENT_TRANSFER_COMPLETE/EVENT_CONTROL_COMPLETE
-// - Directly when transfer submission fails
+// THREAD CONTEXT: Called from both USB task and main loop threads
+// - USB task: Immediately after transfer callback completes
+// - Main loop: When transfer submission fails
 //
 // THREAD SAFETY: Lock-free using atomic AND to clear bit
-// Single-producer pattern makes this simpler than allocation
+// Thread-safe atomic operation allows multi-threaded deallocation
 void USBClient::release_trq(TransferRequest *trq) {
   if (trq == nullptr)
     return;
@@ -540,8 +519,8 @@ void USBClient::release_trq(TransferRequest *trq) {
 
   // Atomically clear bit i to mark slot as available
   // fetch_and with inverted bitmask clears the bit atomically
-  uint16_t bit = 1U << index;
-  this->trq_in_use_.fetch_and(static_cast<uint16_t>(~bit), std::memory_order_release);
+  trq_bitmask_t bit = static_cast<trq_bitmask_t>(1) << index;
+  this->trq_in_use_.fetch_and(static_cast<trq_bitmask_t>(~bit), std::memory_order_release);
 }
 
 }  // namespace usb_host

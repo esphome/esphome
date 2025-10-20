@@ -25,6 +25,9 @@ mdns:
     - service: _http
       protocol: _tcp
       port: 80
+      txt:
+        version: "1.0"
+        path: "/"
 
 # OTA should run at priority 54 (after mdns)
 ota:
