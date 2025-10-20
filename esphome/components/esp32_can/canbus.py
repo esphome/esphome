@@ -26,6 +26,10 @@ CODEOWNERS = ["@Sympatron"]
 DEPENDENCIES = ["esp32"]
 
 CONF_TX_ENQUEUE_TIMEOUT = "tx_enqueue_timeout"
+CONF_ADVANCED_BIT_RATE = "advanced_bit_rate"
+CONF_BRP = "prescaler"
+CONF_TSEG1 = "tseg_1"
+CONF_TSEG2 = "tseg_2"
 
 esp32_can_ns = cg.esphome_ns.namespace("esp32_can")
 esp32_can = esp32_can_ns.class_("ESP32Can", CanbusComponent)
@@ -79,6 +83,14 @@ def validate_bit_rate(value):
         raise cv.Invalid(f"Bit rate {value} is not supported on {variant}")
     return cv.enum(CAN_SPEEDS[variant])(value)
 
+def validate_prescaler(value):
+    if value <= 0:
+        raise cv.Invalid(f"Prescaler needs to be a positive integer")
+    if value <= 128 and value % 2 != 0:
+        raise cv.Invalid(f"Prescaler needs to be an even number if less or equal to 128")
+    if value >= 132 and value % 4 != 0:
+        raise cv.Invalid(f"Prescaler needs to be a multiple of 4 if more or equal to 132")
+    return value
 
 CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
     {
@@ -89,18 +101,26 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
         cv.Optional(CONF_RX_QUEUE_LEN): cv.uint32_t,
         cv.Optional(CONF_TX_QUEUE_LEN): cv.uint32_t,
         cv.Optional(CONF_TX_ENQUEUE_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ADVANCED_BIT_RATE):
+            {
+                cv.Required(CONF_BRP): validate_prescaler,
+                cv.Required(CONF_TSEG1): cv.int_range(1,16),
+                cv.Required(CONF_TSEG2): cv.int_range(1,8),
+            },
     }
 )
 
 
-def get_default_tx_enqueue_timeout(bit_rate):
-    bit_rate_numeric = canbus.get_rate(bit_rate)
+def get_default_tx_enqueue_timeout(bit_rate_config):
+    if CONF_BRP in bit_rate_config:
+        bit_rate_numeric = 80_000_000 / (bit_rate_config[CONF_BRP] * (1 + bit_rate_config[CONF_TSEG1] + bit_rate_config[CONF_TSEG2]))
+    else:
+        bit_rate_numeric = canbus.get_rate(bit_rate_config)
     bits_per_packet = 140  # ~max CAN message length
     ms_per_packet = bits_per_packet / bit_rate_numeric * 1000
     return int(
         max(min(math.ceil(10 * ms_per_packet), 1000), 1)
     )  # ~10 packet lengths, min 1ms, max 1000ms
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -115,7 +135,13 @@ async def to_code(config):
 
     if CONF_TX_ENQUEUE_TIMEOUT in config:
         tx_enqueue_timeout_ms = config[CONF_TX_ENQUEUE_TIMEOUT].total_milliseconds
+    elif CONF_ADVANCED_BIT_RATE in config:
+        tx_enqueue_timeout_ms = get_default_tx_enqueue_timeout(config[CONF_ADVANCED_BIT_RATE])
     else:
         tx_enqueue_timeout_ms = get_default_tx_enqueue_timeout(config[CONF_BIT_RATE])
 
     cg.add(var.set_tx_enqueue_timeout_ms(tx_enqueue_timeout_ms))
+    if CONF_ADVANCED_BIT_RATE in config:
+        cg.add(var.set_brp(config[CONF_ADVANCED_BIT_RATE][CONF_BRP]))
+        cg.add(var.set_tseg1(config[CONF_ADVANCED_BIT_RATE][CONF_TSEG1]))
+        cg.add(var.set_tseg2(config[CONF_ADVANCED_BIT_RATE][CONF_TSEG2]))

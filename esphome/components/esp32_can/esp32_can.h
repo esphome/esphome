@@ -14,6 +14,9 @@ class ESP32Can : public canbus::Canbus {
  public:
   void set_rx(int rx) { rx_ = rx; }
   void set_tx(int tx) { tx_ = tx; }
+  void set_brp(int brp) { brp_ = brp; }
+  void set_tseg1(int tseg1) { tseg1_ = tseg1; }
+  void set_tseg2(int tseg2) { tseg2_ = tseg2; }
   void set_tx_queue_len(uint32_t tx_queue_len) { this->tx_queue_len_ = tx_queue_len; }
   void set_rx_queue_len(uint32_t rx_queue_len) { this->rx_queue_len_ = rx_queue_len; }
   void set_tx_enqueue_timeout_ms(uint32_t tx_enqueue_timeout_ms) {
@@ -28,6 +31,9 @@ class ESP32Can : public canbus::Canbus {
 
   int rx_{-1};
   int tx_{-1};
+  int brp_{-1};
+  int tseg1_{-1};
+  int tseg2_{-1};
   TickType_t tx_enqueue_timeout_ticks_{};
   optional<uint32_t> tx_queue_len_{};
   optional<uint32_t> rx_queue_len_{};
