@@ -1,9 +1,9 @@
 pn532_i2c:
   i2c_id: i2c_bus
-  id: pn532_nfcc
+  id: pn532_nfcc_i2c
 
 binary_sensor:
   - platform: pn532
-    pn532_id: pn532_nfcc
+    pn532_id: pn532_nfcc_i2c
     name: PN532 NFC Tag
     uid: 74-10-37-94

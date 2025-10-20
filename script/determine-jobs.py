@@ -10,7 +10,13 @@ what files have changed. It outputs JSON with the following structure:
   "clang_format": true/false,
   "python_linters": true/false,
   "changed_components": ["component1", "component2", ...],
-  "component_test_count": 5
+  "component_test_count": 5,
+  "memory_impact": {
+    "should_run": "true/false",
+    "components": ["component1", "component2", ...],
+    "platform": "esp32-idf",
+    "use_merged_config": "true"
+  }
 }
 
 The CI workflow uses this information to:
@@ -20,6 +26,7 @@ The CI workflow uses this information to:
 - Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
+- Run memory impact analysis whenever there are changed components (merged config), and also for core-only changes
 
 Usage:
   python script/determine-jobs.py [-b BRANCH]
@@ -31,6 +38,9 @@ Options:
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+from enum import StrEnum
+from functools import cache
 import json
 import os
 from pathlib import Path
@@ -39,15 +49,45 @@ import sys
 from typing import Any
 
 from helpers import (
+    BASE_BUS_COMPONENTS,
     CPP_FILE_EXTENSIONS,
-    ESPHOME_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
     get_all_dependencies,
+    get_component_from_path,
+    get_component_test_files,
     get_components_from_integration_fixtures,
-    parse_list_components_output,
+    parse_test_filename,
     root_path,
 )
+
+
+class Platform(StrEnum):
+    """Platform identifiers for memory impact analysis."""
+
+    ESP8266_ARD = "esp8266-ard"
+    ESP32_IDF = "esp32-idf"
+    ESP32_C3_IDF = "esp32-c3-idf"
+    ESP32_C6_IDF = "esp32-c6-idf"
+    ESP32_S2_IDF = "esp32-s2-idf"
+    ESP32_S3_IDF = "esp32-s3-idf"
+
+
+# Memory impact analysis constants
+MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
+MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
+
+# Platform preference order for memory impact analysis
+# Prefer newer platforms first as they represent the future of ESPHome
+# ESP8266 is most constrained but many new features don't support it
+MEMORY_IMPACT_PLATFORM_PREFERENCE = [
+    Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
+    Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
+    Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
+    Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
+    Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
+    Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
+]
 
 
 def should_run_integration_tests(branch: str | None = None) -> bool:
@@ -105,12 +145,9 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
 
     # Check if any required components changed
     for file in files:
-        if file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 3:
-                component = parts[2]
-                if component in all_required_components:
-                    return True
+        component = get_component_from_path(file)
+        if component and component in all_required_components:
+            return True
 
     return False
 
@@ -212,6 +249,154 @@ def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) 
     return any(file.endswith(extensions) for file in changed_files(branch))
 
 
+@cache
+def _component_has_tests(component: str) -> bool:
+    """Check if a component has test files.
+
+    Cached to avoid repeated filesystem operations for the same component.
+
+    Args:
+        component: Component name to check
+
+    Returns:
+        True if the component has test YAML files
+    """
+    return bool(get_component_test_files(component))
+
+
+def detect_memory_impact_config(
+    branch: str | None = None,
+) -> dict[str, Any]:
+    """Determine memory impact analysis configuration.
+
+    Always runs memory impact analysis when there are changed components,
+    building a merged configuration with all changed components (like
+    test_build_components.py does) to get comprehensive memory analysis.
+
+    For core C++ file changes without component changes, runs a fallback
+    analysis using a representative component to measure the impact.
+
+    Args:
+        branch: Branch to compare against
+
+    Returns:
+        Dictionary with memory impact analysis parameters:
+        - should_run: "true" or "false"
+        - components: list of component names to analyze
+        - platform: platform name for the merged build
+        - use_merged_config: "true" (always use merged config)
+    """
+
+    # Get actually changed files (not dependencies)
+    files = changed_files(branch)
+
+    # Find all changed components (excluding core and base bus components)
+    changed_component_set: set[str] = set()
+    has_core_cpp_changes = False
+
+    for file in files:
+        component = get_component_from_path(file)
+        if component:
+            # Skip base bus components as they're used across many builds
+            if component not in BASE_BUS_COMPONENTS:
+                changed_component_set.add(component)
+        elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
+            # Core ESPHome C++ files changed (not component-specific)
+            # Only C++ files affect memory usage
+            has_core_cpp_changes = True
+
+    # If no components changed but core C++ changed, test representative component
+    force_fallback_platform = False
+    if not changed_component_set and has_core_cpp_changes:
+        print(
+            f"Memory impact: No components changed, but core C++ files changed. "
+            f"Testing {MEMORY_IMPACT_FALLBACK_COMPONENT} component on {MEMORY_IMPACT_FALLBACK_PLATFORM}.",
+            file=sys.stderr,
+        )
+        changed_component_set.add(MEMORY_IMPACT_FALLBACK_COMPONENT)
+        force_fallback_platform = True  # Use fallback platform (most representative)
+    elif not changed_component_set:
+        # No components and no core C++ changes
+        return {"should_run": "false"}
+
+    # Find components that have tests and collect their supported platforms
+    components_with_tests: list[str] = []
+    component_platforms_map: dict[
+        str, set[Platform]
+    ] = {}  # Track which platforms each component supports
+
+    for component in sorted(changed_component_set):
+        # Look for test files on preferred platforms
+        test_files = get_component_test_files(component)
+        if not test_files:
+            continue
+
+        # Check if component has tests for any preferred platform
+        available_platforms = [
+            platform
+            for test_file in test_files
+            if (platform := parse_test_filename(test_file)[1]) != "all"
+            and platform in MEMORY_IMPACT_PLATFORM_PREFERENCE
+        ]
+
+        if not available_platforms:
+            continue
+
+        component_platforms_map[component] = set(available_platforms)
+        components_with_tests.append(component)
+
+    # If no components have tests, don't run memory impact
+    if not components_with_tests:
+        return {"should_run": "false"}
+
+    # Find common platforms supported by ALL components
+    # This ensures we can build all components together in a merged config
+    common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
+    for component, platforms in component_platforms_map.items():
+        common_platforms &= platforms
+
+    # Select the most preferred platform from the common set
+    # Exception: for core changes, use fallback platform (most representative of codebase)
+    if force_fallback_platform:
+        platform = MEMORY_IMPACT_FALLBACK_PLATFORM
+    elif common_platforms:
+        # Pick the most preferred platform that all components support
+        platform = min(common_platforms, key=MEMORY_IMPACT_PLATFORM_PREFERENCE.index)
+    else:
+        # No common platform - pick the most commonly supported platform
+        # This allows testing components individually even if they can't be merged
+        # Count how many components support each platform
+        platform_counts = Counter(
+            p for platforms in component_platforms_map.values() for p in platforms
+        )
+        # Pick the platform supported by most components, preferring earlier in MEMORY_IMPACT_PLATFORM_PREFERENCE
+        platform = max(
+            platform_counts.keys(),
+            key=lambda p: (
+                platform_counts[p],
+                -MEMORY_IMPACT_PLATFORM_PREFERENCE.index(p),
+            ),
+        )
+
+    # Debug output
+    print("Memory impact analysis:", file=sys.stderr)
+    print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
+    print(f"  Components with tests: {components_with_tests}", file=sys.stderr)
+    print(
+        f"  Component platforms: {dict(sorted(component_platforms_map.items()))}",
+        file=sys.stderr,
+    )
+    print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
+    print(f"  Selected platform: {platform}", file=sys.stderr)
+
+    return {
+        "should_run": "true",
+        "components": components_with_tests,
+        "platform": platform,
+        "use_merged_config": "true",
+    }
+
+
 def main() -> None:
     """Main function that determines which CI jobs to run."""
     parser = argparse.ArgumentParser(
@@ -228,24 +413,41 @@ def main() -> None:
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
 
-    # Get changed components using list-components.py for exact compatibility
+    # Get both directly changed and all changed components (with dependencies) in one call
     script_path = Path(__file__).parent / "list-components.py"
-    cmd = [sys.executable, str(script_path), "--changed"]
+    cmd = [sys.executable, str(script_path), "--changed-with-deps"]
     if args.branch:
         cmd.extend(["-b", args.branch])
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    changed_components = parse_list_components_output(result.stdout)
+    component_data = json.loads(result.stdout)
+    directly_changed_components = component_data["directly_changed"]
+    changed_components = component_data["all_changed"]
 
     # Filter to only components that have test files
     # Components without tests shouldn't generate CI test jobs
-    tests_dir = Path(root_path) / "tests" / "components"
     changed_components_with_tests = [
-        component
-        for component in changed_components
-        if (component_test_dir := tests_dir / component).exists()
-        and any(component_test_dir.glob("test.*.yaml"))
+        component for component in changed_components if _component_has_tests(component)
     ]
+
+    # Get directly changed components with tests (for isolated testing)
+    # These will be tested WITHOUT --testing-mode in CI to enable full validation
+    # (pin conflicts, etc.) since they contain the actual changes being reviewed
+    directly_changed_with_tests = [
+        component
+        for component in directly_changed_components
+        if _component_has_tests(component)
+    ]
+
+    # Get dependency-only components (for grouped testing)
+    dependency_only_components = [
+        component
+        for component in changed_components_with_tests
+        if component not in directly_changed_components
+    ]
+
+    # Detect components for memory impact analysis (merged config)
+    memory_impact = detect_memory_impact_config(args.branch)
 
     # Build output
     output: dict[str, Any] = {
@@ -255,7 +457,12 @@ def main() -> None:
         "python_linters": run_python_linters,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
+        "directly_changed_components_with_tests": directly_changed_with_tests,
+        "dependency_only_components_with_tests": dependency_only_components,
         "component_test_count": len(changed_components_with_tests),
+        "directly_changed_count": len(directly_changed_with_tests),
+        "dependency_only_count": len(dependency_only_components),
+        "memory_impact": memory_impact,
     }
 
     # Output as JSON
