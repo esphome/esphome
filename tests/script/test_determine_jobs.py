@@ -107,6 +107,7 @@ def test_main_all_tests_should_run(
 
     assert output["integration_tests"] is True
     assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["changed_components"] == ["wifi", "api", "sensor"]
@@ -117,6 +118,9 @@ def test_main_all_tests_should_run(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"  # No files changed
@@ -156,11 +160,14 @@ def test_main_no_tests_should_run(
 
     assert output["integration_tests"] is False
     assert output["clang_tidy"] is False
+    assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
     assert output["python_linters"] is False
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
+    # changed_cpp_file_count should be 0
+    assert output["changed_cpp_file_count"] == 0
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -239,6 +246,7 @@ def test_main_with_branch_argument(
 
     assert output["integration_tests"] is False
     assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
     assert output["python_linters"] is True
     assert output["changed_components"] == ["mqtt"]
@@ -249,6 +257,9 @@ def test_main_with_branch_argument(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -433,6 +444,40 @@ def test_should_run_clang_format_with_branch() -> None:
         mock_changed.assert_called_once_with("release")
 
 
+@pytest.mark.parametrize(
+    ("changed_files", "expected_count"),
+    [
+        (["esphome/core.cpp"], 1),
+        (["esphome/core.h"], 1),
+        (["test.hpp"], 1),
+        (["test.cc"], 1),
+        (["test.cxx"], 1),
+        (["test.c"], 1),
+        (["test.tcc"], 1),
+        (["esphome/core.cpp", "esphome/core.h"], 2),
+        (["esphome/core.cpp", "esphome/core.h", "test.cc"], 3),
+        (["README.md"], 0),
+        (["esphome/config.py"], 0),
+        (["README.md", "esphome/config.py"], 0),
+        (["esphome/core.cpp", "README.md", "esphome/config.py"], 1),
+        ([], 0),
+    ],
+)
+def test_count_changed_cpp_files(changed_files: list[str], expected_count: int) -> None:
+    """Test count_changed_cpp_files function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        result = determine_jobs.count_changed_cpp_files()
+        assert result == expected_count
+
+
+def test_count_changed_cpp_files_with_branch() -> None:
+    """Test count_changed_cpp_files with branch argument."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.count_changed_cpp_files("release")
+        mock_changed.assert_called_once_with("release")
+
+
 def test_main_filters_components_without_tests(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -501,6 +546,9 @@ def test_main_filters_components_without_tests(
     assert set(output["changed_components_with_tests"]) == {"wifi", "sensor"}
     # component_test_count should be based on components with tests
     assert output["component_test_count"] == 2
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -545,7 +593,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
 
 
 def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
-    """Test memory impact detection with core-only changes (no component changes)."""
+    """Test memory impact detection with core C++ changes (no component changes)."""
     # Create test directory structure with fallback component
     tests_dir = tmp_path / "tests" / "components"
 
@@ -554,7 +602,7 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     api_dir.mkdir(parents=True)
     (api_dir / "test.esp32-idf.yaml").write_text("test: api")
 
-    # Mock changed_files to return only core files (no component files)
+    # Mock changed_files to return only core C++ files (no component files)
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
@@ -572,6 +620,35 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     assert result["components"] == ["api"]  # Fallback component
     assert result["platform"] == "esp32-idf"  # Fallback platform
     assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) -> None:
+    """Test that Python-only core changes don't trigger memory impact analysis."""
+    # Create test directory structure with fallback component
+    tests_dir = tmp_path / "tests" / "components"
+
+    # api component (fallback component) with esp32-idf test
+    api_dir = tests_dir / "api"
+    api_dir.mkdir(parents=True)
+    (api_dir / "test.esp32-idf.yaml").write_text("test: api")
+
+    # Mock changed_files to return only core Python files (no C++ files)
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/__main__.py",
+            "esphome/config.py",
+            "esphome/core/config.py",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Python-only changes should NOT trigger memory impact analysis
+    assert result["should_run"] == "false"
 
 
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
