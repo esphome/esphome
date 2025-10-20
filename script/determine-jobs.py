@@ -273,6 +273,9 @@ def detect_memory_impact_config(
     building a merged configuration with all changed components (like
     test_build_components.py does) to get comprehensive memory analysis.
 
+    For core C++ file changes without component changes, runs a fallback
+    analysis using a representative component to measure the impact.
+
     Args:
         branch: Branch to compare against
 
@@ -289,7 +292,7 @@ def detect_memory_impact_config(
 
     # Find all changed components (excluding core and base bus components)
     changed_component_set: set[str] = set()
-    has_core_changes = False
+    has_core_cpp_changes = False
 
     for file in files:
         component = get_component_from_path(file)
@@ -297,22 +300,23 @@ def detect_memory_impact_config(
             # Skip base bus components as they're used across many builds
             if component not in BASE_BUS_COMPONENTS:
                 changed_component_set.add(component)
-        elif file.startswith("esphome/"):
-            # Core ESPHome files changed (not component-specific)
-            has_core_changes = True
+        elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
+            # Core ESPHome C++ files changed (not component-specific)
+            # Only C++ files affect memory usage
+            has_core_cpp_changes = True
 
-    # If no components changed but core changed, test representative component
+    # If no components changed but core C++ changed, test representative component
     force_fallback_platform = False
-    if not changed_component_set and has_core_changes:
+    if not changed_component_set and has_core_cpp_changes:
         print(
-            f"Memory impact: No components changed, but core files changed. "
+            f"Memory impact: No components changed, but core C++ files changed. "
             f"Testing {MEMORY_IMPACT_FALLBACK_COMPONENT} component on {MEMORY_IMPACT_FALLBACK_PLATFORM}.",
             file=sys.stderr,
         )
         changed_component_set.add(MEMORY_IMPACT_FALLBACK_COMPONENT)
         force_fallback_platform = True  # Use fallback platform (most representative)
     elif not changed_component_set:
-        # No components and no core changes
+        # No components and no core C++ changes
         return {"should_run": "false"}
 
     # Find components that have tests and collect their supported platforms

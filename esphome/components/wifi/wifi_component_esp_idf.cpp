@@ -789,8 +789,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       bssid_t bssid;
       std::copy(record.bssid, record.bssid + 6, bssid.begin());
       std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      WiFiScanResult result(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN, ssid.empty());
-      scan_result_.push_back(result);
+      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
+                                ssid.empty());
     }
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
