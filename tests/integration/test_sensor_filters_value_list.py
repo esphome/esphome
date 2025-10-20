@@ -112,6 +112,7 @@ async def test_sensor_filters_value_list(
         assert len(buttons) == 4, f"Expected 4 buttons, found {len(buttons)}"
 
         # Test 1: FilterOutValueFilter - single value
+        sensor_values["filter_out_single"].clear()
         client.button_command(buttons["filter_out_single"])
         try:
             await asyncio.wait_for(filter_out_single_done, timeout=2.0)
@@ -126,6 +127,8 @@ async def test_sensor_filters_value_list(
         )
 
         # Test 2: FilterOutValueFilter - multiple values
+        sensor_values["filter_out_multiple"].clear()
+        filter_out_multiple_done = loop.create_future()
         client.button_command(buttons["filter_out_multiple"])
         try:
             await asyncio.wait_for(filter_out_multiple_done, timeout=2.0)
@@ -140,6 +143,8 @@ async def test_sensor_filters_value_list(
         )
 
         # Test 3: ThrottleWithPriorityFilter - single priority
+        sensor_values["throttle_priority_single"].clear()
+        throttle_single_done = loop.create_future()
         client.button_command(buttons["throttle_priority_single"])
         try:
             await asyncio.wait_for(throttle_single_done, timeout=2.0)
@@ -154,6 +159,8 @@ async def test_sensor_filters_value_list(
         )
 
         # Test 4: ThrottleWithPriorityFilter - multiple priorities
+        sensor_values["throttle_priority_multiple"].clear()
+        throttle_multiple_done = loop.create_future()
         client.button_command(buttons["throttle_priority_multiple"])
         try:
             await asyncio.wait_for(throttle_multiple_done, timeout=2.0)
