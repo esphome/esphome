@@ -1,0 +1,108 @@
+---
+name: Memory Impact Comment (Forks)
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+jobs:
+  memory-impact-comment:
+    name: Post memory impact comment (fork PRs only)
+    runs-on: ubuntu-24.04
+    # Only run for PRs from forks that had successful CI runs
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name != github.repository
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Get PR details
+        id: pr
+        run: |
+          # Get PR details by searching for PR with matching head SHA
+          # The workflow_run.pull_requests field is often empty for forks
+          head_sha="${{ github.event.workflow_run.head_sha }}"
+          pr_data=$(gh api "/repos/${{ github.repository }}/commits/$head_sha/pulls" \
+            --jq '.[0] | {number: .number, base_ref: .base.ref}')
+          if [ -z "$pr_data" ] || [ "$pr_data" == "null" ]; then
+            echo "No PR found for SHA $head_sha, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          pr_number=$(echo "$pr_data" | jq -r '.number')
+          base_ref=$(echo "$pr_data" | jq -r '.base_ref')
+
+          echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+          echo "base_ref=$base_ref" >> $GITHUB_OUTPUT
+          echo "Found PR #$pr_number targeting base branch: $base_ref"
+
+      - name: Check out code from base repository
+        if: steps.pr.outputs.skip != 'true'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Always check out from the base repository (esphome/esphome), never from forks
+          # Use the PR's target branch to ensure we run trusted code from the main repo
+          repository: ${{ github.repository }}
+          ref: ${{ steps.pr.outputs.base_ref }}
+
+      - name: Restore Python
+        if: steps.pr.outputs.skip != 'true'
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: "3.11"
+          cache-key: ${{ hashFiles('.cache-key') }}
+
+      - name: Download memory analysis artifacts
+        if: steps.pr.outputs.skip != 'true'
+        run: |
+          run_id="${{ github.event.workflow_run.id }}"
+          echo "Downloading artifacts from workflow run $run_id"
+
+          mkdir -p memory-analysis
+
+          # Download target analysis artifact
+          if gh run download --name "memory-analysis-target" --dir memory-analysis --repo "${{ github.repository }}" "$run_id"; then
+            echo "Downloaded memory-analysis-target artifact."
+          else
+            echo "No memory-analysis-target artifact found."
+          fi
+
+          # Download PR analysis artifact
+          if gh run download --name "memory-analysis-pr" --dir memory-analysis --repo "${{ github.repository }}" "$run_id"; then
+            echo "Downloaded memory-analysis-pr artifact."
+          else
+            echo "No memory-analysis-pr artifact found."
+          fi
+
+      - name: Check if artifacts exist
+        id: check
+        if: steps.pr.outputs.skip != 'true'
+        run: |
+          if [ -f ./memory-analysis/memory-analysis-target.json ] && [ -f ./memory-analysis/memory-analysis-pr.json ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "Memory analysis artifacts not found, skipping comment"
+          fi
+
+      - name: Post or update PR comment
+        if: steps.pr.outputs.skip != 'true' && steps.check.outputs.found == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        run: |
+          . venv/bin/activate
+          # Pass PR number and JSON file paths directly to Python script
+          # Let Python parse the JSON to avoid shell injection risks
+          # The script will validate and sanitize all inputs
+          python script/ci_memory_impact_comment.py \
+            --pr-number "$PR_NUMBER" \
+            --target-json ./memory-analysis/memory-analysis-target.json \
+            --pr-json ./memory-analysis/memory-analysis-pr.json
