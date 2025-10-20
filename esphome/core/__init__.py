@@ -640,6 +640,9 @@ class EsphomeCore:
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
+
         return None
 
     @property

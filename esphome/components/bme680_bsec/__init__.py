@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BME680BSECComponent),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(CONF_IAQ_MODE, default="STATIC"): cv.enum(
                 IAQ_MODE_OPTIONS, upper=True
             ),

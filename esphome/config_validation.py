@@ -24,7 +24,6 @@ import voluptuous as vol
 
 from esphome import core
 import esphome.codegen as cg
-from esphome.config_helpers import Extend, Remove
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
@@ -623,12 +622,6 @@ def declare_id(type):
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
-
-        if isinstance(value, Extend):
-            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
-
-        if isinstance(value, Remove):
-            raise Invalid(f"Source for Removal of ID '{value.value}' was not found.")
 
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 

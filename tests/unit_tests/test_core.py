@@ -575,6 +575,7 @@ class TestEsphomeCore:
         target.config[const.CONF_OPENTHREAD] = {
             const.CONF_USE_ADDRESS: "test-device.local"
         }
+        target.name = "test-device"
 
         assert target.address == "test-device.local"
 
