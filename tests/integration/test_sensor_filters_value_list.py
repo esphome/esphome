@@ -124,23 +124,19 @@ async def test_sensor_filters_value_list(
         await initial_state_helper.wait_for_initial_states()
 
         # Find all buttons
+        button_name_map = {
+            "Test Filter Out Single": "filter_out_single",
+            "Test Filter Out Multiple": "filter_out_multiple",
+            "Test Throttle Priority Single": "throttle_priority_single",
+            "Test Throttle Priority Multiple": "throttle_priority_multiple",
+            "Test Filter Out NaN": "filter_out_nan",
+            "Test Filter Out Accuracy 2": "filter_out_accuracy_2",
+            "Test Throttle Priority NaN": "throttle_priority_nan",
+        }
         buttons = {}
         for entity in entities:
-            if isinstance(entity, ButtonInfo):
-                if entity.name == "Test Filter Out Single":
-                    buttons["filter_out_single"] = entity.key
-                elif entity.name == "Test Filter Out Multiple":
-                    buttons["filter_out_multiple"] = entity.key
-                elif entity.name == "Test Throttle Priority Single":
-                    buttons["throttle_priority_single"] = entity.key
-                elif entity.name == "Test Throttle Priority Multiple":
-                    buttons["throttle_priority_multiple"] = entity.key
-                elif entity.name == "Test Filter Out NaN":
-                    buttons["filter_out_nan"] = entity.key
-                elif entity.name == "Test Filter Out Accuracy 2":
-                    buttons["filter_out_accuracy_2"] = entity.key
-                elif entity.name == "Test Throttle Priority NaN":
-                    buttons["throttle_priority_nan"] = entity.key
+            if isinstance(entity, ButtonInfo) and entity.name in button_name_map:
+                buttons[button_name_map[entity.name]] = entity.key
 
         assert len(buttons) == 7, f"Expected 7 buttons, found {len(buttons)}"
 
