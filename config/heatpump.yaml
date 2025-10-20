@@ -1,3 +1,11 @@
+external_components:
+  # use modbus and modbus_controller from auenkinds ESPHome's dev branch in GitHub, this enables passive mode for modbus and modbus_controller
+  - source:
+      type: git
+      url: https://github.com/auenkind/esphome
+      ref: dev
+    components: [modbus, modbus_controller]
+
 esphome:
   name: awarma-12kw
   friendly_name: Awarma-12kw
@@ -9,8 +17,10 @@ esp32:
 
 # Enable logging
 logger:
-  logs:
-    modbus_controller: DEBUG
+  level: INFO
+#  logs:
+#    modbus_controller: INFO
+#    modbus: INFO
 
 # Enable Home Assistant API
 api:
@@ -133,6 +143,13 @@ binary_sensor:
     register_type: holding
     address: 0x1102
     bitmask: 2048
+  - platform: template
+    name: "Compressor runnning"
+    id: compressor_running
+    condition:
+      sensor.in_range:
+        id: compressor_frequency
+        above: 5.0
 
 sensor:
   - platform: modbus_controller
@@ -143,6 +160,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -154,6 +172,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -165,6 +184,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -176,31 +196,34 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
-  - platform: modbus_controller
-    modbus_controller_id: modbus_device
-    name: "EVI Inlet temp"
-    register_type: holding
-    address: 0x110A
-    device_class: "temperature"
-    state_class: "measurement"
-    unit_of_measurement: "°C"
-    accuracy_decimals: 1
-    filters:
-      - multiply: !lambda return 0.1;
-  - platform: modbus_controller
-    modbus_controller_id: modbus_device
-    name: "EVI Outlet temp"
-    register_type: holding
-    address: 0x110B
-    device_class: "temperature"
-    state_class: "measurement"
-    unit_of_measurement: "°C"
-    accuracy_decimals: 1
-    filters:
-      - multiply: !lambda return 0.1;
+  # - platform: modbus_controller
+  #   modbus_controller_id: modbus_device
+  #   name: "EVI Inlet temp"
+  #   register_type: holding
+  #   address: 0x110A
+  #   device_class: "temperature"
+  #   state_class: "measurement"
+  #   unit_of_measurement: "°C"
+  #   value_type: S_WORD
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: !lambda return 0.1;
+  # - platform: modbus_controller
+  #   modbus_controller_id: modbus_device
+  #   name: "EVI Outlet temp"
+  #   register_type: holding
+  #   address: 0x110B
+  #   device_class: "temperature"
+  #   state_class: "measurement"
+  #   unit_of_measurement: "°C"
+  #   value_type: S_WORD
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: !lambda return 0.1;
   - platform: modbus_controller
     modbus_controller_id: modbus_device
     name: "Refrigerant liquid temperature"
@@ -209,6 +232,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -220,6 +244,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -231,6 +256,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -242,6 +268,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -264,6 +291,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -275,6 +303,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -309,6 +338,7 @@ sensor:
     device_class: "frequency"
     state_class: "measurement"
     unit_of_measurement: "HZ"
+    id: compressor_frequency
 
   - platform: modbus_controller
     modbus_controller_id: modbus_device
@@ -376,6 +406,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -387,6 +418,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -398,6 +430,7 @@ sensor:
     device_class: "temperature"
     state_class: "measurement"
     unit_of_measurement: "°C"
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: !lambda return 0.1;
@@ -425,7 +458,7 @@ number:
     register_type: holding
     address: 8235
     min_value: 50
-    max_value: 120
+    max_value: 85
   - platform: modbus_controller
     modbus_controller_id: modbus_device
     name: "Compressor Minimum"
@@ -448,3 +481,4 @@ switch:
     name: "ON / Off"
     register_type: holding
     address: 0x1000
+    restore_mode: DISABLED
