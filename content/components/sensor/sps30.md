@@ -8,7 +8,7 @@ params:
 ---
 
 The `sps30` sensor platform allows you to use your Sensirion SPS30
-([datasheet](https://sensirion.com/media/documents/8600FF88/616542B5/Sensirion_PM_Sensors_Datasheet_SPS30.pdf)) sensors with ESPHome.
+([datasheet](https://sensirion.com/media/documents/8600FF88/64A3B8D6/Sensirion_PM_Sensors_Datasheet_SPS30.pdf)) sensors with ESPHome.
 The [I²C Bus](#i2c) is required to be set up in your configuration for this sensor to work.
 This sensor supports both UART and I²C communication. However, at the moment only I²C communication is implemented.
 
