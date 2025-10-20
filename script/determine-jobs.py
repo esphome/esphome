@@ -210,6 +210,22 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
 
 
+def count_changed_cpp_files(branch: str | None = None) -> int:
+    """Count the number of changed C++ files.
+
+    This is used to determine whether to split clang-tidy jobs or run them as a single job.
+    For PRs with < 30 changed C++ files, running a single job is faster than splitting.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Number of changed C++ files.
+    """
+    files = changed_files(branch)
+    return sum(1 for file in files if file.endswith(CPP_FILE_EXTENSIONS))
+
+
 def should_run_clang_format(branch: str | None = None) -> bool:
     """Determine if clang-format should run based on changed files.
 
@@ -408,6 +424,7 @@ def main() -> None:
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
+    changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get both directly changed and all changed components (with dependencies) in one call
     script_path = Path(__file__).parent / "list-components.py"
@@ -458,6 +475,7 @@ def main() -> None:
         "component_test_count": len(changed_components_with_tests),
         "directly_changed_count": len(directly_changed_with_tests),
         "dependency_only_count": len(dependency_only_components),
+        "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
     }
 

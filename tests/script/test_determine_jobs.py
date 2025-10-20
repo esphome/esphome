@@ -117,6 +117,9 @@ def test_main_all_tests_should_run(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"  # No files changed
@@ -161,6 +164,8 @@ def test_main_no_tests_should_run(
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
+    # changed_cpp_file_count should be 0
+    assert output["changed_cpp_file_count"] == 0
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -249,6 +254,9 @@ def test_main_with_branch_argument(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -433,6 +441,40 @@ def test_should_run_clang_format_with_branch() -> None:
         mock_changed.assert_called_once_with("release")
 
 
+@pytest.mark.parametrize(
+    ("changed_files", "expected_count"),
+    [
+        (["esphome/core.cpp"], 1),
+        (["esphome/core.h"], 1),
+        (["test.hpp"], 1),
+        (["test.cc"], 1),
+        (["test.cxx"], 1),
+        (["test.c"], 1),
+        (["test.tcc"], 1),
+        (["esphome/core.cpp", "esphome/core.h"], 2),
+        (["esphome/core.cpp", "esphome/core.h", "test.cc"], 3),
+        (["README.md"], 0),
+        (["esphome/config.py"], 0),
+        (["README.md", "esphome/config.py"], 0),
+        (["esphome/core.cpp", "README.md", "esphome/config.py"], 1),
+        ([], 0),
+    ],
+)
+def test_count_changed_cpp_files(changed_files: list[str], expected_count: int) -> None:
+    """Test count_changed_cpp_files function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        result = determine_jobs.count_changed_cpp_files()
+        assert result == expected_count
+
+
+def test_count_changed_cpp_files_with_branch() -> None:
+    """Test count_changed_cpp_files with branch argument."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.count_changed_cpp_files("release")
+        mock_changed.assert_called_once_with("release")
+
+
 def test_main_filters_components_without_tests(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -501,6 +543,9 @@ def test_main_filters_components_without_tests(
     assert set(output["changed_components_with_tests"]) == {"wifi", "sensor"}
     # component_test_count should be based on components with tests
     assert output["component_test_count"] == 2
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
