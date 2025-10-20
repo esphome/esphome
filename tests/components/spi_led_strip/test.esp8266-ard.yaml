@@ -1,5 +1,4 @@
-substitutions:
-  clk_pin: GPIO14
-  mosi_pin: GPIO13
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
 
 <<: !include common.yaml
