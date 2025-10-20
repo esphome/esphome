@@ -35,8 +35,8 @@ void IDFI2CBus::setup() {
 
   i2c_master_bus_config_t bus_conf{};
   memset(&bus_conf, 0, sizeof(bus_conf));
-  bus_conf.sda_io_num = gpio_num_t(sda_pin_);
-  bus_conf.scl_io_num = gpio_num_t(scl_pin_);
+  bus_conf.sda_io_num = gpio_num_t(this->sda_pin_);
+  bus_conf.scl_io_num = gpio_num_t(this->scl_pin_);
   bus_conf.i2c_port = this->port_;
   bus_conf.glitch_ignore_cnt = 7;
 #if SOC_LP_I2C_SUPPORTED
@@ -48,7 +48,7 @@ void IDFI2CBus::setup() {
 #else
   bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
 #endif
-  bus_conf.flags.enable_internal_pullup = sda_pullup_enabled_ || scl_pullup_enabled_;
+  bus_conf.flags.enable_internal_pullup = this->sda_pullup_enabled_ || this->scl_pullup_enabled_;
   esp_err_t err = i2c_new_master_bus(&bus_conf, &this->bus_);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
@@ -99,7 +99,7 @@ void IDFI2CBus::dump_config() {
                 "  SCL Pin: GPIO%u\n"
                 "  Frequency: %" PRIu32 " Hz",
                 this->sda_pin_, this->scl_pin_, this->frequency_);
-  if (timeout_ > 0) {
+  if (this->timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
   }
   switch (this->recovery_result_) {
@@ -115,10 +115,10 @@ void IDFI2CBus::dump_config() {
   }
   if (this->scan_) {
     ESP_LOGCONFIG(TAG, "Results from bus scan:");
-    if (scan_results_.empty()) {
+    if (this->scan_results_.empty()) {
       ESP_LOGCONFIG(TAG, "Found no devices");
     } else {
-      for (const auto &s : scan_results_) {
+      for (const auto &s : this->scan_results_) {
         if (s.second) {
           ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
         } else {
@@ -133,7 +133,7 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
                                  size_t read_count) {
   // logging is only enabled with v level, if warnings are shown the caller
   // should log them
-  if (!initialized_) {
+  if (!this->initialized_) {
     ESP_LOGW(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
@@ -216,8 +216,8 @@ ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
 void IDFI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing bus recovery");
 
-  const auto scl_pin = static_cast<gpio_num_t>(scl_pin_);
-  const auto sda_pin = static_cast<gpio_num_t>(sda_pin_);
+  const auto scl_pin = static_cast<gpio_num_t>(this->scl_pin_);
+  const auto sda_pin = static_cast<gpio_num_t>(this->sda_pin_);
 
   // For the upcoming operations, target for a 60kHz toggle frequency.
   // 1000kHz is the maximum frequency for I2C running in standard-mode,
@@ -230,7 +230,7 @@ void IDFI2CBus::recover_() {
   // Configure SCL pin for open drain input/output, with a pull up resistor.
   gpio_set_level(scl_pin, 1);
   gpio_config_t scl_config{};
-  scl_config.pin_bit_mask = 1ULL << scl_pin_;
+  scl_config.pin_bit_mask = 1ULL << this->scl_pin_;
   scl_config.mode = GPIO_MODE_INPUT_OUTPUT_OD;
   scl_config.pull_up_en = GPIO_PULLUP_ENABLE;
   scl_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -240,7 +240,7 @@ void IDFI2CBus::recover_() {
   // Configure SDA pin for open drain input/output, with a pull up resistor.
   gpio_set_level(sda_pin, 1);
   gpio_config_t sda_conf{};
-  sda_conf.pin_bit_mask = 1ULL << sda_pin_;
+  sda_conf.pin_bit_mask = 1ULL << this->sda_pin_;
   sda_conf.mode = GPIO_MODE_INPUT_OUTPUT_OD;
   sda_conf.pull_up_en = GPIO_PULLUP_ENABLE;
   sda_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -252,7 +252,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   if (gpio_get_level(scl_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the bus");
-    recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }
 
@@ -283,7 +283,7 @@ void IDFI2CBus::recover_() {
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
-      recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+      this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
       return;
     }
   }
@@ -293,7 +293,7 @@ void IDFI2CBus::recover_() {
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
-    recovery_result_ = RECOVERY_FAILED_SDA_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
     return;
   }
 
@@ -320,7 +320,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   gpio_set_level(sda_pin, 1);
 
-  recovery_result_ = RECOVERY_COMPLETED;
+  this->recovery_result_ = RECOVERY_COMPLETED;
 }
 
 }  // namespace i2c
