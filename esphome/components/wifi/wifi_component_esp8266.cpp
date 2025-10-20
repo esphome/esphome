@@ -696,12 +696,20 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     this->retry_connect();
     return;
   }
+
+  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    WiFiScanResult res({it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-                       std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi,
-                       it->authmode != AUTH_OPEN, it->is_hidden != 0);
-    this->scan_result_.push_back(res);
+    count++;
+  }
+
+  this->scan_result_.init(count);
+  for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
+    this->scan_result_.emplace_back(
+        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
+        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
+        it->is_hidden != 0);
   }
   this->scan_done_ = true;
 }

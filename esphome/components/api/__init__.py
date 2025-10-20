@@ -380,12 +380,19 @@ async def homeassistant_service_to_code(
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
     templ = await cg.templatable(config[CONF_ACTION], args, None)
     cg.add(var.set_service(templ))
+
+    # Initialize FixedVectors with exact sizes from config
+    cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))
+
+    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data_template(key, templ))
+
+    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
@@ -458,15 +465,23 @@ async def homeassistant_event_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     templ = await cg.templatable(config[CONF_EVENT], args, None)
     cg.add(var.set_service(templ))
+
+    # Initialize FixedVectors with exact sizes from config
+    cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))
+
+    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_data_template(key, templ))
+
+    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
+
     return var
 
 
@@ -489,6 +504,8 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))
+    # Initialize FixedVector with exact size (1 data field)
+    cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
     return var
