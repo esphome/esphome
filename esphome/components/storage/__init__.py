@@ -1,4 +1,4 @@
-from esphome import automation, pins
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
@@ -7,7 +7,6 @@ from esphome.cpp_generator import MockObjClass
 CONF_CD_PIN = "cd_pin"
 IS_PLATFORM_COMPONENT = True
 CODEOWNERS = ["@abel-msk"]
-# _LOGGER = logging.getLogger(__name__)
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage")
@@ -34,22 +33,14 @@ def validate_raw_data(value):
 #
 #   Schemas
 #
-
-STORAGE_SCHEMA_ = cv.Schema(
-    {
-        # cv.GenerateID(): cv.declare_id(FatFS),
-        cv.Optional(CONF_CD_PIN): pins.internal_gpio_output_pin_number,
-    },
-)
-
-
 def storage_schema(
     class_: MockObjClass,
 ) -> cv.Schema:
-    schema = {
-        cv.GenerateID(): cv.declare_id(class_),
-    }
-    return STORAGE_SCHEMA_.extend(schema)
+    return cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+        }
+    )
 
 
 #
@@ -57,16 +48,8 @@ def storage_schema(
 #
 
 
-async def setup_storage_core_(var, config):
-    if CONF_CD_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_CD_PIN])
-        cg.add(var.set_cd_pin(pin))
-
-
 async def new_storage(config, *args):
-    var = cg.new_Pvariable(config[CONF_ID], *args)
-    await setup_storage_core_(var, config)
-    return var
+    return cg.new_Pvariable(config[CONF_ID], *args)
 
 
 #

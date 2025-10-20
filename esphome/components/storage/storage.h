@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#include "esphome/core/gpio.h"
+#include <cstdint>
 
 namespace esphome {
 namespace storage {
@@ -46,34 +46,17 @@ static const uint8_t CMD_ATA_GET_REV = 20;    // Get F/W revision
 static const uint8_t CMD_ATA_GET_MODEL = 21;  // Get model name
 static const uint8_t CMD_ATA_GET_SN = 22;     // Get serial number
 
-enum class StorageIntState : uint8_t {
-  MEDIA_UNUSED = 0,
-  MEDIA_ABSENT = 1,
-  MEDIA_PRESENT = 2,
-};
-/** --------------------------------------------------------------------------------
- *
- * @brief   Media presend detect pin interupt handler
- *
- */
-struct MediaDetectInterrupt {
-  volatile bool present{true};
-  bool init{false};
-  static void inserted(MediaDetectInterrupt *data);
-  static void ejected(MediaDetectInterrupt *data);
-};
-
 /** ****************************************************************************************
  *
  * @brief  Storage device driver interface.  Contains IO operation.
  *         Most information about device are returned by ioctl call.
  *
  * Methods return statueses:
- * BD_RC_OK  0 - Successful
- * BD_RC_ERROR  1 - R//W Error
- * BD_RC_WRPRT 2 - Write Protected
- * BD_RC_NOTRDY 3 - Not Ready
- * BD_RC_PARERR 4 - Invalid Parameter
+ *    RC_OK  0 - Successful
+ *    RC_ERROR  1 - R//W Error
+ *    RC_WRPRT 2 - Write Protected
+ *    RC_NOTRDY 3 - Not Ready
+ *    RC_PARERR 4 - Invalid Parameter
  */
 class Storage {
  public:
@@ -89,7 +72,7 @@ class Storage {
    * @brief Reset driver initialization.
    * After succesfuul reset, it need to be initialized again.
    *
-   * @param hard = true for hard reset (including power on off)
+   * @param hard = true for hard reset (including power on/off)
    *               false - perform release initialization
    *
    * @return false if any error
@@ -141,6 +124,7 @@ class Storage {
    * @return false Disk absent
    */
   virtual bool state_media() = 0;
+
   /**
    * @brief Indicate is media is write protected
    *
@@ -162,23 +146,13 @@ class Storage {
    *
    */
   virtual void clear_remount() = 0;
+
   /**
    * @brief  Return last IO operations error (if any)
    *
    * @return uint8_t
    */
   virtual uint8_t error() = 0;
-
-  bool init_media_state_interrupt();
-  StorageIntState media_interrupt_state();
-
-  void set_cd_pin(InternalGPIOPin *pin) { cd_pin_ = pin; };
-  InternalGPIOPin *get_cd_pin() { return cd_pin_; };
-
- private:
-  MediaDetectInterrupt media_present_st_;
-  InternalGPIOPin *cd_pin_{NULL};  // DOWN -> No Card ;  UP -> Card present
-  bool cur_mstate_{true};          // used for filtering out interruts with same state
 };
 
 }  // namespace storage
