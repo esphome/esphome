@@ -83,6 +83,7 @@ def validate_bit_rate(value):
         raise cv.Invalid(f"Bit rate {value} is not supported on {variant}")
     return cv.enum(CAN_SPEEDS[variant])(value)
 
+
 def validate_prescaler(value):
     if value <= 0:
         raise cv.Invalid("Prescaler needs to be a positive integer")
@@ -106,8 +107,8 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
         cv.Optional(CONF_TX_ENQUEUE_TIMEOUT): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ADVANCED_BIT_RATE): {
             cv.Required(CONF_PRESCALER): validate_prescaler,
-            cv.Required(CONF_TSEG_1): cv.int_range(1,16),
-            cv.Required(CONF_TSEG_2): cv.int_range(1,8),
+            cv.Required(CONF_TSEG_1): cv.int_range(1, 16),
+            cv.Required(CONF_TSEG_2): cv.int_range(1, 8),
         },
     }
 )
@@ -126,6 +127,7 @@ def get_default_tx_enqueue_timeout(bit_rate_config):
     return int(
         max(min(math.ceil(10 * ms_per_packet), 1000), 1)
     )  # ~10 packet lengths, min 1ms, max 1000ms
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

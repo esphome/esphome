@@ -88,7 +88,7 @@ bool ESP32Can::setup_internal() {
   twai_timing_config_t t_config;
 
   if (this->brp_ != -1 && this->tseg1_ != -1 && this->tseg2_ != -1) {
-    // advanced bit rate settings (only one of quanta or brp needs to be provided, andwe privide the brp)
+    // advanced bit rate settings (only one of quanta or brp needs to be provided, and we provide the brp)
     t_config = (twai_timing_config_t) {.clk_src = TWAI_CLK_SRC_DEFAULT,
                                        .quanta_resolution_hz = 0,
                                        .brp = (uint32_t)this->brp_,
