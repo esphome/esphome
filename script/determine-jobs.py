@@ -219,7 +219,7 @@ def count_changed_cpp_files(branch: str | None = None) -> int:
     """Count the number of changed C++ files.
 
     This is used to determine whether to split clang-tidy jobs or run them as a single job.
-    For PRs with < 30 changed C++ files, running a single job is faster than splitting.
+    For PRs with < 65 changed C++ files, running a single job is faster than splitting.
 
     Args:
         branch: Branch to compare against. If None, uses default.
