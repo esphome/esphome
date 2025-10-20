@@ -1,10 +1,10 @@
 #include "esp32_improv_component.h"
 
+#include "esphome/components/bytebuffer/bytebuffer.h"
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include "esphome/components/bytebuffer/bytebuffer.h"
 
 #ifdef USE_ESP32
 
@@ -384,7 +384,16 @@ void ESP32ImprovComponent::check_wifi_connection_() {
     this->connecting_sta_ = {};
     this->cancel_timeout("wifi-connect-timeout");
 
-    std::vector<std::string> urls = {ESPHOME_MY_LINK};
+    std::vector<std::string> urls;
+
+    // Add next_url if configured (should be first per Improv BLE spec)
+    std::string next_url = this->get_formatted_next_url_();
+    if (!next_url.empty()) {
+      urls.push_back(next_url);
+    }
+
+    // Add default URLs for backward compatibility
+    urls.emplace_back(ESPHOME_MY_LINK);
 #ifdef USE_WEBSERVER
     for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
       if (ip.is_ip4()) {
