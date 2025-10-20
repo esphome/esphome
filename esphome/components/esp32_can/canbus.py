@@ -112,7 +112,7 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 
 
 def get_default_tx_enqueue_timeout(bit_rate_config):
-    if CONF_BRP in bit_rate_config:
+    if CONF_PRESCALER in bit_rate_config:
         bit_rate_numeric = 80_000_000 / (bit_rate_config[CONF_PRESCALER] * (1 + bit_rate_config[CONF_TSEG_1] + bit_rate_config[CONF_TSEG_2]))
     else:
         bit_rate_numeric = canbus.get_rate(bit_rate_config)
