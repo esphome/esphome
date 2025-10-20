@@ -48,5 +48,3 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
 }  // namespace esphome::api
 #endif  // USE_API_PLAINTEXT
 #endif  // USE_API
-
-// test

@@ -264,5 +264,3 @@ APIError APIFrameHelper::handle_socket_read_result_(ssize_t received) {
 
 }  // namespace esphome::api
 #endif
-
-// test

@@ -90,5 +90,3 @@ class InitialStateIterator : public ComponentIterator {
 
 }  // namespace esphome::api
 #endif
-
-// test

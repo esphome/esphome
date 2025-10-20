@@ -229,5 +229,3 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
 #endif
 #endif
-
-// test

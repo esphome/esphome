@@ -97,5 +97,3 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace esphome::api
 #endif
-
-// test

@@ -744,5 +744,3 @@ class APIConnection final : public APIServerConnection {
 
 }  // namespace esphome::api
 #endif
-
-// test

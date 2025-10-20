@@ -75,5 +75,3 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
 
 }  // namespace esphome::api
 #endif  // USE_API_SERVICES
-
-// test

@@ -603,5 +603,3 @@ void noise_rand_bytes(void *output, size_t len) {
 }  // namespace esphome::api
 #endif  // USE_API_NOISE
 #endif  // USE_API
-
-// test

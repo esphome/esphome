@@ -279,5 +279,3 @@ class CustomAPIDevice {
 
 }  // namespace esphome::api
 #endif
-
-// test

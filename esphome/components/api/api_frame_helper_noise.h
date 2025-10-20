@@ -62,5 +62,3 @@ class APINoiseFrameHelper final : public APIFrameHelper {
 }  // namespace esphome::api
 #endif  // USE_API_NOISE
 #endif  // USE_API
-
-// test

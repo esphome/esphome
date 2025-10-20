@@ -28,5 +28,3 @@ class APINoiseContext {
 #endif  // USE_API_NOISE
 
 }  // namespace esphome::api
-
-// test

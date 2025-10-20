@@ -70,5 +70,3 @@ InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(clie
 
 }  // namespace esphome::api
 #endif
-
-// test

@@ -231,5 +231,3 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
 
 }  // namespace esphome::api
 #endif
-
-// test
