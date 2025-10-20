@@ -282,10 +282,8 @@ ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
 
 optional<float> ThrottleWithPriorityFilter::new_value(float value) {
   const uint32_t now = App.get_loop_component_start_time();
-  bool is_prioritized = this->value_matches_any(value);
-
   // Allow value through if: no previous input, time expired, or is prioritized
-  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || is_prioritized) {
+  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || this->value_matches_any(value)) {
     this->last_input_ = now;
     return value;
   }
