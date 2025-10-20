@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 
 from aioesphomeapi import ButtonInfo, EntityState, SensorState
 import pytest
@@ -100,7 +101,7 @@ async def test_sensor_filters_value_list(
         api_client_connected() as client,
     ):
         # Get entities and build key mapping
-        entities, services = await client.list_entities_services()
+        entities, _ = await client.list_entities_services()
         key_to_sensor = build_key_to_entity_mapping(
             entities,
             {
@@ -248,8 +249,6 @@ async def test_sensor_filters_value_list(
 
         # First value (1.0) + two NaN priority values
         # NaN values will be compared using math.isnan
-        import math
-
         assert len(sensor_values["throttle_priority_nan"]) == 3, (
             f"Test 7 failed: expected 3 values, got {len(sensor_values['throttle_priority_nan'])}"
         )
