@@ -273,6 +273,8 @@
 
 #ifdef USE_NRF52
 #define USE_NRF52_DFU
+#define USE_SOFTDEVICE_ID 7
+#define USE_SOFTDEVICE_VERSION 1
 #endif
 
 // Disabled feature flags

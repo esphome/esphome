@@ -61,6 +61,11 @@ from helpers import (
     root_path,
 )
 
+# Threshold for splitting clang-tidy jobs
+# For small PRs (< 65 files), use nosplit for faster CI
+# For large PRs (>= 65 files), use split for better parallelization
+CLANG_TIDY_SPLIT_THRESHOLD = 65
+
 
 class Platform(StrEnum):
     """Platform identifiers for memory impact analysis."""
@@ -78,11 +83,16 @@ MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core ch
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 
 # Platform preference order for memory impact analysis
-# Prefer newer platforms first as they represent the future of ESPHome
-# ESP8266 is most constrained but many new features don't support it
+# This order is used when no platform-specific hints are detected from filenames
+# Priority rationale:
+# 1. ESP32-C6 IDF - Newest platform, supports Thread/Zigbee
+# 2. ESP8266 Arduino - Most memory constrained (best for detecting memory impact),
+#                      fastest build times, most sensitive to code size changes
+# 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
+# 4-6. Other ESP32 variants - Less commonly used but still supported
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
-    Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained - best for impact analysis)
+    Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
     Platform.ESP32_IDF,  # ESP32 IDF platform (primary ESP32 platform, most representative)
     Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
@@ -210,6 +220,22 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
 
 
+def count_changed_cpp_files(branch: str | None = None) -> int:
+    """Count the number of changed C++ files.
+
+    This is used to determine whether to split clang-tidy jobs or run them as a single job.
+    For PRs with < 65 changed C++ files, running a single job is faster than splitting.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Number of changed C++ files.
+    """
+    files = changed_files(branch)
+    return sum(1 for file in files if file.endswith(CPP_FILE_EXTENSIONS))
+
+
 def should_run_clang_format(branch: str | None = None) -> bool:
     """Determine if clang-format should run based on changed files.
 
@@ -264,6 +290,91 @@ def _component_has_tests(component: str) -> bool:
     return bool(get_component_test_files(component))
 
 
+def _select_platform_by_preference(
+    platforms: list[Platform] | set[Platform],
+) -> Platform:
+    """Select the most preferred platform from a list/set based on MEMORY_IMPACT_PLATFORM_PREFERENCE.
+
+    Args:
+        platforms: List or set of platforms to choose from
+
+    Returns:
+        The most preferred platform (earliest in MEMORY_IMPACT_PLATFORM_PREFERENCE)
+    """
+    return min(platforms, key=MEMORY_IMPACT_PLATFORM_PREFERENCE.index)
+
+
+def _select_platform_by_count(
+    platform_counts: Counter[Platform],
+) -> Platform:
+    """Select platform by count, using MEMORY_IMPACT_PLATFORM_PREFERENCE as tiebreaker.
+
+    Args:
+        platform_counts: Counter mapping platforms to their counts
+
+    Returns:
+        Platform with highest count, breaking ties by preference order
+    """
+    return min(
+        platform_counts.keys(),
+        key=lambda p: (
+            -platform_counts[p],  # Negative to prefer higher counts
+            MEMORY_IMPACT_PLATFORM_PREFERENCE.index(p),
+        ),
+    )
+
+
+def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
+    """Detect platform hint from filename patterns.
+
+    Detects platform-specific files using patterns like:
+    - wifi_component_esp_idf.cpp, *_idf.h -> ESP32 IDF variants
+    - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
+    - *_esp32*.cpp -> ESP32 IDF (generic)
+    - *_libretiny.cpp, *_retiny.* -> LibreTiny (not in preference list)
+    - *_pico.cpp, *_rp2040.* -> RP2040 (not in preference list)
+
+    Args:
+        filename: File path to check
+
+    Returns:
+        Platform enum if a specific platform is detected, None otherwise
+    """
+    filename_lower = filename.lower()
+
+    # ESP-IDF platforms (check specific variants first)
+    if "esp_idf" in filename_lower or "_idf" in filename_lower:
+        # Check for specific ESP32 variants
+        if "c6" in filename_lower or "esp32c6" in filename_lower:
+            return Platform.ESP32_C6_IDF
+        if "c3" in filename_lower or "esp32c3" in filename_lower:
+            return Platform.ESP32_C3_IDF
+        if "s2" in filename_lower or "esp32s2" in filename_lower:
+            return Platform.ESP32_S2_IDF
+        if "s3" in filename_lower or "esp32s3" in filename_lower:
+            return Platform.ESP32_S3_IDF
+        # Default to ESP32 IDF for generic esp_idf files
+        return Platform.ESP32_IDF
+
+    # ESP8266 Arduino
+    if "esp8266" in filename_lower:
+        return Platform.ESP8266_ARD
+
+    # Generic ESP32 (without _idf suffix, could be Arduino or shared code)
+    # Prefer IDF as it's the modern platform
+    if "esp32" in filename_lower:
+        return Platform.ESP32_IDF
+
+    # LibreTiny and RP2040 are not in MEMORY_IMPACT_PLATFORM_PREFERENCE
+    # so we don't return them as hints
+    # if "retiny" in filename_lower or "libretiny" in filename_lower:
+    #     return None  # No specific LibreTiny platform preference
+    # if "pico" in filename_lower or "rp2040" in filename_lower:
+    #     return None  # No RP2040 platform preference
+
+    return None
+
+
 def detect_memory_impact_config(
     branch: str | None = None,
 ) -> dict[str, Any]:
@@ -272,6 +383,12 @@ def detect_memory_impact_config(
     Always runs memory impact analysis when there are changed components,
     building a merged configuration with all changed components (like
     test_build_components.py does) to get comprehensive memory analysis.
+
+    When platform-specific files are detected (e.g., wifi_component_esp_idf.cpp),
+    prefers that platform for testing to ensure the most relevant memory analysis.
+
+    For core C++ file changes without component changes, runs a fallback
+    analysis using a representative component to measure the impact.
 
     Args:
         branch: Branch to compare against
@@ -288,8 +405,10 @@ def detect_memory_impact_config(
     files = changed_files(branch)
 
     # Find all changed components (excluding core and base bus components)
+    # Also collect platform hints from platform-specific filenames
     changed_component_set: set[str] = set()
-    has_core_changes = False
+    has_core_cpp_changes = False
+    platform_hints: list[Platform] = []
 
     for file in files:
         component = get_component_from_path(file)
@@ -297,22 +416,27 @@ def detect_memory_impact_config(
             # Skip base bus components as they're used across many builds
             if component not in BASE_BUS_COMPONENTS:
                 changed_component_set.add(component)
-        elif file.startswith("esphome/"):
-            # Core ESPHome files changed (not component-specific)
-            has_core_changes = True
+                # Check if this is a platform-specific file
+                platform_hint = _detect_platform_hint_from_filename(file)
+                if platform_hint:
+                    platform_hints.append(platform_hint)
+        elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
+            # Core ESPHome C++ files changed (not component-specific)
+            # Only C++ files affect memory usage
+            has_core_cpp_changes = True
 
-    # If no components changed but core changed, test representative component
+    # If no components changed but core C++ changed, test representative component
     force_fallback_platform = False
-    if not changed_component_set and has_core_changes:
+    if not changed_component_set and has_core_cpp_changes:
         print(
-            f"Memory impact: No components changed, but core files changed. "
+            f"Memory impact: No components changed, but core C++ files changed. "
             f"Testing {MEMORY_IMPACT_FALLBACK_COMPONENT} component on {MEMORY_IMPACT_FALLBACK_PLATFORM}.",
             file=sys.stderr,
         )
         changed_component_set.add(MEMORY_IMPACT_FALLBACK_COMPONENT)
         force_fallback_platform = True  # Use fallback platform (most representative)
     elif not changed_component_set:
-        # No components and no core changes
+        # No components and no core C++ changes
         return {"should_run": "false"}
 
     # Find components that have tests and collect their supported platforms
@@ -352,27 +476,42 @@ def detect_memory_impact_config(
         common_platforms &= platforms
 
     # Select the most preferred platform from the common set
-    # Exception: for core changes, use fallback platform (most representative of codebase)
-    if force_fallback_platform:
+    # Priority order:
+    # 1. Platform hints from filenames (e.g., wifi_component_esp_idf.cpp suggests ESP32_IDF)
+    # 2. Core changes use fallback platform (most representative of codebase)
+    # 3. Common platforms supported by all components
+    # 4. Most commonly supported platform
+    if platform_hints:
+        # Use most common platform hint that's also supported by all components
+        hint_counts = Counter(platform_hints)
+        # Filter to only hints that are in common_platforms (if any common platforms exist)
+        valid_hints = (
+            [h for h in hint_counts if h in common_platforms]
+            if common_platforms
+            else list(hint_counts.keys())
+        )
+        if valid_hints:
+            platform = _select_platform_by_count(
+                Counter({p: hint_counts[p] for p in valid_hints})
+            )
+        elif common_platforms:
+            # Hints exist but none match common platforms, use common platform logic
+            platform = _select_platform_by_preference(common_platforms)
+        else:
+            # Use the most common hint even if it's not in common platforms
+            platform = _select_platform_by_count(hint_counts)
+    elif force_fallback_platform:
         platform = MEMORY_IMPACT_FALLBACK_PLATFORM
     elif common_platforms:
         # Pick the most preferred platform that all components support
-        platform = min(common_platforms, key=MEMORY_IMPACT_PLATFORM_PREFERENCE.index)
+        platform = _select_platform_by_preference(common_platforms)
     else:
         # No common platform - pick the most commonly supported platform
-        # This allows testing components individually even if they can't be merged
         # Count how many components support each platform
         platform_counts = Counter(
             p for platforms in component_platforms_map.values() for p in platforms
         )
-        # Pick the platform supported by most components, preferring earlier in MEMORY_IMPACT_PLATFORM_PREFERENCE
-        platform = max(
-            platform_counts.keys(),
-            key=lambda p: (
-                platform_counts[p],
-                -MEMORY_IMPACT_PLATFORM_PREFERENCE.index(p),
-            ),
-        )
+        platform = _select_platform_by_count(platform_counts)
 
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
@@ -382,6 +521,7 @@ def detect_memory_impact_config(
         f"  Component platforms: {dict(sorted(component_platforms_map.items()))}",
         file=sys.stderr,
     )
+    print(f"  Platform hints from filenames: {platform_hints}", file=sys.stderr)
     print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
     print(f"  Selected platform: {platform}", file=sys.stderr)
 
@@ -408,6 +548,7 @@ def main() -> None:
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
+    changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get both directly changed and all changed components (with dependencies) in one call
     script_path = Path(__file__).parent / "list-components.py"
@@ -445,10 +586,19 @@ def main() -> None:
     # Detect components for memory impact analysis (merged config)
     memory_impact = detect_memory_impact_config(args.branch)
 
+    if run_clang_tidy:
+        if changed_cpp_file_count < CLANG_TIDY_SPLIT_THRESHOLD:
+            clang_tidy_mode = "nosplit"
+        else:
+            clang_tidy_mode = "split"
+    else:
+        clang_tidy_mode = "disabled"
+
     # Build output
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
+        "clang_tidy_mode": clang_tidy_mode,
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
         "changed_components": changed_components,
@@ -458,6 +608,7 @@ def main() -> None:
         "component_test_count": len(changed_components_with_tests),
         "directly_changed_count": len(directly_changed_with_tests),
         "dependency_only_count": len(dependency_only_components),
+        "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
     }
 
