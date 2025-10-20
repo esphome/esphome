@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_honeywell_hih
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: honeywell_hih_i2c
+    i2c_id: i2c_bus
     temperature:
       name: Temperature
     humidity:

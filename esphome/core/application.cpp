@@ -340,8 +340,8 @@ void Application::calculate_looping_components_() {
     }
   }
 
-  // Pre-reserve vector to avoid reallocations
-  this->looping_components_.reserve(total_looping);
+  // Initialize FixedVector with exact size - no reallocation possible
+  this->looping_components_.init(total_looping);
 
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
