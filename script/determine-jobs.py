@@ -366,6 +366,9 @@ def detect_memory_impact_config(
     When platform-specific files are detected (e.g., wifi_component_esp_idf.cpp),
     prefers that platform for testing to ensure the most relevant memory analysis.
 
+    For core C++ file changes without component changes, runs a fallback
+    analysis using a representative component to measure the impact.
+
     Args:
         branch: Branch to compare against
 
@@ -383,7 +386,7 @@ def detect_memory_impact_config(
     # Find all changed components (excluding core and base bus components)
     # Also collect platform hints from platform-specific filenames
     changed_component_set: set[str] = set()
-    has_core_changes = False
+    has_core_cpp_changes = False
     platform_hints: list[Platform] = []
 
     for file in files:
@@ -396,22 +399,23 @@ def detect_memory_impact_config(
                 platform_hint = _detect_platform_hint_from_filename(file)
                 if platform_hint:
                     platform_hints.append(platform_hint)
-        elif file.startswith("esphome/"):
-            # Core ESPHome files changed (not component-specific)
-            has_core_changes = True
+        elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
+            # Core ESPHome C++ files changed (not component-specific)
+            # Only C++ files affect memory usage
+            has_core_cpp_changes = True
 
-    # If no components changed but core changed, test representative component
+    # If no components changed but core C++ changed, test representative component
     force_fallback_platform = False
-    if not changed_component_set and has_core_changes:
+    if not changed_component_set and has_core_cpp_changes:
         print(
-            f"Memory impact: No components changed, but core files changed. "
+            f"Memory impact: No components changed, but core C++ files changed. "
             f"Testing {MEMORY_IMPACT_FALLBACK_COMPONENT} component on {MEMORY_IMPACT_FALLBACK_PLATFORM}.",
             file=sys.stderr,
         )
         changed_component_set.add(MEMORY_IMPACT_FALLBACK_COMPONENT)
         force_fallback_platform = True  # Use fallback platform (most representative)
     elif not changed_component_set:
-        # No components and no core changes
+        # No components and no core C++ changes
         return {"should_run": "false"}
 
     # Find components that have tests and collect their supported platforms
