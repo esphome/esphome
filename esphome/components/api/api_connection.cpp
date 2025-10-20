@@ -1886,3 +1886,5 @@ void APIConnection::log_warning_(const LogString *message, APIError err) {
 
 }  // namespace esphome::api
 #endif
+
+// test

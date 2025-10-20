@@ -555,3 +555,5 @@ bool APIServer::teardown() {
 
 }  // namespace esphome::api
 #endif
+
+// test

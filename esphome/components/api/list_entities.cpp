@@ -91,3 +91,5 @@ bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
 
 }  // namespace esphome::api
 #endif
+
+// test

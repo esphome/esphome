@@ -94,3 +94,5 @@ const LogString *Logger::get_uart_selection_() {
 }  // namespace esphome::logger
 
 #endif
+
+// test

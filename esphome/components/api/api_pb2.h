@@ -3028,3 +3028,5 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
 #endif
 
 }  // namespace esphome::api
+
+// test

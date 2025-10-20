@@ -201,3 +201,5 @@ class APIFrameHelper {
 }  // namespace esphome::api
 
 #endif  // USE_API
+
+// test

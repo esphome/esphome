@@ -2195,3 +2195,5 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
 }  // namespace esphome::api
 
 #endif  // HAS_PROTO_MESSAGE_DUMP
+
+// test

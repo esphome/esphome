@@ -65,3 +65,5 @@ class TaskLogBuffer {
 }  // namespace esphome::logger
 
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
+
+// test

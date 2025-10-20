@@ -32,3 +32,5 @@ namespace esphome::api {
 // This file only provides includes, no actual code
 
 }  // namespace esphome::api
+
+// test

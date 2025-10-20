@@ -469,3 +469,5 @@ class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>
 };
 
 }  // namespace esphome::logger
+
+// test

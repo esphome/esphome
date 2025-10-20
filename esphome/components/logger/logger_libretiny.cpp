@@ -68,3 +68,5 @@ const LogString *Logger::get_uart_selection_() {
 }  // namespace esphome::logger
 
 #endif  // USE_LIBRETINY
+
+// test

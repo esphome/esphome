@@ -20,3 +20,5 @@ void Logger::pre_setup() { global_logger = this; }
 }  // namespace esphome::logger
 
 #endif
+
+// test

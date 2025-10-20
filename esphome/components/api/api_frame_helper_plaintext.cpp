@@ -292,3 +292,5 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
 }  // namespace esphome::api
 #endif  // USE_API_PLAINTEXT
 #endif  // USE_API
+
+// test

@@ -855,3 +855,5 @@ void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, uin
 }
 
 }  // namespace esphome::api
+
+// test

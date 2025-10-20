@@ -40,3 +40,5 @@ template<> enums::ServiceArgType to_service_arg_type<std::vector<std::string>>()
 }
 
 }  // namespace esphome::api
+
+// test

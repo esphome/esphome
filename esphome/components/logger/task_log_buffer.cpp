@@ -134,3 +134,5 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 }  // namespace esphome::logger
 
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
+
+// test

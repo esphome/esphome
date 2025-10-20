@@ -294,3 +294,5 @@ void Logger::set_log_level(uint8_t level) {
 Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::logger
+
+// test

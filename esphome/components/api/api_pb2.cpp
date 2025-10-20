@@ -3205,3 +3205,5 @@ void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
 #endif
 
 }  // namespace esphome::api
+
+// test
