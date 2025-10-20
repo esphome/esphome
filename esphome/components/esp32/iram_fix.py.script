@@ -4,6 +4,9 @@ import re
 # pylint: disable=E0602
 Import("env")  # noqa
 
+# IRAM size for testing mode (2MB - large enough to accommodate grouped tests)
+TESTING_IRAM_SIZE = 0x200000
+
 
 def patch_idf_linker_script(source, target, env):
     """Patch ESP-IDF linker script to increase IRAM size for testing mode."""
@@ -27,7 +30,7 @@ def patch_idf_linker_script(source, target, env):
     try:
         with open(memory_ld, "r") as f:
             content = f.read()
-    except Exception as e:
+    except OSError as e:
         print(f"ESPHome: Error reading linker script: {e}")
         return
 
@@ -37,18 +40,28 @@ def patch_idf_linker_script(source, target, env):
         return
 
     # Look for iram0_0_seg definition and increase its length
-    # ESP-IDF format:  iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
-    # We want to change len to 0x200000 (2MB) for testing
-    updated = re.sub(
-        r'(iram0_0_seg\s*\([^)]*\)\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+(\s*\+\s*0x[0-9a-fA-F]+)?',
-        r'\g<1>0x200000',  # 2MB
-        content
-    )
+    # ESP-IDF format can be:
+    #   iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
+    # or more complex with nested parentheses:
+    #   iram0_0_seg (RX) : org = (0x40370000 + 0x4000), len = (((0x403CB700 - (0x40378000 - 0x3FC88000)) - 0x3FC88000) + 0x8000 - 0x4000)
+    # We want to change len to TESTING_IRAM_SIZE for testing
+
+    # Use a more robust approach: find the line and manually parse it
+    lines = content.split('\n')
+    for i, line in enumerate(lines):
+        if 'iram0_0_seg' in line and 'len' in line:
+            # Find the position of "len = " and replace everything after it until the end of the statement
+            match = re.search(r'(iram0_0_seg\s*\([^)]*\)\s*:\s*org\s*=\s*(?:\([^)]+\)|0x[0-9a-fA-F]+)\s*,\s*len\s*=\s*)(.+?)(\s*)$', line)
+            if match:
+                lines[i] = f"{match.group(1)}{TESTING_IRAM_SIZE:#x}{match.group(3)}"
+                break
+
+    updated = '\n'.join(lines)
 
     if updated != content:
         with open(memory_ld, "w") as f:
             f.write(updated)
-        print(f"ESPHome: Patched IRAM size to 2MB in {memory_ld} for testing mode")
+        print(f"ESPHome: Patched IRAM size to {TESTING_IRAM_SIZE:#x} in {memory_ld} for testing mode")
     else:
         print(f"ESPHome: Warning - could not patch iram0_0_seg in {memory_ld}")
 
