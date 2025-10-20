@@ -91,9 +91,9 @@ bool ESP32Can::setup_internal() {
     // advanced bit rate settings (only one of quanta or brp needs to be provided, and we provide the brp)
     t_config = (twai_timing_config_t) {.clk_src = TWAI_CLK_SRC_DEFAULT,
                                        .quanta_resolution_hz = 0,
-                                       .brp = (uint32_t)this->brp_,
-                                       .tseg_1 = (uint8_t)this->tseg1_,
-                                       .tseg_2 = (uint8_t)this->tseg2_,
+                                       .brp = (uint32_t) this->brp_,
+                                       .tseg_1 = (uint8_t) this->tseg1_,
+                                       .tseg_2 = (uint8_t) this->tseg2_,
                                        .sjw = 3,
                                        .triple_sampling = false};
   } else if (!get_bitrate(this->bit_rate_, &t_config)) {
