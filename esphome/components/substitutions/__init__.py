@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
 
-from .jinja import Jinja, JinjaStr, TemplateError, TemplateRuntimeError, has_jinja
+from .jinja import Jinja, JinjaError, JinjaStr, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
@@ -57,17 +57,12 @@ def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
                     "->".join(str(x) for x in path),
                     err.message,
                 )
-        except (
-            TemplateError,
-            TemplateRuntimeError,
-            RuntimeError,
-            ArithmeticError,
-            AttributeError,
-            TypeError,
-        ) as err:
+        except JinjaError as err:
             raise cv.Invalid(
-                f"{type(err).__name__} Error evaluating jinja expression '{value}': {str(err)}."
-                f" See {'->'.join(str(x) for x in path)}",
+                f"{err.error_name()} Error evaluating jinja expression '{value}': {str(err.parent())}."
+                f"\nEvaluation stack: (most recent evaluation last)\n{err.stack_trace_str()}"
+                f"\nRelevant context:\n{err.context_trace_str()}"
+                f"\nSee {'->'.join(str(x) for x in path)}",
                 path,
             )
     return value
