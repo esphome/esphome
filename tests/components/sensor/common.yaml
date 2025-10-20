@@ -99,3 +99,77 @@ sensor:
           window_size: 10
           send_every: 10
           send_first_at: 1  # Send after first value
+
+  # ValueListFilter-based filters tests
+  # FilterOutValueFilter - single value
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out Single Value"
+    filters:
+      - filter_out: 42.0  # Should filter out exactly 42.0
+
+  # FilterOutValueFilter - multiple values
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out Multiple Values"
+    filters:
+      - filter_out: [0.0, 42.0, 100.0]  # List of values to filter
+
+  # FilterOutValueFilter - with NaN
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out NaN"
+    filters:
+      - filter_out: nan  # Filter out NaN values
+
+  # FilterOutValueFilter - mixed values with NaN
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out Mixed with NaN"
+    filters:
+      - filter_out: [nan, 0.0, 42.0]
+
+  # ThrottleWithPriorityFilter - single priority value
+  - platform: copy
+    source_id: source_sensor
+    name: "Throttle with Single Priority"
+    filters:
+      - throttle_with_priority:
+          timeout: 1000ms
+          value: 42.0  # Priority value bypasses throttle
+
+  # ThrottleWithPriorityFilter - multiple priority values
+  - platform: copy
+    source_id: source_sensor
+    name: "Throttle with Multiple Priorities"
+    filters:
+      - throttle_with_priority:
+          timeout: 500ms
+          value: [0.0, 42.0, 100.0]  # Multiple priority values
+
+  # ThrottleWithPriorityFilter - with NaN priority
+  - platform: copy
+    source_id: source_sensor
+    name: "Throttle with NaN Priority"
+    filters:
+      - throttle_with_priority:
+          timeout: 1000ms
+          value: nan  # NaN as priority value
+
+  # Combined filters - FilterOutValueFilter + other filters
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out Then Throttle"
+    filters:
+      - filter_out: [0.0, 100.0]
+      - throttle: 500ms
+
+  # Combined filters - ThrottleWithPriorityFilter + other filters
+  - platform: copy
+    source_id: source_sensor
+    name: "Throttle Priority Then Scale"
+    filters:
+      - throttle_with_priority:
+          timeout: 1000ms
+          value: [42.0]
+      - multiply: 2.0
