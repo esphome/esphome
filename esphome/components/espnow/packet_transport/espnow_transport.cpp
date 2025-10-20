@@ -25,10 +25,10 @@ void ESPNowTransport::setup() {
   ESP_LOGI(TAG, "Peer address: %02X:%02X:%02X:%02X:%02X:%02X", this->peer_address_[0], this->peer_address_[1],
            this->peer_address_[2], this->peer_address_[3], this->peer_address_[4], this->peer_address_[5]);
 
-  // Register this transport as an ESP-NOW handler
+  // Register received handler
   this->parent_->register_received_handler(static_cast<ESPNowReceivedPacketHandler *>(this));
 
-  // Register broadcast handler if peer is broadcast address
+  // Register broadcasted handler
   this->parent_->register_broadcasted_handler(static_cast<ESPNowBroadcastedHandler *>(this));
 }
 
