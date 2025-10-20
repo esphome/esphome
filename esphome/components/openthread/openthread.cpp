@@ -36,18 +36,12 @@ void OpenThreadComponent::dump_config() {
 #elif CONFIG_OPENTHREAD_MTD
   ESP_LOGCONFIG(TAG, "  Device Type: MTD");
   // TBD: Synchronized Sleepy End Device
-#if defined(USE_DEEP_SLEEP) || defined(USE_LIGHT_SLEEP) || defined(USE_POWER_MANAGEMENT)
-  ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
-#else
   if (this->poll_period > 0) {
     ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
-  }
-#endif
-  if (this->poll_period > 0) {
     uint32_t duration = this->poll_period / 1000;
     ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
   }
 #endif
 }

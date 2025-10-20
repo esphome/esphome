@@ -118,11 +118,7 @@ void OpenThreadComponent::ot_main() {
     uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
     ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
   }
-#if defined(USE_DEEP_SLEEP) || defined(USE_LIGHT_SLEEP) || defined(USE_POWER_MANAGEMENT)
-  link_mode_config.mRxOnWhenIdle = false;
-#else
   link_mode_config.mRxOnWhenIdle = this->poll_period == 0;
-#endif
   link_mode_config.mDeviceType = false;
   link_mode_config.mNetworkData = false;
 #endif
