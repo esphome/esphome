@@ -2,10 +2,12 @@
 
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace improv_base {
 
+#if defined(USE_ESP32_IMPROV_NEXT_URL) || defined(USE_IMPROV_SERIAL_NEXT_URL)
 std::string ImprovBase::get_formatted_next_url_() {
   if (this->next_url_.empty()) {
     return "";
@@ -41,6 +43,7 @@ std::string ImprovBase::get_formatted_next_url_() {
 
   return formatted_url;
 }
+#endif
 
 }  // namespace improv_base
 }  // namespace esphome

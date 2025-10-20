@@ -386,11 +386,13 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 
     std::vector<std::string> urls;
 
+#ifdef USE_ESP32_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
     std::string next_url = this->get_formatted_next_url_();
     if (!next_url.empty()) {
       urls.push_back(next_url);
     }
+#endif
 
     // Add default URLs for backward compatibility
     urls.emplace_back(ESPHOME_MY_LINK);
