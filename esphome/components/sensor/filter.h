@@ -328,7 +328,7 @@ class ValueListFilter : public Filter {
   explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
-  bool value_matches_any(float sensor_value);
+  bool value_matches_any_(float sensor_value);
 
   FixedVector<TemplatableValue<float>> values_;
 };

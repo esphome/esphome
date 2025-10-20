@@ -231,7 +231,7 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 // ValueListFilter (base class)
 ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
 
-bool ValueListFilter::value_matches_any(float sensor_value) {
+bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = powf(10.0f, accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
@@ -259,7 +259,7 @@ FilterOutValueFilter::FilterOutValueFilter(std::initializer_list<TemplatableValu
     : ValueListFilter(values_to_filter_out) {}
 
 optional<float> FilterOutValueFilter::new_value(float value) {
-  if (this->value_matches_any(value))
+  if (this->value_matches_any_(value))
     return {};   // Filter out
   return value;  // Pass through
 }
@@ -283,7 +283,8 @@ ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
 optional<float> ThrottleWithPriorityFilter::new_value(float value) {
   const uint32_t now = App.get_loop_component_start_time();
   // Allow value through if: no previous input, time expired, or is prioritized
-  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || this->value_matches_any(value)) {
+  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ ||
+      this->value_matches_any_(value)) {
     this->last_input_ = now;
     return value;
   }
