@@ -62,6 +62,40 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Special non-component keys that appear in configs
+_NON_COMPONENT_KEYS = frozenset(
+    {
+        CONF_ESPHOME,
+        "substitutions",
+        "packages",
+        "globals",
+        "external_components",
+        "<<",
+    }
+)
+
+
+def detect_external_components(config: ConfigType) -> set[str]:
+    """Detect external/custom components in the configuration.
+
+    External components are those that appear in the config but are not
+    part of ESPHome's built-in components and are not special config keys.
+
+    Args:
+        config: The ESPHome configuration dictionary
+
+    Returns:
+        A set of external component names
+    """
+    from esphome.analyze_memory.helpers import get_esphome_components
+
+    builtin_components = get_esphome_components()
+    return {
+        key
+        for key in config
+        if key not in builtin_components and key not in _NON_COMPONENT_KEYS
+    }
+
 
 class ArgsProtocol(Protocol):
     device: list[str] | None
@@ -892,6 +926,54 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
+def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
+    """Analyze memory usage by component.
+
+    This command compiles the configuration and performs memory analysis.
+    Compilation is fast if sources haven't changed (just relinking).
+    """
+    from esphome import platformio_api
+    from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+
+    # Always compile to ensure fresh data (fast if no changes - just relinks)
+    exit_code = write_cpp(config)
+    if exit_code != 0:
+        return exit_code
+    exit_code = compile_program(args, config)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info("Successfully compiled program.")
+
+    # Get idedata for analysis
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        _LOGGER.error("Failed to get IDE data for memory analysis")
+        return 1
+
+    firmware_elf = Path(idedata.firmware_elf_path)
+
+    # Extract external components from config
+    external_components = detect_external_components(config)
+    _LOGGER.debug("Detected external components: %s", external_components)
+
+    # Perform memory analysis
+    _LOGGER.info("Analyzing memory usage...")
+    analyzer = MemoryAnalyzerCLI(
+        str(firmware_elf),
+        idedata.objdump_path,
+        idedata.readelf_path,
+        external_components,
+    )
+    analyzer.analyze()
+
+    # Generate and display report
+    report = analyzer.generate_report()
+    print()
+    print(report)
+
+    return 0
+
+
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
@@ -1007,6 +1089,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
+    "analyze-memory": command_analyze_memory,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1291,6 +1374,14 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs=1
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
+
+    parser_analyze_memory = subparsers.add_parser(
+        "analyze-memory",
+        help="Analyze memory usage by component.",
+    )
+    parser_analyze_memory.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
