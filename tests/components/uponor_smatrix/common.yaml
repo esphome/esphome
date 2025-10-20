@@ -11,18 +11,17 @@ time:
       - 192.168.178.1
 
 uponor_smatrix:
-  address: 0x110B
   time_id: sntp_time
-  time_device_address: 0xDE13
+  time_device_address: 0x110BDE13
 
 climate:
   - platform: uponor_smatrix
-    address: 0xDE13
+    address: 0x110BDE13
     name: Thermostat Living Room
 
 sensor:
   - platform: uponor_smatrix
-    address: 0xDE13
+    address: 0x110BDE13
     humidity:
       name: Thermostat Humidity Living Room
     temperature:

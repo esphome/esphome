@@ -77,7 +77,7 @@ void AirConditioner::control(const ClimateCall &call) {
 
 ClimateTraits AirConditioner::traits() {
   auto traits = ClimateTraits();
-  traits.set_supports_current_temperature(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   traits.set_visual_min_temperature(17);
   traits.set_visual_max_temperature(30);
   traits.set_visual_temperature_step(0.5);
