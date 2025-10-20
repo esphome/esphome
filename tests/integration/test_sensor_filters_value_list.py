@@ -100,7 +100,7 @@ async def test_sensor_filters_value_list(
         api_client_connected() as client,
     ):
         # Get entities and build key mapping
-        entities, services = await client.list_entities_services()
+        entities, _ = await client.list_entities_services()
         key_to_sensor = build_key_to_entity_mapping(
             entities,
             {
