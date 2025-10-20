@@ -904,7 +904,7 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
-def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int | None:
+def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     """Analyze memory usage by component.
 
     This command compiles the configuration and performs memory analysis.
