@@ -484,5 +484,3 @@ class APIServerConnection : public APIServerConnectionBase {
 };
 
 }  // namespace esphome::api
-
-// test
