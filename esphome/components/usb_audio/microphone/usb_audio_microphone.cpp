@@ -6,6 +6,10 @@
 
 #include "esphome/core/log.h"
 
+extern "C" {
+#include "esp_err.h"
+}
+
 namespace esphome {
 namespace usb_audio {
 

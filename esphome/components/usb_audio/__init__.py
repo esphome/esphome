@@ -54,18 +54,6 @@ def _ensure_buffer_size(value: int) -> int:
 async def to_code(config):
     esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.3.1")
 
-    variant = esp32.get_esp32_variant()
-    if variant == esp32.const.VARIANT_ESP32P4:
-        # use a locally vendored usb_stream copy because upstream packages do not yet declare esp32p4 support
-        component_dir = __file__.replace("\\", "/").rsplit("/", 1)[0]
-        component_dir = f"{component_dir}/external/usb_stream"
-        esp32.add_idf_component(
-            name="espressif/usb_stream",
-            path=component_dir,
-        )
-    else:
-        esp32.add_idf_component(name="espressif/usb_stream", ref="1.5.1")
-
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

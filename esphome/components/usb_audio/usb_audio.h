@@ -9,7 +9,11 @@
 #include "esphome/core/helpers.h"
 
 extern "C" {
-#include "usb_stream.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+#include "usb/usb_host.h"
+#include "usb/uac_host.h"
 }
 
 namespace esphome {
@@ -18,11 +22,30 @@ namespace usb_audio {
 static constexpr uint32_t USB_AUDIO_DEFAULT_BUFFER_SIZE = 6400;
 
 struct AudioEndpointConfig {
-  uint8_t channels{UAC_CH_ANY};
-  uint16_t bits_per_sample{UAC_BITS_ANY};
-  uint32_t sample_rate{UAC_FREQUENCY_ANY};
+  uint8_t channels{0};
+  uint16_t bits_per_sample{0};
+  uint32_t sample_rate{0};
   uint32_t buffer_size{0};
   bool configured{false};
+};
+
+struct USBAudioEvent {
+  enum class Type : uint8_t {
+    DRIVER_TX_CONNECTED,
+    DRIVER_RX_CONNECTED,
+    DRIVER_DISCONNECTED,
+    DEVICE_EVENT,
+  };
+
+  Type type{Type::DEVICE_EVENT};
+  struct {
+    uint8_t addr{0};
+    uint8_t iface_num{0};
+  } driver{};
+  struct {
+    uac_host_device_handle_t handle{nullptr};
+    uac_host_device_event_t event{UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR};
+  } device{};
 };
 
 class USBAudioMicrophone;
@@ -32,8 +55,9 @@ class USBAudioComponent : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void loop() override {}
+  void loop() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
+  bool teardown() override;
 
   void set_connect_timeout(uint32_t timeout_ms) { this->connect_timeout_ms_ = timeout_ms; }
   void set_microphone_buffer_size(uint32_t size) { this->mic_config_.buffer_size = size; }
@@ -60,20 +84,45 @@ class USBAudioComponent : public Component {
   bool device_connected() const { return this->device_connected_; }
 
  protected:
-  void configure_streams_();
-  void handle_state_change_(usb_stream_state_t state);
+  USBAudioMicrophone *microphone_{nullptr};
+  USBAudioSpeaker *speaker_{nullptr};
 
-  static void state_callback_(usb_stream_state_t state, void *user_data);
+  void process_event_(const USBAudioEvent &event);
+  void handle_driver_event_(const USBAudioEvent &event);
+  void handle_driver_disconnect_(uint8_t addr, uint8_t iface_num);
+  void handle_device_event_(const USBAudioEvent &event);
+  bool open_stream_(const USBAudioEvent &event);
+  bool start_speaker_stream_();
+  bool start_microphone_stream_();
+  void handle_disconnect_(uac_host_device_handle_t handle);
+  void close_all_devices_();
+  bool is_ready_(const AudioEndpointConfig &config) const { return config.configured && config.buffer_size > 0; }
+
+  static void driver_event_stub_(uint8_t addr, uint8_t iface_num, const uac_host_driver_event_t event, void *user_data);
+  static void device_event_stub_(uac_host_device_handle_t handle, const uac_host_device_event_t event, void *user_data);
+  static void usb_host_task_stub_(void *param);
+  void usb_host_task_();
+
+  QueueHandle_t event_queue_{nullptr};
+  TaskHandle_t usb_host_task_handle_{nullptr};
+  bool host_task_running_{false};
+  bool host_installed_{false};
+  bool uac_installed_{false};
+  bool speaker_stream_started_{false};
+  bool microphone_stream_started_{false};
+  bool device_connected_{false};
+  uac_host_device_handle_t speaker_handle_{nullptr};
+  uac_host_device_handle_t microphone_handle_{nullptr};
+  uint8_t speaker_iface_{0};
+  uint8_t microphone_iface_{0};
+  uint8_t speaker_addr_{0};
+  uint8_t microphone_addr_{0};
 
   AudioEndpointConfig mic_config_{};
   AudioEndpointConfig speaker_config_{};
 
-  USBAudioMicrophone *microphone_{nullptr};
-  USBAudioSpeaker *speaker_{nullptr};
-
-  bool stream_started_{false};
-  bool device_connected_{false};
   uint32_t connect_timeout_ms_{5000};
+  bool teardown_initiated_{false};
 };
 
 }  // namespace usb_audio

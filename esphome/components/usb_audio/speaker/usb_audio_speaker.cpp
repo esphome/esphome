@@ -97,20 +97,19 @@ bool USBAudioSpeaker::has_buffered_data() const {
 
 void USBAudioSpeaker::set_volume(float volume) {
   speaker::Speaker::set_volume(volume);
-  const int level = clamp<int>(static_cast<int>(volume * 100.0f), 0, 100);
-  void *value = reinterpret_cast<void *>(static_cast<uintptr_t>(level));
-  esp_err_t err = usb_streaming_control(STREAM_UAC_SPK, CTRL_UAC_VOLUME, value);
-  if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED) {
-    ESP_LOGW(TAG_SPK, "Failed to set volume: %s", esp_err_to_name(err));
+  static bool warned = false;
+  if (!warned) {
+    ESP_LOGW(TAG_SPK, "Volume control is not supported with usb_host_uac driver");
+    warned = true;
   }
 }
 
 void USBAudioSpeaker::set_mute_state(bool mute_state) {
   speaker::Speaker::set_mute_state(mute_state);
-  void *value = mute_state ? reinterpret_cast<void *>(static_cast<uintptr_t>(1)) : nullptr;
-  esp_err_t err = usb_streaming_control(STREAM_UAC_SPK, CTRL_UAC_MUTE, value);
-  if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED) {
-    ESP_LOGW(TAG_SPK, "Failed to set mute state: %s", esp_err_to_name(err));
+  static bool warned = false;
+  if (!warned) {
+    ESP_LOGW(TAG_SPK, "Mute control is not supported with usb_host_uac driver");
+    warned = true;
   }
 }
 
