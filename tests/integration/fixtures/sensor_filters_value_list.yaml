@@ -1,0 +1,193 @@
+esphome:
+  name: test-value-list-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template sensor that we'll use to publish values
+sensor:
+  - platform: template
+    name: "Source Sensor"
+    id: source_sensor
+    accuracy_decimals: 1
+
+  # FilterOutValueFilter - single value
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out Single"
+    id: filter_out_single
+    filters:
+      - filter_out: 42.0
+
+  # FilterOutValueFilter - multiple values
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out Multiple"
+    id: filter_out_multiple
+    filters:
+      - filter_out: [0.0, 42.0, 100.0]
+
+  # FilterOutValueFilter - with NaN
+  - platform: copy
+    source_id: source_sensor
+    name: "Filter Out NaN"
+    id: filter_out_nan
+    filters:
+      - filter_out: nan
+
+  # ThrottleWithPriorityFilter - single priority value
+  - platform: copy
+    source_id: source_sensor
+    name: "Throttle Priority Single"
+    id: throttle_priority_single
+    filters:
+      - throttle_with_priority:
+          timeout: 200ms
+          value: 42.0
+
+  # ThrottleWithPriorityFilter - multiple priority values
+  - platform: copy
+    source_id: source_sensor
+    name: "Throttle Priority Multiple"
+    id: throttle_priority_multiple
+    filters:
+      - throttle_with_priority:
+          timeout: 200ms
+          value: [0.0, 42.0, 100.0]
+
+# Script to test FilterOutValueFilter
+script:
+  - id: test_filter_out_single
+    then:
+      # Should pass through: 1.0, 2.0, 3.0
+      # Should filter out: 42.0
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 42.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 42.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 3.0
+
+  - id: test_filter_out_multiple
+    then:
+      # Should filter out: 0.0, 42.0, 100.0
+      # Should pass through: 1.0, 2.0, 50.0
+      - sensor.template.publish:
+          id: source_sensor
+          state: 0.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 42.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 100.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 50.0
+
+  - id: test_throttle_priority_single
+    then:
+      # 42.0 bypasses throttle, other values are throttled
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0  # First value - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 42.0  # Priority - passes immediately
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 3.0  # Throttled
+      - delay: 250ms  # Wait for throttle to expire
+      - sensor.template.publish:
+          id: source_sensor
+          state: 4.0  # Passes after timeout
+
+  - id: test_throttle_priority_multiple
+    then:
+      # 0.0, 42.0, 100.0 bypass throttle
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0  # First value - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 0.0  # Priority - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 3.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 42.0  # Priority - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 4.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 100.0  # Priority - passes
+
+# Buttons to trigger each test
+button:
+  - platform: template
+    name: "Test Filter Out Single"
+    id: btn_filter_out_single
+    on_press:
+      - script.execute: test_filter_out_single
+
+  - platform: template
+    name: "Test Filter Out Multiple"
+    id: btn_filter_out_multiple
+    on_press:
+      - script.execute: test_filter_out_multiple
+
+  - platform: template
+    name: "Test Throttle Priority Single"
+    id: btn_throttle_priority_single
+    on_press:
+      - script.execute: test_throttle_priority_single
+
+  - platform: template
+    name: "Test Throttle Priority Multiple"
+    id: btn_throttle_priority_multiple
+    on_press:
+      - script.execute: test_throttle_priority_multiple

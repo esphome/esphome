@@ -261,9 +261,12 @@ ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Com
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
-FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
+ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
+FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", ValueListFilter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
-ThrottleWithPriorityFilter = sensor_ns.class_("ThrottleWithPriorityFilter", Filter)
+ThrottleWithPriorityFilter = sensor_ns.class_(
+    "ThrottleWithPriorityFilter", ValueListFilter
+)
 TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
