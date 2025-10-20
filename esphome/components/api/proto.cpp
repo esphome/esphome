@@ -148,5 +148,3 @@ std::string ProtoMessage::dump() const {
 #endif
 
 }  // namespace esphome::api
-
-// test

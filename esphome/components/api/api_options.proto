@@ -81,5 +81,3 @@ extend google.protobuf.FieldOptions {
     //   generates: const light::ColorModeMask *supported_color_modes{};
     optional string container_pointer_no_template = 50014;
 }
-
-// test
