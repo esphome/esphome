@@ -200,7 +200,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
-            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
             cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
