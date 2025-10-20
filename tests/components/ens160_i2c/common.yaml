@@ -3,8 +3,11 @@ sensor:
     i2c_id: i2c_bus
     address: 0x53
     eco2:
+      id: ens160_i2c_eco2
       name: "ENS160 eCO2"
     tvoc:
+      id: ens160_i2c_tvoc
       name: "ENS160 Total Volatile Organic Compounds"
     aqi:
+      id: ens160_i2c_aqi
       name: "ENS160 Air Quality Index"
