@@ -103,7 +103,7 @@ bool EPaperBase::is_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
-  return !this->busy_pin_->digital_read();
+  return this->busy_pin_->digital_read();
 }
 
 void EPaperBase::reset() {
