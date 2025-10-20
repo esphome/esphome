@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
-#include "climate_mode.h"
 #include <set>
+#include "climate_mode.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -21,91 +21,100 @@ namespace climate {
  *  - Target Temperature
  *
  * All other properties and modes are optional and the integration must mark
- * each of them as supported by setting the appropriate flag here.
+ * each of them as supported by setting the appropriate flag(s) here.
  *
- *  - supports current temperature - if the climate device supports reporting a current temperature
- *  - supports two point target temperature - if the climate device's target temperature should be
- *     split in target_temperature_low and target_temperature_high instead of just the single target_temperature
+ *  - feature flags: see ClimateFeatures enum in climate_mode.h
  *  - supports modes:
  *    - auto mode (automatic control)
  *    - cool mode (lowers current temperature)
  *    - heat mode (increases current temperature)
  *    - dry mode (removes humidity from air)
  *    - fan mode (only turns on fan)
- *  - supports action - if the climate device supports reporting the active
- *    current action of the device with the action property.
  *  - supports fan modes - optionally, if it has a fan which can be configured in different ways:
  *    - on, off, auto, high, medium, low, middle, focus, diffuse, quiet
  *  - supports swing modes - optionally, if it has a swing which can be configured in different ways:
  *    - off, both, vertical, horizontal
  *
  * This class also contains static data for the climate device display:
- *  - visual min/max temperature - tells the frontend what range of temperatures the climate device
- *     should display (gauge min/max values)
+ *  - visual min/max temperature/humidity - tells the frontend what range of temperature/humidity the
+ *     climate device should display (gauge min/max values)
  *  - temperature step - the step with which to increase/decrease target temperature.
  *     This also affects with how many decimal places the temperature is shown
  */
 class ClimateTraits {
  public:
-  bool get_supports_current_temperature() const { return this->supports_current_temperature_; }
+  /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
+  uint32_t get_feature_flags() const { return this->feature_flags_; }
+  void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
+  void clear_feature_flags(uint32_t feature_flags) { this->feature_flags_ &= ~feature_flags; }
+  bool has_feature_flags(uint32_t feature_flags) const { return this->feature_flags_ & feature_flags; }
+  void set_feature_flags(uint32_t feature_flags) { this->feature_flags_ = feature_flags; }
+
+  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
+  bool get_supports_current_temperature() const {
+    return this->has_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
+  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
   void set_supports_current_temperature(bool supports_current_temperature) {
-    this->supports_current_temperature_ = supports_current_temperature;
+    if (supports_current_temperature) {
+      this->add_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    } else {
+      this->clear_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    }
   }
-  bool get_supports_current_humidity() const { return this->supports_current_humidity_; }
+  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
+  bool get_supports_current_humidity() const { return this->has_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY); }
+  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
   void set_supports_current_humidity(bool supports_current_humidity) {
-    this->supports_current_humidity_ = supports_current_humidity;
+    if (supports_current_humidity) {
+      this->add_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+    } else {
+      this->clear_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+    }
   }
-  bool get_supports_two_point_target_temperature() const { return this->supports_two_point_target_temperature_; }
+  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
+  bool get_supports_two_point_target_temperature() const {
+    return this->has_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
+  }
+  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
   void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature) {
-    this->supports_two_point_target_temperature_ = supports_two_point_target_temperature;
+    if (supports_two_point_target_temperature)
+    // Use CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE to mimic previous behavior
+    {
+      this->add_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
+    } else {
+      this->clear_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
+    }
   }
-  bool get_supports_target_humidity() const { return this->supports_target_humidity_; }
+  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
+  bool get_supports_target_humidity() const { return this->has_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY); }
+  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
   void set_supports_target_humidity(bool supports_target_humidity) {
-    this->supports_target_humidity_ = supports_target_humidity;
+    if (supports_target_humidity) {
+      this->add_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY);
+    } else {
+      this->clear_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY);
+    }
   }
+  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
+  bool get_supports_action() const { return this->has_feature_flags(CLIMATE_SUPPORTS_ACTION); }
+  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
+  void set_supports_action(bool supports_action) {
+    if (supports_action) {
+      this->add_feature_flags(CLIMATE_SUPPORTS_ACTION);
+    } else {
+      this->clear_feature_flags(CLIMATE_SUPPORTS_ACTION);
+    }
+  }
+
   void set_supported_modes(std::set<ClimateMode> modes) { this->supported_modes_ = std::move(modes); }
   void add_supported_mode(ClimateMode mode) { this->supported_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
-  void set_supports_auto_mode(bool supports_auto_mode) { set_mode_support_(CLIMATE_MODE_AUTO, supports_auto_mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
-  void set_supports_cool_mode(bool supports_cool_mode) { set_mode_support_(CLIMATE_MODE_COOL, supports_cool_mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
-  void set_supports_heat_mode(bool supports_heat_mode) { set_mode_support_(CLIMATE_MODE_HEAT, supports_heat_mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
-  void set_supports_heat_cool_mode(bool supported) { set_mode_support_(CLIMATE_MODE_HEAT_COOL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
-  void set_supports_fan_only_mode(bool supports_fan_only_mode) {
-    set_mode_support_(CLIMATE_MODE_FAN_ONLY, supports_fan_only_mode);
-  }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
-  void set_supports_dry_mode(bool supports_dry_mode) { set_mode_support_(CLIMATE_MODE_DRY, supports_dry_mode); }
   bool supports_mode(ClimateMode mode) const { return this->supported_modes_.count(mode); }
   const std::set<ClimateMode> &get_supported_modes() const { return this->supported_modes_; }
-
-  void set_supports_action(bool supports_action) { this->supports_action_ = supports_action; }
-  bool get_supports_action() const { return this->supports_action_; }
 
   void set_supported_fan_modes(std::set<ClimateFanMode> modes) { this->supported_fan_modes_ = std::move(modes); }
   void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
   void add_supported_custom_fan_mode(const std::string &mode) { this->supported_custom_fan_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_on(bool supported) { set_fan_mode_support_(CLIMATE_FAN_ON, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_off(bool supported) { set_fan_mode_support_(CLIMATE_FAN_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_auto(bool supported) { set_fan_mode_support_(CLIMATE_FAN_AUTO, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_low(bool supported) { set_fan_mode_support_(CLIMATE_FAN_LOW, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_medium(bool supported) { set_fan_mode_support_(CLIMATE_FAN_MEDIUM, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_high(bool supported) { set_fan_mode_support_(CLIMATE_FAN_HIGH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_middle(bool supported) { set_fan_mode_support_(CLIMATE_FAN_MIDDLE, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_focus(bool supported) { set_fan_mode_support_(CLIMATE_FAN_FOCUS, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
-  void set_supports_fan_mode_diffuse(bool supported) { set_fan_mode_support_(CLIMATE_FAN_DIFFUSE, supported); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
     return !this->supported_fan_modes_.empty() || !this->supported_custom_fan_modes_.empty();
@@ -137,16 +146,6 @@ class ClimateTraits {
 
   void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { this->supported_swing_modes_ = std::move(modes); }
   void add_supported_swing_mode(ClimateSwingMode mode) { this->supported_swing_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
-  void set_supports_swing_mode_off(bool supported) { set_swing_mode_support_(CLIMATE_SWING_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
-  void set_supports_swing_mode_both(bool supported) { set_swing_mode_support_(CLIMATE_SWING_BOTH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
-  void set_supports_swing_mode_vertical(bool supported) { set_swing_mode_support_(CLIMATE_SWING_VERTICAL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
-  void set_supports_swing_mode_horizontal(bool supported) {
-    set_swing_mode_support_(CLIMATE_SWING_HORIZONTAL, supported);
-  }
   bool supports_swing_mode(ClimateSwingMode swing_mode) const { return this->supported_swing_modes_.count(swing_mode); }
   bool get_supports_swing_modes() const { return !this->supported_swing_modes_.empty(); }
   const std::set<ClimateSwingMode> &get_supported_swing_modes() const { return this->supported_swing_modes_; }
@@ -219,24 +218,20 @@ class ClimateTraits {
     }
   }
 
-  bool supports_current_temperature_{false};
-  bool supports_current_humidity_{false};
-  bool supports_two_point_target_temperature_{false};
-  bool supports_target_humidity_{false};
-  std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
-  bool supports_action_{false};
-  std::set<climate::ClimateFanMode> supported_fan_modes_;
-  std::set<climate::ClimateSwingMode> supported_swing_modes_;
-  std::set<climate::ClimatePreset> supported_presets_;
-  std::set<std::string> supported_custom_fan_modes_;
-  std::set<std::string> supported_custom_presets_;
-
+  uint32_t feature_flags_{0};
   float visual_min_temperature_{10};
   float visual_max_temperature_{30};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
   float visual_min_humidity_{30};
   float visual_max_humidity_{99};
+
+  std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
+  std::set<climate::ClimateFanMode> supported_fan_modes_;
+  std::set<climate::ClimateSwingMode> supported_swing_modes_;
+  std::set<climate::ClimatePreset> supported_presets_;
+  std::set<std::string> supported_custom_fan_modes_;
+  std::set<std::string> supported_custom_presets_;
 };
 
 }  // namespace climate

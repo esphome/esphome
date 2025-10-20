@@ -69,7 +69,7 @@ def run_schema_validation(config: ConfigType) -> None:
             {
                 "id": "display_id",
                 "model": "custom",
-                "dimensions": {"width": 320, "height": 240},
+                "dimensions": {"width": 260, "height": 260},
                 "draw_rounding": 13,
                 "init_sequence": [[0xA0, 0x01]],
             },
@@ -336,7 +336,7 @@ def test_native_generation(
 
     main_cpp = generate_main(component_fixture_path("native.yaml"))
     assert (
-        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1>()"
+        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1, 1>()"
         in main_cpp
     )
     assert "set_init_sequence({240, 1, 8, 242" in main_cpp

@@ -12,8 +12,13 @@ namespace esphome {
 namespace mdns {
 
 void MDNSComponent::setup() {
+#ifdef USE_MDNS_STORE_SERVICES
+  this->compile_records_(this->services_);
+  const auto &services = this->services_;
+#else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
   this->compile_records_(services);
+#endif
 
   MDNS.begin(this->hostname_.c_str());
 

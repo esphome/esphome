@@ -59,9 +59,8 @@ binary_sensor:
       - lambda: |-
           if (id(other_binary_sensor).state) {
             return x;
-          } else {
-            return {};
           }
+          return {};
       - settle: 500ms
       - timeout: 5s
 
@@ -72,9 +71,8 @@ sensor:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return 42.0;
-      } else {
-        return 0.0;
       }
+      return 0.0;
     update_interval: 60s
     filters:
       - calibrate_linear:
@@ -183,9 +181,8 @@ switch:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return true;
-      } else {
-        return false;
       }
+      return false;
     turn_on_action:
       - logger.log: "turn_on_action"
     turn_off_action:
@@ -203,9 +200,8 @@ cover:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;
-      } else {
-        return COVER_CLOSED;
       }
+      return COVER_CLOSED;
     open_action:
       - logger.log: open_action
     close_action:
@@ -238,9 +234,8 @@ lock:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     lock_action:
       - logger.log: lock_action
     unlock_action:
@@ -255,9 +250,8 @@ valve:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return VALVE_OPEN;
-      } else {
-        return VALVE_CLOSED;
       }
+      return VALVE_CLOSED;
     open_action:
       - logger.log: open_action
     close_action:

@@ -42,6 +42,11 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
         symbols[i] = params->bit0;
       }
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+    if ((index + 1) >= size && params->reset.duration0 == 0 && params->reset.duration1 == 0) {
+      *done = true;
+    }
+#endif
     return RMT_SYMBOLS_PER_BYTE;
   }
 

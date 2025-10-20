@@ -380,24 +380,25 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
-  this->sessions_.insert(rsp);
+  this->sessions_.push_back(rsp);
 }
 
 void AsyncEventSource::loop() {
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
-  auto it = this->sessions_.begin();
-  while (it != this->sessions_.end()) {
-    auto *ses = *it;
+  for (size_t i = 0; i < this->sessions_.size();) {
+    auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
     if (ses->fd_.load() == 0) {
       ESP_LOGD(TAG, "Removing dead event source session");
-      it = this->sessions_.erase(it);
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+      // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
+      this->sessions_[i] = this->sessions_.back();
+      this->sessions_.pop_back();
     } else {
       ses->loop();
-      ++it;
+      ++i;
     }
   }
 }

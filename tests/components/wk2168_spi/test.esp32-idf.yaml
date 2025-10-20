@@ -3,5 +3,6 @@ substitutions:
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  uart_bridge_4: !include ../../test_build_components/common/uart_bridge_4/esp32-idf.yaml
 
 <<: !include common.yaml
