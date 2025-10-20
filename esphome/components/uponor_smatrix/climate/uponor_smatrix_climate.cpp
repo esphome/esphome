@@ -10,7 +10,7 @@ static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%04X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08X", this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
