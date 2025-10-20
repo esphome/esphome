@@ -522,17 +522,17 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(add_includes, other_includes, False)
 
     if config[CONF_INCLUDES_C]:
-        system_includes_c, other_includes_c = _sort_includes_by_type(
+        system_includes, other_includes = _sort_includes_by_type(
             config[CONF_INCLUDES_C]
         )
         # <...> includes should be at the start
-        for include in system_includes_c:
+        for include in system_includes:
             cg.add_global(
                 cg.RawStatement(f'extern "C" {{\n  #include {include}\n}}'),
                 prepend=True,
             )
         # Other includes should be at the end
-        CORE.add_job(add_includes, other_includes_c, True)
+        CORE.add_job(add_includes, other_includes, True)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
