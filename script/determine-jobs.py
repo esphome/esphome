@@ -467,10 +467,6 @@ def main() -> None:
     # Detect components for memory impact analysis (merged config)
     memory_impact = detect_memory_impact_config(args.branch)
 
-    # Determine clang-tidy split mode based on file count
-    # For small PRs (< 65 files), use nosplit for faster CI
-    # For large PRs (>= 65 files), use split for better parallelization
-    CLANG_TIDY_SPLIT_THRESHOLD = 65
     if run_clang_tidy:
         if changed_cpp_file_count < CLANG_TIDY_SPLIT_THRESHOLD:
             clang_tidy_mode = "nosplit"
