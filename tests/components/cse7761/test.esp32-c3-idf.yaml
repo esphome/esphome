@@ -1,5 +1,5 @@
 substitutions:
-  tx_pin: GPIO7
-  rx_pin: GPIO8
+packages:
+  uart_38400: !include ../../test_build_components/common/uart_38400/esp32-c3-idf.yaml
 
 <<: !include common.yaml

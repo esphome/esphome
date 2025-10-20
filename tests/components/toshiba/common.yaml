@@ -1,7 +1,4 @@
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: toshiba
     name: Toshiba Climate
+    transmitter_id: xmitr

@@ -17,8 +17,9 @@ namespace http_request {
 
 static const char *const TAG = "http_request.host";
 
-std::shared_ptr<HttpContainer> HttpRequestHost::perform(std::string url, std::string method, std::string body,
-                                                        std::list<Header> request_headers,
+std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
+                                                        const std::string &body,
+                                                        const std::list<Header> &request_headers,
                                                         std::set<std::string> response_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);

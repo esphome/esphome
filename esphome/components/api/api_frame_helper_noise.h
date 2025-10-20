@@ -28,7 +28,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
 
  protected:
   APIError state_action_();
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
+  APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
   APIError init_handshake_();
   APIError check_handshake_finished_();
