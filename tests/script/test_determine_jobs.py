@@ -545,7 +545,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
 
 
 def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
-    """Test memory impact detection with core-only changes (no component changes)."""
+    """Test memory impact detection with core C++ changes (no component changes)."""
     # Create test directory structure with fallback component
     tests_dir = tmp_path / "tests" / "components"
 
@@ -554,7 +554,7 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     api_dir.mkdir(parents=True)
     (api_dir / "test.esp32-idf.yaml").write_text("test: api")
 
-    # Mock changed_files to return only core files (no component files)
+    # Mock changed_files to return only core C++ files (no component files)
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
@@ -572,6 +572,35 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     assert result["components"] == ["api"]  # Fallback component
     assert result["platform"] == "esp32-idf"  # Fallback platform
     assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) -> None:
+    """Test that Python-only core changes don't trigger memory impact analysis."""
+    # Create test directory structure with fallback component
+    tests_dir = tmp_path / "tests" / "components"
+
+    # api component (fallback component) with esp32-idf test
+    api_dir = tests_dir / "api"
+    api_dir.mkdir(parents=True)
+    (api_dir / "test.esp32-idf.yaml").write_text("test: api")
+
+    # Mock changed_files to return only core Python files (no C++ files)
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/__main__.py",
+            "esphome/config.py",
+            "esphome/core/config.py",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Python-only changes should NOT trigger memory impact analysis
+    assert result["should_run"] == "false"
 
 
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
