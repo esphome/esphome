@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_FRIENDLY_NAME,
     CONF_ID,
     CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
@@ -227,6 +228,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
+            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
@@ -339,7 +341,7 @@ def preload_core_config(config, result) -> str:
     return target_platforms[0]
 
 
-def include_file(path: Path, basename: Path):
+def include_file(path: Path, basename: Path, is_c_header: bool = False):
     parts = basename.parts
     dst = CORE.relative_src_path(*parts)
     copy_file_if_changed(path, dst)
@@ -347,7 +349,12 @@ def include_file(path: Path, basename: Path):
     ext = path.suffix
     if ext in [".h", ".hpp", ".tcc"]:
         # Header, add include statement
-        cg.add_global(cg.RawStatement(f'#include "{basename}"'))
+        if is_c_header:
+            # Wrap in extern "C" block for C headers
+            cg.add_global(cg.RawStatement(f'extern "C" {{#include "{basename}"}}'))
+        else:
+            # Regular include
+            cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
 ARDUINO_GLUE_CODE = """\
@@ -377,7 +384,7 @@ async def add_arduino_global_workaround():
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def add_includes(includes: list[str]) -> None:
+async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
@@ -385,11 +392,11 @@ async def add_includes(includes: list[str]) -> None:
             # Directory, copy tree
             for p in walk_files(path):
                 basename = p.relative_to(path.parent)
-                include_file(p, basename)
+                include_file(p, basename, is_c_header)
         else:
             # Copy file
             basename = Path(path.name)
-            include_file(path, basename)
+            include_file(path, basename, is_c_header)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -493,8 +500,8 @@ async def to_code(config: ConfigType) -> None:
     if CORE.using_arduino and not CORE.is_bk72xx:
         CORE.add_job(add_arduino_global_workaround)
 
+    # Process C++ includes
     if config[CONF_INCLUDES]:
-        # Get the <...> includes
         system_includes = []
         other_includes = []
         for include in config[CONF_INCLUDES]:
@@ -502,11 +509,35 @@ async def to_code(config: ConfigType) -> None:
                 system_includes.append(include)
             else:
                 other_includes.append(include)
+
         # <...> includes should be at the start
         for include in system_includes:
             cg.add_global(cg.RawStatement(f"#include {include}"), prepend=True)
+
         # Other includes should be at the end
-        CORE.add_job(add_includes, other_includes)
+        if other_includes:
+            CORE.add_job(add_includes, other_includes, False)
+
+    # Process C includes (wrapped in extern "C")
+    if config[CONF_INCLUDES_C]:
+        system_includes_c = []
+        other_includes_c = []
+        for include in config[CONF_INCLUDES_C]:
+            if include.startswith("<") and include.endswith(">"):
+                system_includes_c.append(include)
+            else:
+                other_includes_c.append(include)
+
+        # <...> C includes should be at the start, wrapped in extern "C"
+        for include in system_includes_c:
+            cg.add_global(
+                cg.RawStatement(f'extern "C" {{#include {include}}}'),
+                prepend=True,
+            )
+
+        # Other C includes should be at the end, wrapped in extern "C"
+        if other_includes_c:
+            CORE.add_job(add_includes, other_includes_c, True)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
