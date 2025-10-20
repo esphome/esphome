@@ -1415,7 +1415,13 @@ class RepeatedTypeInfo(TypeInfo):
         super().__init__(field)
         # Check if this is a pointer field by looking for container_pointer option
         self._container_type = get_field_opt(field, pb.container_pointer, "")
-        self._use_pointer = bool(self._container_type)
+        # Check for non-template container pointer
+        self._container_no_template = get_field_opt(
+            field, pb.container_pointer_no_template, ""
+        )
+        self._use_pointer = bool(self._container_type) or bool(
+            self._container_no_template
+        )
         # Check if this should use FixedVector instead of std::vector
         self._use_fixed_vector = get_field_opt(field, pb.fixed_vector, False)
 
@@ -1434,12 +1440,18 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def cpp_type(self) -> str:
+        if self._container_no_template:
+            # Non-template container: use type as-is without appending template parameters
+            return f"const {self._container_no_template}*"
         if self._use_pointer and self._container_type:
             # For pointer fields, use the specified container type
-            # If the container type already includes the element type (e.g., std::set<climate::ClimateMode>)
-            # use it as-is, otherwise append the element type
+            # Two cases:
+            # 1. "std::set<climate::ClimateMode>" - Full type with template params, use as-is
+            # 2. "std::set" - No <>, append the element type
             if "<" in self._container_type and ">" in self._container_type:
+                # Has template parameters specified, use as-is
                 return f"const {self._container_type}*"
+            # No <> at all, append element type
             return f"const {self._container_type}<{self._ti.cpp_type}>*"
         if self._use_fixed_vector:
             return f"FixedVector<{self._ti.cpp_type}>"
