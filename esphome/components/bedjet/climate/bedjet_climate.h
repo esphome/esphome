@@ -33,8 +33,7 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
 
   climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
-    traits.set_supports_action(true);
-    traits.set_supports_current_temperature(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION | climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
     traits.set_supported_modes({
         climate::CLIMATE_MODE_OFF,
         climate::CLIMATE_MODE_HEAT,

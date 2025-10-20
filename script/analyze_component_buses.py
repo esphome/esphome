@@ -34,6 +34,8 @@ from typing import Any
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from helpers import BASE_BUS_COMPONENTS
+
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
 
@@ -66,18 +68,6 @@ NO_BUSES_SIGNATURE = "no_buses"
 # Prefix for isolated component signatures
 # Isolated components have unique signatures and cannot be merged with others
 ISOLATED_SIGNATURE_PREFIX = "isolated_"
-
-# Base bus components - these ARE the bus implementations and should not
-# be flagged as needing migration since they are the platform/base components
-BASE_BUS_COMPONENTS = {
-    "i2c",
-    "spi",
-    "uart",
-    "modbus",
-    "canbus",
-    "remote_transmitter",
-    "remote_receiver",
-}
 
 # Components that must be tested in isolation (not grouped or batched with others)
 # These have known build issues that prevent grouping

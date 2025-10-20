@@ -1,0 +1,8 @@
+{#- Macro for formatting symbol names in tables -#}
+{%- macro format_symbol(symbol, max_length, truncate_length) -%}
+{%- if symbol|length <= max_length -%}
+`{{ symbol }}`
+{%- else -%}
+<details><summary><code>{{ symbol[:truncate_length] }}...</code></summary><code>{{ symbol }}</code></details>
+{%- endif -%}
+{%- endmacro -%}

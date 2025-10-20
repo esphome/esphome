@@ -283,8 +283,11 @@ void TuyaClimate::control_fan_mode_(const climate::ClimateCall &call) {
 
 climate::ClimateTraits TuyaClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_action(true);
-  traits.set_supports_current_temperature(this->current_temperature_id_.has_value());
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+  if (this->current_temperature_id_.has_value()) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
+
   if (supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   if (supports_cool_)
