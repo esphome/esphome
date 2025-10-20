@@ -107,6 +107,7 @@ def test_main_all_tests_should_run(
 
     assert output["integration_tests"] is True
     assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["changed_components"] == ["wifi", "api", "sensor"]
@@ -159,6 +160,7 @@ def test_main_no_tests_should_run(
 
     assert output["integration_tests"] is False
     assert output["clang_tidy"] is False
+    assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
     assert output["python_linters"] is False
     assert output["changed_components"] == []
@@ -244,6 +246,7 @@ def test_main_with_branch_argument(
 
     assert output["integration_tests"] is False
     assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
     assert output["python_linters"] is True
     assert output["changed_components"] == ["mqtt"]
