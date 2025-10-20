@@ -27,9 +27,9 @@ DEPENDENCIES = ["esp32"]
 
 CONF_TX_ENQUEUE_TIMEOUT = "tx_enqueue_timeout"
 CONF_ADVANCED_BIT_RATE = "advanced_bit_rate"
-CONF_BRP = "prescaler"
-CONF_TSEG1 = "tseg_1"
-CONF_TSEG2 = "tseg_2"
+CONF_PRESCALER = "prescaler"
+CONF_TSEG_1 = "tseg_1"
+CONF_TSEG_2 = "tseg_2"
 
 esp32_can_ns = cg.esphome_ns.namespace("esp32_can")
 esp32_can = esp32_can_ns.class_("ESP32Can", CanbusComponent)
@@ -85,11 +85,11 @@ def validate_bit_rate(value):
 
 def validate_prescaler(value):
     if value <= 0:
-        raise cv.Invalid(f"Prescaler needs to be a positive integer")
+        raise cv.Invalid("Prescaler needs to be a positive integer")
     if value <= 128 and value % 2 != 0:
-        raise cv.Invalid(f"Prescaler needs to be an even number if less or equal to 128")
+        raise cv.Invalid("Prescaler needs to be an even number if less or equal to 128")
     if value >= 132 and value % 4 != 0:
-        raise cv.Invalid(f"Prescaler needs to be a multiple of 4 if more or equal to 132")
+        raise cv.Invalid("Prescaler needs to be a multiple of 4 if more or equal to 132")
     return value
 
 CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
@@ -103,9 +103,9 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
         cv.Optional(CONF_TX_ENQUEUE_TIMEOUT): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ADVANCED_BIT_RATE):
             {
-                cv.Required(CONF_BRP): validate_prescaler,
-                cv.Required(CONF_TSEG1): cv.int_range(1,16),
-                cv.Required(CONF_TSEG2): cv.int_range(1,8),
+                cv.Required(CONF_PRESCALER): validate_prescaler,
+                cv.Required(CONF_TSEG_1): cv.int_range(1,16),
+                cv.Required(CONF_TSEG_2): cv.int_range(1,8),
             },
     }
 )
@@ -113,7 +113,7 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 
 def get_default_tx_enqueue_timeout(bit_rate_config):
     if CONF_BRP in bit_rate_config:
-        bit_rate_numeric = 80_000_000 / (bit_rate_config[CONF_BRP] * (1 + bit_rate_config[CONF_TSEG1] + bit_rate_config[CONF_TSEG2]))
+        bit_rate_numeric = 80_000_000 / (bit_rate_config[CONF_PRESCALER] * (1 + bit_rate_config[CONF_TSEG_1] + bit_rate_config[CONF_TSEG_2]))
     else:
         bit_rate_numeric = canbus.get_rate(bit_rate_config)
     bits_per_packet = 140  # ~max CAN message length
@@ -142,6 +142,6 @@ async def to_code(config):
 
     cg.add(var.set_tx_enqueue_timeout_ms(tx_enqueue_timeout_ms))
     if CONF_ADVANCED_BIT_RATE in config:
-        cg.add(var.set_brp(config[CONF_ADVANCED_BIT_RATE][CONF_BRP]))
-        cg.add(var.set_tseg1(config[CONF_ADVANCED_BIT_RATE][CONF_TSEG1]))
-        cg.add(var.set_tseg2(config[CONF_ADVANCED_BIT_RATE][CONF_TSEG2]))
+        cg.add(var.set_brp(config[CONF_ADVANCED_BIT_RATE][CONF_PRESCALER]))
+        cg.add(var.set_tseg1(config[CONF_ADVANCED_BIT_RATE][CONF_TSEG_1]))
+        cg.add(var.set_tseg2(config[CONF_ADVANCED_BIT_RATE][CONF_TSEG_2]))
