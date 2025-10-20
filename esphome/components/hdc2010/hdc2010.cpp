@@ -76,7 +76,7 @@ void HDC2010Component::update() {
   if (this->temperature_sensor_ != nullptr) {
     float temp = this->read_temp();
     this->temperature_sensor_->publish_state(temp);
-    ESP_LOGD(TAG, "Got temperature=%.1f°C", temp);
+    ESP_LOGV(TAG, "Temperature=%.1f°C", temp);
   }
 
   if (this->humidity_sensor_ != nullptr) {
