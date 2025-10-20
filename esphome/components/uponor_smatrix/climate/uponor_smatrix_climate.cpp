@@ -10,7 +10,7 @@ static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%04X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08X", this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
@@ -58,7 +58,7 @@ void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
 }
 
 void UponorSmatrixClimate::on_device_data(const UponorSmatrixData *data, size_t data_len) {
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     switch (data[i].id) {
       case UPONOR_ID_TARGET_TEMP_MIN:
         this->min_temperature_ = raw_to_celsius(data[i].value);

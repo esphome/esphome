@@ -21,11 +21,11 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
 
  protected:
   // read a given register
-  virtual bool read_reg(uint8_t reg, uint8_t *value);
+  virtual bool read_reg(uint8_t reg, uint8_t *value) = 0;
   // write a value to a given register
-  virtual bool write_reg(uint8_t reg, uint8_t value);
+  virtual bool write_reg(uint8_t reg, uint8_t value) = 0;
   // update registers with given pin value.
-  virtual void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a);
+  virtual void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a) = 0;
 
   bool open_drain_ints_;
 };

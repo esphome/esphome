@@ -1,4 +1,5 @@
 #include "cover.h"
+#include <strings.h>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -143,21 +144,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
 bool CoverCall::get_stop() const { return this->stop_; }
 
 CoverCall Cover::make_call() { return {this}; }
-void Cover::open() {
-  auto call = this->make_call();
-  call.set_command_open();
-  call.perform();
-}
-void Cover::close() {
-  auto call = this->make_call();
-  call.set_command_close();
-  call.perform();
-}
-void Cover::stop() {
-  auto call = this->make_call();
-  call.set_command_stop();
-  call.perform();
-}
+
 void Cover::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
