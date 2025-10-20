@@ -2,8 +2,10 @@ sensor:
   - platform: bmp3xx_spi
     cs_pin: ${cs_pin}
     temperature:
+      id: bmp3xx_spi_temperature
       name: BMP Temperature
       oversampling: 16x
     pressure:
+      id: bmp3xx_spi_pressure
       name: BMP Pressure
     iir_filter: 2X

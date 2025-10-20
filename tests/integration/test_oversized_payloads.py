@@ -281,8 +281,12 @@ async def test_noise_corrupt_encrypted_frame(
         # Check for signs that the process exited/crashed
         if "Segmentation fault" in line or "core dumped" in line:
             process_exited = True
-        # Check for the expected warning about decryption failure
+        # Check for the expected log about decryption failure
+        # This can appear as either a VV-level log from noise or a W-level log from connection
         if (
+            "[VV][api.noise" in line
+            and "noise_cipherstate_decrypt failed: MAC_FAILURE" in line
+        ) or (
             "[W][api.connection" in line
             and "Reading failed CIPHERSTATE_DECRYPT_FAILED" in line
         ):
@@ -322,9 +326,9 @@ async def test_noise_corrupt_encrypted_frame(
         assert not process_exited, (
             "ESPHome process should not crash on corrupt encrypted frames"
         )
-        # Verify we saw the expected warning message
+        # Verify we saw the expected log message about decryption failure
         assert cipherstate_failed, (
-            "Expected to see warning about CIPHERSTATE_DECRYPT_FAILED"
+            "Expected to see log about noise_cipherstate_decrypt failure or CIPHERSTATE_DECRYPT_FAILED"
         )
 
         # Verify we can still reconnect after handling the corrupt frame
