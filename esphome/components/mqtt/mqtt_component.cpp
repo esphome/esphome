@@ -85,24 +85,20 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Fields from EntityBase
-        if (this->get_entity()->has_own_name()) {
-          root[MQTT_NAME] = this->friendly_name();
-        } else {
-          root[MQTT_NAME] = "";
-        }
+        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name() : "";
+
         if (this->is_disabled_by_default())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         if (!this->get_icon().empty())
           root[MQTT_ICON] = this->get_icon();
 
-        switch (this->get_entity()->get_entity_category()) {
+        const auto entity_category = this->get_entity()->get_entity_category();
+        switch (entity_category) {
           case ENTITY_CATEGORY_NONE:
             break;
           case ENTITY_CATEGORY_CONFIG:
-            root[MQTT_ENTITY_CATEGORY] = "config";
-            break;
           case ENTITY_CATEGORY_DIAGNOSTIC:
-            root[MQTT_ENTITY_CATEGORY] = "diagnostic";
+            root[MQTT_ENTITY_CATEGORY] = entity_category == ENTITY_CATEGORY_CONFIG ? "config" : "diagnostic";
             break;
         }
 
@@ -113,20 +109,14 @@ bool MQTTComponent::send_discovery_() {
         if (this->command_retain_)
           root[MQTT_COMMAND_RETAIN] = true;
 
-        if (this->availability_ == nullptr) {
-          if (!global_mqtt_client->get_availability().topic.empty()) {
-            root[MQTT_AVAILABILITY_TOPIC] = global_mqtt_client->get_availability().topic;
-            if (global_mqtt_client->get_availability().payload_available != "online")
-              root[MQTT_PAYLOAD_AVAILABLE] = global_mqtt_client->get_availability().payload_available;
-            if (global_mqtt_client->get_availability().payload_not_available != "offline")
-              root[MQTT_PAYLOAD_NOT_AVAILABLE] = global_mqtt_client->get_availability().payload_not_available;
-          }
-        } else if (!this->availability_->topic.empty()) {
-          root[MQTT_AVAILABILITY_TOPIC] = this->availability_->topic;
-          if (this->availability_->payload_available != "online")
-            root[MQTT_PAYLOAD_AVAILABLE] = this->availability_->payload_available;
-          if (this->availability_->payload_not_available != "offline")
-            root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
+        const Availability &avail =
+            this->availability_ == nullptr ? global_mqtt_client->get_availability() : *this->availability_;
+        if (!avail.topic.empty()) {
+          root[MQTT_AVAILABILITY_TOPIC] = avail.topic;
+          if (avail.payload_available != "online")
+            root[MQTT_PAYLOAD_AVAILABLE] = avail.payload_available;
+          if (avail.payload_not_available != "offline")
+            root[MQTT_PAYLOAD_NOT_AVAILABLE] = avail.payload_not_available;
         }
 
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
@@ -145,10 +135,8 @@ bool MQTTComponent::send_discovery_() {
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
           root[MQTT_OBJECT_ID] = node_name + "_" + this->get_default_object_id_();
 
-        std::string node_friendly_name = App.get_friendly_name();
-        if (node_friendly_name.empty()) {
-          node_friendly_name = node_name;
-        }
+        const std::string &friendly_name_ref = App.get_friendly_name();
+        const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
         std::string node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
@@ -158,13 +146,9 @@ bool MQTTComponent::send_discovery_() {
 #ifdef ESPHOME_PROJECT_NAME
         device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_PROJECT_VERSION " (ESPHome " ESPHOME_VERSION ")";
         const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
-        if (model == nullptr) {  // must never happen but check anyway
-          device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
-          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
-        } else {
-          device_info[MQTT_DEVICE_MODEL] = model + 1;
-          device_info[MQTT_DEVICE_MANUFACTURER] = std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
-        }
+        device_info[MQTT_DEVICE_MODEL] = model == nullptr ? ESPHOME_BOARD : model + 1;
+        device_info[MQTT_DEVICE_MANUFACTURER] =
+            model == nullptr ? ESPHOME_PROJECT_NAME : std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
 #else
         device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_VERSION " (" + App.get_compilation_time() + ")";
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
