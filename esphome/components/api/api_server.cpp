@@ -9,12 +9,16 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+#include "homeassistant_service.h"
+#endif
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 
 #include <algorithm>
+#include <utility>
 
 namespace esphome::api {
 
@@ -400,7 +404,38 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     client->send_homeassistant_action(call);
   }
 }
-#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+void APIServer::register_action_response_callback(uint32_t call_id, ActionResponseCallback callback) {
+  this->action_response_callbacks_.push_back({call_id, std::move(callback)});
+}
+
+void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message) {
+  for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
+    if (it->call_id == call_id) {
+      auto callback = std::move(it->callback);
+      this->action_response_callbacks_.erase(it);
+      ActionResponse response(success, error_message);
+      callback(response);
+      return;
+    }
+  }
+}
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+                                       const uint8_t *response_data, size_t response_data_len) {
+  for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
+    if (it->call_id == call_id) {
+      auto callback = std::move(it->callback);
+      this->action_response_callbacks_.erase(it);
+      ActionResponse response(success, error_message, response_data, response_data_len);
+      callback(response);
+      return;
+    }
+  }
+}
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,

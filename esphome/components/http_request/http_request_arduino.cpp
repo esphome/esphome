@@ -14,8 +14,9 @@ namespace http_request {
 
 static const char *const TAG = "http_request.arduino";
 
-std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std::string method, std::string body,
-                                                           std::list<Header> request_headers,
+std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
+                                                           const std::string &body,
+                                                           const std::list<Header> &request_headers,
                                                            std::set<std::string> collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);

@@ -40,33 +40,14 @@ class LWIPRawImpl : public Socket {
   void init() {
     LWIP_LOG("init(%p)", pcb_);
     tcp_arg(pcb_, this);
-    tcp_accept(pcb_, LWIPRawImpl::s_accept_fn);
     tcp_recv(pcb_, LWIPRawImpl::s_recv_fn);
     tcp_err(pcb_, LWIPRawImpl::s_err_fn);
   }
 
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
-    if (pcb_ == nullptr) {
-      errno = EBADF;
-      return nullptr;
-    }
-    if (this->accepted_socket_count_ == 0) {
-      errno = EWOULDBLOCK;
-      return nullptr;
-    }
-    // Take from front for FIFO ordering
-    std::unique_ptr<LWIPRawImpl> sock = std::move(this->accepted_sockets_[0]);
-    // Shift remaining sockets forward
-    for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
-      this->accepted_sockets_[i - 1] = std::move(this->accepted_sockets_[i]);
-    }
-    this->accepted_socket_count_--;
-    LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
-    if (addr != nullptr) {
-      sock->getpeername(addr, addrlen);
-    }
-    LWIP_LOG("accept(%p)", sock.get());
-    return std::unique_ptr<Socket>(std::move(sock));
+    // Non-listening sockets return error
+    errno = EINVAL;
+    return nullptr;
   }
   int bind(const struct sockaddr *name, socklen_t addrlen) override {
     if (pcb_ == nullptr) {
@@ -292,25 +273,10 @@ class LWIPRawImpl : public Socket {
     return -1;
   }
   int listen(int backlog) override {
-    if (pcb_ == nullptr) {
-      errno = EBADF;
-      return -1;
-    }
-    LWIP_LOG("tcp_listen_with_backlog(%p backlog=%d)", pcb_, backlog);
-    struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(pcb_, backlog);
-    if (listen_pcb == nullptr) {
-      tcp_abort(pcb_);
-      pcb_ = nullptr;
-      errno = EOPNOTSUPP;
-      return -1;
-    }
-    // tcp_listen reallocates the pcb, replace ours
-    pcb_ = listen_pcb;
-    // set callbacks on new pcb
-    LWIP_LOG("tcp_arg(%p)", pcb_);
-    tcp_arg(pcb_, this);
-    tcp_accept(pcb_, LWIPRawImpl::s_accept_fn);
-    return 0;
+    // Regular sockets can't be converted to listening - this shouldn't happen
+    // as listen() should only be called on sockets created for listening
+    errno = EOPNOTSUPP;
+    return -1;
   }
   ssize_t read(void *buf, size_t len) override {
     if (pcb_ == nullptr) {
@@ -491,29 +457,6 @@ class LWIPRawImpl : public Socket {
     return 0;
   }
 
-  err_t accept_fn(struct tcp_pcb *newpcb, err_t err) {
-    LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
-    if (err != ERR_OK || newpcb == nullptr) {
-      // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
-      // called tcp_abort from within the callback function!"
-      // https://www.nongnu.org/lwip/2_1_x/tcp_8h.html#a00517abce6856d6c82f0efebdafb734d
-      // nothing to do here, we just don't push it to the queue
-      return ERR_OK;
-    }
-    // Check if we've reached the maximum accept queue size
-    if (this->accepted_socket_count_ >= MAX_ACCEPTED_SOCKETS) {
-      LWIP_LOG("Rejecting connection, queue full (%d)", this->accepted_socket_count_);
-      // Abort the connection when queue is full
-      tcp_abort(newpcb);
-      // Must return ERR_ABRT since we called tcp_abort()
-      return ERR_ABRT;
-    }
-    auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
-    sock->init();
-    this->accepted_sockets_[this->accepted_socket_count_++] = std::move(sock);
-    LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-    return ERR_OK;
-  }
   void err_fn(err_t err) {
     LWIP_LOG("err(err=%d)", err);
     // "If a connection is aborted because of an error, the application is alerted of this event by
@@ -543,11 +486,6 @@ class LWIPRawImpl : public Socket {
       pbuf_cat(rx_buf_, pb);
     }
     return ERR_OK;
-  }
-
-  static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
-    LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
-    return arg_this->accept_fn(newpcb, err);
   }
 
   static void s_err_fn(void *arg, err_t err) {
@@ -601,7 +539,107 @@ class LWIPRawImpl : public Socket {
     return -1;
   }
 
+  // Member ordering optimized to minimize padding on 32-bit systems
+  // Largest members first (4 bytes), then smaller members (1 byte each)
   struct tcp_pcb *pcb_;
+  pbuf *rx_buf_ = nullptr;
+  size_t rx_buf_offset_ = 0;
+  bool rx_closed_ = false;
+  // don't use lwip nodelay flag, it sometimes causes reconnect
+  // instead use it for determining whether to call lwip_output
+  bool nodelay_ = false;
+  sa_family_t family_ = 0;
+};
+
+// Listening socket class - only allocates accept queue when needed (for bind+listen sockets)
+// This saves 16 bytes (12 bytes array + 1 byte count + 3 bytes padding) for regular connected sockets on ESP8266/RP2040
+class LWIPRawListenImpl : public LWIPRawImpl {
+ public:
+  LWIPRawListenImpl(sa_family_t family, struct tcp_pcb *pcb) : LWIPRawImpl(family, pcb) {}
+
+  void init() {
+    LWIP_LOG("init(%p)", pcb_);
+    tcp_arg(pcb_, this);
+    tcp_accept(pcb_, LWIPRawListenImpl::s_accept_fn);
+    tcp_err(pcb_, LWIPRawImpl::s_err_fn);  // Use base class error handler
+  }
+
+  std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
+    if (pcb_ == nullptr) {
+      errno = EBADF;
+      return nullptr;
+    }
+    if (accepted_socket_count_ == 0) {
+      errno = EWOULDBLOCK;
+      return nullptr;
+    }
+    // Take from front for FIFO ordering
+    std::unique_ptr<LWIPRawImpl> sock = std::move(accepted_sockets_[0]);
+    // Shift remaining sockets forward
+    for (uint8_t i = 1; i < accepted_socket_count_; i++) {
+      accepted_sockets_[i - 1] = std::move(accepted_sockets_[i]);
+    }
+    accepted_socket_count_--;
+    LWIP_LOG("Connection accepted by application, queue size: %d", accepted_socket_count_);
+    if (addr != nullptr) {
+      sock->getpeername(addr, addrlen);
+    }
+    LWIP_LOG("accept(%p)", sock.get());
+    return std::unique_ptr<Socket>(std::move(sock));
+  }
+
+  int listen(int backlog) override {
+    if (pcb_ == nullptr) {
+      errno = EBADF;
+      return -1;
+    }
+    LWIP_LOG("tcp_listen_with_backlog(%p backlog=%d)", pcb_, backlog);
+    struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(pcb_, backlog);
+    if (listen_pcb == nullptr) {
+      tcp_abort(pcb_);
+      pcb_ = nullptr;
+      errno = EOPNOTSUPP;
+      return -1;
+    }
+    // tcp_listen reallocates the pcb, replace ours
+    pcb_ = listen_pcb;
+    // set callbacks on new pcb
+    LWIP_LOG("tcp_arg(%p)", pcb_);
+    tcp_arg(pcb_, this);
+    tcp_accept(pcb_, LWIPRawListenImpl::s_accept_fn);
+    return 0;
+  }
+
+ private:
+  err_t accept_fn(struct tcp_pcb *newpcb, err_t err) {
+    LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
+    if (err != ERR_OK || newpcb == nullptr) {
+      // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
+      // called tcp_abort from within the callback function!"
+      // https://www.nongnu.org/lwip/2_1_x/tcp_8h.html#a00517abce6856d6c82f0efebdafb734d
+      // nothing to do here, we just don't push it to the queue
+      return ERR_OK;
+    }
+    // Check if we've reached the maximum accept queue size
+    if (accepted_socket_count_ >= MAX_ACCEPTED_SOCKETS) {
+      LWIP_LOG("Rejecting connection, queue full (%d)", accepted_socket_count_);
+      // Abort the connection when queue is full
+      tcp_abort(newpcb);
+      // Must return ERR_ABRT since we called tcp_abort()
+      return ERR_ABRT;
+    }
+    auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
+    sock->init();
+    accepted_sockets_[accepted_socket_count_++] = std::move(sock);
+    LWIP_LOG("Accepted connection, queue size: %d", accepted_socket_count_);
+    return ERR_OK;
+  }
+
+  static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
+    LWIPRawListenImpl *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
+    return arg_this->accept_fn(newpcb, err);
+  }
+
   // Accept queue - holds incoming connections briefly until the event loop calls accept()
   // This is NOT a connection pool - just a temporary queue between LWIP callbacks and the main loop
   // 3 slots is plenty since connections are pulled out quickly by the event loop
@@ -613,23 +651,21 @@ class LWIPRawImpl : public Socket {
   // - std::array<3>: 12 bytes fixed (3 pointers × 4 bytes)
   // Saves ~44+ bytes RAM per listening socket + avoids ALL heap allocations
   // Used on ESP8266 and RP2040 (platforms using LWIP_TCP implementation)
+  //
+  // By using a separate listening socket class, regular connected sockets save
+  // 16 bytes (12 bytes array + 1 byte count + 3 bytes padding) of memory overhead on 32-bit systems
   static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
   std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
   uint8_t accepted_socket_count_ = 0;  // Number of sockets currently in queue
-  bool rx_closed_ = false;
-  pbuf *rx_buf_ = nullptr;
-  size_t rx_buf_offset_ = 0;
-  // don't use lwip nodelay flag, it sometimes causes reconnect
-  // instead use it for determining whether to call lwip_output
-  bool nodelay_ = false;
-  sa_family_t family_ = 0;
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
-  auto *sock = new LWIPRawImpl((sa_family_t) domain, pcb);  // NOLINT(cppcoreguidelines-owning-memory)
+  // Create listening socket implementation since user sockets typically bind+listen
+  // Accepted connections are created directly as LWIPRawImpl in the accept callback
+  auto *sock = new LWIPRawListenImpl((sa_family_t) domain, pcb);  // NOLINT(cppcoreguidelines-owning-memory)
   sock->init();
   return std::unique_ptr<Socket>{sock};
 }

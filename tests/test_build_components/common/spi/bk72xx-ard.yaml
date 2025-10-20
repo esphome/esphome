@@ -1,0 +1,12 @@
+# Common SPI configuration for BK72XX Arduino tests
+
+substitutions:
+  clk_pin: P10
+  mosi_pin: P11
+  miso_pin: P6
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

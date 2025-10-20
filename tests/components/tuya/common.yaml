@@ -2,12 +2,6 @@ wifi:
   ssid: MySSID
   password: password1
 
-uart:
-  - id: uart_tuya
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 tuya:
   status_pin:
     number: ${status_pin}

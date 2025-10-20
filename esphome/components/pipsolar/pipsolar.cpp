@@ -97,9 +97,12 @@ void Pipsolar::loop() {
       uint8_t byte;
       this->read_byte(&byte);
 
-      if (this->read_pos_ == PIPSOLAR_READ_BUFFER_LENGTH) {
+      // make sure data and null terminator fit in buffer
+      if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
         this->read_pos_ = 0;
         this->empty_uart_buffer_();
+        ESP_LOGW(TAG, "response data too long, discarding.");
+        break;
       }
       this->read_buffer_[this->read_pos_] = byte;
       this->read_pos_++;
@@ -133,7 +136,8 @@ void Pipsolar::loop() {
   if (this->state_ == STATE_POLL) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
-      ESP_LOGD(TAG, "poll %s timeout", this->enabled_polling_commands_[this->last_polling_command_].command);
+      ESP_LOGD(TAG, "timeout command to poll: %s",
+               this->enabled_polling_commands_[this->last_polling_command_].command);
       this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
       this->state_ = STATE_IDLE;
     } else {
