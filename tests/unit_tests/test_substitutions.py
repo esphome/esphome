@@ -4,6 +4,7 @@ from pathlib import Path
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
+from esphome.config import resolve_extend_remove
 from esphome.config_helpers import merge_config
 from esphome.const import CONF_PACKAGES, CONF_SUBSTITUTIONS
 from esphome.core import CORE
@@ -80,6 +81,8 @@ def test_substitutions_fixtures(fixture_path):
                 config = do_packages_pass(config)
 
             substitutions.do_substitution_pass(config, None)
+
+            resolve_extend_remove(config)
 
             # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
             if expected_path.is_file():
