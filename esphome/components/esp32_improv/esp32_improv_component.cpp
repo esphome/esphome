@@ -384,26 +384,32 @@ void ESP32ImprovComponent::check_wifi_connection_() {
     this->connecting_sta_ = {};
     this->cancel_timeout("wifi-connect-timeout");
 
-    std::vector<std::string> urls;
+    // Build URL list with minimal allocations
+    // Maximum 3 URLs: custom next_url + ESPHOME_MY_LINK + webserver URL
+    std::string url_strings[3];
+    size_t url_count = 0;
 
     // Add next_url if configured (should be first per Improv BLE spec)
     std::string next_url = this->get_formatted_next_url_();
     if (!next_url.empty()) {
-      urls.push_back(next_url);
+      url_strings[url_count++] = std::move(next_url);
     }
 
     // Add default URLs for backward compatibility
-    urls.emplace_back(ESPHOME_MY_LINK);
+    url_strings[url_count++] = ESPHOME_MY_LINK;
 #ifdef USE_WEBSERVER
     for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
       if (ip.is_ip4()) {
-        std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-        urls.push_back(webserver_url);
+        char url_buffer[64];
+        snprintf(url_buffer, sizeof(url_buffer), "http://%s:%d", ip.str().c_str(), USE_WEBSERVER_PORT);
+        url_strings[url_count++] = url_buffer;
         break;
       }
     }
 #endif
-    std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
+    // Pass to build_rpc_response using vector constructor from iterators to avoid extra copies
+    std::vector<uint8_t> data = improv::build_rpc_response(
+        improv::WIFI_SETTINGS, std::vector<std::string>(url_strings, url_strings + url_count));
     this->send_response_(data);
   } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
     ESP_LOGD(TAG, "WiFi provisioned externally");
