@@ -22,6 +22,7 @@ from esphome.__main__ import (
     command_rename,
     command_update_all,
     command_wizard,
+    detect_external_components,
     get_port_type,
     has_ip_address,
     has_mqtt,
@@ -2308,6 +2309,61 @@ def test_show_logs_api_mqtt_timeout_fallback(
 
     # Verify run_logs was called with only the static IP (MQTT failed)
     mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+
+
+def test_detect_external_components_no_external(
+    mock_get_esphome_components: Mock,
+) -> None:
+    """Test detect_external_components with no external components."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},
+        "api": {},
+    }
+
+    result = detect_external_components(config)
+
+    assert result == set()
+    mock_get_esphome_components.assert_called_once()
+
+
+def test_detect_external_components_with_external(
+    mock_get_esphome_components: Mock,
+) -> None:
+    """Test detect_external_components detects external components."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "logger": {},  # Built-in
+        "api": {},  # Built-in
+        "my_custom_sensor": {},  # External
+        "another_custom": {},  # External
+        "external_components": [],  # Special key, not a component
+        "substitutions": {},  # Special key, not a component
+    }
+
+    result = detect_external_components(config)
+
+    assert result == {"my_custom_sensor", "another_custom"}
+    mock_get_esphome_components.assert_called_once()
+
+
+def test_detect_external_components_filters_special_keys(
+    mock_get_esphome_components: Mock,
+) -> None:
+    """Test detect_external_components filters out special config keys."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "test_device"},
+        "substitutions": {"key": "value"},
+        "packages": {},
+        "globals": [],
+        "external_components": [],
+        "<<": {},  # YAML merge key
+    }
+
+    result = detect_external_components(config)
+
+    assert result == set()
+    mock_get_esphome_components.assert_called_once()
 
 
 def test_command_analyze_memory_success(
