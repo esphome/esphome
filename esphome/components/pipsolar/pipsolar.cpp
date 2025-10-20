@@ -130,9 +130,11 @@ void Pipsolar::loop() {
       uint8_t byte;
       this->read_byte(&byte);
 
-      if (this->read_pos_ == PIPSOLAR_READ_BUFFER_LENGTH) {
+      // make sure data and null terminator fit in buffer
+      if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
         this->read_pos_ = 0;
         this->empty_uart_buffer_();
+        break;
       }
       this->read_buffer_[this->read_pos_] = byte;
       this->read_pos_++;
