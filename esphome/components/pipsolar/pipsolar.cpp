@@ -38,7 +38,6 @@ void Pipsolar::loop() {
   }
   if (this->state_ == STATE_COMMAND_COMPLETE) {
     if (this->check_incoming_length_(4)) {
-      ESP_LOGD(TAG, "response length for command OK");
       if (this->check_incoming_crc_()) {
         // crc ok
         if (this->read_buffer_[1] == 'A' && this->read_buffer_[2] == 'C' && this->read_buffer_[3] == 'K') {
@@ -49,15 +48,15 @@ void Pipsolar::loop() {
         this->command_queue_[this->command_queue_position_] = std::string("");
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
-
       } else {
         // crc failed
+        // no log message necessary, check_inclming_crc_() logs
         this->command_queue_[this->command_queue_position_] = std::string("");
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
       }
     } else {
-      ESP_LOGD(TAG, "response length for command %s not OK: with length %zu",
+      ESP_LOGD(TAG, "command %s response length not OK: with length %zu",
                this->command_queue_[this->command_queue_position_].c_str(), this->read_pos_);
       this->command_queue_[this->command_queue_position_] = std::string("");
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
@@ -86,7 +85,8 @@ void Pipsolar::loop() {
       this->state_ = STATE_POLL_CHECKED;
       return;
     } else {
-      ESP_LOGD(TAG, "poll %s CRC error", this->enabled_polling_commands_[this->last_polling_command_].command);
+      // crc failed
+      // no log message necessary, check_inclming_crc_() logs
       this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
       this->state_ = STATE_IDLE;
     }
@@ -125,22 +125,19 @@ void Pipsolar::loop() {
       // command timeout
       const char *command = this->command_queue_[this->command_queue_position_].c_str();
       this->command_start_millis_ = millis();
-      ESP_LOGD(TAG, "timeout command from queue: %s", command);
+      ESP_LOGD(TAG, "command %s timeout", command);
       this->command_queue_[this->command_queue_position_] = std::string("");
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
       this->state_ = STATE_IDLE;
       return;
-    } else {
     }
   }
   if (this->state_ == STATE_POLL) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
-      ESP_LOGD(TAG, "timeout command to poll: %s",
-               this->enabled_polling_commands_[this->last_polling_command_].command);
+      ESP_LOGD(TAG, "poll %s timeout", this->enabled_polling_commands_[this->last_polling_command_].command);
       this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
       this->state_ = STATE_IDLE;
-    } else {
     }
   }
 }
@@ -155,7 +152,6 @@ uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
 uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
   crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
-  ESP_LOGD(TAG, "checking crc on incoming message");
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
       ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
     ESP_LOGD(TAG, "CRC OK");
@@ -221,7 +217,7 @@ bool Pipsolar::send_next_poll_() {
     this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
-    ESP_LOGD(TAG, "Sending polling command : %s with length %d",
+    ESP_LOGD(TAG, "Sending polling command: %s with length %d",
              this->enabled_polling_commands_[this->last_polling_command_].command,
              this->enabled_polling_commands_[this->last_polling_command_].length);
     return true;
