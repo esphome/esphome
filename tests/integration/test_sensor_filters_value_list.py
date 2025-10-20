@@ -26,6 +26,9 @@ async def test_sensor_filters_value_list(
         "filter_out_multiple": [],
         "throttle_priority_single": [],
         "throttle_priority_multiple": [],
+        "filter_out_nan_test": [],
+        "filter_out_accuracy_2": [],
+        "throttle_priority_nan": [],
     }
 
     # Futures for each test
@@ -33,6 +36,9 @@ async def test_sensor_filters_value_list(
     filter_out_multiple_done = loop.create_future()
     throttle_single_done = loop.create_future()
     throttle_multiple_done = loop.create_future()
+    filter_out_nan_done = loop.create_future()
+    filter_out_accuracy_2_done = loop.create_future()
+    throttle_nan_done = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         """Track sensor state updates."""
@@ -70,6 +76,24 @@ async def test_sensor_filters_value_list(
             and not throttle_multiple_done.done()
         ):
             throttle_multiple_done.set_result(True)
+        elif (
+            sensor_name == "filter_out_nan_test"
+            and len(sensor_values[sensor_name]) == 3
+            and not filter_out_nan_done.done()
+        ):
+            filter_out_nan_done.set_result(True)
+        elif (
+            sensor_name == "filter_out_accuracy_2"
+            and len(sensor_values[sensor_name]) == 2
+            and not filter_out_accuracy_2_done.done()
+        ):
+            filter_out_accuracy_2_done.set_result(True)
+        elif (
+            sensor_name == "throttle_priority_nan"
+            and len(sensor_values[sensor_name]) == 3
+            and not throttle_nan_done.done()
+        ):
+            throttle_nan_done.set_result(True)
 
     async with (
         run_compiled(yaml_config),
@@ -84,6 +108,9 @@ async def test_sensor_filters_value_list(
                 "filter_out_multiple": "Filter Out Multiple",
                 "throttle_priority_single": "Throttle Priority Single",
                 "throttle_priority_multiple": "Throttle Priority Multiple",
+                "filter_out_nan_test": "Filter Out NaN Test",
+                "filter_out_accuracy_2": "Filter Out Accuracy 2",
+                "throttle_priority_nan": "Throttle Priority NaN",
             },
         )
 
@@ -108,8 +135,14 @@ async def test_sensor_filters_value_list(
                     buttons["throttle_priority_single"] = entity.key
                 elif entity.name == "Test Throttle Priority Multiple":
                     buttons["throttle_priority_multiple"] = entity.key
+                elif entity.name == "Test Filter Out NaN":
+                    buttons["filter_out_nan"] = entity.key
+                elif entity.name == "Test Filter Out Accuracy 2":
+                    buttons["filter_out_accuracy_2"] = entity.key
+                elif entity.name == "Test Throttle Priority NaN":
+                    buttons["throttle_priority_nan"] = entity.key
 
-        assert len(buttons) == 4, f"Expected 4 buttons, found {len(buttons)}"
+        assert len(buttons) == 7, f"Expected 7 buttons, found {len(buttons)}"
 
         # Test 1: FilterOutValueFilter - single value
         sensor_values["filter_out_single"].clear()
@@ -172,4 +205,64 @@ async def test_sensor_filters_value_list(
         expected = [1.0, 0.0, 42.0, 100.0]
         assert sensor_values["throttle_priority_multiple"] == pytest.approx(expected), (
             f"Test 4 failed: expected {expected}, got {sensor_values['throttle_priority_multiple']}"
+        )
+
+        # Test 5: FilterOutValueFilter - NaN handling
+        sensor_values["filter_out_nan_test"].clear()
+        filter_out_nan_done = loop.create_future()
+        client.button_command(buttons["filter_out_nan"])
+        try:
+            await asyncio.wait_for(filter_out_nan_done, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Test 5 timed out. Values: {sensor_values['filter_out_nan_test']}"
+            )
+
+        expected = [1.0, 2.0, 3.0]
+        assert sensor_values["filter_out_nan_test"] == pytest.approx(expected), (
+            f"Test 5 failed: expected {expected}, got {sensor_values['filter_out_nan_test']}"
+        )
+
+        # Test 6: FilterOutValueFilter - Accuracy decimals (2)
+        sensor_values["filter_out_accuracy_2"].clear()
+        filter_out_accuracy_2_done = loop.create_future()
+        client.button_command(buttons["filter_out_accuracy_2"])
+        try:
+            await asyncio.wait_for(filter_out_accuracy_2_done, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Test 6 timed out. Values: {sensor_values['filter_out_accuracy_2']}"
+            )
+
+        expected = [42.01, 42.15]
+        assert sensor_values["filter_out_accuracy_2"] == pytest.approx(expected), (
+            f"Test 6 failed: expected {expected}, got {sensor_values['filter_out_accuracy_2']}"
+        )
+
+        # Test 7: ThrottleWithPriorityFilter - NaN priority
+        sensor_values["throttle_priority_nan"].clear()
+        throttle_nan_done = loop.create_future()
+        client.button_command(buttons["throttle_priority_nan"])
+        try:
+            await asyncio.wait_for(throttle_nan_done, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Test 7 timed out. Values: {sensor_values['throttle_priority_nan']}"
+            )
+
+        # First value (1.0) + two NaN priority values
+        # NaN values will be compared using math.isnan
+        import math
+
+        assert len(sensor_values["throttle_priority_nan"]) == 3, (
+            f"Test 7 failed: expected 3 values, got {len(sensor_values['throttle_priority_nan'])}"
+        )
+        assert sensor_values["throttle_priority_nan"][0] == pytest.approx(1.0), (
+            f"Test 7 failed: first value should be 1.0, got {sensor_values['throttle_priority_nan'][0]}"
+        )
+        assert math.isnan(sensor_values["throttle_priority_nan"][1]), (
+            f"Test 7 failed: second value should be NaN, got {sensor_values['throttle_priority_nan'][1]}"
+        )
+        assert math.isnan(sensor_values["throttle_priority_nan"][2]), (
+            f"Test 7 failed: third value should be NaN, got {sensor_values['throttle_priority_nan'][2]}"
         )

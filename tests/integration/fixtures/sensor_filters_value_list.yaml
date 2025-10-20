@@ -29,6 +29,21 @@ sensor:
     id: source_sensor_4
     accuracy_decimals: 1
 
+  - platform: template
+    name: "Source Sensor 5"
+    id: source_sensor_5
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 6"
+    id: source_sensor_6
+    accuracy_decimals: 2
+
+  - platform: template
+    name: "Source Sensor 7"
+    id: source_sensor_7
+    accuracy_decimals: 1
+
   # FilterOutValueFilter - single value
   - platform: copy
     source_id: source_sensor_1
@@ -72,6 +87,32 @@ sensor:
       - throttle_with_priority:
           timeout: 200ms
           value: [0.0, 42.0, 100.0]
+
+  # Edge case: Filter Out NaN explicitly
+  - platform: copy
+    source_id: source_sensor_5
+    name: "Filter Out NaN Test"
+    id: filter_out_nan_test
+    filters:
+      - filter_out: nan
+
+  # Edge case: Accuracy decimals - 2 decimals
+  - platform: copy
+    source_id: source_sensor_6
+    name: "Filter Out Accuracy 2"
+    id: filter_out_accuracy_2
+    filters:
+      - filter_out: 42.0
+
+  # Edge case: Throttle with NaN priority
+  - platform: copy
+    source_id: source_sensor_7
+    name: "Throttle Priority NaN"
+    id: throttle_priority_nan
+    filters:
+      - throttle_with_priority:
+          timeout: 200ms
+          value: nan
 
 # Script to test FilterOutValueFilter
 script:
@@ -181,6 +222,71 @@ script:
           id: source_sensor_4
           state: 100.0  # Priority - passes
 
+  - id: test_filter_out_nan
+    then:
+      # NaN should be filtered out, regular values pass
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 1.0  # Pass
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: !lambda 'return NAN;'  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 2.0  # Pass
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: !lambda 'return NAN;'  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 3.0  # Pass
+
+  - id: test_filter_out_accuracy_2
+    then:
+      # With 2 decimal places, 42.00 filtered, 42.01 and 42.15 pass
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.0  # Filtered (rounds to 42.00)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.01  # Pass (rounds to 42.01)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.15  # Pass (rounds to 42.15)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.0  # Filtered (rounds to 42.00)
+
+  - id: test_throttle_priority_nan
+    then:
+      # NaN bypasses throttle, regular values throttled
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 1.0  # First value - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 2.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: !lambda 'return NAN;'  # Priority NaN - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 3.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: !lambda 'return NAN;'  # Priority NaN - passes
+
 # Buttons to trigger each test
 button:
   - platform: template
@@ -206,3 +312,21 @@ button:
     id: btn_throttle_priority_multiple
     on_press:
       - script.execute: test_throttle_priority_multiple
+
+  - platform: template
+    name: "Test Filter Out NaN"
+    id: btn_filter_out_nan
+    on_press:
+      - script.execute: test_filter_out_nan
+
+  - platform: template
+    name: "Test Filter Out Accuracy 2"
+    id: btn_filter_out_accuracy_2
+    on_press:
+      - script.execute: test_filter_out_accuracy_2
+
+  - platform: template
+    name: "Test Throttle Priority NaN"
+    id: btn_throttle_priority_nan
+    on_press:
+      - script.execute: test_throttle_priority_nan
