@@ -1,7 +1,6 @@
 from collections.abc import Callable
 
 from esphome.const import (
-    CONF_ID,
     CONF_LEVEL,
     CONF_LOGGER,
     KEY_CORE,
@@ -75,73 +74,28 @@ class Remove:
         return isinstance(b, Remove) and self.value == b.value
 
 
-def merge_config(full_old, full_new):
-    def merge(old, new):
-        if isinstance(new, dict):
-            if not isinstance(old, dict):
-                return new
-            # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
-            if isinstance(old, OrderedDict) or isinstance(new, OrderedDict):
-                res = OrderedDict(old)
-            else:
-                res = old.copy()
-            for k, v in new.items():
-                if isinstance(v, Remove) and k in old:
-                    del res[k]
-                else:
-                    res[k] = merge(old[k], v) if k in old else v
-            return res
-        if isinstance(new, list):
-            if not isinstance(old, list):
-                return new
-            res = old.copy()
-            ids = {
-                v_id: i
-                for i, v in enumerate(res)
-                if isinstance(v, dict)
-                and (v_id := v.get(CONF_ID))
-                and isinstance(v_id, str)
-            }
-            extend_ids = {
-                v_id.value: i
-                for i, v in enumerate(res)
-                if isinstance(v, dict)
-                and (v_id := v.get(CONF_ID))
-                and isinstance(v_id, Extend)
-            }
-
-            ids_to_delete = []
-            for v in new:
-                if isinstance(v, dict) and (new_id := v.get(CONF_ID)):
-                    if isinstance(new_id, Extend):
-                        new_id = new_id.value
-                        if new_id in ids:
-                            v[CONF_ID] = new_id
-                            res[ids[new_id]] = merge(res[ids[new_id]], v)
-                            continue
-                    elif isinstance(new_id, Remove):
-                        new_id = new_id.value
-                        if new_id in ids:
-                            ids_to_delete.append(ids[new_id])
-                            continue
-                    elif (
-                        new_id in extend_ids
-                    ):  # When a package is extending a non-packaged item
-                        extend_res = res[extend_ids[new_id]]
-                        extend_res[CONF_ID] = new_id
-                        new_v = merge(v, extend_res)
-                        res[extend_ids[new_id]] = new_v
-                        continue
-                    else:
-                        ids[new_id] = len(res)
-                res.append(v)
-            return [v for i, v in enumerate(res) if i not in ids_to_delete]
-        if new is None:
-            return old
-
+def merge_config(old, new):
+    if isinstance(new, Remove):
         return new
+    if isinstance(new, dict):
+        if not isinstance(old, dict):
+            return new
+        # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
+        if isinstance(old, OrderedDict) or isinstance(new, OrderedDict):
+            res = OrderedDict(old)
+        else:
+            res = old.copy()
+        for k, v in new.items():
+            res[k] = merge_config(old.get(k), v)
+        return res
+    if isinstance(new, list):
+        if not isinstance(old, list):
+            return new
+        return old + new
+    if new is None:
+        return old
 
-    return merge(full_old, full_new)
+    return new
 
 
 def filter_source_files_from_platform(

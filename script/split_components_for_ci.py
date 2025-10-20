@@ -28,6 +28,7 @@ from script.analyze_component_buses import (
     create_grouping_signature,
     merge_compatible_bus_groups,
 )
+from script.helpers import get_component_test_files
 
 # Weighting for batch creation
 # Isolated components can't be grouped/merged, so they count as 10x
@@ -45,17 +46,12 @@ def has_test_files(component_name: str, tests_dir: Path) -> bool:
 
     Args:
         component_name: Name of the component
-        tests_dir: Path to tests/components directory
+        tests_dir: Path to tests/components directory (unused, kept for compatibility)
 
     Returns:
         True if the component has test.*.yaml files
     """
-    component_dir = tests_dir / component_name
-    if not component_dir.exists() or not component_dir.is_dir():
-        return False
-
-    # Check for test.*.yaml files
-    return any(component_dir.glob("test.*.yaml"))
+    return bool(get_component_test_files(component_name))
 
 
 def create_intelligent_batches(

@@ -1,0 +1,101 @@
+sensor:
+  # Source sensor for testing filters
+  - platform: template
+    name: "Source Sensor"
+    id: source_sensor
+    lambda: return 42.0;
+    update_interval: 1s
+
+  # Streaming filters (window_size == send_every) - uses StreamingFilter base class
+  - platform: copy
+    source_id: source_sensor
+    name: "Streaming Min Filter"
+    filters:
+      - min:
+          window_size: 10
+          send_every: 10  # Batch window → StreamingMinFilter
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Streaming Max Filter"
+    filters:
+      - max:
+          window_size: 10
+          send_every: 10  # Batch window → StreamingMaxFilter
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Streaming Moving Average Filter"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 10  # Batch window → StreamingMovingAverageFilter
+
+  # Sliding window filters (window_size != send_every) - uses SlidingWindowFilter base class with ring buffer
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Min Filter"
+    filters:
+      - min:
+          window_size: 10
+          send_every: 5  # Sliding window → MinFilter with ring buffer
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Max Filter"
+    filters:
+      - max:
+          window_size: 10
+          send_every: 5  # Sliding window → MaxFilter with ring buffer
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Median Filter"
+    filters:
+      - median:
+          window_size: 10
+          send_every: 5  # Sliding window → MedianFilter with ring buffer
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Quantile Filter"
+    filters:
+      - quantile:
+          window_size: 10
+          send_every: 5
+          quantile: 0.9  # Sliding window → QuantileFilter with ring buffer
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Sliding Moving Average Filter"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5  # Sliding window → SlidingWindowMovingAverageFilter with ring buffer
+
+  # Edge cases
+  - platform: copy
+    source_id: source_sensor
+    name: "Large Batch Window Min"
+    filters:
+      - min:
+          window_size: 1000
+          send_every: 1000  # Large batch → StreamingMinFilter (4 bytes, not 4KB)
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Small Sliding Window"
+    filters:
+      - median:
+          window_size: 3
+          send_every: 1  # Frequent output → MedianFilter with 3-element ring buffer
+
+  # send_first_at parameter test
+  - platform: copy
+    source_id: source_sensor
+    name: "Early Send Filter"
+    filters:
+      - max:
+          window_size: 10
+          send_every: 10
+          send_first_at: 1  # Send after first value
