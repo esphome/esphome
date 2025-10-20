@@ -10,7 +10,7 @@ static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%04X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08X", this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
@@ -30,10 +30,9 @@ void UponorSmatrixClimate::loop() {
 
 climate::ClimateTraits UponorSmatrixClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(true);
-  traits.set_supports_current_humidity(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
+                           climate::CLIMATE_SUPPORTS_ACTION);
   traits.set_supported_modes({climate::CLIMATE_MODE_HEAT});
-  traits.set_supports_action(true);
   traits.set_supported_presets({climate::CLIMATE_PRESET_ECO});
   traits.set_visual_min_temperature(this->min_temperature_);
   traits.set_visual_max_temperature(this->max_temperature_);
