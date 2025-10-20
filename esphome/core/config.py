@@ -304,6 +304,17 @@ def _list_target_platforms():
     return target_platforms
 
 
+def _sort_includes_by_type(includes: list[str]) -> tuple[list[str], list[str]]:
+    system_includes = []
+    other_includes = []
+    for include in includes:
+        if include.startswith("<") and include.endswith(">"):
+            system_includes.append(include)
+        else:
+            other_includes.append(include)
+    return system_includes, other_includes
+
+
 def preload_core_config(config, result) -> str:
     with cv.prepend_path(CONF_ESPHOME):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
@@ -351,7 +362,9 @@ def include_file(path: Path, basename: Path, is_c_header: bool = False):
         # Header, add include statement
         if is_c_header:
             # Wrap in extern "C" block for C headers
-            cg.add_global(cg.RawStatement(f'extern "C" {{#include "{basename}"}}'))
+            cg.add_global(
+                cg.RawStatement(f'extern "C" {{\n  #include "{basename}"\n}}')
+            )
         else:
             # Regular include
             cg.add_global(cg.RawStatement(f'#include "{basename}"'))
@@ -500,44 +513,26 @@ async def to_code(config: ConfigType) -> None:
     if CORE.using_arduino and not CORE.is_bk72xx:
         CORE.add_job(add_arduino_global_workaround)
 
-    # Process C++ includes
     if config[CONF_INCLUDES]:
-        system_includes = []
-        other_includes = []
-        for include in config[CONF_INCLUDES]:
-            if include.startswith("<") and include.endswith(">"):
-                system_includes.append(include)
-            else:
-                other_includes.append(include)
-
+        system_includes, other_includes = _sort_includes_by_type(config[CONF_INCLUDES])
         # <...> includes should be at the start
         for include in system_includes:
             cg.add_global(cg.RawStatement(f"#include {include}"), prepend=True)
-
         # Other includes should be at the end
-        if other_includes:
-            CORE.add_job(add_includes, other_includes, False)
+        CORE.add_job(add_includes, other_includes, False)
 
-    # Process C includes (wrapped in extern "C")
     if config[CONF_INCLUDES_C]:
-        system_includes_c = []
-        other_includes_c = []
-        for include in config[CONF_INCLUDES_C]:
-            if include.startswith("<") and include.endswith(">"):
-                system_includes_c.append(include)
-            else:
-                other_includes_c.append(include)
-
-        # <...> C includes should be at the start, wrapped in extern "C"
+        system_includes_c, other_includes_c = _sort_includes_by_type(
+            config[CONF_INCLUDES_C]
+        )
+        # <...> includes should be at the start
         for include in system_includes_c:
             cg.add_global(
-                cg.RawStatement(f'extern "C" {{#include {include}}}'),
+                cg.RawStatement(f'extern "C" {{\n  #include {include}\n}}'),
                 prepend=True,
             )
-
-        # Other C includes should be at the end, wrapped in extern "C"
-        if other_includes_c:
-            CORE.add_job(add_includes, other_includes_c, True)
+        # Other includes should be at the end
+        CORE.add_job(add_includes, other_includes_c, True)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
