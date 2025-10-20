@@ -231,12 +231,12 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 // ValueListFilter (base class)
 ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
 
-bool ValueListFilter::value_matches_any(float sensor_value) const {
+bool ValueListFilter::value_matches_any(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = powf(10.0f, accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
-  for (const auto &filter_value : this->values_) {
+  for (auto &filter_value : this->values_) {
     float fv = filter_value.value();
 
     // Handle NaN comparison

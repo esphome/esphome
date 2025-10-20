@@ -87,11 +87,14 @@ async def test_sensor_filters_value_list(
             },
         )
 
-        # Subscribe to state changes
-        await client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for initial states
-        await InitialStateHelper.wait_for_initial_states(client, key_to_sensor.values())
+        await initial_state_helper.wait_for_initial_states()
 
         # Find all buttons
         buttons = {}
@@ -109,7 +112,7 @@ async def test_sensor_filters_value_list(
         assert len(buttons) == 4, f"Expected 4 buttons, found {len(buttons)}"
 
         # Test 1: FilterOutValueFilter - single value
-        await client.button_command(buttons["filter_out_single"])
+        client.button_command(buttons["filter_out_single"])
         try:
             await asyncio.wait_for(filter_out_single_done, timeout=2.0)
         except TimeoutError:
@@ -123,7 +126,7 @@ async def test_sensor_filters_value_list(
         )
 
         # Test 2: FilterOutValueFilter - multiple values
-        await client.button_command(buttons["filter_out_multiple"])
+        client.button_command(buttons["filter_out_multiple"])
         try:
             await asyncio.wait_for(filter_out_multiple_done, timeout=2.0)
         except TimeoutError:
@@ -137,7 +140,7 @@ async def test_sensor_filters_value_list(
         )
 
         # Test 3: ThrottleWithPriorityFilter - single priority
-        await client.button_command(buttons["throttle_priority_single"])
+        client.button_command(buttons["throttle_priority_single"])
         try:
             await asyncio.wait_for(throttle_single_done, timeout=2.0)
         except TimeoutError:
@@ -151,7 +154,7 @@ async def test_sensor_filters_value_list(
         )
 
         # Test 4: ThrottleWithPriorityFilter - multiple priorities
-        await client.button_command(buttons["throttle_priority_multiple"])
+        client.button_command(buttons["throttle_priority_multiple"])
         try:
             await asyncio.wait_for(throttle_multiple_done, timeout=2.0)
         except TimeoutError:
