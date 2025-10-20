@@ -427,7 +427,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         include:
           - id: clang-tidy
