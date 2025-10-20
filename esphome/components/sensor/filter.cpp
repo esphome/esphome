@@ -247,8 +247,7 @@ bool ValueListFilter::value_matches_any(float sensor_value) {
     }
 
     // Compare rounded values
-    float rounded_filter = roundf(accuracy_mult * fv);
-    if (rounded_filter == rounded_sensor)
+    if (roundf(accuracy_mult * fv) == rounded_sensor)
       return true;
   }
 
