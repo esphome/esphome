@@ -134,6 +134,7 @@ void Pipsolar::loop() {
       if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
         this->read_pos_ = 0;
         this->empty_uart_buffer_();
+        ESP_LOGW(TAG, "response data too long, discarding.");
         break;
       }
       this->read_buffer_[this->read_pos_] = byte;
