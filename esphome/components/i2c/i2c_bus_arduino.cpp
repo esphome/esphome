@@ -65,10 +65,8 @@ void ArduinoI2CBus::set_pins_and_clock_() {
     wire_->setTimeout(timeout_ / 1000);  // unit: ms
 #endif
   }
-  this->set_clock_();
+  wire_->setClock(frequency_);
 }
-
-void ArduinoI2CBus::set_clock_() { wire_->setClock(frequency_); }
 
 void ArduinoI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
@@ -166,9 +164,12 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
 }
 
 ErrorCode ArduinoI2CBus::set_frequency(uint32_t frequency) {
-  frequency_ = frequency;
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  this->frequency_ = frequency;
   if (this->initialized_) {
-    this->set_clock_();
+    wire_->setClock(frequency_);
   }
   return ERROR_OK;
 }

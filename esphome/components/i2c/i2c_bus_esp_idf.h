@@ -36,7 +36,7 @@ class IDFI2CBus : public InternalI2CBus, public Component {
 
  private:
   void recover_();
-  ErrorCode set_clock_();
+  ErrorCode configure_device_();
   RecoveryCode recovery_result_{};
 
  protected:

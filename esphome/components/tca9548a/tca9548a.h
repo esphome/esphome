@@ -33,12 +33,11 @@ class TCA9548AComponent : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::IO; }
   void update();
 
-  i2c::ErrorCode switch_to_channel(uint8_t channel, uint32_t frequency);
-  void disable_all_channels(bool restore_original_frequency);
+  i2c::ErrorCode switch_to_channel(uint8_t channel);
+  void disable_all_channels();
 
  protected:
   friend class TCA9548AChannel;
-  uint32_t original_frequency_;
 };
 }  // namespace tca9548a
 }  // namespace esphome

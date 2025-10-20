@@ -56,7 +56,7 @@ void IDFI2CBus::setup() {
     return;
   }
 
-  if (this->set_clock_() != ERROR_OK) {
+  if (this->configure_device_() != ERROR_OK) {
     this->mark_failed();
     return;
   }
@@ -69,7 +69,7 @@ void IDFI2CBus::setup() {
   }
 }
 
-ErrorCode IDFI2CBus::set_clock_() {
+ErrorCode IDFI2CBus::configure_device_() {
   if (this->dev_ != nullptr) {
     const esp_err_t err = i2c_master_bus_rm_device(this->dev_);
     if (err != ESP_OK) {
@@ -200,9 +200,12 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
 }
 
 ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
-  frequency_ = frequency;
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  this->frequency_ = frequency;
   if (this->initialized_) {
-    return this->set_clock_();
+    return this->configure_device_();
   }
   return ERROR_OK;
 }
