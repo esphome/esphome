@@ -29,6 +29,18 @@ YAML_FILE_EXTENSIONS = (".yaml", ".yml")
 # Component path prefix
 ESPHOME_COMPONENTS_PATH = "esphome/components/"
 
+# Base bus components - these ARE the bus implementations and should not
+# be flagged as needing migration since they are the platform/base components
+BASE_BUS_COMPONENTS = {
+    "i2c",
+    "spi",
+    "uart",
+    "modbus",
+    "canbus",
+    "remote_transmitter",
+    "remote_receiver",
+}
+
 
 def parse_list_components_output(output: str) -> list[str]:
     """Parse the output from list-components.py script.
@@ -44,6 +56,65 @@ def parse_list_components_output(output: str) -> list[str]:
     if not output or not output.strip():
         return []
     return [c.strip() for c in output.strip().split("\n") if c.strip()]
+
+
+def parse_test_filename(test_file: Path) -> tuple[str, str]:
+    """Parse test filename to extract test name and platform.
+
+    Test files follow the naming pattern: test.<platform>.yaml or test-<variant>.<platform>.yaml
+
+    Args:
+        test_file: Path to test file
+
+    Returns:
+        Tuple of (test_name, platform)
+    """
+    parts = test_file.stem.split(".")
+    if len(parts) == 2:
+        return parts[0], parts[1]  # test, platform
+    return parts[0], "all"
+
+
+def get_component_from_path(file_path: str) -> str | None:
+    """Extract component name from a file path.
+
+    Args:
+        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp")
+
+    Returns:
+        Component name if path is in components directory, None otherwise
+    """
+    if not file_path.startswith(ESPHOME_COMPONENTS_PATH):
+        return None
+    parts = file_path.split("/")
+    if len(parts) >= 3:
+        return parts[2]
+    return None
+
+
+def get_component_test_files(
+    component: str, *, all_variants: bool = False
+) -> list[Path]:
+    """Get test files for a component.
+
+    Args:
+        component: Component name (e.g., "wifi")
+        all_variants: If True, returns all test files including variants (test-*.yaml).
+                     If False, returns only base test files (test.*.yaml).
+                     Default is False.
+
+    Returns:
+        List of test file paths for the component, or empty list if none exist
+    """
+    tests_dir = Path(root_path) / "tests" / "components" / component
+    if not tests_dir.exists():
+        return []
+
+    if all_variants:
+        # Match both test.*.yaml and test-*.yaml patterns
+        return list(tests_dir.glob("test[.-]*.yaml"))
+    # Match only test.*.yaml (base tests)
+    return list(tests_dir.glob("test.*.yaml"))
 
 
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
@@ -314,11 +385,9 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
     # because changes in one file can affect other files in the same component.
     filtered_files = []
     for f in files:
-        if f.startswith(ESPHOME_COMPONENTS_PATH):
-            # Check if file belongs to any of the changed components
-            parts = f.split("/")
-            if len(parts) >= 3 and parts[2] in component_set:
-                filtered_files.append(f)
+        component = get_component_from_path(f)
+        if component and component in component_set:
+            filtered_files.append(f)
 
     return filtered_files
 

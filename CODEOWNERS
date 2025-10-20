@@ -70,6 +70,7 @@ esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @dan-s-github @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
+esphome/components/ble_nus/* @tomaszduda23
 esphome/components/bluetooth_proxy/* @bdraco @jesserockz
 esphome/components/bme280_base/* @esphome/core
 esphome/components/bme280_spi/* @apbodrov

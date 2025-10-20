@@ -199,6 +199,7 @@
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WEBSERVER_SORTING
 #define USE_WIFI_11KV_SUPPORT
+#define USE_WIFI_FAST_CONNECT
 #define USB_HOST_MAX_REQUESTS 16
 
 #ifdef USE_ARDUINO
@@ -272,6 +273,8 @@
 
 #ifdef USE_NRF52
 #define USE_NRF52_DFU
+#define USE_SOFTDEVICE_ID 7
+#define USE_SOFTDEVICE_VERSION 1
 #endif
 
 // Disabled feature flags

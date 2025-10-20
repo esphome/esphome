@@ -779,6 +779,16 @@ async def to_code(config):
         Path(__file__).parent / "post_build.py.script",
     )
 
+    # In testing mode, add IRAM fix script to allow linking grouped component tests
+    # Similar to ESP8266's approach but for ESP-IDF
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+        add_extra_script(
+            "pre",
+            "iram_fix.py",
+            Path(__file__).parent / "iram_fix.py.script",
+        )
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -805,6 +815,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 

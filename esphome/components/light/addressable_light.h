@@ -1,11 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/color.h"
 #include "esp_color_correction.h"
 #include "esp_color_view.h"
 #include "esp_range_view.h"
+#include "esphome/core/color.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "light_output.h"
 #include "light_state.h"
 #include "transformers.h"
@@ -16,8 +16,6 @@
 
 namespace esphome {
 namespace light {
-
-using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphome::Color instead.", "v1.21") = Color;
 
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
 Color color_from_light_color_values(LightColorValues val);
