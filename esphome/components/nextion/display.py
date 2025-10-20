@@ -137,7 +137,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
 
-    if max_queue_age := config.get(CONF_MAX_QUEUE_AGE):
+    if (max_queue_age := config.get(CONF_MAX_QUEUE_AGE, None)) is not None:
         cg.add(var.set_max_queue_age(max_queue_age))
 
     if max_queue_size := config.get(CONF_MAX_QUEUE_SIZE):
