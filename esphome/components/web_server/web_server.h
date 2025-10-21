@@ -81,7 +81,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
 using message_generator_t = std::string(WebServer *, void *);
 
 class DeferredUpdateEventSourceList;
@@ -164,7 +164,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
-#ifdef USE_ARDUINO
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
 
@@ -173,14 +173,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 #if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.css
+   * https://oi.esphome.io/v1/webserver-v1.min.css
    *
    * @param css_url The url to the web server stylesheet.
    */
   void set_css_url(const char *css_url);
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
-   * https://esphome.io/_static/webserver-v1.min.js
+   * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
@@ -498,12 +498,71 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
  protected:
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
-  web_server_base::WebServerBase *base_;
-#ifdef USE_ARDUINO
-  DeferredUpdateEventSourceList events_;
+
+#ifdef USE_LIGHT
+  // Helper to parse and apply a float parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+                          float scale = 1.0f) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value / scale);
+      }
+    }
+  }
+
+  // Helper to parse and apply a uint32_t parameter with optional scaling
+  template<typename T, typename Ret>
+  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                               Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value * scale);
+      }
+    }
+  }
 #endif
-#ifdef USE_ESP_IDF
+
+  // Generic helper to parse and apply a float parameter
+  template<typename T, typename Ret>
+  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply an int parameter
+  template<typename T, typename Ret>
+  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
+    if (request->hasParam(param_name)) {
+      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
+      if (value.has_value()) {
+        (call.*setter)(*value);
+      }
+    }
+  }
+
+  // Generic helper to parse and apply a string parameter
+  template<typename T, typename Ret>
+  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
+                           Ret (T::*setter)(const std::string &)) {
+    if (request->hasParam(param_name)) {
+      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+      (call.*setter)(value);
+    }
+  }
+
+  web_server_base::WebServerBase *base_;
+#ifdef USE_ESP32
   AsyncEventSource events_{"/events", this};
+#elif USE_ARDUINO
+  DeferredUpdateEventSourceList events_;
 #endif
 
 #if USE_WEBSERVER_VERSION == 1

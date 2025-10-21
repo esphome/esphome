@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 from esphome.cpp_generator import MockObjClass
 
 from ..defines import CONF_ARC_LENGTH, CONF_INDICATOR, CONF_MAIN, CONF_SPIN_TIME
-from ..lv_validation import angle
+from ..lv_validation import lv_angle_degrees, lv_milliseconds
 from ..lvcode import lv_expr
 from ..types import LvType
 from . import Widget, WidgetType
@@ -12,8 +12,8 @@ CONF_SPINNER = "spinner"
 
 SPINNER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ARC_LENGTH): angle,
-        cv.Required(CONF_SPIN_TIME): cv.positive_time_period_milliseconds,
+        cv.Required(CONF_ARC_LENGTH): lv_angle_degrees,
+        cv.Required(CONF_SPIN_TIME): lv_milliseconds,
     }
 )
 
@@ -34,9 +34,9 @@ class SpinnerType(WidgetType):
     def get_uses(self):
         return (CONF_ARC,)
 
-    def obj_creator(self, parent: MockObjClass, config: dict):
-        spin_time = config[CONF_SPIN_TIME].total_milliseconds
-        arc_length = config[CONF_ARC_LENGTH] // 10
+    async def obj_creator(self, parent: MockObjClass, config: dict):
+        spin_time = await lv_milliseconds.process(config[CONF_SPIN_TIME])
+        arc_length = await lv_angle_degrees.process(config[CONF_ARC_LENGTH])
         return lv_expr.call("spinner_create", parent, spin_time, arc_length)
 
 

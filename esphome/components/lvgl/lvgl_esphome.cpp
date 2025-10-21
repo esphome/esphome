@@ -451,7 +451,8 @@ void LvglComponent::setup() {
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
     buffer_pixels /= MIN_BUFFER_FRAC;
-    buffer = lv_custom_mem_alloc(buf_bytes / MIN_BUFFER_FRAC);  // NOLINT
+    buf_bytes /= MIN_BUFFER_FRAC;
+    buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   }
   if (buffer == nullptr) {
     this->status_set_error("Memory allocation failure");

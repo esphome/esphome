@@ -373,3 +373,20 @@ button:
     name: "Test Button"
     on_press:
       - logger.log: "Button pressed"
+
+# Date, Time, and DateTime entities
+datetime:
+  - platform: template
+    type: date
+    name: "Test Date"
+    initial_value: "2023-05-13"
+    optimistic: true
+  - platform: template
+    type: time
+    name: "Test Time"
+    initial_value: "12:30:00"
+    optimistic: true
+  - platform: template
+    type: datetime
+    name: "Test DateTime"
+    optimistic: true

@@ -30,10 +30,11 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
   void set_carrier_duty_percent(uint8_t carrier_duty_percent) { this->carrier_duty_percent_ = carrier_duty_percent; }
 
+  void digital_write(bool value);
+
 #if defined(USE_ESP32)
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
-  void digital_write(bool value);
 #endif
 
   Trigger<> *get_transmit_trigger() const { return this->transmit_trigger_; };

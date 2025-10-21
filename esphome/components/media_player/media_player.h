@@ -38,6 +38,8 @@ enum MediaPlayerState : uint8_t {
   MEDIA_PLAYER_STATE_PLAYING = 2,
   MEDIA_PLAYER_STATE_PAUSED = 3,
   MEDIA_PLAYER_STATE_ANNOUNCING = 4,
+  MEDIA_PLAYER_STATE_OFF = 5,
+  MEDIA_PLAYER_STATE_ON = 6,
 };
 const char *media_player_state_to_string(MediaPlayerState state);
 
@@ -54,6 +56,8 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_REPEAT_ONE = 9,
   MEDIA_PLAYER_COMMAND_REPEAT_OFF = 10,
   MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST = 11,
+  MEDIA_PLAYER_COMMAND_TURN_ON = 12,
+  MEDIA_PLAYER_COMMAND_TURN_OFF = 13,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -77,8 +81,10 @@ class MediaPlayerTraits {
   MediaPlayerTraits() = default;
 
   void set_supports_pause(bool supports_pause) { this->supports_pause_ = supports_pause; }
-
   bool get_supports_pause() const { return this->supports_pause_; }
+
+  void set_supports_turn_off_on(bool supports_turn_off_on) { this->supports_turn_off_on_ = supports_turn_off_on; }
+  bool get_supports_turn_off_on() const { return this->supports_turn_off_on_; }
 
   std::vector<MediaPlayerSupportedFormat> &get_supported_formats() { return this->supported_formats_; }
 
@@ -90,12 +96,16 @@ class MediaPlayerTraits {
     if (this->get_supports_pause()) {
       flags |= MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY;
     }
+    if (this->get_supports_turn_off_on()) {
+      flags |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
+    }
     return flags;
   }
 
  protected:
-  bool supports_pause_{false};
   std::vector<MediaPlayerSupportedFormat> supported_formats_{};
+  bool supports_pause_{false};
+  bool supports_turn_off_on_{false};
 };
 
 class MediaPlayerCall {

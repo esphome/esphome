@@ -35,7 +35,7 @@ from esphome.const import (
     PLATFORM_RP2040,
     PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
@@ -276,9 +276,6 @@ def get_spi_interface(index):
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
-    # Following code can't apply to C2, H2 or 8266 since they have only one SPI
-    if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
-        return "new SPIClass(FSPI)"
     return "new SPIClass(HSPI)"
 
 
@@ -351,7 +348,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1.0)
+@coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
