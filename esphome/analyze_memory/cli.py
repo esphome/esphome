@@ -233,17 +233,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         # Also include wifi_stack and other important system components if they exist
         system_components_to_include = [
-            "wifi_stack",
-            "bluetooth",
-            "network_stack",
-            "cpp_runtime",
-            "other",
-            "libc",
-            "phy_radio",
-            "mdns_lib",
-            "nvs",
-            "ota",
-            "arduino_core",
+            # Empty list - we've finished debugging symbol categorization
+            # Add component names here if you need to debug their symbols
         ]
         system_components = []
         for name, mem in components:
