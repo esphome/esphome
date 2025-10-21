@@ -285,7 +285,9 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
-def list_cpp_components_to_test(branch: str | None = None) -> list[str]:
+def list_cpp_components_to_test(
+    branch: str | None = None,
+) -> tuple[bool, list[str]]:
     """Determine if C++ unit tests should run based on changed files.
 
     This function is used by the CI workflow to skip C++ unit tests when
@@ -304,17 +306,17 @@ def list_cpp_components_to_test(branch: str | None = None) -> list[str]:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        List of components that have unit tests to run, an empty list if
-        no tests are needed or the special value ["--all"] if all tests
-        should run.
+        Tuple of (run_all, components) where:
+        - run_all: True if all tests should run, False otherwise
+        - components: List of specific components to test (empty if run_all)
     """
     files = changed_files(branch)
     if core_changed(files):
-        return ["--all"]
+        return (True, [])
 
     # Filter to only C++ files
     cpp_files = list(filter(filter_component_and_test_cpp_files, files))
-    return get_cpp_changed_components(cpp_files)
+    return (False, get_cpp_changed_components(cpp_files))
 
 
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
@@ -680,6 +682,9 @@ def main() -> None:
         files_to_check_count = 0
 
     # Build output
+    # Determine which C++ unit tests to run
+    cpp_run_all, cpp_components = list_cpp_components_to_test(args.branch)
+
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
@@ -695,7 +700,8 @@ def main() -> None:
         "dependency_only_count": len(dependency_only_components),
         "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
-        "cpp_unit_tests": list_cpp_components_to_test(args.branch),
+        "cpp_unit_tests_run_all": cpp_run_all,
+        "cpp_unit_tests_components": cpp_components,
     }
 
     # Output as JSON
