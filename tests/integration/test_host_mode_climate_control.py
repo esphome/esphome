@@ -8,6 +8,7 @@ import aioesphomeapi
 from aioesphomeapi import ClimateInfo, ClimateMode, EntityState
 import pytest
 
+from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -22,6 +23,30 @@ async def test_host_mode_climate_control(
     async with run_compiled(yaml_config), api_client_connected() as client:
         states: dict[int, EntityState] = {}
         climate_future: asyncio.Future[EntityState] = loop.create_future()
+
+        def on_state(state: EntityState) -> None:
+            states[state.key] = state
+            if (
+                isinstance(state, aioesphomeapi.ClimateState)
+                and state.mode == ClimateMode.HEAT
+                and state.target_temperature_low == 21.5
+                and state.target_temperature_high == 26.5
+                and not climate_future.done()
+            ):
+                climate_future.set_result(state)
+
+        # Get entities and set up state synchronization
+        entities, services = await client.list_entities_services()
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe with the wrapper that filters initial states
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for all initial states to be broadcast
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Get entity list
         entities = await client.list_entities_services()
@@ -42,16 +67,6 @@ async def test_host_mode_climate_control(
             target_temperature_low=21.5,
             target_temperature_high=26.5,
         )
-
-        def on_state(state: EntityState) -> None:
-            states[state.key] = state
-            if (
-                isinstance(state, aioesphomeapi.ClimateState)
-                and not climate_future.done()
-            ):
-                climate_future.set_result(state)
-
-        client.subscribe_states(on_state)
 
         try:
             climate_state = await asyncio.wait_for(climate_future, timeout=5.0)
