@@ -1,5 +1,5 @@
 #pragma once
-// test
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
