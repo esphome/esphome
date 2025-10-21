@@ -38,6 +38,8 @@ async def test_host_mode_climate_control(
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
+        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
+        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
 
         # Subscribe with the wrapper that filters initial states
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
@@ -47,11 +49,6 @@ async def test_host_mode_climate_control(
             await initial_state_helper.wait_for_initial_states()
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
-
-        # Get entity list
-        entities = await client.list_entities_services()
-        climate_infos = [e for e in entities[0] if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
 
         test_climate = next(
             (c for c in climate_infos if c.name == "Dual-mode Thermostat"), None
