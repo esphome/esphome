@@ -37,8 +37,8 @@ ESPHOME_COMPONENTS_PATH = "esphome/components/"
 # Test components path prefix
 ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 
-# Tuple of component paths for efficient startswith checks
-COMPONENT_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
+# Tuple of component and test paths for efficient startswith checks
+COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
@@ -676,7 +676,7 @@ def filter_component_files(file_path: str) -> bool:
     Returns:
         True if the file is in a component directory
     """
-    return file_path.startswith(COMPONENT_PATHS) or (
+    return file_path.startswith(COMPONENT_AND_TESTS_PATHS) or (
         file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
         and file_path.endswith(YAML_FILE_EXTENSIONS)
     )
@@ -692,7 +692,7 @@ def filter_cpp_files(file_path: str) -> bool:
         True if the file is a C++ source/header file in component directories
     """
     return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
-        COMPONENT_PATHS
+        COMPONENT_AND_TESTS_PATHS
     )
 
 
