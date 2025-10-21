@@ -55,9 +55,9 @@ def mock_should_run_python_linters() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_list_cpp_components_to_test() -> Generator[Mock, None, None]:
-    """Mock list_cpp_components_to_test from helpers."""
-    with patch.object(determine_jobs, "list_cpp_components_to_test") as mock:
+def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
+    """Mock determine_cpp_unit_tests from helpers."""
+    with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
         yield mock
 
 
@@ -82,7 +82,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_changed_files: Mock,
-    mock_list_cpp_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -94,7 +94,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
-    mock_list_cpp_components_to_test.return_value = (False, ["wifi", "api", "sensor"])
+    mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
@@ -160,7 +160,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_changed_files: Mock,
-    mock_list_cpp_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -172,7 +172,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
-    mock_list_cpp_components_to_test.return_value = (False, [])
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -217,7 +217,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_changed_files: Mock,
-    mock_list_cpp_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -229,7 +229,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
-    mock_list_cpp_components_to_test.return_value = (False, ["mqtt"])
+    mock_determine_cpp_unit_tests.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change

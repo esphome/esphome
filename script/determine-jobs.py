@@ -285,7 +285,7 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
-def list_cpp_components_to_test(
+def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
     """Determine if C++ unit tests should run based on changed files.
@@ -683,7 +683,7 @@ def main() -> None:
 
     # Build output
     # Determine which C++ unit tests to run
-    cpp_run_all, cpp_components = list_cpp_components_to_test(args.branch)
+    cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
 
     output: dict[str, Any] = {
         "integration_tests": run_integration,

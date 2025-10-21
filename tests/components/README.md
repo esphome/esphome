@@ -29,4 +29,4 @@ To run a specific test suite, you can provide a Google Test filter:
 GTEST_FILTER='UART*' ./script/cpp_unit_test.py uart modbus
 ```
 
-The process will return `0` for succcess or nonzero for failure. In case of failure, the errors will be printed out to the console.
+The process will return `0` for success or nonzero for failure. In case of failure, the errors will be printed out to the console.

@@ -163,7 +163,7 @@ def main() -> None:
     if args.all:
         components: list[str] = get_all_components()
     else:
-        components = args.components
+        components: list[str] = args.components
 
     sys.exit(run_tests(components))
 
