@@ -5,16 +5,10 @@ from helpers import (
     changed_files,
     filter_component_and_test_cpp_files,
     filter_component_and_test_files,
+    get_all_component_files,
     get_components_with_dependencies,
     get_cpp_changed_components,
-    git_ls_files,
 )
-
-
-def get_all_component_files() -> list[str]:
-    """Get all component files from git."""
-    files = git_ls_files()
-    return list(filter(filter_component_and_test_files, files))
 
 
 def main():

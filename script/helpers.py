@@ -899,6 +899,16 @@ def get_components_with_dependencies(
     return sorted(components)
 
 
+def get_all_component_files() -> list[str]:
+    """Get all component and test files from git.
+
+    Returns:
+        List of all component and test file paths
+    """
+    files = git_ls_files()
+    return list(filter(filter_component_and_test_files, files))
+
+
 def get_all_components() -> list[str]:
     """Get all component names.
 
@@ -908,9 +918,7 @@ def get_all_components() -> list[str]:
     Returns:
         List of all component names
     """
-    files = git_ls_files()
-    component_files = list(filter(filter_component_and_test_files, files))
-    return get_components_with_dependencies(component_files, False)
+    return get_components_with_dependencies(get_all_component_files(), False)
 
 
 def core_changed(files: list[str]) -> bool:
