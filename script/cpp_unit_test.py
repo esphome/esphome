@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_components, get_all_dependencies
+from helpers import get_all_components, get_all_dependencies, root_path
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
@@ -16,11 +16,8 @@ from esphome.platformio_api import get_idedata
 # This must coincide with the version in /platformio.ini
 PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
 
-# Path to the current Python file
-CURRENT_FILE: Path = Path(__file__).resolve()
-
 # Path to /tests/components
-COMPONENTS_TESTS_DIR: Path = CURRENT_FILE.parent.parent / "tests" / "components"
+COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
 
 def hash_components(components: list[str]) -> str:
