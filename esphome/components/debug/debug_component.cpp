@@ -18,6 +18,7 @@ void DebugComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
+  LOG_TEXT_SENSOR("  ", "WiFi Power Save Mode", this->wifi_power_save_);
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);

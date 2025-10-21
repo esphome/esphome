@@ -1,1 +1,10 @@
 <<: !include common.yaml
+
+wifi:
+  ssid: "WIFI SSID"
+  password: "WIFI PASSWORD"
+
+text_sensor:
+  - platform: debug
+    power_save_mode:
+      name: "WiFi Power Save Mode"

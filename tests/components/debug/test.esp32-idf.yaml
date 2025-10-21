@@ -3,6 +3,15 @@
 esp32:
   cpu_frequency: 240MHz
 
+wifi:
+  ssid: "WIFI SSID"
+  password: "WIFI PASSWORD"
+
+text_sensor:
+  - platform: debug
+    power_save_mode:
+      name: "WiFi Power Save Mode"
+
 sensor:
   - platform: debug
     free:

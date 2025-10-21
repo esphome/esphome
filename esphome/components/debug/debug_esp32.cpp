@@ -11,6 +11,10 @@
 #include <esp_chip_info.h>
 #include <esp_partition.h>
 
+#ifdef USE_WIFI
+#include <esp_wifi.h>
+#endif
+
 #ifdef USE_ARDUINO
 #include <Esp.h>
 #endif
@@ -43,6 +47,29 @@ static const char *const RESET_REASONS[] = {
 
 static const char *const REBOOT_KEY = "reboot_source";
 static const size_t REBOOT_MAX_LEN = 24;
+
+#if defined(USE_TEXT_SENSOR) && defined(USE_WIFI)
+/// @brief Helper function to convert ESP32 WiFi power save mode to string
+/// @param ps_mode WiFi power save mode from esp_wifi_get_ps()
+/// @return const char pointer to the readable power save mode
+///
+/// Maps ESP32 WiFi power save modes to user-friendly strings:
+/// - WIFI_PS_NONE (no power saving) -> "NONE"
+/// - WIFI_PS_MIN_MODEM (minimal modem sleep) -> "LIGHT"
+/// - WIFI_PS_MAX_MODEM (maximum modem sleep) -> "HIGH"
+static const char *wifi_ps_mode_to_string(wifi_ps_type_t ps_mode) {
+  switch (ps_mode) {
+    case WIFI_PS_NONE:
+      return "NONE";
+    case WIFI_PS_MIN_MODEM:
+      return "LIGHT";
+    case WIFI_PS_MAX_MODEM:
+      return "HIGH";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif  // USE_TEXT_SENSOR && USE_WIFI
 
 // on shutdown, store the source of the reboot request
 void DebugComponent::on_shutdown() {
@@ -232,6 +259,19 @@ void DebugComponent::update_platform_() {
   }
   if (this->psram_sensor_ != nullptr) {
     this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  }
+#endif
+
+#if defined(USE_TEXT_SENSOR) && defined(USE_WIFI)
+  if (this->wifi_power_save_ != nullptr) {
+    wifi_ps_type_t power_save_mode;
+    if (esp_wifi_get_ps(&power_save_mode) == ESP_OK) {
+      // Publish if the state has changed or if this is the first read
+      if (this->last_wifi_ps_mode_ != power_save_mode || !this->wifi_power_save_->has_state()) {
+        this->wifi_power_save_->publish_state(wifi_ps_mode_to_string(power_save_mode));
+        this->last_wifi_ps_mode_ = power_save_mode;
+      }
+    }
   }
 #endif
 }
