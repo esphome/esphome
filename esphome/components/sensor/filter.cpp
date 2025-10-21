@@ -228,27 +228,40 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// FilterOutValueFilter
-FilterOutValueFilter::FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out)
-    : values_to_filter_out_(std::move(values_to_filter_out)) {}
+// ValueListFilter (base class)
+ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
 
-optional<float> FilterOutValueFilter::new_value(float value) {
+bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = powf(10.0f, accuracy);
-  for (auto filter_value : this->values_to_filter_out_) {
-    if (std::isnan(filter_value.value())) {
-      if (std::isnan(value)) {
-        return {};
-      }
+  float rounded_sensor = roundf(accuracy_mult * sensor_value);
+
+  for (auto &filter_value : this->values_) {
+    float fv = filter_value.value();
+
+    // Handle NaN comparison
+    if (std::isnan(fv)) {
+      if (std::isnan(sensor_value))
+        return true;
       continue;
     }
-    float rounded_filter_out = roundf(accuracy_mult * filter_value.value());
-    float rounded_value = roundf(accuracy_mult * value);
-    if (rounded_filter_out == rounded_value) {
-      return {};
-    }
+
+    // Compare rounded values
+    if (roundf(accuracy_mult * fv) == rounded_sensor)
+      return true;
   }
-  return value;
+
+  return false;
+}
+
+// FilterOutValueFilter
+FilterOutValueFilter::FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+    : ValueListFilter(values_to_filter_out) {}
+
+optional<float> FilterOutValueFilter::new_value(float value) {
+  if (this->value_matches_any_(value))
+    return {};   // Filter out
+  return value;  // Pass through
 }
 
 // ThrottleFilter
@@ -263,33 +276,15 @@ optional<float> ThrottleFilter::new_value(float value) {
 }
 
 // ThrottleWithPriorityFilter
-ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                                       std::vector<TemplatableValue<float>> prioritized_values)
-    : min_time_between_inputs_(min_time_between_inputs), prioritized_values_(std::move(prioritized_values)) {}
+ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
+    uint32_t min_time_between_inputs, std::initializer_list<TemplatableValue<float>> prioritized_values)
+    : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
 optional<float> ThrottleWithPriorityFilter::new_value(float value) {
-  bool is_prioritized_value = false;
-  int8_t accuracy = this->parent_->get_accuracy_decimals();
-  float accuracy_mult = powf(10.0f, accuracy);
   const uint32_t now = App.get_loop_component_start_time();
-  // First, determine if the new value is one of the prioritized values
-  for (auto prioritized_value : this->prioritized_values_) {
-    if (std::isnan(prioritized_value.value())) {
-      if (std::isnan(value)) {
-        is_prioritized_value = true;
-        break;
-      }
-      continue;
-    }
-    float rounded_prioritized_value = roundf(accuracy_mult * prioritized_value.value());
-    float rounded_value = roundf(accuracy_mult * value);
-    if (rounded_prioritized_value == rounded_value) {
-      is_prioritized_value = true;
-      break;
-    }
-  }
-  // Finally, determine if the new value should be throttled and pass it through if not
-  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || is_prioritized_value) {
+  // Allow value through if: no previous input, time expired, or is prioritized
+  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ ||
+      this->value_matches_any_(value)) {
     this->last_input_ = now;
     return value;
   }

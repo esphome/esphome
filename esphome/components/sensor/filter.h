@@ -317,15 +317,28 @@ class MultiplyFilter : public Filter {
   TemplatableValue<float> multiplier_;
 };
 
+/** Base class for filters that compare sensor values against a list of configured values.
+ *
+ * This base class provides common functionality for filters that need to check if a sensor
+ * value matches any value in a configured list, with proper handling of NaN values and
+ * accuracy-based rounding for comparisons.
+ */
+class ValueListFilter : public Filter {
+ protected:
+  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
+
+  /// Check if sensor value matches any configured value (with accuracy rounding)
+  bool value_matches_any_(float sensor_value);
+
+  FixedVector<TemplatableValue<float>> values_;
+};
+
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-class FilterOutValueFilter : public Filter {
+class FilterOutValueFilter : public ValueListFilter {
  public:
-  explicit FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out);
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out);
 
   optional<float> new_value(float value) override;
-
- protected:
-  std::vector<TemplatableValue<float>> values_to_filter_out_;
 };
 
 class ThrottleFilter : public Filter {
@@ -340,17 +353,16 @@ class ThrottleFilter : public Filter {
 };
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-class ThrottleWithPriorityFilter : public Filter {
+class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::vector<TemplatableValue<float>> prioritized_values);
+                                      std::initializer_list<TemplatableValue<float>> prioritized_values);
 
   optional<float> new_value(float value) override;
 
  protected:
   uint32_t last_input_{0};
   uint32_t min_time_between_inputs_;
-  std::vector<TemplatableValue<float>> prioritized_values_;
 };
 
 class TimeoutFilter : public Filter, public Component {
