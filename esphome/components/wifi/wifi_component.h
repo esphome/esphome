@@ -219,7 +219,8 @@ class WiFiComponent : public Component {
 
   void set_sta(const WiFiAP &ap);
   WiFiAP get_sta() { return this->selected_ap_; }
-  void set_stas(const std::initializer_list<WiFiAP> &aps);
+  void init_sta(size_t count);
+  void add_sta(const WiFiAP &ap);
   void clear_sta();
 
 #ifdef USE_WIFI_AP
