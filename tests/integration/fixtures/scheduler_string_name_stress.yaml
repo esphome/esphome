@@ -1,0 +1,38 @@
+esphome:
+  name: sched-string-name-stress
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_string_name_stress_component]
+
+host:
+
+logger:
+  level: VERBOSE
+
+scheduler_string_name_stress_component:
+  id: string_stress
+
+api:
+  services:
+    - service: run_string_name_stress_test
+      then:
+        - lambda: |-
+            id(string_stress)->run_string_name_stress_test();
+
+event:
+  - platform: template
+    name: "Test Complete"
+    id: test_complete
+    device_class: button
+    event_types:
+      - "test_finished"
+  - platform: template
+    name: "Test Result"
+    id: test_result
+    device_class: button
+    event_types:
+      - "passed"
+      - "failed"

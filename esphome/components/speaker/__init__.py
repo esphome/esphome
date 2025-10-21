@@ -4,7 +4,7 @@ from esphome.components import audio, audio_dac
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_VOLUME
 from esphome.core import CORE
-from esphome.coroutine import coroutine_with_priority
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
@@ -138,7 +138,7 @@ async def speaker_mute_action_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(speaker_ns.using)
     cg.add_define("USE_SPEAKER")

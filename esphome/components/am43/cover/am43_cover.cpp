@@ -12,8 +12,10 @@ using namespace esphome::cover;
 
 void Am43Component::dump_config() {
   LOG_COVER("", "AM43 Cover", this);
-  ESP_LOGCONFIG(TAG, "  Device Pin: %d", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Invert Position: %d", (int) this->invert_position_);
+  ESP_LOGCONFIG(TAG,
+                "  Device Pin: %d\n"
+                "  Invert Position: %d",
+                this->pin_, (int) this->invert_position_);
 }
 
 void Am43Component::setup() {

@@ -1,22 +1,15 @@
-import logging
-
 import esphome.codegen as cg
+from esphome.components import ble_client, climate
 import esphome.config_validation as cv
-from esphome.components import climate, ble_client
 from esphome.const import (
     CONF_HEAT_MODE,
-    CONF_ID,
     CONF_RECEIVE_TIMEOUT,
     CONF_TEMPERATURE_SOURCE,
     CONF_TIME_ID,
 )
-from .. import (
-    BEDJET_CLIENT_SCHEMA,
-    bedjet_ns,
-    register_bedjet_child,
-)
 
-_LOGGER = logging.getLogger(__name__)
+from .. import BEDJET_CLIENT_SCHEMA, bedjet_ns, register_bedjet_child
+
 CODEOWNERS = ["@jhansche"]
 DEPENDENCIES = ["bedjet"]
 
@@ -33,9 +26,9 @@ BEDJET_TEMPERATURE_SOURCES = {
 }
 
 CONFIG_SCHEMA = (
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(BedJetClimate)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(BedJetClimate),
             cv.Optional(CONF_HEAT_MODE, default="heat"): cv.enum(
                 BEDJET_HEAT_MODES, lower=True
             ),
@@ -66,9 +59,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
     await register_bedjet_child(var, config)
 
     cg.add(var.set_heating_mode(config[CONF_HEAT_MODE]))

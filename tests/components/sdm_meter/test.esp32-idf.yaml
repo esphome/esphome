@@ -1,23 +1,9 @@
-uart:
-  - id: uart_sdm_meter
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
+  flow_control_pin: GPIO13
 
-sensor:
-  - platform: sdm_meter
-    phase_a:
-      current:
-        name: Phase A Current
-      voltage:
-        name: Phase A Voltage
-      active_power:
-        name: Phase A Power
-      power_factor:
-        name: Phase A Power Factor
-      apparent_power:
-        name: Phase A Apparent Power
-      reactive_power:
-        name: Phase A Reactive Power
-      phase_angle:
-        name: Phase A Phase Angle
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
+
+<<: !include common.yaml

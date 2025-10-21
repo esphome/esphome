@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_FAN_WITH_COOLING,
     CONF_FAN_WITH_HEATING,
     CONF_HEAT_ACTION,
+    CONF_HEAT_COOL_MODE,
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
@@ -70,9 +71,14 @@ from esphome.const import (
     CONF_VISUAL,
 )
 
-CONF_PRESET_CHANGE = "preset_change"
 CONF_DEFAULT_PRESET = "default_preset"
+CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION = "humidity_control_dehumidify_action"
+CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION = "humidity_control_humidify_action"
+CONF_HUMIDITY_CONTROL_OFF_ACTION = "humidity_control_off_action"
+CONF_HUMIDITY_HYSTERESIS = "humidity_hysteresis"
 CONF_ON_BOOT_RESTORE_FROM = "on_boot_restore_from"
+CONF_PRESET_CHANGE = "preset_change"
+CONF_TARGET_HUMIDITY_CHANGE_ACTION = "target_humidity_change_action"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -137,7 +143,7 @@ def validate_temperature_preset(preset, root_config, name, requirements):
 
 
 def generate_comparable_preset(config, name):
-    comparable_preset = f"{CONF_PRESET}:\n" f"  -  {CONF_NAME}: {name}\n"
+    comparable_preset = f"{CONF_PRESET}:\n  -  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
         comparable_preset += f"     {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"
@@ -150,7 +156,7 @@ def generate_comparable_preset(config, name):
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
-        CONF_AUTO_MODE: [
+        CONF_HEAT_COOL_MODE: [
             CONF_COOL_ACTION,
             CONF_HEAT_ACTION,
             CONF_MIN_COOLING_OFF_TIME,
@@ -239,6 +245,14 @@ def validate_thermostat(config):
             CONF_HEAT_ACTION,
             CONF_MAX_HEATING_RUN_TIME,
             CONF_SUPPLEMENTAL_HEATING_ACTION,
+        ],
+        CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION: [
+            CONF_HUMIDITY_CONTROL_OFF_ACTION,
+            CONF_HUMIDITY_SENSOR,
+        ],
+        CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION: [
+            CONF_HUMIDITY_CONTROL_OFF_ACTION,
+            CONF_HUMIDITY_SENSOR,
         ],
     }
     for config_trigger, req_triggers in requirements.items():
@@ -337,7 +351,7 @@ def validate_thermostat(config):
     # Warn about using the removed CONF_DEFAULT_MODE and advise users
     if CONF_DEFAULT_MODE in config and config[CONF_DEFAULT_MODE] is not None:
         raise cv.Invalid(
-            f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}."
+            f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}"
         )
 
     default_mode = config[CONF_DEFAULT_MODE]
@@ -477,11 +491,11 @@ def validate_thermostat(config):
     if (
         CONF_ON_BOOT_RESTORE_FROM in config
         and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
+        and CONF_DEFAULT_PRESET not in config
     ):
-        if CONF_DEFAULT_PRESET not in config:
-            raise cv.Invalid(
-                f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
-            )
+        raise cv.Invalid(
+            f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
+        )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
@@ -516,9 +530,9 @@ def validate_thermostat(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(ThermostatClimate)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(ThermostatClimate),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
@@ -538,6 +552,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COOL_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_DRY_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
@@ -585,8 +602,23 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(
+                CONF_TARGET_HUMIDITY_CHANGE_ACTION
+            ): automation.validate_automation(single=True),
+            cv.Optional(
                 CONF_TARGET_TEMPERATURE_CHANGE_ACTION
             ): automation.validate_automation(single=True),
+            cv.Exclusive(
+                CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION,
+                group_of_exclusion="humidity_control",
+            ): automation.validate_automation(single=True),
+            cv.Exclusive(
+                CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION,
+                group_of_exclusion="humidity_control",
+            ): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_HUMIDITY_CONTROL_OFF_ACTION
+            ): automation.validate_automation(single=True),
+            cv.Optional(CONF_HUMIDITY_HYSTERESIS, default=1.0): cv.percentage,
             cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
             cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
@@ -631,7 +663,8 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
         CONF_COOL_ACTION, CONF_DRY_ACTION, CONF_FAN_ONLY_ACTION, CONF_HEAT_ACTION
     ),
@@ -640,11 +673,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
 
-    heat_cool_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (
         CONF_COOL_ACTION in config
         or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
@@ -739,11 +770,6 @@ async def to_code(config):
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
-    if heat_cool_mode_available is True:
-        cg.add(var.set_supports_heat_cool(True))
-    else:
-        cg.add(var.set_supports_heat_cool(False))
-
     if CONF_COOL_ACTION in config:
         await automation.build_automation(
             var.get_cool_action_trigger(), [], config[CONF_COOL_ACTION]
@@ -780,6 +806,7 @@ async def to_code(config):
         await automation.build_automation(
             var.get_auto_mode_trigger(), [], config[CONF_AUTO_MODE]
         )
+        cg.add(var.set_supports_auto(True))
     if CONF_COOL_MODE in config:
         await automation.build_automation(
             var.get_cool_mode_trigger(), [], config[CONF_COOL_MODE]
@@ -800,6 +827,11 @@ async def to_code(config):
             var.get_heat_mode_trigger(), [], config[CONF_HEAT_MODE]
         )
         cg.add(var.set_supports_heat(True))
+    if CONF_HEAT_COOL_MODE in config:
+        await automation.build_automation(
+            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+        )
+        cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(
             var.get_off_mode_trigger(), [], config[CONF_OFF_MODE]
@@ -878,12 +910,39 @@ async def to_code(config):
             config[CONF_SWING_VERTICAL_ACTION],
         )
         cg.add(var.set_supports_swing_mode_vertical(True))
+    if CONF_TARGET_HUMIDITY_CHANGE_ACTION in config:
+        await automation.build_automation(
+            var.get_humidity_change_trigger(),
+            [],
+            config[CONF_TARGET_HUMIDITY_CHANGE_ACTION],
+        )
     if CONF_TARGET_TEMPERATURE_CHANGE_ACTION in config:
         await automation.build_automation(
             var.get_temperature_change_trigger(),
             [],
             config[CONF_TARGET_TEMPERATURE_CHANGE_ACTION],
         )
+    if CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION in config:
+        cg.add(var.set_supports_dehumidification(True))
+        await automation.build_automation(
+            var.get_humidity_control_dehumidify_action_trigger(),
+            [],
+            config[CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION],
+        )
+    if CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION in config:
+        cg.add(var.set_supports_humidification(True))
+        await automation.build_automation(
+            var.get_humidity_control_humidify_action_trigger(),
+            [],
+            config[CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION],
+        )
+    if CONF_HUMIDITY_CONTROL_OFF_ACTION in config:
+        await automation.build_automation(
+            var.get_humidity_control_off_action_trigger(),
+            [],
+            config[CONF_HUMIDITY_CONTROL_OFF_ACTION],
+        )
+    cg.add(var.set_humidity_hysteresis(config[CONF_HUMIDITY_HYSTERESIS]))
 
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:

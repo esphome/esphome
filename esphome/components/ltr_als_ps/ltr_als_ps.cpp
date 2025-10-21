@@ -1,7 +1,8 @@
 #include "ltr_als_ps.h"
 #include "esphome/core/application.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <limits>
 
 using esphome::i2c::ErrorCode;
 
@@ -14,30 +15,30 @@ static const uint8_t MAX_TRIES = 5;
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
   size_t i = 0;
-  size_t idx = -1;
-  while (idx == -1 && i < size) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i < size) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i++;
   }
-  if (idx == -1 || i + 1 >= size)
+  if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
   return array[i + 1];
 }
 
 template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
   size_t i = size - 1;
-  size_t idx = -1;
-  while (idx == -1 && i > 0) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i > 0) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i--;
   }
-  if (idx == -1 || i == 0)
+  if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
   return array[i - 1];
 }
@@ -63,7 +64,6 @@ static float get_ps_gain_coeff(PsGain gain) {
 }
 
 void LTRAlsPsComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LTR-303/329/55x/659");
   // As per datasheet we need to wait at least 100ms after power on to get ALS chip responsive
   this->set_timeout(100, [this]() { this->state_ = State::DELAYED_SETUP; });
 }
@@ -85,27 +85,34 @@ void LTRAlsPsComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Device type: %s", get_device_type(this->ltr_type_));
   if (this->is_als_()) {
-    ESP_LOGCONFIG(TAG, "  Automatic mode: %s", ONOFF(this->automatic_mode_enabled_));
-    ESP_LOGCONFIG(TAG, "  Gain: %.0fx", get_gain_coeff(this->gain_));
-    ESP_LOGCONFIG(TAG, "  Integration time: %d ms", get_itime_ms(this->integration_time_));
-    ESP_LOGCONFIG(TAG, "  Measurement repeat rate: %d ms", get_meas_time_ms(this->repeat_rate_));
-    ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+    ESP_LOGCONFIG(TAG,
+                  "  Automatic mode: %s\n"
+                  "  Gain: %.0fx\n"
+                  "  Integration time: %d ms\n"
+                  "  Measurement repeat rate: %d ms\n"
+                  "  Glass attenuation factor: %f",
+                  ONOFF(this->automatic_mode_enabled_), get_gain_coeff(this->gain_),
+                  get_itime_ms(this->integration_time_), get_meas_time_ms(this->repeat_rate_),
+                  this->glass_attenuation_factor_);
     LOG_SENSOR("  ", "ALS calculated lux", this->ambient_light_sensor_);
     LOG_SENSOR("  ", "CH1 Infrared counts", this->infrared_counts_sensor_);
     LOG_SENSOR("  ", "CH0 Visible+IR counts", this->full_spectrum_counts_sensor_);
     LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
   }
   if (this->is_ps_()) {
-    ESP_LOGCONFIG(TAG, "  Proximity gain: %.0fx", get_ps_gain_coeff(this->ps_gain_));
-    ESP_LOGCONFIG(TAG, "  Proximity cooldown time: %d s", this->ps_cooldown_time_s_);
-    ESP_LOGCONFIG(TAG, "  Proximity high threshold: %d", this->ps_threshold_high_);
-    ESP_LOGCONFIG(TAG, "  Proximity low threshold: %d", this->ps_threshold_low_);
+    ESP_LOGCONFIG(TAG,
+                  "  Proximity gain: %.0fx\n"
+                  "  Proximity cooldown time: %d s\n"
+                  "  Proximity high threshold: %d\n"
+                  "  Proximity low threshold: %d",
+                  get_ps_gain_coeff(this->ps_gain_), this->ps_cooldown_time_s_, this->ps_threshold_high_,
+                  this->ps_threshold_low_);
     LOG_SENSOR("  ", "Proximity counts", this->proximity_counts_sensor_);
   }
   LOG_UPDATE_INTERVAL(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with I2C LTR-303/329/55x/659 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 
@@ -298,7 +305,7 @@ void LTRAlsPsComponent::configure_als_() {
 
   uint8_t tries = MAX_TRIES;
   do {
-    ESP_LOGV(TAG, "Waiting for device to become active...");
+    ESP_LOGV(TAG, "Waiting for device to become active");
     delay(2);
     als_ctrl.raw = this->reg((uint8_t) CommandRegisters::ALS_CONTR).get();
   } while (!als_ctrl.active_mode && tries--);  // while active mode is not set - keep waiting

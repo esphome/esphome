@@ -77,7 +77,6 @@ class CS5460AComponent : public Component,
 
   void setup() override;
   void loop() override {}
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
  protected:

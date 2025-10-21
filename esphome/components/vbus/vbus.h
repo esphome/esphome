@@ -30,7 +30,6 @@ class VBus : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
 

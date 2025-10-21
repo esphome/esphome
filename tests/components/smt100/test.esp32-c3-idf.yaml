@@ -1,19 +1,5 @@
-uart:
-  - id: uart_smt100
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-c3-idf.yaml
 
-sensor:
-  - platform: smt100
-    counts:
-      name: Counts
-    dielectric_constant:
-      name: Dielectric Constant
-    temperature:
-      name: Temperature
-    moisture:
-      name: Moisture
-    voltage:
-      name: Voltage
-    update_interval: 60s
+<<: !include common.yaml

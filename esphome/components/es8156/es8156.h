@@ -14,7 +14,6 @@ class ES8156 : public audio_dac::AudioDac, public Component, public i2c::I2CDevi
   /////////////////////////
 
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
   ////////////////////////

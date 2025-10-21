@@ -9,7 +9,13 @@ void TouchscreenBinarySensor::setup() {
 }
 
 void TouchscreenBinarySensor::touch(TouchPoint tp) {
-  bool touched = (tp.x >= this->x_min_ && tp.x <= this->x_max_ && tp.y >= this->y_min_ && tp.y <= this->y_max_);
+  bool touched;
+  if (this->use_raw_) {
+    touched =
+        (tp.x_raw >= this->x_min_ && tp.x_raw <= this->x_max_ && tp.y_raw >= this->y_min_ && tp.y_raw <= this->y_max_);
+  } else {
+    touched = (tp.x >= this->x_min_ && tp.x <= this->x_max_ && tp.y >= this->y_min_ && tp.y <= this->y_max_);
+  }
 
   if (!this->pages_.empty()) {
     auto *current_page = this->parent_->get_display()->get_active_page();

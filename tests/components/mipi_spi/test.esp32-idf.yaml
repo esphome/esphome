@@ -1,0 +1,10 @@
+substitutions:
+  dc_pin: GPIO14
+  cs_pin: GPIO13
+  enable_pin: GPIO4
+  reset_pin: GPIO20
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml

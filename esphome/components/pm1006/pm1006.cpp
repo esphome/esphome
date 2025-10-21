@@ -55,8 +55,8 @@ uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t l
 }
 
 optional<bool> PM1006Component::check_byte_() const {
-  uint8_t index = this->data_index_;
-  uint8_t byte = this->data_[index];
+  const uint8_t index = this->data_index_;
+  const uint8_t byte = this->data_[index];
 
   // index 0..2 are the fixed header
   if (index < sizeof(PM1006_RESPONSE_HEADER)) {
@@ -86,17 +86,13 @@ optional<bool> PM1006Component::check_byte_() const {
 }
 
 void PM1006Component::parse_data_() {
-  const int pm_2_5_concentration = this->get_16_bit_uint_(5);
+  const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(5);
 
   ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", pm_2_5_concentration);
 
   if (this->pm_2_5_sensor_ != nullptr) {
     this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
   }
-}
-
-uint16_t PM1006Component::get_16_bit_uint_(uint8_t start_index) const {
-  return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
 }
 
 }  // namespace pm1006

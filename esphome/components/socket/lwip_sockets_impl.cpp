@@ -5,6 +5,7 @@
 #ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
 
 #include <cstring>
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace socket {
@@ -33,23 +34,56 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
 
 class LwIPSocketImpl : public Socket {
  public:
-  LwIPSocketImpl(int fd) : fd_(fd) {}
+  LwIPSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
+#ifdef USE_SOCKET_SELECT_SUPPORT
+    // Register new socket with the application for select() if monitoring requested
+    if (monitor_loop && fd_ >= 0) {
+      // Only set loop_monitored_ to true if registration succeeds
+      loop_monitored_ = App.register_socket_fd(fd_);
+    } else {
+      loop_monitored_ = false;
+    }
+#else
+    // Without select support, ignore monitor_loop parameter
+    (void) monitor_loop;
+#endif
+  }
   ~LwIPSocketImpl() override {
     if (!closed_) {
       close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
     }
   }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return lwip_connect(fd_, addr, addrlen); }
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
+    return accept_impl_(addr, addrlen, false);
+  }
+  std::unique_ptr<Socket> accept_loop_monitored(struct sockaddr *addr, socklen_t *addrlen) override {
+    return accept_impl_(addr, addrlen, true);
+  }
+
+ private:
+  std::unique_ptr<Socket> accept_impl_(struct sockaddr *addr, socklen_t *addrlen, bool loop_monitored) {
     int fd = lwip_accept(fd_, addr, addrlen);
     if (fd == -1)
       return {};
-    return make_unique<LwIPSocketImpl>(fd);
+    return make_unique<LwIPSocketImpl>(fd, loop_monitored);
   }
+
+ public:
   int bind(const struct sockaddr *addr, socklen_t addrlen) override { return lwip_bind(fd_, addr, addrlen); }
   int close() override {
-    int ret = lwip_close(fd_);
-    closed_ = true;
-    return ret;
+    if (!closed_) {
+#ifdef USE_SOCKET_SELECT_SUPPORT
+      // Unregister from select() before closing if monitored
+      if (loop_monitored_) {
+        App.unregister_socket_fd(fd_);
+      }
+#endif
+      int ret = lwip_close(fd_);
+      closed_ = true;
+      return ret;
+    }
+    return 0;
   }
   int shutdown(int how) override { return lwip_shutdown(fd_, how); }
 
@@ -97,16 +131,27 @@ class LwIPSocketImpl : public Socket {
     return 0;
   }
 
+  int get_fd() const override { return fd_; }
+
  protected:
   int fd_;
   bool closed_ = false;
 };
 
-std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+// Helper to create a socket with optional monitoring
+static std::unique_ptr<Socket> create_socket(int domain, int type, int protocol, bool loop_monitored = false) {
   int ret = lwip_socket(domain, type, protocol);
   if (ret == -1)
     return nullptr;
-  return std::unique_ptr<Socket>{new LwIPSocketImpl(ret)};
+  return std::unique_ptr<Socket>{new LwIPSocketImpl(ret, loop_monitored)};
+}
+
+std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+  return create_socket(domain, type, protocol, false);
+}
+
+std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol) {
+  return create_socket(domain, type, protocol, true);
 }
 
 }  // namespace socket

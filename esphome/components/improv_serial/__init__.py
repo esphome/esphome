@@ -27,14 +27,13 @@ def validate_logger(config):
     logger_conf = fv.full_config.get()[CONF_LOGGER]
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
-    if CORE.using_esp_idf:
-        if (
-            logger_conf[CONF_HARDWARE_UART] == USB_CDC
-            and get_esp32_variant() == VARIANT_ESP32S3
-        ):
-            raise cv.Invalid(
-                "improv_serial does not support the selected logger hardware_uart"
-            )
+    if CORE.using_esp_idf and (
+        logger_conf[CONF_HARDWARE_UART] == USB_CDC
+        and get_esp32_variant() == VARIANT_ESP32S3
+    ):
+        raise cv.Invalid(
+            "improv_serial does not support the selected logger hardware_uart"
+        )
     return config
 
 

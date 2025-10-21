@@ -25,8 +25,10 @@ static int draw_callback(JPEGDRAW *jpeg) {
   // to avoid crashing.
   App.feed_wdt();
   size_t position = 0;
-  for (size_t y = 0; y < jpeg->iHeight; y++) {
-    for (size_t x = 0; x < jpeg->iWidth; x++) {
+  size_t height = static_cast<size_t>(jpeg->iHeight);
+  size_t width = static_cast<size_t>(jpeg->iWidth);
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
       auto rg = decode_value(jpeg->pPixels[position++]);
       auto ba = decode_value(jpeg->pPixels[position++]);
       Color color(rg[1], rg[0], ba[1], ba[0]);
@@ -41,13 +43,14 @@ static int draw_callback(JPEGDRAW *jpeg) {
   return 1;
 }
 
-void JpegDecoder::prepare(size_t download_size) {
+int JpegDecoder::prepare(size_t download_size) {
   ImageDecoder::prepare(download_size);
   auto size = this->image_->resize_download_buffer(download_size);
   if (size < download_size) {
-    ESP_LOGE(TAG, "Resize failed!");
-    // TODO: return an error code;
+    ESP_LOGE(TAG, "Download buffer resize failed!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
   }
+  return 0;
 }
 
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
@@ -57,7 +60,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   }
 
   if (!this->jpeg_.openRAM(buffer, size, draw_callback)) {
-    ESP_LOGE(TAG, "Could not open image for decoding.");
+    ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
     return DECODE_ERROR_INVALID_TYPE;
   }
   auto jpeg_type = this->jpeg_.getJPEGType();
@@ -72,7 +75,9 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
 
   this->jpeg_.setUserPointer(this);
   this->jpeg_.setPixelType(RGB8888);
-  this->set_size(this->jpeg_.getWidth(), this->jpeg_.getHeight());
+  if (!this->set_size(this->jpeg_.getWidth(), this->jpeg_.getHeight())) {
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
   if (!this->jpeg_.decode(0, 0, 0)) {
     ESP_LOGE(TAG, "Error while decoding.");
     this->jpeg_.close();

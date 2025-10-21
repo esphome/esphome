@@ -43,13 +43,13 @@ font:
     id: default_font
   - file: $component_dir/x11.pcf
     id: pcf_font
-
-i2c:
-  scl: ${i2c_scl}
-  sda: ${i2c_sda}
+  - file: $component_dir/Tamzen5x9b.bdf
+    id: bdf_font
+    size: 7
 
 display:
   - platform: ssd1306_i2c
+    i2c_id: i2c_bus
     id: ssd1306_display
     model: SSD1306_128X64
     reset_pin: ${display_reset_pin}

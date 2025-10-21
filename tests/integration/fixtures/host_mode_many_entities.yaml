@@ -1,0 +1,392 @@
+esphome:
+  name: host-mode-many-entities
+  friendly_name: "Host Mode Many Entities Test"
+
+logger:
+
+host:
+
+api:
+
+sensor:
+  # 50 test sensors with predictable values for batching test
+  - platform: template
+    name: "Test Sensor 1"
+    lambda: return 1.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 2"
+    lambda: return 2.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 3"
+    lambda: return 3.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 4"
+    lambda: return 4.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 5"
+    lambda: return 5.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 6"
+    lambda: return 6.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 7"
+    lambda: return 7.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 8"
+    lambda: return 8.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 9"
+    lambda: return 9.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 10"
+    lambda: return 10.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 11"
+    lambda: return 11.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 12"
+    lambda: return 12.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 13"
+    lambda: return 13.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 14"
+    lambda: return 14.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 15"
+    lambda: return 15.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 16"
+    lambda: return 16.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 17"
+    lambda: return 17.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 18"
+    lambda: return 18.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 19"
+    lambda: return 19.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 20"
+    lambda: return 20.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 21"
+    lambda: return 21.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 22"
+    lambda: return 22.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 23"
+    lambda: return 23.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 24"
+    lambda: return 24.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 25"
+    lambda: return 25.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 26"
+    lambda: return 26.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 27"
+    lambda: return 27.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 28"
+    lambda: return 28.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 29"
+    lambda: return 29.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 30"
+    lambda: return 30.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 31"
+    lambda: return 31.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 32"
+    lambda: return 32.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 33"
+    lambda: return 33.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 34"
+    lambda: return 34.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 35"
+    lambda: return 35.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 36"
+    lambda: return 36.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 37"
+    lambda: return 37.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 38"
+    lambda: return 38.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 39"
+    lambda: return 39.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 40"
+    lambda: return 40.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 41"
+    lambda: return 41.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 42"
+    lambda: return 42.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 43"
+    lambda: return 43.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 44"
+    lambda: return 44.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 45"
+    lambda: return 45.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 46"
+    lambda: return 46.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 47"
+    lambda: return 47.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 48"
+    lambda: return 48.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 49"
+    lambda: return 49.0;
+    update_interval: 0.1s
+  - platform: template
+    name: "Test Sensor 50"
+    lambda: return 50.0;
+    update_interval: 0.1s
+  # Temperature sensor for the thermostat
+  - platform: template
+    name: "Temperature Sensor"
+    id: temp_sensor
+    lambda: return 22.5;
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    update_interval: 5s
+
+# Mixed entity types for comprehensive batching test
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor 1"
+    lambda: return millis() % 1000 < 500;
+  - platform: template
+    name: "Test Binary Sensor 2"
+    lambda: return millis() % 2000 < 1000;
+
+switch:
+  - platform: template
+    name: "Test Switch 1"
+    lambda: return true;
+    turn_on_action:
+      - logger.log: "Switch 1 ON"
+    turn_off_action:
+      - logger.log: "Switch 1 OFF"
+  - platform: template
+    name: "Test Switch 2"
+    lambda: return false;
+    turn_on_action:
+      - logger.log: "Switch 2 ON"
+    turn_off_action:
+      - logger.log: "Switch 2 OFF"
+
+text_sensor:
+  - platform: template
+    name: "Test Text Sensor 1"
+    lambda: return std::string("Test Value 1");
+  - platform: template
+    name: "Test Text Sensor 2"
+    lambda: return std::string("Test Value 2");
+  - platform: version
+    name: "ESPHome Version"
+
+number:
+  - platform: template
+    name: "Test Number"
+    min_value: 0
+    max_value: 100
+    step: 1
+    lambda: return 50.0;
+    set_action:
+      - logger.log: "Number set"
+
+select:
+  - platform: template
+    name: "Test Select"
+    options:
+      - "Option 1"
+      - "Option 2"
+    initial_option: "Option 1"
+    optimistic: true
+    set_action:
+      - logger.log: "Select changed"
+
+text:
+  - platform: template
+    name: "Test Text"
+    mode: text
+    initial_value: "Hello"
+    set_action:
+      - logger.log: "Text changed"
+
+valve:
+  - platform: template
+    name: "Test Valve"
+    open_action:
+      - logger.log: "Valve opening"
+    close_action:
+      - logger.log: "Valve closing"
+    stop_action:
+      - logger.log: "Valve stopping"
+
+output:
+  - platform: template
+    id: heater_output
+    type: binary
+    write_action:
+      - logger.log: "Heater output changed"
+  - platform: template
+    id: cooler_output
+    type: binary
+    write_action:
+      - logger.log: "Cooler output changed"
+
+climate:
+  - platform: thermostat
+    name: "Test Thermostat"
+    sensor: temp_sensor
+    default_preset: Home
+    on_boot_restore_from: default_preset
+    min_heating_off_time: 1s
+    min_heating_run_time: 1s
+    min_cooling_off_time: 1s
+    min_cooling_run_time: 1s
+    min_idle_time: 1s
+    heat_action:
+      - output.turn_on: heater_output
+    cool_action:
+      - output.turn_on: cooler_output
+    idle_action:
+      - output.turn_off: heater_output
+      - output.turn_off: cooler_output
+    preset:
+      - name: Home
+        default_target_temperature_low: 20
+        default_target_temperature_high: 24
+        mode: heat_cool
+      - name: Away
+        default_target_temperature_low: 16
+        default_target_temperature_high: 26
+        mode: heat_cool
+      - name: Sleep
+        default_target_temperature_low: 18
+        default_target_temperature_high: 22
+        mode: heat_cool
+
+alarm_control_panel:
+  - platform: template
+    name: "Test Alarm"
+    codes:
+      - "1234"
+    arming_away_time: 0s
+    arming_home_time: 0s
+    pending_time: 0s
+    trigger_time: 300s
+    restore_mode: ALWAYS_DISARMED
+    on_disarmed:
+      - logger.log: "Alarm disarmed"
+    on_arming:
+      - logger.log: "Alarm arming"
+    on_armed_away:
+      - logger.log: "Alarm armed away"
+    on_armed_home:
+      - logger.log: "Alarm armed home"
+    on_pending:
+      - logger.log: "Alarm pending"
+    on_triggered:
+      - logger.log: "Alarm triggered"
+
+event:
+  - platform: template
+    name: "Test Event"
+    event_types:
+      - first_event
+      - second_event
+
+button:
+  - platform: template
+    name: "Test Button"
+    on_press:
+      - logger.log: "Button pressed"
+
+# Date, Time, and DateTime entities
+datetime:
+  - platform: template
+    type: date
+    name: "Test Date"
+    initial_value: "2023-05-13"
+    optimistic: true
+  - platform: template
+    type: time
+    name: "Test Time"
+    initial_value: "12:30:00"
+    optimistic: true
+  - platform: template
+    type: datetime
+    name: "Test DateTime"
+    optimistic: true

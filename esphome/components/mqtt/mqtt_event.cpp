@@ -16,7 +16,8 @@ using namespace esphome::event;
 MQTTEventComponent::MQTTEventComponent(event::Event *event) : event_(event) {}
 
 void MQTTEventComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  JsonArray event_types = root.createNestedArray(MQTT_EVENT_TYPES);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray event_types = root[MQTT_EVENT_TYPES].to<JsonArray>();
   for (const auto &event_type : this->event_->get_event_types())
     event_types.add(event_type);
 
@@ -40,8 +41,10 @@ void MQTTEventComponent::dump_config() {
 }
 
 bool MQTTEventComponent::publish_event_(const std::string &event_type) {
-  return this->publish_json(this->get_state_topic_(),
-                            [event_type](JsonObject root) { root[MQTT_EVENT_TYPE] = event_type; });
+  return this->publish_json(this->get_state_topic_(), [event_type](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+    root[MQTT_EVENT_TYPE] = event_type;
+  });
 }
 
 std::string MQTTEventComponent::component_type() const { return "event"; }

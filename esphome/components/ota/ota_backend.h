@@ -14,6 +14,7 @@ namespace ota {
 enum OTAResponseTypes {
   OTA_RESPONSE_OK = 0x00,
   OTA_RESPONSE_REQUEST_AUTH = 0x01,
+  OTA_RESPONSE_REQUEST_SHA256_AUTH = 0x02,
 
   OTA_RESPONSE_HEADER_OK = 0x40,
   OTA_RESPONSE_AUTH_OK = 0x41,
@@ -67,7 +68,28 @@ class OTAComponent : public Component {
   }
 
  protected:
-  CallbackManager<void(ota::OTAState, float, uint8_t)> state_callback_{};
+  /** Extended callback manager with deferred call support.
+   *
+   * This adds a call_deferred() method for thread-safe execution from other tasks.
+   */
+  class StateCallbackManager : public CallbackManager<void(OTAState, float, uint8_t)> {
+   public:
+    StateCallbackManager(OTAComponent *component) : component_(component) {}
+
+    /** Call callbacks with deferral to main loop (for thread safety).
+     *
+     * This should be used by OTA implementations that run in separate tasks
+     * (like web_server OTA) to ensure callbacks execute in the main loop.
+     */
+    void call_deferred(ota::OTAState state, float progress, uint8_t error) {
+      component_->defer([this, state, progress, error]() { this->call(state, progress, error); });
+    }
+
+   private:
+    OTAComponent *component_;
+  };
+
+  StateCallbackManager state_callback_{this};
 #endif
 };
 
@@ -89,6 +111,11 @@ class OTAGlobalCallback {
 
 OTAGlobalCallback *get_global_ota_callback();
 void register_ota_platform(OTAComponent *ota_caller);
+
+// OTA implementations should use:
+// - state_callback_.call() when already in main loop (e.g., esphome OTA)
+// - state_callback_.call_deferred() when in separate task (e.g., web_server OTA)
+// This ensures proper callback execution in all contexts.
 #endif
 std::unique_ptr<ota::OTABackend> make_ota_backend();
 

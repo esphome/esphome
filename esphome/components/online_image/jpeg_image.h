@@ -21,7 +21,7 @@ class JpegDecoder : public ImageDecoder {
   JpegDecoder(OnlineImage *image) : ImageDecoder(image) {}
   ~JpegDecoder() override {}
 
-  void prepare(size_t download_size) override;
+  int prepare(size_t download_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
  protected:

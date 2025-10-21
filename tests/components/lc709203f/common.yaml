@@ -1,0 +1,12 @@
+sensor:
+  - platform: lc709203f
+    i2c_id: i2c_bus
+    size: 2000
+    voltage: 3.7
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_level:
+      name: "Battery"
+    temperature:
+      name: "Pack Temperature"
+      b_constant: 0xA5A5

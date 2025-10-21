@@ -15,14 +15,15 @@ void Nextion::set_wake_up_page(uint8_t wake_up_page) {
   this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", wake_up_page, true);
 }
 
-void Nextion::set_touch_sleep_timeout(uint32_t touch_sleep_timeout) {
-  if (touch_sleep_timeout < 3) {
-    ESP_LOGD(TAG, "Sleep timeout out of bounds, range 3-65535");
-    return;
+void Nextion::set_touch_sleep_timeout(const uint16_t touch_sleep_timeout) {
+  // Validate range: Nextion thsp command requires min 3, max 65535 seconds (0 disables)
+  if (touch_sleep_timeout != 0 && touch_sleep_timeout < 3) {
+    this->touch_sleep_timeout_ = 3;  // Auto-correct to minimum valid value
+  } else {
+    this->touch_sleep_timeout_ = touch_sleep_timeout;
   }
 
-  this->touch_sleep_timeout_ = touch_sleep_timeout;
-  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", touch_sleep_timeout, true);
+  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", this->touch_sleep_timeout_, true);
 }
 
 void Nextion::sleep(bool sleep) {
@@ -37,8 +38,8 @@ void Nextion::sleep(bool sleep) {
 
 // Protocol reparse mode
 bool Nextion::set_protocol_reparse_mode(bool active_mode) {
-  ESP_LOGV(TAG, "Set Nextion protocol reparse mode: %s", YESNO(active_mode));
-  this->ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
+  ESP_LOGV(TAG, "Reparse mode: %s", YESNO(active_mode));
+  this->connection_state_.ignore_is_setup_ = true;  // if not in reparse mode setup will fail, so it should be ignored
   bool all_commands_sent = true;
   if (active_mode) {  // Sets active protocol reparse mode
     all_commands_sent &= this->send_command_("recmod=1");
@@ -48,10 +49,10 @@ bool Nextion::set_protocol_reparse_mode(bool active_mode) {
     all_commands_sent &= this->send_command_("recmod=0");  // Sending recmode=0 twice is recommended
     all_commands_sent &= this->send_command_("recmod=0");
   }
-  if (!this->nextion_reports_is_setup_) {  // No need to connect if is already setup
+  if (!this->connection_state_.nextion_reports_is_setup_) {  // No need to connect if is already setup
     all_commands_sent &= this->send_command_("connect");
   }
-  this->ignore_is_setup_ = false;
+  this->connection_state_.ignore_is_setup_ = false;
   return all_commands_sent;
 }
 
@@ -184,14 +185,14 @@ void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {
-    ESP_LOGD(TAG, "Brightness out of bounds, percentage range 0-1.0");
+    ESP_LOGD(TAG, "Brightness out of bounds (0-1.0)");
     return;
   }
   this->add_no_result_to_queue_with_printf_("backlight_brightness", "dim=%d", static_cast<int>(brightness * 100));
 }
 
 void Nextion::set_auto_wake_on_touch(bool auto_wake_on_touch) {
-  this->auto_wake_on_touch_ = auto_wake_on_touch;
+  this->connection_state_.auto_wake_on_touch_ = auto_wake_on_touch;
   this->add_no_result_to_queue_with_set("auto_wake_on_touch", "thup", auto_wake_on_touch ? 1 : 0);
 }
 
