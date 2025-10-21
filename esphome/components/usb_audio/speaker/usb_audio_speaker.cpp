@@ -6,6 +6,8 @@
 
 #include "esphome/core/log.h"
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 namespace esphome {
 namespace usb_audio {
@@ -81,8 +83,12 @@ size_t USBAudioSpeaker::play(const uint8_t *data, size_t length) {
     this->last_write_ms_ = millis();
     return length;
   }
-  if (err != ESP_ERR_TIMEOUT) {
+  if (err == ESP_ERR_TIMEOUT) {
+    // Yield briefly to give the USB host task time to drain its buffers.
+    vTaskDelay(pdMS_TO_TICKS(this->write_timeout_ms_));
+  } else {
     ESP_LOGW(TAG_SPK, "Write error: %s", esp_err_to_name(err));
+    vTaskDelay(pdMS_TO_TICKS(this->write_timeout_ms_));
   }
   return 0;
 }
@@ -113,7 +119,7 @@ void USBAudioSpeaker::set_mute_state(bool mute_state) {
   }
 }
 
-bool USBAudioSpeaker::ensure_started_() { return this->parent_->ensure_started(); }
+bool USBAudioSpeaker::ensure_started_() { return this->parent_->ensure_started(USBAudioComponent::Endpoint::SPEAKER); }
 
 }  // namespace usb_audio
 }  // namespace esphome

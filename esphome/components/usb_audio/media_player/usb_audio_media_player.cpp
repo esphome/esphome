@@ -34,6 +34,9 @@ void USBAudioMediaPlayer::handle_connection_state_() {
   if (!connected && this->last_connected_) {
     this->stop_due_to_disconnect_();
   }
+  if (connected && !this->last_connected_) {
+    ESP_LOGI(TAG, "USB device connected");
+  }
   if (connected) {
     this->stop_sent_ = false;
   }

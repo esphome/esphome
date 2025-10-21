@@ -29,7 +29,7 @@ void USBAudioMicrophone::dump_config() {
   ESP_LOGCONFIG(TAG_MIC, "USB Microphone:");
   ESP_LOGCONFIG(TAG_MIC, "  Sample rate: %u Hz", this->sample_rate_);
   ESP_LOGCONFIG(TAG_MIC, "  Bits per sample: %u", this->bits_per_sample_);
-  ESP_LOGCONFIG(TAG_MIC, "  Channels: %u (mono only)", this->channels_);
+  ESP_LOGCONFIG(TAG_MIC, "  Channels: %u", this->channels_);
   ESP_LOGCONFIG(TAG_MIC, "  Buffer size: %u", static_cast<unsigned int>(this->read_buffer_.size()));
 }
 
@@ -38,7 +38,7 @@ void USBAudioMicrophone::start() {
     return;
   }
 
-  if (!this->parent_->ensure_started()) {
+  if (!this->parent_->ensure_started(USBAudioComponent::Endpoint::MICROPHONE)) {
     ESP_LOGE(TAG_MIC, "USB host not started");
     this->status_set_warning();
     return;
@@ -122,7 +122,12 @@ void USBAudioMicrophone::mic_task_loop_() {
     if (err == ESP_OK && bytes_read > 0) {
       this->enqueue_frame_(this->read_buffer_.data(), bytes_read);
     } else if (err == ESP_ERR_TIMEOUT) {
-      // Expected when there is no new data within the timeout window
+      // No data available right now; yield to avoid starving lower priority tasks.
+      vTaskDelay(pdMS_TO_TICKS(READ_TIMEOUT_MS));
+      continue;
+    } else if (err == ESP_ERR_INVALID_STATE) {
+      // Stream not active yet (e.g. device starting or suspended); yield before retrying.
+      vTaskDelay(pdMS_TO_TICKS(READ_TIMEOUT_MS));
       continue;
     } else if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
       ESP_LOGW(TAG_MIC, "Read error: %s", esp_err_to_name(err));

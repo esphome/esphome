@@ -53,6 +53,11 @@ class USBAudioSpeaker;
 
 class USBAudioComponent : public Component {
  public:
+  enum class Endpoint : uint8_t {
+    SPEAKER,
+    MICROPHONE,
+  };
+
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -69,7 +74,7 @@ class USBAudioComponent : public Component {
   void set_microphone(USBAudioMicrophone *microphone) { this->microphone_ = microphone; }
   void set_speaker(USBAudioSpeaker *speaker) { this->speaker_ = speaker; }
 
-  bool ensure_started();
+  bool ensure_started(Endpoint endpoint);
   void resume_microphone();
   void suspend_microphone();
   void resume_speaker();
@@ -94,6 +99,10 @@ class USBAudioComponent : public Component {
   bool open_stream_(const USBAudioEvent &event);
   bool start_speaker_stream_();
   bool start_microphone_stream_();
+  bool populate_stream_config_(uac_host_device_handle_t handle, const AudioEndpointConfig &config,
+                               uac_host_stream_config_t &stream_config, const char *role);
+  void log_alt_capabilities_(const char *role, const AudioEndpointConfig &config, const uac_host_dev_info_t &info,
+                             uac_host_device_handle_t handle);
   void handle_disconnect_(uac_host_device_handle_t handle);
   void close_all_devices_();
   bool is_ready_(const AudioEndpointConfig &config) const { return config.configured && config.buffer_size > 0; }

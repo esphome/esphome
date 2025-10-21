@@ -13,8 +13,9 @@ microphone:
   - platform: usb_audio
     id: usb_mic
     usb_audio_id: usb_audio_id
-    sample_rate: 16000
+    sample_rate: 48000
     bits_per_sample: 16bit
+    num_channels: 2
 
 speaker:
   - platform: usb_audio

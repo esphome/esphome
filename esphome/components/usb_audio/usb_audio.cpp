@@ -3,6 +3,8 @@
 #if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include <algorithm>
+#include <cstdint>
+#include <inttypes.h>
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -139,7 +141,7 @@ void USBAudioComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Connect timeout: %u ms", this->connect_timeout_ms_);
 }
 
-bool USBAudioComponent::ensure_started() {
+bool USBAudioComponent::ensure_started(Endpoint endpoint) {
   if (this->event_queue_ != nullptr) {
     USBAudioEvent event;
     while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
@@ -149,15 +151,17 @@ bool USBAudioComponent::ensure_started() {
 
   const uint32_t start_ms = millis();
 
-  while (!this->device_connected_) {
-    if (this->connect_timeout_ms_ == 0) {
-      break;
+  auto get_handle = [this, endpoint]() -> uac_host_device_handle_t & {
+    if (endpoint == Endpoint::SPEAKER) {
+      return this->speaker_handle_;
     }
-    if (millis() - start_ms >= this->connect_timeout_ms_) {
-      ESP_LOGW(TAG, "Timed out waiting for USB audio device");
-      return false;
-    }
+    return this->microphone_handle_;
+  };
 
+  auto &target_handle = get_handle();
+
+  while (target_handle == nullptr && this->connect_timeout_ms_ != 0 &&
+         (millis() - start_ms) < this->connect_timeout_ms_) {
     if (this->event_queue_ != nullptr) {
       USBAudioEvent event;
       if (xQueueReceive(this->event_queue_, &event, pdMS_TO_TICKS(20)) == pdTRUE) {
@@ -169,8 +173,10 @@ bool USBAudioComponent::ensure_started() {
     }
   }
 
-  if (!this->device_connected_) {
-    ESP_LOGW(TAG, "USB audio device not connected");
+  const char *role = endpoint == Endpoint::SPEAKER ? "speaker" : "microphone";
+
+  if (target_handle == nullptr) {
+    ESP_LOGW(TAG, "USB %s interface not connected", role);
     return false;
   }
 
@@ -181,7 +187,12 @@ bool USBAudioComponent::ensure_started() {
   if (this->microphone_handle_ != nullptr && !this->microphone_stream_started_) {
     ok &= this->start_microphone_stream_();
   }
-  return ok;
+
+  this->device_connected_ = (this->speaker_handle_ != nullptr) || (this->microphone_handle_ != nullptr);
+
+  bool target_started =
+      endpoint == Endpoint::SPEAKER ? this->speaker_stream_started_ : this->microphone_stream_started_;
+  return ok && target_started;
 }
 
 bool USBAudioComponent::teardown() {
@@ -313,6 +324,10 @@ esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_
   TickType_t timeout_ticks = timeout_ms == 0 ? 0 : pdMS_TO_TICKS(timeout_ms);
   esp_err_t err =
       uac_host_device_read(this->microphone_handle_, buffer, static_cast<uint32_t>(size), &actual, timeout_ticks);
+  if (err == ESP_FAIL && actual == 0) {
+    // The driver reports ESP_FAIL when the ring buffer has no data within the timeout window; treat like timeout.
+    err = ESP_ERR_TIMEOUT;
+  }
   if (bytes_read != nullptr) {
     *bytes_read = actual;
   }
@@ -324,8 +339,13 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
     return ESP_ERR_INVALID_STATE;
   }
   TickType_t timeout_ticks = timeout_ms == 0 ? 0 : pdMS_TO_TICKS(timeout_ms);
-  return uac_host_device_write(this->speaker_handle_, const_cast<uint8_t *>(data), static_cast<uint32_t>(length),
-                               timeout_ticks);
+  esp_err_t err = uac_host_device_write(this->speaker_handle_, const_cast<uint8_t *>(data),
+                                        static_cast<uint32_t>(length), timeout_ticks);
+  if (err == ESP_FAIL || err == ESP_ERR_INVALID_STATE) {
+    // Ring buffer full or stream inactive; report as timeout so callers back off and retry.
+    err = ESP_ERR_TIMEOUT;
+  }
+  return err;
 }
 
 void USBAudioComponent::process_event_(const USBAudioEvent &event) {
@@ -424,6 +444,7 @@ bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
     this->speaker_addr_ = event.driver.addr;
     this->speaker_stream_started_ = false;
     this->device_connected_ = true;
+    ESP_LOGI(TAG, "Speaker interface %u connected (addr=%u)", this->speaker_iface_, this->speaker_addr_);
     if (!this->start_speaker_stream_()) {
       ESP_LOGW(TAG, "Unable to start speaker stream");
     }
@@ -433,6 +454,7 @@ bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
     this->microphone_addr_ = event.driver.addr;
     this->microphone_stream_started_ = false;
     this->device_connected_ = true;
+    ESP_LOGI(TAG, "Microphone interface %u connected (addr=%u)", this->microphone_iface_, this->microphone_addr_);
     if (!this->start_microphone_stream_()) {
       ESP_LOGW(TAG, "Unable to start microphone stream");
     }
@@ -446,12 +468,10 @@ bool USBAudioComponent::start_speaker_stream_() {
     return false;
   }
 
-  const uac_host_stream_config_t stm_cfg = {
-      .channels = this->speaker_config_.channels,
-      .bit_resolution = static_cast<uint8_t>(this->speaker_config_.bits_per_sample),
-      .sample_freq = this->speaker_config_.sample_rate,
-      .flags = 0,
-  };
+  uac_host_stream_config_t stm_cfg{};
+  if (!this->populate_stream_config_(this->speaker_handle_, this->speaker_config_, stm_cfg, "Speaker")) {
+    return false;
+  }
 
   esp_err_t err = uac_host_device_start(this->speaker_handle_, &stm_cfg);
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
@@ -469,12 +489,10 @@ bool USBAudioComponent::start_microphone_stream_() {
     return false;
   }
 
-  const uac_host_stream_config_t stm_cfg = {
-      .channels = this->mic_config_.channels,
-      .bit_resolution = static_cast<uint8_t>(this->mic_config_.bits_per_sample),
-      .sample_freq = this->mic_config_.sample_rate,
-      .flags = 0,
-  };
+  uac_host_stream_config_t stm_cfg{};
+  if (!this->populate_stream_config_(this->microphone_handle_, this->mic_config_, stm_cfg, "Microphone")) {
+    return false;
+  }
 
   esp_err_t err = uac_host_device_start(this->microphone_handle_, &stm_cfg);
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
@@ -485,6 +503,99 @@ bool USBAudioComponent::start_microphone_stream_() {
   this->microphone_stream_started_ = true;
   this->device_connected_ = true;
   return true;
+}
+
+bool USBAudioComponent::populate_stream_config_(uac_host_device_handle_t handle, const AudioEndpointConfig &config,
+                                                uac_host_stream_config_t &stream_config, const char *role) {
+  if (handle == nullptr) {
+    return false;
+  }
+
+  if (config.bits_per_sample == 0 || config.bits_per_sample > UINT8_MAX) {
+    ESP_LOGE(TAG, "%s configuration has unsupported bit depth %u", role, config.bits_per_sample);
+    return false;
+  }
+
+  if (config.channels == 0 || config.sample_rate == 0) {
+    ESP_LOGE(TAG, "%s configuration missing channels (%u) or sample_rate (%" PRIu32 ")", role, config.channels,
+             config.sample_rate);
+    return false;
+  }
+
+  uac_host_dev_info_t info{};
+  esp_err_t err = uac_host_get_device_info(handle, &info);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to query %s interface info: %s", role, esp_err_to_name(err));
+    return false;
+  }
+
+  for (uint8_t alt = 1; alt <= info.iface_alt_num; alt++) {
+    uac_host_dev_alt_param_t alt_param{};
+    err = uac_host_get_device_alt_param(handle, alt, &alt_param);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to query %s alt setting %u: %s", role, alt, esp_err_to_name(err));
+      continue;
+    }
+
+    if (alt_param.channels != config.channels) {
+      continue;
+    }
+    if (alt_param.bit_resolution != config.bits_per_sample) {
+      continue;
+    }
+
+    bool frequency_supported = false;
+    if (alt_param.sample_freq_type == 0) {
+      if (config.sample_rate >= alt_param.sample_freq_lower && config.sample_rate <= alt_param.sample_freq_upper) {
+        frequency_supported = true;
+      }
+    } else {
+      const uint8_t freq_count = std::min<uint8_t>(alt_param.sample_freq_type, UAC_FREQ_NUM_MAX);
+      for (uint8_t i = 0; i < freq_count; i++) {
+        if (alt_param.sample_freq[i] == config.sample_rate) {
+          frequency_supported = true;
+          break;
+        }
+      }
+    }
+
+    if (!frequency_supported) {
+      continue;
+    }
+
+    stream_config.channels = config.channels;
+    stream_config.bit_resolution = static_cast<uint8_t>(config.bits_per_sample);
+    stream_config.sample_freq = config.sample_rate;
+    stream_config.flags = 0;
+    return true;
+  }
+
+  this->log_alt_capabilities_(role, config, info, handle);
+  return false;
+}
+
+void USBAudioComponent::log_alt_capabilities_(const char *role, const AudioEndpointConfig &config,
+                                              const uac_host_dev_info_t &info, uac_host_device_handle_t handle) {
+  ESP_LOGE(TAG, "%s interface %u does not support requested format (channels=%u bits=%u sample_rate=%" PRIu32 " Hz)",
+           role, info.iface_num, config.channels, config.bits_per_sample, config.sample_rate);
+
+  for (uint8_t alt = 1; alt <= info.iface_alt_num; alt++) {
+    uac_host_dev_alt_param_t alt_param{};
+    if (uac_host_get_device_alt_param(handle, alt, &alt_param) != ESP_OK) {
+      continue;
+    }
+
+    if (alt_param.sample_freq_type == 0) {
+      ESP_LOGI(TAG, "  alt %u: channels=%u bits=%u sample rate range=%" PRIu32 "-%" PRIu32 " Hz", alt,
+               alt_param.channels, alt_param.bit_resolution, alt_param.sample_freq_lower, alt_param.sample_freq_upper);
+    } else {
+      ESP_LOGI(TAG, "  alt %u: channels=%u bits=%u sample rates:", alt, alt_param.channels, alt_param.bit_resolution);
+      const uint8_t freq_count = std::min<uint8_t>(alt_param.sample_freq_type, UAC_FREQ_NUM_MAX);
+      for (uint8_t i = 0; i < freq_count; i++) {
+        ESP_LOGI(TAG, "    %" PRIu32 " Hz", alt_param.sample_freq[i]);
+      }
+    }
+  }
 }
 
 void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {

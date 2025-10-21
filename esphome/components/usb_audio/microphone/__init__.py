@@ -47,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
                     min=8000, max=96000
                 ),
                 cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): _bits_validator(),
-                cv.Optional(CONF_NUM_CHANNELS, default=1): cv.int_range(min=1, max=1),
+                cv.Optional(CONF_NUM_CHANNELS, default=1): cv.int_range(min=1, max=2),
             }
         ).extend(cv.COMPONENT_SCHEMA)
     ),
