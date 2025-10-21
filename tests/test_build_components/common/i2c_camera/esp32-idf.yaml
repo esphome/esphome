@@ -1,3 +1,10 @@
+# I2C bus for camera sensor
+i2c:
+  - id: i2c_camera_bus
+    sda: 25
+    scl: 23
+    frequency: 400kHz
+
 esp32_camera:
   name: ESP32 Camera
   data_pins:
@@ -15,9 +22,7 @@ esp32_camera:
   external_clock:
     pin: 27
     frequency: 20MHz
-  i2c_pins:
-    sda: 25
-    scl: 23
+  i2c_id: i2c_camera_bus
   reset_pin: 15
   power_down_pin: 1
   resolution: 640x480

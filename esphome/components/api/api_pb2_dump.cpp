@@ -1292,6 +1292,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "feature_flags", this->feature_flags);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ClimateStateResponse");
