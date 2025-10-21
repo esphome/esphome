@@ -3,8 +3,8 @@ import argparse
 
 from helpers import (
     changed_files,
-    filter_component_files,
-    filter_cpp_files,
+    filter_component_and_test_cpp_files,
+    filter_component_and_test_files,
     get_components_with_dependencies,
     get_cpp_changed_components,
     git_ls_files,
@@ -14,7 +14,7 @@ from helpers import (
 def get_all_component_files() -> list[str]:
     """Get all component files from git."""
     files = git_ls_files()
-    return list(filter(filter_component_files, files))
+    return list(filter(filter_component_and_test_files, files))
 
 
 def main():
@@ -100,7 +100,7 @@ def main():
             # Only look at changed component files (ignore infrastructure changes)
             # For --changed-direct: only actual component code changes matter (for isolation)
             # For --changed-with-deps: only actual component code changes matter (for testing)
-            files = [f for f in changed if filter_component_files(f)]
+            files = [f for f in changed if filter_component_and_test_files(f)]
     else:
         # Get all component files
         files = get_all_component_files()
@@ -122,7 +122,7 @@ def main():
             print(c)
     elif args.cpp_changed:
         # Only look at changed cpp files
-        files = list(filter(filter_cpp_files, changed))
+        files = list(filter(filter_component_and_test_cpp_files, changed))
         for c in get_cpp_changed_components(files):
             print(c)
     else:

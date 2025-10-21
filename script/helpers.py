@@ -667,14 +667,14 @@ def get_components_from_integration_fixtures() -> set[str]:
     return components
 
 
-def filter_component_files(file_path: str) -> bool:
-    """Check if a file path is a component file.
+def filter_component_and_test_files(file_path: str) -> bool:
+    """Check if a file path is a component or test file.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is in a component directory
+        True if the file is in a component or test directory
     """
     return file_path.startswith(COMPONENT_AND_TESTS_PATHS) or (
         file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
@@ -682,14 +682,14 @@ def filter_component_files(file_path: str) -> bool:
     )
 
 
-def filter_cpp_files(file_path: str) -> bool:
-    """Check if a file is a C++ source file in component directories.
+def filter_component_and_test_cpp_files(file_path: str) -> bool:
+    """Check if a file is a C++ source file in component or test directories.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is a C++ source/header file in component directories
+        True if the file is a C++ source/header file in component or test directories
     """
     return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
         COMPONENT_AND_TESTS_PATHS
@@ -909,7 +909,7 @@ def get_all_components() -> list[str]:
         List of all component names
     """
     files = git_ls_files()
-    component_files = list(filter(filter_component_files, files))
+    component_files = list(filter(filter_component_and_test_files, files))
     return get_components_with_dependencies(component_files, False)
 
 

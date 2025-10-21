@@ -12,7 +12,7 @@ list_components = __import__("list-components")
 
 if __name__ == "__main__":
     files = git_ls_files()
-    files = filter(list_components.filter_component_files, files)
+    files = filter(list_components.filter_component_and_test_files, files)
 
     components = list_components.get_components(files, True)
 

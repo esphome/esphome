@@ -53,8 +53,8 @@ from helpers import (
     PYTHON_FILE_EXTENSIONS,
     changed_files,
     core_changed,
-    filter_component_files,
-    filter_cpp_files,
+    filter_component_and_test_cpp_files,
+    filter_component_and_test_files,
     get_all_dependencies,
     get_changed_components,
     get_component_from_path,
@@ -309,7 +309,7 @@ def list_cpp_components_to_test(branch: str | None = None) -> list[str]:
         return ["--all"]
 
     # Filter to only C++ files
-    cpp_files = list(filter(filter_cpp_files, files))
+    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
     return get_cpp_changed_components(cpp_files)
 
 
@@ -609,7 +609,7 @@ def main() -> None:
     else:
         # Get both directly changed and all changed (with dependencies)
         changed = changed_files(args.branch)
-        component_files = [f for f in changed if filter_component_files(f)]
+        component_files = [f for f in changed if filter_component_and_test_files(f)]
 
         directly_changed_components = get_components_with_dependencies(
             component_files, False

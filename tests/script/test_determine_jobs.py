@@ -114,7 +114,7 @@ def test_main_all_tests_should_run(
         ),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
@@ -180,7 +180,9 @@ def test_main_no_tests_should_run(
     with (
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "get_changed_components", return_value=[]),
-        patch.object(determine_jobs, "filter_component_files", return_value=False),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
         patch.object(
             determine_jobs, "get_components_with_dependencies", return_value=[]
         ),
@@ -237,7 +239,7 @@ def test_main_with_branch_argument(
         patch.object(determine_jobs, "get_changed_components", return_value=["mqtt"]),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
@@ -535,7 +537,7 @@ def test_main_filters_components_without_tests(
         ),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
@@ -808,7 +810,9 @@ def test_clang_tidy_mode_full_scan(
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=True),
         patch.object(determine_jobs, "get_changed_components", return_value=[]),
-        patch.object(determine_jobs, "filter_component_files", return_value=False),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
         patch.object(
             determine_jobs, "get_components_with_dependencies", return_value=[]
         ),
@@ -890,7 +894,7 @@ def test_clang_tidy_mode_targeted_scan(
         patch.object(determine_jobs, "get_changed_components", return_value=components),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
