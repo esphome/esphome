@@ -5,6 +5,12 @@ import re
 Import("env")  # noqa
 
 
+# Memory sizes for testing mode (allow larger builds for CI component grouping)
+TESTING_IRAM_SIZE = "0x200000"  # 2MB
+TESTING_DRAM_SIZE = "0x200000"  # 2MB
+TESTING_FLASH_SIZE = "0x2000000"  # 32MB
+
+
 def patch_segment_size(content, segment_name, new_size, label):
     """Patch a memory segment's length in linker script.
 
@@ -34,29 +40,43 @@ def apply_memory_patches(content):
     """
     patches_applied = []
 
-    # Patch IRAM to 2MB (for larger code in IRAM)
-    content, patched = patch_segment_size(content, "iram1_0_seg", "0x200000", "IRAM")
+    # Patch IRAM (for larger code in IRAM)
+    content, patched = patch_segment_size(content, "iram1_0_seg", TESTING_IRAM_SIZE, "IRAM")
     if patched:
         patches_applied.append("IRAM")
 
-    # Patch DRAM to 2MB (for larger BSS/data sections)
-    content, patched = patch_segment_size(content, "dram0_0_seg", "0x200000", "DRAM")
+    # Patch DRAM (for larger BSS/data sections)
+    content, patched = patch_segment_size(content, "dram0_0_seg", TESTING_DRAM_SIZE, "DRAM")
     if patched:
         patches_applied.append("DRAM")
 
-    # Patch Flash to 32MB (for larger code sections)
-    content, patched = patch_segment_size(content, "irom0_0_seg", "0x2000000", "Flash")
+    # Patch Flash (for larger code sections)
+    content, patched = patch_segment_size(content, "irom0_0_seg", TESTING_FLASH_SIZE, "Flash")
     if patched:
         patches_applied.append("Flash")
 
     if patches_applied:
-        print(f"  Patched memory segments: {', '.join(patches_applied)} (IRAM/DRAM: 2MB, Flash: 32MB)")
+        iram_mb = int(TESTING_IRAM_SIZE, 16) // (1024 * 1024)
+        dram_mb = int(TESTING_DRAM_SIZE, 16) // (1024 * 1024)
+        flash_mb = int(TESTING_FLASH_SIZE, 16) // (1024 * 1024)
+        print(f"  Patched memory segments: {', '.join(patches_applied)} (IRAM/DRAM: {iram_mb}MB, Flash: {flash_mb}MB)")
 
     return content
 
 
 def patch_linker_script_file(filepath, description):
-    """Patch a single linker script file in place."""
+    """Patch a linker script file in the build directory with enlarged memory segments.
+
+    This function modifies linker scripts in the build directory only (never SDK files).
+    It patches IRAM, DRAM, and Flash segments to allow larger builds in testing mode.
+
+    Args:
+        filepath: Path to the linker script file in the build directory
+        description: Human-readable description for logging
+
+    Returns:
+        True if the file was patched, False if already patched or not found
+    """
     if not os.path.exists(filepath):
         print(f"ESPHome: {description} not found at {filepath}")
         return False
@@ -78,7 +98,16 @@ def patch_linker_script_file(filepath, description):
 
 
 def patch_local_linker_script(source, target, env):
-    """Patch the local.eagle.app.v6.common.ld in build directory for IRAM."""
+    """Patch the local.eagle.app.v6.common.ld in build directory.
+
+    This patches the preprocessed linker script that PlatformIO creates in the build
+    directory, enlarging IRAM, DRAM, and Flash segments for testing mode.
+
+    Args:
+        source: SCons source nodes
+        target: SCons target nodes
+        env: SCons environment
+    """
     # Check if we're in testing mode
     build_flags = env.get("BUILD_FLAGS", [])
     testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
