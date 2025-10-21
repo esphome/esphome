@@ -107,6 +107,14 @@ _CONNECTION_SCHEMA = cv.Schema(
     }
 )
 
+
+def _require_vfs_select(config):
+    """Register VFS select requirement during config validation."""
+    # OpenThread uses esp_vfs_eventfd which requires VFS select support
+    require_vfs_select()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -123,6 +131,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     cv.only_with_esp_idf,
     only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    _require_vfs_select,
 )
 
 
