@@ -102,7 +102,8 @@ build_flags = env.get("BUILD_FLAGS", [])
 testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
 
 if testing_mode:
-    # Create custom linker script immediately (before linker command is built)
+    # Create a custom linker script in the build directory with patched memory limits
+    # This allows larger IRAM/DRAM/Flash for CI component grouping tests
     build_dir = env.subst("$BUILD_DIR")
     ldscript = env.GetProjectOption("board_build.ldscript", "")
     assert ldscript, "No linker script configured in board_build.ldscript"
@@ -110,26 +111,29 @@ if testing_mode:
     framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
     assert framework_dir is not None, "Could not find framework-arduinoespressif8266 package"
 
+    # Read the original SDK linker script (read-only, SDK is never modified)
     sdk_ld = os.path.join(framework_dir, "tools", "sdk", "ld", ldscript)
+    # Create a custom version in the build directory (isolated, temporary)
     custom_ld = os.path.join(build_dir, f"testing_{ldscript}")
 
     if os.path.exists(sdk_ld) and not os.path.exists(custom_ld):
-        # Read and patch the SDK linker script
+        # Read the SDK linker script
         with open(sdk_ld, "r") as f:
             content = f.read()
 
+        # Apply memory patches (IRAM: 2MB, DRAM: 2MB, Flash: 32MB)
         patched_content = apply_memory_patches(content)
 
-        # Write custom linker script
+        # Write the patched linker script to the build directory
         with open(custom_ld, "w") as f:
             f.write(patched_content)
 
         print(f"ESPHome: Created custom linker script: {custom_ld}")
 
-    # Tell the linker to use our custom script
+    # Tell the linker to use our custom script from the build directory
     assert os.path.exists(custom_ld), f"Custom linker script not found: {custom_ld}"
     env.Replace(LDSCRIPT_PATH=custom_ld)
     print(f"ESPHome: Using custom linker script with patched memory limits")
 
-    # Hook to patch local.eagle.app.v6.common.ld after it's created
+    # Also patch local.eagle.app.v6.common.ld after PlatformIO creates it
     env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_local_linker_script)
