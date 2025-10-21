@@ -1572,7 +1572,7 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
   resp.success = false;
 
   psk_t psk{};
-  if (msg.key.size() == 0) {
+  if (msg.key.empty()) {
     if (this->parent_->clear_noise_psk(true)) {
       resp.success = true;
     } else {
