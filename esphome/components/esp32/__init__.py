@@ -550,6 +550,32 @@ CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
 CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
+CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
+CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
+CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
+
+# VFS requirement tracking
+# Components that need VFS features can call require_vfs_select() or require_vfs_dir()
+KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
+KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+
+
+def require_vfs_select() -> None:
+    """Mark that VFS select support is required by a component.
+
+    Call this from components that use esp_vfs_eventfd or other VFS select features.
+    This prevents CONFIG_VFS_SUPPORT_SELECT from being disabled.
+    """
+    CORE.data[KEY_VFS_SELECT_REQUIRED] = True
+
+
+def require_vfs_dir() -> None:
+    """Mark that VFS directory support is required by a component.
+
+    Call this from components that use directory functions (opendir, readdir, mkdir, etc.).
+    This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
+    """
+    CORE.data[KEY_VFS_DIR_REQUIRED] = True
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -615,6 +641,13 @@ FRAMEWORK_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
                     ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_VFS_SUPPORT_SELECT, default=True
+                    ): cv.boolean,
+                    cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                 }
             ),
@@ -961,6 +994,43 @@ async def to_code(config):
     # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
     if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
+
+    # Disable VFS support for termios (terminal I/O functions)
+    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # Saves approximately 1.8KB of flash when disabled (default).
+    add_idf_sdkconfig_option(
+        "CONFIG_VFS_SUPPORT_TERMIOS",
+        not advanced.get(CONF_DISABLE_VFS_SUPPORT_TERMIOS, True),
+    )
+
+    # Disable VFS support for select() with file descriptors
+    # ESPHome only uses select() with sockets via lwip_select(), which still works.
+    # VFS select is only needed for UART/eventfd file descriptors.
+    # Components that need it (e.g., openthread) call require_vfs_select().
+    # Saves approximately 2.7KB of flash when disabled (default).
+    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
+        # Component requires VFS select - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_SELECT", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_SELECT",
+            not advanced.get(CONF_DISABLE_VFS_SUPPORT_SELECT, True),
+        )
+
+    # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
+    # ESPHome doesn't use directory functions on ESP32.
+    # Components that need it (e.g., storage components) call require_vfs_dir().
+    # Saves approximately 0.5KB+ of flash when disabled (default).
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
+        # Component requires VFS directory support - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_DIR",
+            not advanced.get(CONF_DISABLE_VFS_SUPPORT_DIR, True),
+        )
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
