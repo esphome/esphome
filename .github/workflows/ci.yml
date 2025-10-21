@@ -170,11 +170,13 @@ jobs:
     outputs:
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
+      clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
+      changed-cpp-file-count: ${{ steps.determine.outputs.changed-cpp-file-count }}
       memory_impact: ${{ steps.determine.outputs.memory-impact }}
     steps:
       - name: Check out code from GitHub
@@ -200,11 +202,13 @@ jobs:
           # Extract individual fields
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
+          echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
+          echo "changed-cpp-file-count=$(echo "$output" | jq -r '.changed_cpp_file_count')" >> $GITHUB_OUTPUT
           echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
 
   integration-tests:
@@ -243,7 +247,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --no-cov --tb=native -n auto tests/integration/
 
-  clang-tidy:
+  clang-tidy-single:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
     needs:
@@ -261,22 +265,6 @@ jobs:
             name: Run script/clang-tidy for ESP8266
             options: --environment esp8266-arduino-tidy --grep USE_ESP8266
             pio_cache_key: tidyesp8266
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 1/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 2/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 3/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
-            pio_cache_key: tidyesp32
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 4/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
-            pio_cache_key: tidyesp32
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
@@ -355,6 +343,166 @@ jobs:
       - name: Suggested changes
         run: script/ci-suggest-changes ${{ matrix.ignore_errors && '|| true' || '' }}
         # yamllint disable-line rule:line-length
+        if: always()
+
+  clang-tidy-nosplit:
+    name: Run script/clang-tidy for ESP32 Arduino
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy-mode == 'nosplit'
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          if python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run clang-tidy
+        run: |
+          . venv/bin/activate
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (hash changed)"
+            script/clang-tidy --all-headers --fix --environment esp32-arduino-tidy
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --all-headers --fix --changed --environment esp32-arduino-tidy
+          fi
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  clang-tidy-split:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy-mode == 'split'
+    env:
+      GH_TOKEN: ${{ github.token }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 1/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 2/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 3/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 4/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
+
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache platformio
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache platformio
+        if: github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.platformio
+          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          if python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run clang-tidy
+        run: |
+          . venv/bin/activate
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (hash changed)"
+            script/clang-tidy --all-headers --fix ${{ matrix.options }}
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }}
+          fi
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
         if: always()
 
   test-build-components-splitter:
@@ -797,7 +945,9 @@ jobs:
       - pylint
       - pytest
       - integration-tests
-      - clang-tidy
+      - clang-tidy-single
+      - clang-tidy-nosplit
+      - clang-tidy-split
       - determine-jobs
       - test-build-components-splitter
       - test-build-components-split
