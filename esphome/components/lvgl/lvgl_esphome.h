@@ -359,7 +359,7 @@ class LvSelectable : public LvCompound {
   void set_selected_text(const std::string &text, lv_anim_enable_t anim);
   std::string get_selected_text();
   const FixedVector<std::string> &get_options() { return this->options_; }
-  void set_options(std::initializer_list<std::string> options);
+  void set_options(const std::initializer_list<std::string> &options);
 
  protected:
   virtual void set_option_string(const char *options) = 0;
