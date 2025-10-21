@@ -96,10 +96,11 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
 
-    # Mock changed_files to return component Python files (not C++ to avoid memory impact)
+    # Mock changed_files to return non-component files (to avoid memory impact)
+    # Memory impact only runs when component C++ files change
     mock_changed_files.return_value = [
-        "esphome/components/wifi/__init__.py",
-        "esphome/components/api/__init__.py",
+        "esphome/config.py",
+        "esphome/helpers.py",
     ]
 
     # Run main function with mocked argv
@@ -146,9 +147,9 @@ def test_main_all_tests_should_run(
     # changed_cpp_file_count should be present
     assert "changed_cpp_file_count" in output
     assert isinstance(output["changed_cpp_file_count"], int)
-    # memory_impact should be present
+    # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
-    # Note: memory_impact may be true or false depending on component test availability
+    assert output["memory_impact"]["should_run"] == "false"
 
 
 def test_main_no_tests_should_run(
@@ -247,8 +248,9 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
 
-    # Mock changed_files to return component Python file (not C++ to avoid memory impact)
-    mock_changed_files.return_value = ["esphome/components/mqtt/__init__.py"]
+    # Mock changed_files to return non-component files (to avoid memory impact)
+    # Memory impact only runs when component C++ files change
+    mock_changed_files.return_value = ["esphome/config.py"]
 
     with (
         patch("sys.argv", ["script.py", "-b", "main"]),
@@ -291,9 +293,9 @@ def test_main_with_branch_argument(
     # changed_cpp_file_count should be present
     assert "changed_cpp_file_count" in output
     assert isinstance(output["changed_cpp_file_count"], int)
-    # memory_impact should be present
+    # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
-    # Note: memory_impact may be true or false depending on component test availability
+    assert output["memory_impact"]["should_run"] == "false"
 
 
 def test_should_run_integration_tests(
