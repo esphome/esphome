@@ -6,10 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 
+from helpers import get_component_name
+
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.core import CORE
-from esphome.helpers import get_component_name
 from esphome.loader import ComponentManifest, get_component
 from esphome.platformio_api import get_idedata
 

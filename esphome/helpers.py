@@ -541,24 +541,6 @@ def sanitize(value):
     return _DISALLOWED_CHARS.sub("_", value)
 
 
-def get_component_name(module_name: str) -> str:
-    """Extract the component name from a module name.
-
-    Args:
-        module_name: A module name like "esphome.components.gpio" or "esphome.components.gpio.switch"
-
-    Returns:
-        The last part of the module name (e.g., "gpio" or "switch")
-
-    Raises:
-        ValueError: If the module name is invalid
-    """
-    parts = module_name.strip(".").split(".")
-    if parts:
-        return parts[-1]
-    raise ValueError(f"Invalid module name {module_name}")
-
-
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""
     # Local import to avoid circular import
