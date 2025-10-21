@@ -505,6 +505,37 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   return true;
 #endif
 }
+bool APIServer::clear_noise_psk(bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
+  SavedNoisePsk empty_psk{};
+  if (!this->noise_pref_.save(&empty_psk)) {
+    ESP_LOGW(TAG, "Failed to clear Noise PSK");
+    return false;
+  }
+  // ensure it's written immediately
+  if (!global_preferences->sync()) {
+    ESP_LOGW(TAG, "Failed to sync preferences");
+    return false;
+  }
+  ESP_LOGD(TAG, "Noise PSK cleared");
+  if (make_active) {
+    this->set_timeout(100, [this]() {
+      ESP_LOGW(TAG, "Disconnecting all clients to reset connections");
+      psk_t empty{};
+      this->set_noise_psk(empty);
+      for (auto &c : this->clients_) {
+        c->send_disconnect_request(DisconnectRequest());
+      }
+    });
+  }
+  return true;
+#endif
+}
 #endif
 
 #ifdef USE_HOMEASSISTANT_TIME

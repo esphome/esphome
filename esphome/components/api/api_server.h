@@ -53,6 +53,7 @@ class APIServer : public Component, public Controller {
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
+  bool clear_noise_psk(bool make_active = true);
   void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
   std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
 #endif  // USE_API_NOISE
