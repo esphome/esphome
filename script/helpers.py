@@ -672,18 +672,23 @@ def extract_component_names_from_files(files: list[str]) -> list[str]:
         files: List of file paths
 
     Returns:
-        List of unique component names (unordered)
+        List of unique component names (preserves order)
     """
-    components = []
-    for file in files:
-        component_name = get_component_from_path(file)
-        if component_name and component_name not in components:
-            components.append(component_name)
-    return components
+    return list(
+        dict.fromkeys(comp for file in files if (comp := get_component_from_path(file)))
+    )
 
 
-def add_item_to_components_graph(components_graph, parent, child):
-    """Add a dependency relationship to the components graph."""
+def add_item_to_components_graph(
+    components_graph: dict[str, list[str]], parent: str, child: str
+) -> None:
+    """Add a dependency relationship to the components graph.
+
+    Args:
+        components_graph: Graph mapping parent components to their children
+        parent: Parent component name
+        child: Child component name (dependent)
+    """
     if not parent.startswith("__") and parent != child:
         if parent not in components_graph:
             components_graph[parent] = []
@@ -714,8 +719,12 @@ def resolve_auto_load(
     return auto_load()
 
 
-def create_components_graph():
-    """Create a graph of component dependencies."""
+def create_components_graph() -> dict[str, list[str]]:
+    """Create a graph of component dependencies.
+
+    Returns:
+        Dictionary mapping parent components to their children (dependencies)
+    """
     from pathlib import Path
 
     from esphome import const
@@ -806,8 +815,19 @@ def create_components_graph():
     return components_graph
 
 
-def find_children_of_component(components_graph, component_name, depth=0):
-    """Find all components that depend on the given component (recursively)."""
+def find_children_of_component(
+    components_graph: dict[str, list[str]], component_name: str, depth: int = 0
+) -> list[str]:
+    """Find all components that depend on the given component (recursively).
+
+    Args:
+        components_graph: Graph mapping parent components to their children
+        component_name: Component name to find children for
+        depth: Current recursion depth (max 10)
+
+    Returns:
+        List of all dependent component names (may contain duplicates removed at end)
+    """
     if component_name not in components_graph:
         return []
 
