@@ -383,7 +383,7 @@ async def to_code(config):
     if networks:
         cg.add(var.init_sta(len(networks)))
 
-        def add_sta(ap, network):
+        def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
             cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
 
