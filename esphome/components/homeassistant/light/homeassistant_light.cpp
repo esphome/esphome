@@ -65,7 +65,11 @@ void HomeassistantLight::brightness_retrieved_(const std::string &brightness) {
     return;
   }
   ESP_LOGD(TAG, "'%s': Brightness retrieved: %s", this->entity_id_.c_str(), brightness.c_str());
-  this->state_->make_call().set_brightness(brightness_value.value() / 255.f).set_publish(false).set_save(false).perform();
+  this->state_->make_call()
+      .set_brightness(brightness_value.value() / 255.f)
+      .set_publish(false)
+      .set_save(false)
+      .perform();
 }
 
 void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
@@ -78,7 +82,11 @@ void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
     return;
   }
   ESP_LOGD(TAG, "'%s': Color temperature retrieved: %s", this->entity_id_.c_str(), color_temp.c_str());
-  this->state_->make_call().set_color_temperature(color_temp_value.value()).set_publish(false).set_save(false).perform();
+  this->state_->make_call()
+      .set_color_temperature(color_temp_value.value())
+      .set_publish(false)
+      .set_save(false)
+      .perform();
 }
 
 void HomeassistantLight::color_mode_retrieved_(const std::string &color_mode) {
