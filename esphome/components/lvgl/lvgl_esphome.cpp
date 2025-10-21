@@ -286,12 +286,6 @@ std::string LvSelectable::get_selected_text() {
   return this->options_[selected];
 }
 
-static std::string join_string(const FixedVector<std::string> &options) {
-  return std::accumulate(
-      options.begin(), options.end(), std::string(),
-      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
-}
-
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
   auto *index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
@@ -304,8 +298,12 @@ void LvSelectable::set_options(std::initializer_list<std::string> options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;
+  // Join strings directly from initializer_list to avoid double iteration
+  std::string joined = std::accumulate(
+      options.begin(), options.end(), std::string(),
+      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
   this->options_ = options;
-  this->set_option_string(join_string(this->options_).c_str());
+  this->set_option_string(joined.c_str());
   lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
   this->set_selected_index(index, LV_ANIM_OFF);
 }
