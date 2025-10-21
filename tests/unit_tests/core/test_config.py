@@ -517,6 +517,35 @@ def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> No
         mock_cg.add_global.assert_not_called()
 
 
+def test_include_file_with_c_header(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test include_file wraps header in extern C block when is_c_header is True."""
+    src_file = tmp_path / "c_library.h"
+    src_file.write_text("// C library header")
+
+    CORE.build_path = tmp_path / "build"
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        # Mock RawStatement to capture the text
+        mock_raw_statement = MagicMock()
+        mock_raw_statement.text = ""
+
+        def raw_statement_side_effect(text):
+            mock_raw_statement.text = text
+            return mock_raw_statement
+
+        mock_cg.RawStatement.side_effect = raw_statement_side_effect
+
+        config.include_file(src_file, Path("c_library.h"), is_c_header=True)
+
+        mock_copy_file_if_changed.assert_called_once()
+        mock_cg.add_global.assert_called_once()
+        # Check that include statement is wrapped in extern "C" block
+        assert 'extern "C"' in mock_raw_statement.text
+        assert '#include "c_library.h"' in mock_raw_statement.text
+
+
 def test_get_usable_cpu_count() -> None:
     """Test get_usable_cpu_count returns CPU count."""
     count = config.get_usable_cpu_count()

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
@@ -529,6 +530,8 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        # True if running in testing mode (disables validation checks for grouped testing)
+        self.testing_mode = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -638,6 +641,9 @@ class EsphomeCore:
 
         if CONF_ETHERNET in self.config:
             return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
 
         return None
 

@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass
 import itertools
 import logging
@@ -101,6 +102,10 @@ COMPILER_OPTIMIZATIONS = {
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
 }
+
+# Socket limit configuration for ESP-IDF
+# ESP-IDF CONFIG_LWIP_MAX_SOCKETS has range 1-253, default 10
+DEFAULT_MAX_SOCKETS = 10  # ESP-IDF default
 
 ARDUINO_ALLOWED_VARIANTS = [
     VARIANT_ESP32,
@@ -324,9 +329,9 @@ def _is_framework_url(source: str) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 2, 1),
-    "latest": cv.Version(3, 3, 1),
-    "dev": cv.Version(3, 3, 1),
+    "recommended": cv.Version(3, 3, 2),
+    "latest": cv.Version(3, 3, 2),
+    "dev": cv.Version(3, 3, 2),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(3, 3, 2): cv.Version(55, 3, 31, "1"),
@@ -343,7 +348,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 4, 2),
+    "recommended": cv.Version(5, 5, 1),
     "latest": cv.Version(5, 5, 1),
     "dev": cv.Version(5, 5, 1),
 }
@@ -363,7 +368,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(54, 3, 21, "2"),
+    "recommended": cv.Version(55, 3, 31, "1"),
     "latest": cv.Version(55, 3, 31, "1"),
     "dev": cv.Version(55, 3, 31, "1"),
 }
@@ -544,6 +549,7 @@ CONF_ENABLE_LWIP_MDNS_QUERIES = "enable_lwip_mdns_queries"
 CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
+CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -605,6 +611,9 @@ FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                 }
@@ -742,6 +751,72 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
+def _configure_lwip_max_sockets(conf: dict) -> None:
+    """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
+
+    Socket component tracks consumer needs via consume_sockets() called during config validation.
+    This function runs in to_code() after all components have registered their socket needs.
+    User-provided sdkconfig_options take precedence.
+    """
+    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+
+    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
+    user_max_sockets = conf.get(CONF_SDKCONFIG_OPTIONS, {}).get(
+        "CONFIG_LWIP_MAX_SOCKETS"
+    )
+
+    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
+    total_sockets = sum(socket_consumers.values())
+
+    # Early return if no sockets registered and no user override
+    if total_sockets == 0 and user_max_sockets is None:
+        return
+
+    components_list = ", ".join(
+        f"{name}={count}" for name, count in sorted(socket_consumers.items())
+    )
+
+    # User specified their own value - respect it but warn if insufficient
+    if user_max_sockets is not None:
+        _LOGGER.info(
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            user_max_sockets,
+        )
+
+        # Warn if user's value is less than what components need
+        if total_sockets > 0:
+            user_sockets_int = 0
+            with contextlib.suppress(ValueError, TypeError):
+                user_sockets_int = int(user_max_sockets)
+
+            if user_sockets_int < total_sockets:
+                _LOGGER.warning(
+                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                    "needs %d sockets (registered: %s). You may experience socket "
+                    "exhaustion errors. Consider increasing to at least %d.",
+                    user_sockets_int,
+                    total_sockets,
+                    components_list,
+                    total_sockets,
+                )
+        # User's value already added via sdkconfig_options processing
+        return
+
+    # Auto-calculate based on component needs
+    # Use at least the ESP-IDF default (10), or the total needed by components
+    max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
+
+    log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    _LOGGER.log(
+        log_level,
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        max_sockets,
+        components_list,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
+
+
 async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
@@ -775,6 +850,16 @@ async def to_code(config):
         Path(__file__).parent / "post_build.py.script",
     )
 
+    # In testing mode, add IRAM fix script to allow linking grouped component tests
+    # Similar to ESP8266's approach but for ESP-IDF
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+        add_extra_script(
+            "pre",
+            "iram_fix.py",
+            Path(__file__).parent / "iram_fix.py.script",
+        )
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -801,6 +886,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
@@ -823,6 +909,9 @@ async def to_code(config):
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
+
+    # Reduce PHY TX power in the event of a brownout
+    add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
     # Set default CPU frequency
     add_idf_sdkconfig_option(
@@ -848,6 +937,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced.get(CONF_ENABLE_LWIP_BRIDGE_INTERFACE, False):
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+
+    _configure_lwip_max_sockets(conf)
+
     if advanced.get(CONF_EXECUTE_FROM_PSRAM, False):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
@@ -863,6 +955,12 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_CORE_LOCKING", True)
     if advanced.get(CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY, True):
         add_idf_sdkconfig_option("CONFIG_LWIP_CHECK_THREAD_SAFETY", True)
+
+    # Disable placing libc locks in IRAM to save RAM
+    # This is safe for ESPHome since no IRAM ISRs (interrupts that run while cache is disabled)
+    # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
+    if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
+        add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:

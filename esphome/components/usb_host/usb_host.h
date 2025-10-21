@@ -2,6 +2,7 @@
 
 // Should not be needed, but it's required to pass CI clang-tidy checks
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include <vector>
 #include "usb/usb_host.h"
@@ -16,23 +17,25 @@ namespace usb_host {
 
 // THREADING MODEL:
 // This component uses a dedicated USB task for event processing to prevent data loss.
-// - USB Task (high priority): Handles USB events, executes transfer callbacks
-// - Main Loop Task: Initiates transfers, processes completion events
+// - USB Task (high priority): Handles USB events, executes transfer callbacks, releases transfer slots
+// - Main Loop Task: Initiates transfers, processes device connect/disconnect events
 //
 // Thread-safe communication:
 // - Lock-free queues for USB task -> main loop events (SPSC pattern)
-// - Lock-free TransferRequest pool using atomic bitmask (MCSP pattern)
+// - Lock-free TransferRequest pool using atomic bitmask (MCMP pattern - multi-consumer, multi-producer)
 //
 // TransferRequest pool access pattern:
 // - get_trq_() [allocate]: Called from BOTH USB task and main loop threads
 //   * USB task: via USB UART input callbacks that restart transfers immediately
 //   * Main loop: for output transfers and flow-controlled input restarts
-// - release_trq() [deallocate]: Called from main loop thread only
+// - release_trq() [deallocate]: Called from BOTH USB task and main loop threads
+//   * USB task: immediately after transfer callback completes (critical for preventing slot exhaustion)
+//   * Main loop: when transfer submission fails
 //
-// The multi-threaded allocation is intentional for performance:
-// - USB task can immediately restart input transfers without context switching
+// The multi-threaded allocation/deallocation is intentional for performance:
+// - USB task can immediately restart input transfers and release slots without context switching
 // - Main loop controls backpressure by deciding when to restart after consuming data
-// The atomic bitmask ensures thread-safe allocation without mutex blocking.
+// The atomic bitmask ensures thread-safe allocation/deallocation without mutex blocking.
 
 static const char *const TAG = "usb_host";
 
@@ -52,8 +55,17 @@ static const uint8_t USB_DIR_IN = 1 << 7;
 static const uint8_t USB_DIR_OUT = 0;
 static const size_t SETUP_PACKET_SIZE = 8;
 
-static const size_t MAX_REQUESTS = 16;  // maximum number of outstanding requests possible.
-static_assert(MAX_REQUESTS <= 16, "MAX_REQUESTS must be <= 16 to fit in uint16_t bitmask");
+static const size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
+static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
+
+// Select appropriate bitmask type for tracking allocation of TransferRequest slots.
+// The bitmask must have at least as many bits as MAX_REQUESTS, so:
+// - Use uint16_t for up to 16 requests (MAX_REQUESTS <= 16)
+// - Use uint32_t for 17-32 requests (MAX_REQUESTS > 16)
+// This is tied to the static_assert above, which enforces MAX_REQUESTS is between 1 and 32.
+// If MAX_REQUESTS is increased above 32, this logic and the static_assert must be updated.
+using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
+
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
@@ -83,8 +95,6 @@ struct TransferRequest {
 enum EventType : uint8_t {
   EVENT_DEVICE_NEW,
   EVENT_DEVICE_GONE,
-  EVENT_TRANSFER_COMPLETE,
-  EVENT_CONTROL_COMPLETE,
 };
 
 struct UsbEvent {
@@ -96,9 +106,6 @@ struct UsbEvent {
     struct {
       usb_device_handle_t handle;
     } device_gone;
-    struct {
-      TransferRequest *trq;
-    } transfer;
   } data;
 
   // Required for EventPool - no cleanup needed for POD types
@@ -163,10 +170,9 @@ class USBClient : public Component {
   uint16_t pid_{};
   // Lock-free pool management using atomic bitmask (no dynamic allocation)
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
-  // Supports multiple concurrent consumers (both threads can allocate)
-  // Single producer for deallocation (main loop only)
-  // Limited to 16 slots by uint16_t size (enforced by static_assert)
-  std::atomic<uint16_t> trq_in_use_;
+  // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
+  // Bitmask type automatically selected: uint16_t for <= 16 slots, uint32_t for 17-32 slots
+  std::atomic<trq_bitmask_t> trq_in_use_;
   TransferRequest requests_[MAX_REQUESTS]{};
 };
 class USBHost : public Component {
