@@ -26,9 +26,10 @@ def hash_components(components: list[str]) -> str:
 
 
 def filter_components_without_tests(components: list[str]) -> list[str]:
-    """
-    Filter out components that do not have a corresponding test file.
-    This is done by checking if the component's directory contains at least a .cpp file.
+    """Filter out components that do not have a corresponding test file.
+
+    This is done by checking if the component's directory contains at
+    least a .cpp file.
     """
     filtered_components: list[str] = []
     for component in components:

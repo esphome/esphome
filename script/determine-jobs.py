@@ -288,21 +288,25 @@ def should_run_python_linters(branch: str | None = None) -> bool:
 def list_cpp_components_to_test(branch: str | None = None) -> list[str]:
     """Determine if C++ unit tests should run based on changed files.
 
-    This function is used by the CI workflow to skip C++ unit tests when no relevant files have changed,
-    saving CI time and resources.
+    This function is used by the CI workflow to skip C++ unit tests when
+    no relevant files have changed, saving CI time and resources.
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case all cpp unit tests run.
-    2. A test file for a component changed, which triggers tests for that component.
-    3. The code for a component changed, which triggers tests for that component and all components that depend on it.
+    1. Any C++ core source files changed (esphome/core/*), in which case
+       all cpp unit tests run.
+    2. A test file for a component changed, which triggers tests for that
+       component.
+    3. The code for a component changed, which triggers tests for that
+       component and all components that depend on it.
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        List of components that have unit tests to run, an empty list if no tests are needed or
-        the special value ["--all"] if all tests should run.
+        List of components that have unit tests to run, an empty list if
+        no tests are needed or the special value ["--all"] if all tests
+        should run.
     """
     files = changed_files(branch)
     if core_changed(files):
