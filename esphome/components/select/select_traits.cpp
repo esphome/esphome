@@ -3,9 +3,9 @@
 namespace esphome {
 namespace select {
 
-void SelectTraits::set_options(std::vector<std::string> options) { this->options_ = std::move(options); }
+void SelectTraits::set_options(std::initializer_list<std::string> options) { this->options_ = options; }
 
-const std::vector<std::string> &SelectTraits::get_options() const { return this->options_; }
+const FixedVector<std::string> &SelectTraits::get_options() const { return this->options_; }
 
 }  // namespace select
 }  // namespace esphome

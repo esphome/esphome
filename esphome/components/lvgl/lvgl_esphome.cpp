@@ -300,11 +300,11 @@ void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t a
   }
 }
 
-void LvSelectable::set_options(std::vector<std::string> options) {
+void LvSelectable::set_options(std::initializer_list<std::string> options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;
-  this->options_ = std::move(options);
+  this->options_ = options;
   this->set_option_string(join_string(this->options_).c_str());
   lv_event_send(this->obj, LV_EVENT_REFRESH, nullptr);
   this->set_selected_index(index, LV_ANIM_OFF);

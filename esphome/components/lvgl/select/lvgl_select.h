@@ -53,7 +53,14 @@ class LVGLSelect : public select::Select, public Component {
     this->widget_->set_selected_text(value, this->anim_);
     this->publish();
   }
-  void set_options_() { this->traits.set_options(this->widget_->get_options()); }
+  void set_options_() {
+    // Copy options from lvgl widget to select traits
+    const auto &widget_options = this->widget_->get_options();
+    this->traits.options_.init(widget_options.size());
+    for (const auto &option : widget_options) {
+      this->traits.options_.push_back(option);
+    }
+  }
 
   LvSelectable *widget_;
   lv_anim_enable_t anim_;

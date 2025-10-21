@@ -358,12 +358,12 @@ class LvSelectable : public LvCompound {
   virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
   void set_selected_text(const std::string &text, lv_anim_enable_t anim);
   std::string get_selected_text();
-  std::vector<std::string> get_options() { return this->options_; }
-  void set_options(std::vector<std::string> options);
+  const FixedVector<std::string> &get_options() { return this->options_; }
+  void set_options(std::initializer_list<std::string> options);
 
  protected:
   virtual void set_option_string(const char *options) = 0;
-  std::vector<std::string> options_{};
+  FixedVector<std::string> options_{};
 };
 
 #ifdef USE_LVGL_DROPDOWN
