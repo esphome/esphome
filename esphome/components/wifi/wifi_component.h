@@ -219,7 +219,7 @@ class WiFiComponent : public Component {
 
   void set_sta(const WiFiAP &ap);
   WiFiAP get_sta() { return this->selected_ap_; }
-  void add_sta(const WiFiAP &ap);
+  void set_stas(const std::initializer_list<WiFiAP> &aps);
   void clear_sta();
 
 #ifdef USE_WIFI_AP
@@ -393,7 +393,7 @@ class WiFiComponent : public Component {
 #endif
 
   std::string use_address_;
-  std::vector<WiFiAP> sta_;
+  FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
   WiFiAP selected_ap_;
