@@ -37,3 +37,36 @@ binary_sensor:
             format: "New state is %s"
             args: ['x.has_value() ? ONOFF(x) : "Unknown"']
         - binary_sensor.invalidate_state: some_binary_sensor
+
+  # Test autorepeat with default configuration (no timings)
+  - platform: template
+    id: autorepeat_default
+    name: "Autorepeat Default"
+    filters:
+      - autorepeat:
+
+  # Test autorepeat with single timing entry
+  - platform: template
+    id: autorepeat_single
+    name: "Autorepeat Single"
+    filters:
+      - autorepeat:
+          - delay: 2s
+            time_off: 200ms
+            time_on: 800ms
+
+  # Test autorepeat with three timing entries
+  - platform: template
+    id: autorepeat_multiple
+    name: "Autorepeat Multiple"
+    filters:
+      - autorepeat:
+          - delay: 500ms
+            time_off: 50ms
+            time_on: 950ms
+          - delay: 2s
+            time_off: 100ms
+            time_on: 900ms
+          - delay: 10s
+            time_off: 200ms
+            time_on: 800ms

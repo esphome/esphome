@@ -93,30 +93,31 @@ class ClimateCall {
 
   void perform();
 
-  const optional<ClimateMode> &get_mode() const;
   const optional<float> &get_target_temperature() const;
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
   const optional<float> &get_target_humidity() const;
+
+  const optional<ClimateMode> &get_mode() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
-  const optional<std::string> &get_custom_fan_mode() const;
   const optional<ClimatePreset> &get_preset() const;
+  const optional<std::string> &get_custom_fan_mode() const;
   const optional<std::string> &get_custom_preset() const;
 
  protected:
   void validate_();
 
   Climate *const parent_;
-  optional<ClimateMode> mode_;
   optional<float> target_temperature_;
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
   optional<float> target_humidity_;
+  optional<ClimateMode> mode_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
-  optional<std::string> custom_fan_mode_;
   optional<ClimatePreset> preset_;
+  optional<std::string> custom_fan_mode_;
   optional<std::string> custom_preset_;
 };
 
@@ -169,47 +170,6 @@ class Climate : public EntityBase {
  public:
   Climate() {}
 
-  /// The active mode of the climate device.
-  ClimateMode mode{CLIMATE_MODE_OFF};
-
-  /// The active state of the climate device.
-  ClimateAction action{CLIMATE_ACTION_OFF};
-
-  /// The current temperature of the climate device, as reported from the integration.
-  float current_temperature{NAN};
-
-  /// The current humidity of the climate device, as reported from the integration.
-  float current_humidity{NAN};
-
-  union {
-    /// The target temperature of the climate device.
-    float target_temperature;
-    struct {
-      /// The minimum target temperature of the climate device, for climate devices with split target temperature.
-      float target_temperature_low{NAN};
-      /// The maximum target temperature of the climate device, for climate devices with split target temperature.
-      float target_temperature_high{NAN};
-    };
-  };
-
-  /// The target humidity of the climate device.
-  float target_humidity;
-
-  /// The active fan mode of the climate device.
-  optional<ClimateFanMode> fan_mode;
-
-  /// The active swing mode of the climate device.
-  ClimateSwingMode swing_mode;
-
-  /// The active custom fan mode of the climate device.
-  optional<std::string> custom_fan_mode;
-
-  /// The active preset of the climate device.
-  optional<ClimatePreset> preset;
-
-  /// The active custom preset mode of the climate device.
-  optional<std::string> custom_preset;
-
   /** Add a callback for the climate device state, each time the state of the climate device is updated
    * (using publish_state), this callback will be called.
    *
@@ -250,6 +210,47 @@ class Climate : public EntityBase {
   void set_visual_temperature_step_override(float target, float current);
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
+
+  /// The current temperature of the climate device, as reported from the integration.
+  float current_temperature{NAN};
+
+  /// The current humidity of the climate device, as reported from the integration.
+  float current_humidity{NAN};
+
+  union {
+    /// The target temperature of the climate device.
+    float target_temperature;
+    struct {
+      /// The minimum target temperature of the climate device, for climate devices with split target temperature.
+      float target_temperature_low{NAN};
+      /// The maximum target temperature of the climate device, for climate devices with split target temperature.
+      float target_temperature_high{NAN};
+    };
+  };
+
+  /// The target humidity of the climate device.
+  float target_humidity;
+
+  /// The active fan mode of the climate device.
+  optional<ClimateFanMode> fan_mode;
+
+  /// The active preset of the climate device.
+  optional<ClimatePreset> preset;
+
+  /// The active custom fan mode of the climate device.
+  optional<std::string> custom_fan_mode;
+
+  /// The active custom preset mode of the climate device.
+  optional<std::string> custom_preset;
+
+  /// The active mode of the climate device.
+  ClimateMode mode{CLIMATE_MODE_OFF};
+
+  /// The active state of the climate device.
+  ClimateAction action{CLIMATE_ACTION_OFF};
+
+  /// The active swing mode of the climate device.
+  ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
 
  protected:
   friend ClimateCall;

@@ -71,6 +71,12 @@ def mock_changed_files() -> Generator[Mock, None, None]:
         yield mock
 
 
+@pytest.fixture(autouse=True)
+def clear_clang_tidy_cache() -> None:
+    """Clear the clang-tidy full scan cache before each test."""
+    determine_jobs._is_clang_tidy_full_scan.cache_clear()
+
+
 def test_main_all_tests_should_run(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -90,15 +96,35 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
 
-    # Mock list-components.py output (now returns JSON with --changed-with-deps)
-    mock_result = Mock()
-    mock_result.stdout = json.dumps(
-        {"directly_changed": ["wifi", "api"], "all_changed": ["wifi", "api", "sensor"]}
-    )
-    mock_subprocess_run.return_value = mock_result
+    # Mock changed_files to return non-component files (to avoid memory impact)
+    # Memory impact only runs when component C++ files change
+    mock_changed_files.return_value = [
+        "esphome/config.py",
+        "esphome/helpers.py",
+    ]
 
     # Run main function with mocked argv
-    with patch("sys.argv", ["determine-jobs.py"]):
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["wifi", "api", "sensor"],
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: ["wifi", "api"]
+            if not deps
+            else ["wifi", "api", "sensor"],
+        ),
+    ):
         determine_jobs.main()
 
     # Check output
@@ -107,6 +133,7 @@ def test_main_all_tests_should_run(
 
     assert output["integration_tests"] is True
     assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["changed_components"] == ["wifi", "api", "sensor"]
@@ -117,9 +144,12 @@ def test_main_all_tests_should_run(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
-    # memory_impact should be present
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
+    # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
-    assert output["memory_impact"]["should_run"] == "false"  # No files changed
+    assert output["memory_impact"]["should_run"] == "false"
 
 
 def test_main_no_tests_should_run(
@@ -141,13 +171,18 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
 
-    # Mock empty list-components.py output
-    mock_result = Mock()
-    mock_result.stdout = json.dumps({"directly_changed": [], "all_changed": []})
-    mock_subprocess_run.return_value = mock_result
+    # Mock changed_files to return no component files
+    mock_changed_files.return_value = []
 
     # Run main function with mocked argv
-    with patch("sys.argv", ["determine-jobs.py"]):
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(determine_jobs, "filter_component_files", return_value=False),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+    ):
         determine_jobs.main()
 
     # Check output
@@ -156,11 +191,14 @@ def test_main_no_tests_should_run(
 
     assert output["integration_tests"] is False
     assert output["clang_tidy"] is False
+    assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
     assert output["python_linters"] is False
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
+    # changed_cpp_file_count should be 0
+    assert output["changed_cpp_file_count"] == 0
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -210,14 +248,23 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
 
-    # Mock list-components.py output
-    mock_result = Mock()
-    mock_result.stdout = json.dumps(
-        {"directly_changed": ["mqtt"], "all_changed": ["mqtt"]}
-    )
-    mock_subprocess_run.return_value = mock_result
+    # Mock changed_files to return non-component files (to avoid memory impact)
+    # Memory impact only runs when component C++ files change
+    mock_changed_files.return_value = ["esphome/config.py"]
 
-    with patch("sys.argv", ["script.py", "-b", "main"]):
+    with (
+        patch("sys.argv", ["script.py", "-b", "main"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(determine_jobs, "get_changed_components", return_value=["mqtt"]),
+        patch.object(
+            determine_jobs,
+            "filter_component_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=["mqtt"]
+        ),
+    ):
         determine_jobs.main()
 
     # Check that functions were called with branch
@@ -226,19 +273,13 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format.assert_called_once_with("main")
     mock_should_run_python_linters.assert_called_once_with("main")
 
-    # Check that list-components.py was called with branch
-    mock_subprocess_run.assert_called_once()
-    call_args = mock_subprocess_run.call_args[0][0]
-    assert "--changed-with-deps" in call_args
-    assert "-b" in call_args
-    assert "main" in call_args
-
     # Check output
     captured = capsys.readouterr()
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
     assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
     assert output["python_linters"] is True
     assert output["changed_components"] == ["mqtt"]
@@ -249,7 +290,10 @@ def test_main_with_branch_argument(
     assert output["component_test_count"] == len(
         output["changed_components_with_tests"]
     )
-    # memory_impact should be present
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
+    # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
 
@@ -352,16 +396,6 @@ def test_should_run_clang_tidy_hash_check_exception() -> None:
         result = determine_jobs.should_run_clang_tidy()
         assert result is True  # Fail safe - run clang-tidy
 
-    # Even with C++ files, exception should trigger clang-tidy
-    with (
-        patch.object(
-            determine_jobs, "changed_files", return_value=["esphome/core.cpp"]
-        ),
-        patch("subprocess.run", side_effect=Exception("Hash check failed")),
-    ):
-        result = determine_jobs.should_run_clang_tidy()
-        assert result is True
-
 
 def test_should_run_clang_tidy_with_branch() -> None:
     """Test should_run_clang_tidy with branch argument."""
@@ -433,6 +467,40 @@ def test_should_run_clang_format_with_branch() -> None:
         mock_changed.assert_called_once_with("release")
 
 
+@pytest.mark.parametrize(
+    ("changed_files", "expected_count"),
+    [
+        (["esphome/core.cpp"], 1),
+        (["esphome/core.h"], 1),
+        (["test.hpp"], 1),
+        (["test.cc"], 1),
+        (["test.cxx"], 1),
+        (["test.c"], 1),
+        (["test.tcc"], 1),
+        (["esphome/core.cpp", "esphome/core.h"], 2),
+        (["esphome/core.cpp", "esphome/core.h", "test.cc"], 3),
+        (["README.md"], 0),
+        (["esphome/config.py"], 0),
+        (["README.md", "esphome/config.py"], 0),
+        (["esphome/core.cpp", "README.md", "esphome/config.py"], 1),
+        ([], 0),
+    ],
+)
+def test_count_changed_cpp_files(changed_files: list[str], expected_count: int) -> None:
+    """Test count_changed_cpp_files function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        result = determine_jobs.count_changed_cpp_files()
+        assert result == expected_count
+
+
+def test_count_changed_cpp_files_with_branch() -> None:
+    """Test count_changed_cpp_files with branch argument."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.count_changed_cpp_files("release")
+        mock_changed.assert_called_once_with("release")
+
+
 def test_main_filters_components_without_tests(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -453,16 +521,11 @@ def test_main_filters_components_without_tests(
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
 
-    # Mock list-components.py output with 3 components
-    # wifi: has tests, sensor: has tests, airthings_ble: no tests
-    mock_result = Mock()
-    mock_result.stdout = json.dumps(
-        {
-            "directly_changed": ["wifi", "sensor"],
-            "all_changed": ["wifi", "sensor", "airthings_ble"],
-        }
-    )
-    mock_subprocess_run.return_value = mock_result
+    # Mock changed_files to return component files
+    mock_changed_files.return_value = [
+        "esphome/components/wifi/wifi.cpp",
+        "esphome/components/sensor/sensor.h",
+    ]
 
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
@@ -486,6 +549,23 @@ def test_main_filters_components_without_tests(
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
         patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["wifi", "sensor", "airthings_ble"],
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: ["wifi", "sensor"]
+            if not deps
+            else ["wifi", "sensor", "airthings_ble"],
+        ),
     ):
         # Clear the cache since we're mocking root_path
         determine_jobs._component_has_tests.cache_clear()
@@ -501,6 +581,9 @@ def test_main_filters_components_without_tests(
     assert set(output["changed_components_with_tests"]) == {"wifi", "sensor"}
     # component_test_count should be based on components with tests
     assert output["component_test_count"] == 2
+    # changed_cpp_file_count should be present
+    assert "changed_cpp_file_count" in output
+    assert isinstance(output["changed_cpp_file_count"], int)
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
@@ -545,7 +628,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
 
 
 def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
-    """Test memory impact detection with core-only changes (no component changes)."""
+    """Test memory impact detection with core C++ changes (no component changes)."""
     # Create test directory structure with fallback component
     tests_dir = tmp_path / "tests" / "components"
 
@@ -554,7 +637,7 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     api_dir.mkdir(parents=True)
     (api_dir / "test.esp32-idf.yaml").write_text("test: api")
 
-    # Mock changed_files to return only core files (no component files)
+    # Mock changed_files to return only core C++ files (no component files)
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
@@ -572,6 +655,35 @@ def test_detect_memory_impact_config_core_only_changes(tmp_path: Path) -> None:
     assert result["components"] == ["api"]  # Fallback component
     assert result["platform"] == "esp32-idf"  # Fallback platform
     assert result["use_merged_config"] == "true"
+
+
+def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) -> None:
+    """Test that Python-only core changes don't trigger memory impact analysis."""
+    # Create test directory structure with fallback component
+    tests_dir = tmp_path / "tests" / "components"
+
+    # api component (fallback component) with esp32-idf test
+    api_dir = tests_dir / "api"
+    api_dir.mkdir(parents=True)
+    (api_dir / "test.esp32-idf.yaml").write_text("test: api")
+
+    # Mock changed_files to return only core Python files (no C++ files)
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/__main__.py",
+            "esphome/config.py",
+            "esphome/core/config.py",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Python-only changes should NOT trigger memory impact analysis
+    assert result["should_run"] == "false"
 
 
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
@@ -686,3 +798,130 @@ def test_detect_memory_impact_config_skips_base_bus_components(tmp_path: Path) -
     assert result["should_run"] == "true"
     assert result["components"] == ["wifi"]
     assert "i2c" not in result["components"]
+
+
+# Tests for clang-tidy split mode logic
+
+
+def test_clang_tidy_mode_full_scan(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that full scan (hash changed) always uses split mode."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = True
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Mock changed_files to return no component files
+    mock_changed_files.return_value = []
+
+    # Mock full scan (hash changed)
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=True),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(determine_jobs, "filter_component_files", return_value=False),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+    ):
+        determine_jobs.main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    # Full scan should always use split mode
+    assert output["clang_tidy_mode"] == "split"
+
+
+@pytest.mark.parametrize(
+    ("component_count", "files_per_component", "expected_mode"),
+    [
+        # Small PR: 5 files in 1 component -> nosplit
+        (1, 5, "nosplit"),
+        # Medium PR: 30 files in 2 components -> nosplit
+        (2, 15, "nosplit"),
+        # Medium PR: 64 files total -> nosplit (just under threshold)
+        (2, 32, "nosplit"),
+        # Large PR: 65 files total -> split (at threshold)
+        (2, 33, "split"),  # 2 * 33 = 66 files
+        # Large PR: 100 files in 10 components -> split
+        (10, 10, "split"),
+    ],
+    ids=[
+        "1_comp_5_files_nosplit",
+        "2_comp_30_files_nosplit",
+        "2_comp_64_files_nosplit_under_threshold",
+        "2_comp_66_files_split_at_threshold",
+        "10_comp_100_files_split",
+    ],
+)
+def test_clang_tidy_mode_targeted_scan(
+    component_count: int,
+    files_per_component: int,
+    expected_mode: str,
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test clang-tidy mode selection based on files_to_check count."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = True
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Create component names
+    components = [f"comp{i}" for i in range(component_count)]
+
+    # Mock changed_files to return component files
+    mock_changed_files.return_value = [
+        f"esphome/components/{comp}/file.cpp" for comp in components
+    ]
+
+    # Mock git_ls_files to return files for each component
+    cpp_files = {
+        f"esphome/components/{comp}/file{i}.cpp": 0
+        for comp in components
+        for i in range(files_per_component)
+    }
+
+    # Create a mock that returns the cpp_files dict for any call
+    def mock_git_ls_files(patterns=None):
+        return cpp_files
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(determine_jobs, "git_ls_files", side_effect=mock_git_ls_files),
+        patch.object(determine_jobs, "get_changed_components", return_value=components),
+        patch.object(
+            determine_jobs,
+            "filter_component_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=components
+        ),
+    ):
+        determine_jobs.main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert output["clang_tidy_mode"] == expected_mode

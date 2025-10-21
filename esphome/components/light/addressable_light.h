@@ -8,7 +8,7 @@
 #include "esphome/core/defines.h"
 #include "light_output.h"
 #include "light_state.h"
-#include "transformers.h"
+#include "light_transformer.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
@@ -103,7 +103,7 @@ class AddressableLight : public LightOutput, public Component {
   bool effect_active_{false};
 };
 
-class AddressableLightTransformer : public LightTransitionTransformer {
+class AddressableLightTransformer : public LightTransformer {
  public:
   AddressableLightTransformer(AddressableLight &light) : light_(light) {}
 
