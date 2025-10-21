@@ -21,6 +21,8 @@ class MockUARTComponent : public UARTComponent {
   using UARTComponent::write_array;
   using UARTComponent::write_byte;
 
+  // NOTE: std::vector is used here for test convenience. For production code,
+  // consider using StaticVector or FixedVector from esphome/core/helpers.h instead.
   std::vector<uint8_t> written_data;
 
   void write_array(const uint8_t *data, size_t len) override { written_data.assign(data, data + len); }
