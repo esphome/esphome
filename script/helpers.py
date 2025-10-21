@@ -385,7 +385,7 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
     # Action: Check ALL files in each changed component
     # Convert component list to set for O(1) lookups
     component_set = set(components)
-    print(f"Changed components: {', '.join(sorted(components))}")
+    print(f"Changed components: {', '.join(sorted(components))}", file=sys.stderr)
 
     # The 'files' parameter contains ALL files in the codebase that clang-tidy would check.
     # We filter this down to only files in the changed components.
