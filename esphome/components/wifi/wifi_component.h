@@ -49,6 +49,11 @@ extern "C" {
 #include <WiFi.h>
 #endif
 
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -364,6 +369,31 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
+  /** Request high-performance mode (no power saving) for improved WiFi throughput.
+   *
+   * Components that need maximum WiFi performance (e.g., audio streaming, large data transfers)
+   * can call this method to temporarily disable WiFi power saving. Multiple components can
+   * request high performance simultaneously using a counting semaphore.
+   *
+   * Power saving will be restored to the YAML-configured mode when all components have
+   * called release_high_performance().
+   *
+   * If the YAML-configured power_save_mode is already NONE, this is a no-op.
+   *
+   * Note: Only supported on ESP32. No-op on other platforms.
+   */
+  void request_high_performance();
+
+  /** Release a high-performance mode request.
+   *
+   * Should be called when a component no longer needs maximum WiFi throughput.
+   * When all requests are released (semaphore count reaches zero), WiFi power saving
+   * is restored to the YAML-configured mode.
+   *
+   * Note: Only supported on ESP32. No-op on other platforms.
+   */
+  void release_high_performance();
+
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
@@ -507,6 +537,7 @@ class WiFiComponent : public Component {
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
+  WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
@@ -534,6 +565,11 @@ class WiFiComponent : public Component {
   bool keep_scan_results_{false};
   bool did_scan_this_cycle_{false};
   bool skip_cooldown_next_cycle_{false};
+#ifdef USE_ESP32
+  bool is_high_performance_mode_{false};
+
+  SemaphoreHandle_t high_performance_semaphore_{nullptr};
+#endif
 
   // Pointers at the end (naturally aligned)
   Trigger<> *connect_trigger_{new Trigger<>()};
