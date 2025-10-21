@@ -1,6 +1,7 @@
 import logging
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.esp32 import (
     CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
@@ -45,7 +46,6 @@ TYPE_HEX = "hex"
 SDK_MODES = {TYPE_QUAD: "QUAD", TYPE_OCTAL: "OCT", TYPE_HEX: "HEX"}
 
 CONF_ENABLE_ECC = "enable_ecc"
-CONF_IGNORE_NOT_FOUND = "ignore_not_found"
 
 SPIRAM_MODES = {
     VARIANT_ESP32: (TYPE_QUAD,),
