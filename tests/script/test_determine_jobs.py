@@ -94,7 +94,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
-    mock_list_cpp_components_to_test.return_value = ["wifi", "api", "sensor"]
+    mock_list_cpp_components_to_test.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
@@ -150,7 +150,8 @@ def test_main_all_tests_should_run(
     # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
-    assert output["cpp_unit_tests"] == ["wifi", "api", "sensor"]
+    assert output["cpp_unit_tests_run_all"] is False
+    assert output["cpp_unit_tests_components"] == ["wifi", "api", "sensor"]
 
 
 def test_main_no_tests_should_run(
@@ -171,7 +172,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
-    mock_list_cpp_components_to_test.return_value = []
+    mock_list_cpp_components_to_test.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -206,7 +207,8 @@ def test_main_no_tests_should_run(
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
-    assert output["cpp_unit_tests"] == []
+    assert output["cpp_unit_tests_run_all"] is False
+    assert output["cpp_unit_tests_components"] == []
 
 
 def test_main_with_branch_argument(
@@ -227,7 +229,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
-    mock_list_cpp_components_to_test.return_value = ["mqtt"]
+    mock_list_cpp_components_to_test.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
