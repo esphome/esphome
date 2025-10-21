@@ -529,7 +529,8 @@ bool APIServer::clear_noise_psk(bool make_active) {
       psk_t empty{};
       this->set_noise_psk(empty);
       for (auto &c : this->clients_) {
-        c->send_disconnect_request(DisconnectRequest());
+        DisconnectRequest req;
+        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
       }
     });
   }
