@@ -146,9 +146,11 @@ void ImprovSerialComponent::loop() {
 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
+#ifdef USE_IMPROV_SERIAL_NEXT_URL
   if (!this->next_url_.empty()) {
     urls.push_back(this->get_formatted_next_url_());
   }
+#endif
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
     if (ip.is_ip4()) {

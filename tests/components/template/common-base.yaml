@@ -101,6 +101,9 @@ sensor:
       - filter_out: 10
       - filter_out: !lambda return NAN;
       - heartbeat: 5s
+      - heartbeat:
+          period: 5s
+          optimistic: true
       - lambda: return x * (9.0/5.0) + 32.0;
       - max:
           window_size: 10

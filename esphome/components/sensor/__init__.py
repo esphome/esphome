@@ -28,6 +28,8 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_OPTIMISTIC,
+    CONF_PERIOD,
     CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
@@ -644,10 +646,29 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
 
 
+HEARTBEAT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+    }
+)
+
+
 @FILTER_REGISTRY.register(
-    "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
+    "heartbeat",
+    HeartbeatFilter,
+    cv.Any(
+        cv.positive_time_period_milliseconds,
+        HEARTBEAT_SCHEMA,
+    ),
 )
 async def heartbeat_filter_to_code(config, filter_id):
+    if isinstance(config, dict):
+        var = cg.new_Pvariable(filter_id, config[CONF_PERIOD])
+        await cg.register_component(var, {})
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+        return var
+
     var = cg.new_Pvariable(filter_id, config)
     await cg.register_component(var, {})
     return var
