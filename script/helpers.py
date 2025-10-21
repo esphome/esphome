@@ -8,6 +8,7 @@ import os.path
 from pathlib import Path
 import re
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -305,7 +306,10 @@ def get_changed_components() -> list[str] | None:
         for f in changed
     )
     if core_cpp_changed:
-        print("Core C++/header files changed - will run full clang-tidy scan")
+        print(
+            "Core C++/header files changed - will run full clang-tidy scan",
+            file=sys.stderr,
+        )
         return None
 
     # Use list-components.py to get changed components
@@ -319,7 +323,10 @@ def get_changed_components() -> list[str] | None:
         return parse_list_components_output(result.stdout)
     except subprocess.CalledProcessError:
         # If the script fails, fall back to full scan
-        print("Could not determine changed components - will run full clang-tidy scan")
+        print(
+            "Could not determine changed components - will run full clang-tidy scan",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -371,7 +378,7 @@ def _filter_changed_ci(files: list[str]) -> list[str]:
             if f in changed and not f.startswith(ESPHOME_COMPONENTS_PATH)
         ]
         if not files:
-            print("No files changed")
+            print("No files changed", file=sys.stderr)
         return files
 
     # Scenario 3: Specific components changed
