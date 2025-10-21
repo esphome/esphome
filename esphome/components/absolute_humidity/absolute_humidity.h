@@ -14,6 +14,7 @@ enum SaturationVaporPressureEquation {
 };
 
 /// This class implements calculation of absolute humidity from temperature and relative humidity.
+// Test change for clang-tidy split logic
 class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
  public:
   AbsoluteHumidityComponent() = default;
