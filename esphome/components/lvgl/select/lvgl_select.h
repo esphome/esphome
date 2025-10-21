@@ -55,11 +55,7 @@ class LVGLSelect : public select::Select, public Component {
   }
   void set_options_() {
     // Copy options from lvgl widget to select traits
-    const auto &widget_options = this->widget_->get_options();
-    this->traits.options_.init(widget_options.size());
-    for (const auto &option : widget_options) {
-      this->traits.options_.push_back(option);
-    }
+    this->traits.copy_options(this->widget_->get_options());
   }
 
   LvSelectable *widget_;

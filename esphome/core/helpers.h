@@ -215,6 +215,7 @@ template<typename T> class FixedVector {
   ~FixedVector() { cleanup_(); }
 
   // Disable copy operations (avoid accidental expensive copies)
+  // Use copy_from() for explicit copying when needed (e.g., copy_select)
   FixedVector(const FixedVector &) = delete;
   FixedVector &operator=(const FixedVector &) = delete;
 
@@ -244,6 +245,19 @@ template<typename T> class FixedVector {
     reset_();
     assign_from_initializer_list_(init_list);
     return *this;
+  }
+
+  /// Explicitly copy another FixedVector
+  /// This method exists instead of operator= to make copying intentional and visible.
+  /// Copying is expensive on embedded systems, so we require explicit opt-in.
+  /// Use cases: copy_select (copying source options), lvgl (copying widget options)
+  void copy_from(const FixedVector &other) {
+    cleanup_();
+    reset_();
+    init(other.size());
+    for (const auto &item : other) {
+      push_back(item);
+    }
   }
 
   // Allocate capacity - can be called multiple times to reinit
@@ -304,6 +318,11 @@ template<typename T> class FixedVector {
     return data_[size_ - 1];
   }
 
+  /// Access first element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
+  T &front() { return data_[0]; }
+  const T &front() const { return data_[0]; }
+
   /// Access last element (no bounds checking - matches std::vector behavior)
   /// Caller must ensure vector is not empty (size() > 0)
   T &back() { return data_[size_ - 1]; }
@@ -316,6 +335,12 @@ template<typename T> class FixedVector {
   /// Caller must ensure index is valid (i < size())
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
+
+  /// Access element with bounds checking (matches std::vector behavior)
+  /// Returns reference to element at index i
+  /// Behavior for out of bounds access matches std::vector::at() (undefined on embedded)
+  T &at(size_t i) { return data_[i]; }
+  const T &at(size_t i) const { return data_[i]; }
 
   // Iterator support for range-based for loops
   T *begin() { return data_; }
