@@ -42,7 +42,6 @@ static const uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;  // Enable write operation
 enum CSE7761 { RMS_IAC, RMS_IBC, RMS_UC, POWER_PAC, POWER_PBC, POWER_SC, ENERGY_AC, ENERGY_BC };
 
 void CSE7761Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_RESET);
   uint16_t syscon = this->read_(0x00, 2);  // Default 0x0A04
   if ((0x0A04 == syscon) && this->chip_init_()) {

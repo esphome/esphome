@@ -17,7 +17,6 @@ static const uint8_t RESTART_CMD2 = 0xA5;
 static const uint8_t READ_DELAY = 40;  // minimum milliseconds from datasheet to safely read measurement result
 
 void GLR01I2CComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up GL-R01 I2C...");
   // Verify sensor presence
   if (!this->read_byte_16(REG_VERSION, &this->version_)) {
     ESP_LOGE(TAG, "Failed to communicate with GL-R01 I2C sensor!");

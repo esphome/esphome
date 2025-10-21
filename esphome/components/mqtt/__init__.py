@@ -57,7 +57,8 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -210,6 +211,15 @@ def validate_fingerprint(value):
     return value
 
 
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for MQTT component."""
+    from esphome.components import socket
+
+    # MQTT needs 1 socket for the broker connection
+    socket.consume_sockets(1, "mqtt")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -306,23 +316,23 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_config,
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    _consume_mqtt_sockets,
 )
 
 
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

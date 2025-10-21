@@ -5,7 +5,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     only_on_variant,
 )
-from esphome.components.mdns import MDNSComponent
+from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID
 import esphome.final_validate as fv
@@ -79,9 +79,8 @@ def set_sdkconfig_options(config):
                 "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
             )
 
-    if force_dataset := config.get(CONF_FORCE_DATASET):
-        if force_dataset:
-            cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+    if config.get(CONF_FORCE_DATASET):
+        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
@@ -141,6 +140,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
+
+    # OpenThread SRP needs access to mDNS services after setup
+    enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(ot, config)

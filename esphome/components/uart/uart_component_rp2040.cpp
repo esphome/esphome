@@ -52,8 +52,6 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   uint16_t config = get_config();
 
   constexpr uint32_t valid_tx_uart_0 = __bitset({0, 12, 16, 28});

@@ -34,7 +34,6 @@ void AM2320Component::update() {
   this->status_clear_warning();
 }
 void AM2320Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[8];
   data[0] = 0;
   data[1] = 4;

@@ -8,7 +8,6 @@ namespace sn74hc595 {
 static const char *const TAG = "sn74hc595";
 
 void SN74HC595Component::pre_setup_() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->have_oe_pin_) {  // disable output
     this->oe_pin_->setup();
     this->oe_pin_->digital_write(true);

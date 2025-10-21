@@ -29,12 +29,12 @@ static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
-  this->credentials_.client_id = App.get_name() + "-" + get_mac_address();
+  const std::string mac_addr = get_mac_address();
+  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr.c_str(), mac_addr.size());
 }
 
 // Connection
 void MQTTClientComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)
@@ -140,11 +140,8 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 
 #ifdef USE_API_NOISE
-        if (api::global_api_server->get_noise_ctx()->has_psk()) {
-          root["api_encryption"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        } else {
-          root["api_encryption_supported"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        }
+        root[api::global_api_server->get_noise_ctx()->has_psk() ? "api_encryption" : "api_encryption_supported"] =
+            "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 #endif
       },
       2, this->discovery_info_.retain);
@@ -492,7 +489,7 @@ bool MQTTClientComponent::publish(const std::string &topic, const std::string &p
 
 bool MQTTClientComponent::publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
-  return publish({.topic = topic, .payload = payload, .qos = qos, .retain = retain});
+  return publish({.topic = topic, .payload = std::string(payload, payload_length), .qos = qos, .retain = retain});
 }
 
 bool MQTTClientComponent::publish(const MQTTMessage &message) {

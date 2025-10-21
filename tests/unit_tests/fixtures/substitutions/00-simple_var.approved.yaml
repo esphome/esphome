@@ -1,7 +1,14 @@
 substitutions:
+  substituted: 99
   var1: '1'
   var2: '2'
   var21: '79'
+  value: 33
+  values: 44
+  position:
+    x: 79
+    y: 82
+
 esphome:
   name: test
 test_list:
@@ -19,3 +26,10 @@ test_list:
   - ${ undefined_var }
   - key1: 1
     key2: 2
+  - Literal $values ${are not substituted}
+  - ["list $value", "${is not}", "${substituted}"]
+  - {"$dictionary": "$value", "${is not}": "${substituted}"}
+  - |-
+    {{{ "x", "79"}, { "y", "82"}}}
+  - '{{{"AA"}}}'
+  - '"HELLO"'

@@ -6,7 +6,6 @@ namespace esphome {
 namespace rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->reset_display_();
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
@@ -23,7 +22,6 @@ void RpiDpiRgb::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
     config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
@@ -42,7 +40,6 @@ void RpiDpiRgb::setup() {
   }
   ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
   ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
-  ESP_LOGCONFIG(TAG, "RPI_DPI_RGB setup complete");
 }
 void RpiDpiRgb::loop() {
   if (this->handle_ != nullptr)

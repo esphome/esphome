@@ -8,6 +8,7 @@ import asyncio
 from typing import Any
 
 from aioesphomeapi import LightState
+from aioesphomeapi.model import ColorMode
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -35,10 +36,51 @@ async def test_light_calls(
         # Get the light entities
         entities = await client.list_entities_services()
         lights = [e for e in entities[0] if e.object_id.startswith("test_")]
-        assert len(lights) >= 2  # Should have RGBCW and RGB lights
+        assert len(lights) >= 3  # Should have RGBCW, RGB, and Binary lights
 
         rgbcw_light = next(light for light in lights if "RGBCW" in light.name)
         rgb_light = next(light for light in lights if "RGB Light" in light.name)
+        binary_light = next(light for light in lights if "Binary" in light.name)
+
+        # Test color mode encoding: Verify supported_color_modes contains actual ColorMode enum values
+        # not bit positions. This is critical - the iterator must convert bit positions to actual
+        # ColorMode enum values for API encoding.
+
+        # RGBCW light (rgbww platform) should support RGB_COLD_WARM_WHITE mode
+        assert ColorMode.RGB_COLD_WARM_WHITE in rgbcw_light.supported_color_modes, (
+            f"RGBCW light missing RGB_COLD_WARM_WHITE mode. Got: {rgbcw_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.RGB_COLD_WARM_WHITE.value in [
+            mode.value for mode in rgbcw_light.supported_color_modes
+        ], (
+            f"RGBCW light has wrong color mode values. Expected {ColorMode.RGB_COLD_WARM_WHITE.value} "
+            f"(RGB_COLD_WARM_WHITE), got: {[mode.value for mode in rgbcw_light.supported_color_modes]}"
+        )
+
+        # RGB light should support RGB mode
+        assert ColorMode.RGB in rgb_light.supported_color_modes, (
+            f"RGB light missing RGB color mode. Got: {rgb_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.RGB.value in [
+            mode.value for mode in rgb_light.supported_color_modes
+        ], (
+            f"RGB light has wrong color mode values. Expected {ColorMode.RGB.value} (RGB), got: "
+            f"{[mode.value for mode in rgb_light.supported_color_modes]}"
+        )
+
+        # Binary light (on/off only) should support ON_OFF mode
+        assert ColorMode.ON_OFF in binary_light.supported_color_modes, (
+            f"Binary light missing ON_OFF color mode. Got: {binary_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.ON_OFF.value in [
+            mode.value for mode in binary_light.supported_color_modes
+        ], (
+            f"Binary light has wrong color mode values. Expected {ColorMode.ON_OFF.value} (ON_OFF), got: "
+            f"{[mode.value for mode in binary_light.supported_color_modes]}"
+        )
 
         async def wait_for_state_change(key: int, timeout: float = 1.0) -> Any:
             """Wait for a state change for the given entity key."""
@@ -108,14 +150,51 @@ async def test_light_calls(
         # Wait for flash to end
         state = await wait_for_state_change(rgbcw_light.key)
 
-        # Test 13: effect only
+        # Test 13: effect only - test all random effects
         # First ensure light is on
         client.light_command(key=rgbcw_light.key, state=True)
         state = await wait_for_state_change(rgbcw_light.key)
-        # Now set effect
-        client.light_command(key=rgbcw_light.key, effect="Random Effect")
+
+        # Test 13a: Default random effect (no name, gets default name "Random")
+        client.light_command(key=rgbcw_light.key, effect="Random")
         state = await wait_for_state_change(rgbcw_light.key)
-        assert state.effect == "Random Effect"
+        assert state.effect == "Random"
+
+        # Test 13b: Slow random effect with long name
+        client.light_command(
+            key=rgbcw_light.key, effect="My Very Slow Random Effect With Long Name"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "My Very Slow Random Effect With Long Name"
+
+        # Test 13c: Fast random effect with long name
+        client.light_command(
+            key=rgbcw_light.key, effect="My Fast Random Effect That Changes Quickly"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "My Fast Random Effect That Changes Quickly"
+
+        # Test 13d: Random effect with medium length name
+        client.light_command(
+            key=rgbcw_light.key, effect="Random Effect With Medium Length Name Here"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "Random Effect With Medium Length Name Here"
+
+        # Test 13e: Another random effect
+        client.light_command(
+            key=rgbcw_light.key,
+            effect="Another Random Effect With Different Parameters",
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "Another Random Effect With Different Parameters"
+
+        # Test 13f: Yet another random effect
+        client.light_command(
+            key=rgbcw_light.key, effect="Yet Another Random Effect To Test Memory"
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.effect == "Yet Another Random Effect To Test Memory"
 
         # Test 14: stop effect
         client.light_command(key=rgbcw_light.key, effect="None")
@@ -179,6 +258,69 @@ async def test_light_calls(
         client.light_command(key=rgb_light.key, state=False)
         state = await wait_for_state_change(rgb_light.key)
         assert state.state is False
+
+        # Test color mode combinations to verify get_suitable_color_modes optimization
+
+        # Test 22: White only mode
+        client.light_command(key=rgbcw_light.key, state=True, white=0.5)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 23: Color temperature only mode
+        client.light_command(key=rgbcw_light.key, state=True, color_temperature=300)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.color_temperature == pytest.approx(300)
+
+        # Test 24: Cold/warm white only mode
+        client.light_command(
+            key=rgbcw_light.key, state=True, cold_white=0.6, warm_white=0.4
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.cold_white == pytest.approx(0.6)
+        assert state.warm_white == pytest.approx(0.4)
+
+        # Test 25: RGB only mode
+        client.light_command(key=rgb_light.key, state=True, rgb=(0.5, 0.5, 0.5))
+        state = await wait_for_state_change(rgb_light.key)
+        assert state.state is True
+
+        # Test 26: RGB + white combination
+        client.light_command(
+            key=rgbcw_light.key, state=True, rgb=(0.3, 0.3, 0.3), white=0.5
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 27: RGB + color temperature combination
+        client.light_command(
+            key=rgbcw_light.key, state=True, rgb=(0.4, 0.4, 0.4), color_temperature=280
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 28: RGB + cold/warm white combination
+        client.light_command(
+            key=rgbcw_light.key,
+            state=True,
+            rgb=(0.2, 0.2, 0.2),
+            cold_white=0.5,
+            warm_white=0.5,
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 29: White + color temperature combination
+        client.light_command(
+            key=rgbcw_light.key, state=True, white=0.6, color_temperature=320
+        )
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+
+        # Test 30: No specific color parameters (tests default mode selection)
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.75)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.75)
 
         # Final cleanup - turn all lights off
         for light in lights:

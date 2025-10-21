@@ -238,11 +238,10 @@ void VoiceAssistant::loop() {
 
       api::VoiceAssistantRequest msg;
       msg.start = true;
-      msg.conversation_id = this->conversation_id_;
+      msg.set_conversation_id(StringRef(this->conversation_id_));
       msg.flags = flags;
       msg.audio_settings = audio_settings;
-      msg.wake_word_phrase = this->wake_word_;
-      this->wake_word_ = "";
+      msg.set_wake_word_phrase(StringRef(this->wake_word_));
 
       // Reset media player state tracking
 #ifdef USE_MEDIA_PLAYER
@@ -430,8 +429,9 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
 
   if (this->api_client_ != nullptr) {
     ESP_LOGE(TAG, "Multiple API Clients attempting to connect to Voice Assistant");
-    ESP_LOGE(TAG, "Current client: %s", this->api_client_->get_client_combined_info().c_str());
-    ESP_LOGE(TAG, "New client: %s", client->get_client_combined_info().c_str());
+    ESP_LOGE(TAG, "Current client: %s (%s)", this->api_client_->get_name().c_str(),
+             this->api_client_->get_peername().c_str());
+    ESP_LOGE(TAG, "New client: %s (%s)", client->get_name().c_str(), client->get_peername().c_str());
     return;
   }
 
