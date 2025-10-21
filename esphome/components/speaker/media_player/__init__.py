@@ -7,9 +7,11 @@ from pathlib import Path
 from esphome import automation, external_files
 import esphome.codegen as cg
 from esphome.components import audio, esp32, media_player, psram, speaker
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_DISABLED,
     CONF_FILE,
     CONF_FILES,
     CONF_FORMAT,
@@ -26,6 +28,7 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -242,6 +245,29 @@ def _validate_supported_local_file(config):
     return config
 
 
+PSRAM_GUARANTEED_KEY = "speaker_media_player_psram_guaranteed"
+
+
+def _check_psram_available(config):
+    """Check if PSRAM is guaranteed during final validation and store in CORE.data."""
+    full_config = fv.full_config.get()
+
+    # Check if psram component is configured
+    psram_guaranteed = False
+    if "psram" in full_config:
+        psram_config = full_config["psram"]
+        # PSRAM is guaranteed if both CONF_DISABLED is False and CONF_IGNORE_NOT_FOUND is False
+        if not psram_config.get(CONF_DISABLED, False) and not psram_config.get(
+            CONF_IGNORE_NOT_FOUND, True
+        ):
+            psram_guaranteed = True
+
+    # Store in CORE.data for access during to_code()
+    CORE.data[PSRAM_GUARANTEED_KEY] = psram_guaranteed
+
+    return config
+
+
 LOCAL_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PATH): cv.file_,
@@ -318,6 +344,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         extra=cv.ALLOW_EXTRA,
     ),
     _validate_supported_local_file,
+    _check_psram_available,
 )
 
 
@@ -328,22 +355,59 @@ async def to_code(config):
         cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
         cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
 
-        # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+        if CORE.data.get(PSRAM_GUARANTEED_KEY, False):
+            # PSRAM is guaranteed, higher buffer counts are allowed
+            # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+            # These two are necessary to allow much higher counts
+            esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_WND_SCALE", True)
 
-        # Allocate wifi buffers in PSRAM
-        esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 512)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BUFFER_TYPE", 0)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM", 32)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM", 8)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 16)
+
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_MAX_ACTIVE_TCP", 16)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_MAX_LISTENING_TCP", 16)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 512)
+
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MAXRTX", 12)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MSS", 1436)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_MSL", 60000)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 512)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RCV_SCALE", 3)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SYNMAXRTX", 6)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 512000)
+        else:
+            # PSRAM is not guaranteed, which require lower buffer counts
+            # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
+
+            # Allocate wifi buffers in PSRAM - harmless if PSRAM isn't available
+            esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
+
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
+            esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
 
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
