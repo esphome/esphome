@@ -190,7 +190,9 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["pre:iram_fix.py", "post:post_build.py"])
+    cg.add_platformio_option(
+        "extra_scripts", ["pre:testing_mode.py", "post:post_build.py"]
+    )
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -271,8 +273,8 @@ def copy_files():
         post_build_file,
         CORE.relative_build_path("post_build.py"),
     )
-    iram_fix_file = dir / "iram_fix.py.script"
+    testing_mode_file = dir / "testing_mode.py.script"
     copy_file_if_changed(
-        iram_fix_file,
-        CORE.relative_build_path("iram_fix.py"),
+        testing_mode_file,
+        CORE.relative_build_path("testing_mode.py"),
     )
