@@ -223,6 +223,7 @@ SYMBOL_PATTERNS = {
         "llm_",  # Link layer manager
         "llc_",  # Link layer control
         "lld_",  # Link layer driver
+        "ld_acl_",  # Link layer ACL (Asynchronous Connection-Oriented)
         "llcp_",  # Link layer control protocol
         "lmp_",  # Link manager protocol
     ],
