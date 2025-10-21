@@ -141,6 +141,11 @@ async def to_code(config):
         await cg.register_parented(source_speaker, config[CONF_ID])
         await speaker.register_speaker(source_speaker, speaker_config)
 
+        channels = int(speaker_config[CONF_NUM_CHANNELS])
+        bits_per_sample = int(speaker_config[CONF_BITS_PER_SAMPLE])
+        sample_rate = int(speaker_config[CONF_SAMPLE_RATE])
+        cg.add(source_speaker.set_stream_info(channels, bits_per_sample, sample_rate))
+
         cg.add(var.add_source_speaker(source_speaker))
 
 

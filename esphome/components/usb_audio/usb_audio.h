@@ -80,6 +80,9 @@ class USBAudioComponent : public Component {
   void resume_speaker();
   void suspend_speaker();
 
+  void set_speaker_volume_level(float volume);
+  void set_speaker_mute_state(bool mute_state);
+
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
   esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms);
 
@@ -105,6 +108,8 @@ class USBAudioComponent : public Component {
                              uac_host_device_handle_t handle);
   void handle_disconnect_(uac_host_device_handle_t handle);
   void close_all_devices_();
+  bool apply_speaker_volume_();
+  bool apply_speaker_mute_();
   bool is_ready_(const AudioEndpointConfig &config) const { return config.configured && config.buffer_size > 0; }
 
   static void driver_event_stub_(uint8_t addr, uint8_t iface_num, const uac_host_driver_event_t event, void *user_data);
@@ -132,6 +137,15 @@ class USBAudioComponent : public Component {
 
   uint32_t connect_timeout_ms_{5000};
   bool teardown_initiated_{false};
+
+  float speaker_volume_level_{1.0f};
+  bool speaker_muted_{false};
+  bool pending_speaker_volume_{true};
+  bool pending_speaker_mute_{true};
+  bool speaker_volume_supported_{true};
+  bool speaker_mute_supported_{true};
+  bool speaker_volume_warned_{false};
+  bool speaker_mute_warned_{false};
 };
 
 }  // namespace usb_audio

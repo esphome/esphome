@@ -3,6 +3,7 @@
 #if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <inttypes.h>
 
@@ -126,6 +127,15 @@ void USBAudioComponent::loop() {
   USBAudioEvent event;
   while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
     this->process_event_(event);
+  }
+
+  if (this->speaker_handle_ != nullptr) {
+    if (this->pending_speaker_volume_) {
+      this->apply_speaker_volume_();
+    }
+    if (this->pending_speaker_mute_) {
+      this->apply_speaker_mute_();
+    }
   }
 }
 
@@ -278,6 +288,8 @@ void USBAudioComponent::resume_speaker() {
       return;
     }
   }
+  this->pending_speaker_volume_ = true;
+  this->pending_speaker_mute_ = true;
   esp_err_t err = uac_host_device_resume(this->speaker_handle_);
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGW(TAG, "Failed to resume speaker stream: %s", esp_err_to_name(err));
@@ -481,6 +493,10 @@ bool USBAudioComponent::start_speaker_stream_() {
 
   this->speaker_stream_started_ = true;
   this->device_connected_ = true;
+  this->pending_speaker_volume_ = true;
+  this->pending_speaker_mute_ = true;
+  this->apply_speaker_volume_();
+  this->apply_speaker_mute_();
   return true;
 }
 
@@ -598,6 +614,94 @@ void USBAudioComponent::log_alt_capabilities_(const char *role, const AudioEndpo
   }
 }
 
+void USBAudioComponent::set_speaker_volume_level(float volume) {
+  this->speaker_volume_level_ = std::clamp(volume, 0.0f, 1.0f);
+  if (this->speaker_volume_supported_) {
+    this->speaker_volume_warned_ = false;
+  }
+  this->pending_speaker_volume_ = true;
+  this->apply_speaker_volume_();
+}
+
+void USBAudioComponent::set_speaker_mute_state(bool mute_state) {
+  this->speaker_muted_ = mute_state;
+  if (this->speaker_mute_supported_) {
+    this->speaker_mute_warned_ = false;
+  }
+  this->pending_speaker_mute_ = true;
+  this->apply_speaker_mute_();
+}
+
+bool USBAudioComponent::apply_speaker_volume_() {
+  if (this->speaker_handle_ == nullptr) {
+    return false;
+  }
+  if (!this->speaker_volume_supported_) {
+    this->pending_speaker_volume_ = false;
+    return false;
+  }
+
+  const int rounded = static_cast<int>(std::lround(this->speaker_volume_level_ * 100.0f));
+  const uint8_t volume = static_cast<uint8_t>(std::clamp(rounded, 0, 100));
+  esp_err_t err = uac_host_device_set_volume(this->speaker_handle_, volume);
+  if (err == ESP_OK) {
+    this->pending_speaker_volume_ = false;
+    this->speaker_volume_warned_ = false;
+    return true;
+  }
+  if (err == ESP_ERR_NOT_SUPPORTED) {
+    if (!this->speaker_volume_warned_) {
+      ESP_LOGW(TAG, "Speaker volume control not supported by device");
+      this->speaker_volume_warned_ = true;
+    }
+    this->speaker_volume_supported_ = false;
+    this->pending_speaker_volume_ = false;
+    return false;
+  }
+  if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_TIMEOUT) {
+    return false;
+  }
+  if (!this->speaker_volume_warned_) {
+    ESP_LOGW(TAG, "Failed to set speaker volume: %s", esp_err_to_name(err));
+    this->speaker_volume_warned_ = true;
+  }
+  return false;
+}
+
+bool USBAudioComponent::apply_speaker_mute_() {
+  if (this->speaker_handle_ == nullptr) {
+    return false;
+  }
+  if (!this->speaker_mute_supported_) {
+    this->pending_speaker_mute_ = false;
+    return false;
+  }
+
+  esp_err_t err = uac_host_device_set_mute(this->speaker_handle_, this->speaker_muted_);
+  if (err == ESP_OK) {
+    this->pending_speaker_mute_ = false;
+    this->speaker_mute_warned_ = false;
+    return true;
+  }
+  if (err == ESP_ERR_NOT_SUPPORTED) {
+    if (!this->speaker_mute_warned_) {
+      ESP_LOGW(TAG, "Speaker mute control not supported by device");
+      this->speaker_mute_warned_ = true;
+    }
+    this->speaker_mute_supported_ = false;
+    this->pending_speaker_mute_ = false;
+    return false;
+  }
+  if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_TIMEOUT) {
+    return false;
+  }
+  if (!this->speaker_mute_warned_) {
+    ESP_LOGW(TAG, "Failed to set speaker mute: %s", esp_err_to_name(err));
+    this->speaker_mute_warned_ = true;
+  }
+  return false;
+}
+
 void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
   if (handle == nullptr) {
     return;
@@ -614,6 +718,12 @@ void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
     this->speaker_stream_started_ = false;
     this->speaker_iface_ = 0;
     this->speaker_addr_ = 0;
+    this->pending_speaker_volume_ = true;
+    this->pending_speaker_mute_ = true;
+    this->speaker_volume_supported_ = true;
+    this->speaker_mute_supported_ = true;
+    this->speaker_volume_warned_ = false;
+    this->speaker_mute_warned_ = false;
   }
   if (handle == this->microphone_handle_) {
     if (this->microphone_stream_started_) {

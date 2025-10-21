@@ -103,19 +103,15 @@ bool USBAudioSpeaker::has_buffered_data() const {
 
 void USBAudioSpeaker::set_volume(float volume) {
   speaker::Speaker::set_volume(volume);
-  static bool warned = false;
-  if (!warned) {
-    ESP_LOGW(TAG_SPK, "Volume control is not supported with usb_host_uac driver");
-    warned = true;
+  if (this->parent_ != nullptr) {
+    this->parent_->set_speaker_volume_level(volume);
   }
 }
 
 void USBAudioSpeaker::set_mute_state(bool mute_state) {
   speaker::Speaker::set_mute_state(mute_state);
-  static bool warned = false;
-  if (!warned) {
-    ESP_LOGW(TAG_SPK, "Mute control is not supported with usb_host_uac driver");
-    warned = true;
+  if (this->parent_ != nullptr) {
+    this->parent_->set_speaker_mute_state(mute_state);
   }
 }
 
