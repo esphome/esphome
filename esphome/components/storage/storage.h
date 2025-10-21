@@ -22,8 +22,8 @@ static const uint8_t CMD_CTRL_SYNC = 0;         // Complete pending write proces
 static const uint8_t CMD_GET_SECTOR_COUNT = 1;  // Get media size (needed at FF_USE_MKFS == 1)
 static const uint8_t CMD_GET_SECTOR_SIZE = 2;   // Get sector size (needed at FF_MAX_SS != FF_MIN_SS)
 static const uint8_t CMD_GET_BLOCK_SIZE = 3;    //  Get erase block size (needed at FF_USE_MKFS == 1)
-static const uint8_t CMD_CTRL_TRIM = 4;         // Inform device that
-// the data on the block of sectors is no longer used (needed at FF_USE_TRIM == 1)
+// Inform device that the data on the block of sectors is no longer used (needed at FF_USE_TRIM == 1)
+static const uint8_t CMD_CTRL_TRIM = 4;
 
 // Generic command
 static const uint8_t CMD_CTRL_POWER = 5;   // Get/Set power status
@@ -50,13 +50,6 @@ static const uint8_t CMD_ATA_GET_SN = 22;     // Get serial number
  *
  * @brief  Storage device driver interface.  Contains IO operation.
  *         Most information about device are returned by ioctl call.
- *
- * Methods return statueses:
- *    RC_OK  0 - Successful
- *    RC_ERROR  1 - R//W Error
- *    RC_WRPRT 2 - Write Protected
- *    RC_NOTRDY 3 - Not Ready
- *    RC_PARERR 4 - Invalid Parameter
  */
 class Storage {
  public:
