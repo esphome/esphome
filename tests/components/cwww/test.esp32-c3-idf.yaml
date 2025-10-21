@@ -3,12 +3,15 @@ substitutions:
   pin_o1: GPIO6
   pin_o2: GPIO7
 
-packages:
-  device_base: !include common.yaml
-
 output:
-  - id: !extend light_output_1
+  - platform: ${light_platform}
+    id: light_output_1
+    pin: ${pin_o1}
     channel: 0
-  - id: !extend light_output_2
+  - platform: ${light_platform}
+    id: light_output_2
+    pin: ${pin_o2}
     channel: 1
     phase_angle: 180°
+
+<<: !include common.yaml

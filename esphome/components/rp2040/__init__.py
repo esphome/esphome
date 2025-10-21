@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 from string import ascii_letters, digits
 
 import esphome.codegen as cg
@@ -19,7 +19,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, mkdir_p, read_file, write_file
+from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
@@ -221,18 +221,18 @@ def generate_pio_files() -> bool:
     if not files:
         return False
     for key, data in files.items():
-        pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
-        mkdir_p(os.path.dirname(pio_path))
-        write_file(pio_path, data)
+        pio_path = CORE.build_path / "src" / "pio" / f"{key}.pio"
+        pio_path.parent.mkdir(parents=True, exist_ok=True)
+        write_file_if_changed(pio_path, data)
         includes.append(f"pio/{key}.pio.h")
 
-    write_file(
+    write_file_if_changed(
         CORE.relative_build_path("src/pio_includes.h"),
         "#pragma once\n" + "\n".join([f'#include "{include}"' for include in includes]),
     )
 
-    dir = os.path.dirname(__file__)
-    build_pio_file = os.path.join(dir, "build_pio.py.script")
+    dir = Path(__file__).parent
+    build_pio_file = dir / "build_pio.py.script"
     copy_file_if_changed(
         build_pio_file,
         CORE.relative_build_path("build_pio.py"),
@@ -243,8 +243,8 @@ def generate_pio_files() -> bool:
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
@@ -252,4 +252,4 @@ def copy_files():
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")
         content = read_file(path).rstrip("\n")
-        write_file(path, content + '\n#include "pio_includes.h"\n')
+        write_file_if_changed(path, content + '\n#include "pio_includes.h"\n')

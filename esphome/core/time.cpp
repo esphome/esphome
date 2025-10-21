@@ -77,7 +77,7 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
              &hour,                                                                                      // NOLINT
              &minute,                                                                                    // NOLINT
              &second, &num) == 6 &&                                                                      // NOLINT
-      num == time_to_parse.size()) {
+      num == static_cast<int>(time_to_parse.size())) {
     esp_time.year = year;
     esp_time.month = month;
     esp_time.day_of_month = day;
@@ -87,7 +87,7 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   } else if (sscanf(time_to_parse.c_str(), "%04hu-%02hhu-%02hhu %02hhu:%02hhu %n", &year, &month, &day,  // NOLINT
                     &hour,                                                                               // NOLINT
                     &minute, &num) == 5 &&                                                               // NOLINT
-             num == time_to_parse.size()) {
+             num == static_cast<int>(time_to_parse.size())) {
     esp_time.year = year;
     esp_time.month = month;
     esp_time.day_of_month = day;
@@ -95,17 +95,17 @@ bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
     esp_time.minute = minute;
     esp_time.second = 0;
   } else if (sscanf(time_to_parse.c_str(), "%02hhu:%02hhu:%02hhu %n", &hour, &minute, &second, &num) == 3 &&  // NOLINT
-             num == time_to_parse.size()) {
+             num == static_cast<int>(time_to_parse.size())) {
     esp_time.hour = hour;
     esp_time.minute = minute;
     esp_time.second = second;
   } else if (sscanf(time_to_parse.c_str(), "%02hhu:%02hhu %n", &hour, &minute, &num) == 2 &&  // NOLINT
-             num == time_to_parse.size()) {
+             num == static_cast<int>(time_to_parse.size())) {
     esp_time.hour = hour;
     esp_time.minute = minute;
     esp_time.second = 0;
   } else if (sscanf(time_to_parse.c_str(), "%04hu-%02hhu-%02hhu %n", &year, &month, &day, &num) == 3 &&  // NOLINT
-             num == time_to_parse.size()) {
+             num == static_cast<int>(time_to_parse.size())) {
     esp_time.year = year;
     esp_time.month = month;
     esp_time.day_of_month = day;

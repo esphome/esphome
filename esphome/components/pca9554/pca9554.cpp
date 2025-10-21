@@ -37,10 +37,9 @@ void PCA9554Component::setup() {
 }
 
 void PCA9554Component::loop() {
-  // The read_inputs_() method will cache the input values from the chip.
-  this->read_inputs_();
-  // Clear all the previously read flags.
-  this->was_previously_read_ = 0x00;
+  // Invalidate the cache at the start of each loop.
+  // The actual read will happen on demand when digital_read() is called
+  this->reset_pin_cache_();
 }
 
 void PCA9554Component::dump_config() {
@@ -54,21 +53,17 @@ void PCA9554Component::dump_config() {
   }
 }
 
-bool PCA9554Component::digital_read(uint8_t pin) {
-  // Note: We want to try and avoid doing any I2C bus read transactions here
-  // to conserve I2C bus bandwidth. So what we do is check to see if we
-  // have seen a read during the time esphome is running this loop. If we have,
-  // we do an I2C bus transaction to get the latest value. If we haven't
-  // we return a cached value which was read at the time loop() was called.
-  if (this->was_previously_read_ & (1 << pin))
-    this->read_inputs_();  // Force a read of a new value
-  // Indicate we saw a read request for this pin in case a
-  // read happens later in the same loop.
-  this->was_previously_read_ |= (1 << pin);
+bool PCA9554Component::digital_read_hw(uint8_t pin) {
+  // Read all pins from hardware into input_mask_
+  return this->read_inputs_();  // Return true if I2C read succeeded, false on error
+}
+
+bool PCA9554Component::digital_read_cache(uint8_t pin) {
+  // Return the cached pin state from input_mask_
   return this->input_mask_ & (1 << pin);
 }
 
-void PCA9554Component::digital_write(uint8_t pin, bool value) {
+void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   if (value) {
     this->output_mask_ |= (1 << pin);
   } else {
@@ -127,8 +122,7 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we cache read values before
-// before other components call our digital_read() method.
+// Run our loop() method early to invalidate cache before any other components access the pins
 float PCA9554Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
 
 void PCA9554GPIOPin::setup() { pin_mode(flags_); }

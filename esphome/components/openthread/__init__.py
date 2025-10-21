@@ -5,7 +5,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     only_on_variant,
 )
-from esphome.components.mdns import MDNSComponent
+from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID
 import esphome.final_validate as fv
@@ -140,6 +140,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
+
+    # OpenThread SRP needs access to mDNS services after setup
+    enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(ot, config)

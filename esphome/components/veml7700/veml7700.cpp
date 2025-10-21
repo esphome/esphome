@@ -1,6 +1,7 @@
 #include "veml7700.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include <limits>
 
 namespace esphome {
 namespace veml7700 {
@@ -12,30 +13,30 @@ static float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
   size_t i = 0;
-  size_t idx = -1;
-  while (idx == -1 && i < size) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i < size) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i++;
   }
-  if (idx == -1 || i + 1 >= size)
+  if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
   return array[i + 1];
 }
 
 template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
   size_t i = size - 1;
-  size_t idx = -1;
-  while (idx == -1 && i > 0) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i > 0) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i--;
   }
-  if (idx == -1 || i == 0)
+  if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
   return array[i - 1];
 }

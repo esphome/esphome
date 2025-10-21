@@ -8,7 +8,7 @@ static const char *const TAG = "mcp23x08_base";
 
 bool MCP23X08Base::digital_read_hw(uint8_t pin) {
   if (!this->read_reg(mcp23x08_base::MCP23X08_GPIO, &this->input_mask_)) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   return true;

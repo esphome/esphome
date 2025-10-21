@@ -47,9 +47,13 @@ async def to_code(config):
             cg.add_define(
                 "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
             )
-        if CORE.using_esp_idf:
-            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
-            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
+        if CORE.is_esp32:
+            if CORE.using_esp_idf:
+                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
+                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
+            else:
+                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)
+                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", True)
         elif enable_ipv6:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
