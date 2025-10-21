@@ -4,6 +4,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
     only_on_variant,
+    require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
@@ -140,6 +141,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
+
+    # OpenThread uses esp_vfs_eventfd which requires VFS select support
+    require_vfs_select()
 
     # OpenThread SRP needs access to mDNS services after setup
     enable_mdns_storage()
