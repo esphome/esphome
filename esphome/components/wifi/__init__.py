@@ -1,7 +1,6 @@
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.codegen import MockObj
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.network import IPAddress
@@ -379,19 +378,16 @@ async def to_code(config):
     # Track if any network uses Enterprise authentication
     has_eap = False
 
-    # Build all WiFiAP objects
+    # Build all WiFiAP objects as StructInitializers (not variables)
     networks = config.get(CONF_NETWORKS, [])
     if networks:
-        wifi_aps: list[MockObj] = []
+        wifi_aps = []
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-            # Create a WiFiAP variable for each network
-            ap_var = cg.new_variable(network[CONF_ID], WiFiAP())
-            # Configure the WiFiAP
-            wifi_network(network, ap_var, ip_config)
-            wifi_aps.append(ap_var)
+            # Create StructInitializer for each network (avoids global variables)
+            wifi_aps.append(wifi_network(network, WiFiAP(), ip_config))
 
         # Set all WiFi networks at once
         cg.add(var.set_stas(wifi_aps))
