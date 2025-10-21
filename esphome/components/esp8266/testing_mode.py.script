@@ -5,6 +5,24 @@ import re
 Import("env")  # noqa
 
 
+def patch_segment_size(content, segment_name, new_size, label):
+    """Patch a memory segment's length in linker script.
+
+    Args:
+        content: Linker script content
+        segment_name: Name of the segment (e.g., 'iram1_0_seg')
+        new_size: New size as hex string (e.g., '0x200000')
+        label: Human-readable label for logging (e.g., 'IRAM')
+
+    Returns:
+        Tuple of (patched_content, was_patched)
+    """
+    # Match: segment_name : org = 0x..., len = 0x...
+    pattern = rf"({segment_name}\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+"
+    new_content = re.sub(pattern, rf"\g<1>{new_size}", content)
+    return new_content, new_content != content
+
+
 def apply_memory_patches(content):
     """Apply IRAM, DRAM, and Flash patches to linker script content.
 
@@ -16,38 +34,20 @@ def apply_memory_patches(content):
     """
     patches_applied = []
 
-    # Patch IRAM segment to 2MB (for larger code in IRAM)
-    # Matches: iram1_0_seg : org = 0x..., len = 0x...
-    new_content = re.sub(
-        r"(iram1_0_seg\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
-        r"\g<1>0x200000",
-        content,
-    )
-    if new_content != content:
+    # Patch IRAM to 2MB (for larger code in IRAM)
+    content, patched = patch_segment_size(content, "iram1_0_seg", "0x200000", "IRAM")
+    if patched:
         patches_applied.append("IRAM")
-        content = new_content
 
-    # Patch DRAM segment to 2MB (for larger BSS/data sections)
-    # Matches: dram0_0_seg : org = 0x..., len = 0x...
-    new_content = re.sub(
-        r"(dram0_0_seg\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
-        r"\g<1>0x200000",
-        content,
-    )
-    if new_content != content:
+    # Patch DRAM to 2MB (for larger BSS/data sections)
+    content, patched = patch_segment_size(content, "dram0_0_seg", "0x200000", "DRAM")
+    if patched:
         patches_applied.append("DRAM")
-        content = new_content
 
-    # Patch Flash segment to 32MB (for larger code sections)
-    # Matches: irom0_0_seg : org = 0x..., len = 0x...
-    new_content = re.sub(
-        r"(irom0_0_seg\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
-        r"\g<1>0x2000000",
-        content,
-    )
-    if new_content != content:
+    # Patch Flash to 32MB (for larger code sections)
+    content, patched = patch_segment_size(content, "irom0_0_seg", "0x2000000", "Flash")
+    if patched:
         patches_applied.append("Flash")
-        content = new_content
 
     if patches_applied:
         print(f"  Patched memory segments: {', '.join(patches_applied)} (IRAM/DRAM: 2MB, Flash: 32MB)")
