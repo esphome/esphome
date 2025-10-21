@@ -340,7 +340,7 @@ class WiFiComponent : public Component {
     this->ip_state_callback_.add(std::move(callback));
   }
   /// - Wi-Fi scan results
-  void add_on_wifi_scan_state_callback(std::function<void(std::vector<wifi::WiFiScanResult>)> &&callback) {
+  void add_on_wifi_scan_state_callback(std::function<void(wifi_scan_vector_t<WiFiScanResult> &)> &&callback) {
     this->wifi_scan_state_callback_.add(std::move(callback));
   }
   /// - Wi-Fi SSID
@@ -419,7 +419,7 @@ class WiFiComponent : public Component {
   WiFiAP ap_;
   optional<float> output_power_;
   CallbackManager<void(network::IPAddresses, network::IPAddress, network::IPAddress)> ip_state_callback_;
-  CallbackManager<void(std::vector<wifi::WiFiScanResult>)> wifi_scan_state_callback_;
+  CallbackManager<void(wifi_scan_vector_t<WiFiScanResult> &)> wifi_scan_state_callback_;
   CallbackManager<void(std::string, wifi::bssid_t)> wifi_connect_state_callback_;
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
