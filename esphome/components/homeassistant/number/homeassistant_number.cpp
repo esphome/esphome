@@ -27,6 +27,7 @@ void HomeassistantNumber::min_retrieved_(const std::string &min) {
   auto min_value = parse_number<float>(min);
   if (!min_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'min' value '%s' to number!", this->entity_id_.c_str(), min.c_str());
+    return;
   }
   ESP_LOGD(TAG, "'%s': Min retrieved: %s", get_name().c_str(), min.c_str());
   this->traits.set_min_value(min_value.value());
@@ -36,6 +37,7 @@ void HomeassistantNumber::max_retrieved_(const std::string &max) {
   auto max_value = parse_number<float>(max);
   if (!max_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'max' value '%s' to number!", this->entity_id_.c_str(), max.c_str());
+    return;
   }
   ESP_LOGD(TAG, "'%s': Max retrieved: %s", get_name().c_str(), max.c_str());
   this->traits.set_max_value(max_value.value());
@@ -45,6 +47,7 @@ void HomeassistantNumber::step_retrieved_(const std::string &step) {
   auto step_value = parse_number<float>(step);
   if (!step_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'step' value '%s' to number!", this->entity_id_.c_str(), step.c_str());
+    return;
   }
   ESP_LOGD(TAG, "'%s': Step Retrieved %s", get_name().c_str(), step.c_str());
   this->traits.set_step(step_value.value());
@@ -80,20 +83,23 @@ void HomeassistantNumber::control(float value) {
 
   this->publish_state(value);
 
-  api::HomeassistantServiceResponse resp;
-  resp.service = "number.set_value";
+  static constexpr auto SERVICE_NAME = StringRef::from_lit("number.set_value");
+  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
+  static constexpr auto VALUE_KEY = StringRef::from_lit("value");
 
-  api::HomeassistantServiceMap entity_id;
-  entity_id.key = "entity_id";
+  api::HomeassistantActionRequest resp;
+  resp.set_service(SERVICE_NAME);
+
+  resp.data.init(2);
+  auto &entity_id = resp.data.emplace_back();
+  entity_id.set_key(ENTITY_ID_KEY);
   entity_id.value = this->entity_id_;
-  resp.data.push_back(entity_id);
 
-  api::HomeassistantServiceMap entity_value;
-  entity_value.key = "value";
+  auto &entity_value = resp.data.emplace_back();
+  entity_value.set_key(VALUE_KEY);
   entity_value.value = to_string(value);
-  resp.data.push_back(entity_value);
 
-  api::global_api_server->send_homeassistant_service_call(resp);
+  api::global_api_server->send_homeassistant_action(resp);
 }
 
 }  // namespace homeassistant

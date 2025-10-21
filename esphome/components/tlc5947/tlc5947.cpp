@@ -19,8 +19,6 @@ void TLC5947::setup() {
   }
 
   this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
-
-  ESP_LOGCONFIG(TAG, "Done setting up TLC5947 output component.");
 }
 void TLC5947::dump_config() {
   ESP_LOGCONFIG(TAG, "TLC5947:");

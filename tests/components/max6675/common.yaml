@@ -1,0 +1,5 @@
+sensor:
+  - platform: max6675
+    name: Temperature
+    cs_pin: ${cs_pin}
+    update_interval: 15s

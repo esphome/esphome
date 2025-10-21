@@ -1,0 +1,14 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+esphome:
+  on_boot:
+    then:
+      - homeassistant.tag_scanned: 'test_tag_123'
+      - homeassistant.tag_scanned:
+          tag: 'another_tag'
+      - homeassistant.tag_scanned:
+          tag: !lambda 'return "dynamic_tag";'

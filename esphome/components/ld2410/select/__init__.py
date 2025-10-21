@@ -2,13 +2,14 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import (
-    ENTITY_CATEGORY_CONFIG,
     CONF_BAUD_RATE,
-    ICON_THERMOMETER,
-    ICON_SCALE,
+    ENTITY_CATEGORY_CONFIG,
     ICON_LIGHTBULB,
     ICON_RULER,
+    ICON_SCALE,
+    ICON_THERMOMETER,
 )
+
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
 BaudRateSelect = ld2410_ns.class_("BaudRateSelect", select.Select)

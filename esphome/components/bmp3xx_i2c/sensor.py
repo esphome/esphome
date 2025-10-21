@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
-from ..bmp3xx_base import to_code_base, cv, CONFIG_SCHEMA_BASE
+
+from ..bmp3xx_base import CONFIG_SCHEMA_BASE, cv, to_code_base
 
 AUTO_LOAD = ["bmp3xx_base"]
 CODEOWNERS = ["@latonita"]

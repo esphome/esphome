@@ -1,4 +1,9 @@
-i2s_audio:
-  i2s_bclk_pin: 27
-  i2s_lrclk_pin: 26
-  i2s_mclk_pin: 25
+substitutions:
+  i2s_bclk_pin: GPIO15
+  i2s_lrclk_pin: GPIO4
+  i2s_mclk_pin: GPIO5
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml

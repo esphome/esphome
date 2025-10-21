@@ -23,7 +23,6 @@ class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, 
   /// Get the number of milliseconds we have to wait for the conversion phase.
   uint16_t millis_to_wait_for_conversion_() const;
   bool read_scratch_pad_();
-  void read_scratch_pad_int_();
   bool check_scratch_pad_();
   float get_temp_c_();
 };

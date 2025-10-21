@@ -1,7 +1,7 @@
 #include "ltr390.h"
+#include <bitset>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <bitset>
 
 namespace esphome {
 namespace ltr390 {
@@ -91,7 +91,12 @@ void LTR390Component::read_uvs_() {
   uint32_t uv = *val;
 
   if (this->uvi_sensor_ != nullptr) {
-    this->uvi_sensor_->publish_state((uv / this->sensitivity_uv_) * this->wfac_);
+    // Set sensitivity by linearly scaling against known value in the datasheet
+    float gain_scale_uv = GAINVALUES[this->gain_uv_] / GAIN_MAX;
+    float intg_scale_uv = (RESOLUTIONVALUE[this->res_uv_] * 100) / INTG_MAX;
+    float sensitivity_uv = SENSITIVITY_MAX * gain_scale_uv * intg_scale_uv;
+
+    this->uvi_sensor_->publish_state((uv / sensitivity_uv) * this->wfac_);
   }
 
   if (this->uv_sensor_ != nullptr) {
@@ -143,8 +148,6 @@ void LTR390Component::read_mode_(int mode_index) {
 }
 
 void LTR390Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ltr390...");
-
   // reset
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
   ctrl[LTR390_CTRL_RST] = true;
@@ -166,11 +169,6 @@ void LTR390Component::setup() {
     return;
   }
 
-  // Set sensitivity by linearly scaling against known value in the datasheet
-  float gain_scale_uv = GAINVALUES[this->gain_uv_] / GAIN_MAX;
-  float intg_scale_uv = (RESOLUTIONVALUE[this->res_uv_] * 100) / INTG_MAX;
-  this->sensitivity_uv_ = SENSITIVITY_MAX * gain_scale_uv * intg_scale_uv;
-
   // Set sensor read state
   this->reading_ = false;
 
@@ -187,10 +185,13 @@ void LTR390Component::setup() {
 
 void LTR390Component::dump_config() {
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  ALS Gain: X%.0f", GAINVALUES[this->gain_als_]);
-  ESP_LOGCONFIG(TAG, "  ALS Resolution: %u-bit", RESOLUTION_BITS[this->res_als_]);
-  ESP_LOGCONFIG(TAG, "  UV Gain: X%.0f", GAINVALUES[this->gain_uv_]);
-  ESP_LOGCONFIG(TAG, "  UV Resolution: %u-bit", RESOLUTION_BITS[this->res_uv_]);
+  ESP_LOGCONFIG(TAG,
+                "  ALS Gain: X%.0f\n"
+                "  ALS Resolution: %u-bit\n"
+                "  UV Gain: X%.0f\n"
+                "  UV Resolution: %u-bit",
+                GAINVALUES[this->gain_als_], RESOLUTION_BITS[this->res_als_], GAINVALUES[this->gain_uv_],
+                RESOLUTION_BITS[this->res_uv_]);
 }
 
 void LTR390Component::update() {

@@ -1,0 +1,8 @@
+sensor:
+  - platform: mlx90614
+    i2c_id: i2c_bus
+    ambient:
+      name: Ambient
+    object:
+      name: Object
+      emissivity: 1.0

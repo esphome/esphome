@@ -1,15 +1,21 @@
 ---
 blank_issues_enabled: false
 contact_links:
-  - name: Issue Tracker
-    url: https://github.com/esphome/issues
-    about: Please create bug reports in the dedicated issue tracker.
-  - name: Feature Request Tracker
-    url: https://github.com/esphome/feature-requests
-    about: |
-      Please create feature requests in the dedicated feature request tracker.
+  - name: Report an issue with the ESPHome documentation
+    url: https://github.com/esphome/esphome-docs/issues/new/choose
+    about: Report an issue with the ESPHome documentation.
+  - name: Report an issue with the ESPHome web server
+    url: https://github.com/esphome/esphome-webserver/issues/new/choose
+    about: Report an issue with the ESPHome web server.
+  - name: Report an issue with the ESPHome Builder / Dashboard
+    url: https://github.com/esphome/dashboard/issues/new/choose
+    about: Report an issue with the ESPHome Builder / Dashboard.
+  - name: Report an issue with the ESPHome API client
+    url: https://github.com/esphome/aioesphomeapi/issues/new/choose
+    about: Report an issue with the ESPHome API client.
+  - name: Make a Feature Request
+    url: https://github.com/orgs/esphome/discussions
+    about: Please create feature requests in the dedicated feature request tracker.
   - name: Frequently Asked Question
     url: https://esphome.io/guides/faq.html
-    about: |
-      Please view the FAQ for common questions and what
-      to include in a bug report.
+    about: Please view the FAQ for common questions and what to include in a bug report.

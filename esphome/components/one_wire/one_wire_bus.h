@@ -9,14 +9,6 @@ namespace one_wire {
 
 class OneWireBus {
  public:
-  /** Reset the bus, should be done before all write operations.
-   *
-   * Takes approximately 1ms.
-   *
-   * @return Whether the operation was successful.
-   */
-  virtual bool reset() = 0;
-
   /// Write a word to the bus. LSB first.
   virtual void write8(uint8_t val) = 0;
 
@@ -49,6 +41,20 @@ class OneWireBus {
 
   /// log the found devices
   void dump_devices_(const char *tag);
+
+  /** Reset the bus, should be done before all write operations.
+   *
+   * Takes approximately 1ms.
+   *
+   * @return Whether the operation was successful.
+   */
+  bool reset_();
+
+  /**
+   * Bus Reset
+   * @return -1: signal fail, 0: no device detected, 1: device detected
+   */
+  virtual int reset_int() = 0;
 
   /// Reset the device search.
   virtual void reset_search() = 0;

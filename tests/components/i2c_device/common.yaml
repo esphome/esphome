@@ -1,0 +1,4 @@
+i2c_device:
+  id: i2cdev
+  i2c_id: i2c_bus
+  address: 0x2C

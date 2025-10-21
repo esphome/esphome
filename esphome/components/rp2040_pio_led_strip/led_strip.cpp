@@ -9,8 +9,8 @@
 #include <hardware/dma.h>
 #include <hardware/irq.h>
 #include <hardware/pio.h>
-#include <pico/stdlib.h>
 #include <pico/sem.h>
+#include <pico/stdlib.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -40,11 +40,9 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up RP2040 LED Strip...");
-
   size_t buffer_size = this->get_buffer_size_();
 
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buf_ = allocator.allocate(buffer_size);
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size);
@@ -138,7 +136,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
-  ESP_LOGVV(TAG, "Writing state...");
+  ESP_LOGVV(TAG, "Writing state");
 
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Light is in failed state, not writing state.");
@@ -199,12 +197,15 @@ light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t inde
 }
 
 void RP2040PIOLEDStripLightOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "RP2040 PIO LED Strip Light Output:");
-  ESP_LOGCONFIG(TAG, "  Pin: GPIO%d", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %d", this->num_leds_);
-  ESP_LOGCONFIG(TAG, "  RGBW: %s", YESNO(this->is_rgbw_));
-  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order_to_string(this->rgb_order_));
-  ESP_LOGCONFIG(TAG, "  Max Refresh Rate: %f Hz", this->max_refresh_rate_);
+  ESP_LOGCONFIG(TAG,
+                "RP2040 PIO LED Strip Light Output:\n"
+                "  Pin: GPIO%d\n"
+                "  Number of LEDs: %d\n"
+                "  RGBW: %s\n"
+                "  RGB Order: %s\n"
+                "  Max Refresh Rate: %f Hz",
+                this->pin_, this->num_leds_, YESNO(this->is_rgbw_), rgb_order_to_string(this->rgb_order_),
+                this->max_refresh_rate_);
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

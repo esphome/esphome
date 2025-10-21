@@ -1,7 +1,5 @@
-display:
-  - platform: tm1637
-    clk_pin: 15
-    dio_pin: 14
-    intensity: 3
-    lambda: |-
-      it.print("1234");
+substitutions:
+  clk_pin: GPIO14
+  dio_pin: GPIO13
+
+<<: !include common.yaml

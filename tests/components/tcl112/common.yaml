@@ -1,0 +1,12 @@
+sensor:
+  - platform: template
+    id: tcl112_sensor
+    lambda: "return 21;"
+
+climate:
+  - platform: tcl112
+    name: TCL112 Climate with Sensor
+    supports_heat: true
+    supports_cool: true
+    sensor: tcl112_sensor
+    transmitter_id: xmitr

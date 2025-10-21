@@ -1,0 +1,21 @@
+esphome:
+  on_boot:
+    then:
+      - pzemac.reset_energy: pzemac1
+
+sensor:
+  - platform: pzemac
+    modbus_id: modbus_bus
+    id: pzemac1
+    voltage:
+      name: PZEMAC Voltage
+    current:
+      name: PZEMAC Current
+    power:
+      name: PZEMAC Power
+    energy:
+      name: PZEMAC Energy
+    frequency:
+      name: PZEMAC Frequency
+    power_factor:
+      name: PZEMAC Power Factor

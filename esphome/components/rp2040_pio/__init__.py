@@ -2,7 +2,6 @@ import platform
 
 import esphome.codegen as cg
 
-
 DEPENDENCIES = ["rp2040"]
 
 

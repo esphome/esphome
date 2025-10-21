@@ -32,11 +32,11 @@ extern "C" {
 #endif
 }
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/util.h"
-#include "esphome/core/application.h"
 
 namespace esphome {
 namespace wifi {
@@ -59,17 +59,17 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
     return true;
 
   if (target_sta && !current_sta) {
-    ESP_LOGV(TAG, "Enabling STA.");
+    ESP_LOGV(TAG, "Enabling STA");
   } else if (!target_sta && current_sta) {
-    ESP_LOGV(TAG, "Disabling STA.");
+    ESP_LOGV(TAG, "Disabling STA");
     // Stop DHCP client when disabling STA
     // See https://github.com/esp8266/Arduino/pull/5703
     wifi_station_dhcpc_stop();
   }
   if (target_ap && !current_ap) {
-    ESP_LOGV(TAG, "Enabling AP.");
+    ESP_LOGV(TAG, "Enabling AP");
   } else if (!target_ap && current_ap) {
-    ESP_LOGV(TAG, "Disabling AP.");
+    ESP_LOGV(TAG, "Disabling AP");
   }
 
   ETS_UART_INTR_DISABLE();
@@ -82,7 +82,7 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   ETS_UART_INTR_ENABLE();
 
   if (!ret) {
-    ESP_LOGW(TAG, "Setting WiFi mode failed!");
+    ESP_LOGW(TAG, "Set mode failed");
   }
 
   return ret;
@@ -133,7 +133,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     if (dhcp_status != DHCP_STARTED) {
       bool ret = wifi_station_dhcpc_start();
       if (!ret) {
-        ESP_LOGV(TAG, "Starting DHCP client failed!");
+        ESP_LOGV(TAG, "Starting DHCP client failed");
       }
       return ret;
     }
@@ -157,13 +157,13 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   if (dhcp_status == DHCP_STARTED) {
     bool dhcp_stop_ret = wifi_station_dhcpc_stop();
     if (!dhcp_stop_ret) {
-      ESP_LOGV(TAG, "Stopping DHCP client failed!");
+      ESP_LOGV(TAG, "Stopping DHCP client failed");
       ret = false;
     }
   }
   bool wifi_set_info_ret = wifi_set_ip_info(STATION_IF, &info);
   if (!wifi_set_info_ret) {
-    ESP_LOGV(TAG, "Setting manual IP info failed!");
+    ESP_LOGV(TAG, "Set manual IP info failed");
     ret = false;
   }
 
@@ -202,7 +202,7 @@ bool WiFiComponent::wifi_apply_hostname_() {
   const std::string &hostname = App.get_name();
   bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
-    ESP_LOGV(TAG, "Setting WiFi Hostname failed!");
+    ESP_LOGV(TAG, "Set hostname failed");
   }
 
   // inform dhcp server of hostname change using dhcp_renew()
@@ -236,8 +236,16 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  snprintf(reinterpret_cast<char *>(conf.ssid), sizeof(conf.ssid), "%s", ap.get_ssid().c_str());
-  snprintf(reinterpret_cast<char *>(conf.password), sizeof(conf.password), "%s", ap.get_password().c_str());
+  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+    ESP_LOGE(TAG, "SSID too long");
+    return false;
+  }
+  if (ap.get_password().size() > sizeof(conf.password)) {
+    ESP_LOGE(TAG, "Password too long");
+    return false;
+  }
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
+  memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -261,7 +269,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   ETS_UART_INTR_ENABLE();
 
   if (!ret) {
-    ESP_LOGV(TAG, "Setting WiFi Station config failed!");
+    ESP_LOGV(TAG, "Set Station config failed");
     return false;
   }
 
@@ -276,7 +284,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     EAPAuth eap = ap.get_eap().value();
     ret = wifi_station_set_enterprise_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
     if (ret) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", ret);
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed: %d", ret);
     }
     int ca_cert_len = strlen(eap.ca_cert);
     int client_cert_len = strlen(eap.client_cert);
@@ -284,7 +292,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     if (ca_cert_len) {
       ret = wifi_station_set_enterprise_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
       if (ret) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", ret);
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed: %d", ret);
       }
     }
     // workout what type of EAP this is
@@ -293,24 +301,24 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       // if we have certs, this must be EAP-TLS
       ret = wifi_station_set_enterprise_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                  (uint8_t *) eap.client_key, client_key_len + 1,
-                                                 (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                 (uint8_t *) eap.password.c_str(), eap.password.length());
       if (ret) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", ret);
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed: %d", ret);
       }
     } else {
       // in the absence of certs, assume this is username/password based
       ret = wifi_station_set_enterprise_username((uint8_t *) eap.username.c_str(), eap.username.length());
       if (ret) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", ret);
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed: %d", ret);
       }
       ret = wifi_station_set_enterprise_password((uint8_t *) eap.password.c_str(), eap.password.length());
       if (ret) {
-        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", ret);
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed: %d", ret);
       }
     }
     ret = wifi_station_set_wpa2_enterprise_auth(true);
     if (ret) {
-      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", ret);
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed: %d", ret);
     }
   }
 #endif  // USE_WIFI_WPA2_EAP
@@ -329,7 +337,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   ret = wifi_station_connect();
   ETS_UART_INTR_ENABLE();
   if (!ret) {
-    ESP_LOGV(TAG, "wifi_station_connect failed!");
+    ESP_LOGV(TAG, "wifi_station_connect failed");
     return false;
   }
 
@@ -351,7 +359,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (ap.get_channel().has_value()) {
     ret = wifi_set_channel(*ap.get_channel());
     if (!ret) {
-      ESP_LOGV(TAG, "wifi_set_channel failed!");
+      ESP_LOGV(TAG, "wifi_set_channel failed");
       return false;
     }
   }
@@ -488,7 +496,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_addr(it.bssid).c_str(),
+      ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_address_pretty(it.bssid).c_str(),
                it.channel);
       s_sta_connected = true;
       break;
@@ -499,11 +507,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
       if (it.reason == REASON_NO_AP_FOUND) {
-        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+        ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
         s_sta_connect_not_found = true;
       } else {
-        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                 format_mac_addr(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
+        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+                 format_mac_address_pretty(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         s_sta_connect_error = true;
       }
       s_sta_connected = false;
@@ -512,12 +520,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
       auto it = event->event_info.auth_change;
-      ESP_LOGV(TAG, "Event: Changed AuthMode old=%s new=%s", LOG_STR_ARG(get_auth_mode_str(it.old_mode)),
+      ESP_LOGV(TAG, "Changed Authmode old=%s new=%s", LOG_STR_ARG(get_auth_mode_str(it.old_mode)),
                LOG_STR_ARG(get_auth_mode_str(it.new_mode)));
       // Mitigate CVE-2020-12638
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
-        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...");
+        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
         // we can't call retry_connect() from this context, so disconnect immediately
         // and notify main thread with error_from_callback_
         wifi_station_disconnect();
@@ -527,40 +535,40 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_GOT_IP: {
       auto it = event->event_info.got_ip;
-      ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(),
-               format_ip_addr(it.gw).c_str(), format_ip_addr(it.mask).c_str());
+      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
+               format_ip_addr(it.mask).c_str());
       s_sta_got_ip = true;
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
-      ESP_LOGW(TAG, "Event: Getting IP address timeout");
+      ESP_LOGW(TAG, "DHCP request timeout");
       break;
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
       auto it = event->event_info.sta_connected;
-      ESP_LOGV(TAG, "Event: AP client connected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      ESP_LOGV(TAG, "AP client connected MAC=%s aid=%u", format_mac_address_pretty(it.mac).c_str(), it.aid);
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
       auto it = event->event_info.sta_disconnected;
-      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      ESP_LOGV(TAG, "AP client disconnected MAC=%s aid=%u", format_mac_address_pretty(it.mac).c_str(), it.aid);
       break;
     }
     case EVENT_SOFTAPMODE_PROBEREQRECVED: {
       auto it = event->event_info.ap_probereqrecved;
-      ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
       break;
     }
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
-      ESP_LOGV(TAG, "Event: Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
+      ESP_LOGV(TAG, "Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
                LOG_STR_ARG(get_op_mode_str(it.new_opmode)));
       break;
     }
     case EVENT_SOFTAPMODE_DISTRIBUTE_STA_IP: {
       auto it = event->event_info.distribute_sta_ip;
-      ESP_LOGV(TAG, "Event: AP Distribute Station IP MAC=%s IP=%s aid=%u", format_mac_addr(it.mac).c_str(),
+      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", format_mac_address_pretty(it.mac).c_str(),
                format_ip_addr(it.ip).c_str(), it.aid);
       break;
     }
@@ -592,7 +600,7 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   ETS_UART_INTR_ENABLE();
 
   if (!ret1 || !ret2) {
-    ESP_LOGV(TAG, "Disabling Auto-Connect failed!");
+    ESP_LOGV(TAG, "Disabling Auto-Connect failed");
   }
 
   delay(10);
@@ -658,7 +666,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   first_scan = false;
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
   if (!ret) {
-    ESP_LOGV(TAG, "wifi_station_scan failed!");
+    ESP_LOGV(TAG, "wifi_station_scan failed");
     return false;
   }
 
@@ -684,16 +692,24 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   this->scan_result_.clear();
 
   if (status != OK) {
-    ESP_LOGV(TAG, "Scan failed! %d", status);
+    ESP_LOGV(TAG, "Scan failed: %d", status);
     this->retry_connect();
     return;
   }
+
+  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    WiFiScanResult res({it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-                       std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi,
-                       it->authmode != AUTH_OPEN, it->is_hidden != 0);
-    this->scan_result_.push_back(res);
+    count++;
+  }
+
+  this->scan_result_.init(count);
+  for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
+    this->scan_result_.emplace_back(
+        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
+        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
+        it->is_hidden != 0);
   }
   this->scan_done_ = true;
 }
@@ -717,12 +733,12 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   if (wifi_softap_dhcps_status() == DHCP_STARTED) {
     if (!wifi_softap_dhcps_stop()) {
-      ESP_LOGW(TAG, "Stopping DHCP server failed!");
+      ESP_LOGW(TAG, "Stopping DHCP server failed");
     }
   }
 
   if (!wifi_set_ip_info(SOFTAP_IF, &info)) {
-    ESP_LOGE(TAG, "Setting SoftAP info failed!");
+    ESP_LOGE(TAG, "Set SoftAP info failed");
     return false;
   }
 
@@ -740,13 +756,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   if (!wifi_softap_set_dhcps_lease(&lease)) {
-    ESP_LOGE(TAG, "Setting SoftAP DHCP lease failed!");
+    ESP_LOGE(TAG, "Set SoftAP DHCP lease failed");
     return false;
   }
 
   // lease time 1440 minutes (=24 hours)
   if (!wifi_softap_set_dhcps_lease_time(1440)) {
-    ESP_LOGE(TAG, "Setting SoftAP DHCP lease time failed!");
+    ESP_LOGE(TAG, "Set SoftAP DHCP lease time failed");
     return false;
   }
 
@@ -756,13 +772,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   uint8_t mode = 1;
   // bit0, 1 enables router information from ESP8266 SoftAP DHCP server.
   if (!wifi_softap_set_dhcps_offer_option(OFFER_ROUTER, &mode)) {
-    ESP_LOGE(TAG, "wifi_softap_set_dhcps_offer_option failed!");
+    ESP_LOGE(TAG, "wifi_softap_set_dhcps_offer_option failed");
     return false;
   }
 #endif
 
   if (!wifi_softap_dhcps_start()) {
-    ESP_LOGE(TAG, "Starting SoftAP DHCPS failed!");
+    ESP_LOGE(TAG, "Starting SoftAP DHCPS failed");
     return false;
   }
 
@@ -775,7 +791,11 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  snprintf(reinterpret_cast<char *>(conf.ssid), sizeof(conf.ssid), "%s", ap.get_ssid().c_str());
+  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+    ESP_LOGE(TAG, "AP SSID too long");
+    return false;
+  }
+  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
@@ -787,7 +807,11 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    snprintf(reinterpret_cast<char *>(conf.password), sizeof(conf.password), "%s", ap.get_password().c_str());
+    if (ap.get_password().size() > sizeof(conf.password)) {
+      ESP_LOGE(TAG, "AP password too long");
+      return false;
+    }
+    memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
   }
 
   ETS_UART_INTR_DISABLE();
@@ -795,12 +819,12 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   ETS_UART_INTR_ENABLE();
 
   if (!ret) {
-    ESP_LOGV(TAG, "wifi_softap_set_config_current failed!");
+    ESP_LOGV(TAG, "wifi_softap_set_config_current failed");
     return false;
   }
 
   if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
-    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed!");
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed");
     return false;
   }
 
@@ -825,7 +849,7 @@ bssid_t WiFiComponent::wifi_bssid() {
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
-int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }

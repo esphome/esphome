@@ -1,0 +1,8 @@
+sensor:
+  - platform: pzem004t
+    voltage:
+      name: PZEM004T Voltage
+    current:
+      name: PZEM004T Current
+    power:
+      name: PZEM004T Power

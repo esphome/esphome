@@ -1,8 +1,4 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-e131:
+<<: !include common.yaml
 
 light:
   - platform: neopixelbus

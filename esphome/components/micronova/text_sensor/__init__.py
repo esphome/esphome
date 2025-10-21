@@ -1,14 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 
 from .. import (
+    CONF_MEMORY_ADDRESS,
+    CONF_MEMORY_LOCATION,
+    CONF_MICRONOVA_ID,
+    MICRONOVA_LISTENER_SCHEMA,
     MicroNova,
     MicroNovaFunctions,
-    CONF_MICRONOVA_ID,
-    CONF_MEMORY_LOCATION,
-    CONF_MEMORY_ADDRESS,
-    MICRONOVA_LISTENER_SCHEMA,
     micronova_ns,
 )
 

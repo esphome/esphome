@@ -1,0 +1,4 @@
+<<: !include common-rp2040.yaml
+
+http_request:
+  verify_ssl: false

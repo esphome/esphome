@@ -52,6 +52,11 @@ template<typename T> class optional {  // NOLINT
     reset();
     return *this;
   }
+  bool operator==(optional<T> const &rhs) const {
+    if (has_value() && rhs.has_value())
+      return value() == rhs.value();
+    return !has_value() && !rhs.has_value();
+  }
 
   template<class U> optional &operator=(optional<U> const &other) {
     has_value_ = other.has_value();
@@ -59,7 +64,7 @@ template<typename T> class optional {  // NOLINT
     return *this;
   }
 
-  void swap(optional &rhs) {
+  void swap(optional &rhs) noexcept {
     using std::swap;
     if (has_value() && rhs.has_value()) {
       swap(**this, *rhs);
@@ -206,7 +211,7 @@ template<typename T, typename U> inline bool operator>=(U const &v, optional<T> 
 
 // Specialized algorithms
 
-template<typename T> void swap(optional<T> &x, optional<T> &y) { x.swap(y); }
+template<typename T> void swap(optional<T> &x, optional<T> &y) noexcept { x.swap(y); }
 
 // Convenience function to create an optional.
 

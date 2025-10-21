@@ -1,16 +1,20 @@
 import re
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -29,14 +33,16 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
+OctalSPIComponent = spi_ns.class_("OctalSPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
@@ -76,8 +82,16 @@ CONF_SPI_MODE = "spi_mode"
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
+CONF_RELEASE_DEVICE = "release_device"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
+TYPE_OCTAL = "octal"
+
+TYPE_CLASS = {
+    TYPE_SINGLE: SPIComponent,
+    TYPE_QUAD: QuadSPIComponent,
+    TYPE_OCTAL: OctalSPIComponent,
+}
 
 # RP2040 SPI pin assignments are complicated;
 # refer to GPIO function select table in https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
@@ -97,17 +111,11 @@ RP_SPI_PINSETS = [
 
 
 def get_target_platform():
-    return (
-        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
-        if KEY_TARGET_PLATFORM in CORE.data[KEY_CORE]
-        else ""
-    )
+    return CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
 
 
 def get_target_variant():
-    return (
-        CORE.data[KEY_ESP32][KEY_VARIANT] if KEY_VARIANT in CORE.data[KEY_ESP32] else ""
-    )
+    return CORE.data[KEY_ESP32].get(KEY_VARIANT, "")
 
 
 # Get a list of available hardware interfaces based on target and variant.
@@ -128,6 +136,27 @@ def get_hw_interface_list():
     if target_platform == PLATFORM_RP2040:
         return [["spi"], ["spi1"]]
     return []
+
+
+def one_of_interface_validator(additional_values: list[str] | None = None) -> Any:
+    """Helper to create a one_of validator for SPI interfaces.
+
+    This delays evaluation of get_hw_interface_list() until validation time,
+    avoiding access to CORE.data during module import.
+
+    Args:
+        additional_values: List of additional valid values to include
+    """
+    if additional_values is None:
+        additional_values = []
+
+    def validator(value: str) -> str:
+        return cv.one_of(
+            *sum(get_hw_interface_list(), additional_values),
+            lower=True,
+        )(value)
+
+    return cv.All(cv.string, validator)
 
 
 # Given an SPI name, return the index of it in the available list
@@ -182,9 +211,7 @@ def validate_hw_pins(spi, index=-1):
             return False
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
             return False
-        if sdi_pin_no not in pin_set[CONF_MISO_PIN]:
-            return False
-        return True
+        return sdi_pin_no in pin_set[CONF_MISO_PIN]
     return False
 
 
@@ -234,7 +261,7 @@ def validate_spi_config(config):
         ):
             raise cv.Invalid("Invalid pin selections for hardware SPI interface")
         if CONF_DATA_PINS in spi and CONF_INTERFACE_INDEX not in spi:
-            raise cv.Invalid("Quad mode requires a hardware interface")
+            raise cv.Invalid("Quad and octal modes requires a hardware interface")
 
     return config
 
@@ -249,13 +276,10 @@ def get_spi_interface(index):
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
-    # Following code can't apply to C2, H2 or 8266 since they have only one SPI
-    if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
-        return "new SPIClass(FSPI)"
     return "new SPIClass(HSPI)"
 
 
-SPI_SCHEMA = cv.All(
+SPI_SINGLE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
@@ -265,12 +289,11 @@ SPI_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_SW): cv.invalid(
                 "force_sw is deprecated - use interface: software"
             ),
-            cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
-                *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
-                lower=True,
+            cv.Optional(CONF_INTERFACE, default="any"): one_of_interface_validator(
+                ["software", "hardware", "any"]
             ),
             cv.Optional(CONF_DATA_PINS): cv.invalid(
-                "'data_pins' should be used with 'type: quad' only"
+                "'data_pins' should be used with 'type: quad or octal' only"
             ),
         }
     ),
@@ -278,38 +301,46 @@ SPI_SCHEMA = cv.All(
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 
-SPI_QUAD_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(QuadSPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_DATA_PINS): cv.All(
-                cv.ensure_list(pins.internal_gpio_output_pin_number),
-                cv.Length(min=4, max=4),
-            ),
-            cv.Optional(CONF_INTERFACE, default="hardware"): cv.one_of(
-                *sum(get_hw_interface_list(), ["hardware"]),
-                lower=True,
-            ),
-            cv.Optional(CONF_MISO_PIN): cv.invalid(
-                "'miso_pin' should not be used with quad SPI"
-            ),
-            cv.Optional(CONF_MOSI_PIN): cv.invalid(
-                "'mosi_pin' should not be used with quad SPI"
-            ),
-        }
-    ),
-    cv.only_on([PLATFORM_ESP32]),
-    cv.only_with_esp_idf,
-)
+
+def spi_mode_schema(mode):
+    if mode == TYPE_SINGLE:
+        return SPI_SINGLE_SCHEMA
+    pin_count = 4 if mode == TYPE_QUAD else 8
+    onlys = [cv.only_on([PLATFORM_ESP32]), cv.only_with_esp_idf]
+    if pin_count == 8:
+        onlys.append(
+            only_on_variant(
+                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+            )
+        )
+    return cv.All(
+        *onlys,
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(TYPE_CLASS[mode]),
+                cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+                cv.Required(CONF_DATA_PINS): cv.All(
+                    cv.ensure_list(pins.internal_gpio_output_pin_number),
+                    cv.Length(min=pin_count, max=pin_count),
+                ),
+                cv.Optional(
+                    CONF_INTERFACE, default="hardware"
+                ): one_of_interface_validator(["hardware"]),
+                cv.Optional(CONF_MISO_PIN): cv.invalid(
+                    f"'miso_pin' should not be used with {mode} SPI"
+                ),
+                cv.Optional(CONF_MOSI_PIN): cv.invalid(
+                    f"'mosi_pin' should not be used with {mode} SPI"
+                ),
+            }
+        ),
+    )
+
 
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(
         cv.typed_schema(
-            {
-                TYPE_SINGLE: SPI_SCHEMA,
-                TYPE_QUAD: SPI_QUAD_SCHEMA,
-            },
+            {k: spi_mode_schema(k) for k in TYPE_CLASS},
             default_type=TYPE_SINGLE,
         )
     ),
@@ -317,7 +348,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1.0)
+@coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
@@ -348,23 +379,22 @@ def spi_device_schema(
     cs_pin_required=True,
     default_data_rate=cv.UNDEFINED,
     default_mode=cv.UNDEFINED,
-    quad=False,
+    mode=TYPE_SINGLE,
 ):
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
     :param default_data_rate: Optional data_rate to use as default
     :param default_mode Optional. The default SPI mode to use.
-    :param quad If set, will require an SPI component configured as quad data bits.
+    :param mode Choose single, quad or octal mode.
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
-        cv.GenerateID(CONF_SPI_ID): cv.use_id(
-            QuadSPIComponent if quad else SPIComponent
-        ),
+        cv.GenerateID(CONF_SPI_ID): cv.use_id(TYPE_CLASS[mode]),
         cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
         cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
             SPI_MODE_OPTIONS, upper=True
         ),
+        cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_with_esp_idf),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
@@ -376,13 +406,15 @@ def spi_device_schema(
 async def register_spi_device(var, config):
     parent = await cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
-    if CONF_CS_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
+    if cs_pin := config.get(CONF_CS_PIN):
+        pin = await cg.gpio_pin_expression(cs_pin)
         cg.add(var.set_cs_pin(pin))
-    if CONF_DATA_RATE in config:
-        cg.add(var.set_data_rate(config[CONF_DATA_RATE]))
-    if CONF_SPI_MODE in config:
-        cg.add(var.set_mode(config[CONF_SPI_MODE]))
+    if data_rate := config.get(CONF_DATA_RATE):
+        cg.add(var.set_data_rate(data_rate))
+    if spi_mode := config.get(CONF_SPI_MODE):
+        cg.add(var.set_mode(spi_mode))
+    if release_device := config.get(CONF_RELEASE_DEVICE):
+        cg.add(var.set_release_device(release_device))
 
 
 def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):
@@ -406,3 +438,18 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
         {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "spi_arduino.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "spi_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

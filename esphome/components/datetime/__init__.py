@@ -21,9 +21,9 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_YEAR,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
 
@@ -84,6 +84,8 @@ _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
 ).add_extra(_validate_time_present)
 
+_DATETIME_SCHEMA.add_extra(entity_duplicate_validator("datetime"))
+
 
 def date_schema(class_: MockObjClass) -> cv.Schema:
     schema = cv.Schema(
@@ -133,7 +135,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
 
 
 async def setup_datetime_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "datetime")
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -158,9 +160,10 @@ async def setup_datetime_core_(var, config):
 async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(getattr(cg.App, f"register_{config[CONF_TYPE].lower()}")(var))
+    entity_type = config[CONF_TYPE].lower()
+    cg.add(getattr(cg.App, f"register_{entity_type}")(var))
+    CORE.register_platform_component(entity_type, var)
     await setup_datetime_core_(var, config)
-    cg.add_define(f"USE_DATETIME_{config[CONF_TYPE]}")
 
 
 async def new_datetime(config, *args):
@@ -169,9 +172,8 @@ async def new_datetime(config, *args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_DATETIME")
     cg.add_global(datetime_ns.using)
 
 

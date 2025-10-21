@@ -1,14 +1,8 @@
-uart:
-  - id: uart_pzem004t
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 115200
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-sensor:
-  - platform: pzem004t
-    voltage:
-      name: PZEM004T Voltage
-    current:
-      name: PZEM004T Current
-    power:
-      name: PZEM004T Power
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+<<: !include common.yaml

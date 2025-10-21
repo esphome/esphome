@@ -56,16 +56,55 @@ static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BIT
 inline void lv_img_set_src(lv_obj_t *obj, esphome::image::Image *image) {
   lv_img_set_src(obj, image->get_lv_img_dsc());
 }
+inline void lv_disp_set_bg_image(lv_disp_t *disp, esphome::image::Image *image) {
+  lv_disp_set_bg_image(disp, image->get_lv_img_dsc());
+}
+
+inline void lv_obj_set_style_bg_img_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
+  lv_obj_set_style_bg_img_src(obj, image->get_lv_img_dsc(), selector);
+}
+#ifdef USE_LVGL_CANVAS
+inline void lv_canvas_draw_img(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, image::Image *image,
+                               lv_draw_img_dsc_t *dsc) {
+  lv_canvas_draw_img(canvas, x, y, image->get_lv_img_dsc(), dsc);
+}
+#endif
+
+#ifdef USE_LVGL_METER
+inline lv_meter_indicator_t *lv_meter_add_needle_img(lv_obj_t *obj, lv_meter_scale_t *scale, esphome::image::Image *src,
+                                                     lv_coord_t pivot_x, lv_coord_t pivot_y) {
+  return lv_meter_add_needle_img(obj, scale, src->get_lv_img_dsc(), pivot_x, pivot_y);
+}
+#endif  // USE_LVGL_METER
 #endif  // USE_LVGL_IMAGE
+#ifdef USE_LVGL_ANIMIMG
+inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {
+  auto *dsc = static_cast<std::vector<lv_img_dsc_t *> *>(lv_obj_get_user_data(img));
+  if (dsc == nullptr) {
+    // object will be lazily allocated but never freed.
+    dsc = new std::vector<lv_img_dsc_t *>(images.size());  // NOLINT
+    lv_obj_set_user_data(img, dsc);
+  }
+  dsc->clear();
+  for (auto &image : images) {
+    dsc->push_back(image->get_lv_img_dsc());
+  }
+  lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
+}
+
+#endif  // USE_LVGL_ANIMIMG
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
+  virtual ~LvCompound() = default;
   virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
 };
 
-class LvPageType {
+class LvglComponent;
+
+class LvPageType : public Parented<LvglComponent> {
  public:
   LvPageType(bool skip) : skip(skip) {}
 
@@ -73,6 +112,9 @@ class LvPageType {
     this->index = index;
     this->obj = lv_obj_create(nullptr);
   }
+
+  bool is_showing() const;
+
   lv_obj_t *obj{};
   size_t index{};
   bool skip;
@@ -159,6 +201,7 @@ class LvglComponent : public PollingComponent {
   void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
+  size_t get_current_page() const;
   void set_focus_mark(lv_group_t *group) { this->focus_marks_[group] = lv_group_get_focused(group); }
   void restore_focus_mark(lv_group_t *group) {
     auto *mark = this->focus_marks_[group];
@@ -222,14 +265,13 @@ template<typename... Ts> class LvglAction : public Action<Ts...>, public Parente
   std::function<void(LvglComponent *)> action_{};
 };
 
-template<typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<LvglComponent> {
+template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<Tc> {
  public:
-  LvglCondition(std::function<bool(LvglComponent *)> &&condition_lambda)
-      : condition_lambda_(std::move(condition_lambda)) {}
+  LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
   bool check(Ts... x) override { return this->condition_lambda_(this->parent_); }
 
  protected:
-  std::function<bool(LvglComponent *)> condition_lambda_{};
+  std::function<bool(Tc *)> condition_lambda_{};
 };
 
 #ifdef USE_LVGL_TOUCHSCREEN
@@ -296,6 +338,19 @@ class LVEncoderListener : public Parented<LvglComponent> {
 };
 #endif  //  USE_LVGL_KEY_LISTENER
 
+#ifdef USE_LVGL_LINE
+class LvLineType : public LvCompound {
+ public:
+  std::vector<lv_point_t> get_points() { return this->points_; }
+  void set_points(std::vector<lv_point_t> points) {
+    this->points_ = std::move(points);
+    lv_line_set_points(this->obj, this->points_.data(), this->points_.size());
+  }
+
+ protected:
+  std::vector<lv_point_t> points_{};
+};
+#endif
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:

@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button, uart
+import esphome.config_validation as cv
 from esphome.const import CONF_DATA
 from esphome.core import HexInt
+
 from .. import uart_ns, validate_raw_data
 
 CODEOWNERS = ["@ssieb"]

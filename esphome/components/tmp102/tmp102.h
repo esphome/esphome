@@ -9,10 +9,7 @@ namespace tmp102 {
 
 class TMP102Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
-  /// Setup (reset) the sensor and check connection.
-  void setup() override;
   void dump_config() override;
-  /// Update the sensor values (temperature)
   void update() override;
 
   float get_setup_priority() const override;

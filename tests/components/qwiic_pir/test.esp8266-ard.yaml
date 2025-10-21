@@ -1,8 +1,4 @@
-i2c:
-  - id: i2c_qwiic_pir
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
 
-binary_sensor:
-  - platform: qwiic_pir
-    name: Qwiic PIR Motion Sensor
+<<: !include common.yaml

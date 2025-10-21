@@ -20,8 +20,8 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   float get_setup_priority() const override;
 
   void set_counts_sensor(sensor::Sensor *counts_sensor) { this->counts_sensor_ = counts_sensor; }
-  void set_dielectric_constant_sensor(sensor::Sensor *dielectric_constant_sensor) {
-    this->dielectric_constant_sensor_ = dielectric_constant_sensor;
+  void set_permittivity_sensor(sensor::Sensor *permittivity_sensor) {
+    this->permittivity_sensor_ = permittivity_sensor;
   }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_moisture_sensor(sensor::Sensor *moisture_sensor) { this->moisture_sensor_ = moisture_sensor; }
@@ -31,7 +31,7 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   int readline_(int readch, char *buffer, int len);
 
   sensor::Sensor *counts_sensor_{nullptr};
-  sensor::Sensor *dielectric_constant_sensor_{nullptr};
+  sensor::Sensor *permittivity_sensor_{nullptr};
   sensor::Sensor *moisture_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *voltage_sensor_{nullptr};
