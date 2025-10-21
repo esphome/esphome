@@ -56,6 +56,9 @@ Advanced options:
   The paths in this list are relative to the directory where the YAML configuration file is located or `<...>` includes.
   See [`includes`](#esphome-includes).
 
+- **includes_c** (*Optional*, list of files): The same as `includes` but for files that require C linkage. All includes
+  will be wrapped in `extern "C" {}`. See [`includes`](#esphome-includes).
+
 - **libraries** (*Optional*, list of libraries): A list of libraries to include in the project. See
   [`libraries`](#esphome-libraries).
 
