@@ -136,7 +136,9 @@ void LightState::loop() {
     // Apply current limiting for lights that support it
     if (this->output_->supports_current_management()) {
       auto *addressable_light = static_cast<light::AddressableLight *>(this->output_);
+#ifdef USE_CURRENT_LIMITING
       addressable_light->apply_current_limiting();
+#endif
     }
     this->output_->write_state(this);
   }

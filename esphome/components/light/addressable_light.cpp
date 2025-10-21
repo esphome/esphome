@@ -111,6 +111,7 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   return {};
 }
 
+#ifdef USE_CURRENT_LIMITING
 // Current management implementations
 void AddressableLight::set_current_limits(float max, float red_per_led, float green_per_led, float blue_per_led,
                                           float white_per_led) {
@@ -131,7 +132,9 @@ float AddressableLight::get_current_utilization() const {
 }
 
 bool AddressableLight::is_current_limited() const { return this->current_limiting_active_; }
+#endif
 
+#ifdef USE_CURRENT_LIMITING
 float AddressableLight::calculate_total_current_from_buffer_() {
   float total_current = 0.0f;
 
@@ -150,6 +153,7 @@ float AddressableLight::calculate_total_current_from_buffer_() {
 
   return total_current;
 }
+#endif
 
 void AddressableLight::scale_all_leds_in_buffer_(float scale_factor) {
   for (int i = 0; i < this->size(); i++) {
@@ -163,6 +167,7 @@ void AddressableLight::scale_all_leds_in_buffer_(float scale_factor) {
   }
 }
 
+#ifdef USE_CURRENT_LIMITING
 void AddressableLight::apply_current_limiting() {
   if (this->current_limiting_enabled_ && this->current_limits_.max > 0.0f) {
     float total_current = this->calculate_total_current_from_buffer_();
@@ -173,5 +178,6 @@ void AddressableLight::apply_current_limiting() {
     }
   }
 }
+#endif
 
 }  // namespace esphome::light

@@ -282,6 +282,7 @@ async def setup_light_core_(light_var, output_var, config):
 
     # Current limits configuration
     if (current_limits := config.get(CONF_CURRENT_LIMITS)) is not None:
+        cg.add_define("USE_CURRENT_LIMITING")
         cg.add(
             output_var.set_current_limits(
                 current_limits[CONF_MAX_CURRENT],
