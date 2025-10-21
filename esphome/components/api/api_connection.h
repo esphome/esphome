@@ -1,5 +1,5 @@
 #pragma once
-// tst
+
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_frame_helper.h"
