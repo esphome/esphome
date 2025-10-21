@@ -25,11 +25,20 @@ CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
 # Python file extensions
 PYTHON_FILE_EXTENSIONS = (".py", ".pyi")
 
+# Combined C++ and Python file extensions for convenience
+CPP_AND_PYTHON_FILE_EXTENSIONS = (*CPP_FILE_EXTENSIONS, *PYTHON_FILE_EXTENSIONS)
+
 # YAML file extensions
 YAML_FILE_EXTENSIONS = (".yaml", ".yml")
 
 # Component path prefix
 ESPHOME_COMPONENTS_PATH = "esphome/components/"
+
+# Test components path prefix
+ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
+
+# Tuple of component and test paths for efficient startswith checks
+COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
@@ -658,17 +667,32 @@ def get_components_from_integration_fixtures() -> set[str]:
     return components
 
 
-def filter_component_files(file_path: str) -> bool:
-    """Check if a file path is a component file.
+def filter_component_and_test_files(file_path: str) -> bool:
+    """Check if a file path is a component or test file.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is in a component directory
+        True if the file is in a component or test directory
     """
-    return file_path.startswith("esphome/components/") or file_path.startswith(
-        "tests/components/"
+    return file_path.startswith(COMPONENT_AND_TESTS_PATHS) or (
+        file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
+        and file_path.endswith(YAML_FILE_EXTENSIONS)
+    )
+
+
+def filter_component_and_test_cpp_files(file_path: str) -> bool:
+    """Check if a file is a C++ source file in component or test directories.
+
+    Args:
+        file_path: Path to check
+
+    Returns:
+        True if the file is a C++ source/header file in component or test directories
+    """
+    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
+        COMPONENT_AND_TESTS_PATHS
     )
 
 
@@ -740,7 +764,7 @@ def create_components_graph() -> dict[str, list[str]]:
 
     # The root directory of the repo
     root = Path(__file__).parent.parent
-    components_dir = root / "esphome" / "components"
+    components_dir = root / ESPHOME_COMPONENTS_PATH
     # Fake some directory so that get_component works
     CORE.config_path = root
     # Various configuration to capture different outcomes used by `AUTO_LOAD` function.
@@ -873,3 +897,81 @@ def get_components_with_dependencies(
         return sorted(all_changed_components)
 
     return sorted(components)
+
+
+def get_all_component_files() -> list[str]:
+    """Get all component and test files from git.
+
+    Returns:
+        List of all component and test file paths
+    """
+    files = git_ls_files()
+    return list(filter(filter_component_and_test_files, files))
+
+
+def get_all_components() -> list[str]:
+    """Get all component names.
+
+    This function uses git to find all component files and extracts the component names.
+    It returns the same list as calling list-components.py without arguments.
+
+    Returns:
+        List of all component names
+    """
+    return get_components_with_dependencies(get_all_component_files(), False)
+
+
+def core_changed(files: list[str]) -> bool:
+    """Check if any core C++ or Python files have changed.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any core C++ or Python files have changed
+    """
+    return any(
+        f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def get_cpp_changed_components(files: list[str]) -> list[str]:
+    """Get components that have changed C++ files or tests.
+
+    This function analyzes a list of changed files and determines which components
+    are affected. It handles two scenarios:
+
+    1. Test files changed (tests/components/<component>/*.cpp):
+       - Adds the component to the affected list
+       - Only that component needs to be tested
+
+    2. Component C++ files changed (esphome/components/<component>/*):
+       - Adds the component to the affected list
+       - Also adds all components that depend on this component (recursively)
+       - This ensures that changes propagate to dependent components
+
+    Args:
+        files: List of file paths to analyze (should be C++ files)
+
+    Returns:
+        Sorted list of component names that need C++ unit tests run
+    """
+    components_graph = create_components_graph()
+    affected: set[str] = set()
+    for file in files:
+        if not file.endswith(CPP_FILE_EXTENSIONS):
+            continue
+        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
+                if component_dir.is_dir():
+                    affected.add(parts[2])
+        elif file.startswith(ESPHOME_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component = parts[2]
+                affected.update(find_children_of_component(components_graph, component))
+                affected.add(component)
+    return sorted(affected)

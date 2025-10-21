@@ -52,13 +52,16 @@ from helpers import (
     CPP_FILE_EXTENSIONS,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
-    filter_component_files,
+    core_changed,
+    filter_component_and_test_cpp_files,
+    filter_component_and_test_files,
     get_all_dependencies,
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
     get_components_from_integration_fixtures,
     get_components_with_dependencies,
+    get_cpp_changed_components,
     git_ls_files,
     parse_test_filename,
     root_path,
@@ -143,10 +146,9 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
 
-    # Check if any core files changed (esphome/core/*)
-    for file in files:
-        if file.startswith("esphome/core/"):
-            return True
+    if core_changed(files):
+        # If any core files changed, run integration tests
+        return True
 
     # Check if any integration test files changed
     if any("tests/integration" in file for file in files):
@@ -281,6 +283,40 @@ def should_run_python_linters(branch: str | None = None) -> bool:
         True if Python linters should run, False otherwise.
     """
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
+
+
+def determine_cpp_unit_tests(
+    branch: str | None = None,
+) -> tuple[bool, list[str]]:
+    """Determine if C++ unit tests should run based on changed files.
+
+    This function is used by the CI workflow to skip C++ unit tests when
+    no relevant files have changed, saving CI time and resources.
+
+    C++ unit tests will run when any of the following conditions are met:
+
+    1. Any C++ core source files changed (esphome/core/*), in which case
+       all cpp unit tests run.
+    2. A test file for a component changed, which triggers tests for that
+       component.
+    3. The code for a component changed, which triggers tests for that
+       component and all components that depend on it.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Tuple of (run_all, components) where:
+        - run_all: True if all tests should run, False otherwise
+        - components: List of specific components to test (empty if run_all)
+    """
+    files = changed_files(branch)
+    if core_changed(files):
+        return (True, [])
+
+    # Filter to only C++ files
+    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
+    return (False, get_cpp_changed_components(cpp_files))
 
 
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
@@ -579,7 +615,7 @@ def main() -> None:
     else:
         # Get both directly changed and all changed (with dependencies)
         changed = changed_files(args.branch)
-        component_files = [f for f in changed if filter_component_files(f)]
+        component_files = [f for f in changed if filter_component_and_test_files(f)]
 
         directly_changed_components = get_components_with_dependencies(
             component_files, False
@@ -646,6 +682,9 @@ def main() -> None:
         files_to_check_count = 0
 
     # Build output
+    # Determine which C++ unit tests to run
+    cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
+
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
@@ -661,6 +700,8 @@ def main() -> None:
         "dependency_only_count": len(dependency_only_components),
         "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
+        "cpp_unit_tests_run_all": cpp_run_all,
+        "cpp_unit_tests_components": cpp_components,
     }
 
     # Output as JSON
