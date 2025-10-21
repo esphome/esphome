@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
+#include "esphome/core/automation.h"
 #include <cstdint>
 
 namespace esphome {
@@ -146,6 +147,13 @@ class Storage {
    * @return uint8_t
    */
   virtual uint8_t error() = 0;
+};
+
+//  Automation
+//
+template<typename... Ts> class StorageIsPresentCondition : public Condition<Ts...>, public Parented<Storage> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state_media(); }
 };
 
 }  // namespace storage

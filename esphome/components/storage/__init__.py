@@ -10,7 +10,7 @@ CODEOWNERS = ["@abel-msk"]
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage")
 StorageIsPresentCondition = storage_ns.class_(
-    "StorageIsPresent", automation.Condition.template()
+    "StorageIsPresentCondition", automation.Condition.template()
 )
 
 
