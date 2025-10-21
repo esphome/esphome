@@ -71,18 +71,19 @@ void HDC2010Component::update() {
   config_contents |= 0x01;
   this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
 
-  delayMicroseconds(1000);  // 1ms delay after triggering the sample
-
-  if (this->temperature_sensor_ != nullptr) {
-    float temp = this->read_temp();
-    this->temperature_sensor_->publish_state(temp);
-    ESP_LOGV(TAG, "Temperature=%.1f°C", temp);
-  }
-
-  if (this->humidity_sensor_ != nullptr) {
-    float humidity = this->read_humidity();
-    this->humidity_sensor_->publish_state(humidity);
-    ESP_LOGD(TAG, "Got humidity=%.1f%%", humidity);
+  // 1ms delay after triggering the sample
+  set_timeout(1, [this]() {
+    if (this->temperature_sensor_ != nullptr) {
+      float temp = this->read_temp();
+      this->temperature_sensor_->publish_state(temp);
+      ESP_LOGV(TAG, "Temperature=%.1f°C", temp);
+    }
+  
+    if (this->humidity_sensor_ != nullptr) {
+      float humidity = this->read_humidity();
+      this->humidity_sensor_->publish_state(humidity);
+      ESP_LOGD(TAG, "Got humidity=%.1f%%", humidity);
+    }
   }
 }
 
