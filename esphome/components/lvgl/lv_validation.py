@@ -432,6 +432,8 @@ class TextValidator(LValidator):
 
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
+lv_positive_float = LValidator(cv.positive_float, cg.float_)
+lv_zero_to_one_float = LValidator(cv.zero_to_one_float, cg.float_)
 lv_int = LValidator(cv.int_, cg.int_, animatable=True)
 lv_positive_int = LValidator(cv.positive_int, cg.int_, animatable=True)
 lv_brightness = LValidator(

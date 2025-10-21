@@ -23,7 +23,14 @@ from .defines import (
     add_define,
     literal,
 )
-from .lv_validation import color, get_component_colors, lv_color
+from .lv_validation import (
+    color,
+    get_component_colors,
+    lv_color,
+    lv_milliseconds,
+    lv_positive_float,
+    lv_zero_to_one_float,
+)
 from .lvcode import LVGL_COMP_ARG
 from .types import lvgl_ns
 from .widgets import get_widgets
@@ -51,13 +58,13 @@ TIMING_SCHEMA = cv.maybe_simple_value(
                 timing_class("round_trip"),
                 timing_class(
                     "ease_in_out",
-                    {cv.Optional(CONF_WEIGHT, default=2.0): cv.zero_to_one_float},
+                    {cv.Optional(CONF_WEIGHT, default=2.0): lv_positive_float},
                 ),
                 timing_class(
                     "gravity",
                     {
-                        cv.Optional(CONF_BOUNCE, default=0.5): cv.zero_to_one_float,
-                        cv.Optional(CONF_ACCELERATION, default=0.5): cv.positive_float,
+                        cv.Optional(CONF_BOUNCE, default=0.5): lv_zero_to_one_float,
+                        cv.Optional(CONF_ACCELERATION, default=0.5): lv_positive_float,
                     },
                 ),
             ]
@@ -98,10 +105,8 @@ ANIMABLE_STYLES = {
 
 ANIMATION_CONFIG = cv.Schema(
     {
-        cv.Optional(CONF_DURATION, default="5s"): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_START_DELAY, default="0s"
-        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_DURATION, default="5s"): lv_milliseconds,
+        cv.Optional(CONF_START_DELAY, default="0s"): lv_milliseconds,
         cv.Optional(CONF_TIMING, default={}): cv.ensure_list(TIMING_SCHEMA),
     }
 )
@@ -171,8 +176,14 @@ async def animations_to_code(config):
             timing_var = cg.new_Pvariable(timing_id, *args)
             cg.add(var.add_timing(timing_var))
 
-        cg.add(var.set_duration(animation[CONF_DURATION]))
-        cg.add(var.set_start_delay(animation[CONF_START_DELAY]))
+        cg.add(
+            var.set_duration(await lv_milliseconds.process(animation[CONF_DURATION]))
+        )
+        cg.add(
+            var.set_start_delay(
+                await lv_milliseconds.process(animation[CONF_START_DELAY])
+            )
+        )
         await cg.register_component(var, animation)
 
 
@@ -183,8 +194,8 @@ async def animations_to_code(config):
         {
             cv.Required(CONF_ID): cv.ensure_list(cv.use_id(LvAnimation)),
             cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
-            cv.Optional(CONF_DURATION): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_START_DELAY): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_DURATION): lv_milliseconds,
+            cv.Optional(CONF_START_DELAY): lv_milliseconds,
         },
         key=CONF_ID,
     ),
@@ -195,9 +206,13 @@ async def start_animation(config, action_id, template_arg, args):
         for animation in animations:
             anim_var = await cg.get_variable(animation)
             if (duration := config.get(CONF_DURATION)) is not None:
-                context.add(anim_var.set_duration(duration))
+                context.add(
+                    anim_var.set_duration(await lv_milliseconds.process(duration))
+                )
             if (start_delay := config.get(CONF_START_DELAY)) is not None:
-                context.add(anim_var.set_start_delay(start_delay))
+                context.add(
+                    anim_var.set_start_delay(await lv_milliseconds.process(start_delay))
+                )
             context.add(anim_var.start())
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_LVGL_ID])
