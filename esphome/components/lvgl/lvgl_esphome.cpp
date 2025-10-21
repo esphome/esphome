@@ -294,7 +294,7 @@ void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t a
   }
 }
 
-void LvSelectable::set_options(std::initializer_list<std::string> options) {
+void LvSelectable::set_options(const std::initializer_list<std::string> &options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;
