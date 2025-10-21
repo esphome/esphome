@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 import argparse
-from pathlib import Path
 
 from helpers import (
-    CPP_FILE_EXTENSIONS,
-    ESPHOME_COMPONENTS_PATH,
-    ESPHOME_TESTS_COMPONENTS_PATH,
     changed_files,
-    create_components_graph,
     filter_component_files,
     filter_cpp_files,
-    find_children_of_component,
     get_components_with_dependencies,
+    get_cpp_changed_components,
     git_ls_files,
 )
 
@@ -20,27 +15,6 @@ def get_all_component_files() -> list[str]:
     """Get all component files from git."""
     files = git_ls_files()
     return list(filter(filter_component_files, files))
-
-
-def get_cpp_changed_components(files: list[str]):
-    components_graph = create_components_graph()
-    affected = set()
-    for file in files:
-        if not file.endswith(CPP_FILE_EXTENSIONS):
-            continue
-        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
-                if component_dir.is_dir():
-                    affected.add(parts[2])
-        elif file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component = parts[2]
-                affected.update(find_children_of_component(components_graph, component))
-                affected.add(component)
-    return sorted(affected)
 
 
 def main():

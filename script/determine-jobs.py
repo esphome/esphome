@@ -43,7 +43,6 @@ from enum import StrEnum
 from functools import cache
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 from typing import Any
@@ -55,14 +54,15 @@ from helpers import (
     PYTHON_FILE_EXTENSIONS,
     changed_files,
     filter_component_files,
+    filter_cpp_files,
     get_all_dependencies,
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
     get_components_from_integration_fixtures,
     get_components_with_dependencies,
+    get_cpp_changed_components,
     git_ls_files,
-    parse_list_components_output,
     parse_test_filename,
     root_path,
 )
@@ -112,19 +112,6 @@ def core_changed(files: list[str]) -> bool:
         f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
         for f in files
     )
-
-
-def list_components(
-    branch: str | None = None, switches: list[str] | None = None
-) -> list[str]:
-    # Get changed components using list-components.py for exact compatibility
-    script_path = Path(__file__).parent / "list-components.py"
-    cmd = [sys.executable, str(script_path)] + (switches or [])
-    if branch:
-        cmd.extend(["-b", branch])
-
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return parse_list_components_output(result.stdout)
 
 
 def should_run_integration_tests(branch: str | None = None) -> bool:
@@ -306,7 +293,7 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
-def list_cpp_components_to_test(branch: str | None = None) -> bool:
+def list_cpp_components_to_test(branch: str | None = None) -> list[str]:
     """Determine if C++ unit tests should run based on changed files.
 
     This function is used by the CI workflow to skip C++ unit tests when no relevant files have changed,
@@ -326,11 +313,12 @@ def list_cpp_components_to_test(branch: str | None = None) -> bool:
         the special value ["--all"] if all tests should run.
     """
     files = changed_files(branch)
-    return (
-        (["--all"])
-        if core_changed(files)
-        else list_components(branch, ["--cpp-changed"])
-    )
+    if core_changed(files):
+        return ["--all"]
+
+    # Filter to only C++ files
+    cpp_files = list(filter(filter_cpp_files, files))
+    return get_cpp_changed_components(cpp_files)
 
 
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:

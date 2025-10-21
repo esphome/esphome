@@ -9,6 +9,7 @@ import sys
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.core import CORE
+from esphome.helpers import get_component_name
 from esphome.loader import ComponentManifest, get_component
 from esphome.platformio_api import get_idedata
 
@@ -57,13 +58,6 @@ def _process_dependencies(
         if m not in manifests:
             manifests.add(m)
             _process_dependencies(m.dependencies, manifests)
-
-
-def get_component_name(module_name: str) -> str:
-    parts = module_name.strip(".").split(".")
-    if parts:
-        return parts[-1]
-    raise ValueError(f"Invalid module name {module_name}")
 
 
 def process_dependencies(components: list[str]) -> list[str]:

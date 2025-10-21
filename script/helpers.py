@@ -896,3 +896,44 @@ def get_components_with_dependencies(
         return sorted(all_changed_components)
 
     return sorted(components)
+
+
+def get_cpp_changed_components(files: list[str]) -> list[str]:
+    """Get components that have changed C++ files or tests.
+
+    This function analyzes a list of changed files and determines which components
+    are affected. It handles two scenarios:
+
+    1. Test files changed (tests/components/<component>/*.cpp):
+       - Adds the component to the affected list
+       - Only that component needs to be tested
+
+    2. Component C++ files changed (esphome/components/<component>/*):
+       - Adds the component to the affected list
+       - Also adds all components that depend on this component (recursively)
+       - This ensures that changes propagate to dependent components
+
+    Args:
+        files: List of file paths to analyze (should be C++ files)
+
+    Returns:
+        Sorted list of component names that need C++ unit tests run
+    """
+    components_graph = create_components_graph()
+    affected: set[str] = set()
+    for file in files:
+        if not file.endswith(CPP_FILE_EXTENSIONS):
+            continue
+        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
+                if component_dir.is_dir():
+                    affected.add(parts[2])
+        elif file.startswith(ESPHOME_COMPONENTS_PATH):
+            parts = file.split("/")
+            if len(parts) >= 4:
+                component = parts[2]
+                affected.update(find_children_of_component(components_graph, component))
+                affected.add(component)
+    return sorted(affected)
