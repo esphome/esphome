@@ -1,0 +1,4 @@
+substitutions:
+  pin: GPIO2
+
+<<: !include common-current-management-esp32-c3.yaml

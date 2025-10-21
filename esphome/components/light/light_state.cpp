@@ -133,10 +133,10 @@ void LightState::loop() {
   if (this->next_write_) {
     this->next_write_ = false;
 
-    // Apply power limiting for lights that support it
-    if (this->output_->supports_power_management()) {
+    // Apply current limiting for lights that support it
+    if (this->output_->supports_current_management()) {
       auto *addressable_light = static_cast<light::AddressableLight *>(this->output_);
-      addressable_light->apply_power_limiting();
+      addressable_light->apply_current_limiting();
     }
     this->output_->write_state(this);
   }

@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_COLOR_CORRECT,
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
+    CONF_CURRENT_LIMITS,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECTS,
     CONF_ENTITY_CATEGORY,
@@ -22,6 +23,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INITIAL_STATE,
+    CONF_MAX_CURRENT,
     CONF_MQTT_ID,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
@@ -145,25 +147,20 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
             [cv.percentage], cv.Length(min=3, max=4)
         ),
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
-        cv.Optional("power_limits"): cv.Schema(
+        cv.Optional(CONF_CURRENT_LIMITS): cv.Schema(
             {
-                cv.Required("max_current"): cv.All(cv.current, cv.Range(min=0.0)),
-                cv.Optional("voltage", default=5.0): cv.voltage,
-                cv.Optional("led_current_consumption"): cv.Schema(
-                    {
-                        cv.Optional("red", default="20mA"): cv.All(
-                            cv.current, cv.Range(min=0.0)
-                        ),
-                        cv.Optional("green", default="20mA"): cv.All(
-                            cv.current, cv.Range(min=0.0)
-                        ),
-                        cv.Optional("blue", default="20mA"): cv.All(
-                            cv.current, cv.Range(min=0.0)
-                        ),
-                        cv.Optional("white", default="20mA"): cv.All(
-                            cv.current, cv.Range(min=0.0)
-                        ),
-                    }
+                cv.Required(CONF_MAX_CURRENT): cv.All(cv.current, cv.Range(min=0.0)),
+                cv.Optional(CONF_RED, default="20mA"): cv.All(
+                    cv.current, cv.Range(min=0.0)
+                ),
+                cv.Optional(CONF_GREEN, default="20mA"): cv.All(
+                    cv.current, cv.Range(min=0.0)
+                ),
+                cv.Optional(CONF_BLUE, default="20mA"): cv.All(
+                    cv.current, cv.Range(min=0.0)
+                ),
+                cv.Optional(CONF_WHITE, default="20mA"): cv.All(
+                    cv.current, cv.Range(min=0.0)
                 ),
             }
         ),
@@ -283,22 +280,17 @@ async def setup_light_core_(light_var, output_var, config):
         var_ = await cg.get_variable(power_supply_id)
         cg.add(output_var.set_power_supply(var_))
 
-    # Power limits configuration
-    if (power_limits := config.get("power_limits")) is not None:
+    # Current limits configuration
+    if (current_limits := config.get(CONF_CURRENT_LIMITS)) is not None:
         cg.add(
-            output_var.set_power_limits(
-                power_limits["max_current"], power_limits["voltage"]
+            output_var.set_current_limits(
+                current_limits[CONF_MAX_CURRENT],
+                current_limits[CONF_RED],
+                current_limits[CONF_GREEN],
+                current_limits[CONF_BLUE],
+                current_limits[CONF_WHITE],
             )
         )
-        if led_current := power_limits.get("led_current_consumption"):
-            cg.add(
-                output_var.set_led_current_consumption(
-                    led_current["red"],
-                    led_current["green"],
-                    led_current["blue"],
-                    led_current["white"],
-                )
-            )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, light_var)

@@ -27,8 +27,8 @@ class LightOutput {
   /// preceded by (at least) one call to update_state().
   virtual void write_state(LightState *state) = 0;
 
-  /// Check if this light output supports power management.
-  virtual bool supports_power_management() const { return false; }
+  /// Check if this light output supports current management.
+  virtual bool supports_current_management() const { return false; }
 };
 
 }  // namespace esphome::light

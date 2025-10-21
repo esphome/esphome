@@ -1,0 +1,17 @@
+light:
+  - platform: esp32_rmt_led_strip
+    id: current_managed_strip
+    chipset: ws2812
+    rgb_order: GRB
+    num_leds: 50
+    pin: ${pin}
+    current_limits:
+      max_current: 2.5A
+      red: 50mA
+      green: 50mA
+      blue: 50mA
+      white: 50mA
+
+  - platform: addressable_light
+    id: current_managed_light
+    addressable_light_id: current_managed_strip
