@@ -1008,8 +1008,7 @@ async def to_code(config):
     # VFS select is only needed for UART/eventfd file descriptors.
     # Components that need it (e.g., openthread) call require_vfs_select().
     # Saves approximately 2.7KB of flash when disabled (default).
-    vfs_select_required = CORE.data.get(KEY_VFS_SELECT_REQUIRED, False)
-    if vfs_select_required:
+    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
         # Component requires VFS select - force enable regardless of user setting
         add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
@@ -1023,8 +1022,7 @@ async def to_code(config):
     # ESPHome doesn't use directory functions on ESP32.
     # Components that need it (e.g., storage components) call require_vfs_dir().
     # Saves approximately 0.5KB+ of flash when disabled (default).
-    vfs_dir_required = CORE.data.get(KEY_VFS_DIR_REQUIRED, False)
-    if vfs_dir_required:
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         # Component requires VFS directory support - force enable regardless of user setting
         add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
     else:
