@@ -1,9 +1,9 @@
 substitutions:
-  clk_pin: GPIO6
-  mosi_pin: GPIO7
-  cs_pin: GPIO4
+  cs_pin: GPIO7
   dc_pin: GPIO1
   busy_pin: GPIO2
   reset_pin: GPIO3
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
 
 <<: !include common.yaml

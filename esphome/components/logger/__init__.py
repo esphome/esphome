@@ -95,6 +95,7 @@ DEFAULT = "DEFAULT"
 
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
+CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 
 UART_SELECTION_ESP32 = {
@@ -249,6 +250,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_INITIAL_LEVEL): is_log_level,
+            cv.Optional(CONF_RUNTIME_TAG_LEVELS, default=False): cv.boolean,
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoggerMessageTrigger),
@@ -291,8 +293,12 @@ async def to_code(config):
         )
     cg.add(log.pre_setup())
 
-    for tag, log_level in config[CONF_LOGS].items():
-        cg.add(log.set_log_level(tag, LOG_LEVELS[log_level]))
+    # Enable runtime tag levels if logs are configured or explicitly enabled
+    logs_config = config[CONF_LOGS]
+    if logs_config or config[CONF_RUNTIME_TAG_LEVELS]:
+        cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+        for tag, log_level in logs_config.items():
+            cg.add(log.set_log_level(tag, LOG_LEVELS[log_level]))
 
     cg.add_define("USE_LOGGER")
     this_severity = LOG_LEVEL_SEVERITY.index(level)
@@ -443,6 +449,7 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
     level = LOG_LEVELS[config[CONF_LEVEL]]
     logger = await cg.get_variable(config[CONF_LOGGER_ID])
     if tag := config.get(CONF_TAG):
+        cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
         text = str(cg.statement(logger.set_log_level(tag, level)))
     else:
         text = str(cg.statement(logger.set_log_level(level)))

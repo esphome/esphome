@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
+    CONF_MAC_ADDRESS,
     CONF_MANUAL_IP,
     CONF_MISO_PIN,
     CONF_MODE,
@@ -197,6 +198,7 @@ BASE_SCHEMA = cv.Schema(
             "This option has been removed. Please use the [disabled] option under the "
             "new mdns component instead."
         ),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -364,6 +366,9 @@ async def to_code(config):
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
         cg.add_define(phy_define)
+
+    if mac_address := config.get(CONF_MAC_ADDRESS):
+        cg.add(var.set_fixed_mac(mac_address.parts))
 
     cg.add_define("USE_ETHERNET")
 

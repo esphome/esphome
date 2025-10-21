@@ -61,12 +61,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
       this->address_str_ = "";
     } else {
       char buf[18];
-      uint8_t mac[6] = {
-          (uint8_t) ((this->address_ >> 40) & 0xff), (uint8_t) ((this->address_ >> 32) & 0xff),
-          (uint8_t) ((this->address_ >> 24) & 0xff), (uint8_t) ((this->address_ >> 16) & 0xff),
-          (uint8_t) ((this->address_ >> 8) & 0xff),  (uint8_t) ((this->address_ >> 0) & 0xff),
-      };
-      format_mac_addr_upper(mac, buf);
+      format_mac_addr_upper(this->remote_bda_, buf);
       this->address_str_ = buf;
     }
   }

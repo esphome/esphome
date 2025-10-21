@@ -16,6 +16,7 @@
 #include "user_services.h"
 #endif
 
+#include <map>
 #include <vector>
 
 namespace esphome::api {
@@ -44,6 +45,8 @@ class APIServer : public Component, public Controller {
   void set_reboot_timeout(uint32_t reboot_timeout);
   void set_batch_delay(uint16_t batch_delay);
   uint16_t get_batch_delay() const { return batch_delay_; }
+  void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
+  void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -109,7 +112,17 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);
 
-#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  // Action response handling
+  using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
+  void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+                              const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_API_SERVICES
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
@@ -125,6 +138,9 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_UPDATE
   void on_update(update::UpdateEntity *obj) override;
+#endif
+#ifdef USE_ZWAVE_PROXY
+  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 
   bool is_connected() const;
@@ -182,12 +198,23 @@ class APIServer : public Component, public Controller {
 #ifdef USE_API_SERVICES
   std::vector<UserServiceDescriptor *> user_services_;
 #endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  struct PendingActionResponse {
+    uint32_t call_id;
+    ActionResponseCallback callback;
+  };
+  std::vector<PendingActionResponse> action_response_callbacks_;
+#endif
 
   // Group smaller types together
   uint16_t port_{6053};
   uint16_t batch_delay_{100};
+  // Connection limits - these defaults will be overridden by config values
+  // from cv.SplitDefault in __init__.py which sets platform-specific defaults
+  uint8_t listen_backlog_{4};
+  uint8_t max_connections_{8};
   bool shutting_down_ = false;
-  // 5 bytes used, 3 bytes padding
+  // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
