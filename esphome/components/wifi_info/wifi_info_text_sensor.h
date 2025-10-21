@@ -36,7 +36,7 @@ class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
   void dump_config() override;
 
  protected:
-  void state_callback_(const std::vector<wifi::WiFiScanResult> &results);
+  void state_callback_(const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results);
 };
 
 class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {

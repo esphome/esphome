@@ -57,12 +57,12 @@ void DNSAddressWifiInfo::state_callback_(network::IPAddress dns1_ip, network::IP
 
 void ScanResultsWiFiInfo::setup() {
   wifi::global_wifi_component->add_on_wifi_scan_state_callback(
-      [this](const std::vector<wifi::WiFiScanResult> &results) { this->state_callback_(results); });
+      [this](const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results) { this->state_callback_(results); });
 }
 
 void ScanResultsWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "Scan Results", this); }
 
-void ScanResultsWiFiInfo::state_callback_(const std::vector<wifi::WiFiScanResult> &results) {
+void ScanResultsWiFiInfo::state_callback_(const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results) {
   std::string scan_results;
   for (const auto &scan : results) {
     if (scan.get_is_hidden())
