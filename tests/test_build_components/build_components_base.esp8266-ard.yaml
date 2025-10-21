@@ -1,9 +1,13 @@
 esphome:
   name: componenttestesp8266ard
   friendly_name: $component_name
+  platformio_options:
+    board_upload.flash_size: 16MB
+    board_upload.maximum_size: 16777216
+    board_build.ldscript: eagle.flash.16m14m.ld
 
 esp8266:
-  board: d1_mini
+  board: d1_mini_pro
 
 logger:
   level: VERY_VERBOSE

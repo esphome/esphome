@@ -5,8 +5,108 @@ import re
 Import("env")  # noqa
 
 
+def apply_memory_patches(content):
+    """Apply IRAM, DRAM, and Flash patches to linker script content.
+
+    Args:
+        content: Linker script content as string
+
+    Returns:
+        Patched content as string
+    """
+    patches_applied = []
+
+    # Replace IRAM size from 0x8000 (32KB) to 0x200000 (2MB)
+    # The line looks like: iram1_0_seg : org = 0x40100000, len = 0x8000
+    new_content = re.sub(
+        r"(iram1_0_seg\s*:\s*org\s*=\s*0x40100000\s*,\s*len\s*=\s*)0x8000",
+        r"\g<1>0x200000",
+        content,
+    )
+    if new_content != content:
+        patches_applied.append("IRAM: 32KB -> 2MB")
+        content = new_content
+
+    # Replace DRAM (BSS) size to allow larger uninitialized data sections
+    # The line looks like: dram0_0_seg : org = 0x3FFE8000, len = 0x14000
+    # Increase from 0x14000 (80KB) to 0x200000 (2MB)
+    new_content = re.sub(
+        r"(dram0_0_seg\s*:\s*org\s*=\s*0x3FFE8000\s*,\s*len\s*=\s*)0x14000",
+        r"\g<1>0x200000",
+        content,
+    )
+    if new_content != content:
+        patches_applied.append("DRAM: 80KB -> 2MB")
+        content = new_content
+
+    # Replace Flash/irom0 size to allow larger code sections
+    # The line looks like: irom0_0_seg : org = 0x40201010, len = 0xfeff0
+    # Increase from 0xfeff0 (~1MB) to 0x2000000 (32MB) - fake huge flash for testing
+    new_content = re.sub(
+        r"(irom0_0_seg\s*:\s*org\s*=\s*0x40201010\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
+        r"\g<1>0x2000000",
+        content,
+    )
+    if new_content != content:
+        patches_applied.append("Flash: 1MB -> 32MB")
+        content = new_content
+
+    if patches_applied:
+        print(f"  Patches applied: {', '.join(patches_applied)}")
+
+    return content
+
+
+def patch_linker_script_file(filepath, description):
+    """Patch a single linker script file in place."""
+    if not os.path.exists(filepath):
+        print(f"ESPHome: {description} not found at {filepath}")
+        return False
+
+    print(f"ESPHome: Patching {description}...")
+    with open(filepath, "r") as f:
+        content = f.read()
+
+    patched_content = apply_memory_patches(content)
+
+    if patched_content != content:
+        with open(filepath, "w") as f:
+            f.write(patched_content)
+        print(f"ESPHome: Successfully patched {description}")
+        return True
+    else:
+        print(f"ESPHome: {description} already patched or no changes needed")
+        return False
+
+
+def patch_sdk_linker_script_immediately(env):
+    """Patch SDK linker scripts immediately when script loads.
+
+    This must happen BEFORE PlatformIO's builder calculates sizes.
+    """
+    # Get the SDK linker script path
+    ldscript = env.GetProjectOption("board_build.ldscript", "")
+    if not ldscript:
+        return
+
+    # Get the framework directory
+    framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
+    if not framework_dir:
+        return
+
+    # Patch the main SDK linker script (flash layout)
+    sdk_ld = os.path.join(framework_dir, "tools", "sdk", "ld", ldscript)
+    if os.path.exists(sdk_ld):
+        patch_linker_script_file(sdk_ld, f"SDK {ldscript}")
+
+    # Also patch the local.eagle.app.v6.common.ld in SDK (contains IRAM and DRAM)
+    local_common = os.path.join(framework_dir, "tools", "sdk", "ld", "local.eagle.app.v6.common.ld")
+    if os.path.exists(local_common):
+        patch_linker_script_file(local_common, "SDK local.eagle.app.v6.common.ld")
+
+
 def patch_linker_script_after_preprocess(source, target, env):
-    """Patch the local linker script after PlatformIO preprocesses it."""
+    """Patch linker scripts after PlatformIO preprocesses them."""
     # Check if we're in testing mode by looking for the define
     build_flags = env.get("BUILD_FLAGS", [])
     testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
@@ -14,29 +114,20 @@ def patch_linker_script_after_preprocess(source, target, env):
     if not testing_mode:
         return
 
-    # Get the local linker script path
-    build_dir = env.subst("$BUILD_DIR")
-    local_ld = os.path.join(build_dir, "ld", "local.eagle.app.v6.common.ld")
+    # Patch SDK linker scripts first (for size calculation)
+    patch_sdk_linker_script_immediately(env)
 
-    if not os.path.exists(local_ld):
+    # Patch build directory scripts
+    build_dir = env.subst("$BUILD_DIR")
+    ld_dir = os.path.join(build_dir, "ld")
+
+    if not os.path.exists(ld_dir):
         return
 
-    # Read the linker script
-    with open(local_ld, "r") as f:
-        content = f.read()
-
-    # Replace IRAM size from 0x8000 (32KB) to 0x200000 (2MB)
-    # The line looks like: iram1_0_seg : org = 0x40100000, len = 0x8000
-    updated = re.sub(
-        r"(iram1_0_seg\s*:\s*org\s*=\s*0x40100000\s*,\s*len\s*=\s*)0x8000",
-        r"\g<1>0x200000",
-        content,
-    )
-
-    if updated != content:
-        with open(local_ld, "w") as f:
-            f.write(updated)
-        print("ESPHome: Patched IRAM size to 2MB for testing mode")
+    # Patch the local linker script (contains IRAM and DRAM definitions)
+    local_ld = os.path.join(ld_dir, "local.eagle.app.v6.common.ld")
+    if os.path.exists(local_ld):
+        patch_linker_script_file(local_ld, "build local.eagle.app.v6.common.ld")
 
 
 # Hook into the build process right before linking

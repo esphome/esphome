@@ -230,9 +230,9 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
-    # In testing mode, fake a larger IRAM to allow linking grouped component tests
-    # Real ESP8266 hardware only has 32KB IRAM, but for CI testing we pretend it has 2MB
-    # This is done via a pre-build script that generates a custom linker script
+    # In testing mode, fake larger memory to allow linking grouped component tests
+    # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
+    # we pretend it has much larger memory to test that components compile together
     if CORE.testing_mode:
         cg.add_build_flag("-DESPHOME_TESTING_MODE")
 
