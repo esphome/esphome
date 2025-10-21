@@ -378,18 +378,19 @@ async def to_code(config):
     # Track if any network uses Enterprise authentication
     has_eap = False
 
-    # Build all WiFiAP objects
+    # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
     if networks:
-        wifi_aps = []
+        cg.add(var.init_sta(len(networks)))
+
+        def add_sta(ap, network):
+            ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+            cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
-            ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-            wifi_aps.append(wifi_network(network, WiFiAP(), ip_config))
-
-        # Set all WiFi networks at once
-        cg.add(var.set_stas(wifi_aps))
+            cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
