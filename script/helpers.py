@@ -680,10 +680,18 @@ def filter_component_files(file_path: str) -> bool:
     )
 
 
-def filter_cpp_files(file):
-    return file.endswith(CPP_FILE_EXTENSIONS) and (
-        file.startswith(ESPHOME_COMPONENTS_PATH)
-        or file.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
+def filter_cpp_files(file_path: str) -> bool:
+    """Check if a file is a C++ source file in component directories.
+
+    Args:
+        file_path: Path to check
+
+    Returns:
+        True if the file is a C++ source/header file in component directories
+    """
+    return file_path.endswith(CPP_FILE_EXTENSIONS) and (
+        file_path.startswith(ESPHOME_COMPONENTS_PATH)
+        or file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH)
     )
 
 
