@@ -5,7 +5,6 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 from unittest.mock import Mock, call, patch
 
@@ -63,13 +62,6 @@ def mock_list_cpp_components_to_test() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_subprocess_run() -> Generator[Mock, None, None]:
-    """Mock subprocess.run for list-components.py calls."""
-    with patch.object(determine_jobs.subprocess, "run") as mock:
-        yield mock
-
-
-@pytest.fixture
 def mock_changed_files() -> Generator[Mock, None, None]:
     """Mock changed_files for memory impact detection."""
     with patch.object(determine_jobs, "changed_files") as mock:
@@ -89,7 +81,6 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -167,7 +158,6 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -217,39 +207,11 @@ def test_main_no_tests_should_run(
     assert output["cpp_unit_tests"] == []
 
 
-def test_main_list_components_fails(
-    mock_should_run_integration_tests: Mock,
-    mock_should_run_clang_tidy: Mock,
-    mock_should_run_clang_format: Mock,
-    mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
-    mock_list_cpp_components_to_test: Mock,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Test when list-components.py fails."""
-    mock_should_run_integration_tests.return_value = True
-    mock_should_run_clang_tidy.return_value = True
-    mock_should_run_clang_format.return_value = True
-    mock_should_run_python_linters.return_value = True
-    mock_list_cpp_components_to_test.return_value = []
-
-    # Mock list-components.py failure
-    mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd")
-
-    # Run main function with mocked argv - should raise
-    with (
-        patch("sys.argv", ["determine-jobs.py"]),
-        pytest.raises(subprocess.CalledProcessError),
-    ):
-        determine_jobs.main()
-
-
 def test_main_with_branch_argument(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     mock_list_cpp_components_to_test: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -524,7 +486,6 @@ def test_main_filters_components_without_tests(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -827,7 +788,6 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -892,7 +852,6 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
