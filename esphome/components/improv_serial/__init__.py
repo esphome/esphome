@@ -43,4 +43,4 @@ FINAL_VALIDATE_SCHEMA = validate_logger
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await improv_base.setup_improv_core(var, config)
+    await improv_base.setup_improv_core(var, config, "improv_serial")

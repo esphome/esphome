@@ -8,6 +8,7 @@ substitutions:
   area: 25
   numberOne: 1
   var1: 79
+  double_width: 14
 test_list:
   - The area is 56
   - 56
@@ -25,3 +26,4 @@ test_list:
   - ord("a") = 97
   - chr(97) = a
   - len([1,2,3]) = 3
+  - width = 7, double_width = 14
