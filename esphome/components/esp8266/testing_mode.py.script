@@ -79,57 +79,56 @@ def patch_linker_script_file(filepath, description):
         return False
 
 
-def patch_sdk_linker_script_immediately(env):
-    """Patch SDK linker scripts immediately when script loads.
-
-    This must happen BEFORE PlatformIO's builder calculates sizes.
-    """
-    # Get the SDK linker script path
-    ldscript = env.GetProjectOption("board_build.ldscript", "")
-    if not ldscript:
-        return
-
-    # Get the framework directory
-    framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
-    if not framework_dir:
-        return
-
-    # Patch the main SDK linker script (flash layout)
-    sdk_ld = os.path.join(framework_dir, "tools", "sdk", "ld", ldscript)
-    if os.path.exists(sdk_ld):
-        patch_linker_script_file(sdk_ld, f"SDK {ldscript}")
-
-    # Also patch the local.eagle.app.v6.common.ld in SDK (contains IRAM and DRAM)
-    local_common = os.path.join(framework_dir, "tools", "sdk", "ld", "local.eagle.app.v6.common.ld")
-    if os.path.exists(local_common):
-        patch_linker_script_file(local_common, "SDK local.eagle.app.v6.common.ld")
-
-
-def patch_linker_script_after_preprocess(source, target, env):
-    """Patch linker scripts after PlatformIO preprocesses them."""
-    # Check if we're in testing mode by looking for the define
+def patch_local_linker_script(source, target, env):
+    """Patch the local.eagle.app.v6.common.ld in build directory for IRAM."""
+    # Check if we're in testing mode
     build_flags = env.get("BUILD_FLAGS", [])
     testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
 
     if not testing_mode:
         return
 
-    # Patch SDK linker scripts first (for size calculation)
-    patch_sdk_linker_script_immediately(env)
-
-    # Patch build directory scripts
+    # Patch the local linker script if it exists
     build_dir = env.subst("$BUILD_DIR")
     ld_dir = os.path.join(build_dir, "ld")
-
-    if not os.path.exists(ld_dir):
-        return
-
-    # Patch the local linker script (contains IRAM and DRAM definitions)
-    local_ld = os.path.join(ld_dir, "local.eagle.app.v6.common.ld")
-    if os.path.exists(local_ld):
-        patch_linker_script_file(local_ld, "build local.eagle.app.v6.common.ld")
+    if os.path.exists(ld_dir):
+        local_ld = os.path.join(ld_dir, "local.eagle.app.v6.common.ld")
+        if os.path.exists(local_ld):
+            patch_linker_script_file(local_ld, "local.eagle.app.v6.common.ld")
 
 
-# Hook into the build process right before linking
-# This runs after PlatformIO has already preprocessed the linker scripts
-env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_linker_script_after_preprocess)
+# Check if we're in testing mode
+build_flags = env.get("BUILD_FLAGS", [])
+testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
+
+if testing_mode:
+    # Create custom linker script immediately (before linker command is built)
+    build_dir = env.subst("$BUILD_DIR")
+    ldscript = env.GetProjectOption("board_build.ldscript", "")
+
+    if ldscript:
+        framework_dir = env.PioPlatform().get_package_dir("framework-arduinoespressif8266")
+        if framework_dir:
+            sdk_ld = os.path.join(framework_dir, "tools", "sdk", "ld", ldscript)
+            custom_ld = os.path.join(build_dir, f"testing_{ldscript}")
+
+            if os.path.exists(sdk_ld) and not os.path.exists(custom_ld):
+                # Read and patch the SDK linker script
+                with open(sdk_ld, "r") as f:
+                    content = f.read()
+
+                patched_content = apply_memory_patches(content)
+
+                # Write custom linker script
+                with open(custom_ld, "w") as f:
+                    f.write(patched_content)
+
+                print(f"ESPHome: Created custom linker script: {custom_ld}")
+
+            # Tell the linker to use our custom script
+            if os.path.exists(custom_ld):
+                env.Replace(LDSCRIPT_PATH=custom_ld)
+                print(f"ESPHome: Using custom linker script with patched memory limits")
+
+    # Hook to patch local.eagle.app.v6.common.ld after it's created
+    env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_local_linker_script)
