@@ -44,6 +44,41 @@ def filter_components_without_tests(components: list[str]) -> list[str]:
     return filtered_components
 
 
+def create_test_config(config_name: str, includes: list[str]) -> dict:
+    """Create ESPHome test configuration for C++ unit tests.
+
+    Args:
+        config_name: Unique name for this test configuration
+        includes: List of include folders for the test build
+
+    Returns:
+        Configuration dict for ESPHome
+    """
+    return {
+        "esphome": {
+            "name": config_name,
+            "friendly_name": "CPP Unit Tests",
+            "libraries": PLATFORMIO_GOOGLE_TEST_LIB,
+            "platformio_options": {
+                "build_type": "debug",
+                "build_unflags": [
+                    "-Os",  # remove size-opt flag
+                ],
+                "build_flags": [
+                    "-Og",  # optimize for debug
+                ],
+                "debug_build_flags": [  # only for debug builds
+                    "-g3",  # max debug info
+                    "-ggdb3",
+                ],
+            },
+            "includes": includes,
+        },
+        "host": {},
+        "logger": {"level": "DEBUG"},
+    }
+
+
 def run_tests(selected_components: list[str]) -> int:
     # Skip tests on Windows
     if os.name == "nt":
@@ -73,29 +108,7 @@ def run_tests(selected_components: list[str]) -> int:
     # to maximize cache during testing
     config_name: str = "cpptests-" + hash_components(components)
 
-    config: dict = {
-        "esphome": {
-            "name": config_name,
-            "friendly_name": "CPP Unit Tests",
-            "libraries": PLATFORMIO_GOOGLE_TEST_LIB,
-            "platformio_options": {
-                "build_type": "debug",
-                "build_unflags": [
-                    "-Os",  # remove size-opt flag
-                ],
-                "build_flags": [
-                    "-Og",  # optimize for debug
-                ],
-                "debug_build_flags": [  # only for debug builds
-                    "-g3",  # max debug info
-                    "-ggdb3",
-                ],
-            },
-            "includes": includes,
-        },
-        "host": {},
-        "logger": {"level": "DEBUG"},
-    }
+    config = create_test_config(config_name, includes)
 
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
