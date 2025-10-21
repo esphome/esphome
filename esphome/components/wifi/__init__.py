@@ -378,7 +378,7 @@ async def to_code(config):
     # Track if any network uses Enterprise authentication
     has_eap = False
 
-    # Build all WiFiAP objects as StructInitializers (not variables)
+    # Build all WiFiAP objects
     networks = config.get(CONF_NETWORKS, [])
     if networks:
         wifi_aps = []
@@ -386,7 +386,6 @@ async def to_code(config):
             if CONF_EAP in network:
                 has_eap = True
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-            # Create StructInitializer for each network (avoids global variables)
             wifi_aps.append(wifi_network(network, WiFiAP(), ip_config))
 
         # Set all WiFi networks at once
