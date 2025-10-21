@@ -237,10 +237,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             # Empty list - we've finished debugging symbol categorization
             # Add component names here if you need to debug their symbols
         ]
-        system_components = []
-        for name, mem in components:
-            if name in system_components_to_include:
-                system_components.append((name, mem))
+        system_components = [
+            (name, mem)
+            for name, mem in components
+            if name in system_components_to_include
+        ]
 
         # Combine all components to analyze: top ESPHome + all external + API if not already included + system components
         components_to_analyze = (
