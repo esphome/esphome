@@ -62,7 +62,8 @@ optional<std::string> AppendFilter::new_value(std::string value) { return value 
 optional<std::string> PrependFilter::new_value(std::string value) { return this->prefix_ + value; }
 
 // Substitute
-SubstituteFilter::SubstituteFilter(std::initializer_list<Substitution> substitutions) : substitutions_(substitutions) {}
+SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
+    : substitutions_(substitutions) {}
 
 optional<std::string> SubstituteFilter::new_value(std::string value) {
   std::size_t pos;
@@ -74,7 +75,7 @@ optional<std::string> SubstituteFilter::new_value(std::string value) {
 }
 
 // Map
-MapFilter::MapFilter(std::initializer_list<Substitution> mappings) : mappings_(mappings) {}
+MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mappings_(mappings) {}
 
 optional<std::string> MapFilter::new_value(std::string value) {
   for (const auto &mapping : this->mappings_) {

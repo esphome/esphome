@@ -57,6 +57,7 @@ from helpers import (
     get_component_from_path,
     get_component_test_files,
     get_components_from_integration_fixtures,
+    git_ls_files,
     parse_test_filename,
     root_path,
 )
@@ -162,6 +163,26 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
     return False
 
 
+@cache
+def _is_clang_tidy_full_scan() -> bool:
+    """Check if clang-tidy configuration changed (requires full scan).
+
+    Returns:
+        True if full scan is needed (hash changed), False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
+            capture_output=True,
+            check=False,
+        )
+        # Exit 0 means hash changed (full scan needed)
+        return result.returncode == 0
+    except Exception:
+        # If hash check fails, run full scan to be safe
+        return True
+
+
 def should_run_clang_tidy(branch: str | None = None) -> bool:
     """Determine if clang-tidy should run based on changed files.
 
@@ -198,17 +219,7 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
         True if clang-tidy should run, False otherwise.
     """
     # First check if clang-tidy configuration changed (full scan needed)
-    try:
-        result = subprocess.run(
-            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
-            capture_output=True,
-            check=False,
-        )
-        # Exit 0 means hash changed (full scan needed)
-        if result.returncode == 0:
-            return True
-    except Exception:
-        # If hash check fails, run clang-tidy to be safe
+    if _is_clang_tidy_full_scan():
         return True
 
     # Check if .clang-tidy.hash file itself was changed
@@ -586,13 +597,37 @@ def main() -> None:
     # Detect components for memory impact analysis (merged config)
     memory_impact = detect_memory_impact_config(args.branch)
 
+    # Determine clang-tidy mode based on actual files that will be checked
     if run_clang_tidy:
-        if changed_cpp_file_count < CLANG_TIDY_SPLIT_THRESHOLD:
-            clang_tidy_mode = "nosplit"
-        else:
+        is_full_scan = _is_clang_tidy_full_scan()
+
+        if is_full_scan:
+            # Full scan checks all files - always use split mode for efficiency
             clang_tidy_mode = "split"
+            files_to_check_count = -1  # Sentinel value for "all files"
+        else:
+            # Targeted scan - calculate actual files that will be checked
+            # This accounts for component dependencies, not just directly changed files
+            if changed_components:
+                # Count C++ files in all changed components (including dependencies)
+                all_cpp_files = list(git_ls_files(["*.cpp"]).keys())
+                component_set = set(changed_components)
+                files_to_check_count = sum(
+                    1
+                    for f in all_cpp_files
+                    if get_component_from_path(f) in component_set
+                )
+            else:
+                # If no components changed, use the simple count of changed C++ files
+                files_to_check_count = changed_cpp_file_count
+
+            if files_to_check_count < CLANG_TIDY_SPLIT_THRESHOLD:
+                clang_tidy_mode = "nosplit"
+            else:
+                clang_tidy_mode = "split"
     else:
         clang_tidy_mode = "disabled"
+        files_to_check_count = 0
 
     # Build output
     output: dict[str, Any] = {

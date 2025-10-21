@@ -71,6 +71,12 @@ def mock_changed_files() -> Generator[Mock, None, None]:
         yield mock
 
 
+@pytest.fixture(autouse=True)
+def clear_clang_tidy_cache() -> None:
+    """Clear the clang-tidy full scan cache before each test."""
+    determine_jobs._is_clang_tidy_full_scan.cache_clear()
+
+
 def test_main_all_tests_should_run(
     mock_should_run_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -98,7 +104,10 @@ def test_main_all_tests_should_run(
     mock_subprocess_run.return_value = mock_result
 
     # Run main function with mocked argv
-    with patch("sys.argv", ["determine-jobs.py"]):
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+    ):
         determine_jobs.main()
 
     # Check output
@@ -224,7 +233,10 @@ def test_main_with_branch_argument(
     )
     mock_subprocess_run.return_value = mock_result
 
-    with patch("sys.argv", ["script.py", "-b", "main"]):
+    with (
+        patch("sys.argv", ["script.py", "-b", "main"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+    ):
         determine_jobs.main()
 
     # Check that functions were called with branch
@@ -362,16 +374,6 @@ def test_should_run_clang_tidy_hash_check_exception() -> None:
     ):
         result = determine_jobs.should_run_clang_tidy()
         assert result is True  # Fail safe - run clang-tidy
-
-    # Even with C++ files, exception should trigger clang-tidy
-    with (
-        patch.object(
-            determine_jobs, "changed_files", return_value=["esphome/core.cpp"]
-        ),
-        patch("subprocess.run", side_effect=Exception("Hash check failed")),
-    ):
-        result = determine_jobs.should_run_clang_tidy()
-        assert result is True
 
 
 def test_should_run_clang_tidy_with_branch() -> None:
@@ -763,3 +765,120 @@ def test_detect_memory_impact_config_skips_base_bus_components(tmp_path: Path) -
     assert result["should_run"] == "true"
     assert result["components"] == ["wifi"]
     assert "i2c" not in result["components"]
+
+
+# Tests for clang-tidy split mode logic
+
+
+def test_clang_tidy_mode_full_scan(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that full scan (hash changed) always uses split mode."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = True
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Mock list-components.py output
+    mock_result = Mock()
+    mock_result.stdout = json.dumps({"directly_changed": [], "all_changed": []})
+    mock_subprocess_run.return_value = mock_result
+
+    # Mock full scan (hash changed)
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=True),
+    ):
+        determine_jobs.main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    # Full scan should always use split mode
+    assert output["clang_tidy_mode"] == "split"
+
+
+@pytest.mark.parametrize(
+    ("component_count", "files_per_component", "expected_mode"),
+    [
+        # Small PR: 5 files in 1 component -> nosplit
+        (1, 5, "nosplit"),
+        # Medium PR: 30 files in 2 components -> nosplit
+        (2, 15, "nosplit"),
+        # Medium PR: 64 files total -> nosplit (just under threshold)
+        (2, 32, "nosplit"),
+        # Large PR: 65 files total -> split (at threshold)
+        (2, 33, "split"),  # 2 * 33 = 66 files
+        # Large PR: 100 files in 10 components -> split
+        (10, 10, "split"),
+    ],
+    ids=[
+        "1_comp_5_files_nosplit",
+        "2_comp_30_files_nosplit",
+        "2_comp_64_files_nosplit_under_threshold",
+        "2_comp_66_files_split_at_threshold",
+        "10_comp_100_files_split",
+    ],
+)
+def test_clang_tidy_mode_targeted_scan(
+    component_count: int,
+    files_per_component: int,
+    expected_mode: str,
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_subprocess_run: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test clang-tidy mode selection based on files_to_check count."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = True
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Create component names
+    components = [f"comp{i}" for i in range(component_count)]
+
+    # Mock list-components.py output
+    mock_result = Mock()
+    mock_result.stdout = json.dumps(
+        {"directly_changed": components, "all_changed": components}
+    )
+    mock_subprocess_run.return_value = mock_result
+
+    # Mock git_ls_files to return files for each component
+    cpp_files = {
+        f"esphome/components/{comp}/file{i}.cpp": 0
+        for comp in components
+        for i in range(files_per_component)
+    }
+
+    # Create a mock that returns the cpp_files dict for any call
+    def mock_git_ls_files(patterns=None):
+        return cpp_files
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(determine_jobs, "git_ls_files", side_effect=mock_git_ls_files),
+    ):
+        determine_jobs.main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert output["clang_tidy_mode"] == expected_mode

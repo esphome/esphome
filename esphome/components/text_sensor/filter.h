@@ -102,7 +102,7 @@ struct Substitution {
 /// A simple filter that replaces a substring with another substring
 class SubstituteFilter : public Filter {
  public:
-  explicit SubstituteFilter(std::initializer_list<Substitution> substitutions);
+  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions);
   optional<std::string> new_value(std::string value) override;
 
  protected:
@@ -135,7 +135,7 @@ class SubstituteFilter : public Filter {
  */
 class MapFilter : public Filter {
  public:
-  explicit MapFilter(std::initializer_list<Substitution> mappings);
+  explicit MapFilter(const std::initializer_list<Substitution> &mappings);
   optional<std::string> new_value(std::string value) override;
 
  protected:
