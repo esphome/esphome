@@ -313,7 +313,7 @@ optional<float> DeltaFilter::new_value(float value) {
 }
 
 // OrFilter
-OrFilter::OrFilter(std::vector<Filter *> filters) : filters_(std::move(filters)), phi_(this) {}
+OrFilter::OrFilter(std::initializer_list<Filter *> filters) : filters_(filters), phi_(this) {}
 OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
@@ -326,14 +326,14 @@ optional<float> OrFilter::PhiNode::new_value(float value) {
 }
 optional<float> OrFilter::new_value(float value) {
   this->has_value_ = false;
-  for (Filter *filter : this->filters_)
+  for (auto *filter : this->filters_)
     filter->input(value);
 
   return {};
 }
 void OrFilter::initialize(Sensor *parent, Filter *next) {
   Filter::initialize(parent, next);
-  for (Filter *filter : this->filters_) {
+  for (auto *filter : this->filters_) {
     filter->initialize(parent, &this->phi_);
   }
   this->phi_.initialize(parent, nullptr);
@@ -386,18 +386,24 @@ void HeartbeatFilter::setup() {
 }
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
+CalibrateLinearFilter::CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions)
+    : linear_functions_(linear_functions) {}
+
 optional<float> CalibrateLinearFilter::new_value(float value) {
-  for (std::array<float, 3> f : this->linear_functions_) {
+  for (const auto &f : this->linear_functions_) {
     if (!std::isfinite(f[2]) || value < f[2])
       return (value * f[0]) + f[1];
   }
   return NAN;
 }
 
+CalibratePolynomialFilter::CalibratePolynomialFilter(std::initializer_list<float> coefficients)
+    : coefficients_(coefficients) {}
+
 optional<float> CalibratePolynomialFilter::new_value(float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (float coefficient : this->coefficients_) {
+  for (const auto &coefficient : this->coefficients_) {
     res += x * coefficient;
     x *= value;
   }

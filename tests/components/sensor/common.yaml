@@ -173,3 +173,66 @@ sensor:
           timeout: 1000ms
           value: [42.0]
       - multiply: 2.0
+
+  # CalibrateLinearFilter - piecewise linear calibration
+  - platform: copy
+    source_id: source_sensor
+    name: "Calibrate Linear Two Points"
+    filters:
+      - calibrate_linear:
+          - 0.0 -> 0.0
+          - 100.0 -> 100.0
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Calibrate Linear Multiple Segments"
+    filters:
+      - calibrate_linear:
+          - 0.0 -> 0.0
+          - 50.0 -> 55.0
+          - 100.0 -> 102.5
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Calibrate Linear Least Squares"
+    filters:
+      - calibrate_linear:
+          method: least_squares
+          datapoints:
+            - 0.0 -> 0.0
+            - 50.0 -> 55.0
+            - 100.0 -> 102.5
+
+  # CalibratePolynomialFilter - polynomial calibration
+  - platform: copy
+    source_id: source_sensor
+    name: "Calibrate Polynomial Degree 2"
+    filters:
+      - calibrate_polynomial:
+          degree: 2
+          datapoints:
+            - 0.0 -> 0.0
+            - 50.0 -> 55.0
+            - 100.0 -> 102.5
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Calibrate Polynomial Degree 3"
+    filters:
+      - calibrate_polynomial:
+          degree: 3
+          datapoints:
+            - 0.0 -> 0.0
+            - 25.0 -> 26.0
+            - 50.0 -> 55.0
+            - 100.0 -> 102.5
+
+  # OrFilter - filter branching
+  - platform: copy
+    source_id: source_sensor
+    name: "Or Filter with Multiple Branches"
+    filters:
+      - or:
+          - multiply: 2.0
+          - offset: 10.0
+          - lambda: return x * 3.0;
