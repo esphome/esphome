@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_component_name
+from helpers import get_all_components, get_component_name
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
@@ -22,23 +22,6 @@ CURRENT_FILE: Path = Path(__file__).resolve()
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = CURRENT_FILE.parent.parent / "tests" / "components"
-
-# Path to list-components.py
-LIST_COMPONENTS_SCRIPT: Path = CURRENT_FILE.parent / "list-components.py"
-
-
-def get_all_components() -> list[str]:
-    try:
-        result = subprocess.run(
-            [sys.executable, str(LIST_COMPONENTS_SCRIPT)],
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    except subprocess.CalledProcessError as e:
-        print(f"Error invoking list-components.py: {e}", file=sys.stderr)
-        return []
 
 
 def hash_components(components: list[str]) -> str:

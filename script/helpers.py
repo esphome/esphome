@@ -916,6 +916,20 @@ def get_component_name(module_name: str) -> str:
     raise ValueError(f"Invalid module name {module_name}")
 
 
+def get_all_components() -> list[str]:
+    """Get all component names.
+
+    This function uses git to find all component files and extracts the component names.
+    It returns the same list as calling list-components.py without arguments.
+
+    Returns:
+        List of all component names
+    """
+    files = git_ls_files()
+    component_files = list(filter(filter_component_files, files))
+    return get_components_with_dependencies(component_files, False)
+
+
 def core_changed(files: list[str]) -> bool:
     """Check if any core C++ or Python files have changed.
 
