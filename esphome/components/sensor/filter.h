@@ -422,7 +422,7 @@ class DeltaFilter : public Filter {
 
 class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::vector<Filter *> filters);
+  explicit OrFilter(std::initializer_list<Filter *> filters);
 
   void initialize(Sensor *parent, Filter *next) override;
 
@@ -438,28 +438,27 @@ class OrFilter : public Filter {
     OrFilter *or_parent_;
   };
 
-  std::vector<Filter *> filters_;
+  FixedVector<Filter *> filters_;
   PhiNode phi_;
   bool has_value_{false};
 };
 
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
-      : linear_functions_(std::move(linear_functions)) {}
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
   optional<float> new_value(float value) override;
 
  protected:
-  std::vector<std::array<float, 3>> linear_functions_;
+  FixedVector<std::array<float, 3>> linear_functions_;
 };
 
 class CalibratePolynomialFilter : public Filter {
  public:
-  CalibratePolynomialFilter(std::vector<float> coefficients) : coefficients_(std::move(coefficients)) {}
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
   optional<float> new_value(float value) override;
 
  protected:
-  std::vector<float> coefficients_;
+  FixedVector<float> coefficients_;
 };
 
 class ClampFilter : public Filter {
