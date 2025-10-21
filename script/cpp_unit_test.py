@@ -6,12 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_components, get_component_name
+from helpers import get_all_components, get_all_dependencies
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.core import CORE
-from esphome.loader import ComponentManifest, get_component
 from esphome.platformio_api import get_idedata
 
 # This must coincide with the version in /platformio.ini
@@ -27,27 +26,6 @@ COMPONENTS_TESTS_DIR: Path = CURRENT_FILE.parent.parent / "tests" / "components"
 def hash_components(components: list[str]) -> str:
     key = ",".join(components)
     return hashlib.sha256(key.encode()).hexdigest()[:16]
-
-
-def _process_dependencies(
-    components: list[str], manifests: set[ComponentManifest]
-) -> None:
-    for component_name in components:
-        m = get_component(component_name)
-        if m is None:
-            raise ValueError(
-                f"Component '{component_name}' not found. Make sure it is a valid component."
-            )
-
-        if m not in manifests:
-            manifests.add(m)
-            _process_dependencies(m.dependencies, manifests)
-
-
-def process_dependencies(components: list[str]) -> list[str]:
-    manifests: set[ComponentManifest] = set()
-    _process_dependencies(components, manifests)
-    return sorted([get_component_name(m.module.__name__) for m in manifests])
 
 
 def filter_components_without_tests(components: list[str]) -> list[str]:
@@ -87,7 +65,7 @@ def run_tests(selected_components: list[str]) -> int:
     components = sorted(components)
 
     # Obtain possible dependencies for the requested components:
-    components_with_dependencies = process_dependencies(components)
+    components_with_dependencies = sorted(get_all_dependencies(set(components)))
 
     # Build a list of include folders, one folder per component containing tests.
     # A special replacement main.cpp is located in /tests/components/main.cpp
