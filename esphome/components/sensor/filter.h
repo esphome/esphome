@@ -396,15 +396,16 @@ class HeartbeatFilter : public Filter, public Component {
   explicit HeartbeatFilter(uint32_t time_period);
 
   void setup() override;
-
   optional<float> new_value(float value) override;
-
   float get_setup_priority() const override;
+
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
  protected:
   uint32_t time_period_;
   float last_input_;
   bool has_value_{false};
+  bool optimistic_{false};
 };
 
 class DeltaFilter : public Filter {

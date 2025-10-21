@@ -385,12 +385,14 @@ void Climate::save_state_() {
   if (!traits.get_supported_custom_fan_modes().empty() && custom_fan_mode.has_value()) {
     state.uses_custom_fan_mode = true;
     const auto &supported = traits.get_supported_custom_fan_modes();
-    std::vector<std::string> vec{supported.begin(), supported.end()};
-    for (size_t i = 0; i < vec.size(); i++) {
-      if (vec[i] == custom_fan_mode) {
+    // std::set has consistent order (lexicographic for strings)
+    size_t i = 0;
+    for (const auto &mode : supported) {
+      if (mode == custom_fan_mode) {
         state.custom_fan_mode = i;
         break;
       }
+      i++;
     }
   }
   if (traits.get_supports_presets() && preset.has_value()) {
@@ -400,12 +402,14 @@ void Climate::save_state_() {
   if (!traits.get_supported_custom_presets().empty() && custom_preset.has_value()) {
     state.uses_custom_preset = true;
     const auto &supported = traits.get_supported_custom_presets();
-    std::vector<std::string> vec{supported.begin(), supported.end()};
-    for (size_t i = 0; i < vec.size(); i++) {
-      if (vec[i] == custom_preset) {
+    // std::set has consistent order (lexicographic for strings)
+    size_t i = 0;
+    for (const auto &preset : supported) {
+      if (preset == custom_preset) {
         state.custom_preset = i;
         break;
       }
+      i++;
     }
   }
   if (traits.get_supports_swing_modes()) {
@@ -549,22 +553,34 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
     climate->fan_mode = this->fan_mode;
   }
   if (!traits.get_supported_custom_fan_modes().empty() && this->uses_custom_fan_mode) {
-    // std::set has consistent order (lexicographic for strings), so this is ok
+    // std::set has consistent order (lexicographic for strings)
     const auto &modes = traits.get_supported_custom_fan_modes();
-    std::vector<std::string> modes_vec{modes.begin(), modes.end()};
-    if (custom_fan_mode < modes_vec.size()) {
-      climate->custom_fan_mode = modes_vec[this->custom_fan_mode];
+    if (custom_fan_mode < modes.size()) {
+      size_t i = 0;
+      for (const auto &mode : modes) {
+        if (i == this->custom_fan_mode) {
+          climate->custom_fan_mode = mode;
+          break;
+        }
+        i++;
+      }
     }
   }
   if (traits.get_supports_presets() && !this->uses_custom_preset) {
     climate->preset = this->preset;
   }
   if (!traits.get_supported_custom_presets().empty() && uses_custom_preset) {
-    // std::set has consistent order (lexicographic for strings), so this is ok
+    // std::set has consistent order (lexicographic for strings)
     const auto &presets = traits.get_supported_custom_presets();
-    std::vector<std::string> presets_vec{presets.begin(), presets.end()};
-    if (custom_preset < presets_vec.size()) {
-      climate->custom_preset = presets_vec[this->custom_preset];
+    if (custom_preset < presets.size()) {
+      size_t i = 0;
+      for (const auto &preset : presets) {
+        if (i == this->custom_preset) {
+          climate->custom_preset = preset;
+          break;
+        }
+        i++;
+      }
     }
   }
   if (traits.get_supports_swing_modes()) {
