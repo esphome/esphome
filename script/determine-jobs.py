@@ -49,10 +49,10 @@ from typing import Any
 
 from helpers import (
     BASE_BUS_COMPONENTS,
-    CPP_AND_PYTHON_FILE_EXTENSIONS,
     CPP_FILE_EXTENSIONS,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
+    core_changed,
     filter_component_files,
     filter_cpp_files,
     get_all_dependencies,
@@ -104,14 +104,6 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
 ]
-
-
-def core_changed(files: list[str]) -> bool:
-    """Check if any core C++ or Python files have changed."""
-    return any(
-        f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
-        for f in files
-    )
 
 
 def should_run_integration_tests(branch: str | None = None) -> bool:

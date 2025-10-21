@@ -898,6 +898,21 @@ def get_components_with_dependencies(
     return sorted(components)
 
 
+def core_changed(files: list[str]) -> bool:
+    """Check if any core C++ or Python files have changed.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any core C++ or Python files have changed
+    """
+    return any(
+        f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
 def get_cpp_changed_components(files: list[str]) -> list[str]:
     """Get components that have changed C++ files or tests.
 
