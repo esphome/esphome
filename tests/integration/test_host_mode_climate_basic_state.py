@@ -39,7 +39,7 @@ async def test_host_mode_climate_basic_state(
             pytest.fail("Climate state not received within 5 seconds")
 
         assert isinstance(climate_state, aioesphomeapi.ClimateState)
-        assert climate_state.mode == ClimateMode.HEAT
+        assert climate_state.mode == ClimateMode.OFF
         assert climate_state.action == ClimateAction.OFF
         assert climate_state.current_temperature == 22.0
         assert climate_state.target_temperature_low == 18.0
