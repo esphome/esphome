@@ -1,5 +1,5 @@
-import esphome.codegen as cg
 from esphome import automation
+import esphome.codegen as cg
 
 # Base
 light_ns = cg.esphome_ns.namespace("light")
@@ -11,6 +11,8 @@ AddressableLightRef = AddressableLight.operator("ref")
 
 Color = cg.esphome_ns.class_("Color")
 LightColorValues = light_ns.class_("LightColorValues")
+
+LightStateRTCState = light_ns.struct("LightStateRTCState")
 
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)

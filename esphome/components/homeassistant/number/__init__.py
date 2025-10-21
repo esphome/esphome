@@ -23,6 +23,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await number.new_number(
         config,
         min_value=0,

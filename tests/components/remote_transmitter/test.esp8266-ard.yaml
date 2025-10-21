@@ -1,5 +1,5 @@
 remote_transmitter:
-  id: trns
+  id: xmitr
   pin: GPIO5
   carrier_duty_percent: 50%
 

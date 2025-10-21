@@ -1,8 +1,8 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_MD5
 #include "esphome/components/md5/md5.h"
-
 #include <string>
 
 namespace esphome {
@@ -46,3 +46,4 @@ class HmacMD5 {
 
 }  // namespace hmac_md5
 }  // namespace esphome
+#endif

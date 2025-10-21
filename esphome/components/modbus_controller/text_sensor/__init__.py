@@ -1,26 +1,25 @@
+import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
-
-
 from esphome.const import CONF_ADDRESS, CONF_ID
+
 from .. import (
-    add_modbus_base_properties,
-    modbus_controller_ns,
-    modbus_calc_properties,
-    validate_modbus_register,
+    MODBUS_REGISTER_TYPE,
     ModbusItemBaseSchema,
     SensorItem,
-    MODBUS_REGISTER_TYPE,
+    add_modbus_base_properties,
+    modbus_calc_properties,
+    modbus_controller_ns,
+    validate_modbus_register,
 )
 from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_RAW_ENCODE,
     CONF_REGISTER_COUNT,
+    CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
     CONF_SKIP_UPDATES,
-    CONF_RAW_ENCODE,
-    CONF_REGISTER_TYPE,
 )
 
 DEPENDENCIES = ["modbus_controller"]

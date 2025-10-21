@@ -1,7 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import esp32, i2c
 import esphome.config_validation as cv
-from esphome.components import i2c, esp32
-from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET
+from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BME680BSECComponent),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(CONF_IAQ_MODE, default="STATIC"): cv.enum(
                 IAQ_MODE_OPTIONS, upper=True
             ),
@@ -56,7 +56,15 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_minutes,
         }
     ).extend(i2c.i2c_device_schema(0x76)),
-    cv.only_with_arduino,
+    cv.only_with_framework(
+        frameworks=Framework.ARDUINO,
+        suggestions={
+            Framework.ESP_IDF: (
+                "bme68x_bsec2_i2c",
+                "sensor/bme68x_bsec2",
+            )
+        },
+    ),
     cv.Any(
         cv.only_on_esp8266,
         cv.All(

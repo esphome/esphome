@@ -1,13 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - output.turn_off: light_output_1
-      - output.turn_on: light_output_1
-      - output.set_level:
-          id: light_output_1
-          level: 50%
+substitutions:
+  output_platform: esp8266_pwm
+  pin: GPIO12
 
-output:
-  - platform: esp8266_pwm
-    id: light_output_1
-    pin: 12
+<<: !include common.yaml

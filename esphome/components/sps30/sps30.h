@@ -26,17 +26,18 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   bool start_fan_cleaning();
 
  protected:
-  char serial_number_[17] = {0};  /// Terminating NULL character
+  bool setup_complete_{false};
   uint16_t raw_firmware_version_;
-  bool start_continuous_measurement_();
+  char serial_number_[17] = {0};  /// Terminating NULL character
   uint8_t skipped_data_read_cycles_ = 0;
 
-  enum ErrorCode {
+  bool start_continuous_measurement_();
+
+  enum ErrorCode : uint8_t {
     COMMUNICATION_FAILED,
     FIRMWARE_VERSION_REQUEST_FAILED,
     FIRMWARE_VERSION_READ_FAILED,

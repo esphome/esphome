@@ -8,6 +8,10 @@
 // HaierProtocol
 #include <protocol/haier_protocol.h>
 
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+
 namespace esphome {
 namespace haier {
 
@@ -20,10 +24,24 @@ enum class ActionRequest : uint8_t {
   START_STERI_CLEAN = 5,  // only hOn
 };
 
+struct HaierBaseSettings {
+  bool health_mode;
+  bool display_state;
+};
+
 class HaierClimateBase : public esphome::Component,
                          public esphome::climate::Climate,
                          public esphome::uart::UARTDevice,
                          public haier_protocol::ProtocolStream {
+#ifdef USE_SWITCH
+ public:
+  void set_display_switch(switch_::Switch *sw);
+  void set_health_mode_switch(switch_::Switch *sw);
+
+ protected:
+  switch_::Switch *display_switch_{nullptr};
+  switch_::Switch *health_mode_switch_{nullptr};
+#endif
  public:
   HaierClimateBase();
   HaierClimateBase(const HaierClimateBase &) = delete;
@@ -82,7 +100,8 @@ class HaierClimateBase : public esphome::Component,
   virtual void process_phase(std::chrono::steady_clock::time_point now) = 0;
   virtual haier_protocol::HaierMessage get_control_message() = 0;          // NOLINT(readability-identifier-naming)
   virtual haier_protocol::HaierMessage get_power_message(bool state) = 0;  // NOLINT(readability-identifier-naming)
-  virtual void initialization(){};
+  virtual void save_settings();
+  virtual void initialization();
   virtual bool prepare_pending_action();
   virtual void process_protocol_reset();
   esphome::climate::ClimateTraits traits() override;
@@ -127,13 +146,19 @@ class HaierClimateBase : public esphome::Component,
     ActionRequest action;
     esphome::optional<haier_protocol::HaierMessage> message;
   };
+  enum class SwitchState {
+    OFF = 0b00,
+    ON = 0b01,
+    PENDING_OFF = 0b10,
+    PENDING_ON = 0b11,
+  };
   haier_protocol::ProtocolHandler haier_protocol_;
   ProtocolPhases protocol_phase_;
   esphome::optional<PendingAction> action_request_;
   uint8_t fan_mode_speed_;
   uint8_t other_modes_fan_speed_;
-  bool display_status_;
-  bool health_mode_;
+  SwitchState display_status_{SwitchState::ON};
+  SwitchState health_mode_{SwitchState::OFF};
   bool force_send_control_;
   bool forced_request_status_;
   bool reset_protocol_request_;
@@ -148,6 +173,7 @@ class HaierClimateBase : public esphome::Component,
   std::chrono::steady_clock::time_point last_status_request_;          // To request AC status
   std::chrono::steady_clock::time_point last_signal_request_;          // To send WiFI signal level
   CallbackManager<void(const char *, size_t)> status_message_callback_{};
+  ESPPreferenceObject base_rtc_;
 };
 
 class StatusMessageTrigger : public Trigger<const char *, size_t> {

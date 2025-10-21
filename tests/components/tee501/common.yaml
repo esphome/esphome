@@ -1,0 +1,5 @@
+sensor:
+  - platform: tee501
+    i2c_id: i2c_bus
+    name: TEE501 Temperature
+    address: 0x48

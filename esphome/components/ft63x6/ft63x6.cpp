@@ -28,7 +28,6 @@ static const uint8_t FT63X6_ADDR_CHIP_ID = 0xA3;
 static const char *const TAG = "FT63X6";
 
 void FT63X6Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up FT63X6 Touchscreen...");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
@@ -42,10 +41,10 @@ void FT63X6Touchscreen::setup() {
 
   // Get touch resolution
   if (this->x_raw_max_ == this->x_raw_min_) {
-    this->x_raw_max_ = 320;
+    this->x_raw_max_ = this->display_->get_native_width();
   }
   if (this->y_raw_max_ == this->y_raw_min_) {
-    this->y_raw_max_ = 480;
+    this->y_raw_max_ = this->display_->get_native_height();
   }
   uint8_t chip_id = this->read_byte_(FT63X6_ADDR_CHIP_ID);
   if (chip_id != 0) {
@@ -71,6 +70,10 @@ void FT63X6Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG,
+                "  X Calibration: [%d, %d]\n"
+                "  Y Calibration: [%d, %d]",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   LOG_UPDATE_INTERVAL(this);
 }
 

@@ -1,12 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
 )
+
 from . import CONF_SIM800L_ID, Sim800LComponent
 
 DEPENDENCIES = ["sim800l"]

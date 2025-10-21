@@ -14,3 +14,20 @@ sensor:
       name: Propane test distance
     battery_level:
       name: Propane test battery level
+
+  - platform: mopeka_pro_check
+    mac_address: AA:BB:CC:DD:EE:FF
+    tank_type: 20LB_V
+    temperature:
+      name: "Propane test2 temp"
+    level:
+      name: "Propane test2 level"
+    distance:
+      name: "Propane test2 distance"
+    battery_level:
+      name: "Propane test2 battery level"
+    signal_quality:
+      name: "propane test2 read quality"
+    ignored_reads:
+      name: "propane test2 ignored reads"
+    minimum_signal_quality: "LOW"

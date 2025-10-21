@@ -1,9 +1,15 @@
-﻿import logging
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
-from esphome.components import uart, climate, logger
+import logging
+
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import climate, logger, uart
+from esphome.components.climate import (
+    CONF_CURRENT_TEMPERATURE,
+    ClimateMode,
+    ClimatePreset,
+    ClimateSwingMode,
+)
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BEEPER,
     CONF_DISPLAY,
@@ -24,12 +30,8 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WIFI,
 )
-from esphome.components.climate import (
-    ClimateMode,
-    ClimatePreset,
-    ClimateSwingMode,
-    CONF_CURRENT_TEMPERATURE,
-)
+from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,7 +116,6 @@ SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
     "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
     "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
     "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
 }
 
@@ -185,42 +186,46 @@ def validate_visual(config):
     return config
 
 
-BASE_CONFIG_SCHEMA = (
-    climate.CLIMATE_SCHEMA.extend(
-        {
-            cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
-                cv.enum(SUPPORTED_CLIMATE_MODES_OPTIONS, upper=True)
-            ),
-            cv.Optional(
-                CONF_SUPPORTED_SWING_MODES,
-                default=[
-                    "VERTICAL",
-                    "HORIZONTAL",
-                    "BOTH",
-                ],
-            ): cv.ensure_list(cv.enum(SUPPORTED_SWING_MODES_OPTIONS, upper=True)),
-            cv.Optional(CONF_WIFI_SIGNAL, default=False): cv.boolean,
-            cv.Optional(CONF_DISPLAY): cv.boolean,
-            cv.Optional(
-                CONF_ANSWER_TIMEOUT,
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StatusMessageTrigger),
-                }
-            ),
-        }
+def _base_config_schema(class_: MockObjClass) -> cv.Schema:
+    return (
+        climate.climate_schema(class_)
+        .extend(
+            {
+                cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
+                    cv.enum(SUPPORTED_CLIMATE_MODES_OPTIONS, upper=True)
+                ),
+                cv.Optional(
+                    CONF_SUPPORTED_SWING_MODES,
+                    default=[
+                        "VERTICAL",
+                        "HORIZONTAL",
+                        "BOTH",
+                    ],
+                ): cv.ensure_list(cv.enum(SUPPORTED_SWING_MODES_OPTIONS, upper=True)),
+                cv.Optional(CONF_WIFI_SIGNAL, default=False): cv.boolean,
+                cv.Optional(CONF_DISPLAY): cv.boolean,
+                cv.Optional(
+                    CONF_ANSWER_TIMEOUT,
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            StatusMessageTrigger
+                        ),
+                    }
+                ),
+            }
+        )
+        .extend(uart.UART_DEVICE_SCHEMA)
+        .extend(cv.COMPONENT_SCHEMA)
     )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
-)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            PROTOCOL_SMARTAIR2: BASE_CONFIG_SCHEMA.extend(
+            PROTOCOL_SMARTAIR2: _base_config_schema(Smartair2Climate).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(Smartair2Climate),
                     cv.Optional(
                         CONF_ALTERNATIVE_SWING_CONTROL, default=False
                     ): cv.boolean,
@@ -232,15 +237,16 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            PROTOCOL_HON: BASE_CONFIG_SCHEMA.extend(
+            PROTOCOL_HON: _base_config_schema(HonClimate).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(HonClimate),
                     cv.Optional(
                         CONF_CONTROL_METHOD, default="SET_GROUP_PARAMETERS"
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True)
                     ),
-                    cv.Optional(CONF_BEEPER, default=True): cv.boolean,
+                    cv.Optional(CONF_BEEPER): cv.invalid(
+                        f"The {CONF_BEEPER} option is deprecated, use beeper_on/beeper_off actions or beeper switch for a haier platform instead"
+                    ),
                     cv.Optional(
                         CONF_CONTROL_PACKET_SIZE, default=PROTOCOL_CONTROL_PACKET_SIZE
                     ): cv.int_range(min=PROTOCOL_CONTROL_PACKET_SIZE, max=50),
@@ -254,7 +260,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=["BOOST", "ECO", "SLEEP"],  # No AWAY by default
+                        default=["BOOST", "SLEEP"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
                     ),
@@ -324,8 +330,7 @@ HAIER_HON_BASE_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 async def display_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -336,8 +341,7 @@ async def display_action_to_code(config, action_id, template_arg, args):
 )
 async def beeper_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # Start self cleaning or steri-cleaning action action
@@ -353,8 +357,7 @@ async def beeper_action_to_code(config, action_id, template_arg, args):
 )
 async def start_cleaning_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # Set vertical airflow direction action
@@ -411,8 +414,7 @@ async def haier_set_horizontal_airflow_to_code(config, action_id, template_arg, 
 )
 async def health_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -426,8 +428,7 @@ async def health_action_to_code(config, action_id, template_arg, args):
 )
 async def power_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config):
@@ -462,10 +463,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add(haier_ns.init_haier_protocol_logging())
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    await climate.register_climate(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     if CONF_CONTROL_METHOD in config:

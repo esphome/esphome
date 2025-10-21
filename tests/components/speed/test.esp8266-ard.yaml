@@ -1,9 +1,5 @@
-output:
-  - platform: esp8266_pwm
-    id: fan_output_1
-    pin: 12
+substitutions:
+  output_platform: esp8266_pwm
+  pin: GPIO14
 
-fan:
-  - platform: speed
-    id: fan_speed
-    output: fan_output_1
+<<: !include common.yaml

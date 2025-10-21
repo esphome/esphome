@@ -1,0 +1,20 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
+display:
+  - platform: ili9xxx
+    id: ili9xxx_display
+    model: GC9A01A
+    invert_colors: True
+    cs_pin: 20
+    dc_pin: 21
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: chsc6x
+    display: ili9xxx_display
+    interrupt_pin: 22

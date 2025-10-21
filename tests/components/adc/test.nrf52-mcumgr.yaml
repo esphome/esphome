@@ -1,0 +1,23 @@
+sensor:
+  - platform: adc
+    pin: VDDHDIV5
+    name: "VDDH Voltage"
+    update_interval: 5sec
+    filters:
+      - multiply: 5
+  - platform: adc
+    pin: VDD
+    name: "VDD Voltage"
+    update_interval: 5sec
+  - platform: adc
+    pin: AIN0
+    name: "AIN0 Voltage"
+    update_interval: 5sec
+  - platform: adc
+    pin: P0.03
+    name: "AIN1 Voltage"
+    update_interval: 5sec
+  - platform: adc
+    name: "AIN2 Voltage"
+    update_interval: 5sec
+    pin: 4

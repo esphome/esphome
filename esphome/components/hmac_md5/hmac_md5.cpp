@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 #include "hmac_md5.h"
+#ifdef USE_MD5
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -54,3 +55,4 @@ bool HmacMD5::equals_hex(const char *expected) { return this->ohash_.equals_hex(
 
 }  // namespace hmac_md5
 }  // namespace esphome
+#endif

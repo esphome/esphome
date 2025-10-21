@@ -1,0 +1,5 @@
+sensor:
+  - platform: jsn_sr04t
+    id: jsn_sr04t_sensor
+    name: jsn_sr04t Distance
+    update_interval: 1s
