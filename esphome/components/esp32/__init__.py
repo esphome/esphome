@@ -550,6 +550,8 @@ CONF_ENABLE_LWIP_BRIDGE_INTERFACE = "enable_lwip_bridge_interface"
 CONF_ENABLE_LWIP_TCPIP_CORE_LOCKING = "enable_lwip_tcpip_core_locking"
 CONF_ENABLE_LWIP_CHECK_THREAD_SAFETY = "enable_lwip_check_thread_safety"
 CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
+CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
+CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -614,6 +616,12 @@ FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(
                         CONF_DISABLE_LIBC_LOCKS_IN_IRAM, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True
+                    ): cv.boolean,
+                    cv.Optional(
+                        CONF_DISABLE_VFS_SUPPORT_SELECT, default=True
                     ): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
                 }
@@ -961,6 +969,23 @@ async def to_code(config):
     # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
     if advanced.get(CONF_DISABLE_LIBC_LOCKS_IN_IRAM, True):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
+
+    # Disable VFS support for termios (terminal I/O functions)
+    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # Saves approximately 1.8KB of flash when disabled (default).
+    add_idf_sdkconfig_option(
+        "CONFIG_VFS_SUPPORT_TERMIOS",
+        not advanced.get(CONF_DISABLE_VFS_SUPPORT_TERMIOS, True),
+    )
+
+    # Disable VFS support for select() with file descriptors
+    # ESPHome only uses select() with sockets via lwip_select(), which still works.
+    # VFS select is only needed for UART/eventfd file descriptors, which ESPHome doesn't use.
+    # Saves approximately 2.7KB of flash when disabled (default).
+    add_idf_sdkconfig_option(
+        "CONFIG_VFS_SUPPORT_SELECT",
+        not advanced.get(CONF_DISABLE_VFS_SUPPORT_SELECT, True),
+    )
 
     cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
