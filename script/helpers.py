@@ -764,12 +764,9 @@ def create_components_graph() -> dict[str, list[str]]:
         name = path.name
         comp = get_component(name)
         if comp is None:
-            print(
+            raise RuntimeError(
                 f"Cannot find component {name}. Make sure current path is pip installed ESPHome"
             )
-            import sys
-
-            sys.exit(1)
 
         components.append((comp, name, path))
         if comp.is_platform_component:
