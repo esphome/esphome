@@ -232,9 +232,30 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 api_component = (name, mem)
                 break
 
-        # Combine all components to analyze: top ESPHome + all external + API if not already included
-        components_to_analyze = list(top_esphome_components) + list(
-            top_external_components
+        # Also include wifi_stack and other important system components if they exist
+        system_components_to_include = [
+            "wifi_stack",
+            "bluetooth",
+            "network_stack",
+            "cpp_runtime",
+            "other",
+            "libc",
+            "phy_radio",
+            "mdns_lib",
+            "nvs",
+            "ota",
+            "arduino_core",
+        ]
+        system_components = []
+        for name, mem in components:
+            if name in system_components_to_include:
+                system_components.append((name, mem))
+
+        # Combine all components to analyze: top ESPHome + all external + API if not already included + system components
+        components_to_analyze = (
+            list(top_esphome_components)
+            + list(top_external_components)
+            + system_components
         )
         if api_component and api_component not in components_to_analyze:
             components_to_analyze.append(api_component)
