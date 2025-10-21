@@ -330,11 +330,8 @@ float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
 
-void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
-void WiFiComponent::set_sta(const WiFiAP &ap) {
-  this->clear_sta();
-  this->add_sta(ap);
-}
+void WiFiComponent::set_stas(const std::initializer_list<WiFiAP> &aps) { this->sta_ = aps; }
+void WiFiComponent::set_sta(const WiFiAP &ap) { this->set_stas({ap}); }
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
