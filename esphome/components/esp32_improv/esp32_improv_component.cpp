@@ -389,11 +389,13 @@ void ESP32ImprovComponent::check_wifi_connection_() {
     std::string url_strings[3];
     size_t url_count = 0;
 
+#ifdef USE_ESP32_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
     std::string next_url = this->get_formatted_next_url_();
     if (!next_url.empty()) {
       url_strings[url_count++] = std::move(next_url);
     }
+#endif
 
     // Add default URLs for backward compatibility
     url_strings[url_count++] = ESPHOME_MY_LINK;
