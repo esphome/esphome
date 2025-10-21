@@ -286,14 +286,14 @@ std::string LvSelectable::get_selected_text() {
   return this->options_[selected];
 }
 
-static std::string join_string(std::vector<std::string> options) {
+static std::string join_string(const FixedVector<std::string> &options) {
   return std::accumulate(
       options.begin(), options.end(), std::string(),
       [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
 }
 
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
-  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  auto *index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
     lv_event_send(this->obj, lv_api_event, nullptr);
