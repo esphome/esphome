@@ -16,43 +16,41 @@ def apply_memory_patches(content):
     """
     patches_applied = []
 
-    # Replace IRAM size from 0x8000 (32KB) to 0x200000 (2MB)
-    # The line looks like: iram1_0_seg : org = 0x40100000, len = 0x8000
+    # Patch IRAM segment to 2MB (for larger code in IRAM)
+    # Matches: iram1_0_seg : org = 0x..., len = 0x...
     new_content = re.sub(
-        r"(iram1_0_seg\s*:\s*org\s*=\s*0x40100000\s*,\s*len\s*=\s*)0x8000",
+        r"(iram1_0_seg\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
         r"\g<1>0x200000",
         content,
     )
     if new_content != content:
-        patches_applied.append("IRAM: 32KB -> 2MB")
+        patches_applied.append("IRAM")
         content = new_content
 
-    # Replace DRAM (BSS) size to allow larger uninitialized data sections
-    # The line looks like: dram0_0_seg : org = 0x3FFE8000, len = 0x14000
-    # Increase from 0x14000 (80KB) to 0x200000 (2MB)
+    # Patch DRAM segment to 2MB (for larger BSS/data sections)
+    # Matches: dram0_0_seg : org = 0x..., len = 0x...
     new_content = re.sub(
-        r"(dram0_0_seg\s*:\s*org\s*=\s*0x3FFE8000\s*,\s*len\s*=\s*)0x14000",
+        r"(dram0_0_seg\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
         r"\g<1>0x200000",
         content,
     )
     if new_content != content:
-        patches_applied.append("DRAM: 80KB -> 2MB")
+        patches_applied.append("DRAM")
         content = new_content
 
-    # Replace Flash/irom0 size to allow larger code sections
-    # The line looks like: irom0_0_seg : org = 0x40201010, len = 0xfeff0
-    # Increase from 0xfeff0 (~1MB) to 0x2000000 (32MB) - fake huge flash for testing
+    # Patch Flash segment to 32MB (for larger code sections)
+    # Matches: irom0_0_seg : org = 0x..., len = 0x...
     new_content = re.sub(
-        r"(irom0_0_seg\s*:\s*org\s*=\s*0x40201010\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
+        r"(irom0_0_seg\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)0x[0-9a-fA-F]+",
         r"\g<1>0x2000000",
         content,
     )
     if new_content != content:
-        patches_applied.append("Flash: 1MB -> 32MB")
+        patches_applied.append("Flash")
         content = new_content
 
     if patches_applied:
-        print(f"  Patches applied: {', '.join(patches_applied)}")
+        print(f"  Patched memory segments: {', '.join(patches_applied)} (IRAM/DRAM: 2MB, Flash: 32MB)")
 
     return content
 
