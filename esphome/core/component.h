@@ -483,3 +483,4 @@ class WarnIfComponentBlockingGuard {
 void clear_setup_priority_overrides();
 
 }  // namespace esphome
+// Test core file change for split logic
