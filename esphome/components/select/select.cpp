@@ -34,11 +34,12 @@ size_t Select::size() const {
 
 optional<size_t> Select::index_of(const std::string &option) const {
   const auto &options = traits.get_options();
-  auto it = std::find(options.begin(), options.end(), option);
-  if (it == options.end()) {
-    return {};
+  for (size_t i = 0; i < options.size(); i++) {
+    if (options[i] == option) {
+      return i;
+    }
   }
-  return std::distance(options.begin(), it);
+  return {};
 }
 
 optional<size_t> Select::active_index() const {

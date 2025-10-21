@@ -7,6 +7,7 @@ wave_4_3 = DriverChip(
     "ESP32-S3-TOUCH-LCD-4.3",
     swap_xy=UNDEFINED,
     initsequence=(),
+    color_order="RGB",
     width=800,
     height=480,
     pclk_frequency="16MHz",
@@ -29,6 +30,19 @@ wave_4_3 = DriverChip(
         "blue": [14, 38, 18, 17, 10],
     },
 )
+
+wave_4_3.extend(
+    "WAVESHARE-5-1024X600",
+    width=1024,
+    height=600,
+    hsync_back_porch=145,
+    hsync_front_porch=170,
+    hsync_pulse_width=30,
+    vsync_back_porch=23,
+    vsync_front_porch=12,
+    vsync_pulse_width=2,
+)
+
 wave_4_3.extend(
     "ESP32-S3-TOUCH-LCD-7-800X480",
     enable_pin=[{"ch422g": None, "number": 2}, {"ch422g": None, "number": 6}],

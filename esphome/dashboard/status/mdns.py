@@ -13,10 +13,12 @@ from esphome.zeroconf import (
     DashboardBrowser,
     DashboardImportDiscovery,
     DashboardStatus,
+    DiscoveredImport,
 )
 
-from ..const import SENTINEL
+from ..const import SENTINEL, DashboardEvent
 from ..entries import DashboardEntry, EntryStateSource, bool_to_entry_state
+from ..models import build_importable_device_dict
 
 if typing.TYPE_CHECKING:
     from ..core import ESPHomeDashboard
@@ -77,6 +79,20 @@ class MDNSStatus:
         _LOGGER.debug("Not found in zeroconf cache: %s", resolver_name)
         return None
 
+    def _on_import_update(self, name: str, discovered: DiscoveredImport | None) -> None:
+        """Handle importable device updates."""
+        if discovered is None:
+            # Device removed
+            self.dashboard.bus.async_fire(
+                DashboardEvent.IMPORTABLE_DEVICE_REMOVED, {"name": name}
+            )
+        else:
+            # Device added
+            self.dashboard.bus.async_fire(
+                DashboardEvent.IMPORTABLE_DEVICE_ADDED,
+                {"device": build_importable_device_dict(self.dashboard, discovered)},
+            )
+
     async def async_refresh_hosts(self) -> None:
         """Refresh the hosts to track."""
         dashboard = self.dashboard
@@ -133,7 +149,8 @@ class MDNSStatus:
                         self._async_set_state(entry, result)
 
         stat = DashboardStatus(on_update)
-        imports = DashboardImportDiscovery()
+
+        imports = DashboardImportDiscovery(self._on_import_update)
         dashboard.import_result = imports.import_state
 
         browser = DashboardBrowser(

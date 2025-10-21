@@ -36,28 +36,40 @@ struct device;
 
 namespace esphome::logger {
 
-// Color and letter constants for log levels
-static const char *const LOG_LEVEL_COLORS[] = {
-    "",                                            // NONE
-    ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN),    // INFO
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_MAGENTA),  // CONFIG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN),     // DEBUG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+// Comparison function for const char* keys in log_levels_ map
+struct CStrCompare {
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+};
+#endif
+
+// ANSI color code last digit (30-38 range, store only last digit to save RAM)
+static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
+    '\0',  // NONE
+    '1',   // ERROR (31 = red)
+    '3',   // WARNING (33 = yellow)
+    '2',   // INFO (32 = green)
+    '5',   // CONFIG (35 = magenta)
+    '6',   // DEBUG (36 = cyan)
+    '7',   // VERBOSE (37 = gray)
+    '8',   // VERY_VERBOSE (38 = white)
 };
 
-static const char *const LOG_LEVEL_LETTERS[] = {
-    "",    // NONE
-    "E",   // ERROR
-    "W",   // WARNING
-    "I",   // INFO
-    "C",   // CONFIG
-    "D",   // DEBUG
-    "V",   // VERBOSE
-    "VV",  // VERY_VERBOSE
+static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
+    '\0',  // NONE
+    'E',   // ERROR
+    'W',   // WARNING
+    'I',   // INFO
+    'C',   // CONFIG
+    'D',   // DEBUG
+    'V',   // VERBOSE (VERY_VERBOSE uses two 'V's)
 };
+
+// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
+static constexpr uint16_t MAX_HEADER_SIZE = 128;
+
+// "0x" + 2 hex digits per byte + '\0'
+static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
@@ -131,8 +143,10 @@ class Logger : public Component {
 
   /// Set the default log level for this logger.
   void set_log_level(uint8_t level);
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   /// Set the log level of the specified tag.
-  void set_log_level(const std::string &tag, uint8_t log_level);
+  void set_log_level(const char *tag, uint8_t log_level);
+#endif
   uint8_t get_log_level() { return this->current_level_; }
 
   // ========== INTERNAL METHODS ==========
@@ -166,8 +180,11 @@ class Logger : public Component {
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
                                                         va_list args, char *buffer, uint16_t *buffer_at,
                                                         uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
+#elif defined(USE_ZEPHYR)
+    char buff[MAX_POINTER_REPRESENTATION];
+    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(buff), buffer, buffer_at, buffer_size);
 #else
     this->write_header_to_buffer_(level, tag, line, nullptr, buffer, buffer_at, buffer_size);
 #endif
@@ -215,14 +232,6 @@ class Logger : public Component {
     }
   }
 
-  // Format string to explicit buffer with varargs
-  inline void printf_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, arg);
-    va_end(arg);
-  }
-
 #ifndef USE_HOST
   const LogString *get_uart_selection_();
 #endif
@@ -248,7 +257,9 @@ class Logger : public Component {
 #endif
 
   // Large objects (internally aligned)
-  std::map<std::string, uint8_t> log_levels_{};
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  std::map<const char *, uint8_t, CStrCompare> log_levels_{};
+#endif
   CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
@@ -272,7 +283,11 @@ class Logger : public Component {
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_() {
+  const char *HOT get_thread_name_(
+#ifdef USE_ZEPHYR
+      char *buff
+#endif
+  ) {
 #ifdef USE_ZEPHYR
     k_tid_t current_task = k_current_get();
 #else
@@ -286,7 +301,13 @@ class Logger : public Component {
 #elif defined(USE_LIBRETINY)
       return pcTaskGetTaskName(current_task);
 #elif defined(USE_ZEPHYR)
-      return k_thread_name_get(current_task);
+      const char *name = k_thread_name_get(current_task);
+      if (name) {
+        // zephyr print task names only if debug component is present
+        return name;
+      }
+      std::snprintf(buff, MAX_POINTER_REPRESENTATION, "%p", current_task);
+      return buff;
 #endif
     }
   }
@@ -318,26 +339,76 @@ class Logger : public Component {
   }
 #endif
 
+  static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
+    const size_t len = strlen(str);
+    // Intentionally no null terminator, building larger string
+    memcpy(buffer + pos, str, len);  // NOLINT(bugprone-not-null-terminated-result)
+    pos += len;
+  }
+
+  static inline void write_ansi_color_for_level(char *buffer, uint16_t &pos, uint8_t level) {
+    if (level == 0)
+      return;
+    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
+    // Example: "\033[1;31m" for ERROR (bold red)
+    buffer[pos++] = '\033';
+    buffer[pos++] = '[';
+    buffer[pos++] = (level == 1) ? '1' : '0';  // Only ERROR is bold
+    buffer[pos++] = ';';
+    buffer[pos++] = '3';
+    buffer[pos++] = LOG_LEVEL_COLOR_DIGIT[level];
+    buffer[pos++] = 'm';
+  }
+
   inline void HOT write_header_to_buffer_(uint8_t level, const char *tag, int line, const char *thread_name,
                                           char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    // Format header
-    // uint8_t level is already bounded 0-255, just ensure it's <= 7
-    if (level > 7)
-      level = 7;
+    uint16_t pos = *buffer_at;
+    // Early return if insufficient space - intentionally don't update buffer_at to prevent partial writes
+    if (pos + MAX_HEADER_SIZE > buffer_size)
+      return;
 
-    const char *color = esphome::logger::LOG_LEVEL_COLORS[level];
-    const char *letter = esphome::logger::LOG_LEVEL_LETTERS[level];
+    // Construct: <color>[LEVEL][tag:line]:
+    write_ansi_color_for_level(buffer, pos, level);
+    buffer[pos++] = '[';
+    if (level != 0) {
+      if (level >= 7) {
+        buffer[pos++] = 'V';  // VERY_VERBOSE = "VV"
+        buffer[pos++] = 'V';
+      } else {
+        buffer[pos++] = LOG_LEVEL_LETTER_CHARS[level];
+      }
+    }
+    buffer[pos++] = ']';
+    buffer[pos++] = '[';
+    copy_string(buffer, pos, tag);
+    buffer[pos++] = ':';
+    // Format line number without modulo operations (passed by value, safe to mutate)
+    if (line > 999) [[unlikely]] {
+      int thousands = line / 1000;
+      buffer[pos++] = '0' + thousands;
+      line -= thousands * 1000;
+    }
+    int hundreds = line / 100;
+    int remainder = line - hundreds * 100;
+    int tens = remainder / 10;
+    buffer[pos++] = '0' + hundreds;
+    buffer[pos++] = '0' + tens;
+    buffer[pos++] = '0' + (remainder - tens * 10);
+    buffer[pos++] = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
     if (thread_name != nullptr) {
-      // Non-main task with thread name
-      this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]%s[%s]%s: ", color, letter, tag, line,
-                              ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED), thread_name, color);
-      return;
+      write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
+      buffer[pos++] = '[';
+      copy_string(buffer, pos, thread_name);
+      buffer[pos++] = ']';
+      write_ansi_color_for_level(buffer, pos, level);  // Restore original color
     }
 #endif
-    // Main task or non ESP32/LibreTiny platform
-    this->printf_to_buffer_(buffer, buffer_at, buffer_size, "%s[%s][%s:%03u]: ", color, letter, tag, line);
+
+    buffer[pos++] = ':';
+    buffer[pos++] = ' ';
+    *buffer_at = pos;
   }
 
   inline void HOT format_body_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format,
