@@ -279,7 +279,8 @@ def test_main_with_branch_argument(
     # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
-    assert output["cpp_unit_tests"] == ["mqtt"]
+    assert output["cpp_unit_tests_run_all"] is False
+    assert output["cpp_unit_tests_components"] == ["mqtt"]
 
 
 def test_should_run_integration_tests(
