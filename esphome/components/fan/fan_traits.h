@@ -1,5 +1,5 @@
 #include <utility>
-#include <vector>
+#include "esphome/core/helpers.h"
 
 #pragma once
 
@@ -36,9 +36,14 @@ class FanTraits {
   /// Set whether this fan supports changing direction
   void set_direction(bool direction) { this->direction_ = direction; }
   /// Return the preset modes supported by the fan.
-  const std::vector<std::string> &supported_preset_modes() const { return this->preset_modes_; }
+  const FixedVector<std::string> &supported_preset_modes() const { return this->preset_modes_; }
   /// Set the preset modes supported by the fan.
-  void set_supported_preset_modes(const std::vector<std::string> &preset_modes) { this->preset_modes_ = preset_modes; }
+  template<typename T> void set_supported_preset_modes(const T &preset_modes) {
+    this->preset_modes_.init(preset_modes.size());
+    for (const auto &mode : preset_modes) {
+      this->preset_modes_.push_back(mode);
+    }
+  }
   /// Return if preset modes are supported
   bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
 
@@ -50,13 +55,13 @@ class FanTraits {
   // It is used by the API to avoid copying data when encoding messages.
   // Warning: Do not use this method outside of the API connection code.
   // It returns a reference to internal data that can be invalidated.
-  const std::vector<std::string> &supported_preset_modes_for_api_() const { return this->preset_modes_; }
+  const FixedVector<std::string> &supported_preset_modes_for_api_() const { return this->preset_modes_; }
 #endif
   bool oscillation_{false};
   bool speed_{false};
   bool direction_{false};
   int speed_count_{};
-  std::vector<std::string> preset_modes_{};
+  FixedVector<std::string> preset_modes_{};
 };
 
 }  // namespace fan
