@@ -3,13 +3,6 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-
-#ifdef USE_API
-namespace api {
-class APIConnection;
-}  // namespace api
-#endif
-
 namespace fan {
 
 class FanTraits {
@@ -48,14 +41,6 @@ class FanTraits {
   bool supports_preset_modes() const { return this->preset_modes_ != nullptr && !this->preset_modes_->empty(); }
 
  protected:
-#ifdef USE_API
-  friend class api::APIConnection;
-  // This method returns a reference to the internal preset modes.
-  // It is used by the API to avoid copying data when encoding messages.
-  // Warning: Do not use this method outside of the API connection code.
-  // It returns a reference to internal data that can be invalidated.
-  const FixedVector<std::string> &supported_preset_modes_for_api_() const { return *this->preset_modes_; }
-#endif
   bool oscillation_{false};
   bool speed_{false};
   bool direction_{false};
