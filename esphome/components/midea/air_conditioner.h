@@ -44,21 +44,10 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void do_power_off() { this->base_.setPowerState(false); }
   void do_power_toggle() { this->base_.setPowerState(this->mode == ClimateMode::CLIMATE_MODE_OFF); }
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
-  void set_supported_modes(std::initializer_list<ClimateMode> modes) {
-    this->supported_modes_ = ClimateModeMask(modes);
-  }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
-  void set_supported_swing_modes(std::initializer_list<ClimateSwingMode> modes) {
-    this->supported_swing_modes_ = ClimateSwingModeMask(modes);
-  }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
-  void set_supported_presets(std::initializer_list<ClimatePreset> presets) {
-    this->supported_presets_ = ClimatePresetMask(presets);
-  }
   void set_custom_presets(const std::vector<std::string> &presets) { this->supported_custom_presets_ = presets; }
-  void set_custom_presets(std::initializer_list<std::string> presets) { this->supported_custom_presets_ = presets; }
   void set_custom_fan_modes(const std::vector<std::string> &modes) { this->supported_custom_fan_modes_ = modes; }
-  void set_custom_fan_modes(std::initializer_list<std::string> modes) { this->supported_custom_fan_modes_ = modes; }
 
  protected:
   void control(const ClimateCall &call) override;

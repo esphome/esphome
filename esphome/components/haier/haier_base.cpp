@@ -177,10 +177,6 @@ void HaierClimateBase::set_supported_swing_modes(climate::ClimateSwingModeMask m
     this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);
 }
 
-void HaierClimateBase::set_supported_swing_modes(std::initializer_list<climate::ClimateSwingMode> modes) {
-  this->set_supported_swing_modes(climate::ClimateSwingModeMask(modes));
-}
-
 void HaierClimateBase::set_answer_timeout(uint32_t timeout) { this->haier_protocol_.set_answer_timeout(timeout); }
 
 void HaierClimateBase::set_supported_modes(climate::ClimateModeMask modes) {
@@ -189,18 +185,10 @@ void HaierClimateBase::set_supported_modes(climate::ClimateModeMask modes) {
   this->traits_.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);  // Always available
 }
 
-void HaierClimateBase::set_supported_modes(std::initializer_list<climate::ClimateMode> modes) {
-  this->set_supported_modes(climate::ClimateModeMask(modes));
-}
-
 void HaierClimateBase::set_supported_presets(climate::ClimatePresetMask presets) {
   this->traits_.set_supported_presets(presets);
   if (!presets.empty())
     this->traits_.add_supported_preset(climate::CLIMATE_PRESET_NONE);
-}
-
-void HaierClimateBase::set_supported_presets(std::initializer_list<climate::ClimatePreset> presets) {
-  this->set_supported_presets(climate::ClimatePresetMask(presets));
 }
 
 void HaierClimateBase::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ = send_wifi; }
