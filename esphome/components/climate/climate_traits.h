@@ -5,7 +5,15 @@
 #include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome::climate {
+namespace esphome {
+
+#ifdef USE_API
+namespace api {
+class APIConnection;
+}  // namespace api
+#endif
+
+namespace climate {
 
 // Bitmask sizes for climate enums
 constexpr int CLIMATE_MODE_BITMASK_SIZE = 8;  // 7 values (OFF, HEAT_COOL, COOL, HEAT, FAN_ONLY, DRY, AUTO)
@@ -33,18 +41,6 @@ template<typename T> inline bool vector_contains(const std::vector<T> &vec, cons
   }
   return false;
 }
-
-}  // namespace esphome::climate
-
-namespace esphome {
-
-#ifdef USE_API
-namespace api {
-class APIConnection;
-}  // namespace api
-#endif
-
-namespace climate {
 
 /** This class contains all static data for climate devices.
  *
