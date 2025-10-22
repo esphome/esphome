@@ -92,6 +92,7 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
 
   /// Iterator support for range-based for loops and API encoding
   /// Iterates over set bits and converts bit positions to enum values
+  /// Optimization: removes bits from mask as we iterate
   class Iterator {
    public:
     using iterator_category = std::forward_iterator_tag;
@@ -100,29 +101,29 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
     using pointer = const EnumType *;
     using reference = EnumType;
 
-    constexpr Iterator(bitmask_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit_(); }
+    constexpr explicit Iterator(bitmask_t mask) : mask_(mask) {}
 
-    constexpr EnumType operator*() const { return bit_to_enum(bit_); }
+    constexpr EnumType operator*() const {
+      // Return enum for the first set bit
+      return bit_to_enum(find_next_set_bit(mask_, 0));
+    }
 
     constexpr Iterator &operator++() {
-      ++bit_;
-      advance_to_next_set_bit_();
+      // Clear the lowest set bit (Brian Kernighan's algorithm)
+      mask_ &= mask_ - 1;
       return *this;
     }
 
-    constexpr bool operator==(const Iterator &other) const { return bit_ == other.bit_; }
+    constexpr bool operator==(const Iterator &other) const { return mask_ == other.mask_; }
 
     constexpr bool operator!=(const Iterator &other) const { return !(*this == other); }
 
    private:
-    constexpr void advance_to_next_set_bit_() { bit_ = find_next_set_bit(mask_, bit_); }
-
     bitmask_t mask_;
-    int bit_;
   };
 
-  constexpr Iterator begin() const { return Iterator(mask_, 0); }
-  constexpr Iterator end() const { return Iterator(mask_, MaxBits); }
+  constexpr Iterator begin() const { return Iterator(mask_); }
+  constexpr Iterator end() const { return Iterator(0); }
 
   /// Get the raw bitmask value for optimized operations
   constexpr bitmask_t get_mask() const { return this->mask_; }
