@@ -160,7 +160,8 @@ constexpr uint16_t CAPABILITY_BITMASKS[] = {
 };
 
 /**
- * @brief Helper function to convert a power-of-2 ColorCapability value to an array index for CAPABILITY_BITMASKS lookup.
+ * @brief Helper function to convert a power-of-2 ColorCapability value to an array index for CAPABILITY_BITMASKS
+ * lookup.
  *
  * This function maps ColorCapability values (1, 2, 4, 8, 16, 32) to array indices (0, 1, 2, 3, 4, 5).
  * Used to index into the CAPABILITY_BITMASKS lookup table.
