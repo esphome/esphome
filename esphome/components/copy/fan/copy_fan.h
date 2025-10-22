@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/fan/fan.h"
 
 namespace esphome {
@@ -19,6 +20,7 @@ class CopyFan : public fan::Fan, public Component {
   ;
 
   fan::Fan *source_;
+  FixedVector<std::string> preset_modes_{};
 };
 
 }  // namespace copy
