@@ -12,7 +12,7 @@ class CopyFan : public fan::Fan, public Component {
   void setup() override;
   void dump_config() override;
 
-  fan::FanTraits get_traits() override;
+  const fan::FanTraits &get_traits() override;
 
  protected:
   void control(const fan::FanCall &call) override;
