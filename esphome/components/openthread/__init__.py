@@ -4,6 +4,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
     only_on_variant,
+    require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
@@ -116,6 +117,13 @@ def _validate(config: ConfigType) -> ConfigType:
     return config
 
 
+def _require_vfs_select(config):
+    """Register VFS select requirement during config validation."""
+    # OpenThread uses esp_vfs_eventfd which requires VFS select support
+    require_vfs_select()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -135,6 +143,7 @@ CONFIG_SCHEMA = cv.All(
     cv.only_with_esp_idf,
     only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
     _validate,
+    _require_vfs_select,
 )
 
 
