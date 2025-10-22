@@ -1627,27 +1627,31 @@ bool WiFiComponent::is_esp32_improv_active_() {
 #endif
 }
 
-void WiFiComponent::request_high_performance() {
+bool WiFiComponent::request_high_performance() {
 #ifdef USE_ESP32
   // Skip if already configured for high performance or semaphore initialization failed
   if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE || this->high_performance_semaphore_ == nullptr) {
-    return;
+    return false;
   }
 
   // Give the semaphore (non-blocking). This increments the count.
-  xSemaphoreGive(this->high_performance_semaphore_);
+  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+#else
+  return false;
 #endif
 }
 
-void WiFiComponent::release_high_performance() {
+bool WiFiComponent::release_high_performance() {
 #ifdef USE_ESP32
   // Skip if already configured for high performance or semaphore initialization failed
   if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE || this->high_performance_semaphore_ == nullptr) {
-    return;
+    return false;
   }
 
   // Take the semaphore (non-blocking). This decrements the count.
-  xSemaphoreTake(this->high_performance_semaphore_, 0);
+  return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
+#else
+  return false;
 #endif
 }
 

@@ -381,8 +381,10 @@ class WiFiComponent : public Component {
    * If the YAML-configured power_save_mode is already NONE, this is a no-op.
    *
    * Note: Only supported on ESP32. No-op on other platforms.
+   *
+   * @return true if the request was successful, false otherwise
    */
-  void request_high_performance();
+  bool request_high_performance();
 
   /** Release a high-performance mode request.
    *
@@ -391,8 +393,10 @@ class WiFiComponent : public Component {
    * is restored to the YAML-configured mode.
    *
    * Note: Only supported on ESP32. No-op on other platforms.
+   *
+   * @return true if the release was successful, false otherwise
    */
-  void release_high_performance();
+  bool release_high_performance();
 
  protected:
 #ifdef USE_WIFI_AP
