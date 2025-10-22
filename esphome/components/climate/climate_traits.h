@@ -139,13 +139,13 @@ class ClimateTraits {
 
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void add_supported_mode(ClimateMode mode) { this->supported_modes_.insert(mode); }
-  bool supports_mode(ClimateMode mode) const { return this->supported_modes_.count(mode) > 0; }
+  bool supports_mode(ClimateMode mode) const { return this->supported_modes_.count(mode); }
   const ClimateModeMask &get_supported_modes() const { return this->supported_modes_; }
 
   void set_supported_fan_modes(ClimateFanModeMask modes) { this->supported_fan_modes_ = modes; }
   void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
   void add_supported_custom_fan_mode(const std::string &mode) { this->supported_custom_fan_modes_.push_back(mode); }
-  bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode) > 0; }
+  bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
     return !this->supported_fan_modes_.empty() || !this->supported_custom_fan_modes_.empty();
   }
@@ -168,7 +168,7 @@ class ClimateTraits {
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
   void add_supported_preset(ClimatePreset preset) { this->supported_presets_.insert(preset); }
   void add_supported_custom_preset(const std::string &preset) { this->supported_custom_presets_.push_back(preset); }
-  bool supports_preset(ClimatePreset preset) const { return this->supported_presets_.count(preset) > 0; }
+  bool supports_preset(ClimatePreset preset) const { return this->supported_presets_.count(preset); }
   bool get_supports_presets() const { return !this->supported_presets_.empty(); }
   const ClimatePresetMask &get_supported_presets() const { return this->supported_presets_; }
 
