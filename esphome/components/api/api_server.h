@@ -175,6 +175,10 @@ class APIServer : public Component, public Controller {
 
  protected:
   void schedule_reboot_timeout_();
+#ifdef USE_API_NOISE
+  bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
+                         const psk_t &active_psk, bool make_active);
+#endif  // USE_API_NOISE
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
