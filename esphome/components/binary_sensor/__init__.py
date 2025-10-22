@@ -264,20 +264,31 @@ async def delayed_off_filter_to_code(config, filter_id):
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
-    timings = []
     if len(config) > 0:
-        timings.extend(
-            (conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON])
-            for conf in config
-        )
-    else:
-        timings.append(
-            (
-                cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds,
-                cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
-                cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+        timings = [
+            cg.StructInitializer(
+                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
+                ("delay", conf[CONF_DELAY]),
+                ("time_off", conf[CONF_TIME_OFF]),
+                ("time_on", conf[CONF_TIME_ON]),
             )
-        )
+            for conf in config
+        ]
+    else:
+        timings = [
+            cg.StructInitializer(
+                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
+                ("delay", cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds),
+                (
+                    "time_off",
+                    cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
+                ),
+                (
+                    "time_on",
+                    cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+                ),
+            )
+        ]
     var = cg.new_Pvariable(filter_id, timings)
     await cg.register_component(var, {})
     return var

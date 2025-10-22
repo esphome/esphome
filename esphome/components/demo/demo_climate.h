@@ -82,16 +82,14 @@ class DemoClimate : public climate::Climate, public Component {
     climate::ClimateTraits traits{};
     switch (type_) {
       case DemoClimateType::TYPE_1:
-        traits.set_supports_current_temperature(true);
+        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
         traits.set_supported_modes({
             climate::CLIMATE_MODE_OFF,
             climate::CLIMATE_MODE_HEAT,
         });
-        traits.set_supports_action(true);
         traits.set_visual_temperature_step(0.5);
         break;
       case DemoClimateType::TYPE_2:
-        traits.set_supports_current_temperature(false);
         traits.set_supported_modes({
             climate::CLIMATE_MODE_OFF,
             climate::CLIMATE_MODE_HEAT,
@@ -100,7 +98,7 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_MODE_DRY,
             climate::CLIMATE_MODE_FAN_ONLY,
         });
-        traits.set_supports_action(true);
+        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
         traits.set_supported_fan_modes({
             climate::CLIMATE_FAN_ON,
             climate::CLIMATE_FAN_OFF,
@@ -123,8 +121,8 @@ class DemoClimate : public climate::Climate, public Component {
         traits.set_supported_custom_presets({"My Preset"});
         break;
       case DemoClimateType::TYPE_3:
-        traits.set_supports_current_temperature(true);
-        traits.set_supports_two_point_target_temperature(true);
+        traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
+                                 climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
         traits.set_supported_modes({
             climate::CLIMATE_MODE_OFF,
             climate::CLIMATE_MODE_COOL,
