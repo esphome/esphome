@@ -15,8 +15,8 @@ class TemplateFan : public Component, public fan::Fan {
   void set_has_direction(bool has_direction) { this->has_direction_ = has_direction; }
   void set_has_oscillating(bool has_oscillating) { this->has_oscillating_ = has_oscillating; }
   void set_speed_count(int count) { this->speed_count_ = count; }
-  void set_preset_modes(const std::initializer_list<std::string> &presets) { this->preset_modes_ = presets; }
-  const fan::FanTraits &get_traits() override { return this->traits_; }
+  void set_preset_modes(const std::vector<std::string> &presets) { this->preset_modes_ = presets; }
+  fan::FanTraits get_traits() override { return this->traits_; }
 
  protected:
   void control(const fan::FanCall &call) override;
@@ -25,7 +25,7 @@ class TemplateFan : public Component, public fan::Fan {
   bool has_direction_{false};
   int speed_count_{0};
   fan::FanTraits traits_;
-  FixedVector<std::string> preset_modes_{};
+  std::vector<std::string> preset_modes_{};
 };
 
 }  // namespace template_

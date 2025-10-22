@@ -132,7 +132,7 @@ FanCall Fan::make_call() { return FanCall(*this); }
 
 void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 void Fan::publish_state() {
-  const auto &traits = this->get_traits();
+  auto traits = this->get_traits();
 
   ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
   ESP_LOGD(TAG, "  State: %s", ONOFF(this->state));
@@ -211,7 +211,7 @@ void Fan::save_state_() {
 }
 
 void Fan::dump_traits_(const char *tag, const char *prefix) {
-  const auto &traits = this->get_traits();
+  auto traits = this->get_traits();
 
   if (traits.supports_speed()) {
     ESP_LOGCONFIG(tag,

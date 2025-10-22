@@ -17,7 +17,7 @@ class TuyaFan : public Component, public fan::Fan {
   void set_oscillation_id(uint8_t oscillation_id) { this->oscillation_id_ = oscillation_id; }
   void set_direction_id(uint8_t direction_id) { this->direction_id_ = direction_id; }
 
-  const fan::FanTraits &get_traits() override;
+  fan::FanTraits get_traits() override;
 
  protected:
   void control(const fan::FanCall &call) override;

@@ -16,7 +16,7 @@ class BinaryFan : public Component, public fan::Fan {
   void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
   void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
 
-  const fan::FanTraits &get_traits() override;
+  fan::FanTraits get_traits() override;
 
  protected:
   void control(const fan::FanCall &call) override;

@@ -401,7 +401,7 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
                                            bool is_single) {
   auto *fan = static_cast<fan::Fan *>(entity);
   FanStateResponse msg;
-  const auto &traits = fan->get_traits();
+  auto traits = fan->get_traits();
   msg.state = fan->state;
   if (traits.supports_oscillation())
     msg.oscillating = fan->oscillating;
@@ -418,7 +418,7 @@ uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *con
                                           bool is_single) {
   auto *fan = static_cast<fan::Fan *>(entity);
   ListEntitiesFanResponse msg;
-  const auto &traits = fan->get_traits();
+  auto traits = fan->get_traits();
   msg.supports_oscillation = traits.supports_oscillation();
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();

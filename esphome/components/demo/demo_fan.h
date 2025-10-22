@@ -16,9 +16,8 @@ enum class DemoFanType {
 class DemoFan : public fan::Fan, public Component {
  public:
   void set_type(DemoFanType type) { type_ = type; }
-  const fan::FanTraits &get_traits() override {
-    // Note: Demo fan builds traits dynamically, so we store it as a member
-    this->traits_ = fan::FanTraits{};
+  fan::FanTraits get_traits() override {
+    fan::FanTraits traits{};
 
     // oscillation
     // speed
@@ -28,22 +27,22 @@ class DemoFan : public fan::Fan, public Component {
       case DemoFanType::TYPE_1:
         break;
       case DemoFanType::TYPE_2:
-        this->traits_.set_oscillation(true);
+        traits.set_oscillation(true);
         break;
       case DemoFanType::TYPE_3:
-        this->traits_.set_direction(true);
-        this->traits_.set_speed(true);
-        this->traits_.set_supported_speed_count(5);
+        traits.set_direction(true);
+        traits.set_speed(true);
+        traits.set_supported_speed_count(5);
         break;
       case DemoFanType::TYPE_4:
-        this->traits_.set_direction(true);
-        this->traits_.set_speed(true);
-        this->traits_.set_supported_speed_count(100);
-        this->traits_.set_oscillation(true);
+        traits.set_direction(true);
+        traits.set_speed(true);
+        traits.set_supported_speed_count(100);
+        traits.set_oscillation(true);
         break;
     }
 
-    return this->traits_;
+    return traits;
   }
 
  protected:
@@ -61,7 +60,6 @@ class DemoFan : public fan::Fan, public Component {
   }
 
   DemoFanType type_;
-  fan::FanTraits traits_;
 };
 
 }  // namespace demo
