@@ -163,7 +163,7 @@ class LightState : public EntityBase, public Component {
   const FixedVector<LightEffect *> &get_effects() const;
 
   /// Add effects for this light state.
-  void add_effects(const std::vector<LightEffect *> &effects);
+  void add_effects(const std::initializer_list<LightEffect *> &effects);
 
   /// Get the total number of effects available for this light.
   size_t get_effect_count() const { return this->effects_.size(); }
