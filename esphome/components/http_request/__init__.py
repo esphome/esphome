@@ -280,7 +280,12 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
     cg.add(var.set_method(config[CONF_METHOD]))
-    cg.add(var.set_capture_response(config[CONF_CAPTURE_RESPONSE]))
+
+    capture_response = config[CONF_CAPTURE_RESPONSE]
+    if capture_response:
+        cg.add(var.set_capture_response(capture_response))
+        cg.add_define("USE_HTTP_REQUEST_RESPONSE")
+
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))
 
     if CONF_BODY in config:
@@ -304,20 +309,26 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
         cg.add(var.add_collect_header(value))
 
     for conf in config.get(CONF_ON_RESPONSE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_response_trigger(trigger))
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.std_shared_ptr.template(HttpContainer), "response"),
-                (cg.std_string_ref, "body"),
-            ],
-            conf,
-        )
+        if capture_response:
+            await automation.build_automation(
+                var.get_success_trigger_with_response(),
+                [
+                    (cg.std_shared_ptr.template(HttpContainer), "response"),
+                    (cg.std_string_ref, "body"),
+                    *args,
+                ],
+                conf,
+            )
+        else:
+            await automation.build_automation(
+                var.get_success_trigger(),
+                [(cg.std_shared_ptr.template(HttpContainer), "response"), *args],
+                conf,
+            )
     for conf in config.get(CONF_ON_ERROR, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_error_trigger(trigger))
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, args_, conf)
 
     return var
 
