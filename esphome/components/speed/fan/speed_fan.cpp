@@ -12,10 +12,12 @@ void SpeedFan::setup() {
     restore->apply(*this);
     this->write_state_();
   }
+}
 
-  // Construct traits
-  this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
-  this->traits_.set_supported_preset_modes(this->preset_modes_);
+fan::FanTraits SpeedFan::get_traits() {
+  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
+  traits.set_supported_preset_modes(this->preset_modes_);
+  return traits;
 }
 
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }

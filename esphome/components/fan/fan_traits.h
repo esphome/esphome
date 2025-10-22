@@ -18,6 +18,8 @@ class FanTraits {
   FanTraits() = default;
   FanTraits(bool oscillation, bool speed, bool direction, int speed_count)
       : oscillation_(oscillation), speed_(speed), direction_(direction), speed_count_(speed_count) {}
+  FanTraits(FanTraits &&) = default;
+  FanTraits &operator=(FanTraits &&) = default;
 
   /// Return if this fan supports oscillation.
   bool supports_oscillation() const { return this->oscillation_; }
