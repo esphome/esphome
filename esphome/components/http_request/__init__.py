@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_ON_ERROR,
     CONF_ON_RESPONSE,
     CONF_TIMEOUT,
-    CONF_TRIGGER_ID,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
     PLATFORM_HOST,
@@ -216,16 +215,8 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
             f"{CONF_VERIFY_SSL} has moved to the base component configuration."
         ),
         cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
-        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestResponseTrigger)}
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    automation.Trigger.template()
-                )
-            }
-        ),
+        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
     }
 )
@@ -308,7 +299,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     for value in config.get(CONF_COLLECT_HEADERS, []):
         cg.add(var.add_collect_header(value))
 
-    for conf in config.get(CONF_ON_RESPONSE, []):
+    if response_conf := config.get(CONF_ON_RESPONSE):
         if capture_response:
             await automation.build_automation(
                 var.get_success_trigger_with_response(),
@@ -317,18 +308,17 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
                     (cg.std_string_ref, "body"),
                     *args,
                 ],
-                conf,
+                response_conf,
             )
         else:
             await automation.build_automation(
                 var.get_success_trigger(),
                 [(cg.std_shared_ptr.template(HttpContainer), "response"), *args],
-                conf,
+                response_conf,
             )
-    for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_error_trigger(trigger))
-        await automation.build_automation(trigger, args_, conf)
+
+    if error_conf := config.get(CONF_ON_ERROR):
+        await automation.build_automation(var.get_error_trigger(), args, error_conf)
 
     return var
 
