@@ -16,7 +16,7 @@ template<typename ValueType, int MaxBits> struct DefaultBitPolicy {
   using mask_t = typename std::conditional<(MaxBits <= 8), uint8_t,
                                            typename std::conditional<(MaxBits <= 16), uint16_t, uint32_t>::type>::type;
 
-  static constexpr int max_bits = MaxBits;
+  static constexpr int MAX_BITS = MaxBits;
 
   static constexpr unsigned to_bit(ValueType value) { return static_cast<unsigned>(value); }
 
@@ -32,7 +32,7 @@ template<typename ValueType, int MaxBits> struct DefaultBitPolicy {
 ///
 /// BitPolicy requirements:
 ///   - using mask_t = <uint8_t|uint16_t|uint32_t>  // Bitmask storage type
-///   - static constexpr int max_bits               // Maximum number of bits
+///   - static constexpr int MAX_BITS               // Maximum number of bits
 ///   - static constexpr unsigned to_bit(ValueType) // Convert value to bit position
 ///   - static constexpr ValueType from_bit(unsigned) // Convert bit position to value
 ///
@@ -155,10 +155,10 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
   }
 
   /// Find the next set bit in a bitmask starting from a given position
-  /// Returns the bit position, or max_bits if no more bits are set
+  /// Returns the bit position, or MAX_BITS if no more bits are set
   static constexpr int find_next_set_bit(bitmask_t mask, int start_bit) {
     int bit = start_bit;
-    while (bit < BitPolicy::max_bits && !(mask & (static_cast<bitmask_t>(1) << bit))) {
+    while (bit < BitPolicy::MAX_BITS && !(mask & (static_cast<bitmask_t>(1) << bit))) {
       ++bit;
     }
     return bit;
