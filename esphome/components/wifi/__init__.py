@@ -213,11 +213,15 @@ def _validate(config):
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
         if CONF_NETWORKS in config:
-            raise cv.Invalid(
-                "You cannot use the 'ssid:' option together with 'networks:'. Please "
-                "copy your network into the 'networks:' key"
-            )
-        config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
+            # In testing mode, merged component tests may have both ssid and networks
+            # Just use the networks list and ignore the single ssid
+            if not CORE.testing_mode:
+                raise cv.Invalid(
+                    "You cannot use the 'ssid:' option together with 'networks:'. Please "
+                    "copy your network into the 'networks:' key"
+                )
+        else:
+            config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
         config = config.copy()
