@@ -29,5 +29,5 @@ async def to_code(config):
     await ota_to_code(var, config)
     await cg.register_component(var, config)
     cg.add_define("USE_WEBSERVER_OTA")
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_component(name="zorxx/multipart-parser", ref="1.0.1")

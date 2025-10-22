@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 #include <memory>
 
 namespace esphome {
@@ -37,10 +37,10 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void add_filter(Filter *filter);
 
   /// Add a list of vectors to the back of the filter chain.
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();

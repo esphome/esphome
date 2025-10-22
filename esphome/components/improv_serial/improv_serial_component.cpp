@@ -146,9 +146,11 @@ void ImprovSerialComponent::loop() {
 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
+#ifdef USE_IMPROV_SERIAL_NEXT_URL
   if (!this->next_url_.empty()) {
     urls.push_back(this->get_formatted_next_url_());
   }
+#endif
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
     if (ip.is_ip4()) {
@@ -218,7 +220,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
     }
     case improv::GET_WIFI_NETWORKS: {
       std::vector<std::string> networks;
-      auto results = wifi::global_wifi_component->get_scan_result();
+      const auto &results = wifi::global_wifi_component->get_scan_result();
       for (auto &scan : results) {
         if (scan.get_is_hidden())
           continue;

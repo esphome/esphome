@@ -36,6 +36,13 @@ struct device;
 
 namespace esphome::logger {
 
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+// Comparison function for const char* keys in log_levels_ map
+struct CStrCompare {
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+};
+#endif
+
 // ANSI color code last digit (30-38 range, store only last digit to save RAM)
 static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
     '\0',  // NONE
@@ -60,6 +67,9 @@ static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
 
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
+
+// "0x" + 2 hex digits per byte + '\0'
+static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
@@ -133,8 +143,10 @@ class Logger : public Component {
 
   /// Set the default log level for this logger.
   void set_log_level(uint8_t level);
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   /// Set the log level of the specified tag.
-  void set_log_level(const std::string &tag, uint8_t log_level);
+  void set_log_level(const char *tag, uint8_t log_level);
+#endif
   uint8_t get_log_level() { return this->current_level_; }
 
   // ========== INTERNAL METHODS ==========
@@ -168,8 +180,11 @@ class Logger : public Component {
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
                                                         va_list args, char *buffer, uint16_t *buffer_at,
                                                         uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
+#elif defined(USE_ZEPHYR)
+    char buff[MAX_POINTER_REPRESENTATION];
+    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(buff), buffer, buffer_at, buffer_size);
 #else
     this->write_header_to_buffer_(level, tag, line, nullptr, buffer, buffer_at, buffer_size);
 #endif
@@ -242,7 +257,9 @@ class Logger : public Component {
 #endif
 
   // Large objects (internally aligned)
-  std::map<std::string, uint8_t> log_levels_{};
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  std::map<const char *, uint8_t, CStrCompare> log_levels_{};
+#endif
   CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
   CallbackManager<void(uint8_t)> level_callback_{};
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
@@ -266,7 +283,11 @@ class Logger : public Component {
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  const char *HOT get_thread_name_() {
+  const char *HOT get_thread_name_(
+#ifdef USE_ZEPHYR
+      char *buff
+#endif
+  ) {
 #ifdef USE_ZEPHYR
     k_tid_t current_task = k_current_get();
 #else
@@ -280,7 +301,13 @@ class Logger : public Component {
 #elif defined(USE_LIBRETINY)
       return pcTaskGetTaskName(current_task);
 #elif defined(USE_ZEPHYR)
-      return k_thread_name_get(current_task);
+      const char *name = k_thread_name_get(current_task);
+      if (name) {
+        // zephyr print task names only if debug component is present
+        return name;
+      }
+      std::snprintf(buff, MAX_POINTER_REPRESENTATION, "%p", current_task);
+      return buff;
 #endif
     }
   }

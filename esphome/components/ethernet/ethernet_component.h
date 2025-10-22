@@ -88,7 +88,7 @@ class EthernetComponent : public Component {
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
-  std::string get_use_address() const;
+  const std::string &get_use_address() const;
   void set_use_address(const std::string &use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
   std::string get_eth_mac_address_pretty();
@@ -163,7 +163,7 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
