@@ -17,17 +17,20 @@ namespace esphome {
 ///
 /// Requirements:
 ///   - ValueType must have a bounded discrete range that maps to bit positions
-///   - Specialization must provide value_to_bit() and bit_to_value() static methods
+///   - For 1:1 mappings (contiguous enums starting at 0), no specialization needed
+///   - For custom mappings (like ColorMode), specialize value_to_bit() and/or bit_to_value()
 ///   - MaxBits must be sufficient to hold all possible values
 ///
-/// Example usage:
-///   using ClimateModeMask = FiniteSetMask<ClimateMode, 8>;
+/// Example usage (1:1 mapping - climate enums):
+///   // For enums with contiguous values starting at 0, no specialization needed!
+///   using ClimateModeMask = FiniteSetMask<ClimateMode, CLIMATE_MODE_AUTO + 1>;
 ///   ClimateModeMask modes({CLIMATE_MODE_HEAT, CLIMATE_MODE_COOL});
 ///   if (modes.count(CLIMATE_MODE_HEAT)) { ... }
 ///   for (auto mode : modes) { ... }  // Iterate over set bits
 ///
-/// For complete usage examples with template specializations, see:
-///   - esphome/components/light/color_mode.h (ColorMode enum example)
+/// Example usage (custom mapping - ColorMode):
+///   // For non-contiguous enums or custom mappings, specialize value_to_bit() and/or bit_to_value()
+///   // See esphome/components/light/color_mode.h for complete example
 ///
 /// Design notes:
 ///   - Uses compile-time type selection for optimal size (uint8_t/uint16_t/uint32_t)
@@ -150,10 +153,11 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
   }
 
  protected:
-  // Must be provided by template specialization
-  // These convert between values and bit positions (0, 1, 2, ...)
-  static constexpr int value_to_bit(ValueType value);
-  static ValueType bit_to_value(int bit);  // Not constexpr: array indexing with runtime bounds checking
+  // Default implementations for 1:1 mapping (enum value = bit position)
+  // For enums with contiguous values starting at 0, these defaults work as-is.
+  // If you need custom mapping (like ColorMode), provide specializations.
+  static constexpr int value_to_bit(ValueType value) { return static_cast<int>(value); }
+  static constexpr ValueType bit_to_value(int bit) { return static_cast<ValueType>(bit); }
 
   bitmask_t mask_{0};
 };
