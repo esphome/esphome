@@ -14,87 +14,8 @@ constexpr int CLIMATE_SWING_MODE_BITMASK_SIZE = 8;  // 4 values (OFF, BOTH, VERT
 constexpr int CLIMATE_PRESET_BITMASK_SIZE = 8;      // 8 values (NONE, HOME, AWAY, BOOST, COMFORT, ECO, SLEEP, ACTIVITY)
 }  // namespace esphome::climate
 
-// Template specializations for value-to-bit conversions
-// MUST be declared before any instantiation of FiniteSetMask<ClimateMode>, etc.
-namespace esphome {
-
-// ClimateMode uses 1:1 mapping (value_to_bit is just a cast)
-// Only bit_to_value needs specialization
-template<>
-inline climate::ClimateMode FiniteSetMask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::bit_to_value(
-    int bit) {
-  // Lookup array mapping bit positions to enum values
-  static constexpr climate::ClimateMode MODES[] = {
-      climate::CLIMATE_MODE_OFF,        // bit 0
-      climate::CLIMATE_MODE_HEAT_COOL,  // bit 1
-      climate::CLIMATE_MODE_COOL,       // bit 2
-      climate::CLIMATE_MODE_HEAT,       // bit 3
-      climate::CLIMATE_MODE_FAN_ONLY,   // bit 4
-      climate::CLIMATE_MODE_DRY,        // bit 5
-      climate::CLIMATE_MODE_AUTO,       // bit 6
-  };
-  static constexpr int MODE_COUNT = 7;
-  return (bit >= 0 && bit < MODE_COUNT) ? MODES[bit] : climate::CLIMATE_MODE_OFF;
-}
-
-// ClimateFanMode uses 1:1 mapping (value_to_bit is just a cast)
-// Only bit_to_value needs specialization
-template<>
-inline climate::ClimateFanMode FiniteSetMask<climate::ClimateFanMode,
-                                             climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
-  static constexpr climate::ClimateFanMode MODES[] = {
-      climate::CLIMATE_FAN_ON,       // bit 0
-      climate::CLIMATE_FAN_OFF,      // bit 1
-      climate::CLIMATE_FAN_AUTO,     // bit 2
-      climate::CLIMATE_FAN_LOW,      // bit 3
-      climate::CLIMATE_FAN_MEDIUM,   // bit 4
-      climate::CLIMATE_FAN_HIGH,     // bit 5
-      climate::CLIMATE_FAN_MIDDLE,   // bit 6
-      climate::CLIMATE_FAN_FOCUS,    // bit 7
-      climate::CLIMATE_FAN_DIFFUSE,  // bit 8
-      climate::CLIMATE_FAN_QUIET,    // bit 9
-  };
-  static constexpr int MODE_COUNT = 10;
-  return (bit >= 0 && bit < MODE_COUNT) ? MODES[bit] : climate::CLIMATE_FAN_ON;
-}
-
-// ClimateSwingMode uses 1:1 mapping (value_to_bit is just a cast)
-// Only bit_to_value needs specialization
-template<>
-inline climate::ClimateSwingMode FiniteSetMask<climate::ClimateSwingMode,
-                                               climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
-  static constexpr climate::ClimateSwingMode MODES[] = {
-      climate::CLIMATE_SWING_OFF,         // bit 0
-      climate::CLIMATE_SWING_BOTH,        // bit 1
-      climate::CLIMATE_SWING_VERTICAL,    // bit 2
-      climate::CLIMATE_SWING_HORIZONTAL,  // bit 3
-  };
-  static constexpr int MODE_COUNT = 4;
-  return (bit >= 0 && bit < MODE_COUNT) ? MODES[bit] : climate::CLIMATE_SWING_OFF;
-}
-
-// ClimatePreset uses 1:1 mapping (value_to_bit is just a cast)
-// Only bit_to_value needs specialization
-template<>
-inline climate::ClimatePreset FiniteSetMask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::bit_to_value(
-    int bit) {
-  static constexpr climate::ClimatePreset PRESETS[] = {
-      climate::CLIMATE_PRESET_NONE,      // bit 0
-      climate::CLIMATE_PRESET_HOME,      // bit 1
-      climate::CLIMATE_PRESET_AWAY,      // bit 2
-      climate::CLIMATE_PRESET_BOOST,     // bit 3
-      climate::CLIMATE_PRESET_COMFORT,   // bit 4
-      climate::CLIMATE_PRESET_ECO,       // bit 5
-      climate::CLIMATE_PRESET_SLEEP,     // bit 6
-      climate::CLIMATE_PRESET_ACTIVITY,  // bit 7
-  };
-  static constexpr int PRESET_COUNT = 8;
-  return (bit >= 0 && bit < PRESET_COUNT) ? PRESETS[bit] : climate::CLIMATE_PRESET_NONE;
-}
-
-}  // namespace esphome
-
-// Now we can safely create the type aliases
+// No template specializations needed - all climate enums use 1:1 mapping (enum value = bit position)
+// FiniteSetMask's default implementations handle this automatically.
 namespace esphome::climate {
 
 // Type aliases for climate enum bitmasks
