@@ -8,44 +8,54 @@
 
 namespace esphome {
 
+/// Default bit mapping policy for contiguous enums starting at 0
+/// Provides 1:1 mapping where enum value equals bit position
+template<typename ValueType, int MaxBits> struct DefaultBitPolicy {
+  // Automatic bitmask type selection based on MaxBits
+  // ≤8 bits: uint8_t, ≤16 bits: uint16_t, otherwise: uint32_t
+  using mask_t = typename std::conditional<(MaxBits <= 8), uint8_t,
+                                           typename std::conditional<(MaxBits <= 16), uint16_t, uint32_t>::type>::type;
+
+  static constexpr int max_bits = MaxBits;
+
+  static constexpr unsigned to_bit(ValueType value) { return static_cast<unsigned>(value); }
+
+  static constexpr ValueType from_bit(unsigned bit) { return static_cast<ValueType>(bit); }
+};
+
 /// Generic bitmask for storing a finite set of discrete values efficiently.
 /// Replaces std::set<ValueType> to eliminate red-black tree overhead (~586 bytes per instantiation).
 ///
 /// Template parameters:
 ///   ValueType: The type to store (typically enum, but can be any discrete bounded type)
-///   MaxBits: Maximum number of bits needed (auto-selects uint8_t/uint16_t/uint32_t)
+///   BitPolicy: Policy class defining bit mapping and mask type (defaults to DefaultBitPolicy)
 ///
-/// Requirements:
-///   - ValueType must have a bounded discrete range that maps to bit positions
-///   - For 1:1 mappings (contiguous enums starting at 0), no specialization needed
-///   - For custom mappings (like ColorMode), specialize value_to_bit() and/or bit_to_value()
-///   - MaxBits must be sufficient to hold all possible values
+/// BitPolicy requirements:
+///   - using mask_t = <uint8_t|uint16_t|uint32_t>  // Bitmask storage type
+///   - static constexpr int max_bits               // Maximum number of bits
+///   - static constexpr unsigned to_bit(ValueType) // Convert value to bit position
+///   - static constexpr ValueType from_bit(unsigned) // Convert bit position to value
 ///
 /// Example usage (1:1 mapping - climate enums):
-///   // For enums with contiguous values starting at 0, no specialization needed!
-///   using ClimateModeMask = FiniteSetMask<ClimateMode, CLIMATE_MODE_AUTO + 1>;
+///   // For contiguous enums starting at 0, use DefaultBitPolicy
+///   using ClimateModeMask = FiniteSetMask<ClimateMode, DefaultBitPolicy<ClimateMode, CLIMATE_MODE_AUTO + 1>>;
 ///   ClimateModeMask modes({CLIMATE_MODE_HEAT, CLIMATE_MODE_COOL});
 ///   if (modes.count(CLIMATE_MODE_HEAT)) { ... }
-///   for (auto mode : modes) { ... }  // Iterate over set bits
+///   for (auto mode : modes) { ... }
 ///
 /// Example usage (custom mapping - ColorMode):
-///   // For non-contiguous enums or custom mappings, specialize value_to_bit() and/or bit_to_value()
+///   // For custom mappings, define a custom BitPolicy
 ///   // See esphome/components/light/color_mode.h for complete example
 ///
 /// Design notes:
-///   - Uses compile-time type selection for optimal size (uint8_t/uint16_t/uint32_t)
+///   - Policy-based design allows custom bit mappings without template specialization
 ///   - Iterator converts bit positions to actual values during traversal
 ///   - All operations are constexpr-compatible for compile-time initialization
 ///   - Drop-in replacement for std::set<ValueType> with simpler API
-///   - Despite the name, works with any discrete bounded type, not just enums
 ///
-template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
+template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16>> class FiniteSetMask {
  public:
-  // Automatic bitmask type selection based on MaxBits
-  // ≤8 bits: uint8_t, ≤16 bits: uint16_t, otherwise: uint32_t
-  using bitmask_t =
-      typename std::conditional<(MaxBits <= 8), uint8_t,
-                                typename std::conditional<(MaxBits <= 16), uint16_t, uint32_t>::type>::type;
+  using bitmask_t = typename BitPolicy::mask_t;
 
   constexpr FiniteSetMask() = default;
 
@@ -57,7 +67,7 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
   }
 
   /// Add a single value to the set (std::set compatibility)
-  constexpr void insert(ValueType value) { this->mask_ |= (static_cast<bitmask_t>(1) << value_to_bit(value)); }
+  constexpr void insert(ValueType value) { this->mask_ |= (static_cast<bitmask_t>(1) << BitPolicy::to_bit(value)); }
 
   /// Add multiple values from initializer list
   constexpr void insert(std::initializer_list<ValueType> values) {
@@ -67,7 +77,7 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
   }
 
   /// Remove a value from the set (std::set compatibility)
-  constexpr void erase(ValueType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << value_to_bit(value)); }
+  constexpr void erase(ValueType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << BitPolicy::to_bit(value)); }
 
   /// Clear all values from the set
   constexpr void clear() { this->mask_ = 0; }
@@ -75,7 +85,7 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
   /// Check if the set contains a specific value (std::set compatibility)
   /// Returns 1 if present, 0 if not (same as std::set for unique elements)
   constexpr size_t count(ValueType value) const {
-    return (this->mask_ & (static_cast<bitmask_t>(1) << value_to_bit(value))) != 0 ? 1 : 0;
+    return (this->mask_ & (static_cast<bitmask_t>(1) << BitPolicy::to_bit(value))) != 0 ? 1 : 0;
   }
 
   /// Count the number of values in the set
@@ -109,7 +119,7 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
 
     constexpr ValueType operator*() const {
       // Return value for the first set bit
-      return bit_to_value(find_next_set_bit(mask_, 0));
+      return BitPolicy::from_bit(find_next_set_bit(mask_, 0));
     }
 
     constexpr Iterator &operator++() {
@@ -135,30 +145,26 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
   /// Check if a specific value is present in a raw bitmask
   /// Useful for checking intersection results without creating temporary objects
   static constexpr bool mask_contains(bitmask_t mask, ValueType value) {
-    return (mask & (static_cast<bitmask_t>(1) << value_to_bit(value))) != 0;
+    return (mask & (static_cast<bitmask_t>(1) << BitPolicy::to_bit(value))) != 0;
   }
 
   /// Get the first value from a raw bitmask
   /// Used for optimizing intersection logic (e.g., "pick first suitable mode")
-  static constexpr ValueType first_value_from_mask(bitmask_t mask) { return bit_to_value(find_next_set_bit(mask, 0)); }
+  static constexpr ValueType first_value_from_mask(bitmask_t mask) {
+    return BitPolicy::from_bit(find_next_set_bit(mask, 0));
+  }
 
   /// Find the next set bit in a bitmask starting from a given position
-  /// Returns the bit position, or MaxBits if no more bits are set
+  /// Returns the bit position, or max_bits if no more bits are set
   static constexpr int find_next_set_bit(bitmask_t mask, int start_bit) {
     int bit = start_bit;
-    while (bit < MaxBits && !(mask & (static_cast<bitmask_t>(1) << bit))) {
+    while (bit < BitPolicy::max_bits && !(mask & (static_cast<bitmask_t>(1) << bit))) {
       ++bit;
     }
     return bit;
   }
 
  protected:
-  // Default implementations for 1:1 mapping (enum value = bit position)
-  // For enums with contiguous values starting at 0, these defaults work as-is.
-  // If you need custom mapping (like ColorMode), provide specializations.
-  static constexpr int value_to_bit(ValueType value) { return static_cast<int>(value); }
-  static constexpr ValueType bit_to_value(int bit) { return static_cast<ValueType>(bit); }
-
   bitmask_t mask_{0};
 };
 
