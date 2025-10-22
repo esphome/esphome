@@ -723,7 +723,7 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
     root["speed_level"] = obj->speed;
     root["speed_count"] = traits.supported_speed_count();
   }
-  if (obj->get_traits().supports_oscillation())
+  if (traits.supports_oscillation())
     root["oscillation"] = obj->oscillating;
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
