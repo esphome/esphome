@@ -15,8 +15,7 @@ void SpeedFan::setup() {
 
   // Construct traits
   this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
-  if (!this->preset_modes_.empty())
-    this->traits_.set_supported_preset_modes(this->preset_modes_);
+  this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
 
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
