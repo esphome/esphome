@@ -877,7 +877,7 @@ async def to_code(config):
     for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
         os.environ.pop(clean_var, None)
 
-    # Set the location of the IDF component cache
+    # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
     )
