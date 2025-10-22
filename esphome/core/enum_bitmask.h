@@ -151,7 +151,7 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
   // Must be provided by template specialization
   // These convert between enum values and bit positions (0, 1, 2, ...)
   static constexpr int enum_to_bit(EnumType value);
-  static EnumType bit_to_enum(int bit);  // Not constexpr due to static array limitation in C++20
+  static EnumType bit_to_enum(int bit);  // Not constexpr: array indexing with runtime bounds checking
 
   bitmask_t mask_{0};
 };

@@ -159,16 +159,13 @@ constexpr uint16_t CAPABILITY_BITMASKS[] = {
     compute_capability_bitmask(ColorCapability::RGB),                // 1 << 5
 };
 
-/// Check if any mode in the bitmask has a specific capability
-/// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
-inline bool has_capability(const ColorModeMask &mask, ColorCapability capability) {
-  // Lookup the pre-computed bitmask for this capability and check intersection with our mask
-  // ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
-  // We need to convert the power-of-2 value to an index
+/// Convert a power-of-2 ColorCapability value to an array index
+/// ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
+inline int capability_to_index(ColorCapability capability) {
   uint8_t cap_val = static_cast<uint8_t>(capability);
 #if defined(__GNUC__) || defined(__clang__)
   // Use compiler intrinsic for efficient bit position lookup (O(1) vs O(log n))
-  int index = __builtin_ctz(cap_val);
+  return __builtin_ctz(cap_val);
 #else
   // Fallback for compilers without __builtin_ctz
   int index = 0;
@@ -176,8 +173,15 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
     cap_val >>= 1;
     ++index;
   }
+  return index;
 #endif
-  return (mask.get_mask() & CAPABILITY_BITMASKS[index]) != 0;
+}
+
+/// Check if any mode in the bitmask has a specific capability
+/// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
+inline bool has_capability(const ColorModeMask &mask, ColorCapability capability) {
+  // Lookup the pre-computed bitmask for this capability and check intersection with our mask
+  return (mask.get_mask() & CAPABILITY_BITMASKS[capability_to_index(capability)]) != 0;
 }
 
 }  // namespace light
