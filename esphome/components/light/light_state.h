@@ -177,7 +177,7 @@ class LightState : public EntityBase, public Component {
       return 0;
     }
     for (size_t i = 0; i < this->effects_.size(); i++) {
-      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name().c_str()) == 0) {
+      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name()) == 0) {
         return i + 1;  // Effects are 1-indexed in active_effect_index_
       }
     }
