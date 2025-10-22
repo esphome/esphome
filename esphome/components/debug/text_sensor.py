@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
                 icon=ICON_WIFI,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.only_on(["esp32", "esp8266", "rp2040", "bk72xx", "rtl87xx"]),
+            cv.only_on(["esp32", "esp8266"]),
             cv.requires_component("wifi"),
         ),
     }

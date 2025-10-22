@@ -17,9 +17,7 @@
 extern "C" {
 #include <user_interface.h>
 }
-#elif defined(USE_RP2040)
-#include <pico/cyw43_arch.h>
-#endif  // USE_ESP32 / USE_ESP8266 / USE_RP2040
+#endif  // USE_ESP32 / USE_ESP8266
 #endif  // USE_WIFI
 #endif  // USE_TEXT_SENSOR
 
@@ -96,10 +94,6 @@ class DebugComponent : public PollingComponent {
   wifi_ps_type_t last_wifi_ps_mode_{};
 #elif defined(USE_WIFI) && defined(USE_ESP8266)
   sleep_type_t last_wifi_sleep_type_{};
-#elif defined(USE_WIFI) && defined(USE_RP2040)
-  uint32_t last_wifi_pm_{CYW43_PERFORMANCE_PM};
-#elif defined(USE_WIFI) && defined(USE_LIBRETINY)
-  bool last_wifi_sleep_{false};
 #endif
 #endif  // USE_TEXT_SENSOR
 

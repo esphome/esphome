@@ -7,17 +7,6 @@ namespace debug {
 
 static const char *const TAG = "debug";
 
-#if defined(USE_TEXT_SENSOR) && defined(USE_WIFI)
-/// @brief Helper function to convert LibreTiny WiFi sleep state to string
-/// @param sleep_enabled WiFi sleep enabled state from WiFi.getSleep()
-/// @return const char pointer to the readable sleep state
-///
-/// LibreTiny WiFi sleep is a boolean on/off setting:
-/// - true (sleep enabled) -> "ON"
-/// - false (sleep disabled) -> "OFF"
-static const char *wifi_sleep_to_string(bool sleep_enabled) { return sleep_enabled ? "ON" : "OFF"; }
-#endif  // USE_TEXT_SENSOR && USE_WIFI
-
 std::string DebugComponent::get_reset_reason_() { return lt_get_reboot_reason_name(lt_get_reboot_reason()); }
 
 uint32_t DebugComponent::get_free_heap_() { return lt_heap_get_free(); }
@@ -46,17 +35,6 @@ void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
   if (this->block_sensor_ != nullptr) {
     this->block_sensor_->publish_state(lt_heap_get_max_alloc());
-  }
-#endif
-
-#if defined(USE_TEXT_SENSOR) && defined(USE_WIFI)
-  if (this->wifi_power_save_ != nullptr) {
-    bool sleep_enabled = WiFi.getSleep();
-    // Publish if the state has changed or if this is the first read
-    if (this->last_wifi_sleep_ != sleep_enabled || !this->wifi_power_save_->has_state()) {
-      this->wifi_power_save_->publish_state(wifi_sleep_to_string(sleep_enabled));
-      this->last_wifi_sleep_ = sleep_enabled;
-    }
   }
 #endif
 }
