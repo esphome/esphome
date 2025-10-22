@@ -243,8 +243,10 @@
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
+// clang-format off
 #define USE_SHD_FIRMWARE_DATA \
   {}
+// clang-format on
 
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH

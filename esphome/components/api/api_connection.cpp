@@ -1572,7 +1572,13 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
   resp.success = false;
 
   psk_t psk{};
-  if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
+  if (msg.key.empty()) {
+    if (this->parent_->clear_noise_psk(true)) {
+      resp.success = true;
+    } else {
+      ESP_LOGW(TAG, "Failed to clear encryption key");
+    }
+  } else if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");
