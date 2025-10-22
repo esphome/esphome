@@ -4,8 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-#include <vector>
-
 namespace esphome {
 
 namespace binary_sensor {
@@ -82,11 +80,6 @@ class InvertFilter : public Filter {
 };
 
 struct AutorepeatFilterTiming {
-  AutorepeatFilterTiming(uint32_t delay, uint32_t off, uint32_t on) {
-    this->delay = delay;
-    this->time_off = off;
-    this->time_on = on;
-  }
   uint32_t delay;
   uint32_t time_off;
   uint32_t time_on;
@@ -94,7 +87,7 @@ struct AutorepeatFilterTiming {
 
 class AutorepeatFilter : public Filter, public Component {
  public:
-  explicit AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings);
+  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings);
 
   optional<bool> new_value(bool value) override;
 
@@ -104,7 +97,7 @@ class AutorepeatFilter : public Filter, public Component {
   void next_timing_();
   void next_value_(bool val);
 
-  std::vector<AutorepeatFilterTiming> timings_;
+  FixedVector<AutorepeatFilterTiming> timings_;
   uint8_t active_timing_{0};
 };
 
