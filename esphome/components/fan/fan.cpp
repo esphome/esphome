@@ -1,5 +1,6 @@
 #include "fan.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome {
 namespace fan {
@@ -51,7 +52,7 @@ void FanCall::validate_() {
 
   if (!this->preset_mode_.empty()) {
     const auto &preset_modes = traits.supported_preset_modes();
-    if (preset_modes.find(this->preset_mode_) == preset_modes.end()) {
+    if (std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode_) == preset_modes.end()) {
       ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), this->preset_mode_.c_str());
       this->preset_mode_.clear();
     }
@@ -191,7 +192,7 @@ void Fan::save_state_() {
   if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
     const auto &preset_modes = this->get_traits().supported_preset_modes();
     // Store index of current preset mode
-    auto preset_iterator = preset_modes.find(this->preset_mode);
+    auto preset_iterator = std::find(preset_modes.begin(), preset_modes.end(), this->preset_mode);
     if (preset_iterator != preset_modes.end())
       state.preset_mode = std::distance(preset_modes.begin(), preset_iterator);
   }
