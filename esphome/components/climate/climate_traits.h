@@ -5,8 +5,7 @@
 #include "climate_mode_bitmask.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 // Lightweight linear search for small vectors (1-20 items)
 // Avoids std::find template overhead
@@ -18,8 +17,7 @@ template<typename T> inline bool vector_contains(const std::vector<T> &vec, cons
   return false;
 }
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate
 
 namespace esphome {
 

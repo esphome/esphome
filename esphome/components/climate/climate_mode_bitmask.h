@@ -3,8 +3,7 @@
 #include "esphome/core/enum_bitmask.h"
 #include "climate_mode.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 // Type aliases for climate enum bitmasks
 // These replace std::set<EnumType> to eliminate red-black tree overhead
@@ -21,8 +20,7 @@ using ClimateFanModeMask = EnumBitmask<ClimateFanMode, CLIMATE_FAN_MODE_BITMASK_
 using ClimateSwingModeMask = EnumBitmask<ClimateSwingMode, CLIMATE_SWING_MODE_BITMASK_SIZE>;
 using ClimatePresetMask = EnumBitmask<ClimatePreset, CLIMATE_PRESET_BITMASK_SIZE>;
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate
 
 // Template specializations for enum-to-bit conversions
 // All climate enums are sequential starting from 0, so conversions are trivial
