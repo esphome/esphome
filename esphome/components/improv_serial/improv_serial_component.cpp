@@ -115,8 +115,10 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   this->tx_header_[TX_LENGTH_IDX] = this->tx_header_[TX_TYPE_IDX] == TYPE_RPC_RESPONSE ? size : 1;
 
   const bool there_is_data = data != nullptr && size > 0;
-  const uint8_t header_checksum_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_) - 2;
-  const uint8_t header_tx_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_);
+  // If there_is_data, checksum must not include our optional data byte
+  const uint8_t header_checksum_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE - 2;
+  // Only transmit the full buffer length if there is no data (only state/error byte is provided in this case)
+  const uint8_t header_tx_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE;
   // Calculate checksum for message
   uint8_t checksum = 0;
   for (uint8_t i = 0; i < header_checksum_len; i++) {
