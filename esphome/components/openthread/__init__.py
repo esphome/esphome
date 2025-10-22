@@ -113,8 +113,8 @@ _CONNECTION_SCHEMA = cv.Schema(
 def _validate(config: ConfigType) -> ConfigType:
     if CONF_USE_ADDRESS not in config:
         config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
-        
-        
+
+
 def _require_vfs_select(config):
     """Register VFS select requirement during config validation."""
     # OpenThread uses esp_vfs_eventfd which requires VFS select support
