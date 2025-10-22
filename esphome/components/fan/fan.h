@@ -127,7 +127,7 @@ class Fan : public EntityBase {
 
   void publish_state();
 
-  virtual FanTraits get_traits() = 0;
+  virtual const FanTraits &get_traits() = 0;
 
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }

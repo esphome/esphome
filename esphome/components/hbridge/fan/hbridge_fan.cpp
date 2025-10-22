@@ -36,7 +36,8 @@ void HBridgeFan::setup() {
 
   // Construct traits
   this->traits_ = fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
-  this->traits_.set_supported_preset_modes(this->preset_modes_);
+  if (!this->preset_modes_.empty())
+    this->traits_.set_supported_preset_modes(this->preset_modes_);
 }
 
 void HBridgeFan::dump_config() {
