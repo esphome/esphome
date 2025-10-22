@@ -149,6 +149,8 @@ async def to_code(config):
         )
         await sensor.register_sensor(var, conf)
         cg.add(paren.add_sensor_item(var))
+        if register.deactivated:
+            cg.add(var.set_disabled_by_default(True))
 
     for register in AVARMA_BINARY_REGISTERS:
         if register.flags is not None:
@@ -175,6 +177,8 @@ async def to_code(config):
                 )
                 await binary_sensor.register_binary_sensor(var, conf)
                 cg.add(paren.add_sensor_item(var))
+                if register.deactivated:
+                    cg.add(var.set_disabled_by_default(True))
 
     for register in AVARMA_SWITCH_REGISTERS:
         conf = config[register.parameter_id]
@@ -199,6 +203,8 @@ async def to_code(config):
         await switch.register_switch(var, conf)
         cg.add(var.set_parent(paren))
         cg.add(paren.add_sensor_item(var))
+        if register.deactivated:
+            cg.add(var.set_disabled_by_default(True))
 
     for register in AVARMA_NUMBER_REGISTERS:
         conf = config[register.parameter_id]
@@ -238,5 +244,7 @@ async def to_code(config):
         cg.add(var.set_parent(paren))
         cg.add(paren.add_sensor_item(var))
         cg.add(var.set_write_multiply(conf[CONF_MULTIPLY]))
+        if register.deactivated:
+            cg.add(var.set_disabled_by_default(True))
 
     await cg.register_component(var, config)

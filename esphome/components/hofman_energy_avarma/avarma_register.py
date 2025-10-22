@@ -26,6 +26,7 @@ class AvarmaRegister:
         flags=None,
         value_type=SensorValueType.S_WORD,
         step=1.0,
+        deactivated=False,
     ):
         self.start_address = start_address
         self.register_offset = register_offset
@@ -43,6 +44,7 @@ class AvarmaRegister:
         self.step = step
         self.value_type = value_type
         self.name = f"{parameter_id} - {description}"
+        self.deactivated = deactivated
 
 
 class TempRegister(AvarmaRegister):
@@ -54,6 +56,7 @@ class TempRegister(AvarmaRegister):
         description="",
         min=-30.0,
         max=97.0,
+        deactivated=False,
     ):
         super().__init__(
             address,
@@ -63,6 +66,7 @@ class TempRegister(AvarmaRegister):
             min,
             max,
             register_factor=0.1,
+            deactivated=deactivated,
         )
 
 
@@ -77,6 +81,7 @@ class NumberRegister(AvarmaRegister):
         max,
         step=1.0,
         register_factor=1.0,
+        deactivated=False,
     ):
         self.step = step
         super().__init__(
@@ -87,4 +92,5 @@ class NumberRegister(AvarmaRegister):
             min,
             max,
             register_factor=register_factor,
+            deactivated=deactivated,
         )

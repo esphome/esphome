@@ -19,8 +19,8 @@ AVARMA_SENSOR_REGISTERS = [
     TempRegister(0x1100, 7, "C01", "Discharge temp", -30, 128),
     TempRegister(0x1100, 8, "C02", "Ambient temp"),
     TempRegister(0x1100, 9, "C03", "Suction temp"),
-    TempRegister(0x1100, 10, "C04", "EVI inlet temp"),
-    TempRegister(0x1100, 11, "C05", "EVI outlet temp"),
+    TempRegister(0x1100, 10, "C04", "EVI inlet temp", deactivated=True),
+    TempRegister(0x1100, 11, "C05", "EVI outlet temp", deactivated=True),
     TempRegister(0x1100, 12, "C06", "Refrigerant liquid temperature"),
     TempRegister(0x1100, 13, "C07", "Water inlet temperature"),
     TempRegister(0x1100, 14, "C08", "Water outlet temperature"),
@@ -214,7 +214,6 @@ AVARMA_NUMBER_REGISTERS = [
         "P02",
         "A/C Heating AU maximum temperature",
         device_class=None,
-        register_factor=10.0,
         min=35,
         max=75,
     ),
@@ -224,7 +223,6 @@ AVARMA_NUMBER_REGISTERS = [
         "P03",
         "A/C Cooling Temperature Setting",
         device_class=None,
-        register_factor=10.0,
         min=7,
         max=25,
     ),
@@ -234,7 +232,6 @@ AVARMA_NUMBER_REGISTERS = [
         "P04",
         "DHW Temperature Setting",
         device_class=None,
-        register_factor=10.0,
         min=10,
         max=70,
     ),
@@ -244,7 +241,6 @@ AVARMA_NUMBER_REGISTERS = [
         "P05",
         "Indoor Temperature Setting",
         device_class=None,
-        register_factor=10.0,
         min=18,
         max=35,
     ),
@@ -257,18 +253,42 @@ AVARMA_NUMBER_REGISTERS = [
     NumberRegister(
         0x2000, 7, "P09", "A/C Heating AU offset temperature", -10, 10, 0.1, 10.0
     ),
-    NumberRegister(0x2000, 8, "P10", "Sterilization interval days", 1, 99),
-    NumberRegister(0x2000, 9, "P11", "Sterilization start time", 0, 23),
-    NumberRegister(0x2000, 10, "P12", "Sterilization run time", 5, 99),
-    NumberRegister(0x2000, 11, "P13", "Sterilization temperature", 50, 70, 0.1, 10.0),
-    NumberRegister(0x2000, 12, "P14", "Sterilization mode selection", 0, 2),
-    NumberRegister(0x2000, 13, "P15", "Night mode start time", 0, 23),
-    NumberRegister(0x2000, 14, "P16", "Night mode end time", 0, 23),
-    NumberRegister(0x2000, 15, "P17", "Night mode effective", 0, 1),
-    NumberRegister(0x2000, 16, "P18", "DHW AU function", 0, 1),
-    NumberRegister(0x2000, 17, "P19", "AC Heating Model AU enable", 0, 1),
-    NumberRegister(0x2000, 18, "P20", "Water pump working mode", 0, 2),
-    NumberRegister(0x2000, 19, "P21", "Water pump antifreeze time", 5, 50),
+    NumberRegister(
+        0x2000, 8, "P10", "Sterilization interval days", 1, 99, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 9, "P11", "Sterilization start time", 0, 23, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 10, "P12", "Sterilization run time", 5, 99, deactivated=True
+    ),
+    NumberRegister(
+        0x2000,
+        11,
+        "P13",
+        "Sterilization temperature",
+        50,
+        70,
+        0.1,
+        10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000, 12, "P14", "Sterilization mode selection", 0, 2, deactivated=True
+    ),
+    NumberRegister(0x2000, 13, "P15", "Night mode start time", 0, 23, deactivated=True),
+    NumberRegister(0x2000, 14, "P16", "Night mode end time", 0, 23, deactivated=True),
+    NumberRegister(0x2000, 15, "P17", "Night mode effective", 0, 1, deactivated=True),
+    NumberRegister(0x2000, 16, "P18", "DHW AU function", 0, 1, deactivated=True),
+    NumberRegister(
+        0x2000, 17, "P19", "AC Heating Model AU enable", 0, 1, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 18, "P20", "Water pump working mode", 0, 2, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 19, "P21", "Water pump antifreeze time", 5, 50, deactivated=True
+    ),
     NumberRegister(
         0x2000,
         20,
@@ -278,6 +298,7 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -288,6 +309,7 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -298,6 +320,7 @@ AVARMA_NUMBER_REGISTERS = [
         15,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -308,18 +331,57 @@ AVARMA_NUMBER_REGISTERS = [
         5,
         0.1,
         10.0,
+        deactivated=True,
     ),
-    NumberRegister(0x2000, 24, "P26", "Defrost Interval Multiplier", 0, 4),
-    NumberRegister(0x2000, 25, "P27", "defrost cycle", 15, 99),
-    NumberRegister(0x2000, 26, "P28", "Defrost mode", 0, 1),
     NumberRegister(
-        0x2000, 27, "P29", "Defrost Start Coil Temperature", -8, 5, 0.1, 10.0
+        0x2000, 24, "P26", "Defrost Interval Multiplier", 0, 4, deactivated=True
     ),
-    NumberRegister(0x2000, 28, "P30", "Defrost end Coil Temperature", 5, 30, 0.1, 10.0),
-    NumberRegister(0x2000, 29, "P31", "Defrost working maximum time", 2, 20),
-    NumberRegister(0x2000, 30, "P32", "Main valve control way", 0, 4),
-    NumberRegister(0x2000, 31, "P33", "Main valve manual opening for heating", 50, 480),
-    NumberRegister(0x2000, 32, "P34", "Main valve manual opening for cooling", 50, 480),
+    NumberRegister(0x2000, 25, "P27", "defrost cycle", 15, 99, deactivated=True),
+    NumberRegister(0x2000, 26, "P28", "Defrost mode", 0, 1, deactivated=True),
+    NumberRegister(
+        0x2000,
+        27,
+        "P29",
+        "Defrost Start Coil Temperature",
+        -8,
+        5,
+        0.1,
+        10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        28,
+        "P30",
+        "Defrost end Coil Temperature",
+        5,
+        30,
+        0.1,
+        10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000, 29, "P31", "Defrost working maximum time", 2, 20, deactivated=True
+    ),
+    NumberRegister(0x2000, 30, "P32", "Main valve control way", 0, 4, deactivated=True),
+    NumberRegister(
+        0x2000,
+        31,
+        "P33",
+        "Main valve manual opening for heating",
+        50,
+        480,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        32,
+        "P34",
+        "Main valve manual opening for cooling",
+        50,
+        480,
+        deactivated=True,
+    ),
     NumberRegister(
         0x2000,
         33,
@@ -329,19 +391,48 @@ AVARMA_NUMBER_REGISTERS = [
         70,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 34, "P36", "Interval time between compressor and E1 startup", 0, 999
+        0x2000,
+        34,
+        "P36",
+        "Interval time between compressor and E1 startup",
+        0,
+        999,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 35, "P37", "Heating mode, DC fan speed variable", 2, 15, 0.1, 10.0
+        0x2000,
+        35,
+        "P37",
+        "Heating mode, DC fan speed variable",
+        2,
+        15,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 36, "P38", "Cooling mode, DC fan speed variable", 3, 18, 0.1, 10.0
+        0x2000,
+        36,
+        "P38",
+        "Cooling mode, DC fan speed variable",
+        3,
+        18,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
-    NumberRegister(0x2000, 37, "P39", "Inverter compressor model setting", 0, 999),
-    NumberRegister(0x2000, 38, "P40", "Running set frequency function", 0, 1),
-    NumberRegister(0x2000, 39, "P41", "Compressor oil return frequency ", 10, 100),
+    NumberRegister(
+        0x2000, 37, "P39", "Inverter compressor model setting", 0, 999, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 38, "P40", "Running set frequency function", 0, 1, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 39, "P41", "Compressor oil return frequency ", 10, 100, deactivated=True
+    ),
     NumberRegister(
         0x2000,
         40,
@@ -351,6 +442,7 @@ AVARMA_NUMBER_REGISTERS = [
         50,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -361,6 +453,7 @@ AVARMA_NUMBER_REGISTERS = [
         50,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -371,6 +464,7 @@ AVARMA_NUMBER_REGISTERS = [
         50,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -389,12 +483,7 @@ AVARMA_NUMBER_REGISTERS = [
         90,
     ),
     NumberRegister(
-        0x2000,
-        45,
-        "P47",
-        "Compressor defrost frequency",
-        30,
-        90,
+        0x2000, 45, "P47", "Compressor defrost frequency", 30, 90, deactivated=True
     ),
     NumberRegister(
         0x2000,
@@ -405,13 +494,35 @@ AVARMA_NUMBER_REGISTERS = [
         10,
     ),
     NumberRegister(
-        0x2000, 47, "P49", "Exhaust overheat proportional coefficient", 0, 99, 0.1, 10.0
+        0x2000,
+        47,
+        "P49",
+        "Exhaust overheat proportional coefficient",
+        0,
+        99,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 48, "P50", "Exhaust overheat differential coefficient", 0, 99
+        0x2000,
+        48,
+        "P50",
+        "Exhaust overheat differential coefficient",
+        0,
+        99,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 49, "P51", "High pressure prohibit boost pressure", 20, 45, 0.1, 10.0
+        0x2000,
+        49,
+        "P51",
+        "High pressure prohibit boost pressure",
+        20,
+        45,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -422,12 +533,29 @@ AVARMA_NUMBER_REGISTERS = [
         45,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 51, "P53", "High voltage protection set point", 20, 45, 0.1, 10.0
+        0x2000,
+        51,
+        "P53",
+        "High voltage protection set point",
+        20,
+        45,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 52, "P54", "Low voltage protection set point", 0.1, 1.0, 0.01, 100.0
+        0x2000,
+        52,
+        "P54",
+        "Low voltage protection set point",
+        0.1,
+        1.0,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -438,6 +566,7 @@ AVARMA_NUMBER_REGISTERS = [
         10.0,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -448,8 +577,17 @@ AVARMA_NUMBER_REGISTERS = [
         5.0,
         0.01,
         100.0,
+        deactivated=True,
     ),
-    NumberRegister(0x2000, 55, "P57", "Exhaust temperature protection point", 100, 125),
+    NumberRegister(
+        0x2000,
+        55,
+        "P57",
+        "Exhaust temperature protection point",
+        100,
+        125,
+        deactivated=True,
+    ),
     NumberRegister(
         0x2000,
         56,
@@ -459,36 +597,95 @@ AVARMA_NUMBER_REGISTERS = [
         8,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(0x2000, 57, "P59", "PWM water pump minimum speed", 0, 100),
     NumberRegister(0x2000, 58, "P60", "DC fan maximum speed", 500, 1500, 1, 0.1),
     NumberRegister(0x2000, 59, "P61", "Minimum water flow", 3, 80),
     NumberRegister(0x2000, 60, "P62", "A/C function selection", 0, 2),
     NumberRegister(0x2000, 61, "P63", "DHW function selection", 0, 1),
-    NumberRegister(0x2000, 62, "P64", "Minimum opening of expansion valve", 0, 480),
-    NumberRegister(0x2000, 63, "P65", "Water pump C2 function definition", 0, 1),
-    NumberRegister(0x2000, 64, "P66", "Water source air cooling option", 0, 1),
-    NumberRegister(0x2000, 65, "P67", "Indoor temperature controller", 0, 1),
-    NumberRegister(0x2000, 66, "P68", "Water flow switch type selection", 0, 1),
-    NumberRegister(0x2000, 67, "P69", "Type of fan", 0, 3),
-    NumberRegister(0x2000, 68, "P70", "Power-down memory function", 0, 1),
-    NumberRegister(0x2000, 69, "P71", "DC fan speed control", 0, 1),
-    NumberRegister(0x2000, 70, "P72", "DC fan manual speed", 0, 1500, 10.0, 10.0),
-    NumberRegister(0x2000, 71, "P73", "Pressure sensor enable", 0, 1),
-    NumberRegister(0x2000, 72, "P74", "Enthalpy injection valve control mode", 0, 3),
     NumberRegister(
-        0x2000, 73, "P75", "EVI valve initial opening (manual opening) heating", 40, 480
+        0x2000,
+        62,
+        "P64",
+        "Minimum opening of expansion valve",
+        0,
+        480,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000, 74, "P76", "EVI valve initial opening (manual opening) cooling", 40, 480
+        0x2000, 63, "P65", "Water pump C2 function definition", 0, 1, deactivated=True
     ),
     NumberRegister(
-        0x2000, 75, "P77", "Spray enthalpy valve superheat (heating)", -5, 10, 0.1, 10.0
+        0x2000, 64, "P66", "Water source air cooling option", 0, 1, deactivated=True
     ),
     NumberRegister(
-        0x2000, 76, "P78", "Spray enthalpy valve superheat (cooling)", -5, 10, 0.1, 10.0
+        0x2000, 65, "P67", "Indoor temperature controller", 0, 1, deactivated=True
     ),
-    NumberRegister(0x2000, 77, "P79", "WIFI data upload cycle", 0, 5000),
+    NumberRegister(
+        0x2000, 66, "P68", "Water flow switch type selection", 0, 1, deactivated=True
+    ),
+    NumberRegister(0x2000, 67, "P69", "Type of fan", 0, 3, deactivated=True),
+    NumberRegister(
+        0x2000, 68, "P70", "Power-down memory function", 0, 1, deactivated=True
+    ),
+    NumberRegister(0x2000, 69, "P71", "DC fan speed control", 0, 1, deactivated=True),
+    NumberRegister(
+        0x2000, 70, "P72", "DC fan manual speed", 0, 1500, 10.0, 10.0, deactivated=True
+    ),
+    NumberRegister(0x2000, 71, "P73", "Pressure sensor enable", 0, 1, deactivated=True),
+    NumberRegister(
+        0x2000,
+        72,
+        "P74",
+        "Enthalpy injection valve control mode",
+        0,
+        3,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        73,
+        "P75",
+        "EVI valve initial opening (manual opening) heating",
+        40,
+        480,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        74,
+        "P76",
+        "EVI valve initial opening (manual opening) cooling",
+        40,
+        480,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        75,
+        "P77",
+        "Spray enthalpy valve superheat (heating)",
+        -5,
+        10,
+        0.1,
+        10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        76,
+        "P78",
+        "Spray enthalpy valve superheat (cooling)",
+        -5,
+        10,
+        0.1,
+        10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000, 77, "P79", "WIFI data upload cycle", 0, 5000, deactivated=True
+    ),
     NumberRegister(
         0x2000,
         78,
@@ -498,12 +695,31 @@ AVARMA_NUMBER_REGISTERS = [
         5000,
         0.1,
         10.0,
+        deactivated=True,
     ),
-    NumberRegister(0x2000, 79, "P81", "E1/E2 function mode definition", 0, 3),
     NumberRegister(
-        0x2000, 80, "P82", "Second heat source starting temperature", -30, 20, 0.1, 10.0
+        0x2000, 79, "P81", "E1/E2 function mode definition", 0, 3, deactivated=True
     ),
-    NumberRegister(0x2000, 81, "P83", "Hot water circulation pump working mode", 0, 3),
+    NumberRegister(
+        0x2000,
+        80,
+        "P82",
+        "Second heat source starting temperature",
+        -30,
+        20,
+        0.1,
+        10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000,
+        81,
+        "P83",
+        "Hot water circulation pump working mode",
+        0,
+        3,
+        deactivated=True,
+    ),
     NumberRegister(
         0x2000,
         82,
@@ -513,6 +729,7 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -523,6 +740,7 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -533,28 +751,33 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
+    ),
+    NumberRegister(
+        0x2000, 85, "P87", "Restore factory settings ", 0, 1, deactivated=True
+    ),
+    NumberRegister(
+        0x2000, 86, "P88", "C3 water pump function selection", 0, 1, deactivated=True
     ),
     NumberRegister(
         0x2000,
-        85,
-        "P87",
-        "Restore factory settings ",
+        87,
+        "P89",
+        "Return air superheat ratio coefficient",
         0,
-        1,
+        20,
+        0.1,
+        10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
-        86,
-        "P88",
-        "C3 water pump function selection",
+        88,
+        "P90",
+        "Return air superheat differential coefficient",
         0,
-        1,
-    ),
-    NumberRegister(
-        0x2000, 87, "P89", "Return air superheat ratio coefficient", 0, 20, 0.1, 10.0
-    ),
-    NumberRegister(
-        0x2000, 88, "P90", "Return air superheat differential coefficient", 0, 20
+        20,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -565,6 +788,7 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -575,6 +799,7 @@ AVARMA_NUMBER_REGISTERS = [
         10,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -585,6 +810,7 @@ AVARMA_NUMBER_REGISTERS = [
         10,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -595,6 +821,7 @@ AVARMA_NUMBER_REGISTERS = [
         10,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -605,6 +832,7 @@ AVARMA_NUMBER_REGISTERS = [
         10,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -615,15 +843,9 @@ AVARMA_NUMBER_REGISTERS = [
         10,
         0.1,
         10.0,
+        deactivated=True,
     ),
-    NumberRegister(
-        0x2000,
-        95,
-        "P97",
-        "Parameter 96",
-        10,
-        100,
-    ),
+    NumberRegister(0x2000, 95, "P97", "Parameter 96", 10, 100, deactivated=True),
     NumberRegister(
         0x2000,
         96,
@@ -631,6 +853,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Inversion of the control signal for the G1 valve",
         0,
         1,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -639,6 +862,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Inversion of the control signal for the G2 valve",
         0,
         1,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -647,14 +871,10 @@ AVARMA_NUMBER_REGISTERS = [
         "Inversion of the control signal for the G3 valve",
         0,
         1,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000,
-        99,
-        "P101",
-        "EEV steps for defrosting",
-        0,
-        480,
+        0x2000, 99, "P101", "EEV steps for defrosting", 0, 480, deactivated=True
     ),
     NumberRegister(
         0x2000,
@@ -665,14 +885,10 @@ AVARMA_NUMBER_REGISTERS = [
         20,
         0.1,
         10.0,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000,
-        101,
-        "P103",
-        "EEV initial opening hold time",
-        0,
-        300,
+        0x2000, 101, "P103", "EEV initial opening hold time", 0, 300, deactivated=True
     ),
     NumberRegister(
         0x2000,
@@ -681,6 +897,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Initial compressor frequency for AC heating/cooling capacity calculation",
         20,
         60,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -689,30 +906,16 @@ AVARMA_NUMBER_REGISTERS = [
         "Compressor frequency up A platform frequency",
         20,
         60,
+        deactivated=True,
     ),
     NumberRegister(
-        0x2000,
-        3,
-        "P106",
-        "Compressor A platform delay time",
-        20,
-        60,
+        0x2000, 3, "P106", "Compressor A platform delay time", 20, 60, deactivated=True
     ),
     NumberRegister(
-        0x2000,
-        103,
-        "P107",
-        "PRt calculation volume",
-        1,
-        100,
+        0x2000, 103, "P107", "PRt calculation volume", 1, 100, deactivated=True
     ),
     NumberRegister(
-        0x2000,
-        104,
-        "P108",
-        "R485 monitoring address",
-        0,
-        999,
+        0x2000, 104, "P108", "R485 monitoring address", 0, 999, deactivated=True
     ),
     NumberRegister(
         0x2000,
@@ -721,6 +924,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Discharge temp. value 1 to limit compressor frequency",
         80,
         125,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -729,6 +933,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Discharge temp. value 2 to limit compressor frequency",
         80,
         125,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -737,6 +942,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Discharge temp. value 3 to limit compressor frequency",
         80,
         125,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -745,6 +951,7 @@ AVARMA_NUMBER_REGISTERS = [
         "EEV adjustment temp. when discharge temp. is too high",
         80,
         125,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -753,6 +960,7 @@ AVARMA_NUMBER_REGISTERS = [
         "EEV adjustment time when discharge temp. is too high",
         1,
         120,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -761,6 +969,7 @@ AVARMA_NUMBER_REGISTERS = [
         "Compressor frequency reduction percentage after set temp. reached.",
         0,
         60,
+        deactivated=True,
     ),
     NumberRegister(
         0x2000,
@@ -769,5 +978,6 @@ AVARMA_NUMBER_REGISTERS = [
         "Outlet temp. too high protection value",
         70,
         90,
+        deactivated=True,
     ),
 ]
