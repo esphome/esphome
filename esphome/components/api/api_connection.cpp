@@ -423,7 +423,8 @@ uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *con
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
-  msg.supported_preset_modes = &traits.supported_preset_modes_for_api_();
+  if (traits.supports_preset_modes())
+    msg.supported_preset_modes = &traits.supported_preset_modes_for_api_();
   return fill_and_encode_entity_info(fan, msg, ListEntitiesFanResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
