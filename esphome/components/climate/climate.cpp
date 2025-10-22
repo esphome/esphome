@@ -531,10 +531,8 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
         it++;
       call.set_fan_mode(*it);
     }
-  } else {
-    if (traits.supports_fan_mode(this->fan_mode)) {
-      call.set_fan_mode(this->fan_mode);
-    }
+  } else if (traits.supports_fan_mode(this->fan_mode)) {
+    call.set_fan_mode(this->fan_mode);
   }
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
@@ -543,10 +541,8 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
         it++;
       call.set_preset(*it);
     }
-  } else {
-    if (traits.supports_preset(this->preset)) {
-      call.set_preset(this->preset);
-    }
+  } else if (traits.supports_preset(this->preset)) {
+    call.set_preset(this->preset);
   }
   if (traits.supports_swing_mode(this->swing_mode)) {
     call.set_swing_mode(this->swing_mode);
@@ -575,11 +571,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
       climate->fan_mode.reset();
       climate->custom_fan_mode = *it;
     }
-  } else {
-    if (traits.supports_fan_mode(this->fan_mode)) {
-      climate->fan_mode = this->fan_mode;
-      climate->custom_fan_mode.reset();
-    }
+  } else if (traits.supports_fan_mode(this->fan_mode)) {
+    climate->fan_mode = this->fan_mode;
+    climate->custom_fan_mode.reset();
   }
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
@@ -589,11 +583,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
       climate->preset.reset();
       climate->custom_preset = *it;
     }
-  } else {
-    if (traits.supports_preset(this->preset)) {
-      climate->preset = this->preset;
-      climate->custom_preset.reset();
-    }
+  } else if (traits.supports_preset(this->preset)) {
+    climate->preset = this->preset;
+    climate->custom_preset.reset();
   }
   if (traits.supports_swing_mode(this->swing_mode)) {
     climate->swing_mode = this->swing_mode;
