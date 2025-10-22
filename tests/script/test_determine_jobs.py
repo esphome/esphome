@@ -910,3 +910,60 @@ def test_clang_tidy_mode_targeted_scan(
     output = json.loads(captured.out)
 
     assert output["clang_tidy_mode"] == expected_mode
+
+
+def test_main_core_files_changed_still_detects_components(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that component changes are detected even when core files change."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = True
+    mock_should_run_clang_tidy.return_value = True
+    mock_should_run_clang_format.return_value = True
+    mock_should_run_python_linters.return_value = True
+    mock_determine_cpp_unit_tests.return_value = (True, [])
+
+    mock_changed_files.return_value = [
+        "esphome/core/helpers.h",
+        "esphome/components/select/select_traits.h",
+        "esphome/components/select/select_traits.cpp",
+        "esphome/components/api/api.proto",
+    ]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(determine_jobs, "get_changed_components", return_value=None),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: (
+                ["select", "api"]
+                if not deps
+                else ["select", "api", "bluetooth_proxy", "logger"]
+            ),
+        ),
+    ):
+        determine_jobs.main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] == "split"
+    assert "select" in output["changed_components"]
+    assert "api" in output["changed_components"]
+    assert len(output["changed_components"]) > 0

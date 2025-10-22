@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "esphome/core/enum_bitmask.h"
 
 namespace esphome {
 namespace light {
@@ -104,16 +105,16 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
   return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
-// Type alias for raw color mode bitmask values
+// Type alias for raw color mode bitmask values (retained for compatibility)
 using color_mode_bitmask_t = uint16_t;
 
-// Constants for ColorMode count and bit range
-static constexpr int COLOR_MODE_COUNT = 10;                             // UNKNOWN through RGB_COLD_WARM_WHITE
-static constexpr int MAX_BIT_INDEX = sizeof(color_mode_bitmask_t) * 8;  // Number of bits in bitmask type
+// Number of ColorMode enum values
+constexpr int COLOR_MODE_BITMASK_SIZE = 10;
 
-// Compile-time array of all ColorMode values in declaration order
-// Bit positions (0-9) map directly to enum declaration order
-static constexpr ColorMode COLOR_MODES[COLOR_MODE_COUNT] = {
+// Shared lookup table for ColorMode bit mapping
+// This array defines the canonical order of color modes (bit 0-9)
+// Declared early so it can be used by constexpr functions
+constexpr ColorMode COLOR_MODE_LOOKUP[COLOR_MODE_BITMASK_SIZE] = {
     ColorMode::UNKNOWN,                // bit 0
     ColorMode::ON_OFF,                 // bit 1
     ColorMode::BRIGHTNESS,             // bit 2
@@ -126,33 +127,20 @@ static constexpr ColorMode COLOR_MODES[COLOR_MODE_COUNT] = {
     ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
 };
 
-/// Map ColorMode enum values to bit positions (0-9)
-/// Bit positions follow the enum declaration order
-static constexpr int mode_to_bit(ColorMode mode) {
-  // Linear search through COLOR_MODES array
-  // Compiler optimizes this to efficient code since array is constexpr
-  for (int i = 0; i < COLOR_MODE_COUNT; ++i) {
-    if (COLOR_MODES[i] == mode)
-      return i;
-  }
-  return 0;
-}
+// Type alias for ColorMode bitmask using generic EnumBitmask template
+using ColorModeMask = EnumBitmask<ColorMode, COLOR_MODE_BITMASK_SIZE>;
 
-/// Map bit positions (0-9) to ColorMode enum values
-/// Bit positions follow the enum declaration order
-static constexpr ColorMode bit_to_mode(int bit) {
-  // Direct lookup in COLOR_MODES array
-  return (bit >= 0 && bit < COLOR_MODE_COUNT) ? COLOR_MODES[bit] : ColorMode::UNKNOWN;
-}
+// Number of ColorCapability enum values
+constexpr int COLOR_CAPABILITY_COUNT = 6;
 
 /// Helper to compute capability bitmask at compile time
-static constexpr color_mode_bitmask_t compute_capability_bitmask(ColorCapability capability) {
-  color_mode_bitmask_t mask = 0;
+constexpr uint16_t compute_capability_bitmask(ColorCapability capability) {
+  uint16_t mask = 0;
   uint8_t cap_bit = static_cast<uint8_t>(capability);
 
   // Check each ColorMode to see if it has this capability
-  for (int bit = 0; bit < COLOR_MODE_COUNT; ++bit) {
-    uint8_t mode_val = static_cast<uint8_t>(bit_to_mode(bit));
+  for (int bit = 0; bit < COLOR_MODE_BITMASK_SIZE; ++bit) {
+    uint8_t mode_val = static_cast<uint8_t>(COLOR_MODE_LOOKUP[bit]);
     if ((mode_val & cap_bit) != 0) {
       mask |= (1 << bit);
     }
@@ -160,12 +148,9 @@ static constexpr color_mode_bitmask_t compute_capability_bitmask(ColorCapability
   return mask;
 }
 
-// Number of ColorCapability enum values
-static constexpr int COLOR_CAPABILITY_COUNT = 6;
-
 /// Compile-time lookup table mapping ColorCapability to bitmask
 /// This array is computed at compile time using constexpr
-static constexpr color_mode_bitmask_t CAPABILITY_BITMASKS[] = {
+constexpr uint16_t CAPABILITY_BITMASKS[] = {
     compute_capability_bitmask(ColorCapability::ON_OFF),             // 1 << 0
     compute_capability_bitmask(ColorCapability::BRIGHTNESS),         // 1 << 1
     compute_capability_bitmask(ColorCapability::WHITE),              // 1 << 2
@@ -174,130 +159,51 @@ static constexpr color_mode_bitmask_t CAPABILITY_BITMASKS[] = {
     compute_capability_bitmask(ColorCapability::RGB),                // 1 << 5
 };
 
-/// Bitmask for storing a set of ColorMode values efficiently.
-/// Replaces std::set<ColorMode> to eliminate red-black tree overhead (~586 bytes).
-class ColorModeMask {
- public:
-  constexpr ColorModeMask() = default;
-
-  /// Support initializer list syntax: {ColorMode::RGB, ColorMode::WHITE}
-  constexpr ColorModeMask(std::initializer_list<ColorMode> modes) {
-    for (auto mode : modes) {
-      this->add(mode);
-    }
-  }
-
-  constexpr void add(ColorMode mode) { this->mask_ |= (1 << mode_to_bit(mode)); }
-
-  /// Add multiple modes at once using initializer list
-  constexpr void add(std::initializer_list<ColorMode> modes) {
-    for (auto mode : modes) {
-      this->add(mode);
-    }
-  }
-
-  constexpr bool contains(ColorMode mode) const { return (this->mask_ & (1 << mode_to_bit(mode))) != 0; }
-
-  constexpr size_t size() const {
-    // Count set bits using Brian Kernighan's algorithm
-    // More efficient for sparse bitmasks (typical case: 2-4 modes out of 10)
-    uint16_t n = this->mask_;
-    size_t count = 0;
-    while (n) {
-      n &= n - 1;  // Clear the least significant set bit
-      count++;
-    }
-    return count;
-  }
-
-  constexpr bool empty() const { return this->mask_ == 0; }
-
-  /// Iterator support for API encoding
-  class Iterator {
-   public:
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = ColorMode;
-    using difference_type = std::ptrdiff_t;
-    using pointer = const ColorMode *;
-    using reference = ColorMode;
-
-    constexpr Iterator(color_mode_bitmask_t mask, int bit) : mask_(mask), bit_(bit) { advance_to_next_set_bit_(); }
-
-    constexpr ColorMode operator*() const { return bit_to_mode(bit_); }
-
-    constexpr Iterator &operator++() {
-      ++bit_;
-      advance_to_next_set_bit_();
-      return *this;
-    }
-
-    constexpr bool operator==(const Iterator &other) const { return bit_ == other.bit_; }
-
-    constexpr bool operator!=(const Iterator &other) const { return !(*this == other); }
-
-   private:
-    constexpr void advance_to_next_set_bit_() { bit_ = ColorModeMask::find_next_set_bit(mask_, bit_); }
-
-    color_mode_bitmask_t mask_;
-    int bit_;
-  };
-
-  constexpr Iterator begin() const { return Iterator(mask_, 0); }
-  constexpr Iterator end() const { return Iterator(mask_, MAX_BIT_INDEX); }
-
-  /// Get the raw bitmask value for API encoding
-  constexpr color_mode_bitmask_t get_mask() const { return this->mask_; }
-
-  /// Find the next set bit in a bitmask starting from a given position
-  /// Returns the bit position, or MAX_BIT_INDEX if no more bits are set
-  static constexpr int find_next_set_bit(color_mode_bitmask_t mask, int start_bit) {
-    int bit = start_bit;
-    while (bit < MAX_BIT_INDEX && !(mask & (1 << bit))) {
-      ++bit;
-    }
-    return bit;
-  }
-
-  /// Find the first set bit in a bitmask and return the corresponding ColorMode
-  /// Used for optimizing compute_color_mode_() intersection logic
-  static constexpr ColorMode first_mode_from_mask(color_mode_bitmask_t mask) {
-    return bit_to_mode(find_next_set_bit(mask, 0));
-  }
-
-  /// Check if a ColorMode is present in a raw bitmask value
-  /// Useful for checking intersection results without creating a temporary ColorModeMask
-  static constexpr bool mask_contains(color_mode_bitmask_t mask, ColorMode mode) {
-    return (mask & (1 << mode_to_bit(mode))) != 0;
-  }
-
-  /// Check if any mode in the bitmask has a specific capability
-  /// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
-  bool has_capability(ColorCapability capability) const {
-    // Lookup the pre-computed bitmask for this capability and check intersection with our mask
-    // ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
-    // We need to convert the power-of-2 value to an index
-    uint8_t cap_val = static_cast<uint8_t>(capability);
+/// Check if any mode in the bitmask has a specific capability
+/// Used for checking if a light supports a capability (e.g., BRIGHTNESS, RGB)
+inline bool has_capability(const ColorModeMask &mask, ColorCapability capability) {
+  // Lookup the pre-computed bitmask for this capability and check intersection with our mask
+  // ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
+  // We need to convert the power-of-2 value to an index
+  uint8_t cap_val = static_cast<uint8_t>(capability);
 #if defined(__GNUC__) || defined(__clang__)
-    // Use compiler intrinsic for efficient bit position lookup (O(1) vs O(log n))
-    int index = __builtin_ctz(cap_val);
+  // Use compiler intrinsic for efficient bit position lookup (O(1) vs O(log n))
+  int index = __builtin_ctz(cap_val);
 #else
-    // Fallback for compilers without __builtin_ctz
-    int index = 0;
-    while (cap_val > 1) {
-      cap_val >>= 1;
-      ++index;
-    }
-#endif
-    return (this->mask_ & CAPABILITY_BITMASKS[index]) != 0;
+  // Fallback for compilers without __builtin_ctz
+  int index = 0;
+  while (cap_val > 1) {
+    cap_val >>= 1;
+    ++index;
   }
-
- private:
-  // Using uint16_t instead of uint32_t for more efficient iteration (fewer bits to scan).
-  // Currently only 10 ColorMode values exist, so 16 bits is sufficient.
-  // Can be changed to uint32_t if more than 16 color modes are needed in the future.
-  // Note: Due to struct padding, uint16_t and uint32_t result in same LightTraits size (12 bytes).
-  color_mode_bitmask_t mask_{0};
-};
+#endif
+  return (mask.get_mask() & CAPABILITY_BITMASKS[index]) != 0;
+}
 
 }  // namespace light
 }  // namespace esphome
+
+// Template specializations for ColorMode must be in global namespace
+
+/// Map ColorMode enum values to bit positions (0-9)
+/// Bit positions follow the enum declaration order
+template<>
+constexpr int esphome::EnumBitmask<esphome::light::ColorMode, esphome::light::COLOR_MODE_BITMASK_SIZE>::enum_to_bit(
+    esphome::light::ColorMode mode) {
+  // Linear search through COLOR_MODE_LOOKUP array
+  // Compiler optimizes this to efficient code since array is constexpr
+  for (int i = 0; i < esphome::light::COLOR_MODE_BITMASK_SIZE; ++i) {
+    if (esphome::light::COLOR_MODE_LOOKUP[i] == mode)
+      return i;
+  }
+  return 0;
+}
+
+/// Map bit positions (0-9) to ColorMode enum values
+/// Bit positions follow the enum declaration order
+template<>
+inline esphome::light::ColorMode esphome::EnumBitmask<esphome::light::ColorMode,
+                                                      esphome::light::COLOR_MODE_BITMASK_SIZE>::bit_to_enum(int bit) {
+  return (bit >= 0 && bit < esphome::light::COLOR_MODE_BITMASK_SIZE) ? esphome::light::COLOR_MODE_LOOKUP[bit]
+                                                                     : esphome::light::ColorMode::UNKNOWN;
+}
