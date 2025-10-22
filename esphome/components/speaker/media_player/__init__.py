@@ -26,21 +26,11 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
-from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    load = ["audio"]
-    if (
-        not config
-        or config.get(CONF_TASK_STACK_IN_PSRAM)
-        or config.get(CONF_CODEC_SUPPORT_ENABLED)
-    ):
-        return load + ["psram"]
-    return load
-
+AUTO_LOAD = ["audio"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
@@ -290,11 +280,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(
-                CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
-            ): cv.boolean,
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.All(
+                cv.boolean, cv.requires_component(psram.DOMAIN)
+            ),
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
+                cv.boolean, cv.requires_component(psram.DOMAIN)
+            ),
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
@@ -322,7 +314,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    if config[CONF_CODEC_SUPPORT_ENABLED]:
+    if config.get(CONF_CODEC_SUPPORT_ENABLED):
         # Compile all supported audio codecs and optimize the wifi settings
 
         cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
@@ -352,8 +344,8 @@ async def to_code(config):
 
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
-    cg.add(var.set_task_stack_in_psram(config[CONF_TASK_STACK_IN_PSRAM]))
-    if config[CONF_TASK_STACK_IN_PSRAM]:
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
         esp32.add_idf_sdkconfig_option(
             "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
         )

@@ -26,9 +26,7 @@ import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
-DEPENDENCIES = ["esp32"]
-
-AUTO_LOAD = ["camera", "psram"]
+DEPENDENCIES = ["esp32", "psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
