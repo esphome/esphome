@@ -336,7 +336,7 @@ def _component_has_tests(component: str) -> bool:
     Returns:
         True if the component has test YAML files
     """
-    return bool(get_component_test_files(component))
+    return bool(get_component_test_files(component, all_variants=True))
 
 
 def _select_platform_by_preference(
@@ -496,7 +496,7 @@ def detect_memory_impact_config(
 
     for component in sorted(changed_component_set):
         # Look for test files on preferred platforms
-        test_files = get_component_test_files(component)
+        test_files = get_component_test_files(component, all_variants=True)
         if not test_files:
             continue
 
