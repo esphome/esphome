@@ -237,23 +237,23 @@ class ClimateTraits {
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
     if (supported) {
-      this->supported_modes_.add(mode);
+      this->supported_modes_.insert(mode);
     } else {
-      this->supported_modes_.remove(mode);
+      this->supported_modes_.erase(mode);
     }
   }
   void set_fan_mode_support_(climate::ClimateFanMode mode, bool supported) {
     if (supported) {
-      this->supported_fan_modes_.add(mode);
+      this->supported_fan_modes_.insert(mode);
     } else {
-      this->supported_fan_modes_.remove(mode);
+      this->supported_fan_modes_.erase(mode);
     }
   }
   void set_swing_mode_support_(climate::ClimateSwingMode mode, bool supported) {
     if (supported) {
-      this->supported_swing_modes_.add(mode);
+      this->supported_swing_modes_.insert(mode);
     } else {
-      this->supported_swing_modes_.remove(mode);
+      this->supported_swing_modes_.erase(mode);
     }
   }
 
