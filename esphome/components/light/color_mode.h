@@ -156,7 +156,8 @@ constexpr uint16_t compute_capability_bitmask(ColorCapability capability) {
   uint8_t cap_bit = static_cast<uint8_t>(capability);
 
   // Check each ColorMode to see if it has this capability
-  for (int bit = 0; bit < COLOR_MODE_BITMASK_SIZE; ++bit) {
+  constexpr int color_mode_count = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
+  for (int bit = 0; bit < color_mode_count; ++bit) {
     uint8_t mode_val = static_cast<uint8_t>(COLOR_MODE_LOOKUP[bit]);
     if ((mode_val & cap_bit) != 0) {
       mask |= (1 << bit);
