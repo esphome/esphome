@@ -3,7 +3,6 @@
 #include <utility>
 
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/climate/climate_mode_bitmask.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/sensor/sensor.h"

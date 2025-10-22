@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/climate/climate_mode_bitmask.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 // HaierProtocol
