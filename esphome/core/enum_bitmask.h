@@ -26,6 +26,9 @@ namespace esphome {
 ///   if (modes.contains(CLIMATE_MODE_HEAT)) { ... }
 ///   for (auto mode : modes) { ... }  // Iterate over set bits
 ///
+/// For complete usage examples with template specializations, see:
+///   - esphome/components/light/color_mode.h (ColorMode example)
+///
 /// Design notes:
 ///   - Uses compile-time type selection for optimal size (uint8_t/uint16_t/uint32_t)
 ///   - Iterator converts bit positions to actual enum values during traversal

@@ -184,6 +184,12 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
 }  // namespace esphome
 
 // Template specializations for ColorMode must be in global namespace
+//
+// C++ requires template specializations to be declared in the same namespace as the
+// original template. Since EnumBitmask is in the esphome namespace (not esphome::light),
+// we must provide these specializations at global scope with fully-qualified names.
+//
+// These specializations define how ColorMode enum values map to/from bit positions.
 
 /// Map ColorMode enum values to bit positions (0-9)
 /// Bit positions follow the enum declaration order
