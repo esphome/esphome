@@ -1033,9 +1033,9 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   {
     // Swing mode
     ClimateSwingMode old_swing_mode = this->swing_mode;
-    const std::set<ClimateSwingMode> &swing_modes = traits_.get_supported_swing_modes();
-    bool vertical_swing_supported = swing_modes.find(CLIMATE_SWING_VERTICAL) != swing_modes.end();
-    bool horizontal_swing_supported = swing_modes.find(CLIMATE_SWING_HORIZONTAL) != swing_modes.end();
+    const auto &swing_modes = traits_.get_supported_swing_modes();
+    bool vertical_swing_supported = swing_modes.contains(CLIMATE_SWING_VERTICAL);
+    bool horizontal_swing_supported = swing_modes.contains(CLIMATE_SWING_HORIZONTAL);
     if (horizontal_swing_supported &&
         (packet.control.horizontal_swing_mode == (uint8_t) hon_protocol::HorizontalSwingMode::AUTO)) {
       if (vertical_swing_supported &&
