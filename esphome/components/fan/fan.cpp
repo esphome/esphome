@@ -50,13 +50,15 @@ void FanCall::validate_() {
   }
 
   if (!this->preset_mode_.empty()) {
-    const auto &preset_modes = traits.supported_preset_modes();
-    // Linear search is efficient for small preset mode lists (typically 2-5 items)
     bool found = false;
-    for (const auto &mode : preset_modes) {
-      if (mode == this->preset_mode_) {
-        found = true;
-        break;
+    if (traits.supports_preset_modes()) {
+      const auto &preset_modes = traits.supported_preset_modes();
+      // Linear search is efficient for small preset mode lists (typically 2-5 items)
+      for (const auto &mode : preset_modes) {
+        if (mode == this->preset_mode_) {
+          found = true;
+          break;
+        }
       }
     }
     if (!found) {

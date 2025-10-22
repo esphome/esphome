@@ -45,7 +45,7 @@ class FanTraits {
   /// Set the preset modes supported by the fan.
   void set_supported_preset_modes(const FixedVector<std::string> *preset_modes) { this->preset_modes_ = preset_modes; }
   /// Return if preset modes are supported
-  bool supports_preset_modes() const { return !this->preset_modes_->empty(); }
+  bool supports_preset_modes() const { return this->preset_modes_ != nullptr && !this->preset_modes_->empty(); }
 
  protected:
 #ifdef USE_API
