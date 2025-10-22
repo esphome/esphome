@@ -105,7 +105,7 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
   return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
-// Type alias for raw color mode bitmask values (retained for compatibility)
+// Type alias for raw color mode bitmask values
 using color_mode_bitmask_t = uint16_t;
 
 // Number of ColorMode enum values
