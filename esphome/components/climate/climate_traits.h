@@ -2,7 +2,7 @@
 
 #include <vector>
 #include "climate_mode.h"
-#include "esphome/core/enum_bitmask.h"
+#include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
 
 // Forward declare climate enums and bitmask sizes
@@ -14,19 +14,19 @@ constexpr int CLIMATE_SWING_MODE_BITMASK_SIZE = 8;  // 4 values (OFF, BOTH, VERT
 constexpr int CLIMATE_PRESET_BITMASK_SIZE = 8;      // 8 values (NONE, HOME, AWAY, BOOST, COMFORT, ECO, SLEEP, ACTIVITY)
 }  // namespace esphome::climate
 
-// Template specializations for enum-to-bit conversions
-// MUST be declared before any instantiation of EnumBitmask<ClimateMode>, etc.
+// Template specializations for value-to-bit conversions
+// MUST be declared before any instantiation of FiniteSetMask<ClimateMode>, etc.
 namespace esphome {
 
 // ClimateMode specialization (7 values: 0-6)
 template<>
-constexpr int EnumBitmask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::enum_to_bit(
+constexpr int FiniteSetMask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::value_to_bit(
     climate::ClimateMode mode) {
   return static_cast<int>(mode);  // Direct mapping: enum value = bit position
 }
 
 template<>
-inline climate::ClimateMode EnumBitmask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::bit_to_enum(
+inline climate::ClimateMode FiniteSetMask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::bit_to_value(
     int bit) {
   // Lookup array mapping bit positions to enum values
   static constexpr climate::ClimateMode MODES[] = {
@@ -44,14 +44,14 @@ inline climate::ClimateMode EnumBitmask<climate::ClimateMode, climate::CLIMATE_M
 
 // ClimateFanMode specialization (10 values: 0-9)
 template<>
-constexpr int EnumBitmask<climate::ClimateFanMode, climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::enum_to_bit(
+constexpr int FiniteSetMask<climate::ClimateFanMode, climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::value_to_bit(
     climate::ClimateFanMode mode) {
   return static_cast<int>(mode);  // Direct mapping: enum value = bit position
 }
 
 template<>
-inline climate::ClimateFanMode EnumBitmask<climate::ClimateFanMode,
-                                           climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::bit_to_enum(int bit) {
+inline climate::ClimateFanMode FiniteSetMask<climate::ClimateFanMode,
+                                             climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
   static constexpr climate::ClimateFanMode MODES[] = {
       climate::CLIMATE_FAN_ON,       // bit 0
       climate::CLIMATE_FAN_OFF,      // bit 1
@@ -70,14 +70,14 @@ inline climate::ClimateFanMode EnumBitmask<climate::ClimateFanMode,
 
 // ClimateSwingMode specialization (4 values: 0-3)
 template<>
-constexpr int EnumBitmask<climate::ClimateSwingMode, climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::enum_to_bit(
+constexpr int FiniteSetMask<climate::ClimateSwingMode, climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::value_to_bit(
     climate::ClimateSwingMode mode) {
   return static_cast<int>(mode);  // Direct mapping: enum value = bit position
 }
 
 template<>
-inline climate::ClimateSwingMode EnumBitmask<climate::ClimateSwingMode,
-                                             climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::bit_to_enum(int bit) {
+inline climate::ClimateSwingMode FiniteSetMask<climate::ClimateSwingMode,
+                                               climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
   static constexpr climate::ClimateSwingMode MODES[] = {
       climate::CLIMATE_SWING_OFF,         // bit 0
       climate::CLIMATE_SWING_BOTH,        // bit 1
@@ -90,13 +90,13 @@ inline climate::ClimateSwingMode EnumBitmask<climate::ClimateSwingMode,
 
 // ClimatePreset specialization (8 values: 0-7)
 template<>
-constexpr int EnumBitmask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::enum_to_bit(
+constexpr int FiniteSetMask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::value_to_bit(
     climate::ClimatePreset preset) {
   return static_cast<int>(preset);  // Direct mapping: enum value = bit position
 }
 
 template<>
-inline climate::ClimatePreset EnumBitmask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::bit_to_enum(
+inline climate::ClimatePreset FiniteSetMask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::bit_to_value(
     int bit) {
   static constexpr climate::ClimatePreset PRESETS[] = {
       climate::CLIMATE_PRESET_NONE,      // bit 0
@@ -119,10 +119,10 @@ namespace esphome::climate {
 
 // Type aliases for climate enum bitmasks
 // These replace std::set<EnumType> to eliminate red-black tree overhead
-using ClimateModeMask = EnumBitmask<ClimateMode, CLIMATE_MODE_BITMASK_SIZE>;
-using ClimateFanModeMask = EnumBitmask<ClimateFanMode, CLIMATE_FAN_MODE_BITMASK_SIZE>;
-using ClimateSwingModeMask = EnumBitmask<ClimateSwingMode, CLIMATE_SWING_MODE_BITMASK_SIZE>;
-using ClimatePresetMask = EnumBitmask<ClimatePreset, CLIMATE_PRESET_BITMASK_SIZE>;
+using ClimateModeMask = FiniteSetMask<ClimateMode, CLIMATE_MODE_BITMASK_SIZE>;
+using ClimateFanModeMask = FiniteSetMask<ClimateFanMode, CLIMATE_FAN_MODE_BITMASK_SIZE>;
+using ClimateSwingModeMask = FiniteSetMask<ClimateSwingMode, CLIMATE_SWING_MODE_BITMASK_SIZE>;
+using ClimatePresetMask = FiniteSetMask<ClimatePreset, CLIMATE_PRESET_BITMASK_SIZE>;
 
 // Lightweight linear search for small vectors (1-20 items)
 // Avoids std::find template overhead
