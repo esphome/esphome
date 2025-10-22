@@ -18,13 +18,8 @@ constexpr int CLIMATE_PRESET_BITMASK_SIZE = 8;      // 8 values (NONE, HOME, AWA
 // MUST be declared before any instantiation of FiniteSetMask<ClimateMode>, etc.
 namespace esphome {
 
-// ClimateMode specialization (7 values: 0-6)
-template<>
-constexpr int FiniteSetMask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::value_to_bit(
-    climate::ClimateMode mode) {
-  return static_cast<int>(mode);  // Direct mapping: enum value = bit position
-}
-
+// ClimateMode uses 1:1 mapping (value_to_bit is just a cast)
+// Only bit_to_value needs specialization
 template<>
 inline climate::ClimateMode FiniteSetMask<climate::ClimateMode, climate::CLIMATE_MODE_BITMASK_SIZE>::bit_to_value(
     int bit) {
@@ -42,13 +37,8 @@ inline climate::ClimateMode FiniteSetMask<climate::ClimateMode, climate::CLIMATE
   return (bit >= 0 && bit < MODE_COUNT) ? MODES[bit] : climate::CLIMATE_MODE_OFF;
 }
 
-// ClimateFanMode specialization (10 values: 0-9)
-template<>
-constexpr int FiniteSetMask<climate::ClimateFanMode, climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::value_to_bit(
-    climate::ClimateFanMode mode) {
-  return static_cast<int>(mode);  // Direct mapping: enum value = bit position
-}
-
+// ClimateFanMode uses 1:1 mapping (value_to_bit is just a cast)
+// Only bit_to_value needs specialization
 template<>
 inline climate::ClimateFanMode FiniteSetMask<climate::ClimateFanMode,
                                              climate::CLIMATE_FAN_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
@@ -68,13 +58,8 @@ inline climate::ClimateFanMode FiniteSetMask<climate::ClimateFanMode,
   return (bit >= 0 && bit < MODE_COUNT) ? MODES[bit] : climate::CLIMATE_FAN_ON;
 }
 
-// ClimateSwingMode specialization (4 values: 0-3)
-template<>
-constexpr int FiniteSetMask<climate::ClimateSwingMode, climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::value_to_bit(
-    climate::ClimateSwingMode mode) {
-  return static_cast<int>(mode);  // Direct mapping: enum value = bit position
-}
-
+// ClimateSwingMode uses 1:1 mapping (value_to_bit is just a cast)
+// Only bit_to_value needs specialization
 template<>
 inline climate::ClimateSwingMode FiniteSetMask<climate::ClimateSwingMode,
                                                climate::CLIMATE_SWING_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
@@ -88,13 +73,8 @@ inline climate::ClimateSwingMode FiniteSetMask<climate::ClimateSwingMode,
   return (bit >= 0 && bit < MODE_COUNT) ? MODES[bit] : climate::CLIMATE_SWING_OFF;
 }
 
-// ClimatePreset specialization (8 values: 0-7)
-template<>
-constexpr int FiniteSetMask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::value_to_bit(
-    climate::ClimatePreset preset) {
-  return static_cast<int>(preset);  // Direct mapping: enum value = bit position
-}
-
+// ClimatePreset uses 1:1 mapping (value_to_bit is just a cast)
+// Only bit_to_value needs specialization
 template<>
 inline climate::ClimatePreset FiniteSetMask<climate::ClimatePreset, climate::CLIMATE_PRESET_BITMASK_SIZE>::bit_to_value(
     int bit) {

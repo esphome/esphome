@@ -17,17 +17,27 @@ namespace esphome {
 ///
 /// Requirements:
 ///   - ValueType must have a bounded discrete range that maps to bit positions
-///   - Specialization must provide value_to_bit() and bit_to_value() static methods
+///   - Specialization must provide bit_to_value() static method
+///   - For 1:1 mappings (enum value = bit position), default value_to_bit() is used
+///   - For custom mappings (like ColorMode), specialize value_to_bit() as well
 ///   - MaxBits must be sufficient to hold all possible values
 ///
-/// Example usage:
+/// Example usage (1:1 mapping - climate enums):
+///   // For enums with contiguous values starting at 0, only bit_to_value() needs specialization
+///   template<>
+///   inline ClimateMode FiniteSetMask<ClimateMode, 8>::bit_to_value(int bit) {
+///     static constexpr ClimateMode MODES[] = {CLIMATE_MODE_OFF, CLIMATE_MODE_HEAT, ...};
+///     return (bit >= 0 && bit < 7) ? MODES[bit] : CLIMATE_MODE_OFF;
+///   }
+///
 ///   using ClimateModeMask = FiniteSetMask<ClimateMode, 8>;
 ///   ClimateModeMask modes({CLIMATE_MODE_HEAT, CLIMATE_MODE_COOL});
 ///   if (modes.count(CLIMATE_MODE_HEAT)) { ... }
 ///   for (auto mode : modes) { ... }  // Iterate over set bits
 ///
-/// For complete usage examples with template specializations, see:
-///   - esphome/components/light/color_mode.h (ColorMode enum example)
+/// Example usage (custom mapping - ColorMode):
+///   // For custom mappings, specialize both value_to_bit() and bit_to_value()
+///   // See esphome/components/light/color_mode.h for complete example
 ///
 /// Design notes:
 ///   - Uses compile-time type selection for optimal size (uint8_t/uint16_t/uint32_t)
@@ -150,9 +160,13 @@ template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
   }
 
  protected:
+  // Default implementation for 1:1 mapping (enum value = bit position)
+  // For enums with contiguous values starting at 0, this is all you need.
+  // If you need custom mapping (like ColorMode), provide a specialization.
+  static constexpr int value_to_bit(ValueType value) { return static_cast<int>(value); }
+
   // Must be provided by template specialization
-  // These convert between values and bit positions (0, 1, 2, ...)
-  static constexpr int value_to_bit(ValueType value);
+  // Converts bit positions (0, 1, 2, ...) to actual values
   static ValueType bit_to_value(int bit);  // Not constexpr: array indexing with runtime bounds checking
 
   bitmask_t mask_{0};
