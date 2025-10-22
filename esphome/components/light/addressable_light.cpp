@@ -66,7 +66,7 @@ inline constexpr uint8_t subtract_scaled_difference(uint8_t a, uint8_t b, int32_
 }
 
 optional<LightColorValues> AddressableLightTransformer::apply() {
-  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress_());
+  float smoothed_progress = LightTransformer::smoothed_progress(this->get_progress_());
 
   // When running an output-buffer modifying effect, don't try to transition individual LEDs, but instead just fade the
   // LightColorValues. write_state() then picks up the change in brightness, and the color change is picked up by the
