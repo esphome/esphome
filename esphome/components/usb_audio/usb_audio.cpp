@@ -23,8 +23,12 @@ static const char *const TAG = "usb_audio";
 
 constexpr UBaseType_t USB_HOST_TASK_PRIORITY = 8;
 constexpr uint32_t USB_HOST_TASK_STACK_SIZE = 4096;
-constexpr uint32_t EVENT_QUEUE_LENGTH = 16;
+constexpr uint32_t EVENT_QUEUE_LENGTH = 64;
 constexpr TickType_t HOST_EVENT_TIMEOUT_TICKS = pdMS_TO_TICKS(100);
+
+static uint32_t s_write_ok_count = 0;
+static uint32_t s_write_timeout_count = 0;
+static uint32_t s_write_error_count = 0;
 }  // namespace
 
 void USBAudioComponent::set_microphone_params(uint8_t channels, uint16_t bits, uint32_t sample_rate) {
@@ -357,6 +361,21 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
     // Ring buffer full or stream inactive; report as timeout so callers back off and retry.
     err = ESP_ERR_TIMEOUT;
   }
+
+  if (err == ESP_OK) {
+    if ((++s_write_ok_count % 10) == 0) {
+      ESP_LOGI(TAG, "USB speaker write ok (count=%u, bytes=%u)", s_write_ok_count, (unsigned) length);
+    }
+  } else if (err == ESP_ERR_TIMEOUT) {
+    if ((++s_write_timeout_count % 10) == 0) {
+      ESP_LOGW(TAG, "USB speaker write timeout (count=%u)", s_write_timeout_count);
+    }
+  } else {
+    if ((++s_write_error_count % 3) == 0) {
+      ESP_LOGW(TAG, "USB speaker write error %s (count=%u)", esp_err_to_name(err), s_write_error_count);
+    }
+  }
+
   return err;
 }
 
@@ -779,6 +798,10 @@ void USBAudioComponent::device_event_stub_(uac_host_device_handle_t handle, cons
                                            void *user_data) {
   auto *self = static_cast<USBAudioComponent *>(user_data);
   if (self == nullptr || self->event_queue_ == nullptr) {
+    return;
+  }
+
+  if (event != UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR) {
     return;
   }
 

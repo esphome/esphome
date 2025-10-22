@@ -25,6 +25,7 @@ class USBAudioSpeaker : public speaker::Speaker, public Component, public Parent
   void stop() override;
   void finish() override;
 
+  size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) override;
   size_t play(const uint8_t *data, size_t length) override;
   bool has_buffered_data() const override;
 
@@ -38,6 +39,7 @@ class USBAudioSpeaker : public speaker::Speaker, public Component, public Parent
 
  protected:
   bool ensure_started_();
+  size_t play_internal_(const uint8_t *data, size_t length, uint32_t time_budget_ms);
 
   uint32_t sample_rate_{48000};
   uint16_t bits_per_sample_{16};
@@ -47,6 +49,9 @@ class USBAudioSpeaker : public speaker::Speaker, public Component, public Parent
   uint32_t last_write_ms_{0};
   bool finish_requested_{false};
   uint32_t finish_deadline_ms_{0};
+  size_t preferred_chunk_size_{0};
+  size_t chunk_upper_bound_{0};
+  size_t chunk_success_streak_{0};
 };
 
 }  // namespace usb_audio
