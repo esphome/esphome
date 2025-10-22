@@ -188,9 +188,7 @@ class ClimateTraits {
 
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void add_supported_swing_mode(ClimateSwingMode mode) { this->supported_swing_modes_.insert(mode); }
-  bool supports_swing_mode(ClimateSwingMode swing_mode) const {
-    return this->supported_swing_modes_.count(swing_mode) > 0;
-  }
+  bool supports_swing_mode(ClimateSwingMode swing_mode) const { return this->supported_swing_modes_.count(swing_mode); }
   bool get_supports_swing_modes() const { return !this->supported_swing_modes_.empty(); }
   const ClimateSwingModeMask &get_supported_swing_modes() const { return this->supported_swing_modes_; }
 
