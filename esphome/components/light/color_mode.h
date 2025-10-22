@@ -127,12 +127,12 @@ constexpr ColorMode COLOR_MODE_LOOKUP[] = {
 /// Uses lookup table for non-contiguous enum values
 struct ColorModeBitPolicy {
   using mask_t = uint16_t;  // 10 bits requires uint16_t
-  static constexpr int max_bits = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
+  static constexpr int MAX_BITS = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
 
   static constexpr unsigned to_bit(ColorMode mode) {
     // Linear search through lookup table
     // Compiler optimizes this to efficient code since array is constexpr
-    for (int i = 0; i < max_bits; ++i) {
+    for (int i = 0; i < MAX_BITS; ++i) {
       if (COLOR_MODE_LOOKUP[i] == mode)
         return i;
     }
@@ -140,7 +140,7 @@ struct ColorModeBitPolicy {
   }
 
   static constexpr ColorMode from_bit(unsigned bit) {
-    return (bit < max_bits) ? COLOR_MODE_LOOKUP[bit] : ColorMode::UNKNOWN;
+    return (bit < MAX_BITS) ? COLOR_MODE_LOOKUP[bit] : ColorMode::UNKNOWN;
   }
 };
 
