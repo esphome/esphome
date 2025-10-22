@@ -16,6 +16,7 @@ class CopyFan : public fan::Fan, public Component {
 
  protected:
   void control(const fan::FanCall &call) override;
+  ;
 
   fan::Fan *source_;
 };

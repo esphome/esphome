@@ -35,7 +35,7 @@ fan::FanTraits CopyFan::get_traits() {
   traits.set_speed(base.supports_speed());
   traits.set_supported_speed_count(base.supported_speed_count());
   traits.set_direction(base.supports_direction());
-  traits.set_supported_preset_modes(&source_->preset_modes_);
+  traits.set_supported_preset_modes(&base.supported_preset_modes());
   return traits;
 }
 
