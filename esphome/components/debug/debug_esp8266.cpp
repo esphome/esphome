@@ -3,40 +3,10 @@
 #include "esphome/core/log.h"
 #include <Esp.h>
 
-#ifdef USE_WIFI
-extern "C" {
-#include <user_interface.h>
-}
-#endif
-
 namespace esphome {
 namespace debug {
 
 static const char *const TAG = "debug";
-
-#if defined(USE_TEXT_SENSOR) && defined(USE_WIFI)
-/// @brief Helper function to convert ESP8266 WiFi sleep type to string
-/// @param sleep_type WiFi sleep type from wifi_get_sleep_type()
-/// @return const char pointer to the readable sleep type
-///
-/// Maps ESP8266 WiFi sleep types to user-friendly strings:
-/// - NONE_SLEEP_T (no sleep) -> "NONE"
-/// - LIGHT_SLEEP_T (light sleep) -> "LIGHT"
-/// - MODEM_SLEEP_T (modem sleep) -> "HIGH"
-/// - RF_CAL_SLEEP_T (RF calibration sleep) -> "UNKNOWN" (special mode, rarely used)
-static const char *wifi_sleep_type_to_string(sleep_type_t sleep_type) {
-  switch (sleep_type) {
-    case NONE_SLEEP_T:
-      return "NONE";
-    case LIGHT_SLEEP_T:
-      return "LIGHT";
-    case MODEM_SLEEP_T:
-      return "HIGH";
-    default:
-      return "UNKNOWN";
-  }
-}
-#endif  // USE_TEXT_SENSOR && USE_WIFI
 
 std::string DebugComponent::get_reset_reason_() {
 #if !defined(CLANG_TIDY)
@@ -116,17 +86,6 @@ void DebugComponent::update_platform_() {
   }
 #endif
 
-#endif
-
-#if defined(USE_TEXT_SENSOR) && defined(USE_WIFI)
-  if (this->wifi_power_save_ != nullptr) {
-    sleep_type_t sleep_type = wifi_get_sleep_type();
-    // Publish if the state has changed or if this is the first read
-    if (this->last_wifi_sleep_type_ != sleep_type || !this->wifi_power_save_->has_state()) {
-      this->wifi_power_save_->publish_state(wifi_sleep_type_to_string(sleep_type));
-      this->last_wifi_sleep_type_ = sleep_type;
-    }
-  }
 #endif
 }
 

@@ -10,15 +10,9 @@
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
-#ifdef USE_WIFI
-#ifdef USE_ESP32
+#if defined(USE_WIFI) && defined(USE_ESP32)
 #include <esp_wifi.h>
-#elif defined(USE_ESP8266)
-extern "C" {
-#include <user_interface.h>
-}
-#endif  // USE_ESP32 / USE_ESP8266
-#endif  // USE_WIFI
+#endif
 #endif  // USE_TEXT_SENSOR
 
 namespace esphome {
@@ -92,8 +86,6 @@ class DebugComponent : public PollingComponent {
   text_sensor::TextSensor *wifi_power_save_{nullptr};
 #if defined(USE_WIFI) && defined(USE_ESP32)
   wifi_ps_type_t last_wifi_ps_mode_{};
-#elif defined(USE_WIFI) && defined(USE_ESP8266)
-  sleep_type_t last_wifi_sleep_type_{};
 #endif
 #endif  // USE_TEXT_SENSOR
 
