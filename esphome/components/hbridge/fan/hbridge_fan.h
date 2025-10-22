@@ -1,7 +1,8 @@
 #pragma once
 
+#include <set>
+
 #include "esphome/core/automation.h"
-#include "esphome/core/helpers.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/fan/fan.h"
@@ -21,11 +22,11 @@ class HBridgeFan : public Component, public fan::Fan {
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
-  void set_preset_modes(const std::initializer_list<std::string> &presets) { this->preset_modes_ = presets; }
+  void set_preset_modes(const std::set<std::string> &presets) { preset_modes_ = presets; }
 
   void setup() override;
   void dump_config() override;
-  fan::FanTraits get_traits() override;
+  fan::FanTraits get_traits() override { return this->traits_; }
 
   fan::FanCall brake();
 
@@ -36,7 +37,8 @@ class HBridgeFan : public Component, public fan::Fan {
   output::BinaryOutput *oscillating_{nullptr};
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
-  FixedVector<std::string> preset_modes_{};
+  fan::FanTraits traits_;
+  std::set<std::string> preset_modes_{};
 
   void control(const fan::FanCall &call) override;
   void write_state_();

@@ -35,17 +35,7 @@ fan::FanTraits CopyFan::get_traits() {
   traits.set_speed(base.supports_speed());
   traits.set_supported_speed_count(base.supported_speed_count());
   traits.set_direction(base.supports_direction());
-
-  // Copy preset modes from source to avoid dangling pointer to temporary
-  if (base.supports_preset_modes()) {
-    const auto &source_modes = base.supported_preset_modes();
-    this->preset_modes_.init(source_modes.size());
-    for (const auto &mode : source_modes) {
-      this->preset_modes_.push_back(mode);
-    }
-    traits.set_supported_preset_modes(&this->preset_modes_);
-  }
-
+  traits.set_supported_preset_modes(base.supported_preset_modes());
   return traits;
 }
 

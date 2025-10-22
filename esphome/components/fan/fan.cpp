@@ -50,18 +50,8 @@ void FanCall::validate_() {
   }
 
   if (!this->preset_mode_.empty()) {
-    bool found = false;
-    if (traits.supports_preset_modes()) {
-      const auto &preset_modes = traits.supported_preset_modes();
-      // Linear search is efficient for small preset mode lists (typically 2-5 items)
-      for (const auto &mode : preset_modes) {
-        if (mode == this->preset_mode_) {
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
+    const auto &preset_modes = traits.supported_preset_modes();
+    if (preset_modes.find(this->preset_mode_) == preset_modes.end()) {
       ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), this->preset_mode_.c_str());
       this->preset_mode_.clear();
     }
@@ -102,12 +92,11 @@ FanCall FanRestoreState::to_call(Fan &fan) {
   call.set_speed(this->speed);
   call.set_direction(this->direction);
 
-  auto traits = fan.get_traits();
-  if (traits.supports_preset_modes()) {
+  if (fan.get_traits().supports_preset_modes()) {
     // Use stored preset index to get preset name
-    const auto &preset_modes = traits.supported_preset_modes();
+    const auto &preset_modes = fan.get_traits().supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      call.set_preset_mode(preset_modes[this->preset_mode]);
+      call.set_preset_mode(*std::next(preset_modes.begin(), this->preset_mode));
     }
   }
   return call;
@@ -118,12 +107,11 @@ void FanRestoreState::apply(Fan &fan) {
   fan.speed = this->speed;
   fan.direction = this->direction;
 
-  auto traits = fan.get_traits();
-  if (traits.supports_preset_modes()) {
+  if (fan.get_traits().supports_preset_modes()) {
     // Use stored preset index to get preset name
-    const auto &preset_modes = traits.supported_preset_modes();
+    const auto &preset_modes = fan.get_traits().supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      fan.preset_mode = preset_modes[this->preset_mode];
+      fan.preset_mode = *std::next(preset_modes.begin(), this->preset_mode);
     }
   }
   fan.publish_state();
@@ -200,16 +188,12 @@ void Fan::save_state_() {
   state.speed = this->speed;
   state.direction = this->direction;
 
-  auto traits = this->get_traits();
-  if (traits.supports_preset_modes() && !this->preset_mode.empty()) {
-    const auto &preset_modes = traits.supported_preset_modes();
-    // Store index of current preset mode - linear search is efficient for small lists
-    for (size_t i = 0; i < preset_modes.size(); i++) {
-      if (preset_modes[i] == this->preset_mode) {
-        state.preset_mode = i;
-        break;
-      }
-    }
+  if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
+    const auto &preset_modes = this->get_traits().supported_preset_modes();
+    // Store index of current preset mode
+    auto preset_iterator = preset_modes.find(this->preset_mode);
+    if (preset_iterator != preset_modes.end())
+      state.preset_mode = std::distance(preset_modes.begin(), preset_iterator);
   }
 
   this->rtc_.save(&state);
