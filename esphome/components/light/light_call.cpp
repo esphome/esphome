@@ -437,7 +437,7 @@ ColorMode LightCall::compute_color_mode_() {
 
   // Use the preferred suitable mode.
   if (intersection != 0) {
-    ColorMode mode = ColorModeMask::first_mode_from_mask(intersection);
+    ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
     ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
