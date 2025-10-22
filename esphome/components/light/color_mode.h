@@ -159,8 +159,15 @@ constexpr uint16_t CAPABILITY_BITMASKS[] = {
     compute_capability_bitmask(ColorCapability::RGB),                // 1 << 5
 };
 
-/// Convert a power-of-2 ColorCapability value to an array index
-/// ColorCapability values: 1, 2, 4, 8, 16, 32 -> array indices: 0, 1, 2, 3, 4, 5
+/**
+ * @brief Helper function to convert a power-of-2 ColorCapability value to an array index for CAPABILITY_BITMASKS lookup.
+ *
+ * This function maps ColorCapability values (1, 2, 4, 8, 16, 32) to array indices (0, 1, 2, 3, 4, 5).
+ * Used to index into the CAPABILITY_BITMASKS lookup table.
+ *
+ * @param capability A ColorCapability enum value (must be a power of 2).
+ * @return The corresponding array index (0-based).
+ */
 inline int capability_to_index(ColorCapability capability) {
   uint8_t cap_val = static_cast<uint8_t>(capability);
 #if defined(__GNUC__) || defined(__clang__)
