@@ -108,13 +108,9 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
 // Type alias for raw color mode bitmask values
 using color_mode_bitmask_t = uint16_t;
 
-// Number of ColorMode enum values
-constexpr int COLOR_MODE_BITMASK_SIZE = 10;
-
-// Shared lookup table for ColorMode bit mapping
+// Lookup table for ColorMode bit mapping
 // This array defines the canonical order of color modes (bit 0-9)
-// Declared early so it can be used by constexpr functions
-constexpr ColorMode COLOR_MODE_LOOKUP[COLOR_MODE_BITMASK_SIZE] = {
+constexpr ColorMode COLOR_MODE_LOOKUP[] = {
     ColorMode::UNKNOWN,                // bit 0
     ColorMode::ON_OFF,                 // bit 1
     ColorMode::BRIGHTNESS,             // bit 2
@@ -127,8 +123,29 @@ constexpr ColorMode COLOR_MODE_LOOKUP[COLOR_MODE_BITMASK_SIZE] = {
     ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
 };
 
-// Type alias for ColorMode bitmask using generic FiniteSetMask template
-using ColorModeMask = FiniteSetMask<ColorMode, COLOR_MODE_BITMASK_SIZE>;
+/// Bit mapping policy for ColorMode
+/// Uses lookup table for non-contiguous enum values
+struct ColorModeBitPolicy {
+  using mask_t = uint16_t;  // 10 bits requires uint16_t
+  static constexpr int max_bits = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
+
+  static constexpr unsigned to_bit(ColorMode mode) {
+    // Linear search through lookup table
+    // Compiler optimizes this to efficient code since array is constexpr
+    for (int i = 0; i < max_bits; ++i) {
+      if (COLOR_MODE_LOOKUP[i] == mode)
+        return i;
+    }
+    return 0;
+  }
+
+  static constexpr ColorMode from_bit(unsigned bit) {
+    return (bit < max_bits) ? COLOR_MODE_LOOKUP[bit] : ColorMode::UNKNOWN;
+  }
+};
+
+// Type alias for ColorMode bitmask using policy-based design
+using ColorModeMask = FiniteSetMask<ColorMode, ColorModeBitPolicy>;
 
 // Number of ColorCapability enum values
 constexpr int COLOR_CAPABILITY_COUNT = 6;
@@ -194,34 +211,3 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
 
 }  // namespace light
 }  // namespace esphome
-
-// Template specializations for ColorMode must be in global namespace
-//
-// C++ requires template specializations to be declared in the same namespace as the
-// original template. Since FiniteSetMask is in the esphome namespace (not esphome::light),
-// we must provide these specializations at global scope with fully-qualified names.
-//
-// These specializations define how ColorMode enum values map to/from bit positions.
-
-/// Map ColorMode enum values to bit positions (0-9)
-/// Bit positions follow the enum declaration order
-template<>
-constexpr int esphome::FiniteSetMask<esphome::light::ColorMode, esphome::light::COLOR_MODE_BITMASK_SIZE>::value_to_bit(
-    esphome::light::ColorMode mode) {
-  // Linear search through COLOR_MODE_LOOKUP array
-  // Compiler optimizes this to efficient code since array is constexpr
-  for (int i = 0; i < esphome::light::COLOR_MODE_BITMASK_SIZE; ++i) {
-    if (esphome::light::COLOR_MODE_LOOKUP[i] == mode)
-      return i;
-  }
-  return 0;
-}
-
-/// Map bit positions (0-9) to ColorMode enum values
-/// Bit positions follow the enum declaration order
-template<>
-inline esphome::light::ColorMode esphome::FiniteSetMask<
-    esphome::light::ColorMode, esphome::light::COLOR_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
-  return (bit >= 0 && bit < esphome::light::COLOR_MODE_BITMASK_SIZE) ? esphome::light::COLOR_MODE_LOOKUP[bit]
-                                                                     : esphome::light::ColorMode::UNKNOWN;
-}
