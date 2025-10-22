@@ -503,10 +503,14 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 
 LightCall &LightCall::set_effect(const std::string &effect) {
   uint32_t index = this->parent_->get_effect_index(effect);
+  // get_effect_index returns 0 for both "none" and not found.
   if (index == 0 && strcasecmp(effect.c_str(), "none") != 0) {
+    // Effect not found, warn but don't change the current effect
     ESP_LOGW(TAG, "'%s': no such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
+  } else {
+    // Valid effect (including "none"), set it
+    this->set_effect(index);
   }
-  this->set_effect(index);
   return *this;
 }
 LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
