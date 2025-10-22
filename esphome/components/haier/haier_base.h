@@ -60,11 +60,8 @@ class HaierClimateBase : public esphome::Component,
   void toggle_power();
   void reset_protocol() { this->reset_protocol_request_ = true; };
   void set_supported_modes(esphome::climate::ClimateModeMask modes);
-  void set_supported_modes(std::initializer_list<esphome::climate::ClimateMode> modes);
   void set_supported_swing_modes(esphome::climate::ClimateSwingModeMask modes);
-  void set_supported_swing_modes(std::initializer_list<esphome::climate::ClimateSwingMode> modes);
   void set_supported_presets(esphome::climate::ClimatePresetMask presets);
-  void set_supported_presets(std::initializer_list<esphome::climate::ClimatePreset> presets);
   bool valid_connection() const { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
   size_t read_array(uint8_t *data, size_t len) noexcept override {
