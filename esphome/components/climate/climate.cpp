@@ -526,18 +526,16 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   }
   if (this->uses_custom_fan_mode) {
     if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
-      auto it = std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
-      call.custom_fan_mode_ = *it;
       call.fan_mode_.reset();
+      call.custom_fan_mode_ = *std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
     }
   } else if (traits.supports_fan_mode(this->fan_mode)) {
     call.set_fan_mode(this->fan_mode);
   }
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
-      auto it = std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
-      call.custom_preset_ = *it;
       call.preset_.reset();
+      call.custom_preset_ = *std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
     }
   } else if (traits.supports_preset(this->preset)) {
     call.set_preset(this->preset);
@@ -563,9 +561,8 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (this->uses_custom_fan_mode) {
     if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
-      auto it = std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
       climate->fan_mode.reset();
-      climate->custom_fan_mode = *it;
+      climate->custom_fan_mode = *std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
     }
   } else if (traits.supports_fan_mode(this->fan_mode)) {
     climate->fan_mode = this->fan_mode;
@@ -573,9 +570,8 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
-      auto it = std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
       climate->preset.reset();
-      climate->custom_preset = *it;
+      climate->custom_preset = *std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
     }
   } else if (traits.supports_preset(this->preset)) {
     climate->preset = this->preset;
