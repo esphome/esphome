@@ -529,7 +529,8 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
       auto it = traits.get_supported_custom_fan_modes().cbegin();
       for (size_t i = this->custom_fan_mode; i > 0; i--)
         it++;
-      call.set_fan_mode(*it);
+      call.custom_fan_mode_ = *it;
+      call.fan_mode_.reset();
     }
   } else if (traits.supports_fan_mode(this->fan_mode)) {
     call.set_fan_mode(this->fan_mode);
@@ -539,7 +540,8 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
       auto it = traits.get_supported_custom_presets().cbegin();
       for (size_t i = this->custom_preset; i > 0; i--)
         it++;
-      call.set_preset(*it);
+      call.custom_preset_ = *it;
+      call.preset_.reset();
     }
   } else if (traits.supports_preset(this->preset)) {
     call.set_preset(this->preset);
