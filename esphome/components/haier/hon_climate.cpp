@@ -1218,13 +1218,13 @@ void HonClimate::fill_control_messages_queue_() {
                                                 (uint8_t) hon_protocol::DataParameters::QUIET_MODE,
                                             quiet_mode_buf, 2);
     }
-    if ((fast_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_BOOST) != presets.end()))) {
+    if ((fast_mode_buf[1] != 0xFF) && presets.contains(climate::ClimatePreset::CLIMATE_PRESET_BOOST)) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::FAST_MODE,
                                             fast_mode_buf, 2);
     }
-    if ((away_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_AWAY) != presets.end()))) {
+    if ((away_mode_buf[1] != 0xFF) && presets.contains(climate::ClimatePreset::CLIMATE_PRESET_AWAY)) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::TEN_DEGREE,
