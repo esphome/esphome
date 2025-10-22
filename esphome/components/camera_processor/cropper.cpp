@@ -36,19 +36,19 @@ void Cropper::process_pixels_base(camera::CameraImageSpec *input_spec, camera::B
   uint8_t *dest_data = this->output_image_->get_data();
 
   // Perform cropping
-  for (size_t y = 0; y < crop_height_; y++) {
-    size_t source_y = crop_y_ + y;
-    size_t dest_y = this->flip_y_ ? (crop_height_ - 1 - y) : y;
+  for (int y = 0; y < crop_height_; y++) {
+    int source_y = crop_y_ + y;
+    int dest_y = this->flip_y_ ? (crop_height_ - 1 - y) : y;
 
-    for (size_t x = 0; x < crop_width_; x++) {
-      size_t source_x = crop_x_ + x;
-      size_t dest_x = this->flip_x_ ? (crop_width_ - 1 - x) : x;
+    for (int x = 0; x < crop_width_; x++) {
+      int source_x = crop_x_ + x;
+      int dest_x = this->flip_x_ ? (crop_width_ - 1 - x) : x;
 
-      size_t source_idx = (source_y * source_width + source_x) * bytes_per_pixel;
-      size_t dest_idx = (dest_y * crop_width_ + dest_x) * bytes_per_pixel;
+      int source_idx = (source_y * source_width + source_x) * bytes_per_pixel;
+      int dest_idx = (dest_y * crop_width_ + dest_x) * bytes_per_pixel;
 
       // Copy pixel data
-      for (size_t b = 0; b < bytes_per_pixel; b++) {
+      for (int b = 0; b < bytes_per_pixel; b++) {
         dest_data[dest_idx + b] = source_data[source_idx + b];
       }
     }
