@@ -12,7 +12,8 @@ class AvarmaRegisterBinaryRegisterBit:
 class AvarmaRegister:
     def __init__(
         self,
-        address,
+        start_address: int,
+        register_offset: int,
         parameter_id,
         description="",
         min=None,
@@ -24,8 +25,11 @@ class AvarmaRegister:
         device_class=DEVICE_CLASS_TEMPERATURE,
         flags=None,
         value_type=SensorValueType.S_WORD,
+        step=1.0,
     ):
-        self.address = address
+        self.start_address = start_address
+        self.register_offset = register_offset
+        self.address = self.start_address + self.register_offset
         self.parameter_id = parameter_id
         self.description = description
         self.min = min
@@ -36,6 +40,7 @@ class AvarmaRegister:
         self.accuracy_decimals = accuracy_decimals
         self.device_class = device_class
         self.flags = flags
+        self.step = step
         self.value_type = value_type
         self.name = f"{parameter_id} - {description}"
 
@@ -44,11 +49,42 @@ class TempRegister(AvarmaRegister):
     def __init__(
         self,
         address,
+        register_offset,
         parameter_id,
         description="",
-        min=None,
-        max=None,
+        min=-30.0,
+        max=97.0,
     ):
         super().__init__(
-            address, parameter_id, description, min, max, register_factor=0.1
+            address,
+            register_offset,
+            parameter_id,
+            description,
+            min,
+            max,
+            register_factor=0.1,
+        )
+
+
+class NumberRegister(AvarmaRegister):
+    def __init__(
+        self,
+        address,
+        register_offset,
+        parameter_id,
+        description,
+        min,
+        max,
+        step=1.0,
+        register_factor=1.0,
+    ):
+        self.step = step
+        super().__init__(
+            address,
+            register_offset,
+            parameter_id,
+            description,
+            min,
+            max,
+            register_factor=register_factor,
         )

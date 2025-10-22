@@ -232,7 +232,7 @@ async def to_code(config):
             conf,
             min_value=conf[CONF_MIN_VALUE],
             max_value=conf[CONF_MAX_VALUE],
-            step=1.0,
+            step=register.step,
         )
 
         cg.add(var.set_parent(paren))
