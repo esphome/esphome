@@ -49,9 +49,9 @@ def has_test_files(component_name: str, tests_dir: Path) -> bool:
         tests_dir: Path to tests/components directory (unused, kept for compatibility)
 
     Returns:
-        True if the component has test.*.yaml files
+        True if the component has test.*.yaml or test-*.yaml files
     """
-    return bool(get_component_test_files(component_name))
+    return bool(get_component_test_files(component_name, all_variants=True))
 
 
 def create_intelligent_batches(
