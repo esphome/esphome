@@ -143,7 +143,18 @@ def validate_mclk_divisible_by_3(config):
     return config
 
 
-_use_legacy_driver = None
+# Key for storing legacy driver setting in CORE.data
+I2S_USE_LEGACY_DRIVER_KEY = "i2s_use_legacy_driver"
+
+
+def _get_use_legacy_driver():
+    """Get the legacy driver setting from CORE.data."""
+    return CORE.data.get(I2S_USE_LEGACY_DRIVER_KEY)
+
+
+def _set_use_legacy_driver(value: bool) -> None:
+    """Set the legacy driver setting in CORE.data."""
+    CORE.data[I2S_USE_LEGACY_DRIVER_KEY] = value
 
 
 def i2s_audio_component_schema(
@@ -209,17 +220,15 @@ async def register_i2s_audio_component(var, config):
 
 
 def validate_use_legacy(value):
-    global _use_legacy_driver  # noqa: PLW0603
     if CONF_USE_LEGACY in value:
-        if (_use_legacy_driver is not None) and (
-            _use_legacy_driver != value[CONF_USE_LEGACY]
-        ):
+        existing_value = _get_use_legacy_driver()
+        if (existing_value is not None) and (existing_value != value[CONF_USE_LEGACY]):
             raise cv.Invalid(
                 f"All i2s_audio components must set {CONF_USE_LEGACY} to the same value."
             )
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
             raise cv.Invalid("Arduino supports only the legacy i2s driver")
-        _use_legacy_driver = value[CONF_USE_LEGACY]
+        _set_use_legacy_driver(value[CONF_USE_LEGACY])
     return value
 
 
@@ -249,7 +258,8 @@ def _final_validate(_):
 
 
 def use_legacy():
-    return not (CORE.using_esp_idf and not _use_legacy_driver)
+    legacy_driver = _get_use_legacy_driver()
+    return not (CORE.using_esp_idf and not legacy_driver)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

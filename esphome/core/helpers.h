@@ -197,6 +197,18 @@ template<typename T> class FixedVector {
  public:
   FixedVector() = default;
 
+  /// Constructor from initializer list - allocates exact size needed
+  /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
+  FixedVector(std::initializer_list<T> init_list) {
+    init(init_list.size());
+    size_t idx = 0;
+    for (const auto &item : init_list) {
+      new (data_ + idx) T(item);
+      ++idx;
+    }
+    size_ = init_list.size();
+  }
+
   ~FixedVector() { cleanup_(); }
 
   // Disable copy operations (avoid accidental expensive copies)
@@ -269,13 +281,13 @@ template<typename T> class FixedVector {
     }
   }
 
-  /// Emplace element without bounds checking - constructs in-place
+  /// Emplace element without bounds checking - constructs in-place with arguments
   /// Caller must ensure sufficient capacity was allocated via init()
   /// Returns reference to the newly constructed element
   /// NOTE: Caller MUST ensure size_ < capacity_ before calling
-  T &emplace_back() {
-    // Use placement new to default-construct the object in pre-allocated memory
-    new (&data_[size_]) T();
+  template<typename... Args> T &emplace_back(Args &&...args) {
+    // Use placement new to construct the object in pre-allocated memory
+    new (&data_[size_]) T(std::forward<Args>(args)...);
     size_++;
     return data_[size_ - 1];
   }
@@ -1143,20 +1155,6 @@ template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T va
  * This function is not called from lambdas, the code generator replaces calls to it with the appropriate variable.
  */
 template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
-
-///@}
-
-/// @name Deprecated functions
-///@{
-
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-inline std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
-
-template<typename T>
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-std::string hexencode(const T &data) {
-  return hexencode(data.data(), data.size());
-}
 
 ///@}
 

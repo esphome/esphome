@@ -83,7 +83,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 
     auto &txt_records = service.txt_records;
-    txt_records.reserve(txt_count);
+    txt_records.init(txt_count);
 
     if (!friendly_name_empty) {
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
@@ -171,12 +171,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
   fallback_service.port = USE_WEBSERVER_PORT;
-  fallback_service.txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
-#endif
-
-#ifdef USE_MDNS_STORE_SERVICES
-  // Copy to member variable if storage is enabled (verbose logging, OpenThread, or extra services)
-  this->services_ = services;
+  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
 }
 

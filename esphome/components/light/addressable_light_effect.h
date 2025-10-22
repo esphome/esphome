@@ -1,9 +1,9 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
 
@@ -113,7 +113,7 @@ struct AddressableColorWipeEffectColor {
 class AddressableColorWipeEffect : public AddressableLightEffect {
  public:
   explicit AddressableColorWipeEffect(const std::string &name) : AddressableLightEffect(name) {}
-  void set_colors(const std::vector<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
+  void set_colors(const std::initializer_list<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
   void set_add_led_interval(uint32_t add_led_interval) { this->add_led_interval_ = add_led_interval; }
   void set_reverse(bool reverse) { this->reverse_ = reverse; }
   void apply(AddressableLight &it, const Color &current_color) override {
@@ -155,7 +155,7 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
   }
 
  protected:
-  std::vector<AddressableColorWipeEffectColor> colors_;
+  FixedVector<AddressableColorWipeEffectColor> colors_;
   size_t at_color_{0};
   uint32_t last_add_{0};
   uint32_t add_led_interval_{};

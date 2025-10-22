@@ -1,3 +1,4 @@
 output:
   - platform: mcp4725
     id: mcp4725_dac_output
+    i2c_id: i2c_bus

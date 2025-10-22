@@ -1,20 +1,20 @@
 wk2132_spi:
-  - id: wk2132_spi_id
+  - id: wk2132_spi_bridge
     cs_pin: ${cs_pin}
     crystal: 11059200
     data_rate: 1MHz
     uart:
-      - id: wk2132_spi_id0
+      - id: wk2132_spi_uart0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - id: wk2132_spi_id1
+      - id: wk2132_spi_uart1
         channel: 1
         baud_rate: 9600
 
 # Ensures a sensor doesn't break validation
 sensor:
   - platform: a02yyuw
-    uart_id: wk2132_spi_id1
+    uart_id: wk2132_spi_uart1
     id: distance_sensor
