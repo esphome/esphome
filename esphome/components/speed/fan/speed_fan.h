@@ -17,6 +17,7 @@ class SpeedFan : public Component, public fan::Fan {
   void set_output(output::FloatOutput *output) { this->output_ = output; }
   void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
   void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
+  void set_preset_modes(const std::initializer_list<std::string> &presets) { this->preset_modes_ = presets; }
   fan::FanTraits get_traits() override;
 
  protected:
@@ -27,6 +28,7 @@ class SpeedFan : public Component, public fan::Fan {
   output::BinaryOutput *oscillating_{nullptr};
   output::BinaryOutput *direction_{nullptr};
   int speed_count_{};
+  FixedVector<std::string> preset_modes_{};
 };
 
 }  // namespace speed

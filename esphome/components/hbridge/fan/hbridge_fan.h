@@ -21,6 +21,8 @@ class HBridgeFan : public Component, public fan::Fan {
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
+  void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
+  void set_preset_modes(const std::initializer_list<std::string> &presets) { this->preset_modes_ = presets; }
 
   void setup() override;
   void dump_config() override;
@@ -35,6 +37,7 @@ class HBridgeFan : public Component, public fan::Fan {
   output::BinaryOutput *oscillating_{nullptr};
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
+  FixedVector<std::string> preset_modes_{};
 
   void control(const fan::FanCall &call) override;
   void write_state_();

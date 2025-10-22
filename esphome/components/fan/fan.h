@@ -1,6 +1,5 @@
 #pragma once
 
-#include <initializer_list>
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -133,20 +132,6 @@ class Fan : public EntityBase {
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
-  /// Set preset modes - helper for components
-  void set_preset_modes(const std::initializer_list<std::string> &presets) {
-    this->preset_modes_.init(presets.size());
-    for (const auto &mode : presets) {
-      this->preset_modes_.push_back(mode);
-    }
-  }
-  template<typename T> void set_preset_modes(const T &presets) {
-    this->preset_modes_.init(presets.size());
-    for (const auto &mode : presets) {
-      this->preset_modes_.push_back(mode);
-    }
-  }
-
  protected:
   friend FanCall;
 
@@ -160,7 +145,6 @@ class Fan : public EntityBase {
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
-  FixedVector<std::string> preset_modes_{};
 };
 
 }  // namespace fan

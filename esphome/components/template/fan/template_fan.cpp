@@ -14,10 +14,8 @@ void TemplateFan::setup() {
 }
 
 fan::FanTraits TemplateFan::get_traits() {
-  auto traits =
-      fan::FanTraits(this->has_oscillating_, this->speed_count_ > 0, this->has_direction_, this->speed_count_);
-  traits.set_supported_preset_modes(this->preset_modes_);
-  return traits;
+  return fan::FanTraits(this->has_oscillating_, this->speed_count_ > 0, this->has_direction_, this->speed_count_,
+                        &this->preset_modes_);
 }
 
 void TemplateFan::dump_config() { LOG_FAN("", "Template Fan", this); }
