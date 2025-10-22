@@ -23,7 +23,7 @@ namespace esphome {
 /// Example usage:
 ///   using ClimateModeMask = EnumBitmask<ClimateMode, 8>;
 ///   ClimateModeMask modes({CLIMATE_MODE_HEAT, CLIMATE_MODE_COOL});
-///   if (modes.contains(CLIMATE_MODE_HEAT)) { ... }
+///   if (modes.count(CLIMATE_MODE_HEAT)) { ... }
 ///   for (auto mode : modes) { ... }  // Iterate over set bits
 ///
 /// For complete usage examples with template specializations, see:
@@ -48,39 +48,31 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
   /// Construct from initializer list: {VALUE1, VALUE2, ...}
   constexpr EnumBitmask(std::initializer_list<EnumType> values) {
     for (auto value : values) {
-      this->add(value);
+      this->insert(value);
     }
   }
 
-  /// Add a single enum value to the set
-  constexpr void add(EnumType value) { this->mask_ |= (static_cast<bitmask_t>(1) << enum_to_bit(value)); }
+  /// Add a single enum value to the set (std::set compatibility)
+  constexpr void insert(EnumType value) { this->mask_ |= (static_cast<bitmask_t>(1) << enum_to_bit(value)); }
 
   /// Add multiple enum values from initializer list
-  constexpr void add(std::initializer_list<EnumType> values) {
+  constexpr void insert(std::initializer_list<EnumType> values) {
     for (auto value : values) {
-      this->add(value);
+      this->insert(value);
     }
   }
 
-  /// std::set compatibility: insert() is an alias for add()
-  constexpr void insert(EnumType value) { this->add(value); }
-
-  /// Remove an enum value from the set
-  constexpr void remove(EnumType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << enum_to_bit(value)); }
-
-  /// std::set compatibility: erase() is an alias for remove()
-  constexpr void erase(EnumType value) { this->remove(value); }
+  /// Remove an enum value from the set (std::set compatibility)
+  constexpr void erase(EnumType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << enum_to_bit(value)); }
 
   /// Clear all values from the set
   constexpr void clear() { this->mask_ = 0; }
 
-  /// Check if the set contains a specific enum value
-  constexpr bool contains(EnumType value) const {
-    return (this->mask_ & (static_cast<bitmask_t>(1) << enum_to_bit(value))) != 0;
+  /// Check if the set contains a specific enum value (std::set compatibility)
+  /// Returns 1 if present, 0 if not (same as std::set for unique elements)
+  constexpr size_t count(EnumType value) const {
+    return (this->mask_ & (static_cast<bitmask_t>(1) << enum_to_bit(value))) != 0 ? 1 : 0;
   }
-
-  /// std::set compatibility: count() returns 1 if present, 0 if not (same as std::set for unique elements)
-  constexpr size_t count(EnumType value) const { return this->contains(value) ? 1 : 0; }
 
   /// Count the number of enum values in the set
   constexpr size_t size() const {
