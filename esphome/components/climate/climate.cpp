@@ -385,7 +385,7 @@ void Climate::save_state_() {
   if (!traits.get_supported_custom_fan_modes().empty() && custom_fan_mode.has_value()) {
     state.uses_custom_fan_mode = true;
     const auto &supported = traits.get_supported_custom_fan_modes();
-    // std::set has consistent order (lexicographic for strings)
+    // std::vector maintains insertion order
     size_t i = 0;
     for (const auto &mode : supported) {
       if (mode == custom_fan_mode) {
@@ -402,7 +402,7 @@ void Climate::save_state_() {
   if (!traits.get_supported_custom_presets().empty() && custom_preset.has_value()) {
     state.uses_custom_preset = true;
     const auto &supported = traits.get_supported_custom_presets();
-    // std::set has consistent order (lexicographic for strings)
+    // std::vector maintains insertion order
     size_t i = 0;
     for (const auto &preset : supported) {
       if (preset == custom_preset) {
@@ -553,7 +553,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
     climate->fan_mode = this->fan_mode;
   }
   if (!traits.get_supported_custom_fan_modes().empty() && this->uses_custom_fan_mode) {
-    // std::set has consistent order (lexicographic for strings)
+    // std::vector maintains insertion order
     const auto &modes = traits.get_supported_custom_fan_modes();
     if (custom_fan_mode < modes.size()) {
       size_t i = 0;
@@ -570,7 +570,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
     climate->preset = this->preset;
   }
   if (!traits.get_supported_custom_presets().empty() && uses_custom_preset) {
-    // std::set has consistent order (lexicographic for strings)
+    // std::vector maintains insertion order
     const auto &presets = traits.get_supported_custom_presets();
     if (custom_preset < presets.size()) {
       size_t i = 0;
