@@ -23,7 +23,7 @@ namespace esphome {
 ///
 /// Example usage (1:1 mapping - climate enums):
 ///   // For enums with contiguous values starting at 0, no specialization needed!
-///   using ClimateModeMask = FiniteSetMask<ClimateMode, 8>;
+///   using ClimateModeMask = FiniteSetMask<ClimateMode, CLIMATE_MODE_AUTO + 1>;
 ///   ClimateModeMask modes({CLIMATE_MODE_HEAT, CLIMATE_MODE_COOL});
 ///   if (modes.count(CLIMATE_MODE_HEAT)) { ... }
 ///   for (auto mode : modes) { ... }  // Iterate over set bits
