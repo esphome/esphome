@@ -1,7 +1,6 @@
-#include <utility>
-#include "esphome/core/helpers.h"
-
 #pragma once
+
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -43,14 +42,11 @@ class FanTraits {
   void set_direction(bool direction) { this->direction_ = direction; }
   /// Return the preset modes supported by the fan.
   const FixedVector<std::string> &supported_preset_modes() const { return *this->preset_modes_; }
-  /// Set the preset modes pointer (points to parent Fan's preset_modes_)
-  void set_supported_preset_modes(const FixedVector<std::string> *preset_modes) { this->preset_modes_ = preset_modes; }
   /// Return if preset modes are supported
   bool supports_preset_modes() const { return !this->preset_modes_->empty(); }
 
  protected:
 #ifdef USE_API
-  // The API connection is a friend class to access internal methods
   friend class api::APIConnection;
   // This method returns a reference to the internal preset modes.
   // It is used by the API to avoid copying data when encoding messages.
