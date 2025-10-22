@@ -39,7 +39,7 @@ fan::FanTraits CopyFan::get_traits() {
   // Copy preset modes from source to avoid dangling pointer to temporary
   if (base.supports_preset_modes()) {
     const auto &source_modes = base.supported_preset_modes();
-    this->preset_modes_.clear();
+    this->preset_modes_.init(source_modes.size());
     for (const auto &mode : source_modes) {
       this->preset_modes_.push_back(mode);
     }
