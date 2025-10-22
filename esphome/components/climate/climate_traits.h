@@ -6,13 +6,6 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-
-#ifdef USE_API
-namespace api {
-class APIConnection;
-}  // namespace api
-#endif
-
 namespace climate {
 
 // Type aliases for climate enum bitmasks
