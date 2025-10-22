@@ -73,13 +73,11 @@ enum DecodeResult {
   DECODE_EMPTY,
 };
 
-static const size_t MAX_PING_KEYS = 4;
-
-static inline void add(std::vector<uint8_t> &vec, uint32_t data) {
-  vec.push_back(data & 0xFF);
-  vec.push_back((data >> 8) & 0xFF);
-  vec.push_back((data >> 16) & 0xFF);
-  vec.push_back((data >> 24) & 0xFF);
+static inline void add(uint8_t *buf, size_t &pos, uint32_t data) {
+  buf[pos++] = data & 0xFF;
+  buf[pos++] = (data >> 8) & 0xFF;
+  buf[pos++] = (data >> 16) & 0xFF;
+  buf[pos++] = (data >> 24) & 0xFF;
 }
 
 class PacketDecoder {
@@ -178,17 +176,17 @@ class PacketDecoder {
   size_t position_{};
 };
 
-static inline void add(std::vector<uint8_t> &vec, uint8_t data) { vec.push_back(data); }
-static inline void add(std::vector<uint8_t> &vec, uint16_t data) {
-  vec.push_back((uint8_t) data);
-  vec.push_back((uint8_t) (data >> 8));
+static inline void add(uint8_t *buf, size_t &pos, uint8_t data) { buf[pos++] = data; }
+static inline void add(uint8_t *buf, size_t &pos, uint16_t data) {
+  buf[pos++] = (uint8_t) data;
+  buf[pos++] = (uint8_t) (data >> 8);
 }
-static inline void add(std::vector<uint8_t> &vec, DataKey data) { vec.push_back(data); }
-static void add(std::vector<uint8_t> &vec, const char *str) {
+static inline void add(uint8_t *buf, size_t &pos, DataKey data) { buf[pos++] = data; }
+static void add(uint8_t *buf, size_t &pos, const char *str) {
   auto len = strlen(str);
-  vec.push_back(len);
+  buf[pos++] = len;
   for (size_t i = 0; i != len; i++) {
-    vec.push_back(*str++);
+    buf[pos++] = *str++;
   }
 }
 
@@ -199,6 +197,14 @@ void PacketTransport::setup() {
     this->status_set_error("Device name exceeds 255 chars");
     return;
   }
+  this->provider_count_ = 0;
+  this->ping_key_count_ = 0;
+#ifdef USE_SENSOR
+  this->remote_sensor_count_ = 0;
+#endif
+#ifdef USE_BINARY_SENSOR
+  this->remote_binary_sensor_count_ = 0;
+#endif
   this->resend_ping_key_ = this->ping_pong_enable_;
   this->pref_ = global_preferences->make_preference<uint32_t>(PREF_HASH, true);
   if (this->rolling_code_enable_) {
@@ -228,53 +234,58 @@ void PacketTransport::setup() {
   }
 #endif
   // initialise the header. This is invariant.
-  add(this->header_, MAGIC_NUMBER);
-  add(this->header_, this->name_);
+  this->header_len_ = 0;
+  add(this->header_, this->header_len_, MAGIC_NUMBER);
+  add(this->header_, this->header_len_, this->name_);
   // pad to a multiple of 4 bytes
-  while (this->header_.size() & 0x3)
-    this->header_.push_back(0);
+  while (this->header_len_ & 0x3)
+    this->header_[this->header_len_++] = 0;
 }
 
 void PacketTransport::init_data_() {
-  this->data_.clear();
+  this->data_len_ = 0;
   if (this->rolling_code_enable_) {
-    add(this->data_, ROLLING_CODE_KEY);
-    add(this->data_, this->rolling_code_[0]);
-    add(this->data_, this->rolling_code_[1]);
+    add(this->data_, this->data_len_, ROLLING_CODE_KEY);
+    add(this->data_, this->data_len_, this->rolling_code_[0]);
+    add(this->data_, this->data_len_, this->rolling_code_[1]);
     this->increment_code_();
   } else {
-    add(this->data_, DATA_KEY);
+    add(this->data_, this->data_len_, DATA_KEY);
   }
-  for (auto pkey : this->ping_keys_) {
-    add(this->data_, PING_KEY);
-    add(this->data_, pkey.second);
+  for (uint8_t i = 0; i < this->ping_key_count_; i++) {
+    if (this->ping_keys_[i].active) {
+      add(this->data_, this->data_len_, PING_KEY);
+      add(this->data_, this->data_len_, this->ping_keys_[i].key);
+    }
   }
 }
 
 void PacketTransport::flush_() {
-  if (!this->should_send() || this->data_.empty())
+  if (!this->should_send() || this->data_len_ == 0)
     return;
-  auto header_len = round4(this->header_.size());
-  auto len = round4(data_.size());
-  auto encode_buffer = std::vector<uint8_t>(round4(header_len + len));
-  memcpy(encode_buffer.data(), this->header_.data(), this->header_.size());
-  memcpy(encode_buffer.data() + header_len, this->data_.data(), this->data_.size());
+  auto header_len = round4(this->header_len_);
+  auto len = round4(this->data_len_);
+  uint8_t encode_buffer[MAX_PACKET_BUFFER_SIZE];
+  auto total_len = header_len + len;
+  memcpy(encode_buffer, this->header_, this->header_len_);
+  memset(encode_buffer + this->header_len_, 0, header_len - this->header_len_);
+  memcpy(encode_buffer + header_len, this->data_, this->data_len_);
+  memset(encode_buffer + header_len + this->data_len_, 0, len - this->data_len_);
   if (this->is_encrypted_()) {
-    xxtea::encrypt((uint32_t *) (encode_buffer.data() + header_len), len / 4,
-                   (uint32_t *) this->encryption_key_.data());
+    xxtea::encrypt((uint32_t *) (encode_buffer + header_len), len / 4, (uint32_t *) this->encryption_key_);
   }
-  this->send_packet(encode_buffer);
+  this->send_packet(encode_buffer, total_len);
 }
 
 void PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
   auto len = 1 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (len + this->header_len_ + this->data_len_ > this->get_max_packet_size()) {
     this->flush_();
     this->init_data_();
   }
-  add(this->data_, key);
-  add(this->data_, (uint8_t) data);
-  add(this->data_, id);
+  add(this->data_, this->data_len_, key);
+  add(this->data_, this->data_len_, (uint8_t) data);
+  add(this->data_, this->data_len_, id);
 }
 void PacketTransport::add_data_(uint8_t key, const char *id, float data) {
   FuData udata{.f32 = data};
@@ -283,13 +294,13 @@ void PacketTransport::add_data_(uint8_t key, const char *id, float data) {
 
 void PacketTransport::add_data_(uint8_t key, const char *id, uint32_t data) {
   auto len = 4 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (len + this->header_len_ + this->data_len_ > this->get_max_packet_size()) {
     this->flush_();
     this->init_data_();
   }
-  add(this->data_, key);
-  add(this->data_, data);
-  add(this->data_, id);
+  add(this->data_, this->data_len_, key);
+  add(this->data_, this->data_len_, data);
+  add(this->data_, this->data_len_, id);
 }
 void PacketTransport::send_data_(bool all) {
   if (!this->should_send())
@@ -325,30 +336,38 @@ void PacketTransport::update() {
     ESP_LOGV(TAG, "Ping request, age %u", now - this->last_key_time_);
     this->last_key_time_ = now;
   }
-  for (const auto &provider : this->providers_) {
-    uint32_t key_response_age = now - provider.second.last_key_response_time;
+  for (uint8_t i = 0; i < this->provider_count_; i++) {
+    if (!this->providers_[i].active)
+      continue;
+    uint32_t key_response_age = now - this->providers_[i].last_key_response_time;
     if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
 #ifdef USE_STATUS_SENSOR
-      if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", provider.first.c_str(), now, key_response_age);
-        provider.second.status_sensor->publish_state(false);
+      if (this->providers_[i].status_sensor != nullptr && this->providers_[i].status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_[i].name, now,
+                 key_response_age);
+        this->providers_[i].status_sensor->publish_state(false);
       }
 #endif
 #ifdef USE_SENSOR
-      for (auto &sensor : this->remote_sensors_[provider.first]) {
-        sensor.second->publish_state(NAN);
+      for (uint8_t j = 0; j < this->remote_sensor_count_; j++) {
+        if (this->remote_sensors_[j].active && this->remote_sensors_[j].provider_index == i) {
+          this->remote_sensors_[j].sensor->publish_state(NAN);
+        }
       }
 #endif
 #ifdef USE_BINARY_SENSOR
-      for (auto &sensor : this->remote_binary_sensors_[provider.first]) {
-        sensor.second->invalidate_state();
+      for (uint8_t j = 0; j < this->remote_binary_sensor_count_; j++) {
+        if (this->remote_binary_sensors_[j].active && this->remote_binary_sensors_[j].provider_index == i) {
+          this->remote_binary_sensors_[j].sensor->invalidate_state();
+        }
       }
 #endif
     } else {
 #ifdef USE_STATUS_SENSOR
-      if (provider.second.status_sensor != nullptr && !provider.second.status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", provider.first.c_str(), now, key_response_age);
-        provider.second.status_sensor->publish_state(true);
+      if (this->providers_[i].status_sensor != nullptr && !this->providers_[i].status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_[i].name, now,
+                 key_response_age);
+        this->providers_[i].status_sensor->publish_state(true);
       }
 #endif
     }
@@ -358,13 +377,26 @@ void PacketTransport::update() {
 void PacketTransport::add_key_(const char *name, uint32_t key) {
   if (!this->is_encrypted_())
     return;
-  if (this->ping_keys_.count(name) == 0 && this->ping_keys_.size() == MAX_PING_KEYS) {
-    ESP_LOGW(TAG, "Ping key from %s discarded", name);
-    return;
+  // Look for existing key for this name
+  for (uint8_t i = 0; i < this->ping_key_count_; i++) {
+    if (this->ping_keys_[i].active && strcmp(this->ping_keys_[i].name, name) == 0) {
+      this->ping_keys_[i].key = key;
+      this->updated_ = true;
+      ESP_LOGV(TAG, "Ping key from %s now %X", name, (unsigned) key);
+      return;
+    }
   }
-  this->ping_keys_[name] = key;
-  this->updated_ = true;
-  ESP_LOGV(TAG, "Ping key from %s now %X", name, (unsigned) key);
+  // Add new key if space available
+  if (this->ping_key_count_ < MAX_PING_KEYS) {
+    this->ping_keys_[this->ping_key_count_].name = name;
+    this->ping_keys_[this->ping_key_count_].key = key;
+    this->ping_keys_[this->ping_key_count_].active = true;
+    this->ping_key_count_++;
+    this->updated_ = true;
+    ESP_LOGV(TAG, "Ping key from %s now %X", name, (unsigned) key);
+  } else {
+    ESP_LOGW(TAG, "Ping key from %s discarded", name);
+  }
 }
 
 static bool process_rolling_code(Provider &provider, PacketDecoder &decoder) {
@@ -387,9 +419,9 @@ static bool process_rolling_code(Provider &provider, PacketDecoder &decoder) {
 /**
  * Process a received packet
  */
-void PacketTransport::process_(const std::vector<uint8_t> &data) {
+void PacketTransport::process_(const uint8_t *data, size_t data_len) {
   auto ping_key_seen = !this->ping_pong_enable_;
-  PacketDecoder decoder((data.data()), data.size());
+  PacketDecoder decoder(data, data_len);
   char namebuf[256]{};
   uint8_t byte;
   FuData rdata{};
@@ -422,21 +454,15 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     return;
   }
 
-  if (this->providers_.count(namebuf) == 0) {
+  int8_t provider_index = this->find_provider_(namebuf);
+  if (provider_index < 0) {
     ESP_LOGVV(TAG, "Unknown hostname %s", namebuf);
     return;
   }
   ESP_LOGV(TAG, "Found hostname %s", namebuf);
 
-#ifdef USE_SENSOR
-  auto &sensors = this->remote_sensors_[namebuf];
-#endif
-#ifdef USE_BINARY_SENSOR
-  auto &binary_sensors = this->remote_binary_sensors_[namebuf];
-#endif
-
   if (!decoder.bump_to(4)) {
-    ESP_LOGW(TAG, "Bad packet length %zu", data.size());
+    ESP_LOGW(TAG, "Bad packet length %zu", data_len);
   }
   auto len = decoder.get_remaining_size();
   if (round4(len) != len) {
@@ -444,13 +470,13 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     return;
   }
 
-  auto &provider = this->providers_[namebuf];
+  auto &provider = this->providers_[provider_index];
   // if encryption not used with this host, ping check is pointless since it would be easily spoofed.
-  if (provider.encryption_key.empty())
+  if (provider.key_length == 0)
     ping_key_seen = true;
 
-  if (!provider.encryption_key.empty()) {
-    decoder.decrypt((const uint32_t *) provider.encryption_key.data());
+  if (provider.key_length > 0) {
+    decoder.decrypt((const uint32_t *) provider.encryption_key);
   }
   if (decoder.get(byte) != DECODE_OK) {
     ESP_LOGV(TAG, "No key byte");
@@ -486,23 +512,25 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     if (decoder.decode(BINARY_SENSOR_KEY, namebuf, sizeof(namebuf), byte) == DECODE_OK) {
       ESP_LOGV(TAG, "Got binary sensor %s %d", namebuf, byte);
 #ifdef USE_BINARY_SENSOR
-      if (binary_sensors.count(namebuf) != 0)
-        binary_sensors[namebuf]->publish_state(byte != 0);
+      int8_t sensor_index = this->find_remote_binary_sensor_(provider_index, namebuf);
+      if (sensor_index >= 0) {
+        this->remote_binary_sensors_[sensor_index].sensor->publish_state(byte != 0);
+      }
 #endif
       continue;
     }
     if (decoder.decode(SENSOR_KEY, namebuf, sizeof(namebuf), rdata.u32) == DECODE_OK) {
       ESP_LOGV(TAG, "Got sensor %s %f", namebuf, rdata.f32);
 #ifdef USE_SENSOR
-      if (sensors.count(namebuf) != 0)
-        sensors[namebuf]->publish_state(rdata.f32);
+      int8_t sensor_index = this->find_remote_sensor_(provider_index, namebuf);
+      if (sensor_index >= 0) {
+        this->remote_sensors_[sensor_index].sensor->publish_state(rdata.f32);
+      }
 #endif
       continue;
     }
     if (decoder.get(byte) == DECODE_OK) {
       ESP_LOGW(TAG, "Unknown key %X", byte);
-      ESP_LOGD(TAG, "Buffer pos: %zu contents: %s", data.size() - decoder.get_remaining_size(),
-               format_hex_pretty(data).c_str());
     }
     break;
   }
@@ -523,16 +551,24 @@ void PacketTransport::dump_config() {
   for (auto sensor : this->binary_sensors_)
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
 #endif
-  for (const auto &host : this->providers_) {
-    ESP_LOGCONFIG(TAG, "  Remote host: %s", host.first.c_str());
-    ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(!host.second.encryption_key.empty()));
+  for (uint8_t i = 0; i < this->provider_count_; i++) {
+    if (!this->providers_[i].active)
+      continue;
+    ESP_LOGCONFIG(TAG, "  Remote host: %s", this->providers_[i].name);
+    ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(this->providers_[i].key_length > 0));
 #ifdef USE_SENSOR
-    for (const auto &sensor : this->remote_sensors_[host.first.c_str()])
-      ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor.first.c_str());
+    for (uint8_t j = 0; j < this->remote_sensor_count_; j++) {
+      if (this->remote_sensors_[j].active && this->remote_sensors_[j].provider_index == i) {
+        ESP_LOGCONFIG(TAG, "    Sensor: %s", this->remote_sensors_[j].sensor_id);
+      }
+    }
 #endif
 #ifdef USE_BINARY_SENSOR
-    for (const auto &sensor : this->remote_binary_sensors_[host.first.c_str()])
-      ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", sensor.first.c_str());
+    for (uint8_t j = 0; j < this->remote_binary_sensor_count_; j++) {
+      if (this->remote_binary_sensors_[j].active && this->remote_binary_sensors_[j].provider_index == i) {
+        ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", this->remote_binary_sensors_[j].sensor_id);
+      }
+    }
 #endif
   }
 }
@@ -559,13 +595,137 @@ void PacketTransport::send_ping_pong_request_() {
   if (!this->ping_pong_enable_ || !this->should_send())
     return;
   this->ping_key_ = random_uint32();
-  this->ping_header_.clear();
-  add(this->ping_header_, MAGIC_PING);
-  add(this->ping_header_, this->name_);
-  add(this->ping_header_, this->ping_key_);
-  this->send_packet(this->ping_header_);
+  this->ping_header_len_ = 0;
+  add(this->ping_header_, this->ping_header_len_, MAGIC_PING);
+  add(this->ping_header_, this->ping_header_len_, this->name_);
+  add(this->ping_header_, this->ping_header_len_, this->ping_key_);
+  this->send_packet(this->ping_header_, this->ping_header_len_);
   this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }
+
+int8_t PacketTransport::find_provider_(const char *name) {
+  for (uint8_t i = 0; i < this->provider_count_; i++) {
+    if (this->providers_[i].active && strcmp(this->providers_[i].name, name) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int8_t PacketTransport::find_or_create_provider_(const char *name) {
+  int8_t index = this->find_provider_(name);
+  if (index >= 0)
+    return index;
+
+  if (this->provider_count_ >= MAX_PROVIDERS) {
+    ESP_LOGE(TAG, "Maximum number of providers (%d) reached", MAX_PROVIDERS);
+    return -1;
+  }
+
+  index = this->provider_count_++;
+  this->providers_[index].name = name;
+  this->providers_[index].key_length = 0;
+  this->providers_[index].last_code[0] = 0;
+  this->providers_[index].last_code[1] = 0;
+  this->providers_[index].last_key_response_time = 0;
+  this->providers_[index].active = true;
+#ifdef USE_STATUS_SENSOR
+  this->providers_[index].status_sensor = nullptr;
+#endif
+  return index;
+}
+
+void PacketTransport::add_provider(const char *hostname) { this->find_or_create_provider_(hostname); }
+
+void PacketTransport::set_encryption_key(const uint8_t *key, uint8_t key_length) {
+  if (key_length > MAX_ENCRYPTION_KEY_SIZE) {
+    ESP_LOGE(TAG, "Encryption key too large: %d > %d", key_length, MAX_ENCRYPTION_KEY_SIZE);
+    return;
+  }
+  memcpy(this->encryption_key_, key, key_length);
+  this->encryption_key_length_ = key_length;
+}
+
+void PacketTransport::set_provider_encryption(const char *name, const uint8_t *key, uint8_t key_length) {
+  int8_t index = this->find_or_create_provider_(name);
+  if (index < 0)
+    return;
+  if (key_length > MAX_ENCRYPTION_KEY_SIZE) {
+    ESP_LOGE(TAG, "Encryption key too large for provider %s: %d > %d", name, key_length, MAX_ENCRYPTION_KEY_SIZE);
+    return;
+  }
+  memcpy(this->providers_[index].encryption_key, key, key_length);
+  this->providers_[index].key_length = key_length;
+}
+
+#ifdef USE_STATUS_SENSOR
+void PacketTransport::set_provider_status_sensor(const char *name, binary_sensor::BinarySensor *sensor) {
+  int8_t index = this->find_or_create_provider_(name);
+  if (index < 0)
+    return;
+  this->providers_[index].status_sensor = sensor;
+}
+#endif
+
+#ifdef USE_SENSOR
+int8_t PacketTransport::find_remote_sensor_(uint8_t provider_index, const char *sensor_id) {
+  for (uint8_t i = 0; i < this->remote_sensor_count_; i++) {
+    if (this->remote_sensors_[i].active && this->remote_sensors_[i].provider_index == provider_index &&
+        strcmp(this->remote_sensors_[i].sensor_id, sensor_id) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void PacketTransport::add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
+  int8_t provider_index = this->find_or_create_provider_(hostname);
+  if (provider_index < 0)
+    return;
+
+  if (this->remote_sensor_count_ >= MAX_REMOTE_SENSORS) {
+    ESP_LOGE(TAG, "Maximum number of remote sensors (%d) reached", MAX_REMOTE_SENSORS);
+    return;
+  }
+
+  this->remote_sensors_[this->remote_sensor_count_].sensor = sensor;
+  this->remote_sensors_[this->remote_sensor_count_].sensor_id = remote_id;
+  this->remote_sensors_[this->remote_sensor_count_].provider_index = provider_index;
+  this->remote_sensors_[this->remote_sensor_count_].active = true;
+  this->remote_sensor_count_++;
+}
+#endif
+
+#ifdef USE_BINARY_SENSOR
+int8_t PacketTransport::find_remote_binary_sensor_(uint8_t provider_index, const char *sensor_id) {
+  for (uint8_t i = 0; i < this->remote_binary_sensor_count_; i++) {
+    if (this->remote_binary_sensors_[i].active && this->remote_binary_sensors_[i].provider_index == provider_index &&
+        strcmp(this->remote_binary_sensors_[i].sensor_id, sensor_id) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void PacketTransport::add_remote_binary_sensor(const char *hostname, const char *remote_id,
+                                                binary_sensor::BinarySensor *sensor) {
+  int8_t provider_index = this->find_or_create_provider_(hostname);
+  if (provider_index < 0)
+    return;
+
+  if (this->remote_binary_sensor_count_ >= MAX_REMOTE_BINARY_SENSORS) {
+    ESP_LOGE(TAG, "Maximum number of remote binary sensors (%d) reached", MAX_REMOTE_BINARY_SENSORS);
+    return;
+  }
+
+  this->remote_binary_sensors_[this->remote_binary_sensor_count_].sensor = sensor;
+  this->remote_binary_sensors_[this->remote_binary_sensor_count_].sensor_id = remote_id;
+  this->remote_binary_sensors_[this->remote_binary_sensor_count_].provider_index = provider_index;
+  this->remote_binary_sensors_[this->remote_binary_sensor_count_].active = true;
+  this->remote_binary_sensor_count_++;
+}
+#endif
+
 }  // namespace packet_transport
 }  // namespace esphome
