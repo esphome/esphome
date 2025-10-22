@@ -62,8 +62,14 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
     }
   }
 
+  /// std::set compatibility: insert() is an alias for add()
+  constexpr void insert(EnumType value) { this->add(value); }
+
   /// Remove an enum value from the set
   constexpr void remove(EnumType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << enum_to_bit(value)); }
+
+  /// std::set compatibility: erase() is an alias for remove()
+  constexpr void erase(EnumType value) { this->remove(value); }
 
   /// Clear all values from the set
   constexpr void clear() { this->mask_ = 0; }
@@ -72,6 +78,9 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
   constexpr bool contains(EnumType value) const {
     return (this->mask_ & (static_cast<bitmask_t>(1) << enum_to_bit(value))) != 0;
   }
+
+  /// std::set compatibility: count() returns 1 if present, 0 if not (same as std::set for unique elements)
+  constexpr size_t count(EnumType value) const { return this->contains(value) ? 1 : 0; }
 
   /// Count the number of enum values in the set
   constexpr size_t size() const {
