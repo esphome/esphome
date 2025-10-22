@@ -8,34 +8,35 @@
 
 namespace esphome {
 
-/// Generic bitmask for storing a set of enum values efficiently.
-/// Replaces std::set<EnumType> to eliminate red-black tree overhead (~586 bytes per instantiation).
+/// Generic bitmask for storing a finite set of discrete values efficiently.
+/// Replaces std::set<ValueType> to eliminate red-black tree overhead (~586 bytes per instantiation).
 ///
 /// Template parameters:
-///   EnumType: The enum type to store (must be uint8_t-based)
+///   ValueType: The type to store (typically enum, but can be any discrete bounded type)
 ///   MaxBits: Maximum number of bits needed (auto-selects uint8_t/uint16_t/uint32_t)
 ///
 /// Requirements:
-///   - EnumType must be an enum with sequential values starting from 0
-///   - Specialization must provide enum_to_bit() and bit_to_enum() static methods
-///   - MaxBits must be sufficient to hold all enum values
+///   - ValueType must have a bounded discrete range that maps to bit positions
+///   - Specialization must provide value_to_bit() and bit_to_value() static methods
+///   - MaxBits must be sufficient to hold all possible values
 ///
 /// Example usage:
-///   using ClimateModeMask = EnumBitmask<ClimateMode, 8>;
+///   using ClimateModeMask = FiniteSetMask<ClimateMode, 8>;
 ///   ClimateModeMask modes({CLIMATE_MODE_HEAT, CLIMATE_MODE_COOL});
 ///   if (modes.count(CLIMATE_MODE_HEAT)) { ... }
 ///   for (auto mode : modes) { ... }  // Iterate over set bits
 ///
 /// For complete usage examples with template specializations, see:
-///   - esphome/components/light/color_mode.h (ColorMode example)
+///   - esphome/components/light/color_mode.h (ColorMode enum example)
 ///
 /// Design notes:
 ///   - Uses compile-time type selection for optimal size (uint8_t/uint16_t/uint32_t)
-///   - Iterator converts bit positions to actual enum values during traversal
+///   - Iterator converts bit positions to actual values during traversal
 ///   - All operations are constexpr-compatible for compile-time initialization
-///   - Drop-in replacement for std::set<EnumType> with simpler API
+///   - Drop-in replacement for std::set<ValueType> with simpler API
+///   - Despite the name, works with any discrete bounded type, not just enums
 ///
-template<typename EnumType, int MaxBits = 16> class EnumBitmask {
+template<typename ValueType, int MaxBits = 16> class FiniteSetMask {
  public:
   // Automatic bitmask type selection based on MaxBits
   // ≤8 bits: uint8_t, ≤16 bits: uint16_t, otherwise: uint32_t
@@ -43,38 +44,38 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
       typename std::conditional<(MaxBits <= 8), uint8_t,
                                 typename std::conditional<(MaxBits <= 16), uint16_t, uint32_t>::type>::type;
 
-  constexpr EnumBitmask() = default;
+  constexpr FiniteSetMask() = default;
 
   /// Construct from initializer list: {VALUE1, VALUE2, ...}
-  constexpr EnumBitmask(std::initializer_list<EnumType> values) {
+  constexpr FiniteSetMask(std::initializer_list<ValueType> values) {
     for (auto value : values) {
       this->insert(value);
     }
   }
 
-  /// Add a single enum value to the set (std::set compatibility)
-  constexpr void insert(EnumType value) { this->mask_ |= (static_cast<bitmask_t>(1) << enum_to_bit(value)); }
+  /// Add a single value to the set (std::set compatibility)
+  constexpr void insert(ValueType value) { this->mask_ |= (static_cast<bitmask_t>(1) << value_to_bit(value)); }
 
-  /// Add multiple enum values from initializer list
-  constexpr void insert(std::initializer_list<EnumType> values) {
+  /// Add multiple values from initializer list
+  constexpr void insert(std::initializer_list<ValueType> values) {
     for (auto value : values) {
       this->insert(value);
     }
   }
 
-  /// Remove an enum value from the set (std::set compatibility)
-  constexpr void erase(EnumType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << enum_to_bit(value)); }
+  /// Remove a value from the set (std::set compatibility)
+  constexpr void erase(ValueType value) { this->mask_ &= ~(static_cast<bitmask_t>(1) << value_to_bit(value)); }
 
   /// Clear all values from the set
   constexpr void clear() { this->mask_ = 0; }
 
-  /// Check if the set contains a specific enum value (std::set compatibility)
+  /// Check if the set contains a specific value (std::set compatibility)
   /// Returns 1 if present, 0 if not (same as std::set for unique elements)
-  constexpr size_t count(EnumType value) const {
-    return (this->mask_ & (static_cast<bitmask_t>(1) << enum_to_bit(value))) != 0 ? 1 : 0;
+  constexpr size_t count(ValueType value) const {
+    return (this->mask_ & (static_cast<bitmask_t>(1) << value_to_bit(value))) != 0 ? 1 : 0;
   }
 
-  /// Count the number of enum values in the set
+  /// Count the number of values in the set
   constexpr size_t size() const {
     // Brian Kernighan's algorithm - efficient for sparse bitmasks
     // Typical case: 2-4 modes out of 10 possible
@@ -91,21 +92,21 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
   constexpr bool empty() const { return this->mask_ == 0; }
 
   /// Iterator support for range-based for loops and API encoding
-  /// Iterates over set bits and converts bit positions to enum values
+  /// Iterates over set bits and converts bit positions to values
   /// Optimization: removes bits from mask as we iterate
   class Iterator {
    public:
     using iterator_category = std::forward_iterator_tag;
-    using value_type = EnumType;
+    using value_type = ValueType;
     using difference_type = std::ptrdiff_t;
-    using pointer = const EnumType *;
-    using reference = EnumType;
+    using pointer = const ValueType *;
+    using reference = ValueType;
 
     constexpr explicit Iterator(bitmask_t mask) : mask_(mask) {}
 
-    constexpr EnumType operator*() const {
-      // Return enum for the first set bit
-      return bit_to_enum(find_next_set_bit(mask_, 0));
+    constexpr ValueType operator*() const {
+      // Return value for the first set bit
+      return bit_to_value(find_next_set_bit(mask_, 0));
     }
 
     constexpr Iterator &operator++() {
@@ -128,15 +129,15 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
   /// Get the raw bitmask value for optimized operations
   constexpr bitmask_t get_mask() const { return this->mask_; }
 
-  /// Check if a specific enum value is present in a raw bitmask
+  /// Check if a specific value is present in a raw bitmask
   /// Useful for checking intersection results without creating temporary objects
-  static constexpr bool mask_contains(bitmask_t mask, EnumType value) {
-    return (mask & (static_cast<bitmask_t>(1) << enum_to_bit(value))) != 0;
+  static constexpr bool mask_contains(bitmask_t mask, ValueType value) {
+    return (mask & (static_cast<bitmask_t>(1) << value_to_bit(value))) != 0;
   }
 
-  /// Get the first enum value from a raw bitmask
+  /// Get the first value from a raw bitmask
   /// Used for optimizing intersection logic (e.g., "pick first suitable mode")
-  static constexpr EnumType first_value_from_mask(bitmask_t mask) { return bit_to_enum(find_next_set_bit(mask, 0)); }
+  static constexpr ValueType first_value_from_mask(bitmask_t mask) { return bit_to_value(find_next_set_bit(mask, 0)); }
 
   /// Find the next set bit in a bitmask starting from a given position
   /// Returns the bit position, or MaxBits if no more bits are set
@@ -150,9 +151,9 @@ template<typename EnumType, int MaxBits = 16> class EnumBitmask {
 
  protected:
   // Must be provided by template specialization
-  // These convert between enum values and bit positions (0, 1, 2, ...)
-  static constexpr int enum_to_bit(EnumType value);
-  static EnumType bit_to_enum(int bit);  // Not constexpr: array indexing with runtime bounds checking
+  // These convert between values and bit positions (0, 1, 2, ...)
+  static constexpr int value_to_bit(ValueType value);
+  static ValueType bit_to_value(int bit);  // Not constexpr: array indexing with runtime bounds checking
 
   bitmask_t mask_{0};
 };

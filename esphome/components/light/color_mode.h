@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include "esphome/core/enum_bitmask.h"
+#include "esphome/core/finite_set_mask.h"
 
 namespace esphome {
 namespace light {
@@ -127,8 +127,8 @@ constexpr ColorMode COLOR_MODE_LOOKUP[COLOR_MODE_BITMASK_SIZE] = {
     ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
 };
 
-// Type alias for ColorMode bitmask using generic EnumBitmask template
-using ColorModeMask = EnumBitmask<ColorMode, COLOR_MODE_BITMASK_SIZE>;
+// Type alias for ColorMode bitmask using generic FiniteSetMask template
+using ColorModeMask = FiniteSetMask<ColorMode, COLOR_MODE_BITMASK_SIZE>;
 
 // Number of ColorCapability enum values
 constexpr int COLOR_CAPABILITY_COUNT = 6;
@@ -190,7 +190,7 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
 // Template specializations for ColorMode must be in global namespace
 //
 // C++ requires template specializations to be declared in the same namespace as the
-// original template. Since EnumBitmask is in the esphome namespace (not esphome::light),
+// original template. Since FiniteSetMask is in the esphome namespace (not esphome::light),
 // we must provide these specializations at global scope with fully-qualified names.
 //
 // These specializations define how ColorMode enum values map to/from bit positions.
@@ -198,7 +198,7 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
 /// Map ColorMode enum values to bit positions (0-9)
 /// Bit positions follow the enum declaration order
 template<>
-constexpr int esphome::EnumBitmask<esphome::light::ColorMode, esphome::light::COLOR_MODE_BITMASK_SIZE>::enum_to_bit(
+constexpr int esphome::FiniteSetMask<esphome::light::ColorMode, esphome::light::COLOR_MODE_BITMASK_SIZE>::value_to_bit(
     esphome::light::ColorMode mode) {
   // Linear search through COLOR_MODE_LOOKUP array
   // Compiler optimizes this to efficient code since array is constexpr
@@ -212,8 +212,8 @@ constexpr int esphome::EnumBitmask<esphome::light::ColorMode, esphome::light::CO
 /// Map bit positions (0-9) to ColorMode enum values
 /// Bit positions follow the enum declaration order
 template<>
-inline esphome::light::ColorMode esphome::EnumBitmask<esphome::light::ColorMode,
-                                                      esphome::light::COLOR_MODE_BITMASK_SIZE>::bit_to_enum(int bit) {
+inline esphome::light::ColorMode esphome::FiniteSetMask<
+    esphome::light::ColorMode, esphome::light::COLOR_MODE_BITMASK_SIZE>::bit_to_value(int bit) {
   return (bit >= 0 && bit < esphome::light::COLOR_MODE_BITMASK_SIZE) ? esphome::light::COLOR_MODE_LOOKUP[bit]
                                                                      : esphome::light::ColorMode::UNKNOWN;
 }
