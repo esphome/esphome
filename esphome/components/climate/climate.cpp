@@ -526,9 +526,7 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   }
   if (this->uses_custom_fan_mode) {
     if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
-      auto it = traits.get_supported_custom_fan_modes().cbegin();
-      for (size_t i = this->custom_fan_mode; i > 0; i--)
-        it++;
+      auto it = std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
       call.custom_fan_mode_ = *it;
       call.fan_mode_.reset();
     }
@@ -537,9 +535,7 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   }
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
-      auto it = traits.get_supported_custom_presets().cbegin();
-      for (size_t i = this->custom_preset; i > 0; i--)
-        it++;
+      auto it = std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
       call.custom_preset_ = *it;
       call.preset_.reset();
     }
@@ -567,9 +563,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (this->uses_custom_fan_mode) {
     if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
-      auto it = traits.get_supported_custom_fan_modes().cbegin();
-      for (size_t i = this->custom_fan_mode; i > 0; i--)
-        it++;
+      auto it = std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
       climate->fan_mode.reset();
       climate->custom_fan_mode = *it;
     }
@@ -579,9 +573,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
-      auto it = traits.get_supported_custom_presets().cbegin();
-      for (size_t i = this->custom_preset; i > 0; i--)
-        it++;
+      auto it = std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
       climate->preset.reset();
       climate->custom_preset = *it;
     }
