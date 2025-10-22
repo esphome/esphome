@@ -58,10 +58,11 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
 
   void play(Ts... x) override {
     // check to see if fan supports speeds and is on
-    if (this->state_->get_traits().supported_speed_count()) {
+    auto traits = this->state_->get_traits();
+    if (traits.supported_speed_count()) {
       if (this->state_->state) {
         int speed = this->state_->speed + 1;
-        int supported_speed_count = this->state_->get_traits().supported_speed_count();
+        int supported_speed_count = traits.supported_speed_count();
         bool off_speed_cycle = no_off_cycle_.value(x...);
         if (speed > supported_speed_count && off_speed_cycle) {
           // was running at max speed, off speed cycle enabled, so turn off
