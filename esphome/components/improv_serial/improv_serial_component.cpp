@@ -112,7 +112,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
 
 void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) {
   // First, set length field
-  this->tx_header_[8] = this->tx_header_[7] == TYPE_RPC_RESPONSE ? size : 1;
+  this->tx_header_[TX_LENGTH_IDX] = this->tx_header_[TX_TYPE_IDX] == TYPE_RPC_RESPONSE ? size : 1;
 
   const bool there_is_data = data != nullptr && size > 0;
   const uint8_t header_checksum_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_) - 2;
@@ -128,7 +128,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
       checksum += data[i];
     }
   }
-  this->tx_header_[10] = checksum;
+  this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 
 #ifdef USE_ESP32
   switch (logger::global_logger->get_uart()) {
@@ -141,7 +141,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
       if (there_is_data) {
         uart_write_bytes(this->uart_num_, data, size);
-        uart_write_bytes(this->uart_num_, &this->tx_header_[10], 2);  // Footer: checksum and newline
+        uart_write_bytes(this->uart_num_, &this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
       }
       break;
 #if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
@@ -149,7 +149,8 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
       esp_usb_console_write_buf((const char *) this->tx_header_, header_tx_len);
       if (there_is_data) {
         esp_usb_console_write_buf((const char *) data, size);
-        esp_usb_console_write_buf((const char *) &this->tx_header_[10], 2);  // Footer: checksum and newline
+        esp_usb_console_write_buf((const char *) &this->tx_header_[TX_CHECKSUM_IDX],
+                                  2);  // Footer: checksum and newline
       }
       break;
 #endif
@@ -158,7 +159,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
       usb_serial_jtag_write_bytes((const char *) this->tx_header_, header_tx_len, 20 / portTICK_PERIOD_MS);
       if (there_is_data) {
         usb_serial_jtag_write_bytes((const char *) data, size, 20 / portTICK_PERIOD_MS);
-        usb_serial_jtag_write_bytes((const char *) &this->tx_header_[10], 2,
+        usb_serial_jtag_write_bytes((const char *) &this->tx_header_[TX_CHECKSUM_IDX], 2,
                                     20 / portTICK_PERIOD_MS);  // Footer: checksum and newline
       }
       break;
@@ -170,7 +171,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   this->hw_serial_->write(this->tx_header_, header_tx_len);
   if (there_is_data) {
     this->hw_serial_->write(data, size);
-    this->hw_serial_->write(&this->tx_header_[10], 2);  // Footer: checksum and newline
+    this->hw_serial_->write(&this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
   }
 #endif
 }
@@ -280,19 +281,19 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
 void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
-  this->tx_header_[7] = TYPE_CURRENT_STATE;
-  this->tx_header_[9] = state;
+  this->tx_header_[TX_TYPE_IDX] = TYPE_CURRENT_STATE;
+  this->tx_header_[TX_DATA_IDX] = state;
   this->write_data_();
 }
 
 void ImprovSerialComponent::set_error_(improv::Error error) {
-  this->tx_header_[7] = TYPE_ERROR_STATE;
-  this->tx_header_[9] = error;
+  this->tx_header_[TX_TYPE_IDX] = TYPE_ERROR_STATE;
+  this->tx_header_[TX_DATA_IDX] = error;
   this->write_data_();
 }
 
 void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
-  this->tx_header_[7] = TYPE_RPC_RESPONSE;
+  this->tx_header_[TX_TYPE_IDX] = TYPE_RPC_RESPONSE;
   this->write_data_(response.data(), response.size());
 }
 

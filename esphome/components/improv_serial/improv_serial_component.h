@@ -26,6 +26,16 @@
 namespace esphome {
 namespace improv_serial {
 
+// TX buffer layout constants
+static constexpr uint8_t TX_HEADER_SIZE = 6;  // Bytes 0-5 = "IMPROV"
+static constexpr uint8_t TX_VERSION_IDX = 6;
+static constexpr uint8_t TX_TYPE_IDX = 7;
+static constexpr uint8_t TX_LENGTH_IDX = 8;
+static constexpr uint8_t TX_DATA_IDX = 9;  // For state/error messages only
+static constexpr uint8_t TX_CHECKSUM_IDX = 10;
+static constexpr uint8_t TX_NEWLINE_IDX = 11;
+static constexpr uint8_t TX_BUFFER_SIZE = 12;
+
 enum ImprovSerialType : uint8_t {
   TYPE_CURRENT_STATE = 0x01,
   TYPE_ERROR_STATE = 0x02,
@@ -59,7 +69,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   optional<uint8_t> read_byte_();
   void write_data_(const uint8_t *data = nullptr, size_t size = 0);
 
-  uint8_t tx_header_[12] = {
+  uint8_t tx_header_[TX_BUFFER_SIZE] = {
       'I',                    // 0: Header
       'M',                    // 1: Header
       'P',                    // 2: Header
