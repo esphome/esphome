@@ -57,7 +57,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   std::vector<uint8_t> build_version_info_();
 
   optional<uint8_t> read_byte_();
-  void write_data_(const uint8_t *data = nullptr, const size_t size = 0);
+  void write_data_(const uint8_t *data = nullptr, size_t size = 0);
 
   uint8_t tx_header_[12] = {
       'I',                    // 0: Header
@@ -69,7 +69,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
       IMPROV_SERIAL_VERSION,  // 6: Version
       0,                      // 7: ImprovSerialType
       0,                      // 8: Length
-      0,                      // 9...X:	Data (here, one byte reserved for state/error)
+      0,                      // 9...X: Data (here, one byte reserved for state/error)
       0,                      // X + 10: Checksum
       '\n',
   };
