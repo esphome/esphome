@@ -114,11 +114,11 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   // First, set length field
   this->tx_header_[8] = this->tx_header_[7] == TYPE_RPC_RESPONSE ? size : 1;
 
-  bool there_is_data = data != nullptr && size > 0;
+  const bool there_is_data = data != nullptr && size > 0;
+  const uint8_t header_checksum_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_) - 2;
+  const uint8_t header_tx_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_);
   // Calculate checksum for message
   uint8_t checksum = 0;
-  uint8_t header_checksum_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_) - 2;
-  uint8_t header_tx_len = there_is_data ? sizeof(tx_header_) - 3 : sizeof(tx_header_);
   for (uint8_t i = 0; i < header_checksum_len; i++) {
     checksum += this->tx_header_[i];
   }
