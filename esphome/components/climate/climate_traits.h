@@ -5,18 +5,17 @@
 #include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
 
-// Forward declare climate enums and bitmask sizes
 namespace esphome::climate {
+
+// Bitmask sizes for climate enums
 constexpr int CLIMATE_MODE_BITMASK_SIZE = 8;  // 7 values (OFF, HEAT_COOL, COOL, HEAT, FAN_ONLY, DRY, AUTO)
 constexpr int CLIMATE_FAN_MODE_BITMASK_SIZE =
     16;  // 10 values (ON, OFF, AUTO, LOW, MEDIUM, HIGH, MIDDLE, FOCUS, DIFFUSE, QUIET)
 constexpr int CLIMATE_SWING_MODE_BITMASK_SIZE = 8;  // 4 values (OFF, BOTH, VERTICAL, HORIZONTAL)
 constexpr int CLIMATE_PRESET_BITMASK_SIZE = 8;      // 8 values (NONE, HOME, AWAY, BOOST, COMFORT, ECO, SLEEP, ACTIVITY)
-}  // namespace esphome::climate
 
 // No template specializations needed - all climate enums use 1:1 mapping (enum value = bit position)
 // FiniteSetMask's default implementations handle this automatically.
-namespace esphome::climate {
 
 // Type aliases for climate enum bitmasks
 // These replace std::set<EnumType> to eliminate red-black tree overhead
