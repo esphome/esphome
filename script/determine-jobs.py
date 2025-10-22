@@ -336,7 +336,7 @@ def _component_has_tests(component: str) -> bool:
     Returns:
         True if the component has test YAML files
     """
-    return bool(get_component_test_files(component))
+    return bool(get_component_test_files(component, all_variants=True))
 
 
 def _select_platform_by_preference(
@@ -496,7 +496,7 @@ def detect_memory_impact_config(
 
     for component in sorted(changed_component_set):
         # Look for test files on preferred platforms
-        test_files = get_component_test_files(component)
+        test_files = get_component_test_files(component, all_variants=True)
         if not test_files:
             continue
 
@@ -606,21 +606,23 @@ def main() -> None:
     #   [list]: Changed components (already includes dependencies)
     changed_components_result = get_changed_components()
 
+    # Always analyze component files, even if core files changed
+    # This is needed for component testing and memory impact analysis
+    changed = changed_files(args.branch)
+    component_files = [f for f in changed if filter_component_and_test_files(f)]
+
+    directly_changed_components = get_components_with_dependencies(
+        component_files, False
+    )
+
     if changed_components_result is None:
         # Core files changed - will trigger full clang-tidy scan
-        # No specific components to test
-        changed_components = []
-        directly_changed_components = []
+        # But we still need to track changed components for testing and memory analysis
+        changed_components = get_components_with_dependencies(component_files, True)
         is_core_change = True
     else:
-        # Get both directly changed and all changed (with dependencies)
-        changed = changed_files(args.branch)
-        component_files = [f for f in changed if filter_component_and_test_files(f)]
-
-        directly_changed_components = get_components_with_dependencies(
-            component_files, False
-        )
-        changed_components = get_components_with_dependencies(component_files, True)
+        # Use the result from get_changed_components() which includes dependencies
+        changed_components = changed_components_result
         is_core_change = False
 
     # Filter to only components that have test files
