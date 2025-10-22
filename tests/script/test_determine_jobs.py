@@ -574,6 +574,105 @@ def test_main_filters_components_without_tests(
     assert output["memory_impact"]["should_run"] == "false"
 
 
+def test_main_detects_components_with_variant_tests(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that components with only variant test files (test-*.yaml) are detected.
+
+    This test verifies the fix for components like improv_serial, ethernet, mdns,
+    improv_base, and safe_mode which only have variant test files (test-*.yaml)
+    instead of base test files (test.*.yaml).
+    """
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Mock changed_files to return component files
+    mock_changed_files.return_value = [
+        "esphome/components/improv_serial/improv_serial.cpp",
+        "esphome/components/ethernet/ethernet.cpp",
+        "esphome/components/no_tests/component.cpp",
+    ]
+
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # improv_serial has only variant tests (like the real component)
+    improv_serial_dir = tests_dir / "improv_serial"
+    improv_serial_dir.mkdir(parents=True)
+    (improv_serial_dir / "test-uart0.esp32-idf.yaml").write_text("test: config")
+    (improv_serial_dir / "test-uart0.esp8266-ard.yaml").write_text("test: config")
+    (improv_serial_dir / "test-usb_cdc.esp32-s2-idf.yaml").write_text("test: config")
+
+    # ethernet also has only variant tests
+    ethernet_dir = tests_dir / "ethernet"
+    ethernet_dir.mkdir(parents=True)
+    (ethernet_dir / "test-manual_ip.esp32-idf.yaml").write_text("test: config")
+    (ethernet_dir / "test-dhcp.esp32-idf.yaml").write_text("test: config")
+
+    # no_tests component has no test files at all
+    no_tests_dir = tests_dir / "no_tests"
+    no_tests_dir.mkdir(parents=True)
+
+    # Mock root_path to use tmp_path (need to patch both determine_jobs and helpers)
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["improv_serial", "ethernet", "no_tests"],
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: (
+                ["improv_serial", "ethernet"]
+                if not deps
+                else ["improv_serial", "ethernet", "no_tests"]
+            ),
+        ),
+        patch.object(determine_jobs, "changed_files", return_value=[]),
+    ):
+        # Clear the cache since we're mocking root_path
+        determine_jobs._component_has_tests.cache_clear()
+        determine_jobs.main()
+
+    # Check output
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    # changed_components should have all components
+    assert set(output["changed_components"]) == {
+        "improv_serial",
+        "ethernet",
+        "no_tests",
+    }
+    # changed_components_with_tests should include components with variant tests
+    assert set(output["changed_components_with_tests"]) == {"improv_serial", "ethernet"}
+    # component_test_count should be 2 (improv_serial and ethernet)
+    assert output["component_test_count"] == 2
+    # no_tests should be excluded since it has no test files
+    assert "no_tests" not in output["changed_components_with_tests"]
+
+
 # Tests for detect_memory_impact_config function
 
 
@@ -783,6 +882,51 @@ def test_detect_memory_impact_config_skips_base_bus_components(tmp_path: Path) -
     assert result["should_run"] == "true"
     assert result["components"] == ["wifi"]
     assert "i2c" not in result["components"]
+
+
+def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
+    """Test memory impact detection for components with only variant test files.
+
+    This verifies that memory impact analysis works correctly for components like
+    improv_serial, ethernet, mdns, etc. which only have variant test files
+    (test-*.yaml) instead of base test files (test.*.yaml).
+    """
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # improv_serial with only variant tests
+    improv_serial_dir = tests_dir / "improv_serial"
+    improv_serial_dir.mkdir(parents=True)
+    (improv_serial_dir / "test-uart0.esp32-idf.yaml").write_text("test: improv")
+    (improv_serial_dir / "test-uart0.esp8266-ard.yaml").write_text("test: improv")
+    (improv_serial_dir / "test-usb_cdc.esp32-s2-idf.yaml").write_text("test: improv")
+
+    # ethernet with only variant tests
+    ethernet_dir = tests_dir / "ethernet"
+    ethernet_dir.mkdir(parents=True)
+    (ethernet_dir / "test-manual_ip.esp32-idf.yaml").write_text("test: ethernet")
+    (ethernet_dir / "test-dhcp.esp32-c3-idf.yaml").write_text("test: ethernet")
+
+    # Mock changed_files to return both components
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/components/improv_serial/improv_serial.cpp",
+            "esphome/components/ethernet/ethernet.cpp",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Should detect both components even though they only have variant tests
+    assert result["should_run"] == "true"
+    assert set(result["components"]) == {"improv_serial", "ethernet"}
+    # Both components support esp32-idf
+    assert result["platform"] == "esp32-idf"
+    assert result["use_merged_config"] == "true"
 
 
 # Tests for clang-tidy split mode logic
