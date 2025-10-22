@@ -1,9 +1,9 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "light_effect.h"
 
 namespace esphome {
@@ -188,10 +188,10 @@ class StrobeLightEffect : public LightEffect {
     this->last_switch_ = now;
   }
 
-  void set_colors(const std::vector<StrobeLightEffectColor> &colors) { this->colors_ = colors; }
+  void set_colors(const std::initializer_list<StrobeLightEffectColor> &colors) { this->colors_ = colors; }
 
  protected:
-  std::vector<StrobeLightEffectColor> colors_;
+  FixedVector<StrobeLightEffectColor> colors_;
   uint32_t last_switch_{0};
   size_t at_color_{0};
 };
