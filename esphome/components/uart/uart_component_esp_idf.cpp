@@ -6,6 +6,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/gpio.h"
+#include "driver/gpio.h"
+#include "soc/gpio_num.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -102,6 +105,13 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
+  }
+
+  if (this->rx_pin_) {
+    this->rx_pin_->setup();
+  }
+  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+    this->tx_pin_->setup();
   }
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
