@@ -240,16 +240,18 @@ def resolve_ip_address(
 
     # If we have uncached hosts (only non-IP hostnames), resolve them
     if uncached_hosts:
+        from aioesphomeapi.host_resolver import AddrInfo as AioAddrInfo
+
         from esphome.core import EsphomeError
         from esphome.resolver import AsyncResolver
 
         resolver = AsyncResolver(uncached_hosts, port)
+        addr_infos: list[AioAddrInfo] = []
         try:
             addr_infos = resolver.resolve()
         except EsphomeError as err:
             if res:
-                _LOGGER.warning(err)
-                addr_infos = []
+                _LOGGER.info("%s (using %d cached IP addresses)", err, len(res))
             else:
                 raise
 
