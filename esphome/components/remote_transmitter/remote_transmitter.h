@@ -12,8 +12,9 @@
 namespace esphome {
 namespace remote_transmitter {
 
-#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
-typedef union {
+#if defined(USE_ESP32)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+typedef union {  // NOLINT(modernize-use-using)
   struct {
     uint16_t duration : 15;
     uint16_t level : 1;
@@ -25,6 +26,7 @@ struct RemoteTransmitterComponentStore {
   uint32_t times{0};
   uint32_t index{0};
 };
+#endif
 #endif
 
 class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,

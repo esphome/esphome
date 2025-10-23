@@ -36,11 +36,11 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
       store->times--;
       if (store->times == 0) {
         *done = true;
-        symbols[count++].val = (sym_1 << 16) | sym_0;
+        symbols[count++].val = sym_0 | (sym_1 << 16);
         return count;
       }
     }
-    symbols[count++].val = (sym_1 << 16) | sym_0;
+    symbols[count++].val = sym_0 | (sym_1 << 16);
   }
   *done = false;
   return count;
