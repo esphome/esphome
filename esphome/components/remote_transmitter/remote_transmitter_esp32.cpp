@@ -207,7 +207,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->rmt_temp_.clear();
   this->rmt_temp_.reserve(this->temp_.get_data().size() + 1);
 
-  // encode wait time at the start of the buffer to simplify the encoder callback
+  // encode any delay at the start of the buffer to simplify the encoder callback
   // this will be skipped the first time around
   send_wait = this->from_microseconds_(static_cast<uint32_t>(send_wait));
   while (send_wait > 0) {
