@@ -18,7 +18,7 @@ constexpr uint32_t PW_START_US = 2280;
 constexpr uint16_t MSB_DYSON = (1 << 14);
 
 // required symbols in transmit buffer = (start_symbol + 15 data_symbols)
-constexpr uint32_t N_SYMBOLS_REQ = 2u * (1 + 15);
+constexpr int32_t N_SYMBOLS_REQ = 2u * (1 + 15);
 
 void DysonProtocol::encode(RemoteTransmitData *dst, const DysonData &data) {
   uint32_t raw_code = (data.code << 2) + (data.index & 3);
