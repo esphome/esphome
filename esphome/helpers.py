@@ -250,10 +250,9 @@ def resolve_ip_address(
         try:
             addr_infos = resolver.resolve()
         except EsphomeError as err:
-            if res:
-                _LOGGER.info("%s (using %d cached IP addresses)", err, len(res))
-            else:
+            if not res:
                 raise
+            _LOGGER.info("%s (using %d cached IP addresses)", err, len(res))
 
         # Convert aioesphomeapi AddrInfo to our format
         for addr_info in addr_infos:
