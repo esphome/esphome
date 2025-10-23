@@ -137,6 +137,9 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   void power_down_internal_();
   /// @brief Powers up the HX711 sensor by setting the PD_SCK pin high and resets settled state.
   void power_up_internal_();
+  /// @brief Powers down the HX711 sensor and then powers it back up.
+  /// @param[in] use_internal_powerdown If true `power_down_internal_()` will be called instead of `power_down()`.
+  void power_cycle_restart_(bool use_internal_powerdown = false);
 
   /// @brief Reads raw data from the HX711 sensor, handling gain cycling and optional settling.
   ///

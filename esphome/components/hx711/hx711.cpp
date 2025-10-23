@@ -29,11 +29,8 @@ void HX711Sensor::setup() {
   this->sck_pin_->setup();
   this->dout_pin_->setup();
 
-  // Reset the HX711
-  this->power_down_internal_();
-  delayMicroseconds(60);
-  // Start poller after settling
-  this->power_up(true);
+  // No timeouts are running, using `power_down_internal_()`
+  this->power_cycle_restart_(true);
 }
 
 void HX711Sensor::loop() {
@@ -83,8 +80,16 @@ void HX711Sensor::loop() {
       // Start settle timeout for next measurement
       this->start_settle_timeout_();
     }
-    this->log_and_publish_channel_b_value_(read_operation_result ? static_cast<float>(static_cast<int32_t>(result))
-                                                                 : NAN);
+
+    const float resultF = static_cast<float>(static_cast<int32_t>(result));
+    if (!read_operation_result) {
+      // On failed read, publish nan and do power cycle restart
+      this->log_and_publish_channel_b_value_(NAN);
+      this->power_cycle_restart_();
+    } else {
+      // Publish value on succesful read
+      this->log_and_publish_channel_b_value_(resultF);
+    }
 
     this->hx711_state_flags_.update_in_progress = false;
     return;
@@ -145,6 +150,8 @@ void HX711Sensor::loop() {
       this->log_and_publish_channel_b_value_(NAN);
     }
 #endif
+    // Restart the HX711 sensor, this will start powerup sequence.
+    this->power_cycle_restart_();
   }
 
   this->hx711_state_flags_.update_in_progress = false;
@@ -212,6 +219,20 @@ bool HX711Sensor::is_measurement_ready() {
   return ready;
 }
 
+void HX711Sensor::power_cycle_restart_(const bool use_internal_powerdown) {
+  ESP_LOGD(TAG, "Restarting");
+  // Reset the HX711
+  if (use_internal_powerdown) {
+    this->power_down_internal_();
+  } else {
+    this->power_down();
+  }
+  // At least 60 microseconds is needed for powerdown.
+  delayMicroseconds(80);
+  // Start poller after settling
+  this->power_up(true);
+}
+
 bool HX711Sensor::is_powered_down() {
   // PD_SCK pin is always left low after reading data.
   return this->sck_pin_->digital_read();
@@ -264,7 +285,7 @@ bool HX711Sensor::power_down(const bool stop_poller) {
     this->hx711_state_flags_.poller_stopped = true;
   }
   this->power_down_internal_();
-  delayMicroseconds(60);
+  delayMicroseconds(80);
   ESP_LOGD(TAG, "'%s': %s", this->name_.c_str(), LOG_STR_POWERED_DOWN);
   return true;
 }
