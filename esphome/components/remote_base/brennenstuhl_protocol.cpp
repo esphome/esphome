@@ -69,7 +69,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
       .code = 0,
   };
   // suppress noisy frames, at least a complete bs_code should be available
-  if (n_received > N_SYMBOLS_REQ) {
+  if (n_received > (int32_t) N_SYMBOLS_REQ) {
     int32_t bs_codes[4] = {0, 0, 0, 0};  // internal bs codes
     int32_t bs_cnt = 0;                  // number of bs codes found within frame
     int32_t bs_idx = -1;                 // index to best code
@@ -110,7 +110,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
           if ((act < 0) && validate_timing(abs_pre + abs_act, DATA_SYMBOL_MIN, DATA_SYMBOL_MAX)) {
             bs_codes[bs_cnt] <<= 1;
             bs_codes[bs_cnt] += (abs_act < abs_pre) ? 1 : 0;
-            if (++bit_cnt < N_BITS) {
+            if (++bit_cnt < (int32_t) N_BITS) {
               fsm = RxSt::PULSE;
             } else {
               bs_cnt++;                 // valid code found
