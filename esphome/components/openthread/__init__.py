@@ -9,7 +9,7 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriodMilliseconds
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -114,6 +114,17 @@ _CONNECTION_SCHEMA = cv.Schema(
 def _validate(config: ConfigType) -> ConfigType:
     if CONF_USE_ADDRESS not in config:
         config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
+    device_type = config.get(CONF_DEVICE_TYPE)
+    poll_period = config.get(CONF_POLL_PERIOD)
+    if (
+        device_type == "FTD"
+        and poll_period
+        and poll_period > TimePeriodMilliseconds(milliseconds=0)
+    ):
+        raise cv.Invalid(
+            f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
+        )
+
     return config
 
 
