@@ -67,6 +67,9 @@ class Modbus : public uart::UARTDevice, public Component {
 
   std::vector<uint8_t> rx_buffer_;
   std::vector<ModbusDevice *> devices_;
+  // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
+  // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
+  // may change at run time.
   std::deque<std::vector<uint8_t>> tx_buffer_;
 };
 
