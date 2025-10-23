@@ -182,9 +182,17 @@ class LightCall {
 
   // Helper methods to reduce code duplication for *_if_supported methods
   inline LightCall &set_if_capability_supported_(ColorCapability capability, LightCall &(LightCall::*setter)(float),
-                                                 float value);
+                                                 float value) {
+    if (this->get_active_color_mode_() & capability)
+      (this->*setter)(value);
+    return *this;
+  }
   inline LightCall &set_if_capability_supported_(ColorCapability capability, LightCall &(LightCall::*setter)(uint32_t),
-                                                 uint32_t value);
+                                                 uint32_t value) {
+    if (this->get_active_color_mode_() & capability)
+      (this->*setter)(value);
+    return *this;
+  }
 
   /// Validate all properties and return the target light color values.
   LightColorValues validate_();

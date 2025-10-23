@@ -539,22 +539,6 @@ LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
 ColorMode LightCall::get_active_color_mode_() {
   return this->has_color_mode() ? this->color_mode_ : this->parent_->remote_values.get_color_mode();
 }
-
-// Helper methods to reduce code duplication for *_if_supported methods
-inline LightCall &LightCall::set_if_capability_supported_(ColorCapability capability,
-                                                          LightCall &(LightCall::*setter)(float), float value) {
-  if (this->get_active_color_mode_() & capability)
-    (this->*setter)(value);
-  return *this;
-}
-
-inline LightCall &LightCall::set_if_capability_supported_(ColorCapability capability,
-                                                          LightCall &(LightCall::*setter)(uint32_t), uint32_t value) {
-  if (this->get_active_color_mode_() & capability)
-    (this->*setter)(value);
-  return *this;
-}
-
 LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
   return this->set_if_capability_supported_(ColorCapability::BRIGHTNESS, &LightCall::set_transition_length,
                                             transition_length);
