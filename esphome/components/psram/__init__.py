@@ -110,9 +110,9 @@ def get_config_schema(config):
             cv.Invalid(
                 textwrap.dedent(
                     f"""
-                    {variant} requires PSRAM mode selection; one of {", ".join(modes)}
-                    Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
-            """
+                        {variant} requires PSRAM mode selection; one of {", ".join(modes)}
+                        Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
+                    """
                 )
             )
         )
