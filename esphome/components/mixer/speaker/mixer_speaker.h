@@ -75,7 +75,6 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
   void set_parent(MixerSpeaker *parent) { this->parent_ = parent; }
   void set_timeout(uint32_t ms) { this->timeout_ms_ = ms; }
-  void set_stream_info(uint8_t channels, uint8_t bits_per_sample, uint32_t sample_rate);
 
   std::weak_ptr<audio::AudioSourceTransferBuffer> get_transfer_buffer() { return this->transfer_buffer_; }
 

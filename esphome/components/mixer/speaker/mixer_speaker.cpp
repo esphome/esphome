@@ -190,10 +190,6 @@ void SourceSpeaker::set_volume(float volume) {
 
 float SourceSpeaker::get_volume() { return this->parent_->get_output_speaker()->get_volume(); }
 
-void SourceSpeaker::set_stream_info(uint8_t channels, uint8_t bits_per_sample, uint32_t sample_rate) {
-  this->audio_stream_info_ = audio::AudioStreamInfo(bits_per_sample, channels, sample_rate);
-}
-
 size_t SourceSpeaker::process_data_from_source(TickType_t ticks_to_wait) {
   if (!this->transfer_buffer_.use_count()) {
     return 0;
