@@ -78,9 +78,7 @@ constexpr size_t CHUNK_GROW_STEP = 512;
 constexpr size_t MAX_TIMEOUT_RETRIES = 4;
 constexpr size_t SUCCESS_STREAK_FOR_GROWTH = 16;
 constexpr size_t HARD_CHUNK_CAP = 4096;
-constexpr size_t MAX_CHUNKS_PER_INVOCATION = 3;
-constexpr size_t MAX_BYTES_PER_INVOCATION = 8192;
-constexpr uint32_t MAX_WORK_TIME_MS = 12;
+constexpr uint32_t MAX_WORK_TIME_MS = 20;
 }  // namespace
 
 size_t USBAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
@@ -130,9 +128,8 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
   };
 
   size_t timeout_retry_count = 0;
-  size_t chunks_processed = 0;
 
-  while (remaining > 0 && chunks_processed < MAX_CHUNKS_PER_INVOCATION && total_written < MAX_BYTES_PER_INVOCATION) {
+  while (remaining > 0) {
     uint32_t elapsed_ms = millis() - start_ms;
     if (elapsed_ms >= work_budget_ms) {
       break;
@@ -202,7 +199,6 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       total_written += chunk;
       current += chunk;
       remaining -= chunk;
-      chunks_processed++;
       this->chunk_success_streak_++;
       timeout_retry_count = 0;
       ESP_LOGV(TAG_SPK, "Chunk write ok chunk=%u total_written=%u", (unsigned) chunk, (unsigned) total_written);
