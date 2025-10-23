@@ -434,15 +434,19 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
             component_path = ".".join(str(p) for p in pin_path)
             if is_configurable:
                 error_msg = (
-                    f"GPIO{pin_num} is used by Ethernet RMII ({pin_function}) with the current default configuration. "
-                    f"This conflicts with '{component_path}'. "
-                    f"Please choose a different GPIO pin for '{component_path}'."
+                    f"GPIO{pin_num} is used by Ethernet RMII "
+                    f"({pin_function}) with the current default "
+                    f"configuration. This conflicts with '{component_path}'. "
+                    f"Please choose a different GPIO pin for "
+                    f"'{component_path}'."
                 )
             else:
                 error_msg = (
-                    f"GPIO{pin_num} is reserved for Ethernet RMII ({pin_function}) and cannot be used. "
-                    f"This pin is hardcoded by ESP-IDF and cannot be changed when using RMII Ethernet PHYs. "
-                    f"Please choose a different GPIO pin for '{component_path}'."
+                    f"GPIO{pin_num} is reserved for Ethernet RMII "
+                    f"({pin_function}) and cannot be used. This pin is "
+                    f"hardcoded by ESP-IDF and cannot be changed when using "
+                    f"RMII Ethernet PHYs. Please choose a different GPIO pin "
+                    f"for '{component_path}'."
                 )
             raise cv.Invalid(error_msg, path=pin_path)
 
