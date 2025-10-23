@@ -1056,6 +1056,52 @@ async def sony_action(var, config, args):
     cg.add(var.set_nbits(template_))
 
 
+# Symphony
+SymphonyData, SymphonyBinarySensor, SymphonyTrigger, SymphonyAction, SymphonyDumper = (
+    declare_protocol("Symphony")
+)
+SYMPHONY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DATA): cv.hex_uint32_t,
+        cv.Required(CONF_NBITS): cv.int_range(min=1, max=32),
+        cv.Optional(CONF_COMMAND_REPEATS, default=2): cv.uint8_t,
+    }
+)
+
+
+@register_binary_sensor("symphony", SymphonyBinarySensor, SYMPHONY_SCHEMA)
+def symphony_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                SymphonyData,
+                ("data", config[CONF_DATA]),
+                ("nbits", config[CONF_NBITS]),
+            )
+        )
+    )
+
+
+@register_trigger("symphony", SymphonyTrigger, SymphonyData)
+def symphony_trigger(var, config):
+    pass
+
+
+@register_dumper("symphony", SymphonyDumper)
+def symphony_dumper(var, config):
+    pass
+
+
+@register_action("symphony", SymphonyAction, SYMPHONY_SCHEMA)
+async def symphony_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    cg.add(var.set_data(template_))
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    cg.add(var.set_nbits(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
+    cg.add(var.set_repeats(template_))
+
+
 # Raw
 def validate_raw_alternating(value):
     assert isinstance(value, list)

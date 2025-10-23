@@ -6,3 +6,4 @@ sensor:
       name: Pressure Temperature
     pressure:
       name: Differential pressure
+      oversampling: 1024x

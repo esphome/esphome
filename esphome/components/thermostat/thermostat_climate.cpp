@@ -32,6 +32,7 @@ void ThermostatClimate::setup() {
   if (this->humidity_sensor_ != nullptr) {
     this->humidity_sensor_->add_on_state_callback([this](float state) {
       this->current_humidity = state;
+      this->switch_to_humidity_control_action_(this->compute_humidity_control_action_());
       this->publish_state();
     });
     this->current_humidity = this->humidity_sensor_->state;
@@ -84,6 +85,8 @@ void ThermostatClimate::refresh() {
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
   this->switch_to_fan_mode_(this->fan_mode.value(), false);
   this->switch_to_swing_mode_(this->swing_mode, false);
+  this->switch_to_humidity_control_action_(this->compute_humidity_control_action_());
+  this->check_humidity_change_trigger_();
   this->check_temperature_change_trigger_();
   this->publish_state();
 }
@@ -127,6 +130,11 @@ bool ThermostatClimate::hysteresis_valid() {
     return false;
 
   return true;
+}
+
+bool ThermostatClimate::humidity_hysteresis_valid() {
+  return !std::isnan(this->humidity_hysteresis_) && this->humidity_hysteresis_ >= 0.0f &&
+         this->humidity_hysteresis_ < 100.0f;
 }
 
 bool ThermostatClimate::limit_setpoints_for_heat_cool() {
@@ -189,6 +197,16 @@ void ThermostatClimate::validate_target_temperature_high() {
   }
 }
 
+void ThermostatClimate::validate_target_humidity() {
+  if (std::isnan(this->target_humidity)) {
+    this->target_humidity =
+        (this->get_traits().get_visual_max_humidity() - this->get_traits().get_visual_min_humidity()) / 2.0f;
+  } else {
+    this->target_humidity = clamp<float>(this->target_humidity, this->get_traits().get_visual_min_humidity(),
+                                         this->get_traits().get_visual_max_humidity());
+  }
+}
+
 void ThermostatClimate::control(const climate::ClimateCall &call) {
   bool target_temperature_high_changed = false;
 
@@ -235,6 +253,10 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
       this->validate_target_temperature();
     }
   }
+  if (call.get_target_humidity().has_value()) {
+    this->target_humidity = call.get_target_humidity().value();
+    this->validate_target_humidity();
+  }
   // make any changes happen
   this->refresh();
 }
@@ -249,6 +271,9 @@ climate::ClimateTraits ThermostatClimate::traits() {
 
   if (this->humidity_sensor_ != nullptr)
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
+
+  if (this->supports_humidification_ || this->supports_dehumidification_)
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
 
   if (this->supports_auto_)
     traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
@@ -423,6 +448,28 @@ climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   return target_action;
 }
 
+HumidificationAction ThermostatClimate::compute_humidity_control_action_() {
+  auto target_action = THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF;
+  // if hysteresis value or current_humidity is not valid, we go to OFF
+  if (std::isnan(this->current_humidity) || !this->humidity_hysteresis_valid()) {
+    return THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF;
+  }
+
+  // ensure set point is valid before computing the action
+  this->validate_target_humidity();
+  // everything has been validated so we can now safely compute the action
+  if (this->dehumidification_required_() && this->humidification_required_()) {
+    // this is bad and should never happen, so just stop.
+    // target_action = THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF;
+  } else if (this->supports_dehumidification_ && this->dehumidification_required_()) {
+    target_action = THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY;
+  } else if (this->supports_humidification_ && this->humidification_required_()) {
+    target_action = THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY;
+  }
+
+  return target_action;
+}
+
 void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->action) && this->setup_complete_) {
@@ -591,6 +638,44 @@ void ThermostatClimate::trigger_supplemental_action_() {
       break;
   }
 
+  if (trig != nullptr) {
+    trig->trigger();
+  }
+}
+
+void ThermostatClimate::switch_to_humidity_control_action_(HumidificationAction action) {
+  // setup_complete_ helps us ensure an action is called immediately after boot
+  if ((action == this->humidification_action_) && this->setup_complete_) {
+    // already in target mode
+    return;
+  }
+
+  Trigger<> *trig = this->humidity_control_off_action_trigger_;
+  switch (action) {
+    case THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF:
+      // trig = this->humidity_control_off_action_trigger_;
+      ESP_LOGVV(TAG, "Switching to HUMIDIFICATION_OFF action");
+      break;
+    case THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY:
+      trig = this->humidity_control_dehumidify_action_trigger_;
+      ESP_LOGVV(TAG, "Switching to DEHUMIDIFY action");
+      break;
+    case THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY:
+      trig = this->humidity_control_humidify_action_trigger_;
+      ESP_LOGVV(TAG, "Switching to HUMIDIFY action");
+      break;
+    case THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE:
+    default:
+      action = THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF;
+      // trig = this->humidity_control_off_action_trigger_;
+  }
+
+  if (this->prev_humidity_control_trigger_ != nullptr) {
+    this->prev_humidity_control_trigger_->stop_action();
+    this->prev_humidity_control_trigger_ = nullptr;
+  }
+  this->humidification_action_ = action;
+  this->prev_humidity_control_trigger_ = trig;
   if (trig != nullptr) {
     trig->trigger();
   }
@@ -887,6 +972,20 @@ void ThermostatClimate::idle_on_timer_callback_() {
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
 }
 
+void ThermostatClimate::check_humidity_change_trigger_() {
+  if ((this->prev_target_humidity_ == this->target_humidity) && this->setup_complete_) {
+    return;  // nothing changed, no reason to trigger
+  } else {
+    // save the new temperature so we can check it again later; the trigger will fire below
+    this->prev_target_humidity_ = this->target_humidity;
+  }
+  // trigger the action
+  Trigger<> *trig = this->humidity_change_trigger_;
+  if (trig != nullptr) {
+    trig->trigger();
+  }
+}
+
 void ThermostatClimate::check_temperature_change_trigger_() {
   if (this->supports_two_points_) {
     // setup_complete_ helps us ensure an action is called immediately after boot
@@ -994,6 +1093,32 @@ bool ThermostatClimate::supplemental_heating_required_() {
          (this->heating_max_runtime_exceeded_ ||
           (this->current_temperature < temperature - this->supplemental_heat_delta_) ||
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
+}
+
+bool ThermostatClimate::dehumidification_required_() {
+  if (this->current_humidity > this->target_humidity + this->humidity_hysteresis_) {
+    // if the current humidity exceeds the target + hysteresis, dehumidification is required
+    return true;
+  } else if (this->current_humidity < this->target_humidity - this->humidity_hysteresis_) {
+    // if the current humidity is less than the target - hysteresis, dehumidification should stop
+    return false;
+  }
+  // if we get here, the current humidity is between target + hysteresis and target - hysteresis,
+  //  so the action should not change
+  return this->humidification_action_ == THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY;
+}
+
+bool ThermostatClimate::humidification_required_() {
+  if (this->current_humidity < this->target_humidity - this->humidity_hysteresis_) {
+    // if the current humidity is below the target - hysteresis, humidification is required
+    return true;
+  } else if (this->current_humidity > this->target_humidity + this->humidity_hysteresis_) {
+    // if the current humidity is above the target + hysteresis, humidification should stop
+    return false;
+  }
+  // if we get here, the current humidity is between target - hysteresis and target + hysteresis,
+  //  so the action should not change
+  return this->humidification_action_ == THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY;
 }
 
 void ThermostatClimate::dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config) {
@@ -1152,8 +1277,12 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
       swing_mode_vertical_trigger_(new Trigger<>()),
+      humidity_change_trigger_(new Trigger<>()),
       temperature_change_trigger_(new Trigger<>()),
-      preset_change_trigger_(new Trigger<>()) {}
+      preset_change_trigger_(new Trigger<>()),
+      humidity_control_dehumidify_action_trigger_(new Trigger<>()),
+      humidity_control_humidify_action_trigger_(new Trigger<>()),
+      humidity_control_off_action_trigger_(new Trigger<>()) {}
 
 void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
   this->default_custom_preset_ = custom_preset;
@@ -1216,6 +1345,9 @@ void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
   this->humidity_sensor_ = humidity_sensor;
+}
+void ThermostatClimate::set_humidity_hysteresis(float humidity_hysteresis) {
+  this->humidity_hysteresis_ = std::clamp<float>(humidity_hysteresis, 0.0f, 100.0f);
 }
 void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
@@ -1284,6 +1416,18 @@ void ThermostatClimate::set_supports_swing_mode_vertical(bool supports_swing_mod
 void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
   this->supports_two_points_ = supports_two_points;
 }
+void ThermostatClimate::set_supports_dehumidification(bool supports_dehumidification) {
+  this->supports_dehumidification_ = supports_dehumidification;
+  if (supports_dehumidification) {
+    this->supports_humidification_ = false;
+  }
+}
+void ThermostatClimate::set_supports_humidification(bool supports_humidification) {
+  this->supports_humidification_ = supports_humidification;
+  if (supports_humidification) {
+    this->supports_dehumidification_ = false;
+  }
+}
 
 Trigger<> *ThermostatClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
 Trigger<> *ThermostatClimate::get_supplemental_cool_action_trigger() const {
@@ -1317,8 +1461,18 @@ Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this-
 Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
+Trigger<> *ThermostatClimate::get_humidity_change_trigger() const { return this->humidity_change_trigger_; }
 Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
 Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->preset_change_trigger_; }
+Trigger<> *ThermostatClimate::get_humidity_control_dehumidify_action_trigger() const {
+  return this->humidity_control_dehumidify_action_trigger_;
+}
+Trigger<> *ThermostatClimate::get_humidity_control_humidify_action_trigger() const {
+  return this->humidity_control_humidify_action_trigger_;
+}
+Trigger<> *ThermostatClimate::get_humidity_control_off_action_trigger() const {
+  return this->humidity_control_off_action_trigger_;
+}
 
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
@@ -1422,7 +1576,12 @@ void ThermostatClimate::dump_config() {
                 "    OFF: %s\n"
                 "    HORIZONTAL: %s\n"
                 "    VERTICAL: %s\n"
-                "  Supports TWO SET POINTS: %s",
+                "  Supports TWO SET POINTS: %s\n"
+                "  Supported Humidity Parameters:\n"
+                "    CURRENT: %s\n"
+                "    TARGET: %s\n"
+                "    DEHUMIDIFICATION: %s\n"
+                "    HUMIDIFICATION: %s",
                 YESNO(this->supports_fan_mode_on_), YESNO(this->supports_fan_mode_off_),
                 YESNO(this->supports_fan_mode_auto_), YESNO(this->supports_fan_mode_low_),
                 YESNO(this->supports_fan_mode_medium_), YESNO(this->supports_fan_mode_high_),
@@ -1430,7 +1589,10 @@ void ThermostatClimate::dump_config() {
                 YESNO(this->supports_fan_mode_diffuse_), YESNO(this->supports_fan_mode_quiet_),
                 YESNO(this->supports_swing_mode_both_), YESNO(this->supports_swing_mode_off_),
                 YESNO(this->supports_swing_mode_horizontal_), YESNO(this->supports_swing_mode_vertical_),
-                YESNO(this->supports_two_points_));
+                YESNO(this->supports_two_points_),
+                YESNO(this->get_traits().has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)),
+                YESNO(this->supports_dehumidification_ || this->supports_humidification_),
+                YESNO(this->supports_dehumidification_), YESNO(this->supports_humidification_));
 
   if (!this->preset_config_.empty()) {
     ESP_LOGCONFIG(TAG, "  Supported PRESETS:");

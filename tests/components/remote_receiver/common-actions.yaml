@@ -143,6 +143,11 @@ on_sony:
     - logger.log:
         format: "on_sony: %lu %u"
         args: ["long(x.data)", "x.nbits"]
+on_symphony:
+  then:
+    - logger.log:
+        format: "on_symphony: 0x%lX %u"
+        args: ["long(x.data)", "x.nbits"]
 on_toshiba_ac:
   then:
     - logger.log:
