@@ -50,7 +50,7 @@ void Pipsolar::loop() {
         this->state_ = STATE_IDLE;
       } else {
         // crc failed
-        // no log message necessary, check_inclming_crc_() logs
+        // no log message necessary, check_incoming_crc_() logs
         this->command_queue_[this->command_queue_position_] = std::string("");
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
@@ -65,6 +65,7 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_POLL_CHECKED) {
+    ESP_LOGD(TAG, "poll %s decode", this->enabled_polling_commands_[this->last_polling_command_].command);
     this->handle_poll_response_(this->enabled_polling_commands_[this->last_polling_command_].identifier,
                                 (const char *) this->read_buffer_);
     this->state_ = STATE_IDLE;
@@ -86,7 +87,7 @@ void Pipsolar::loop() {
       return;
     } else {
       // crc failed
-      // no log message necessary, check_inclming_crc_() logs
+      // no log message necessary, check_incoming_crc_() logs
       this->handle_poll_error_(this->enabled_polling_commands_[this->last_polling_command_].identifier);
       this->state_ = STATE_IDLE;
     }
@@ -241,31 +242,24 @@ void Pipsolar::queue_command(const std::string &command) {
 void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const char *message) {
   switch (polling_command) {
     case POLLING_QPIRI:
-      ESP_LOGD(TAG, "Decode QPIRI");
       handle_qpiri_(message);
       break;
     case POLLING_QPIGS:
-      ESP_LOGD(TAG, "Decode QPIGS");
       handle_qpigs_(message);
       break;
     case POLLING_QMOD:
-      ESP_LOGD(TAG, "Decode QMOD");
       handle_qmod_(message);
       break;
     case POLLING_QFLAG:
-      ESP_LOGD(TAG, "Decode QFLAG");
       handle_qflag_(message);
       break;
     case POLLING_QPIWS:
-      ESP_LOGD(TAG, "Decode QPIWS");
       handle_qpiws_(message);
       break;
     case POLLING_QT:
-      ESP_LOGD(TAG, "Decode QT");
       handle_qt_(message);
       break;
     case POLLING_QMN:
-      ESP_LOGD(TAG, "Decode QMN");
       handle_qmn_(message);
       break;
     default:
@@ -273,32 +267,8 @@ void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const c
   }
 }
 void Pipsolar::handle_poll_error_(ENUMPollingCommand polling_command) {
-  // these handlers are designed in a way that an empty message sets all sensors to unknown
-  switch (polling_command) {
-    case POLLING_QPIRI:
-      handle_qpiri_("");
-      break;
-    case POLLING_QPIGS:
-      handle_qpigs_("");
-      break;
-    case POLLING_QMOD:
-      handle_qmod_("");
-      break;
-    case POLLING_QFLAG:
-      handle_qflag_("");
-      break;
-    case POLLING_QPIWS:
-      handle_qpiws_("");
-      break;
-    case POLLING_QT:
-      handle_qt_("");
-      break;
-    case POLLING_QMN:
-      handle_qmn_("");
-      break;
-    default:
-      break;
-  }
+  // handlers are designed in a way that an empty message sets all sensors to unknown
+  this->handle_poll_response_(polling_command, "");
 }
 
 void Pipsolar::handle_qpiri_(const char *message) {
