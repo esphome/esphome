@@ -108,9 +108,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 
   if (this->rx_pin_) {
+    gpio_reset_pin((gpio_num_t) this->rx_pin_->get_pin());  // workaround for issue #11038
     this->rx_pin_->setup();
   }
   if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+    gpio_reset_pin((gpio_num_t) this->tx_pin_->get_pin());  // workaround for issue #11038
     this->tx_pin_->setup();
   }
 
