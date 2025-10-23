@@ -1128,6 +1128,21 @@ def _get_custom_partition_half_size() -> int:
     return int(ceil((size / 2) / 0x10000)) * 0x10000  # align to 64KB
 
 
+def validate_custom_partitions(partitions: list) -> None:
+    # partitions: list of tuple with (name, type, subtype, size)
+    esp_conf = fv.full_config.get()["esp32"]
+    if CONF_PARTITIONS in esp_conf:
+        with open(
+            CORE.relative_config_path(esp_conf[CONF_PARTITIONS]), encoding="utf8"
+        ) as f:
+            partitions_tab = f.read()
+            for partition in partitions:
+                if partition[0] not in partitions_tab:
+                    raise cv.Invalid(
+                        f"Add '{partition[0]}, {partition[1]}, {partition[2]},   , {partition[3]},' to your custom partition table."
+                    )
+
+
 APP_PARTITION_SIZES = {
     "2MB": 0x0C0000,  # 768 KB
     "4MB": 0x1C0000,  # 1792 KB
