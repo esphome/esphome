@@ -65,32 +65,41 @@ optional<float> SlidingWindowFilter::new_value(float value) {
 }
 
 // SortedWindowFilter
-FixedVector<float> SortedWindowFilter::get_sorted_values_() {
+FixedVector<float> SortedWindowFilter::get_window_values_() {
   // Copy window without NaN values using FixedVector (no heap allocation)
-  FixedVector<float> sorted_values;
-  sorted_values.init(this->window_count_);
+  // Returns unsorted values - caller will use std::nth_element for partial sorting as needed
+  FixedVector<float> values;
+  values.init(this->window_count_);
   for (size_t i = 0; i < this->window_count_; i++) {
     float v = this->window_[i];
     if (!std::isnan(v)) {
-      sorted_values.push_back(v);
+      values.push_back(v);
     }
   }
-  std::sort(sorted_values.begin(), sorted_values.end());
-  return sorted_values;
+  return values;
 }
 
 // MedianFilter
 float MedianFilter::compute_result() {
-  FixedVector<float> sorted_values = this->get_sorted_values_();
-  if (sorted_values.empty())
+  FixedVector<float> values = this->get_window_values_();
+  if (values.empty())
     return NAN;
 
-  size_t size = sorted_values.size();
+  size_t size = values.size();
+  size_t mid = size / 2;
+
   if (size % 2) {
-    return sorted_values[size / 2];
-  } else {
-    return (sorted_values[size / 2] + sorted_values[(size / 2) - 1]) / 2.0f;
+    // Odd number of elements - use nth_element to find middle element
+    std::nth_element(values.begin(), values.begin() + mid, values.end());
+    return values[mid];
   }
+  // Even number of elements - need both middle elements
+  // Use nth_element to find upper middle element
+  std::nth_element(values.begin(), values.begin() + mid, values.end());
+  float upper = values[mid];
+  // Find the maximum of the lower half (which is now everything before mid)
+  float lower = *std::max_element(values.begin(), values.begin() + mid);
+  return (lower + upper) / 2.0f;
 }
 
 // SkipInitialFilter
@@ -111,13 +120,16 @@ QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t sen
     : SortedWindowFilter(window_size, send_every, send_first_at), quantile_(quantile) {}
 
 float QuantileFilter::compute_result() {
-  FixedVector<float> sorted_values = this->get_sorted_values_();
-  if (sorted_values.empty())
+  FixedVector<float> values = this->get_window_values_();
+  if (values.empty())
     return NAN;
 
-  size_t position = ceilf(sorted_values.size() * this->quantile_) - 1;
-  ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, sorted_values.size());
-  return sorted_values[position];
+  size_t position = ceilf(values.size() * this->quantile_) - 1;
+  ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %zu/%zu", this, position + 1, values.size());
+
+  // Use nth_element to find the quantile element (O(n) instead of O(n log n))
+  std::nth_element(values.begin(), values.begin() + position, values.end());
+  return values[position];
 }
 
 // MinFilter
@@ -216,27 +228,40 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// FilterOutValueFilter
-FilterOutValueFilter::FilterOutValueFilter(std::vector<TemplatableValue<float>> values_to_filter_out)
-    : values_to_filter_out_(std::move(values_to_filter_out)) {}
+// ValueListFilter (base class)
+ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
 
-optional<float> FilterOutValueFilter::new_value(float value) {
+bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = powf(10.0f, accuracy);
-  for (auto filter_value : this->values_to_filter_out_) {
-    if (std::isnan(filter_value.value())) {
-      if (std::isnan(value)) {
-        return {};
-      }
+  float rounded_sensor = roundf(accuracy_mult * sensor_value);
+
+  for (auto &filter_value : this->values_) {
+    float fv = filter_value.value();
+
+    // Handle NaN comparison
+    if (std::isnan(fv)) {
+      if (std::isnan(sensor_value))
+        return true;
       continue;
     }
-    float rounded_filter_out = roundf(accuracy_mult * filter_value.value());
-    float rounded_value = roundf(accuracy_mult * value);
-    if (rounded_filter_out == rounded_value) {
-      return {};
-    }
+
+    // Compare rounded values
+    if (roundf(accuracy_mult * fv) == rounded_sensor)
+      return true;
   }
-  return value;
+
+  return false;
+}
+
+// FilterOutValueFilter
+FilterOutValueFilter::FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+    : ValueListFilter(values_to_filter_out) {}
+
+optional<float> FilterOutValueFilter::new_value(float value) {
+  if (this->value_matches_any_(value))
+    return {};   // Filter out
+  return value;  // Pass through
 }
 
 // ThrottleFilter
@@ -251,33 +276,15 @@ optional<float> ThrottleFilter::new_value(float value) {
 }
 
 // ThrottleWithPriorityFilter
-ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                                       std::vector<TemplatableValue<float>> prioritized_values)
-    : min_time_between_inputs_(min_time_between_inputs), prioritized_values_(std::move(prioritized_values)) {}
+ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
+    uint32_t min_time_between_inputs, std::initializer_list<TemplatableValue<float>> prioritized_values)
+    : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
 optional<float> ThrottleWithPriorityFilter::new_value(float value) {
-  bool is_prioritized_value = false;
-  int8_t accuracy = this->parent_->get_accuracy_decimals();
-  float accuracy_mult = powf(10.0f, accuracy);
   const uint32_t now = App.get_loop_component_start_time();
-  // First, determine if the new value is one of the prioritized values
-  for (auto prioritized_value : this->prioritized_values_) {
-    if (std::isnan(prioritized_value.value())) {
-      if (std::isnan(value)) {
-        is_prioritized_value = true;
-        break;
-      }
-      continue;
-    }
-    float rounded_prioritized_value = roundf(accuracy_mult * prioritized_value.value());
-    float rounded_value = roundf(accuracy_mult * value);
-    if (rounded_prioritized_value == rounded_value) {
-      is_prioritized_value = true;
-      break;
-    }
-  }
-  // Finally, determine if the new value should be throttled and pass it through if not
-  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ || is_prioritized_value) {
+  // Allow value through if: no previous input, time expired, or is prioritized
+  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ ||
+      this->value_matches_any_(value)) {
     this->last_input_ = now;
     return value;
   }
@@ -306,7 +313,7 @@ optional<float> DeltaFilter::new_value(float value) {
 }
 
 // OrFilter
-OrFilter::OrFilter(std::vector<Filter *> filters) : filters_(std::move(filters)), phi_(this) {}
+OrFilter::OrFilter(std::initializer_list<Filter *> filters) : filters_(filters), phi_(this) {}
 OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
@@ -319,14 +326,14 @@ optional<float> OrFilter::PhiNode::new_value(float value) {
 }
 optional<float> OrFilter::new_value(float value) {
   this->has_value_ = false;
-  for (Filter *filter : this->filters_)
+  for (auto *filter : this->filters_)
     filter->input(value);
 
   return {};
 }
 void OrFilter::initialize(Sensor *parent, Filter *next) {
   Filter::initialize(parent, next);
-  for (Filter *filter : this->filters_) {
+  for (auto *filter : this->filters_) {
     filter->initialize(parent, &this->phi_);
   }
   this->phi_.initialize(parent, nullptr);
@@ -365,8 +372,12 @@ optional<float> HeartbeatFilter::new_value(float value) {
   this->last_input_ = value;
   this->has_value_ = true;
 
+  if (this->optimistic_) {
+    return value;
+  }
   return {};
 }
+
 void HeartbeatFilter::setup() {
   this->set_interval("heartbeat", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
@@ -377,20 +388,27 @@ void HeartbeatFilter::setup() {
     this->output(this->last_input_);
   });
 }
+
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
+CalibrateLinearFilter::CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions)
+    : linear_functions_(linear_functions) {}
+
 optional<float> CalibrateLinearFilter::new_value(float value) {
-  for (std::array<float, 3> f : this->linear_functions_) {
+  for (const auto &f : this->linear_functions_) {
     if (!std::isfinite(f[2]) || value < f[2])
       return (value * f[0]) + f[1];
   }
   return NAN;
 }
 
+CalibratePolynomialFilter::CalibratePolynomialFilter(std::initializer_list<float> coefficients)
+    : coefficients_(coefficients) {}
+
 optional<float> CalibratePolynomialFilter::new_value(float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (float coefficient : this->coefficients_) {
+  for (const auto &coefficient : this->coefficients_) {
     res += x * coefficient;
     x *= value;
   }

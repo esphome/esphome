@@ -197,12 +197,8 @@ template<typename T> class FixedVector {
     size_ = 0;
   }
 
- public:
-  FixedVector() = default;
-
-  /// Constructor from initializer list - allocates exact size needed
-  /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
-  FixedVector(std::initializer_list<T> init_list) {
+  // Helper to assign from initializer list (shared by constructor and assignment operator)
+  void assign_from_initializer_list_(std::initializer_list<T> init_list) {
     init(init_list.size());
     size_t idx = 0;
     for (const auto &item : init_list) {
@@ -211,6 +207,13 @@ template<typename T> class FixedVector {
     }
     size_ = init_list.size();
   }
+
+ public:
+  FixedVector() = default;
+
+  /// Constructor from initializer list - allocates exact size needed
+  /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
+  FixedVector(std::initializer_list<T> init_list) { assign_from_initializer_list_(init_list); }
 
   ~FixedVector() { cleanup_(); }
 
@@ -234,6 +237,15 @@ template<typename T> class FixedVector {
       // Leave other in valid empty state
       other.reset_();
     }
+    return *this;
+  }
+
+  /// Assignment from initializer list - avoids temporary and move overhead
+  /// This enables: FixedVector<int> v; v = {1, 2, 3};
+  FixedVector &operator=(std::initializer_list<T> init_list) {
+    cleanup_();
+    reset_();
+    assign_from_initializer_list_(init_list);
     return *this;
   }
 
@@ -301,7 +313,6 @@ template<typename T> class FixedVector {
   const T &back() const { return data_[size_ - 1]; }
 
   size_t size() const { return size_; }
-  size_t capacity() const { return capacity_; }
   bool empty() const { return size_ == 0; }
 
   /// Access element without bounds checking (matches std::vector behavior)
@@ -1159,20 +1170,6 @@ template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T va
  * This function is not called from lambdas, the code generator replaces calls to it with the appropriate variable.
  */
 template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
-
-///@}
-
-/// @name Deprecated functions
-///@{
-
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-inline std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
-
-template<typename T>
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-std::string hexencode(const T &data) {
-  return hexencode(data.data(), data.size());
-}
 
 ///@}
 

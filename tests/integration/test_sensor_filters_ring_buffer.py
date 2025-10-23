@@ -7,7 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .sensor_test_utils import build_key_to_sensor_mapping
+from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -36,7 +36,7 @@ async def test_sensor_filters_ring_buffer(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
@@ -66,7 +66,7 @@ async def test_sensor_filters_ring_buffer(
         entities, services = await client.list_entities_services()
 
         # Build key-to-sensor mapping
-        key_to_sensor = build_key_to_sensor_mapping(
+        key_to_sensor = build_key_to_entity_mapping(
             entities,
             [
                 "sliding_min",
@@ -76,8 +76,17 @@ async def test_sensor_filters_ring_buffer(
             ],
         )
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states to be sent before pressing button
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
         publish_button = next(
@@ -112,31 +121,31 @@ async def test_sensor_filters_ring_buffer(
 
         # Verify the values at each output position
         # Position 1: window=[1]
-        assert abs(sensor_states["sliding_min"][0] - 1.0) < 0.01
-        assert abs(sensor_states["sliding_max"][0] - 1.0) < 0.01
-        assert abs(sensor_states["sliding_median"][0] - 1.0) < 0.01
-        assert abs(sensor_states["sliding_moving_avg"][0] - 1.0) < 0.01
+        assert sensor_states["sliding_min"][0] == pytest.approx(1.0)
+        assert sensor_states["sliding_max"][0] == pytest.approx(1.0)
+        assert sensor_states["sliding_median"][0] == pytest.approx(1.0)
+        assert sensor_states["sliding_moving_avg"][0] == pytest.approx(1.0)
 
         # Position 3: window=[1,2,3]
-        assert abs(sensor_states["sliding_min"][1] - 1.0) < 0.01
-        assert abs(sensor_states["sliding_max"][1] - 3.0) < 0.01
-        assert abs(sensor_states["sliding_median"][1] - 2.0) < 0.01
-        assert abs(sensor_states["sliding_moving_avg"][1] - 2.0) < 0.01
+        assert sensor_states["sliding_min"][1] == pytest.approx(1.0)
+        assert sensor_states["sliding_max"][1] == pytest.approx(3.0)
+        assert sensor_states["sliding_median"][1] == pytest.approx(2.0)
+        assert sensor_states["sliding_moving_avg"][1] == pytest.approx(2.0)
 
         # Position 5: window=[1,2,3,4,5]
-        assert abs(sensor_states["sliding_min"][2] - 1.0) < 0.01
-        assert abs(sensor_states["sliding_max"][2] - 5.0) < 0.01
-        assert abs(sensor_states["sliding_median"][2] - 3.0) < 0.01
-        assert abs(sensor_states["sliding_moving_avg"][2] - 3.0) < 0.01
+        assert sensor_states["sliding_min"][2] == pytest.approx(1.0)
+        assert sensor_states["sliding_max"][2] == pytest.approx(5.0)
+        assert sensor_states["sliding_median"][2] == pytest.approx(3.0)
+        assert sensor_states["sliding_moving_avg"][2] == pytest.approx(3.0)
 
         # Position 7: window=[3,4,5,6,7] (ring buffer wrapped)
-        assert abs(sensor_states["sliding_min"][3] - 3.0) < 0.01
-        assert abs(sensor_states["sliding_max"][3] - 7.0) < 0.01
-        assert abs(sensor_states["sliding_median"][3] - 5.0) < 0.01
-        assert abs(sensor_states["sliding_moving_avg"][3] - 5.0) < 0.01
+        assert sensor_states["sliding_min"][3] == pytest.approx(3.0)
+        assert sensor_states["sliding_max"][3] == pytest.approx(7.0)
+        assert sensor_states["sliding_median"][3] == pytest.approx(5.0)
+        assert sensor_states["sliding_moving_avg"][3] == pytest.approx(5.0)
 
         # Position 9: window=[5,6,7,8,9] (ring buffer wrapped)
-        assert abs(sensor_states["sliding_min"][4] - 5.0) < 0.01
-        assert abs(sensor_states["sliding_max"][4] - 9.0) < 0.01
-        assert abs(sensor_states["sliding_median"][4] - 7.0) < 0.01
-        assert abs(sensor_states["sliding_moving_avg"][4] - 7.0) < 0.01
+        assert sensor_states["sliding_min"][4] == pytest.approx(5.0)
+        assert sensor_states["sliding_max"][4] == pytest.approx(9.0)
+        assert sensor_states["sliding_median"][4] == pytest.approx(7.0)
+        assert sensor_states["sliding_moving_avg"][4] == pytest.approx(7.0)

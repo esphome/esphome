@@ -636,11 +636,9 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if CONF_WIFI in self.config:
-            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
-
-        if CONF_ETHERNET in self.config:
-            return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+            if network_type in self.config:
+                return self.config[network_type][CONF_USE_ADDRESS]
 
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"

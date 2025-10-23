@@ -7,7 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .sensor_test_utils import build_key_to_sensor_mapping
+from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -41,7 +41,7 @@ async def test_sensor_filters_sliding_window(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
@@ -57,33 +57,33 @@ async def test_sensor_filters_sliding_window(
         # Filters send at position 1 and position 6 (send_every=5 means every 5th value after first)
         if (
             sensor_name == "min_sensor"
-            and abs(state.state - 2.0) < 0.01
+            and state.state == pytest.approx(2.0)
             and not min_received.done()
         ):
             min_received.set_result(True)
         elif (
             sensor_name == "max_sensor"
-            and abs(state.state - 6.0) < 0.01
+            and state.state == pytest.approx(6.0)
             and not max_received.done()
         ):
             max_received.set_result(True)
         elif (
             sensor_name == "median_sensor"
-            and abs(state.state - 4.0) < 0.01
+            and state.state == pytest.approx(4.0)
             and not median_received.done()
         ):
             # Median of [2, 3, 4, 5, 6] = 4
             median_received.set_result(True)
         elif (
             sensor_name == "quantile_sensor"
-            and abs(state.state - 6.0) < 0.01
+            and state.state == pytest.approx(6.0)
             and not quantile_received.done()
         ):
             # 90th percentile of [2, 3, 4, 5, 6] = 6
             quantile_received.set_result(True)
         elif (
             sensor_name == "moving_avg_sensor"
-            and abs(state.state - 4.0) < 0.01
+            and state.state == pytest.approx(4.0)
             and not moving_avg_received.done()
         ):
             # Average of [2, 3, 4, 5, 6] = 4
@@ -97,7 +97,7 @@ async def test_sensor_filters_sliding_window(
         entities, services = await client.list_entities_services()
 
         # Build key-to-sensor mapping
-        key_to_sensor = build_key_to_sensor_mapping(
+        key_to_sensor = build_key_to_entity_mapping(
             entities,
             [
                 "min_sensor",
@@ -108,8 +108,17 @@ async def test_sensor_filters_sliding_window(
             ],
         )
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states to be sent before pressing button
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
         publish_button = next(
@@ -158,30 +167,30 @@ async def test_sensor_filters_sliding_window(
         assert len(sensor_states["moving_avg_sensor"]) == 2
 
         # Verify the first output (after 1 value: [1])
-        assert abs(sensor_states["min_sensor"][0] - 1.0) < 0.01, (
+        assert sensor_states["min_sensor"][0] == pytest.approx(1.0), (
             f"First min should be 1.0, got {sensor_states['min_sensor'][0]}"
         )
-        assert abs(sensor_states["max_sensor"][0] - 1.0) < 0.01, (
+        assert sensor_states["max_sensor"][0] == pytest.approx(1.0), (
             f"First max should be 1.0, got {sensor_states['max_sensor'][0]}"
         )
-        assert abs(sensor_states["median_sensor"][0] - 1.0) < 0.01, (
+        assert sensor_states["median_sensor"][0] == pytest.approx(1.0), (
             f"First median should be 1.0, got {sensor_states['median_sensor'][0]}"
         )
-        assert abs(sensor_states["moving_avg_sensor"][0] - 1.0) < 0.01, (
+        assert sensor_states["moving_avg_sensor"][0] == pytest.approx(1.0), (
             f"First moving avg should be 1.0, got {sensor_states['moving_avg_sensor'][0]}"
         )
 
         # Verify the second output (after 6 values, window has [2, 3, 4, 5, 6])
-        assert abs(sensor_states["min_sensor"][1] - 2.0) < 0.01, (
+        assert sensor_states["min_sensor"][1] == pytest.approx(2.0), (
             f"Second min should be 2.0, got {sensor_states['min_sensor'][1]}"
         )
-        assert abs(sensor_states["max_sensor"][1] - 6.0) < 0.01, (
+        assert sensor_states["max_sensor"][1] == pytest.approx(6.0), (
             f"Second max should be 6.0, got {sensor_states['max_sensor'][1]}"
         )
-        assert abs(sensor_states["median_sensor"][1] - 4.0) < 0.01, (
+        assert sensor_states["median_sensor"][1] == pytest.approx(4.0), (
             f"Second median should be 4.0, got {sensor_states['median_sensor'][1]}"
         )
-        assert abs(sensor_states["moving_avg_sensor"][1] - 4.0) < 0.01, (
+        assert sensor_states["moving_avg_sensor"][1] == pytest.approx(4.0), (
             f"Second moving avg should be 4.0, got {sensor_states['moving_avg_sensor'][1]}"
         )
 
@@ -207,11 +216,12 @@ async def test_sensor_filters_nan_handling(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
         sensor_name = key_to_sensor.get(state.key)
+
         if sensor_name == "min_nan":
             min_states.append(state.state)
         elif sensor_name == "max_nan":
@@ -234,10 +244,19 @@ async def test_sensor_filters_nan_handling(
         entities, services = await client.list_entities_services()
 
         # Build key-to-sensor mapping
-        key_to_sensor = build_key_to_sensor_mapping(entities, ["min_nan", "max_nan"])
+        key_to_sensor = build_key_to_entity_mapping(entities, ["min_nan", "max_nan"])
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial states
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
         publish_button = next(
@@ -271,18 +290,18 @@ async def test_sensor_filters_nan_handling(
         )
 
         # First output
-        assert abs(min_states[0] - 10.0) < 0.01, (
+        assert min_states[0] == pytest.approx(10.0), (
             f"First min should be 10.0, got {min_states[0]}"
         )
-        assert abs(max_states[0] - 10.0) < 0.01, (
+        assert max_states[0] == pytest.approx(10.0), (
             f"First max should be 10.0, got {max_states[0]}"
         )
 
         # Second output - verify NaN values were ignored
-        assert abs(min_states[1] - 5.0) < 0.01, (
+        assert min_states[1] == pytest.approx(5.0), (
             f"Second min should ignore NaN and return 5.0, got {min_states[1]}"
         )
-        assert abs(max_states[1] - 15.0) < 0.01, (
+        assert max_states[1] == pytest.approx(15.0), (
             f"Second max should ignore NaN and return 15.0, got {max_states[1]}"
         )
 
@@ -305,11 +324,12 @@ async def test_sensor_filters_ring_buffer_wraparound(
         if not isinstance(state, SensorState):
             return
 
-        # Skip NaN values (initial states)
+        # Skip NaN values
         if state.missing_state:
             return
 
         sensor_name = key_to_sensor.get(state.key)
+
         if sensor_name == "wraparound_min":
             min_states.append(state.state)
             # With batch_delay: 0ms, we should receive all 3 outputs
@@ -324,10 +344,19 @@ async def test_sensor_filters_ring_buffer_wraparound(
         entities, services = await client.list_entities_services()
 
         # Build key-to-sensor mapping
-        key_to_sensor = build_key_to_sensor_mapping(entities, ["wraparound_min"])
+        key_to_sensor = build_key_to_entity_mapping(entities, ["wraparound_min"])
 
-        # Subscribe to state changes AFTER building mapping
-        client.subscribe_states(on_state)
+        # Set up initial state helper with all entities
+        initial_state_helper = InitialStateHelper(entities)
+
+        # Subscribe to state changes with wrapper
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        # Wait for initial state
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial state")
 
         # Find the publish button
         publish_button = next(
@@ -355,12 +384,12 @@ async def test_sensor_filters_ring_buffer_wraparound(
         assert len(min_states) == 3, (
             f"Should have 3 states, got {len(min_states)}: {min_states}"
         )
-        assert abs(min_states[0] - 10.0) < 0.01, (
+        assert min_states[0] == pytest.approx(10.0), (
             f"First min should be 10.0, got {min_states[0]}"
         )
-        assert abs(min_states[1] - 5.0) < 0.01, (
+        assert min_states[1] == pytest.approx(5.0), (
             f"Second min should be 5.0, got {min_states[1]}"
         )
-        assert abs(min_states[2] - 15.0) < 0.01, (
+        assert min_states[2] == pytest.approx(15.0), (
             f"Third min should be 15.0, got {min_states[2]}"
         )
