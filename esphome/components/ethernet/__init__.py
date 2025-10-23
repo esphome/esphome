@@ -408,20 +408,21 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
     if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
         return  # Only ESP32 classic and P4 have RMII
 
-    # Check each RMII pin against the pin registry
-    for pin_num, pin_function in ESP32_RMII_FIXED_PINS.items():
-        # Check if this pin is used by any component
-        for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
-            for pin_path, _, pin_config in pin_list:
-                if pin_config.get(CONF_NUMBER) == pin_num:
-                    # Found a conflict - show helpful error message
-                    component_path = ".".join(str(p) for p in pin_path)
-                    raise cv.Invalid(
-                        f"GPIO{pin_num} is reserved for Ethernet RMII ({pin_function}) and cannot be used. "
-                        f"This pin is hardcoded by ESP-IDF and cannot be changed when using RMII Ethernet PHYs. "
-                        f"Please choose a different GPIO pin for '{component_path}'.",
-                        path=pin_path,
-                    )
+    # Check all used pins against RMII reserved pins
+    for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
+        for pin_path, _, pin_config in pin_list:
+            pin_num = pin_config.get(CONF_NUMBER)
+            if pin_num not in ESP32_RMII_FIXED_PINS:
+                continue
+            # Found a conflict - show helpful error message
+            pin_function = ESP32_RMII_FIXED_PINS[pin_num]
+            component_path = ".".join(str(p) for p in pin_path)
+            raise cv.Invalid(
+                f"GPIO{pin_num} is reserved for Ethernet RMII ({pin_function}) and cannot be used. "
+                f"This pin is hardcoded by ESP-IDF and cannot be changed when using RMII Ethernet PHYs. "
+                f"Please choose a different GPIO pin for '{component_path}'.",
+                path=pin_path,
+            )
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
