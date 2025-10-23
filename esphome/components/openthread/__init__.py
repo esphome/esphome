@@ -161,9 +161,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
 
-    # OpenThread uses esp_vfs_eventfd which requires VFS select support
-    require_vfs_select()
-
     # OpenThread SRP needs access to mDNS services after setup
     enable_mdns_storage()
 

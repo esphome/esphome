@@ -408,7 +408,8 @@ class IDEData:
 def analyze_memory_usage(config: dict[str, Any]) -> None:
     """Analyze memory usage by component after compilation."""
     # Lazy import to avoid overhead when not needed
-    from esphome.analyze_memory import MemoryAnalyzer
+    from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+    from esphome.analyze_memory.helpers import get_esphome_components
 
     idedata = get_idedata(config)
 
@@ -435,8 +436,6 @@ def analyze_memory_usage(config: dict[str, Any]) -> None:
     external_components = set()
 
     # Get the list of built-in ESPHome components
-    from esphome.analyze_memory import get_esphome_components
-
     builtin_components = get_esphome_components()
 
     # Special non-component keys that appear in configs
@@ -457,7 +456,9 @@ def analyze_memory_usage(config: dict[str, Any]) -> None:
     _LOGGER.debug("Detected external components: %s", external_components)
 
     # Create analyzer and run analysis
-    analyzer = MemoryAnalyzer(elf_path, objdump_path, readelf_path, external_components)
+    analyzer = MemoryAnalyzerCLI(
+        elf_path, objdump_path, readelf_path, external_components
+    )
     analyzer.analyze()
 
     # Generate and print report
