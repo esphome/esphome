@@ -156,7 +156,7 @@ void LightCall::perform() {
     if (this->effect_ == 0u) {
       effect_s = "None";
     } else {
-      effect_s = this->parent_->effects_[this->effect_ - 1]->get_name().c_str();
+      effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
     if (publish) {
@@ -437,7 +437,7 @@ ColorMode LightCall::compute_color_mode_() {
 
   // Use the preferred suitable mode.
   if (intersection != 0) {
-    ColorMode mode = ColorModeMask::first_mode_from_mask(intersection);
+    ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
     ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
@@ -511,7 +511,7 @@ LightCall &LightCall::set_effect(const std::string &effect) {
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
     LightEffect *e = this->parent_->effects_[i];
 
-    if (strcasecmp(effect.c_str(), e->get_name().c_str()) == 0) {
+    if (strcasecmp(effect.c_str(), e->get_name()) == 0) {
       this->set_effect(i + 1);
       found = true;
       break;
