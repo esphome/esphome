@@ -35,9 +35,8 @@ sensor:
     lambda: |-
       if (millis() > 10000) {
         return 42.0;
-      } else {
-        return 0.0;
       }
+      return 0.0;
     update_interval: 60s
 
 text_sensor:
@@ -49,9 +48,8 @@ text_sensor:
     lambda: |-
       if (millis() > 10000) {
         return {"Hello World"};
-      } else {
-        return {"Goodbye (cruel) World"};
       }
+      return {"Goodbye (cruel) World"};
     update_interval: 60s
 
 binary_sensor:
@@ -60,9 +58,8 @@ binary_sensor:
     lambda: |-
       if (millis() > 10000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
 
 switch:
   - platform: template
@@ -70,9 +67,8 @@ switch:
     lambda: |-
       if (millis() > 10000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
     optimistic: true
 
 fan:
@@ -85,9 +81,8 @@ cover:
     lambda: |-
       if (millis() > 10000) {
         return COVER_OPEN;
-      } else {
-        return COVER_CLOSED;
       }
+      return COVER_CLOSED;
 
 lock:
   - platform: template
@@ -95,9 +90,8 @@ lock:
     lambda: |-
       if (millis() > 10000) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     optimistic: true
 
 select:
@@ -128,13 +122,10 @@ valve:
     optimistic: true
     has_position: true
 
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: climate_ir_lg
     name: LG Climate
+    transmitter_id: xmitr
 
 prometheus:
   include_internal: true

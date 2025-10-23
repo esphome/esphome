@@ -1,0 +1,13 @@
+remote_transmitter:
+  pin: ${tx_pin}
+  carrier_duty_percent: 50%
+
+remote_receiver:
+  id: rcvr
+  pin: ${rx_pin}
+
+climate:
+  - platform: toshiba
+    name: "RAS-2819T Climate"
+    model: RAS-2819T
+    receiver_id: rcvr

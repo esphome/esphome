@@ -506,7 +506,7 @@ message ListEntitiesLightResponse {
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
-  repeated ColorMode supported_color_modes = 12 [(container_pointer) = "std::set<light::ColorMode>"];
+  repeated ColorMode supported_color_modes = 12 [(container_pointer_no_template) = "light::ColorModeMask"];
   // next four supports_* are for legacy clients, newer clients should use color modes
   // Deprecated in API version 1.6
   bool legacy_supports_brightness = 5 [deprecated=true];
