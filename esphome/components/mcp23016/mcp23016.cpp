@@ -22,14 +22,29 @@ void MCP23016::setup() {
   this->write_reg_(MCP23016_IODIR0, 0xFF);
   this->write_reg_(MCP23016_IODIR1, 0xFF);
 }
-bool MCP23016::digital_read(uint8_t pin) {
-  uint8_t bit = pin % 8;
+
+void MCP23016::loop() {
+  // Invalidate cache at the start of each loop
+  this->reset_pin_cache_();
+}
+bool MCP23016::digital_read_hw(uint8_t pin) {
   uint8_t reg_addr = pin < 8 ? MCP23016_GP0 : MCP23016_GP1;
   uint8_t value = 0;
-  this->read_reg_(reg_addr, &value);
-  return value & (1 << bit);
+  if (!this->read_reg_(reg_addr, &value)) {
+    return false;
+  }
+
+  // Update the appropriate part of input_mask_
+  if (pin < 8) {
+    this->input_mask_ = (this->input_mask_ & 0xFF00) | value;
+  } else {
+    this->input_mask_ = (this->input_mask_ & 0x00FF) | (uint16_t(value) << 8);
+  }
+  return true;
 }
-void MCP23016::digital_write(uint8_t pin, bool value) {
+
+bool MCP23016::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
+void MCP23016::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = pin < 8 ? MCP23016_OLAT0 : MCP23016_OLAT1;
   this->update_reg_(pin, value, reg_addr);
 }

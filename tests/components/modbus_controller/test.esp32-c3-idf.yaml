@@ -1,8 +1,4 @@
-substitutions:
-  client_tx_pin: GPIO4
-  client_rx_pin: GPIO5
-  server_tx_pin: GPIO6
-  server_rx_pin: GPIO7
-  flow_control_pin: GPIO3
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-c3-idf.yaml
 
 <<: !include common.yaml

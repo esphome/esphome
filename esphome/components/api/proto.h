@@ -15,6 +15,30 @@
 
 namespace esphome::api {
 
+// Protocol Buffer wire type constants
+// See https://protobuf.dev/programming-guides/encoding/#structure
+constexpr uint8_t WIRE_TYPE_VARINT = 0;            // int32, int64, uint32, uint64, sint32, sint64, bool, enum
+constexpr uint8_t WIRE_TYPE_LENGTH_DELIMITED = 2;  // string, bytes, embedded messages, packed repeated fields
+constexpr uint8_t WIRE_TYPE_FIXED32 = 5;           // fixed32, sfixed32, float
+constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type from tag
+
+// Helper functions for ZigZag encoding/decoding
+inline constexpr uint32_t encode_zigzag32(int32_t value) {
+  return (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
+}
+
+inline constexpr uint64_t encode_zigzag64(int64_t value) {
+  return (static_cast<uint64_t>(value) << 1) ^ (static_cast<uint64_t>(value >> 63));
+}
+
+inline constexpr int32_t decode_zigzag32(uint32_t value) {
+  return (value & 1) ? static_cast<int32_t>(~(value >> 1)) : static_cast<int32_t>(value >> 1);
+}
+
+inline constexpr int64_t decode_zigzag64(uint64_t value) {
+  return (value & 1) ? static_cast<int64_t>(~(value >> 1)) : static_cast<int64_t>(value >> 1);
+}
+
 /*
  * StringRef Ownership Model for API Protocol Messages
  * ===================================================
@@ -87,33 +111,25 @@ class ProtoVarInt {
     return {};  // Incomplete or invalid varint
   }
 
-  uint16_t as_uint16() const { return this->value_; }
-  uint32_t as_uint32() const { return this->value_; }
-  uint64_t as_uint64() const { return this->value_; }
-  bool as_bool() const { return this->value_; }
-  int32_t as_int32() const {
+  constexpr uint16_t as_uint16() const { return this->value_; }
+  constexpr uint32_t as_uint32() const { return this->value_; }
+  constexpr uint64_t as_uint64() const { return this->value_; }
+  constexpr bool as_bool() const { return this->value_; }
+  constexpr int32_t as_int32() const {
     // Not ZigZag encoded
     return static_cast<int32_t>(this->as_int64());
   }
-  int64_t as_int64() const {
+  constexpr int64_t as_int64() const {
     // Not ZigZag encoded
     return static_cast<int64_t>(this->value_);
   }
-  int32_t as_sint32() const {
+  constexpr int32_t as_sint32() const {
     // with ZigZag encoding
-    if (this->value_ & 1) {
-      return static_cast<int32_t>(~(this->value_ >> 1));
-    } else {
-      return static_cast<int32_t>(this->value_ >> 1);
-    }
+    return decode_zigzag32(static_cast<uint32_t>(this->value_));
   }
-  int64_t as_sint64() const {
+  constexpr int64_t as_sint64() const {
     // with ZigZag encoding
-    if (this->value_ & 1) {
-      return static_cast<int64_t>(~(this->value_ >> 1));
-    } else {
-      return static_cast<int64_t>(this->value_ >> 1);
-    }
+    return decode_zigzag64(this->value_);
   }
   /**
    * Encode the varint value to a pre-allocated buffer without bounds checking.
@@ -173,6 +189,10 @@ class ProtoLengthDelimited {
   explicit ProtoLengthDelimited(const uint8_t *value, size_t length) : value_(value), length_(length) {}
   std::string as_string() const { return std::string(reinterpret_cast<const char *>(this->value_), this->length_); }
 
+  // Direct access to raw data without string allocation
+  const uint8_t *data() const { return this->value_; }
+  size_t size() const { return this->length_; }
+
   /**
    * Decode the length-delimited data into an existing ProtoDecodableMessage instance.
    *
@@ -228,7 +248,7 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) {
-    uint32_t val = (field_id << 3) | (type & 0b111);
+    uint32_t val = (field_id << 3) | (type & WIRE_TYPE_MASK);
     this->encode_varint_raw(val);
   }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
@@ -309,22 +329,10 @@ class ProtoWriteBuffer {
     this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
   }
   void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
-    uint32_t uvalue;
-    if (value < 0) {
-      uvalue = ~(value << 1);
-    } else {
-      uvalue = value << 1;
-    }
-    this->encode_uint32(field_id, uvalue, force);
+    this->encode_uint32(field_id, encode_zigzag32(value), force);
   }
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
-    uint64_t uvalue;
-    if (value < 0) {
-      uvalue = ~(value << 1);
-    } else {
-      uvalue = value << 1;
-    }
-    this->encode_uint64(field_id, uvalue, force);
+    this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
   void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = false);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
@@ -353,7 +361,18 @@ class ProtoMessage {
 // Base class for messages that support decoding
 class ProtoDecodableMessage : public ProtoMessage {
  public:
-  void decode(const uint8_t *buffer, size_t length);
+  virtual void decode(const uint8_t *buffer, size_t length);
+
+  /**
+   * Count occurrences of a repeated field in a protobuf buffer.
+   * This is a lightweight scan that only parses tags and skips field data.
+   *
+   * @param buffer Pointer to the protobuf buffer
+   * @param length Length of the buffer in bytes
+   * @param target_field_id The field ID to count
+   * @return Number of times the field appears in the buffer
+   */
+  static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
 
  protected:
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }
@@ -395,7 +414,7 @@ class ProtoSize {
    * @param value The uint32_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(uint32_t value) {
+  static constexpr uint32_t varint(uint32_t value) {
     // Optimized varint size calculation using leading zeros
     // Each 7 bits requires one byte in the varint encoding
     if (value < 128)
@@ -419,7 +438,7 @@ class ProtoSize {
    * @param value The uint64_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(uint64_t value) {
+  static constexpr uint32_t varint(uint64_t value) {
     // Handle common case of values fitting in uint32_t (vast majority of use cases)
     if (value <= UINT32_MAX) {
       return varint(static_cast<uint32_t>(value));
@@ -450,7 +469,7 @@ class ProtoSize {
    * @param value The int32_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(int32_t value) {
+  static constexpr uint32_t varint(int32_t value) {
     // Negative values are sign-extended to 64 bits in protocol buffers,
     // which always results in a 10-byte varint for negative int32
     if (value < 0) {
@@ -466,7 +485,7 @@ class ProtoSize {
    * @param value The int64_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static inline uint32_t varint(int64_t value) {
+  static constexpr uint32_t varint(int64_t value) {
     // For int64_t, we convert to uint64_t and calculate the size
     // This works because the bit pattern determines the encoding size,
     // and we've handled negative int32 values as a special case above
@@ -480,8 +499,8 @@ class ProtoSize {
    * @param type The wire type value (from the WireType enum in the protobuf spec)
    * @return The number of bytes needed to encode the field ID and wire type
    */
-  static inline uint32_t field(uint32_t field_id, uint32_t type) {
-    uint32_t tag = (field_id << 3) | (type & 0b111);
+  static constexpr uint32_t field(uint32_t field_id, uint32_t type) {
+    uint32_t tag = (field_id << 3) | (type & WIRE_TYPE_MASK);
     return varint(tag);
   }
 
@@ -607,9 +626,8 @@ class ProtoSize {
    */
   inline void add_sint32_force(uint32_t field_id_size, int32_t value) {
     // Always calculate size when force is true
-    // ZigZag encoding for sint32: (n << 1) ^ (n >> 31)
-    uint32_t zigzag = (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
-    total_size_ += field_id_size + varint(zigzag);
+    // ZigZag encoding for sint32
+    total_size_ += field_id_size + varint(encode_zigzag32(value));
   }
 
   /**
@@ -749,13 +767,29 @@ class ProtoSize {
   template<typename MessageType>
   inline void add_repeated_message(uint32_t field_id_size, const std::vector<MessageType> &messages) {
     // Skip if the vector is empty
-    if (messages.empty()) {
-      return;
+    if (!messages.empty()) {
+      // Use the force version for all messages in the repeated field
+      for (const auto &message : messages) {
+        add_message_object_force(field_id_size, message);
+      }
     }
+  }
 
-    // Use the force version for all messages in the repeated field
-    for (const auto &message : messages) {
-      add_message_object_force(field_id_size, message);
+  /**
+   * @brief Calculates and adds the sizes of all messages in a repeated field to the total message size (FixedVector
+   * version)
+   *
+   * @tparam MessageType The type of the nested messages in the FixedVector
+   * @param messages FixedVector of message objects
+   */
+  template<typename MessageType>
+  inline void add_repeated_message(uint32_t field_id_size, const FixedVector<MessageType> &messages) {
+    // Skip if the fixed vector is empty
+    if (!messages.empty()) {
+      // Use the force version for all messages in the repeated field
+      for (const auto &message : messages) {
+        add_message_object_force(field_id_size, message);
+      }
     }
   }
 };
@@ -831,7 +865,7 @@ class ProtoService {
   }
 
   // Authentication helper methods
-  bool check_connection_setup_() {
+  inline bool check_connection_setup_() {
     if (!this->is_connection_setup()) {
       this->on_no_setup_connection();
       return false;
@@ -839,7 +873,7 @@ class ProtoService {
     return true;
   }
 
-  bool check_authenticated_() {
+  inline bool check_authenticated_() {
 #ifdef USE_API_PASSWORD
     if (!this->check_connection_setup_()) {
       return false;

@@ -243,7 +243,7 @@ template<typename... Ts> class ActionList {
     }
     this->actions_end_ = action;
   }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) {
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     for (auto *action : actions) {
       this->add_action(action);
     }
@@ -286,7 +286,7 @@ template<typename... Ts> class Automation {
   explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 
