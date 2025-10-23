@@ -878,7 +878,9 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_unit_of_measurement(unit_of_measurement))
     if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
         cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
