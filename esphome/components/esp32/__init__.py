@@ -1167,7 +1167,7 @@ spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:
             custom_partition_start = (
                 ceil(custom_partition_start / 0x1000) * 0x1000
             )  # align to 4KB
-        partition_csv += f'{partition["name"]}, {partition["type"]},   {partition["subtype"]},    0x{custom_partition_start:X},   0x{partition["size"]:X},\n'
+        partition_csv += f"{partition['name']}, {partition['type']},   {partition['subtype']},    0x{custom_partition_start:X},   0x{partition['size']:X},\n"
         custom_partition_start = custom_partition_start + partition.size
     return partition_csv
 
@@ -1185,7 +1185,7 @@ app1,     app,  ota_1,   ,        0x{app_partition_size:X},
 nvs,      data, nvs,     ,        0x6D000,
 """
     for partition in custom_partitions:
-        partition_csv += f'{partition["name"]}, {partition["type"]},   {partition["subtype"]},    , 0x{partition["size"]:X},\n'
+        partition_csv += f"{partition['name']}, {partition['type']},   {partition['subtype']},    , 0x{partition['size']:X},\n"
     return partition_csv
 
 
