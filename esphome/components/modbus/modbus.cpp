@@ -271,7 +271,7 @@ void Modbus::send_next_frame_() {
     this->last_send_tx_offset_ = data.size() * 11 * 1000 / this->parent_->get_baud_rate() + 1;
   }
 
-  this->tx_buffer_.pop_front();
+  this->tx_buffer_.pop();
 
   ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty(data).c_str(), millis() - this->last_send_);
   this->last_send_ = millis();
@@ -350,7 +350,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   data.push_back(crc >> 8);
 
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
-    this->tx_buffer_.push_back(data);
+    this->tx_buffer_.push(data);
   } else {
     ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(data).c_str());
   }
