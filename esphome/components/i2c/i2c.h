@@ -1,10 +1,10 @@
 #pragma once
 
-#include "i2c_bus.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/optional.h"
 #include <array>
 #include <vector>
+#include "esphome/core/helpers.h"
+#include "esphome/core/optional.h"
+#include "i2c_bus.h"
 
 namespace esphome {
 namespace i2c {
@@ -161,51 +161,53 @@ class I2CDevice {
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
+  ErrorCode read(uint8_t *data, size_t len) const { return bus_->write_readv(this->address_, nullptr, 0, data, len); }
 
   /// @brief reads an array of bytes from a specific register in the I²C device
   /// @param a_register an 8 bits internal address of the I²C register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true);
+  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len);
 
   /// @brief reads an array of bytes from a specific register in the I²C device
   /// @param a_register the 16 bits internal address of the I²C register to read from
   /// @param data pointer to an array of bytes to store the information
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop = true);
+  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len);
 
   /// @brief writes an array of bytes to a device using an I2CBus
   /// @param data pointer to an array that contains the bytes to send
   /// @param len length of the buffer = number of bytes to write
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode write(const uint8_t *data, size_t len, bool stop = true) { return bus_->write(address_, data, len, stop); }
+  ErrorCode write(const uint8_t *data, size_t len) const {
+    return bus_->write_readv(this->address_, data, len, nullptr, 0);
+  }
+
+  /// @brief writes an array of bytes to a device, then reads an array, as a single transaction
+  /// @param write_data pointer to an array that contains the bytes to send
+  /// @param write_len length of the buffer = number of bytes to write
+  /// @param read_data pointer to an array to store the bytes read
+  /// @param read_len length of the buffer = number of bytes to read
+  /// @return an i2c::ErrorCode
+  ErrorCode write_read(const uint8_t *write_data, size_t write_len, uint8_t *read_data, size_t read_len) const {
+    return bus_->write_readv(this->address_, write_data, write_len, read_data, read_len);
+  }
 
   /// @brief writes an array of bytes to a specific register in the I²C device
   /// @param a_register the internal address of the register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true);
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len) const;
 
   /// @brief write an array of bytes to a specific register in the I²C device
   /// @param a_register the 16 bits internal address of the register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop = true);
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
 
   ///
   /// Compat APIs
@@ -217,7 +219,7 @@ class I2CDevice {
     return read_register(a_register, data, len) == ERROR_OK;
   }
 
-  bool read_bytes_raw(uint8_t *data, uint8_t len) { return read(data, len) == ERROR_OK; }
+  bool read_bytes_raw(uint8_t *data, uint8_t len) const { return read(data, len) == ERROR_OK; }
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
@@ -236,9 +238,7 @@ class I2CDevice {
 
   bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len);
 
-  bool read_byte(uint8_t a_register, uint8_t *data, bool stop = true) {
-    return read_register(a_register, data, 1, stop) == ERROR_OK;
-  }
+  bool read_byte(uint8_t a_register, uint8_t *data) { return read_register(a_register, data, 1) == ERROR_OK; }
 
   optional<uint8_t> read_byte(uint8_t a_register) {
     uint8_t data;
@@ -249,11 +249,11 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
-  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len, bool stop = true) {
-    return write_register(a_register, data, len, stop) == ERROR_OK;
+  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) const {
+    return write_register(a_register, data, len) == ERROR_OK;
   }
 
-  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {
+  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) const {
     return write_bytes(a_register, data.data(), data.size());
   }
 
@@ -261,13 +261,42 @@ class I2CDevice {
     return write_bytes(a_register, data.data(), data.size());
   }
 
-  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
+  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const;
 
-  bool write_byte(uint8_t a_register, uint8_t data, bool stop = true) {
-    return write_bytes(a_register, &data, 1, stop);
+  bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
+
+  bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
+
+  // Deprecated functions
+
+  ESPDEPRECATED("The stop argument is no longer used. This will be removed from ESPHome 2026.3.0", "2025.9.0")
+  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop) {
+    return this->read_register(a_register, data, len);
   }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
+  ESPDEPRECATED("The stop argument is no longer used. This will be removed from ESPHome 2026.3.0", "2025.9.0")
+  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop) {
+    return this->read_register16(a_register, data, len);
+  }
+
+  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
+                "removed from ESPHome 2026.3.0",
+                "2025.9.0")
+  ErrorCode write(const uint8_t *data, size_t len, bool stop) const { return this->write(data, len); }
+
+  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
+                "removed from ESPHome 2026.3.0",
+                "2025.9.0")
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop) const {
+    return this->write_register(a_register, data, len);
+  }
+
+  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
+                "removed from ESPHome 2026.3.0",
+                "2025.9.0")
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop) const {
+    return this->write_register16(a_register, data, len);
+  }
 
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus

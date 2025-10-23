@@ -37,6 +37,8 @@ class AnsiStyle(Enum):
 
 
 def color(col: AnsiFore, msg: str, reset: bool = True) -> str:
+    if col == AnsiFore.KEEP:
+        return msg
     s = col.value + msg
     if reset and col:
         s += AnsiStyle.RESET_ALL.value

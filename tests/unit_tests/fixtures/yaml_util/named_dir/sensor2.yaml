@@ -1,0 +1,4 @@
+platform: template
+name: "Sensor 2"
+lambda: |-
+  return 100.0;

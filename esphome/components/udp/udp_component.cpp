@@ -28,12 +28,12 @@ void UDPComponent::setup() {
     int enable = 1;
     auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
     if (err != 0) {
-      this->status_set_warning("Socket unable to set reuseaddr");
+      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
     err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
     if (err != 0) {
-      this->status_set_warning("Socket unable to set broadcast");
+      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
     }
   }
   // create listening socket if we either want to subscribe to providers, or need to listen
@@ -55,7 +55,7 @@ void UDPComponent::setup() {
     int enable = 1;
     err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
     if (err != 0) {
-      this->status_set_warning("Socket unable to set reuseaddr");
+      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
     struct sockaddr_in server {};

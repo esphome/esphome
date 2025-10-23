@@ -259,13 +259,10 @@ esp_err_t AudioPipeline::allocate_communications_() {
 esp_err_t AudioPipeline::start_tasks_() {
   if (this->read_task_handle_ == nullptr) {
     if (this->read_task_stack_buffer_ == nullptr) {
-      if (this->task_stack_in_psram_) {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-        this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-      } else {
-        RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-        this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
-      }
+      // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
+      // in PSRAM. As a workaround, always allocate the read task in internal memory.
+      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
+      this->read_task_stack_buffer_ = stack_allocator.allocate(READ_TASK_STACK_SIZE);
     }
 
     if (this->read_task_stack_buffer_ == nullptr) {
