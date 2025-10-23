@@ -22,6 +22,10 @@ class LightEffect {
   /// Apply this effect. Use the provided state for starting transitions, ...
   virtual void apply() = 0;
 
+  /**
+   * Returns the name of this effect.
+   * The returned pointer is valid for the lifetime of the program and must not be freed.
+   */
   const char *get_name() const { return this->name_; }
 
   /// Internal method called by the LightState when this light effect is registered in it.
