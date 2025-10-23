@@ -33,7 +33,7 @@ sensor:
   - platform: template
     id: template_sensor1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return 42.0;
       }
       return 0.0;
@@ -46,7 +46,7 @@ text_sensor:
   - platform: template
     id: template_text_sensor1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return {"Hello World"};
       }
       return {"Goodbye (cruel) World"};
@@ -56,7 +56,7 @@ binary_sensor:
   - platform: template
     id: template_binary_sensor1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return true;
       }
       return false;
@@ -65,7 +65,7 @@ switch:
   - platform: template
     id: template_switch1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return true;
       }
       return false;
@@ -79,7 +79,7 @@ cover:
   - platform: template
     id: template_cover1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
@@ -88,7 +88,7 @@ lock:
   - platform: template
     id: template_lock1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return LOCK_STATE_LOCKED;
       }
       return LOCK_STATE_UNLOCKED;

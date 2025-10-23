@@ -25,7 +25,7 @@ sensor:
   - platform: template
     id: template_sensor1
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return 42.0;
       }
       return 0.0;

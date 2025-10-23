@@ -15,7 +15,7 @@ lock:
     id: test_lock1
     name: Template Lock
     lambda: |-
-      if (esphome::millis() > 10000) {
+      if (millis() > 10000) {
         return LOCK_STATE_LOCKED;
       }
       return LOCK_STATE_UNLOCKED;
