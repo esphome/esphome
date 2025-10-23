@@ -122,7 +122,7 @@ void HX711Sensor::loop() {
     }
 
     const int32_t value = static_cast<int32_t>(result);
-    ESP_LOGD(TAG, "'%s': Got value %" PRId32 " (gain x%u)", this->name_.c_str(), value,
+    ESP_LOGV(TAG, "'%s': Got value %" PRId32 " (gain x%u)", this->name_.c_str(), value,
              hx711_gain_to_linear_gain(expected_gain_for_current_reading));
     this->publish_state(value);
 
@@ -271,7 +271,7 @@ bool HX711Sensor::power_down(const bool stop_poller) {
 
 void HX711Sensor::set_new_gain(HX711Gain gain) {
   const char *const gain_operation_str = this->gain_ == gain ? "already" : "will be";
-  ESP_LOGD(TAG, "'%s': Gain %s set to x%u", this->name_.c_str(), gain_operation_str, hx711_gain_to_linear_gain(gain));
+  ESP_LOGV(TAG, "'%s': Gain %s set to x%u", this->name_.c_str(), gain_operation_str, hx711_gain_to_linear_gain(gain));
   this->set_gain(gain);
 }
 

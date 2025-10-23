@@ -52,6 +52,7 @@ positive_time_period_milliseconds_uint16_validator = cv.All(
     cv.Range(max=cv.TimePeriod(milliseconds=65535)),
 )
 
+# CONF_CLK_PIN needs to be readable/input to check for power down state
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         HX711Sensor,
