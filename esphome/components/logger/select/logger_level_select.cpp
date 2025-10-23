@@ -3,11 +3,10 @@
 namespace esphome::logger {
 
 void LoggerLevelSelect::publish_state(int level) {
-  auto value = this->at(level);
-  if (!value) {
+  const auto &option = this->at(level_to_index(level));
+  if (!option)
     return;
-  }
-  Select::publish_state(value.value());
+  Select::publish_state(option.value());
 }
 
 void LoggerLevelSelect::setup() {
@@ -16,10 +15,10 @@ void LoggerLevelSelect::setup() {
 }
 
 void LoggerLevelSelect::control(const std::string &value) {
-  auto level = this->index_of(value);
-  if (!level)
+  const auto index = this->index_of(value);
+  if (!index)
     return;
-  this->parent_->set_log_level(level.value());
+  this->parent_->set_log_level(index_to_level(index.value()));
 }
 
 }  // namespace esphome::logger

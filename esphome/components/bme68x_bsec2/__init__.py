@@ -139,7 +139,7 @@ CONFIG_SCHEMA_BASE = (
             cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
                 VOLTAGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,

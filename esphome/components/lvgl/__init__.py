@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_LOG_LEVEL,
     CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
@@ -186,7 +187,7 @@ def multi_conf_validate(configs: list[dict]):
     base_config = configs[0]
     for config in configs[1:]:
         for item in (
-            df.CONF_LOG_LEVEL,
+            CONF_LOG_LEVEL,
             CONF_COLOR_DEPTH,
             df.CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
@@ -269,11 +270,11 @@ async def to_code(configs):
 
     add_define(
         "LV_LOG_LEVEL",
-        f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[df.CONF_LOG_LEVEL]]}",
+        f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[CONF_LOG_LEVEL]]}",
     )
     cg.add_define(
         "LVGL_LOG_LEVEL",
-        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[df.CONF_LOG_LEVEL]}"),
+        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
     add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
@@ -423,7 +424,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
-                cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+                cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
                 cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(

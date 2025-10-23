@@ -1,11 +1,3 @@
-uart:
-  - id: seeed_mr60fda2_uart
-    tx_pin: ${uart_tx_pin}
-    rx_pin: ${uart_rx_pin}
-    baud_rate: 115200
-    parity: NONE
-    stop_bits: 1
-
 seeed_mr60bha2:
   id: my_seeed_mr60bha2
 

@@ -106,11 +106,13 @@ CONFIG_SCHEMA = cv.Any(
 )
 
 
-def _process_base_package(config: dict) -> dict:
+def _process_base_package(config: dict, skip_update: bool = False) -> dict:
+    # When skip_update is True, use NEVER_REFRESH to prevent updates
+    actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=config[CONF_REFRESH],
+        refresh=actual_refresh,
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
@@ -180,16 +182,16 @@ def _process_base_package(config: dict) -> dict:
     return {"packages": packages}
 
 
-def _process_package(package_config, config):
+def _process_package(package_config, config, skip_update: bool = False):
     recursive_package = package_config
     if CONF_URL in package_config:
-        package_config = _process_base_package(package_config)
+        package_config = _process_base_package(package_config, skip_update)
     if isinstance(package_config, dict):
-        recursive_package = do_packages_pass(package_config)
+        recursive_package = do_packages_pass(package_config, skip_update)
     return merge_config(recursive_package, config)
 
 
-def do_packages_pass(config: dict):
+def do_packages_pass(config: dict, skip_update: bool = False):
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -198,10 +200,10 @@ def do_packages_pass(config: dict):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    config = _process_package(package_config, config)
+                    config = _process_package(package_config, config, skip_update)
         elif isinstance(packages, list):
             for package_config in reversed(packages):
-                config = _process_package(package_config, config)
+                config = _process_package(package_config, config, skip_update)
         else:
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"

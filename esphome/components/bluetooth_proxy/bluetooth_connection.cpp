@@ -12,16 +12,30 @@ namespace esphome::bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy.connection";
 
+// This function is allocation-free and directly packs UUIDs into the output array
+// using precalculated constants for the Bluetooth base UUID
 static void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, esp_bt_uuid_t uuid_source) {
-  esp_bt_uuid_t uuid = espbt::ESPBTUUID::from_uuid(uuid_source).as_128bit().get_uuid();
-  out[0] = ((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
-           ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
-           ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
-           ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]);
-  out[1] = ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
-           ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
-           ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
-           ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0]);
+  // Bluetooth base UUID: 00000000-0000-1000-8000-00805F9B34FB
+  // out[0] = bytes 8-15 (big-endian)
+  // - For 128-bit UUIDs: use bytes 8-15 as-is
+  // - For 16/32-bit UUIDs: insert into bytes 12-15, use 0x00001000 for bytes 8-11
+  out[0] = uuid_source.len == ESP_UUID_LEN_128
+               ? (((uint64_t) uuid_source.uuid.uuid128[15] << 56) | ((uint64_t) uuid_source.uuid.uuid128[14] << 48) |
+                  ((uint64_t) uuid_source.uuid.uuid128[13] << 40) | ((uint64_t) uuid_source.uuid.uuid128[12] << 32) |
+                  ((uint64_t) uuid_source.uuid.uuid128[11] << 24) | ((uint64_t) uuid_source.uuid.uuid128[10] << 16) |
+                  ((uint64_t) uuid_source.uuid.uuid128[9] << 8) | ((uint64_t) uuid_source.uuid.uuid128[8]))
+               : (((uint64_t) (uuid_source.len == ESP_UUID_LEN_16 ? uuid_source.uuid.uuid16 : uuid_source.uuid.uuid32)
+                   << 32) |
+                  0x00001000ULL);  // Base UUID bytes 8-11
+  // out[1] = bytes 0-7 (big-endian)
+  // - For 128-bit UUIDs: use bytes 0-7 as-is
+  // - For 16/32-bit UUIDs: use precalculated base UUID constant
+  out[1] = uuid_source.len == ESP_UUID_LEN_128
+               ? ((uint64_t) uuid_source.uuid.uuid128[7] << 56) | ((uint64_t) uuid_source.uuid.uuid128[6] << 48) |
+                     ((uint64_t) uuid_source.uuid.uuid128[5] << 40) | ((uint64_t) uuid_source.uuid.uuid128[4] << 32) |
+                     ((uint64_t) uuid_source.uuid.uuid128[3] << 24) | ((uint64_t) uuid_source.uuid.uuid128[2] << 16) |
+                     ((uint64_t) uuid_source.uuid.uuid128[1] << 8) | ((uint64_t) uuid_source.uuid.uuid128[0])
+               : 0x800000805F9B34FBULL;  // Base UUID bytes 0-7: 80-00-00-80-5F-9B-34-FB
 }
 
 // Helper to fill UUID in the appropriate format based on client support and UUID type
@@ -107,13 +121,24 @@ void BluetoothConnection::set_address(uint64_t address) {
 void BluetoothConnection::loop() {
   BLEClientBase::loop();
 
-  // Early return if no active connection or not in service discovery phase
-  if (this->address_ == 0 || this->send_service_ < 0 || this->send_service_ > this->service_count_) {
+  // Early return if no active connection
+  if (this->address_ == 0) {
     return;
   }
 
-  // Handle service discovery
-  this->send_service_for_discovery_();
+  // Handle service discovery if in valid range
+  if (this->send_service_ >= 0 && this->send_service_ <= this->service_count_) {
+    this->send_service_for_discovery_();
+  }
+
+  // Check if we should disable the loop
+  // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
+  // - For V3_WITHOUT_CACHE: Disable only after service discovery is complete
+  //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
+  if (this->state_ != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+                                                   this->send_service_ == DONE_SENDING_SERVICES)) {
+    this->disable_loop();
+  }
 }
 
 void BluetoothConnection::reset_connection_(esp_err_t reason) {
@@ -127,7 +152,7 @@ void BluetoothConnection::reset_connection_(esp_err_t reason) {
   // to detect incomplete service discovery rather than relying on us to
   // tell them about a partial list.
   this->set_address(0);
-  this->send_service_ = DONE_SENDING_SERVICES;
+  this->send_service_ = INIT_SENDING_SERVICES;
   this->proxy_->send_connections_free();
 }
 
@@ -135,10 +160,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   if (this->send_service_ >= this->service_count_) {
     this->send_service_ = DONE_SENDING_SERVICES;
     this->proxy_->send_gatt_services_done(this->address_);
-    if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-        this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
-      this->release_services();
-    }
+    this->release_services();
     return;
   }
 
@@ -208,8 +230,8 @@ void BluetoothConnection::send_service_for_discovery_() {
     service_resp.handle = service_result.start_handle;
 
     if (total_char_count > 0) {
-      // Reserve space and process characteristics
-      service_resp.characteristics.reserve(total_char_count);
+      // Initialize FixedVector with exact count and process characteristics
+      service_resp.characteristics.init(total_char_count);
       uint16_t char_offset = 0;
       esp_gattc_char_elem_t char_result;
       while (true) {  // characteristics
@@ -231,9 +253,7 @@ void BluetoothConnection::send_service_for_discovery_() {
 
         service_resp.characteristics.emplace_back();
         auto &characteristic_resp = service_resp.characteristics.back();
-
         fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid, char_result.uuid, use_efficient_uuids);
-
         characteristic_resp.handle = char_result.char_handle;
         characteristic_resp.properties = char_result.properties;
         char_offset++;
@@ -249,12 +269,11 @@ void BluetoothConnection::send_service_for_discovery_() {
           return;
         }
         if (total_desc_count == 0) {
-          // No descriptors, continue to next characteristic
           continue;
         }
 
-        // Reserve space and process descriptors
-        characteristic_resp.descriptors.reserve(total_desc_count);
+        // Initialize FixedVector with exact count and process descriptors
+        characteristic_resp.descriptors.init(total_desc_count);
         uint16_t desc_offset = 0;
         esp_gattc_descr_elem_t desc_result;
         while (true) {  // descriptors
@@ -275,9 +294,7 @@ void BluetoothConnection::send_service_for_discovery_() {
 
           characteristic_resp.descriptors.emplace_back();
           auto &descriptor_resp = characteristic_resp.descriptors.back();
-
           fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, desc_result.uuid, use_efficient_uuids);
-
           descriptor_resp.handle = desc_result.handle;
           desc_offset++;
         }
@@ -353,10 +370,19 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->reset_connection_(param->disconnect.reason);
+      // Don't reset connection yet - wait for CLOSE_EVT to ensure controller has freed resources
+      // This prevents race condition where we mark slot as free before controller cleanup is complete
+      ESP_LOGD(TAG, "[%d] [%s] Disconnect, reason=0x%02x", this->connection_index_, this->address_str_.c_str(),
+               param->disconnect.reason);
+      // Send disconnection notification but don't free the slot yet
+      this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
       break;
     }
     case ESP_GATTC_CLOSE_EVT: {
+      ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_.c_str(),
+               param->close.reason);
+      // Now the GATT connection is fully closed and controller resources are freed
+      // Safe to mark the connection slot as available
       this->reset_connection_(param->close.reason);
       break;
     }
@@ -483,7 +509,8 @@ esp_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
   return this->check_and_log_error_("esp_ble_gattc_read_char", err);
 }
 
-esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const std::string &data, bool response) {
+esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8_t *data, size_t length,
+                                                    bool response) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("write", "characteristic");
     return ESP_GATT_NOT_CONNECTED;
@@ -491,8 +518,11 @@ esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const std::
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_.c_str(),
            handle);
 
+  // ESP-IDF's API requires a non-const uint8_t* but it doesn't modify the data
+  // The BTC layer immediately copies the data to its own buffer (see btc_gattc.c)
+  // const_cast is safe here and was previously hidden by a C-style cast
   esp_err_t err =
-      esp_ble_gattc_write_char(this->gattc_if_, this->conn_id_, handle, data.size(), (uint8_t *) data.data(),
+      esp_ble_gattc_write_char(this->gattc_if_, this->conn_id_, handle, length, const_cast<uint8_t *>(data),
                                response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   return this->check_and_log_error_("esp_ble_gattc_write_char", err);
 }
@@ -509,7 +539,7 @@ esp_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
   return this->check_and_log_error_("esp_ble_gattc_read_char_descr", err);
 }
 
-esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const std::string &data, bool response) {
+esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length, bool response) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("write", "descriptor");
     return ESP_GATT_NOT_CONNECTED;
@@ -517,8 +547,11 @@ esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const std::stri
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_.c_str(),
            handle);
 
+  // ESP-IDF's API requires a non-const uint8_t* but it doesn't modify the data
+  // The BTC layer immediately copies the data to its own buffer (see btc_gattc.c)
+  // const_cast is safe here and was previously hidden by a C-style cast
   esp_err_t err = esp_ble_gattc_write_char_descr(
-      this->gattc_if_, this->conn_id_, handle, data.size(), (uint8_t *) data.data(),
+      this->gattc_if_, this->conn_id_, handle, length, const_cast<uint8_t *>(data),
       response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   return this->check_and_log_error_("esp_ble_gattc_write_char_descr", err);
 }
