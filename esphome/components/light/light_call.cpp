@@ -539,15 +539,28 @@ LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
 ColorMode LightCall::get_active_color_mode_() {
   return this->has_color_mode() ? this->color_mode_ : this->parent_->remote_values.get_color_mode();
 }
-LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
-  if (this->get_active_color_mode_() & ColorCapability::BRIGHTNESS)
-    this->set_transition_length(transition_length);
+
+// Helper methods to reduce code duplication for *_if_supported methods
+inline LightCall &LightCall::set_if_capability_supported_(ColorCapability capability,
+                                                          LightCall &(LightCall::*setter)(float), float value) {
+  if (this->get_active_color_mode_() & capability)
+    (this->*setter)(value);
   return *this;
 }
-LightCall &LightCall::set_brightness_if_supported(float brightness) {
-  if (this->get_active_color_mode_() & ColorCapability::BRIGHTNESS)
-    this->set_brightness(brightness);
+
+inline LightCall &LightCall::set_if_capability_supported_(ColorCapability capability,
+                                                          LightCall &(LightCall::*setter)(uint32_t), uint32_t value) {
+  if (this->get_active_color_mode_() & capability)
+    (this->*setter)(value);
   return *this;
+}
+
+LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
+  return this->set_if_capability_supported_(ColorCapability::BRIGHTNESS, &LightCall::set_transition_length,
+                                            transition_length);
+}
+LightCall &LightCall::set_brightness_if_supported(float brightness) {
+  return this->set_if_capability_supported_(ColorCapability::BRIGHTNESS, &LightCall::set_brightness, brightness);
 }
 LightCall &LightCall::set_color_mode_if_supported(ColorMode color_mode) {
   if (this->parent_->get_traits().supports_color_mode(color_mode))
@@ -555,29 +568,19 @@ LightCall &LightCall::set_color_mode_if_supported(ColorMode color_mode) {
   return *this;
 }
 LightCall &LightCall::set_color_brightness_if_supported(float brightness) {
-  if (this->get_active_color_mode_() & ColorCapability::RGB)
-    this->set_color_brightness(brightness);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::RGB, &LightCall::set_color_brightness, brightness);
 }
 LightCall &LightCall::set_red_if_supported(float red) {
-  if (this->get_active_color_mode_() & ColorCapability::RGB)
-    this->set_red(red);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::RGB, &LightCall::set_red, red);
 }
 LightCall &LightCall::set_green_if_supported(float green) {
-  if (this->get_active_color_mode_() & ColorCapability::RGB)
-    this->set_green(green);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::RGB, &LightCall::set_green, green);
 }
 LightCall &LightCall::set_blue_if_supported(float blue) {
-  if (this->get_active_color_mode_() & ColorCapability::RGB)
-    this->set_blue(blue);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::RGB, &LightCall::set_blue, blue);
 }
 LightCall &LightCall::set_white_if_supported(float white) {
-  if (this->get_active_color_mode_() & ColorCapability::WHITE)
-    this->set_white(white);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::WHITE, &LightCall::set_white, white);
 }
 LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
   if (this->get_active_color_mode_() & ColorCapability::COLOR_TEMPERATURE ||
@@ -586,14 +589,10 @@ LightCall &LightCall::set_color_temperature_if_supported(float color_temperature
   return *this;
 }
 LightCall &LightCall::set_cold_white_if_supported(float cold_white) {
-  if (this->get_active_color_mode_() & ColorCapability::COLD_WARM_WHITE)
-    this->set_cold_white(cold_white);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::COLD_WARM_WHITE, &LightCall::set_cold_white, cold_white);
 }
 LightCall &LightCall::set_warm_white_if_supported(float warm_white) {
-  if (this->get_active_color_mode_() & ColorCapability::COLD_WARM_WHITE)
-    this->set_warm_white(warm_white);
-  return *this;
+  return this->set_if_capability_supported_(ColorCapability::COLD_WARM_WHITE, &LightCall::set_warm_white, warm_white);
 }
 IMPLEMENT_LIGHT_CALL_SETTER(state, bool, FLAG_HAS_STATE)
 IMPLEMENT_LIGHT_CALL_SETTER(transition_length, uint32_t, FLAG_HAS_TRANSITION)

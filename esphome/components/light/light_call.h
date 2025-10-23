@@ -180,6 +180,12 @@ class LightCall {
   /// Get the currently targeted, or active if none set, color mode.
   ColorMode get_active_color_mode_();
 
+  // Helper methods to reduce code duplication for *_if_supported methods
+  inline LightCall &set_if_capability_supported_(ColorCapability capability, LightCall &(LightCall::*setter)(float),
+                                                 float value);
+  inline LightCall &set_if_capability_supported_(ColorCapability capability, LightCall &(LightCall::*setter)(uint32_t),
+                                                 uint32_t value);
+
   /// Validate all properties and return the target light color values.
   LightColorValues validate_();
 
