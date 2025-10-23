@@ -985,3 +985,49 @@ def test_clean_all_removes_non_storage_directories(
     # Verify logging mentions cleaning
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_preserves_json_files(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all preserves .json files."""
+    # Create build directory with various files
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+
+    # Create .json files (should be preserved)
+    (build_dir / "config.json").write_text('{"config": "data"}')
+    (build_dir / "metadata.json").write_text('{"metadata": "info"}')
+
+    # Create non-.json files (should be removed)
+    (build_dir / "dummy.txt").write_text("x")
+    (build_dir / "other.log").write_text("log content")
+
+    # Call clean_all
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    # Verify .esphome directory still exists
+    assert build_dir.exists()
+
+    # Verify .json files are preserved
+    assert (build_dir / "config.json").exists()
+    assert (build_dir / "config.json").read_text() == '{"config": "data"}'
+    assert (build_dir / "metadata.json").exists()
+    assert (build_dir / "metadata.json").read_text() == '{"metadata": "info"}'
+
+    # Verify non-.json files were removed
+    assert not (build_dir / "dummy.txt").exists()
+    assert not (build_dir / "other.log").exists()
+
+    # Verify logging mentions cleaning
+    assert "Cleaning" in caplog.text
+    assert str(build_dir) in caplog.text

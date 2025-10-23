@@ -67,7 +67,7 @@ void GPIOSwitch::write_state(bool state) {
   this->pin_->digital_write(state);
   this->publish_state(state);
 }
-void GPIOSwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
+void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
 
 }  // namespace gpio
 }  // namespace esphome

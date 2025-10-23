@@ -39,6 +39,10 @@ class SHA256 : public esphome::HashBase {
 
  protected:
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // CRITICAL: The mbedtls context MUST be stack-allocated (not a pointer) for ESP32-S3 hardware SHA acceleration.
+  // The ESP32-S3 DMA engine references this structure's memory addresses. If the context is passed to another
+  // function (crossing stack frames) or if VLAs are present, the DMA operations will corrupt memory and produce
+  // truncated/incorrect hash results.
   mbedtls_sha256_context ctx_{};
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
   br_sha256_context ctx_{};

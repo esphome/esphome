@@ -52,8 +52,9 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
   return ESP_OK;
 }
 
-std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::string method, std::string body,
-                                                       std::list<Header> request_headers,
+std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
+                                                       const std::string &body,
+                                                       const std::list<Header> &request_headers,
                                                        std::set<std::string> collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);

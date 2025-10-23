@@ -63,6 +63,8 @@ SPIRAM_SPEEDS = {
 
 
 def supported() -> bool:
+    if not CORE.is_esp32:
+        return False
     variant = get_esp32_variant()
     return variant in SPIRAM_MODES
 
