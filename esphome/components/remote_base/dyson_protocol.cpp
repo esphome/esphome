@@ -36,7 +36,7 @@ void DysonProtocol::encode(RemoteTransmitData *dst, const DysonData &data) {
 }
 
 optional<DysonData> DysonProtocol::decode(RemoteReceiveData src) {
-  int32_t n_received = src.size();
+  uint32_t n_received = static_cast<uint32_t>(src.size());
   uint16_t raw_code = 0;
   DysonData data{
       .code = 0,
