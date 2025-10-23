@@ -2760,71 +2760,68 @@ void WaveshareEPaper4P2InBV2BWR::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-
-
 void WaveshareEPaper4P26In::initialize() {
   // https://www.waveshare.net/w/upload/4/46/4.26inch_e-Paper_User_Manual.pdf
-  this->wait_until_idle_();  
-	this->command(0x12);  //SWRESET
-	this->wait_until_idle_();    
-	
-	this->command(0x18); // use the internal temperature sensor
-	this->data(0x80);
+  this->wait_until_idle_();
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
 
-	this->command(0x0C); //set soft start     
-	this->data(0xAE);
-	this->data(0xC7);
-	this->data(0xC3);
-	this->data(0xC0);
-	this->data(0x80);
+  this->command(0x18);  // use the internal temperature sensor
+  this->data(0x80);
 
-	this->command(0x01);   //      drive output control    
-	this->data((get_height_internal()-1)%256); //  Y  
-	this->data((get_height_internal()-1)/256); //  Y 
-	this->data(0x02);
+  this->command(0x0C);  // set soft start
+  this->data(0xAE);
+  this->data(0xC7);
+  this->data(0xC3);
+  this->data(0xC0);
+  this->data(0x80);
 
-	this->command(0x3C);        // Border       Border setting 
-	this->data(0x01);
+  this->command(0x01);                            //      drive output control
+  this->data((get_height_internal() - 1) % 256);  //  Y
+  this->data((get_height_internal() - 1) / 256);  //  Y
+  this->data(0x02);
 
-	this->command(0x11);        //    data  entry  mode
-	this->data(0x01);           //       X-mode  x+ y-    
+  this->command(0x3C);  // Border       Border setting
+  this->data(0x01);
 
-  this->command(0x44); // SET_RAM_X_ADDRESS_START_END_POSITION
+  this->command(0x11);  //    data  entry  mode
+  this->data(0x01);     //       X-mode  x+ y-
+
+  this->command(0x44);  // SET_RAM_X_ADDRESS_START_END_POSITION
   this->data(0 & 0xFF);
-  this->data((0>>8) & 0x03);
+  this->data((0 >> 8) & 0x03);
   this->data((get_width_internal() - 1) & 0xFF);
-  this->data(((get_width_internal() - 1)>>8) & 0x03);
+  this->data(((get_width_internal() - 1) >> 8) & 0x03);
 
-  this->command(0x45); // SET_RAM_Y_ADDRESS_START_END_POSITION
-  this->data((get_height_internal()- 1) & 0xFF);
-  this->data(((get_height_internal() - 1)>>8) & 0x03);
+  this->command(0x45);  // SET_RAM_Y_ADDRESS_START_END_POSITION
+  this->data((get_height_internal() - 1) & 0xFF);
+  this->data(((get_height_internal() - 1) >> 8) & 0x03);
   this->data(0 & 0xFF);
-  this->data((0>>8) & 0x03);
+  this->data((0 >> 8) & 0x03);
 
-  this->command(0x4E); // SET_RAM_X_ADDRESS_COUNTER
+  this->command(0x4E);  // SET_RAM_X_ADDRESS_COUNTER
   this->data(0 & 0xFF);
-  this->data((0>>8) & 0x03);
+  this->data((0 >> 8) & 0x03);
 
-  this->command(0x4F); // SET_RAM_Y_ADDRESS_COUNTER
+  this->command(0x4F);  // SET_RAM_Y_ADDRESS_COUNTER
   this->data(0 & 0xFF);
-  this->data((0>>8) & 0x03);
+  this->data((0 >> 8) & 0x03);
 
-	this->wait_until_idle_(); 
- 
+  this->wait_until_idle_();
 }
 void HOT WaveshareEPaper4P26In::display() {
-	this->command(0x24);   //write RAM for black(0)/white (1)
-  
+  this->command(0x24);  // write RAM for black(0)/white (1)
+
   delay(2);
   this->start_data_();
   this->write_array(this->buffer_, this->get_buffer_length_());
   this->end_data_();
   delay(2);
-  
-	this->command(0x22); //Display Update Control
-	this->data(0xF7);
-	this->command(0x20); //Activate Display Update Sequence
-	this->wait_until_idle_(); 
+
+  this->command(0x22);  // Display Update Control
+  this->data(0xF7);
+  this->command(0x20);  // Activate Display Update Sequence
+  this->wait_until_idle_();
 }
 int WaveshareEPaper4P26In::get_width_internal() { return 800; }
 int WaveshareEPaper4P26In::get_height_internal() { return 480; }
@@ -2836,7 +2833,6 @@ void WaveshareEPaper4P26In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-
 
 void WaveshareEPaper5P8In::initialize() {
   // COMMAND POWER SETTING

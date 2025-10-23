@@ -620,7 +620,6 @@ class WaveshareEPaper4P2InBV2BWR : public WaveshareEPaperBWR {
   int get_height_internal() override;
 };
 
-
 class WaveshareEPaper4P26In : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -630,8 +629,8 @@ class WaveshareEPaper4P26In : public WaveshareEPaper {
   void dump_config() override;
 
   void deep_sleep() override {
-    this->command(0x10); //enter deep sleep
-    this->data(0x01);  
+    this->command(0x10);  // enter deep sleep
+    this->data(0x01);
     delay(100);  // NOLINT
   }
 
