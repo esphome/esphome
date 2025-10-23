@@ -286,7 +286,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate_spi(config):
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
@@ -303,9 +303,6 @@ def _final_validate(config):
                         f"`spi` component is using interface '{interface}'. "
                         f"To use {config[CONF_TYPE]}, you must change the `interface` on the `spi` component.",
                     )
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def manual_ip(config):
@@ -427,6 +424,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """Final validation for Ethernet component."""
+    _final_validate_spi(config)
     _final_validate_rmii_pins(config)
     return config
 
