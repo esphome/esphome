@@ -2,7 +2,7 @@ binary_sensor:
   - platform: template
     id: bin1
     lambda: |-
-      if (millis() > 10000) {
+      if (esphome::millis() > 10000) {
         return true;
       }
       return false;

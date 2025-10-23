@@ -2,14 +2,14 @@ sensor:
   - platform: template
     id: template_temperature1
     lambda: |-
-      if (millis() > 10000) {
+      if (esphome::millis() > 10000) {
         return 0.6;
       }
       return 0.0;
   - platform: template
     id: template_temperature2
     lambda: |-
-      if (millis() > 20000) {
+      if (esphome::millis() > 20000) {
         return 0.8;
       }
       return 0.0;
