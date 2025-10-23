@@ -30,7 +30,7 @@ inline static uint8_t half_sin8(uint8_t v) { return sin16_c(uint16_t(v) * 128u) 
 
 class AddressableLightEffect : public LightEffect {
  public:
-  explicit AddressableLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit AddressableLightEffect(const char *name) : LightEffect(name) {}
   void start_internal() override {
     this->get_addressable_()->set_effect_active(true);
     this->get_addressable_()->clear_effect_data();
@@ -57,8 +57,7 @@ class AddressableLightEffect : public LightEffect {
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const std::string &name,
-                               std::function<void(AddressableLight &, Color, bool initial_run)> f,
+  AddressableLambdaLightEffect(const char *name, std::function<void(AddressableLight &, Color, bool initial_run)> f,
                                uint32_t update_interval)
       : AddressableLightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
   void start() override { this->initial_run_ = true; }
@@ -81,7 +80,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
 
 class AddressableRainbowLightEffect : public AddressableLightEffect {
  public:
-  explicit AddressableRainbowLightEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableRainbowLightEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const Color &current_color) override {
     ESPHSVColor hsv;
     hsv.value = 255;
@@ -112,7 +111,7 @@ struct AddressableColorWipeEffectColor {
 
 class AddressableColorWipeEffect : public AddressableLightEffect {
  public:
-  explicit AddressableColorWipeEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableColorWipeEffect(const char *name) : AddressableLightEffect(name) {}
   void set_colors(const std::initializer_list<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
   void set_add_led_interval(uint32_t add_led_interval) { this->add_led_interval_ = add_led_interval; }
   void set_reverse(bool reverse) { this->reverse_ = reverse; }
@@ -165,7 +164,7 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
 
 class AddressableScanEffect : public AddressableLightEffect {
  public:
-  explicit AddressableScanEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableScanEffect(const char *name) : AddressableLightEffect(name) {}
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void set_scan_width(uint32_t scan_width) { this->scan_width_ = scan_width; }
   void apply(AddressableLight &it, const Color &current_color) override {
@@ -202,7 +201,7 @@ class AddressableScanEffect : public AddressableLightEffect {
 
 class AddressableTwinkleEffect : public AddressableLightEffect {
  public:
-  explicit AddressableTwinkleEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableTwinkleEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &addressable, const Color &current_color) override {
     const uint32_t now = millis();
     uint8_t pos_add = 0;
@@ -244,7 +243,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
 
 class AddressableRandomTwinkleEffect : public AddressableLightEffect {
  public:
-  explicit AddressableRandomTwinkleEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableRandomTwinkleEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
     uint8_t pos_add = 0;
@@ -293,7 +292,7 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
 
 class AddressableFireworksEffect : public AddressableLightEffect {
  public:
-  explicit AddressableFireworksEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableFireworksEffect(const char *name) : AddressableLightEffect(name) {}
   void start() override {
     auto &it = *this->get_addressable_();
     it.all() = Color::BLACK;
@@ -342,7 +341,7 @@ class AddressableFireworksEffect : public AddressableLightEffect {
 
 class AddressableFlickerEffect : public AddressableLightEffect {
  public:
-  explicit AddressableFlickerEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableFlickerEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
     const uint8_t intensity = this->intensity_;

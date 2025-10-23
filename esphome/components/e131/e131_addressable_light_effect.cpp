@@ -9,7 +9,7 @@ namespace e131 {
 static const char *const TAG = "e131_addressable_light_effect";
 static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
 
-E131AddressableLightEffect::E131AddressableLightEffect(const std::string &name) : AddressableLightEffect(name) {}
+E131AddressableLightEffect::E131AddressableLightEffect(const char *name) : AddressableLightEffect(name) {}
 
 int E131AddressableLightEffect::get_data_per_universe() const { return get_lights_per_universe() * channels_; }
 
@@ -58,8 +58,8 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
       std::min(it->size(), std::min(output_offset + get_lights_per_universe(), output_offset + packet.count - 1));
   auto *input_data = packet.values + 1;
 
-  ESP_LOGV(TAG, "Applying data for '%s' on %d universe, for %" PRId32 "-%d.", get_name().c_str(), universe,
-           output_offset, output_end);
+  ESP_LOGV(TAG, "Applying data for '%s' on %d universe, for %" PRId32 "-%d.", get_name(), universe, output_offset,
+           output_end);
 
   switch (channels_) {
     case E131_MONO:
