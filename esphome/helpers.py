@@ -241,41 +241,42 @@ def resolve_ip_address(
     # If we have uncached hosts (only non-IP hostnames), resolve them
     if uncached_hosts:
         from esphome.core import EsphomeError
+        from esphome.resolver import AsyncResolver
 
+        resolver = AsyncResolver(uncached_hosts, port)
         try:
-            from esphome.resolver import AsyncResolver
-
-            resolver = AsyncResolver(uncached_hosts, port)
             addr_infos = resolver.resolve()
-            # Convert aioesphomeapi AddrInfo to our format
-            for addr_info in addr_infos:
-                sockaddr = addr_info.sockaddr
-                if addr_info.family == socket.AF_INET6:
-                    # IPv6
-                    sockaddr_tuple = (
-                        sockaddr.address,
-                        sockaddr.port,
-                        sockaddr.flowinfo,
-                        sockaddr.scope_id,
-                    )
-                else:
-                    # IPv4
-                    sockaddr_tuple = (sockaddr.address, sockaddr.port)
-
-                res.append(
-                    (
-                        addr_info.family,
-                        addr_info.type,
-                        addr_info.proto,
-                        "",  # canonname
-                        sockaddr_tuple,
-                    )
-                )
         except EsphomeError as err:
-            if len(res) > 0:
+            if res:
                 _LOGGER.warning(err)
+                addr_infos = []
             else:
-                raise err
+                raise
+
+        # Convert aioesphomeapi AddrInfo to our format
+        for addr_info in addr_infos:
+            sockaddr = addr_info.sockaddr
+            if addr_info.family == socket.AF_INET6:
+                # IPv6
+                sockaddr_tuple = (
+                    sockaddr.address,
+                    sockaddr.port,
+                    sockaddr.flowinfo,
+                    sockaddr.scope_id,
+                )
+            else:
+                # IPv4
+                sockaddr_tuple = (sockaddr.address, sockaddr.port)
+
+            res.append(
+                (
+                    addr_info.family,
+                    addr_info.type,
+                    addr_info.proto,
+                    "",  # canonname
+                    sockaddr_tuple,
+                )
+            )
 
     # Sort by preference
     res.sort(key=addr_preference_)
