@@ -242,7 +242,7 @@ def send_check(
 
 
 def perform_ota(
-    sock: socket.socket, password: str, file_handle: io.IOBase, filename: Path
+    sock: socket.socket, password: str | None, file_handle: io.IOBase, filename: Path
 ) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
@@ -278,13 +278,13 @@ def perform_ota(
 
     def perform_auth(
         sock: socket.socket,
-        password: str,
+        password: str | None,
         hash_func: Callable[..., Any],
         nonce_size: int,
         hash_name: str,
     ) -> None:
         """Perform challenge-response authentication using specified hash algorithm."""
-        if not password:
+        if password is None:
             raise OTAError("ESP requests password, but no password given!")
 
         nonce_bytes = receive_exactly(
@@ -385,7 +385,7 @@ def perform_ota(
 
 
 def run_ota_impl_(
-    remote_host: str | list[str], remote_port: int, password: str, filename: Path
+    remote_host: str | list[str], remote_port: int, password: str | None, filename: Path
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -436,7 +436,7 @@ def run_ota_impl_(
 
 
 def run_ota(
-    remote_host: str | list[str], remote_port: int, password: str, filename: Path
+    remote_host: str | list[str], remote_port: int, password: str | None, filename: Path
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename)

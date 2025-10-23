@@ -468,6 +468,31 @@ uint16_t APIServer::get_port() const { return this->port_; }
 void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
 #ifdef USE_API_NOISE
+bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
+                                  const LogString *fail_log_msg, const psk_t &active_psk, bool make_active) {
+  if (!this->noise_pref_.save(&new_psk)) {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(fail_log_msg));
+    return false;
+  }
+  // ensure it's written immediately
+  if (!global_preferences->sync()) {
+    ESP_LOGW(TAG, "Failed to sync preferences");
+    return false;
+  }
+  ESP_LOGD(TAG, "%s", LOG_STR_ARG(save_log_msg));
+  if (make_active) {
+    this->set_timeout(100, [this, active_psk]() {
+      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
+      this->set_noise_psk(active_psk);
+      for (auto &c : this->clients_) {
+        DisconnectRequest req;
+        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
+      }
+    });
+  }
+  return true;
+}
+
 bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
 #ifdef USE_API_NOISE_PSK_FROM_YAML
   // When PSK is set from YAML, this function should never be called
@@ -482,27 +507,21 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   }
 
   SavedNoisePsk new_saved_psk{psk};
-  if (!this->noise_pref_.save(&new_saved_psk)) {
-    ESP_LOGW(TAG, "Failed to save Noise PSK");
-    return false;
-  }
-  // ensure it's written immediately
-  if (!global_preferences->sync()) {
-    ESP_LOGW(TAG, "Failed to sync preferences");
-    return false;
-  }
-  ESP_LOGD(TAG, "Noise PSK saved");
-  if (make_active) {
-    this->set_timeout(100, [this, psk]() {
-      ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
-      this->set_noise_psk(psk);
-      for (auto &c : this->clients_) {
-        DisconnectRequest req;
-        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
-      }
-    });
-  }
-  return true;
+  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"), psk,
+                                 make_active);
+#endif
+}
+bool APIServer::clear_noise_psk(bool make_active) {
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // When PSK is set from YAML, this function should never be called
+  // but if it is, reject the change
+  ESP_LOGW(TAG, "Key set in YAML");
+  return false;
+#else
+  SavedNoisePsk empty_psk{};
+  psk_t empty{};
+  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"), empty,
+                                 make_active);
 #endif
 }
 #endif

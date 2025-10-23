@@ -264,6 +264,36 @@ class Scheduler {
   // Helper to recycle a SchedulerItem
   void recycle_item_(std::unique_ptr<SchedulerItem> item);
 
+#ifndef ESPHOME_THREAD_SINGLE
+  // Helper to cleanup defer_queue_ after processing
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  inline void cleanup_defer_queue_locked_() {
+    // Check if new items were added by producers during processing
+    if (this->defer_queue_front_ >= this->defer_queue_.size()) {
+      // Common case: no new items - clear everything
+      this->defer_queue_.clear();
+    } else {
+      // Rare case: new items were added during processing - compact the vector
+      // This only happens when:
+      // 1. A deferred callback calls defer() again, or
+      // 2. Another thread calls defer() while we're processing
+      //
+      // Move unprocessed items (added during this loop) to the front for next iteration
+      //
+      // SAFETY: Compacted items may include cancelled items (marked for removal via
+      // cancel_item_locked_() during execution). This is safe because should_skip_item_()
+      // checks is_item_removed_() before executing, so cancelled items will be skipped
+      // and recycled on the next loop iteration.
+      size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
+      for (size_t i = 0; i < remaining; i++) {
+        this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
+      }
+      this->defer_queue_.resize(remaining);
+    }
+    this->defer_queue_front_ = 0;
+  }
+#endif /* not ESPHOME_THREAD_SINGLE */
+
   // Helper to check if item is marked for removal (platform-specific)
   // Returns true if item should be skipped, handles platform-specific synchronization
   // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
@@ -282,13 +312,18 @@ class Scheduler {
 
   // Helper to mark matching items in a container as removed
   // Returns the number of items marked for removal
-  // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
-  // function.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
   template<typename Container>
   size_t mark_matching_items_removed_(Container &container, Component *component, const char *name_cstr,
                                       SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
     for (auto &item : container) {
+      // Skip nullptr items (can happen in defer_queue_ when items are being processed)
+      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
+      // vector as nullptr until cleanup. Even though this function is called with lock held,
+      // the vector can still contain nullptr items from the processing loop. This check prevents crashes.
+      if (!item)
+        continue;
       if (this->matches_item_(item, component, name_cstr, type, match_retry)) {
         // Mark item for removal (platform-specific)
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -311,6 +346,12 @@ class Scheduler {
   bool has_cancelled_timeout_in_container_(const Container &container, Component *component, const char *name_cstr,
                                            bool match_retry) const {
     for (const auto &item : container) {
+      // Skip nullptr items (can happen in defer_queue_ when items are being processed)
+      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
+      // vector as nullptr until cleanup. If this function is called during defer queue processing,
+      // it will iterate over these nullptr items. This check prevents crashes.
+      if (!item)
+        continue;
       if (is_item_removed_(item.get()) &&
           this->matches_item_(item, component, name_cstr, SchedulerItem::TIMEOUT, match_retry,
                               /* skip_removed= */ false)) {
@@ -324,9 +365,12 @@ class Scheduler {
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
 #ifndef ESPHOME_THREAD_SINGLE
-  // Single-core platforms don't need the defer queue and save 40 bytes of RAM
-  std::deque<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-#endif                                                      /* ESPHOME_THREAD_SINGLE */
+  // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
+  // Using std::vector instead of std::deque avoids 512-byte chunked allocations
+  // Index tracking avoids O(n) erase() calls when draining the queue each loop
+  std::vector<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
+  size_t defer_queue_front_{0};  // Index of first valid item in defer_queue_ (tracks consumed items)
+#endif                           /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.

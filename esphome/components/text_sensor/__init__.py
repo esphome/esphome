@@ -110,17 +110,28 @@ def validate_mapping(value):
     "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
 )
 async def substitute_filter_to_code(config, filter_id):
-    from_strings = [conf[CONF_FROM] for conf in config]
-    to_strings = [conf[CONF_TO] for conf in config]
-    return cg.new_Pvariable(filter_id, from_strings, to_strings)
+    substitutions = [
+        cg.StructInitializer(
+            cg.MockObj("Substitution", "esphome::text_sensor::"),
+            ("from", conf[CONF_FROM]),
+            ("to", conf[CONF_TO]),
+        )
+        for conf in config
+    ]
+    return cg.new_Pvariable(filter_id, substitutions)
 
 
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
 async def map_filter_to_code(config, filter_id):
-    map_ = cg.std_ns.class_("map").template(cg.std_string, cg.std_string)
-    return cg.new_Pvariable(
-        filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config])
-    )
+    mappings = [
+        cg.StructInitializer(
+            cg.MockObj("Substitution", "esphome::text_sensor::"),
+            ("from", conf[CONF_FROM]),
+            ("to", conf[CONF_TO]),
+        )
+        for conf in config
+    ]
+    return cg.new_Pvariable(filter_id, mappings)
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
