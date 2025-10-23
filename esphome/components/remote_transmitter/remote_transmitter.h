@@ -12,7 +12,7 @@
 namespace esphome {
 namespace remote_transmitter {
 
-#if defined(USE_ESP32)
+#ifdef USE_ESP32
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
 typedef union {  // NOLINT(modernize-use-using)
   struct {
