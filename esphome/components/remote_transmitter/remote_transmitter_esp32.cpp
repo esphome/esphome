@@ -10,6 +10,9 @@ namespace remote_transmitter {
 
 static const char *const TAG = "remote_transmitter";
 
+// Maximum RMT symbol duration (15-bit field)
+static constexpr uint32_t RMT_SYMBOL_DURATION_MAX = 0x7FFF;
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
 static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size_t written, size_t free,
                                              rmt_symbol_word_t *symbols, bool *done, void *arg) {
@@ -211,7 +214,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   // this will be skipped the first time around
   send_wait = this->from_microseconds_(static_cast<uint32_t>(send_wait));
   while (send_wait > 0) {
-    int32_t duration = std::min(send_wait, uint32_t(32767));
+    int32_t duration = std::min(send_wait, uint32_t(RMT_SYMBOL_DURATION_MAX));
     this->rmt_temp_.push_back({
         .duration = static_cast<uint16_t>(duration),
         .level = static_cast<uint16_t>(this->eot_level_),
@@ -228,7 +231,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     }
     value = this->from_microseconds_(static_cast<uint32_t>(value));
     while (value > 0) {
-      int32_t duration = std::min(value, int32_t(32767));
+      int32_t duration = std::min(value, int32_t(RMT_SYMBOL_DURATION_MAX));
       this->rmt_temp_.push_back({
           .duration = static_cast<uint16_t>(duration),
           .level = static_cast<uint16_t>(level ^ this->inverted_),
@@ -287,7 +290,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     val = this->from_microseconds_(static_cast<uint32_t>(val));
 
     do {
-      int32_t item = std::min(val, int32_t(32767));
+      int32_t item = std::min(val, int32_t(RMT_SYMBOL_DURATION_MAX));
       val -= item;
 
       if (rmt_i % 2 == 0) {

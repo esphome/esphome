@@ -14,6 +14,8 @@ namespace remote_transmitter {
 
 #ifdef USE_ESP32
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+// IDF version 5.5.1 and above is required because of a bug in
+// the RMT encoder: https://github.com/espressif/esp-idf/issues/17244
 typedef union {  // NOLINT(modernize-use-using)
   struct {
     uint16_t duration : 15;
