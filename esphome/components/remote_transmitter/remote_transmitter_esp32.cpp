@@ -215,7 +215,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
 
   // if the on_complete timeout is cancelled, block until the tx is complete
-  if (this->non_blocking_ && this->cancel_timeout("on_complete")) {
+  if (this->non_blocking_ && this->cancel_timeout("complete")) {
     this->wait_for_rmt_();
   }
 
@@ -281,7 +281,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
 
   if (this->non_blocking_) {
-    set_timeout("on_complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
+    set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
   } else {
     this->wait_for_rmt_();
   }
