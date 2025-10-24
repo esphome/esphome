@@ -54,7 +54,7 @@ optional<size_t> Select::active_index() const {
 optional<std::string> Select::at(size_t index) const {
   if (this->has_index(index)) {
     const auto &options = traits.get_options();
-    return std::string(options.at(index));
+    return std::string(options[index]);
   } else {
     return {};
   }

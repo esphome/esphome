@@ -322,11 +322,6 @@ template<typename T> class FixedVector {
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 
-  /// Access element with bounds checking (matches std::vector behavior)
-  /// Caller must ensure index is valid (i < size())
-  T &at(size_t i) { return data_[i]; }
-  const T &at(size_t i) const { return data_[i]; }
-
   // Iterator support for range-based for loops
   T *begin() { return data_; }
   T *end() { return data_ + size_; }
