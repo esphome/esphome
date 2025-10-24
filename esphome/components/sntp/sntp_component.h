@@ -22,7 +22,7 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
-  SNTPComponent() = default;
+  template<typename... Args> SNTPComponent(Args... servers) : servers_{servers...} {}
 
   void setup() override;
   void dump_config() override;
@@ -33,15 +33,14 @@ class SNTPComponent : public time::RealTimeClock {
 
   void time_synced();
 
+ protected:
 #ifdef USE_ESP8266
   // On ESP8266, store pointers to PROGMEM strings to save RAM
-  std::array<PGM_P, SNTP_SERVER_COUNT> servers_{};
+  std::array<PGM_P, SNTP_SERVER_COUNT> servers_;
 #else
   // On other platforms, store regular const char pointers
-  std::array<const char *, SNTP_SERVER_COUNT> servers_{};
+  std::array<const char *, SNTP_SERVER_COUNT> servers_;
 #endif
-
- protected:
   bool has_time_{false};
 
 #if defined(USE_ESP32)
