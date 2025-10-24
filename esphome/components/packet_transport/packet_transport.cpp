@@ -265,16 +265,16 @@ void PacketTransport::flush_() {
     return;
   auto header_len = round4(this->header_len_);
   auto len = round4(this->data_len_);
-  uint8_t encode_buffer[MAX_PACKET_BUFFER_SIZE];
   auto total_len = header_len + len;
-  memcpy(encode_buffer, this->header_, this->header_len_);
-  memset(encode_buffer + this->header_len_, 0, header_len - this->header_len_);
-  memcpy(encode_buffer + header_len, this->data_, this->data_len_);
-  memset(encode_buffer + header_len + this->data_len_, 0, len - this->data_len_);
+  std::vector<uint8_t> encode_buffer(total_len);
+  memcpy(encode_buffer.data(), this->header_, this->header_len_);
+  memset(encode_buffer.data() + this->header_len_, 0, header_len - this->header_len_);
+  memcpy(encode_buffer.data() + header_len, this->data_, this->data_len_);
+  memset(encode_buffer.data() + header_len + this->data_len_, 0, len - this->data_len_);
   if (this->is_encrypted_()) {
-    xxtea::encrypt((uint32_t *) (encode_buffer + header_len), len / 4, (uint32_t *) this->encryption_key_);
+    xxtea::encrypt((uint32_t *) (encode_buffer.data() + header_len), len / 4, (uint32_t *) this->encryption_key_);
   }
-  this->send_packet(encode_buffer, total_len);
+  this->send_packet(encode_buffer);
 }
 
 void PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
@@ -343,7 +343,8 @@ void PacketTransport::update() {
     if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
 #ifdef USE_STATUS_SENSOR
       if (this->providers_[i].status_sensor != nullptr && this->providers_[i].status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_[i].name, now, key_response_age);
+        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_[i].name, now,
+                 key_response_age);
         this->providers_[i].status_sensor->publish_state(false);
       }
 #endif
@@ -364,7 +365,8 @@ void PacketTransport::update() {
     } else {
 #ifdef USE_STATUS_SENSOR
       if (this->providers_[i].status_sensor != nullptr && !this->providers_[i].status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_[i].name, now, key_response_age);
+        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_[i].name, now,
+                 key_response_age);
         this->providers_[i].status_sensor->publish_state(true);
       }
 #endif
@@ -417,9 +419,9 @@ static bool process_rolling_code(Provider &provider, PacketDecoder &decoder) {
 /**
  * Process a received packet
  */
-void PacketTransport::process_(const uint8_t *data, size_t data_len) {
+void PacketTransport::process_(const std::vector<uint8_t> &data) {
   auto ping_key_seen = !this->ping_pong_enable_;
-  PacketDecoder decoder(data, data_len);
+  PacketDecoder decoder(data.data(), data.size());
   char namebuf[256]{};
   uint8_t byte;
   FuData rdata{};
@@ -460,7 +462,7 @@ void PacketTransport::process_(const uint8_t *data, size_t data_len) {
   ESP_LOGV(TAG, "Found hostname %s", namebuf);
 
   if (!decoder.bump_to(4)) {
-    ESP_LOGW(TAG, "Bad packet length %zu", data_len);
+    ESP_LOGW(TAG, "Bad packet length %zu", data.size());
   }
   auto len = decoder.get_remaining_size();
   if (round4(len) != len) {
@@ -597,7 +599,8 @@ void PacketTransport::send_ping_pong_request_() {
   add(this->ping_header_, this->ping_header_len_, MAGIC_PING);
   add(this->ping_header_, this->ping_header_len_, this->name_);
   add(this->ping_header_, this->ping_header_len_, this->ping_key_);
-  this->send_packet(this->ping_header_, this->ping_header_len_);
+  std::vector<uint8_t> ping_vec(this->ping_header_, this->ping_header_ + this->ping_header_len_);
+  this->send_packet(ping_vec);
   this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }
@@ -707,7 +710,7 @@ int8_t PacketTransport::find_remote_binary_sensor_(uint8_t provider_index, const
 }
 
 void PacketTransport::add_remote_binary_sensor(const char *hostname, const char *remote_id,
-                                               binary_sensor::BinarySensor *sensor) {
+                                                binary_sensor::BinarySensor *sensor) {
   int8_t provider_index = this->find_or_create_provider_(hostname);
   if (provider_index < 0)
     return;
