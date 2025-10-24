@@ -27,7 +27,7 @@ void SNTPComponent::setup() {
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
   size_t i = 0;
   for (auto &server : this->servers_) {
-    esp_sntp_setservername(i++, server.c_str());
+    esp_sntp_setservername(i++, server);
   }
   esp_sntp_set_sync_interval(this->get_update_interval());
   esp_sntp_set_time_sync_notification_cb([](struct timeval *tv) {
@@ -42,7 +42,16 @@ void SNTPComponent::setup() {
 
   size_t i = 0;
   for (auto &server : this->servers_) {
-    sntp_setservername(i++, server.c_str());
+#if defined(USE_ESP8266)
+    // On ESP8266, server is PGM_P pointing to PROGMEM
+    // LWIP's sntp_setservername is not PROGMEM-aware, so copy to stack buffer first
+    char server_buf[64];
+    strncpy_P(server_buf, server, sizeof(server_buf) - 1);
+    server_buf[sizeof(server_buf) - 1] = '\0';
+    sntp_setservername(i++, server_buf);
+#else
+    sntp_setservername(i++, server);
+#endif
   }
 
 #if defined(USE_ESP8266)
@@ -59,7 +68,8 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
   size_t i = 0;
   for (auto &server : this->servers_) {
-    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server.c_str());
+    // LOG_STR_ARG handles both PROGMEM (ESP8266) and regular pointers
+    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, LOG_STR_ARG(server));
   }
 }
 void SNTPComponent::update() {

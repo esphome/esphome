@@ -12,6 +12,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import ProgmemAssignmentExpression
 
 DEPENDENCIES = ["network"]
 sntp_ns = cg.esphome_ns.namespace("sntp")
@@ -43,10 +44,33 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     servers = config[CONF_SERVERS]
-    var = cg.new_Pvariable(config[CONF_ID], servers)
+    server_count = len(servers)
+
+    # Define server count at compile time
+    cg.add_define("SNTP_SERVER_COUNT", server_count)
+
+    var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)
     await time_.register_time(var, config)
+
+    # Generate PROGMEM strings for ESP8266, regular strings for other platforms
+    if CORE.is_esp8266:
+        # On ESP8266, use PROGMEM to store strings in flash
+        # Use ProgmemAssignmentExpression to generate: static const char name[] PROGMEM = "value";
+        for i, server in enumerate(servers):
+            var_name = f"{config[CONF_ID].id}_server_{i}"
+            # Create PROGMEM string: static const char var_name[] PROGMEM = "server";
+            assignment = ProgmemAssignmentExpression(
+                "char", var_name, cg.safe_exp(server)
+            )
+            cg.add(assignment)
+            # Assign pointer to array element
+            cg.add(cg.RawStatement(f"{var}->servers_[{i}] = {var_name};"))
+    else:
+        # On other platforms, use regular string literals
+        for i, server in enumerate(servers):
+            cg.add(cg.RawStatement(f"{var}->servers_[{i}] = {cg.safe_exp(server)};"))
 
     if CORE.is_esp8266 and len(servers) > 1:
         # We need LwIP features enabled to get 3 SNTP servers (not just one)
