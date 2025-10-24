@@ -18,7 +18,7 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
-  template<typename... Args> SNTPComponent(Args... servers) : servers_{servers...} {}
+  SNTPComponent(std::array<const char *, SNTP_SERVER_COUNT> servers) : servers_(servers) {}
 
   void setup() override;
   void dump_config() override;
