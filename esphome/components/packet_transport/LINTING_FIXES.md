@@ -2,28 +2,40 @@
 
 ## Issues Fixed
 
-### 1. Import Error - CONF_BINARY_SENSORS
-**Error:** `Constant CONF_BINARY_SENSORS has already been defined in const.py`
+### 1. Import Error - Component-Specific Constants
+**Error:** `ImportError: cannot import name 'CONF_BROADCAST' from 'esphome.const'`
 
-**Fix:** Import `CONF_BINARY_SENSORS` from `esphome.const` instead of redefining it locally.
+**Root Cause:** The constants `CONF_BINARY_SENSORS`, `CONF_BROADCAST`, and `CONF_PROVIDER` do not exist in `esphome.const.py`. They are component-specific constants.
+
+**Fix:** Keep these constants defined locally in the component instead of importing from `esphome.const`.
 
 **Before:**
 ```python
 from esphome.const import (
+    CONF_BINARY_SENSORS,
     CONF_BROADCAST,
+    CONF_PROVIDER,
     # ... other imports
 )
-# Later in file:
-CONF_BINARY_SENSORS = "binary_sensors"
 ```
 
 **After:**
 ```python
 from esphome.const import (
-    CONF_BINARY_SENSORS,
-    CONF_BROADCAST,
-    # ... other imports
+    CONF_ENCRYPTION,
+    CONF_ID as CONF_ID,
+    CONF_KEY,
+    CONF_NAME,
+    CONF_SENSORS,
+    CONF_UPDATE_INTERVAL,
 )
+
+# Component-specific constants (not in esphome.const)
+CONF_BINARY_SENSORS = "binary_sensors"
+CONF_BROADCAST = "broadcast"
+CONF_PROVIDER = "provider"
+CONF_PROVIDERS = "providers"
+# ... other component-specific constants
 ```
 
 ### 2. Unused Import Warning - CONF_ID
