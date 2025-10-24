@@ -229,7 +229,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   // encode any delay at the start of the buffer to simplify the encoder callback
   // this will be skipped the first time around
-  total_duration += send_wait;
+  total_duration += send_wait * (send_times - 1);
   send_wait = this->from_microseconds_(static_cast<uint32_t>(send_wait));
   while (send_wait > 0) {
     int32_t duration = std::min(send_wait, uint32_t(RMT_SYMBOL_DURATION_MAX));
@@ -247,7 +247,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (!level) {
       value = -value;
     }
-    total_duration += value;
+    total_duration += value * send_times;
     value = this->from_microseconds_(static_cast<uint32_t>(value));
     while (value > 0) {
       int32_t duration = std::min(value, int32_t(RMT_SYMBOL_DURATION_MAX));
