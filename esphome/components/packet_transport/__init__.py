@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSORS,
     CONF_KEY,
@@ -89,17 +89,14 @@ def validate_(config):
 
 
 def packet_transport_sensor_schema(schema):
-    return (
-        schema.extend(
-            {
-                cv.GenerateID(CONF_TRANSPORT_ID): cv.use_id(PacketTransport),
-                cv.Required(CONF_PROVIDER): provider_name_validate,
-                cv.Optional(CONF_REMOTE_ID): cv.string,
-                cv.Optional(CONF_BROADCAST): cv.uint8_t,
-            }
-        )
-        .add_extra(sensor_validation)
-    )
+    return schema.extend(
+        {
+            cv.GenerateID(CONF_TRANSPORT_ID): cv.use_id(PacketTransport),
+            cv.Required(CONF_PROVIDER): provider_name_validate,
+            cv.Optional(CONF_REMOTE_ID): cv.string,
+            cv.Optional(CONF_BROADCAST): cv.uint8_t,
+        }
+    ).add_extra(sensor_validation)
 
 
 async def register_packet_transport(config, transport):
@@ -130,7 +127,11 @@ async def register_packet_transport(config, transport):
         if CONF_KEY in enc:
             key = CORE.safe_exp(enc[CONF_KEY])
             key = cg.RawExpression(f"esp_hash_impl({key})")
-            cg.add(transport.set_encryption_key(cg.RawExpression(f"(const uint8_t*){key}"), 32))
+            cg.add(
+                transport.set_encryption_key(
+                    cg.RawExpression(f"(const uint8_t*){key}"), 32
+                )
+            )
 
     for provider in providers.values():
         name = provider[CONF_NAME]
@@ -138,4 +139,8 @@ async def register_packet_transport(config, transport):
         if CONF_KEY in provider:
             key = CORE.safe_exp(provider[CONF_KEY])
             key = cg.RawExpression(f"esp_hash_impl({key})")
-            cg.add(transport.set_provider_encryption(name, cg.RawExpression(f"(const uint8_t*){key}"), 32))
+            cg.add(
+                transport.set_provider_encryption(
+                    name, cg.RawExpression(f"(const uint8_t*){key}"), 32
+                )
+            )
