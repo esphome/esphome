@@ -5,6 +5,8 @@ namespace select {
 
 void SelectTraits::set_options(std::initializer_list<const char *> options) { this->options_ = options; }
 
+void SelectTraits::set_options(const FixedVector<const char *> &options) { this->options_ = options; }
+
 const FixedVector<const char *> &SelectTraits::get_options() const { return this->options_; }
 
 }  // namespace select
