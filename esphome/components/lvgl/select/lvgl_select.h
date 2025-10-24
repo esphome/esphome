@@ -57,12 +57,12 @@ class LVGLSelect : public select::Select, public Component {
     // Widget uses std::vector<std::string>, SelectTraits uses FixedVector<const char*>
     // Convert by extracting c_str() pointers
     const auto &opts = this->widget_->get_options();
-    std::vector<const char *> opt_ptrs;
-    opt_ptrs.reserve(opts.size());
-    for (const auto &opt : opts) {
-      opt_ptrs.push_back(opt.c_str());
+    FixedVector<const char *> opt_ptrs;
+    opt_ptrs.init(opts.size());
+    for (size_t i = 0; i < opts.size(); i++) {
+      opt_ptrs[i] = opts[i].c_str();
     }
-    this->traits.set_options({opt_ptrs.begin(), opt_ptrs.end()});
+    this->traits.set_options(opt_ptrs);
   }
 
   LvSelectable *widget_;
