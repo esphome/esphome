@@ -34,13 +34,8 @@ class SNTPComponent : public time::RealTimeClock {
   void time_synced();
 
  protected:
-#ifdef USE_ESP8266
-  // On ESP8266, store pointers to PROGMEM strings to save RAM
-  std::array<PGM_P, SNTP_SERVER_COUNT> servers_;
-#else
-  // On other platforms, store regular const char pointers
+  // Store const char pointers - compiler stores string literals in flash on all platforms
   std::array<const char *, SNTP_SERVER_COUNT> servers_;
-#endif
   bool has_time_{false};
 
 #if defined(USE_ESP32)
