@@ -8,7 +8,9 @@ from esphome.const import (
     CONF_FILES,
     CONF_FORMAT,
     CONF_ID,
+    CONF_NUM_CHANNELS,
     CONF_RAW_DATA_ID,
+    CONF_SAMPLE_RATE,
     CONF_SPEAKER,
     CONF_TASK_STACK_IN_PSRAM,
 )
@@ -26,6 +28,8 @@ def AUTO_LOAD(config):
 
 
 SpeakerMediaPlayerBase = speaker_mp.SpeakerMediaPlayer
+
+AudioStreamInfo = audio.audio_ns.class_("AudioStreamInfo")
 
 USBAudioMediaPlayer = usb_audio_ns.class_(
     "USBAudioMediaPlayer",
@@ -116,6 +120,14 @@ async def to_code(config):
     announcement_pipeline_config = config[speaker_mp.CONF_ANNOUNCEMENT_PIPELINE]
     ann_speaker = await cg.get_variable(announcement_pipeline_config[CONF_SPEAKER])
     cg.add(var.set_announcement_speaker(ann_speaker))
+    ann_sample_rate = announcement_pipeline_config.get(CONF_SAMPLE_RATE)
+    ann_channels = announcement_pipeline_config.get(CONF_NUM_CHANNELS)
+    if ann_sample_rate is not None and ann_channels is not None:
+        cg.add(
+            ann_speaker.set_audio_stream_info(
+                AudioStreamInfo(16, ann_channels, ann_sample_rate)
+            )
+        )
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
@@ -128,6 +140,14 @@ async def to_code(config):
     if media_pipeline_config := config.get(speaker_mp.CONF_MEDIA_PIPELINE):
         media_spk = await cg.get_variable(media_pipeline_config[CONF_SPEAKER])
         cg.add(var.set_media_speaker(media_spk))
+        media_sample_rate = media_pipeline_config.get(CONF_SAMPLE_RATE)
+        media_channels = media_pipeline_config.get(CONF_NUM_CHANNELS)
+        if media_sample_rate is not None and media_channels is not None:
+            cg.add(
+                media_spk.set_audio_stream_info(
+                    AudioStreamInfo(16, media_channels, media_sample_rate)
+                )
+            )
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(

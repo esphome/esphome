@@ -8,6 +8,7 @@
 
 #include "esphome/core/log.h"
 #include "esp_err.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -202,6 +203,12 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       this->chunk_success_streak_++;
       timeout_retry_count = 0;
       ESP_LOGV(TAG_SPK, "Chunk write ok chunk=%u total_written=%u", (unsigned) chunk, (unsigned) total_written);
+
+      const size_t frames_written = bytes_per_frame > 0 ? (chunk / bytes_per_frame) : 0;
+      if (frames_written > 0) {
+        const int64_t timestamp_us = esp_timer_get_time();
+        this->audio_output_callback_(static_cast<uint32_t>(frames_written), timestamp_us);
+      }
 
       if (this->preferred_chunk_size_ < chunk_cap) {
         size_t grown = this->preferred_chunk_size_ + CHUNK_GROW_STEP;
