@@ -9,7 +9,8 @@ static const char *const TAG = "copy.select";
 void CopySelect::setup() {
   source_->add_on_state_callback([this](const std::string &value, size_t index) { this->publish_state(value); });
 
-  traits.set_options(source_->traits.get_options());
+  const auto &source_options = source_->traits.get_options();
+  traits.set_options({source_options.begin(), source_options.end()});
 
   if (source_->has_state())
     this->publish_state(source_->state);

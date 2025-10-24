@@ -1533,11 +1533,16 @@ class RepeatedTypeInfo(TypeInfo):
     def encode_content(self) -> str:
         if self._use_pointer:
             # For pointer fields, just dereference (pointer should never be null in our use case)
-            o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-            if isinstance(self._ti, EnumType):
-                o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+            # Special handling for const char* elements (when container_no_template contains "const char")
+            if "const char" in self._container_no_template:
+                o = f"for (const char *it : *this->{self.field_name}) {{\n"
+                o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o = f"for (const auto &it : *this->{self.field_name}) {{\n"
+                if isinstance(self._ti, EnumType):
+                    o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
+                else:
+                    o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
@@ -1588,9 +1593,14 @@ class RepeatedTypeInfo(TypeInfo):
             o += f"  size.add_precalculated_size({size_expr} * {bytes_per_element});\n"
         else:
             # Other types need the actual value
-            auto_ref = "" if self._ti_is_bool else "&"
-            o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
-            o += f"    {self._ti.get_size_calculation('it', True)}\n"
+            # Special handling for const char* elements
+            if self._use_pointer and "const char" in self._container_no_template:
+                o += f"  for (const char *it : {container_ref}) {{\n"
+                o += "    size.add_length_force(1, strlen(it));\n"
+            else:
+                auto_ref = "" if self._ti_is_bool else "&"
+                o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
+                o += f"    {self._ti.get_size_calculation('it', True)}\n"
             o += "  }\n"
 
         o += "}"

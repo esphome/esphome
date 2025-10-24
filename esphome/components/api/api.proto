@@ -1143,7 +1143,7 @@ message ListEntitiesSelectResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
-  repeated string options = 6 [(container_pointer) = "std::vector"];
+  repeated string options = 6 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
