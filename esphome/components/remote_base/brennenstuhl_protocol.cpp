@@ -76,7 +76,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
     uint32_t bit_cnt = 0;                // bit counter [0..23]
     int32_t abs_pre = 0;                 // pulse-width of previous carrier (abs value)
     RxSt fsm = RxSt::START_PULSE;
-    for (int32_t ic = 0; ic < n_received && bs_cnt < N_FRAME_CODES; ic++) {
+    for (uint32_t ic = 0; ic < n_received && bs_cnt < N_FRAME_CODES; ic++) {
       int32_t act = src[ic];
       int32_t abs_act = std::abs(act);
       switch (fsm) {
