@@ -34,7 +34,9 @@ class SNTPComponent : public time::RealTimeClock {
   void time_synced();
 
  protected:
-  // Store const char pointers - compiler stores string literals in flash on all platforms
+  // Store const char pointers to string literals
+  // ESP8266: strings in rodata (RAM), but avoids std::string overhead (~24 bytes each)
+  // Other platforms: strings in flash
   std::array<const char *, SNTP_SERVER_COUNT> servers_;
   bool has_time_{false};
 
