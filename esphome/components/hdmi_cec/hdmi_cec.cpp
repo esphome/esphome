@@ -135,7 +135,7 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
         ((!trigger->source_.has_value() || (trigger->source_ == src_addr)) &&
          (!trigger->destination_.has_value() || (trigger->destination_ == dest_addr)) &&
          (!trigger->opcode_.has_value() || (trigger->opcode_ == opcode)) &&
-         (!trigger->data_.has_value() || (data.size() == trigger->data_->size() &&
+         (!trigger->data_.has_value() || (data.size() >= trigger->data_->size() &&
                                           std::equal(trigger->data_->begin(), trigger->data_->end(), data.begin()))));
     if (can_trigger) {
       trigger->trigger(src_addr, dest_addr, data);
