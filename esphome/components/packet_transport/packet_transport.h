@@ -112,6 +112,13 @@ class PacketTransport : public PollingComponent {
 #endif
   void set_platform_name(const char *name) { this->platform_name_ = name; }
 
+  // Helper method for compatibility with code checking if providers exist
+  bool has_providers() const { return this->provider_count_ > 0; }
+
+  // Public access to providers for child classes (backward compatibility)
+  Provider providers_[MAX_PROVIDERS];
+  uint8_t provider_count_{};
+
  protected:
   // child classes must implement this
   virtual void send_packet(const std::vector<uint8_t> &buf) const = 0;
@@ -162,8 +169,6 @@ class PacketTransport : public PollingComponent {
   uint8_t remote_binary_sensor_count_{};
 #endif
 
-  Provider providers_[MAX_PROVIDERS];
-  uint8_t provider_count_{};
   uint8_t ping_header_[MAX_PACKET_BUFFER_SIZE];
   size_t ping_header_len_{};
   uint8_t header_[MAX_PACKET_BUFFER_SIZE];
