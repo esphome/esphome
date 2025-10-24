@@ -78,7 +78,6 @@ void LibreTinyUARTComponent::setup() {
            !shouldFallbackToSoftwareSerial()) {
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
-    initPinsForHardwareSerial()
   }
 #endif
 #if LT_HW_UART1
@@ -86,7 +85,6 @@ void LibreTinyUARTComponent::setup() {
            !shouldFallbackToSoftwareSerial()) {
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
-    initPinsForHardwareSerial()
   }
 #endif
 #if LT_HW_UART2
@@ -94,7 +92,6 @@ void LibreTinyUARTComponent::setup() {
            !shouldFallbackToSoftwareSerial()) {
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
-    initPinsForHardwareSerial()
   }
 #endif
   else {
