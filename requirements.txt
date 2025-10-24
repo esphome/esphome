@@ -15,7 +15,7 @@ esphome-dashboard==20251013.0
 aioesphomeapi==42.3.0
 zeroconf==0.148.0
 puremagic==1.30
-ruamel.yaml==0.18.15 # dashboard_import
+ruamel.yaml==0.18.16 # dashboard_import
 ruamel.yaml.clib==0.2.14 # dashboard_import
 esphome-glyphsets==0.2.0
 pillow==11.3.0
