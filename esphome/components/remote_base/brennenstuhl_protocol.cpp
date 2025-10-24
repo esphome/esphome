@@ -64,16 +64,16 @@ void BrennenstuhlProtocol::encode(RemoteTransmitData *dst, const BrennenstuhlDat
 // frame consists of a start symbol and up to four codes. The decoder decodes all codes and
 // returns the best code (the one with the most identical codes)
 optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
-  int32_t n_received = src.size();
+  uint32_t n_received = static_cast<uint32_t>(src.size());
   BrennenstuhlData data{
       .code = 0,
   };
   // suppress noisy frames, at least a complete bs_code should be available
-  if (n_received > (int32_t) N_SYMBOLS_REQ) {
+  if (n_received > N_SYMBOLS_REQ) {
     int32_t bs_codes[4] = {0, 0, 0, 0};  // internal bs codes
     int32_t bs_cnt = 0;                  // number of bs codes found within frame
     int32_t bs_idx = -1;                 // index to best code
-    int32_t bit_cnt = 0;                 // bit counter [0..23]
+    uint32_t bit_cnt = 0;                // bit counter [0..23]
     int32_t abs_pre = 0;                 // pulse-width of previous carrier (abs value)
     RxSt fsm = RxSt::START_PULSE;
     for (int32_t ic = 0; ic < n_received && bs_cnt < N_FRAME_CODES; ic++) {
@@ -110,7 +110,7 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
           if ((act < 0) && validate_timing(abs_pre + abs_act, DATA_SYMBOL_MIN, DATA_SYMBOL_MAX)) {
             bs_codes[bs_cnt] <<= 1;
             bs_codes[bs_cnt] += (abs_act < abs_pre) ? 1 : 0;
-            if (++bit_cnt < (int32_t) N_BITS) {
+            if (++bit_cnt < N_BITS) {
               fsm = RxSt::PULSE;
             } else {
               bs_cnt++;                 // valid code found
