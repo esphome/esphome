@@ -99,10 +99,26 @@ void IDFUARTComponent::setup() {
 }
 
 void IDFUARTComponent::load_settings(bool dump_config) {
-  uart_config_t uart_config = this->get_config_();
-  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  esp_err_t err;
+
+  if (uart_is_driver_installed(this->uart_num_)) {
+    err = uart_driver_delete(this->uart_num_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    }
+  }
+  err = uart_driver_install(this->uart_num_,        // UART number
+                            this->rx_buffer_size_,  // RX ring buffer size
+                            0,   // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
+                                 // block task until all data has been sent out
+                            20,  // event queue size/depth
+                            &this->uart_event_queue_,  // event queue
+                            0                          // Flags used to allocate the interrupt
+  );
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
@@ -119,10 +135,12 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
-  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_TXD_INV;
-  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RXD_INV;
+  }
 
   err = uart_set_line_inverse(this->uart_num_, invert);
   if (err != ESP_OK) {
@@ -134,26 +152,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  if (uart_is_driver_installed(this->uart_num_)) {
-    uart_driver_delete(this->uart_num_);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
-      this->mark_failed();
-      return;
-    }
-  }
-  err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
-                            /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
-                               block task until all data have been sent out.*/
-                            0,
-                            /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
-                            /* Flags used to allocate the interrupt. */ 0);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
@@ -173,24 +171,32 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 
   auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);
+  err = uart_set_mode(this->uart_num_, mode);  // per docs, must be called only after uart_driver_install()
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
+  uart_config_t uart_config = this->get_config_();
+  err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
   if (dump_config) {
-    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
+    ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
     this->dump_config();
   }
 }
 
 void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
-  LOG_PIN("  TX Pin: ", tx_pin_);
-  LOG_PIN("  RX Pin: ", rx_pin_);
-  LOG_PIN("  Flow Control Pin: ", flow_control_pin_);
+  LOG_PIN("  TX Pin: ", this->tx_pin_);
+  LOG_PIN("  RX Pin: ", this->rx_pin_);
+  LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG,
                   "  RX Buffer Size: %u\n"
