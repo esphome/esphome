@@ -6,6 +6,9 @@
 
 #include "esphome/core/log.h"
 
+#include <cstring>
+#include <string>
+
 extern "C" {
 #include "esp_err.h"
 }
@@ -14,6 +17,8 @@ namespace esphome {
 namespace usb_audio {
 
 static const char *const TAG_MIC = "usb_audio.mic";
+
+uint8_t USBAudioMicrophone::get_effective_channel_count_() const { return this->channels_; }
 
 void USBAudioMicrophone::setup() {
   uint32_t buffer_size = this->parent_->get_microphone_buffer_size();
@@ -29,7 +34,19 @@ void USBAudioMicrophone::dump_config() {
   ESP_LOGCONFIG(TAG_MIC, "USB Microphone:");
   ESP_LOGCONFIG(TAG_MIC, "  Sample rate: %u Hz", this->sample_rate_);
   ESP_LOGCONFIG(TAG_MIC, "  Bits per sample: %u", this->bits_per_sample_);
-  ESP_LOGCONFIG(TAG_MIC, "  Channels: %u", this->channels_);
+  ESP_LOGCONFIG(TAG_MIC, "  Source channels: %u", this->channels_);
+  uint8_t effective_channels = this->get_effective_channel_count_();
+  ESP_LOGCONFIG(TAG_MIC, "  Forwarded channels: %u", effective_channels);
+  if (!this->enabled_channels_.empty()) {
+    std::string channel_list;
+    for (size_t i = 0; i < this->enabled_channels_.size(); ++i) {
+      if (i != 0) {
+        channel_list.append(", ");
+      }
+      channel_list.append(std::to_string(this->enabled_channels_[i]));
+    }
+    ESP_LOGCONFIG(TAG_MIC, "  Enabled channel indices: [%s]", channel_list.c_str());
+  }
   ESP_LOGCONFIG(TAG_MIC, "  Buffer size: %u", static_cast<unsigned int>(this->read_buffer_.size()));
 }
 
@@ -140,6 +157,55 @@ void USBAudioMicrophone::mic_task_loop_() {
 
 void USBAudioMicrophone::enqueue_frame_(const uint8_t *data, size_t length) {
   std::vector<uint8_t> frame(data, data + length);
+
+  if (!this->enabled_channels_.empty()) {
+    const size_t bytes_per_sample = static_cast<size_t>(this->bits_per_sample_) / 8U;
+    const size_t channel_stride = static_cast<size_t>(this->channels_) * bytes_per_sample;
+    static bool logged_invalid_frame = false;
+    static bool logged_invalid_channel = false;
+
+    if (bytes_per_sample == 0 || channel_stride == 0 || (length % channel_stride) != 0) {
+      if (!logged_invalid_frame) {
+        ESP_LOGW(TAG_MIC, "Unable to apply channel selection: unexpected frame size (%u bytes)",
+                 static_cast<unsigned int>(length));
+        logged_invalid_frame = true;
+      }
+    } else {
+      std::vector<bool> enabled_map(this->channels_, false);
+      for (uint8_t enabled_channel : this->enabled_channels_) {
+        if (enabled_channel < this->channels_) {
+          enabled_map[enabled_channel] = true;
+        } else if (!logged_invalid_channel) {
+          ESP_LOGW(TAG_MIC, "Enabled channel index %u exceeds available source channels", enabled_channel);
+          logged_invalid_channel = true;
+        }
+      }
+
+      size_t primary_channel = 0;
+      bool primary_found = false;
+      for (size_t channel_index = 0; channel_index < enabled_map.size(); ++channel_index) {
+        if (enabled_map[channel_index]) {
+          primary_channel = channel_index;
+          primary_found = true;
+          break;
+        }
+      }
+
+      if (primary_found) {
+        const size_t sample_count = length / channel_stride;
+        for (size_t sample_index = 0; sample_index < sample_count; ++sample_index) {
+          uint8_t *sample_base = frame.data() + sample_index * channel_stride;
+          const uint8_t *primary_source = sample_base + primary_channel * bytes_per_sample;
+
+          for (size_t channel_index = 0; channel_index < this->channels_; ++channel_index) {
+            if (!enabled_map[channel_index]) {
+              std::memcpy(sample_base + channel_index * bytes_per_sample, primary_source, bytes_per_sample);
+            }
+          }
+        }
+      }
+    }
+  }
 
   LockGuard lock(this->queue_mutex_);
   if (this->pending_frames_.size() >= MAX_QUEUED_FRAMES) {

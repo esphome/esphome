@@ -34,11 +34,13 @@ class USBAudioMicrophone : public microphone::Microphone, public Component, publ
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
   void set_bits_per_sample(uint16_t bits) { this->bits_per_sample_ = bits; }
   void set_channels(uint8_t channels) { this->channels_ = channels; }
+  void add_enabled_channel(uint8_t channel) { this->enabled_channels_.push_back(channel); }
 
  protected:
   static void mic_task_(void *param);
   void mic_task_loop_();
   void enqueue_frame_(const uint8_t *data, size_t length);
+  uint8_t get_effective_channel_count_() const;
 
   bool running_{false};
   TaskHandle_t task_handle_{nullptr};
@@ -47,6 +49,7 @@ class USBAudioMicrophone : public microphone::Microphone, public Component, publ
   std::deque<std::vector<uint8_t>> pending_frames_;
 
   std::vector<uint8_t> read_buffer_;
+  std::vector<uint8_t> enabled_channels_;
 
   uint32_t sample_rate_{16000};
   uint16_t bits_per_sample_{16};
