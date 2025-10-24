@@ -10,7 +10,6 @@ void TuyaSelect::setup() {
   this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {
     uint8_t enum_value = datapoint.value_enum;
     ESP_LOGV(TAG, "MCU reported select %u value %u", this->select_id_, enum_value);
-    const auto &options = this->traits.get_options();
     auto mappings = this->mappings_;
     auto it = std::find(mappings.cbegin(), mappings.cend(), enum_value);
     if (it == mappings.end()) {
