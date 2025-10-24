@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 #include <cstring>
-#include <deque>
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
 #endif
