@@ -51,27 +51,27 @@ void LibreTinyUARTComponent::setup() {
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
-  auto initPinsForHardwareSerial =
-      [&] {
-        auto initPin = [&](InternalGPIOPin *pin) {
-          if (pin->get_flags() != gpio.Flags.FLAG_NONE) {
+  auto initPinsForHardwareSerial = [&] {
+    auto initPin = [&](InternalGPIOPin *pin) {
+      if (pin->get_flags() != gpio.Flags.FLAG_NONE) {
 #if LT_ARD_HAS_SOFTSERIAL
-            ESP_LOGW(TAG, "Pin flags are not supported for hardware serial. Please use Software serial interface if "
-                          "you really need it");
+        ESP_LOGW(TAG, "Pin flags are not supported for hardware serial. Please use Software serial interface if "
+                      "you really need it");
 #else
-            ESP_LOGW(TAG, "Pin flags are not supported for hardware serial");
+        ESP_LOGW(TAG, "Pin flags are not supported for hardware serial");
 #endif
-          }
-        };
-        if (this->rx_pin_) {
-          initPin(this->rx_pin_);
-        }
-        if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-          initPin(this->tx_pin_);
-        }
       }
+    };
+    if (this->rx_pin_) {
+      initPin(this->rx_pin_);
+    }
+    if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+      initPin(this->tx_pin_);
+    }
+  };
 
-  if (false) return;
+  if (false)
+    return;
 #if LT_HW_UART0
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
     this->serial_ = &Serial0;
