@@ -51,7 +51,7 @@ void TuyaSelect::dump_config() {
                 this->select_id_, this->is_int_ ? "int" : "enum");
   const auto &options = this->traits.get_options();
   for (size_t i = 0; i < this->mappings_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options[i]);
+    ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options.at(i));
   }
 }
 
