@@ -46,40 +46,61 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  if (this->rx_pin_) {
-    this->rx_pin_->setup();
-  }
-  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-    this->tx_pin_->setup();
-  }
-
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
-  if (false)
-    return;
+  auto initPinsForHardwareSerial =
+      [&] {
+        auto initPin = [&](InternalGPIOPin *pin) {
+          if (pin->get_flags() != gpio.Flags.FLAG_NONE) {
+#if LT_ARD_HAS_SOFTSERIAL
+            ESP_LOGW(TAG, "Pin flags are not supported for hardware serial. Please use Software serial interface if "
+                          "you really need it");
+#else
+            ESP_LOGW(TAG, "Pin flags are not supported for hardware serial");
+#endif
+          }
+        };
+        if (this->rx_pin_) {
+          initPin(this->rx_pin_);
+        }
+        if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+          initPin(this->tx_pin_);
+        }
+      }
+
+  if (false) return;
 #if LT_HW_UART0
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
+    initPinsForHardwareSerial()
   }
 #endif
 #if LT_HW_UART1
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX)) {
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
+    initPinsForHardwareSerial()
   }
 #endif
 #if LT_HW_UART2
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX)) {
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
+    initPinsForHardwareSerial()
   }
 #endif
   else {
 #if LT_ARD_HAS_SOFTSERIAL
+    if (this->rx_pin_) {
+      this->rx_pin_->setup();
+    }
+    if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+      this->tx_pin_->setup();
+    }
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
 #else
     this->serial_ = &Serial;
