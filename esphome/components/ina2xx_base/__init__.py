@@ -35,6 +35,7 @@ CONF_CHARGE = "charge"
 CONF_CHARGE_COULOMBS = "charge_coulombs"
 CONF_ENERGY_JOULES = "energy_joules"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
+CONF_RESET_ON_BOOT = "reset_on_boot"
 UNIT_AMPERE_HOURS = "Ah"
 UNIT_COULOMB = "C"
 UNIT_JOULE = "J"
@@ -113,6 +114,7 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383
         ),
+        cv.Optional(CONF_RESET_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_SHUNT_VOLTAGE): cv.maybe_simple_value(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIVOLT,
@@ -206,6 +208,7 @@ async def setup_ina2xx(var, config):
     cg.add(var.set_adc_range(config[CONF_ADC_RANGE]))
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
     cg.add(var.set_shunt_tempco(config[CONF_TEMPERATURE_COEFFICIENT]))
+    cg.add(var.set_reset_on_boot(config[CONF_RESET_ON_BOOT]))
 
     adc_time_config = config[CONF_ADC_TIME]
     if isinstance(adc_time_config, dict):

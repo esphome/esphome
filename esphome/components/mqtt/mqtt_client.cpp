@@ -29,11 +29,8 @@ static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
-  auto prefix = App.get_name();
-  if (App.is_name_add_mac_suffix_enabled()) {
-    prefix = prefix.substr(0, prefix.size() - 7);
-  }
-  this->credentials_.client_id = prefix + "-" + get_mac_address();
+  const std::string mac_addr = get_mac_address();
+  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr.c_str(), mac_addr.size());
 }
 
 // Connection
@@ -154,11 +151,8 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 
 #ifdef USE_API_NOISE
-        if (api::global_api_server->get_noise_ctx()->has_psk()) {
-          root["api_encryption"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        } else {
-          root["api_encryption_supported"] = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-        }
+        root[api::global_api_server->get_noise_ctx()->has_psk() ? "api_encryption" : "api_encryption_supported"] =
+            "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 #endif
       },
       2, this->discovery_info_.retain);

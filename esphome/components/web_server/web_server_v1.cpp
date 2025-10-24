@@ -34,23 +34,23 @@ void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   const std::string &title = App.get_name();
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
-                  "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
+  stream->print(ESPHOME_F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
+                          "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
-  stream->print(F("</title>"));
+  stream->print(ESPHOME_F("</title>"));
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
+  stream->print(ESPHOME_F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
   if (strlen(this->css_url_) > 0) {
-    stream->print(F(R"(<link rel="stylesheet" href=")"));
+    stream->print(ESPHOME_F(R"(<link rel="stylesheet" href=")"));
     stream->print(this->css_url_);
-    stream->print(F("\">"));
+    stream->print(ESPHOME_F("\">"));
   }
-  stream->print(F("</head><body>"));
-  stream->print(F("<article class=\"markdown-body\"><h1>"));
+  stream->print(ESPHOME_F("</head><body>"));
+  stream->print(ESPHOME_F("<article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
-  stream->print(F("</h1>"));
-  stream->print(F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  stream->print(ESPHOME_F("</h1>"));
+  stream->print(ESPHOME_F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors()) {
@@ -190,26 +190,28 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
-  stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
-                  "REST API documentation.</p>"));
+  stream->print(
+      ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
+                "REST API documentation.</p>"));
 #if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
   // Show OTA form only if web_server OTA is not explicitly disabled
   // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
-  stream->print(F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+  stream->print(
+      ESPHOME_F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+                "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
 #endif
-  stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+  stream->print(ESPHOME_F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
-    stream->print(F("<script type=\"module\" src=\"/0.js\"></script>"));
+    stream->print(ESPHOME_F("<script type=\"module\" src=\"/0.js\"></script>"));
   }
 #endif
   if (strlen(this->js_url_) > 0) {
-    stream->print(F("<script src=\""));
+    stream->print(ESPHOME_F("<script src=\""));
     stream->print(this->js_url_);
-    stream->print(F("\"></script>"));
+    stream->print(ESPHOME_F("\"></script>"));
   }
-  stream->print(F("</article></body></html>"));
+  stream->print(ESPHOME_F("</article></body></html>"));
   request->send(stream);
 }
 

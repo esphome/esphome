@@ -3,4 +3,7 @@ substitutions:
   i2s_lrclk_pin: GPIO26
   i2s_dout_pin: GPIO27
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
 <<: !include common.yaml
