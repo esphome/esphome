@@ -57,7 +57,7 @@ void LibreTinyUARTComponent::setup() {
         return true;
       }
       if (this->tx_pin_ && this->tx_pin_->get_flags() != gpio.Flags.FLAG_NONE) {
-        return true
+        return true;
       }
     }();
     if (hasFlags) {
