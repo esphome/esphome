@@ -4,10 +4,6 @@
 #include "esphome/components/time/real_time_clock.h"
 #include <array>
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
-
 namespace esphome {
 namespace sntp {
 
@@ -22,7 +18,7 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
-  template<typename... Args> SNTPComponent(Args... servers) : servers_{servers...} {}
+  SNTPComponent(std::array<const char *, SNTP_SERVER_COUNT> servers) : servers_(servers) {}
 
   void setup() override;
   void dump_config() override;
@@ -34,13 +30,10 @@ class SNTPComponent : public time::RealTimeClock {
   void time_synced();
 
  protected:
-#ifdef USE_ESP8266
-  // On ESP8266, store pointers to PROGMEM strings to save RAM
-  std::array<PGM_P, SNTP_SERVER_COUNT> servers_;
-#else
-  // On other platforms, store regular const char pointers
+  // Store const char pointers to string literals
+  // ESP8266: strings in rodata (RAM), but avoids std::string overhead (~24 bytes each)
+  // Other platforms: strings in flash
   std::array<const char *, SNTP_SERVER_COUNT> servers_;
-#endif
   bool has_time_{false};
 
 #if defined(USE_ESP32)
