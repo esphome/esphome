@@ -51,43 +51,47 @@ void LibreTinyUARTComponent::setup() {
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
-  auto initPinsForHardwareSerial = [&] {
-    auto initPin = [&](InternalGPIOPin *pin) {
-      if (pin->get_flags() != gpio.Flags.FLAG_NONE) {
-#if LT_ARD_HAS_SOFTSERIAL
-        ESP_LOGW(TAG, "Pin flags are not supported for hardware serial. Please use Software serial interface if "
-                      "you really need it");
-#else
-        ESP_LOGW(TAG, "Pin flags are not supported for hardware serial");
-#endif
+  auto shouldFallbackToSoftwareSerial = [&] bool {
+    hasFlags = []() bool {
+      if (this->rx_pin_ && this->rx_pin_->get_flags() != gpio.Flags.FLAG_NONE) {
+        return true;
       }
-    };
-    if (this->rx_pin_) {
-      initPin(this->rx_pin_);
+      if (this->tx_pin_ && this->tx_pin_->get_flags() != gpio.Flags.FLAG_NONE) {
+        return true
+      }
+    }();
+    if (hasFlags) {
+#if LT_ARD_HAS_SOFTSERIAL
+      ESP_LOGI(TAG, "Pins has flags set. Using Software Serial");
+      return true;
+#else
+      ESP_LOGW(TAG, "Pin flags are set but not supported for hardware serial. Ignoring");
+#endif
     }
-    if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-      initPin(this->tx_pin_);
-    }
+    return false;
   };
 
   if (false)
     return;
 #if LT_HW_UART0
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
+  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX) &&
+           !shouldFallbackToSoftwareSerial()) {
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
     initPinsForHardwareSerial()
   }
 #endif
 #if LT_HW_UART1
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX)) {
+  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX) &&
+           !shouldFallbackToSoftwareSerial()) {
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
     initPinsForHardwareSerial()
   }
 #endif
 #if LT_HW_UART2
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX)) {
+  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX) &&
+           !shouldFallbackToSoftwareSerial()) {
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
     initPinsForHardwareSerial()
