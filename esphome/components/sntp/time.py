@@ -12,7 +12,6 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE
-from esphome.cpp_generator import ProgmemAssignmentExpression
 
 DEPENDENCIES = ["network"]
 sntp_ns = cg.esphome_ns.namespace("sntp")
@@ -49,25 +48,12 @@ async def to_code(config):
     # Define server count at compile time
     cg.add_define("SNTP_SERVER_COUNT", server_count)
 
-    # Generate PROGMEM strings for ESP8266, regular strings for other platforms
-    if CORE.is_esp8266:
-        # On ESP8266, use PROGMEM to store strings in flash
-        server_vars = []
-        for i, server in enumerate(servers):
-            var_name = f"{config[CONF_ID].id}_server_{i}"
-            # Create PROGMEM string: static const char var_name[] PROGMEM = "server";
-            assignment = ProgmemAssignmentExpression(
-                "char", var_name, cg.safe_exp(server)
-            )
-            cg.add(assignment)
-            server_vars.append(cg.RawExpression(var_name))
-        # Pass PROGMEM string pointers to constructor using ArrayInitializer
-        var = cg.new_Pvariable(config[CONF_ID], cg.ArrayInitializer(*server_vars))
-    else:
-        # On other platforms, pass regular string literals to constructor
-        var = cg.new_Pvariable(
-            config[CONF_ID], cg.ArrayInitializer(*[cg.safe_exp(s) for s in servers])
-        )
+    # Pass string literals to constructor - stored in flash/rodata by compiler
+    # On ESP8266, LWIP doesn't support PROGMEM pointers, so strings are in rodata (RAM)
+    # but we still avoid the ~24 byte std::string overhead per server
+    var = cg.new_Pvariable(
+        config[CONF_ID], cg.ArrayInitializer(*[cg.safe_exp(s) for s in servers])
+    )
 
     await cg.register_component(var, config)
     await time_.register_time(var, config)
