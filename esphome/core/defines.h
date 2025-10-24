@@ -44,6 +44,7 @@
 #define USE_GRAPHICAL_DISPLAY_MENU
 #define USE_HOMEASSISTANT_TIME
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
+#define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK
@@ -186,6 +187,7 @@
 #define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_I2C
 #define USE_IMPROV
+#define USE_ESP32_IMPROV_NEXT_URL
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -241,8 +243,10 @@
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
+// clang-format off
 #define USE_SHD_FIRMWARE_DATA \
   {}
+// clang-format on
 
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
@@ -273,6 +277,8 @@
 
 #ifdef USE_NRF52
 #define USE_NRF52_DFU
+#define USE_SOFTDEVICE_ID 7
+#define USE_SOFTDEVICE_VERSION 1
 #endif
 
 // Disabled feature flags

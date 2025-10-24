@@ -52,6 +52,13 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
+  if (this->rx_pin_) {
+    this->rx_pin_->setup();
+  }
+  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+    this->tx_pin_->setup();
+  }
+
   uint16_t config = get_config();
 
   constexpr uint32_t valid_tx_uart_0 = __bitset({0, 12, 16, 28});
