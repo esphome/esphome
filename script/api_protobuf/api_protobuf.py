@@ -1162,7 +1162,11 @@ class SInt64Type(TypeInfo):
 
 
 def _generate_array_dump_content(
-    ti, field_name: str, name: str, is_bool: bool = False
+    ti,
+    field_name: str,
+    name: str,
+    is_bool: bool = False,
+    is_const_char_ptr: bool = False,
 ) -> str:
     """Generate dump content for array types (repeated or fixed array).
 
@@ -1170,7 +1174,10 @@ def _generate_array_dump_content(
     """
     o = f"for (const auto {'' if is_bool else '&'}it : {field_name}) {{\n"
     # Check if underlying type can use dump_field
-    if ti.can_use_dump_field():
+    if is_const_char_ptr:
+        # Special case for const char* - use it directly
+        o += f'  dump_field(out, "{name}", it, 4);\n'
+    elif ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
         # std::vector<bool> iterators return proxy objects, need explicit cast
         value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
@@ -1555,10 +1562,18 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def dump_content(self) -> str:
+        # Check if this is const char* elements
+        is_const_char_ptr = (
+            self._use_pointer and "const char" in self._container_no_template
+        )
         if self._use_pointer:
             # For pointer fields, dereference and use the existing helper
             return _generate_array_dump_content(
-                self._ti, f"*this->{self.field_name}", self.name, is_bool=False
+                self._ti,
+                f"*this->{self.field_name}",
+                self.name,
+                is_bool=False,
+                is_const_char_ptr=is_const_char_ptr,
             )
         return _generate_array_dump_content(
             self._ti, f"this->{self.field_name}", self.name, is_bool=self._ti_is_bool
@@ -2549,6 +2564,12 @@ static void dump_field(std::string &out, const char *field_name, const std::stri
 static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
+  out.append("\\n");
+}
+
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
   out.append("\\n");
 }
 
