@@ -104,26 +104,14 @@ class ComponentManifest:
         """
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
 
-    def _collect_resources(self, visited: set[str] | None = None) -> list[FileResource]:
-        """Return a list of all file resources defined in the package of this component."""
+    @property
+    def resources(self) -> list[FileResource]:
+        """Return a list of all file resources defined in the package of this component.
 
-        if visited is None:
-            visited = set()
-
-        module_key = self.module.__name__
-        if module_key in visited:
-            return []
-        visited.add(module_key)
-
+        This will return all cpp source files that are located in the same folder as the
+        loaded .py file (does not look through subdirectories)
+        """
         ret: list[FileResource] = []
-        seen: set[tuple[str, str]] = set()
-
-        def _add_resource(pkg: str, res: str) -> None:
-            key = (pkg, res)
-            if key in seen:
-                return
-            seen.add(key)
-            ret.append(FileResource(pkg, res))
 
         # Get filter function for source files
         filter_source_files_func = getattr(self.module, "FILTER_SOURCE_FILES", None)
@@ -133,7 +121,7 @@ class ComponentManifest:
             set(filter_source_files_func()) if filter_source_files_func else set()
         )
 
-        # Process all resources in this package (no sub-directories)
+        # Process all resources
         for resource in (
             r.name
             for r in importlib.resources.files(self.package).iterdir()
@@ -149,26 +137,8 @@ class ComponentManifest:
             if resource in excluded_files:
                 continue
 
-            _add_resource(self.package, resource)
-
-        for extra in getattr(self.module, "EXTRA_COMPONENTS", []):
-            try:
-                extra_module = importlib.import_module(f"esphome.components.{extra}")
-            except ImportError:
-                _LOGGER.warning(
-                    "Unable to load extra component '%s' declared by '%s'",
-                    extra,
-                    module_key,
-                )
-                continue
-
-            ret.extend(ComponentManifest(extra_module)._collect_resources(visited))
-
+            ret.append(FileResource(self.package, resource))
         return ret
-
-    @property
-    def resources(self) -> list[FileResource]:
-        return self._collect_resources()
 
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):

@@ -4,7 +4,7 @@
 
 #if defined(USE_ESP32) && defined(USE_USB_AUDIO)
 
-#include "esphome/components/speaker/media_player/speaker_media_player.h"
+#include "speaker/media_player/speaker_media_player.h"
 
 #include "esphome/components/usb_audio/usb_audio.h"
 

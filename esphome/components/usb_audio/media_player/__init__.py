@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio, esp32, media_player, psram
@@ -20,7 +22,7 @@ from .. import CONF_USB_AUDIO_ID, USBAudioComponent, usb_audio_ns
 
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["usb_audio", "speaker"]
-EXTRA_COMPONENTS = ["speaker.media_player"]
+CONFLICTS_WITH = ["speaker.media_player"]
 
 
 def AUTO_LOAD(config):
@@ -78,6 +80,9 @@ FINAL_VALIDATE_SCHEMA = speaker_mp.FINAL_VALIDATE_SCHEMA
 
 
 async def to_code(config):
+    components_dir = Path(__file__).resolve().parents[2]
+    cg.add_build_flag(f'-I"{components_dir}"')
+
     if config[speaker_mp.CONF_CODEC_SUPPORT_ENABLED]:
         cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
         cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
