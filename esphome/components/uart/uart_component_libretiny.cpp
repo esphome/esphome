@@ -52,15 +52,15 @@ void LibreTinyUARTComponent::setup() {
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
   auto shouldFallbackToSoftwareSerial = [&] bool {
-    hasFlags = []() bool {
+    auto hasFlags = []() bool {
       if (this->rx_pin_ && this->rx_pin_->get_flags() != gpio.Flags.FLAG_NONE) {
         return true;
       }
       if (this->tx_pin_ && this->tx_pin_->get_flags() != gpio.Flags.FLAG_NONE) {
         return true;
       }
-    }();
-    if (hasFlags) {
+    };
+    if (hasFlags()) {
 #if LT_ARD_HAS_SOFTSERIAL
       ESP_LOGI(TAG, "Pins has flags set. Using Software Serial");
       return true;
