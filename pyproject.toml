@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.11.0"
+requires-python = ">=3.11.0,<3.14"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
