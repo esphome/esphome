@@ -4,10 +4,6 @@
 #include "esphome/components/time/real_time_clock.h"
 #include <array>
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
-
 namespace esphome {
 namespace sntp {
 
