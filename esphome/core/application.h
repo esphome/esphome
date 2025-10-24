@@ -39,7 +39,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #ifdef USE_FAN
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #endif
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
