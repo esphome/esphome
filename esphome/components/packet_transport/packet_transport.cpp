@@ -343,8 +343,7 @@ void PacketTransport::update() {
     if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
 #ifdef USE_STATUS_SENSOR
       if (this->providers_[i].status_sensor != nullptr && this->providers_[i].status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_[i].name, now,
-                 key_response_age);
+        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_[i].name, now, key_response_age);
         this->providers_[i].status_sensor->publish_state(false);
       }
 #endif
@@ -365,8 +364,7 @@ void PacketTransport::update() {
     } else {
 #ifdef USE_STATUS_SENSOR
       if (this->providers_[i].status_sensor != nullptr && !this->providers_[i].status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_[i].name, now,
-                 key_response_age);
+        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_[i].name, now, key_response_age);
         this->providers_[i].status_sensor->publish_state(true);
       }
 #endif
@@ -709,7 +707,7 @@ int8_t PacketTransport::find_remote_binary_sensor_(uint8_t provider_index, const
 }
 
 void PacketTransport::add_remote_binary_sensor(const char *hostname, const char *remote_id,
-                                                binary_sensor::BinarySensor *sensor) {
+                                               binary_sensor::BinarySensor *sensor) {
   int8_t provider_index = this->find_or_create_provider_(hostname);
   if (provider_index < 0)
     return;
