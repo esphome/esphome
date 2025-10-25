@@ -51,7 +51,7 @@ void LibreTinyUARTComponent::setup() {
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
-  auto shouldFallbackToSoftwareSerial = [&] bool {
+  auto shouldFallbackToSoftwareSerial = [&]() bool {
     auto hasFlags = []() bool {
       if (this->rx_pin_ && this->rx_pin_->get_flags() != gpio.Flags.FLAG_NONE) {
         return true;
