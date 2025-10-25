@@ -186,9 +186,9 @@ void USBUartComponent::restart_input_(USBUartChannel *channel) {
 void USBUartComponent::defer_input_retry_(USBUartChannel *channel) {
   static constexpr uint8_t MAX_INPUT_RETRIES = 10;
 
-  // Atomically increment and get previous value
-  uint8_t retry_count = channel->input_retry_count_.fetch_add(1);
-  if (retry_count >= MAX_INPUT_RETRIES) {
+  // Atomically increment and get the NEW value (previous + 1)
+  uint8_t new_retry_count = channel->input_retry_count_.fetch_add(1) + 1;
+  if (new_retry_count > MAX_INPUT_RETRIES) {
     ESP_LOGE(TAG, "Input retry limit reached for channel %d, stopping retries", channel->index_);
     this->reset_input_state_(channel);
     return;
@@ -250,7 +250,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   // Atomically check if not started and set to started in one operation
   bool expected = false;
   if (!channel->input_started_.compare_exchange_strong(expected, true))
-    return;  // Already started, another thread won the race
+    return;  // Already started - prevents duplicate transfers from concurrent threads
   // THREAD CONTEXT: Called from both USB task and main loop threads
   // - USB task: Immediate restart after successful transfer for continuous data flow
   // - Main loop: Controlled restart after consuming data (backpressure mechanism)
