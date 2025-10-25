@@ -60,13 +60,11 @@ void TemplateSelect::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   if (this->f_.has_value())
     return;
-  auto initial_option = this->at(this->initial_option_index_);
   ESP_LOGCONFIG(TAG,
                 "  Optimistic: %s\n"
                 "  Initial Option: %s\n"
                 "  Restore Value: %s",
-                YESNO(this->optimistic_),
-                initial_option.has_value() ? initial_option.value().c_str() : LOG_STR_LITERAL("unknown"),
+                YESNO(this->optimistic_), this->at(this->initial_option_index_).value().c_str(),
                 YESNO(this->restore_value_));
 }
 

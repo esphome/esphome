@@ -129,7 +129,7 @@ async def test_host_mode_empty_string_options(
         initial_state = states[initial_option_test.key]
         assert initial_state.state == "Third", (
             f"Expected initial state 'Third' but got '{initial_state.state}' - "
-            f"initial_option_index optimization may not be working correctly"
+            f"initial_option not correctly applied"
         )
 
         # The main test is that we got here without protobuf errors
