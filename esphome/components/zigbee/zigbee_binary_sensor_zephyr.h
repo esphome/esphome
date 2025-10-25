@@ -29,15 +29,12 @@ namespace esphome::zigbee {
 class ZigbeeBinarySensor : public ZigbeeEntity, public Component {
  public:
   explicit ZigbeeBinarySensor(binary_sensor::BinarySensor *binary_sensor);
-  void set_template(std::function<optional<bool>()> &&f) { this->f_ = f; }
   void set_cluster_attributes(BinaryAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  std::function<optional<bool>()> f_{nullptr};
   BinaryAttrs *cluster_attributes_{nullptr};
   binary_sensor::BinarySensor *binary_sensor_;
 };

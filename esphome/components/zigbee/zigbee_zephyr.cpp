@@ -159,29 +159,29 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void Zigbee::flush() { need_flush_ = true; }
+void Zigbee::flush() { this->need_flush_ = true; }
 
 void Zigbee::loop() {
-  if (need_flush_) {
-    need_flush_ = false;
+  if (this->need_flush_) {
+    this->need_flush_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
   std::function<void()> fn;
-  mutex_.lock();
+  this->mutex_.lock();
   if (!to_schedule_.empty()) {
-    fn = std::move(to_schedule_.front());
+    fn = std::move(this->to_schedule_.front());
     to_schedule_.pop_front();
   }
-  mutex_.unlock();
+  this->mutex_.unlock();
   if (fn) {
     fn();
   }
 }
 
 void Zigbee::schedule(std::function<void()> &&f) {
-  mutex_.lock();
-  to_schedule_.push_back(std::move(f));
-  mutex_.unlock();
+  this->mutex_.lock();
+  this->to_schedule_.push_back(std::move(f));
+  this->mutex_.unlock();
 }
 
 void Zigbee::factory_reset() {
