@@ -75,7 +75,10 @@ async def to_code(config):
     else:
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         initial_option_index = config[CONF_OPTIONS].index(config[CONF_INITIAL_OPTION])
-        cg.add(var.set_initial_option_index(initial_option_index))
+        # Only set if non-zero to avoid bloating setup() function
+        # (initial_option_index_ is zero-initialized in the header)
+        if initial_option_index != 0:
+            cg.add(var.set_initial_option_index(initial_option_index))
 
         if CONF_RESTORE_VALUE in config:
             cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
