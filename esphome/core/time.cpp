@@ -46,7 +46,7 @@ struct tm ESPTime::to_c_tm() {
   return c_tm;
 }
 
-std::string ESPTime::strftime(const char *format, size_t format_len) {
+std::string ESPTime::strftime(const char *format) {
   struct tm c_tm = this->to_c_tm();
   char buf[128];
   size_t len = ::strftime(buf, sizeof(buf), format, &c_tm);
@@ -56,7 +56,7 @@ std::string ESPTime::strftime(const char *format, size_t format_len) {
   return "ERROR";
 }
 
-std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str(), format.size()); }
+std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   uint16_t year;
