@@ -145,6 +145,7 @@ class USBUartComponent : public usb_host::USBClient {
   void reset_input_state_(USBUartChannel *channel);
   void restart_input_(USBUartChannel *channel);
   void do_start_input_(USBUartChannel *channel);
+  void input_transfer_callback_(USBUartChannel *channel, const usb_host::TransferStatus &status);
   std::vector<USBUartChannel *> channels_{};
 };
 
