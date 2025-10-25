@@ -229,13 +229,12 @@ void USBUartComponent::do_start_input_(USBUartChannel *channel) {
   // Caller must ensure input_started_ is already set to true
   const auto *ep = channel->cdc_dev_.in_ep;
 
-  // Set up callback using a lambda that captures channel and forwards to the named function
-  auto callback = [this, channel](const usb_host::TransferStatus &status) {
-    this->input_transfer_callback_(channel, status);
-  };
-
   // input_started_ already set to true by caller
-  auto result = this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  auto result = this->transfer_in(
+      ep->bEndpointAddress,
+      [this, channel](const usb_host::TransferStatus &status) { this->input_transfer_callback_(channel, status); },
+      ep->wMaxPacketSize);
+
   if (result == usb_host::TRANSFER_ERROR_NO_SLOTS) {
     // No slots available - defer retry to main loop
     this->defer_input_retry_(channel);
