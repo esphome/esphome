@@ -83,7 +83,7 @@ async def to_code(config):
             cg.add(var.set_initial_option_index(initial_option_index))
 
         # Only set if True (default is False)
-        if CONF_RESTORE_VALUE in config and config[CONF_RESTORE_VALUE]:
+        if config.get(CONF_RESTORE_VALUE):
             cg.add(var.set_restore_value(True))
 
     if CONF_SET_ACTION in config:
