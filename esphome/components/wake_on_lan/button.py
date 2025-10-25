@@ -7,7 +7,7 @@ from esphome.core import CORE
 DEPENDENCIES = ["network"]
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     if CORE.is_esp8266 or CORE.is_rp2040:
         return []
     return ["socket"]

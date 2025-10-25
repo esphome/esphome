@@ -8,7 +8,7 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     if CORE.is_esp32:
         return ["web_server_idf"]
     if CORE.using_arduino:

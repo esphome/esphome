@@ -63,7 +63,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["network"]
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
     return ["json"]
