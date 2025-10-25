@@ -304,9 +304,13 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
+    if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
+        ext = "tar.xz"
+    else:
+        ext = "zip"
     if release:
-        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.zip"
-    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.zip"
+        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.{ext}"
+    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
 
 
 def _is_framework_url(source: str) -> str:
@@ -355,6 +359,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "1"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "1"),
+    cv.Version(5, 4, 3): cv.Version(55, 3, 32),
     cv.Version(5, 4, 2): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 1): cv.Version(54, 3, 21, "2"),
     cv.Version(5, 4, 0): cv.Version(54, 3, 21, "2"),
