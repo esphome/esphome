@@ -27,7 +27,7 @@ class HostGPIOPin : public InternalGPIOPin {
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
 
-  uint8_t pin_{};
+  uint8_t pin_;
   bool inverted_{};
   gpio::Flags flags_{};
 };
