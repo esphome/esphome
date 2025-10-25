@@ -55,7 +55,7 @@ struct ESPTime {
   std::string strftime(const std::string &format);
 
   /// @copydoc strftime(const std::string &format)
-  std::string strftime(const char *format, size_t format_len = 0);
+  std::string strftime(const char *format);
 
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
