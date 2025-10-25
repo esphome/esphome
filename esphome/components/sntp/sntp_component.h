@@ -32,7 +32,7 @@ class SNTPComponent : public time::RealTimeClock {
 
   void update() override;
   void loop() override;
-#if defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
   void set_update_interval(uint32_t update_interval) override;
   uint32_t get_update_interval() const override;
 #endif
@@ -45,7 +45,7 @@ class SNTPComponent : public time::RealTimeClock {
   std::vector<std::string> servers_;
 
  protected:
-#if !defined(USE_ESP_IDF)
+#if !defined(USE_ESP32)
   bool has_time_{false};
 #endif
   bool servers_was_setup_{false};
