@@ -297,7 +297,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     // On success, reset retry count and restart input immediately from USB task for performance
     // The lock-free queue will handle backpressure
     channel->input_retry_count_.store(0);
-    this->restart_input_(channel);
+    channel->input_started_.store(false);
+    this->start_input(channel);
   };
   // input_started_ already set to true by compare_exchange_strong above
   auto result = this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
