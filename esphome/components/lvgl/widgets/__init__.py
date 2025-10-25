@@ -67,7 +67,6 @@ class Widget:
         self.type = wtype
         self.config = config
         self.scale = 1.0
-        self.step = 1.0
         self.range_from = -sys.maxsize
         self.range_to = sys.maxsize
         if wtype.is_compound():

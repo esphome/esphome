@@ -179,9 +179,9 @@ class CustomAPIDevice {
    * @param service_name The service to call.
    */
   void call_homeassistant_service(const std::string &service_name) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 
   /** Call a Home Assistant service from ESPHome.
@@ -199,15 +199,15 @@ class CustomAPIDevice {
    * @param data The data for the service call, mapping from string to string.
    */
   void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
+    resp.data.init(data.size());
     for (auto &it : data) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
+      auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef(it.first));
       kv.value = it.second;
     }
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 
   /** Fire an ESPHome event in Home Assistant.
@@ -221,10 +221,10 @@ class CustomAPIDevice {
    * @param event_name The event to fire.
    */
   void fire_homeassistant_event(const std::string &event_name) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(event_name));
     resp.is_event = true;
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 
   /** Fire an ESPHome event in Home Assistant.
@@ -241,16 +241,16 @@ class CustomAPIDevice {
    * @param data The data for the event, mapping from string to string.
    */
   void fire_homeassistant_event(const std::string &service_name, const std::map<std::string, std::string> &data) {
-    HomeassistantServiceResponse resp;
+    HomeassistantActionRequest resp;
     resp.set_service(StringRef(service_name));
     resp.is_event = true;
+    resp.data.init(data.size());
     for (auto &it : data) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
+      auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef(it.first));
       kv.value = it.second;
     }
-    global_api_server->send_homeassistant_service_call(resp);
+    global_api_server->send_homeassistant_action(resp);
   }
 #else
   template<typename T = void> void call_homeassistant_service(const std::string &service_name) {

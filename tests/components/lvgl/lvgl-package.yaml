@@ -684,7 +684,7 @@ lvgl:
             width: 120
             range_from: -10
             range_to: 1000
-            step: 5.0
+            selected_digit: 2
             rollover: false
             digits: 6
             decimal_places: 2

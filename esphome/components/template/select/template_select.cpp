@@ -16,7 +16,7 @@ void TemplateSelect::setup() {
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());
   } else {
     size_t index;
-    this->pref_ = global_preferences->make_preference<size_t>(this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
     if (!this->pref_.load(&index)) {
       value = this->initial_option_;
       ESP_LOGD(TAG, "State from initial (could not load stored index): %s", value.c_str());

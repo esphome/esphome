@@ -2,9 +2,15 @@ esphome:
   name: test
 
 substitutions:
+  substituted: 99
   var1: "1"
   var2: "2"
   var21: "79"
+  value: 33
+  values: 44
+  position:
+    x: 79
+    y: 82
 
 test_list:
   - "$var1"
@@ -21,3 +27,10 @@ test_list:
   - ${ undefined_var }
   - key${var1}: 1
     key${var2}: 2
+  - !literal Literal $values ${are not substituted}
+  - !literal ["list $value", "${is not}", "${substituted}"]
+  - !literal {"$dictionary": "$value", "${is not}": "${substituted}"}
+  - |- # Test parsing things that look like a python set of sets when rendered:
+    {{{ "x", "${ position.x }"}, { "y", "${ position.y }"}}}
+  - ${ '{{{"AA"}}}' }
+  - ${ '"HELLO"' }
