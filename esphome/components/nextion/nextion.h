@@ -555,9 +555,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * it.set_component_visibility("textview", false);  // Equivalent to hide_component("textview")
    * ```
    */
-  inline void set_component_visibility(const char *component, bool show) {
-    this->add_no_result_to_queue_with_printf_("set_component_visibility", "vis %s,%d", component, show ? 1 : 0);
-  }
+  void set_component_visibility(const char *component, bool show) override;
 
   /**
    * Hide a component.
