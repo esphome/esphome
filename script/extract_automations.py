@@ -2,19 +2,14 @@
 
 import json
 
-from helpers import git_ls_files
+from helpers import get_all_component_files, get_components_with_dependencies
 
 from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY
 from esphome.pins import PIN_SCHEMA_REGISTRY
 
-list_components = __import__("list-components")
-
-
 if __name__ == "__main__":
-    files = git_ls_files()
-    files = filter(list_components.filter_component_files, files)
-
-    components = list_components.get_components(files, True)
+    files = get_all_component_files()
+    components = get_components_with_dependencies(files, True)
 
     dump = {
         "actions": sorted(list(ACTION_REGISTRY.keys())),

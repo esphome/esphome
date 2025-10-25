@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -9,11 +10,19 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
+    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
-AUTO_LOAD = ["web_server_base", "ota.web_server"]
+
+def AUTO_LOAD() -> list[str]:
+    auto_load = ["web_server_base", "ota.web_server"]
+    if CORE.using_esp_idf:
+        auto_load.append("socket")
+    return auto_load
+
+
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
 
@@ -58,3 +67,11 @@ async def to_code(config):
             cg.add_library("DNSServer", None)
         if CORE.is_libretiny:
             cg.add_library("DNSServer", None)
+
+
+# Only compile the ESP-IDF DNS server when using ESP-IDF framework
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
+    }
+)

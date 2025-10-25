@@ -8,6 +8,7 @@ namespace esphome {
 namespace qmc5883l {
 
 static const char *const TAG = "qmc5883l";
+
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
 static const uint8_t QMC5883L_REGISTER_DATA_X_LSB = 0x00;
@@ -31,6 +32,10 @@ void QMC5883LComponent::setup() {
     return;
   }
   delay(10);
+
+  if (this->drdy_pin_) {
+    this->drdy_pin_->setup();
+  }
 
   uint8_t control_1 = 0;
   control_1 |= 0b01 << 0;  // MODE (Mode) -> 0b00=standby, 0b01=continuous
@@ -64,6 +69,7 @@ void QMC5883LComponent::setup() {
     high_freq_.start();
   }
 }
+
 void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
@@ -77,11 +83,20 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
 }
+
 float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
+
 void QMC5883LComponent::update() {
   i2c::ErrorCode err;
   uint8_t status = false;
+
+  // If DRDY pin is configured and the data is not ready return.
+  if (this->drdy_pin_ && !this->drdy_pin_->digital_read()) {
+    return;
+  }
+
   // Status byte gets cleared when data is read, so we have to read this first.
   // If status and two axes are desired, it's possible to save one byte of traffic by enabling
   // ROL_PNT in setup and reading 7 bytes starting at the status register.

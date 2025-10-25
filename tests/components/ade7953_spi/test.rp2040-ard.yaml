@@ -5,4 +5,7 @@ substitutions:
   irq_pin: GPIO5
   cs_pin: GPIO6
 
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
 <<: !include common.yaml
