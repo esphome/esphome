@@ -1,8 +1,11 @@
+from collections.abc import MutableMapping
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
-from esphome.components.zephyr import zephyr_add_pm_static
-from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_ZEPHYR
+from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
+from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE
@@ -44,7 +47,7 @@ CODEOWNERS = ["@tomaszduda23"]
 
 
 def zigbee_set_core_data(config):
-    if CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
+    if zephyr_data()[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(
             [Section("empty_after_zboss_offset", 0xF4000, 0xC000, "flash_primary")]
         )
@@ -52,22 +55,37 @@ def zigbee_set_core_data(config):
     return config
 
 
+def consume_ep_slots(config: MutableMapping) -> MutableMapping:
+    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
+    slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
+    slots.extend([""])
+    # config[KEY_EP_NUMBER] = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
+    return config
+
+
 ZigbeeBaseSchema = cv.Schema(
     {
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_ZIGBEE_ID, "zigbee"): cv.use_id(Zigbee),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_BASIC_ATTRIB_LIST_EXT, "zigbee"): cv.use_id(
             ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT
         ),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, "zigbee"): cv.use_id(
             ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
         ),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_GROUPS_ATTRIB_LIST, "zigbee"): cv.use_id(
             ZB_ZCL_DECLARE_GROUPS_ATTRIB_LIST
         ),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_SCENES_ATTRIB_LIST, "zigbee"): cv.use_id(
             ZB_ZCL_DECLARE_SCENES_ATTRIB_LIST
         ),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_EP, "zigbee"): cv.declare_id(ESPHOME_ZB_HA_DECLARE_EP),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_CLUSTER_LIST, "zigbee"): cv.declare_id(
             cg.global_ns.namespace("zb_zcl_cluster_desc_t")
         ),
@@ -79,10 +97,13 @@ ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, "zigbee"): cv.declare_id(
-            ZigbeeBinarySensor
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
+        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, "zigbee"): cv.All(
+            cv.declare_id(ZigbeeBinarySensor), consume_ep_slots
         ),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_BINARY_ATTRS, "zigbee"): cv.declare_id(BinaryAttrs),
+        # https://github.com/esphome/esphome/pull/11533 ["nrf52", "zigbee"]
         cv.OnlyWith(CONF_BINARY_INPUT_ATTRIB_LIST, "zigbee"): cv.declare_id(
             cg.global_ns.namespace("ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST")
         ),
@@ -93,26 +114,35 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(Zigbee),
-            cv.GenerateID(CONF_BASIC_ATTRS_EXT): cv.declare_id(
+            cv.OnlyWith(CONF_BASIC_ATTRS_EXT, "nrf52"): cv.declare_id(
                 zb_zcl_basic_attrs_ext_t
             ),
-            cv.GenerateID(CONF_BASIC_ATTRIB_LIST_EXT): cv.declare_id(
+            cv.OnlyWith(CONF_BASIC_ATTRIB_LIST_EXT, "nrf52"): cv.declare_id(
                 ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT
             ),
-            cv.GenerateID(CONF_IDENTIFY_ATTRS): cv.declare_id(zb_zcl_identify_attrs_t),
-            cv.GenerateID(CONF_IDENTIFY_ATTRIB_LIST): cv.declare_id(
+            cv.OnlyWith(CONF_IDENTIFY_ATTRS, "nrf52"): cv.declare_id(
+                zb_zcl_identify_attrs_t
+            ),
+            cv.OnlyWith(CONF_IDENTIFY_ATTRIB_LIST, "nrf52"): cv.declare_id(
                 ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST
             ),
-            cv.GenerateID(CONF_GROUPS_ATTRS): cv.declare_id(zb_zcl_groups_attrs_t),
-            cv.GenerateID(CONF_GROUPS_ATTRIB_LIST): cv.declare_id(
+            cv.OnlyWith(CONF_GROUPS_ATTRS, "nrf52"): cv.declare_id(
+                zb_zcl_groups_attrs_t
+            ),
+            cv.OnlyWith(CONF_GROUPS_ATTRIB_LIST, "nrf52"): cv.declare_id(
                 ZB_ZCL_DECLARE_GROUPS_ATTRIB_LIST
             ),
-            cv.GenerateID(CONF_SCENES_ATTRS): cv.declare_id(zb_zcl_scenes_attrs_t),
-            cv.GenerateID(CONF_SCENES_ATTRIB_LIST): cv.declare_id(
+            cv.OnlyWith(CONF_SCENES_ATTRS, "nrf52"): cv.declare_id(
+                zb_zcl_scenes_attrs_t
+            ),
+            cv.OnlyWith(CONF_SCENES_ATTRIB_LIST, "nrf52"): cv.declare_id(
                 ZB_ZCL_DECLARE_SCENES_ATTRIB_LIST
             ),
             cv.Optional(CONF_ON_JOIN): automation.validate_automation(single=True),
-            cv.Optional(CONF_WIPE_ON_BOOT, default=False): cv.boolean,
+            cv.Optional(CONF_WIPE_ON_BOOT, default=False): cv.All(
+                cv.boolean,
+                cv.requires_component("nrf52"),
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     zigbee_set_core_data,
@@ -129,9 +159,9 @@ def validate_number_of_ep(config):
         raise cv.Invalid("At least one zigbee device need to be included")
 
 
-# FINAL_VALIDATE_SCHEMA = cv.All(
-#     validate_number_of_ep,
-# )
+FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_number_of_ep,
+)
 
 
 async def to_code(config):
