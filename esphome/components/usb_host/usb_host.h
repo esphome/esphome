@@ -55,7 +55,7 @@ static const uint8_t USB_DIR_IN = 1 << 7;
 static const uint8_t USB_DIR_OUT = 0;
 static const size_t SETUP_PACKET_SIZE = 8;
 
-static const size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
+static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
 
 // Select appropriate bitmask type for tracking allocation of TransferRequest slots.
@@ -133,9 +133,8 @@ class USBClient : public Component {
   float get_setup_priority() const override { return setup_priority::IO; }
   void on_opened(uint8_t addr);
   void on_removed(usb_device_handle_t handle);
-  void control_transfer_callback(const usb_transfer_t *xfer) const;
-  void transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
-  void transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
+  bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
+  bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
   void dump_config() override;
   void release_trq(TransferRequest *trq);
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
@@ -147,7 +146,6 @@ class USBClient : public Component {
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
 
  protected:
-  bool register_();
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
@@ -158,7 +156,7 @@ class USBClient : public Component {
 
   // USB task management
   static void usb_task_fn(void *arg);
-  void usb_task_loop();
+  [[noreturn]] void usb_task_loop() const;
 
   TaskHandle_t usb_task_handle_{nullptr};
 

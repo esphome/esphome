@@ -231,7 +231,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
-      ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
+      ESP_LOGE(TAG, "Input transfer failed, status=%s", esp_err_to_name(status.error_code));
       // On failure, don't restart - let next read_array() trigger it
       channel->input_started_.store(false);
       return;
@@ -264,7 +264,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     this->start_input(channel);
   };
   channel->input_started_.store(true);
-  this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+    channel->input_started_.store(false);
+  }
 }
 
 void USBUartComponent::start_output(USBUartChannel *channel) {
@@ -328,7 +330,7 @@ void USBUartTypeCdcAcm::on_connected() {
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
-    channel->initialised_.store(true);
+    channel->initialised_ = true;
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
     if (err != ESP_OK) {
@@ -357,11 +359,11 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
-    channel->initialised_.store(false);
-    channel->input_started_.store(false);
-    channel->output_started_.store(false);
+    channel->input_started_.store(true);
+    channel->output_started_.store(true);
     channel->input_buffer_.clear();
     channel->output_buffer_.clear();
+    channel->initialised_.store(false);
   }
   USBClient::on_disconnected();
 }
