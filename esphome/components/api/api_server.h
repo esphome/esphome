@@ -125,9 +125,6 @@ class APIServer : public Component, public Controller {
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_API_SERVICES
-  void initialize_user_services(std::initializer_list<UserServiceDescriptor *> services) {
-    this->user_services_.assign(services);
-  }
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME

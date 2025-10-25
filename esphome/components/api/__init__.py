@@ -267,8 +267,6 @@ async def to_code(config):
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
-        # Collect all triggers first, then register all at once with initializer_list
-        triggers: list[cg.Pvariable] = []
         for conf in actions:
             template_args = []
             func_args = []
@@ -282,10 +280,8 @@ async def to_code(config):
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
             )
-            triggers.append(trigger)
+            cg.add(var.register_user_service(trigger))
             await automation.build_automation(trigger, func_args, conf)
-        # Register all services at once - single allocation, no reallocations
-        cg.add(var.initialize_user_services(triggers))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
