@@ -39,7 +39,7 @@ class ABBWelcomeData {
     this->data_[1] = 0xff;
   }
   // Make from initializer_list
-  ABBWelcomeData(std::initializer_list<uint8_t> data) {
+  ABBWelcomeData(const std::initializer_list<uint8_t> &data) {
     std::fill(std::begin(this->data_), std::end(this->data_), 0);
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }

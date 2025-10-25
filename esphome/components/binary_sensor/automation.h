@@ -92,7 +92,7 @@ class DoubleClickTrigger : public Trigger<> {
 
 class MultiClickTrigger : public Trigger<>, public Component {
  public:
-  explicit MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
+  explicit MultiClickTrigger(BinarySensor *parent, const std::initializer_list<MultiClickTriggerEvent> &timing)
       : parent_(parent), timing_(timing) {}
 
   void setup() override {

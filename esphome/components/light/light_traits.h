@@ -22,7 +22,7 @@ class LightTraits {
   void set_supported_color_modes(ColorModeMask supported_color_modes) {
     this->supported_color_modes_ = supported_color_modes;
   }
-  void set_supported_color_modes(std::initializer_list<ColorMode> modes) {
+  void set_supported_color_modes(const std::initializer_list<ColorMode> &modes) {
     this->supported_color_modes_ = ColorModeMask(modes);
   }
 

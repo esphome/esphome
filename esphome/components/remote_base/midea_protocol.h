@@ -15,7 +15,7 @@ class MideaData {
   // Make default
   MideaData() {}
   // Make from initializer_list
-  MideaData(std::initializer_list<uint8_t> data) {
+  MideaData(const std::initializer_list<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Make from vector

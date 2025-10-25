@@ -67,7 +67,7 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
-AutorepeatFilter::AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) : timings_(timings) {}
+AutorepeatFilter::AutorepeatFilter(const std::initializer_list<AutorepeatFilterTiming> &timings) : timings_(timings) {}
 
 optional<bool> AutorepeatFilter::new_value(bool value) {
   if (value) {

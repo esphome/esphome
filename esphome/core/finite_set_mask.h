@@ -60,7 +60,7 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
   constexpr FiniteSetMask() = default;
 
   /// Construct from initializer list: {VALUE1, VALUE2, ...}
-  constexpr FiniteSetMask(std::initializer_list<ValueType> values) {
+  constexpr FiniteSetMask(const std::initializer_list<ValueType> &values) {
     for (auto value : values) {
       this->insert(value);
     }
@@ -70,7 +70,7 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
   constexpr void insert(ValueType value) { this->mask_ |= (static_cast<bitmask_t>(1) << BitPolicy::to_bit(value)); }
 
   /// Add multiple values from initializer list
-  constexpr void insert(std::initializer_list<ValueType> values) {
+  constexpr void insert(const std::initializer_list<ValueType> &values) {
     for (auto value : values) {
       this->insert(value);
     }

@@ -229,7 +229,7 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
 // ValueListFilter (base class)
-ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
+ValueListFilter::ValueListFilter(const std::initializer_list<TemplatableValue<float>> &values) : values_(values) {}
 
 bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
@@ -255,7 +255,7 @@ bool ValueListFilter::value_matches_any_(float sensor_value) {
 }
 
 // FilterOutValueFilter
-FilterOutValueFilter::FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+FilterOutValueFilter::FilterOutValueFilter(const std::initializer_list<TemplatableValue<float>> &values_to_filter_out)
     : ValueListFilter(values_to_filter_out) {}
 
 optional<float> FilterOutValueFilter::new_value(float value) {
@@ -277,7 +277,7 @@ optional<float> ThrottleFilter::new_value(float value) {
 
 // ThrottleWithPriorityFilter
 ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
-    uint32_t min_time_between_inputs, std::initializer_list<TemplatableValue<float>> prioritized_values)
+    uint32_t min_time_between_inputs, const std::initializer_list<TemplatableValue<float>> &prioritized_values)
     : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
 optional<float> ThrottleWithPriorityFilter::new_value(float value) {
@@ -313,7 +313,7 @@ optional<float> DeltaFilter::new_value(float value) {
 }
 
 // OrFilter
-OrFilter::OrFilter(std::initializer_list<Filter *> filters) : filters_(filters), phi_(this) {}
+OrFilter::OrFilter(const std::initializer_list<Filter *> &filters) : filters_(filters), phi_(this) {}
 OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
@@ -391,7 +391,7 @@ void HeartbeatFilter::setup() {
 
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-CalibrateLinearFilter::CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions)
+CalibrateLinearFilter::CalibrateLinearFilter(const std::initializer_list<std::array<float, 3>> &linear_functions)
     : linear_functions_(linear_functions) {}
 
 optional<float> CalibrateLinearFilter::new_value(float value) {
@@ -402,7 +402,7 @@ optional<float> CalibrateLinearFilter::new_value(float value) {
   return NAN;
 }
 
-CalibratePolynomialFilter::CalibratePolynomialFilter(std::initializer_list<float> coefficients)
+CalibratePolynomialFilter::CalibratePolynomialFilter(const std::initializer_list<float> &coefficients)
     : coefficients_(coefficients) {}
 
 optional<float> CalibratePolynomialFilter::new_value(float value) {

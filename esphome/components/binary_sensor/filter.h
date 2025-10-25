@@ -87,7 +87,7 @@ struct AutorepeatFilterTiming {
 
 class AutorepeatFilter : public Filter, public Component {
  public:
-  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings);
+  explicit AutorepeatFilter(const std::initializer_list<AutorepeatFilterTiming> &timings);
 
   optional<bool> new_value(bool value) override;
 

@@ -325,7 +325,7 @@ class MultiplyFilter : public Filter {
  */
 class ValueListFilter : public Filter {
  protected:
-  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
+  explicit ValueListFilter(const std::initializer_list<TemplatableValue<float>> &values);
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
   bool value_matches_any_(float sensor_value);
@@ -336,7 +336,7 @@ class ValueListFilter : public Filter {
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
 class FilterOutValueFilter : public ValueListFilter {
  public:
-  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out);
+  explicit FilterOutValueFilter(const std::initializer_list<TemplatableValue<float>> &values_to_filter_out);
 
   optional<float> new_value(float value) override;
 };
@@ -356,7 +356,7 @@ class ThrottleFilter : public Filter {
 class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::initializer_list<TemplatableValue<float>> prioritized_values);
+                                      const std::initializer_list<TemplatableValue<float>> &prioritized_values);
 
   optional<float> new_value(float value) override;
 
@@ -423,7 +423,7 @@ class DeltaFilter : public Filter {
 
 class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::initializer_list<Filter *> filters);
+  explicit OrFilter(const std::initializer_list<Filter *> &filters);
 
   void initialize(Sensor *parent, Filter *next) override;
 
@@ -446,7 +446,7 @@ class OrFilter : public Filter {
 
 class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
+  explicit CalibrateLinearFilter(const std::initializer_list<std::array<float, 3>> &linear_functions);
   optional<float> new_value(float value) override;
 
  protected:
@@ -455,7 +455,7 @@ class CalibrateLinearFilter : public Filter {
 
 class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
+  explicit CalibratePolynomialFilter(const std::initializer_list<float> &coefficients);
   optional<float> new_value(float value) override;
 
  protected:

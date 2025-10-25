@@ -15,7 +15,7 @@ namespace esphome {
 
 template<typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
-  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit AndCondition(const std::initializer_list<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -31,7 +31,7 @@ template<typename... Ts> class AndCondition : public Condition<Ts...> {
 
 template<typename... Ts> class OrCondition : public Condition<Ts...> {
  public:
-  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit OrCondition(const std::initializer_list<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -56,7 +56,7 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
 
 template<typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
-  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit XorCondition(const std::initializer_list<Condition<Ts...> *> &conditions) : conditions_(conditions) {}
   bool check(Ts... x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {

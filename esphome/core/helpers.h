@@ -195,7 +195,7 @@ template<typename T> class FixedVector {
   }
 
   // Helper to assign from initializer list (shared by constructor and assignment operator)
-  void assign_from_initializer_list_(std::initializer_list<T> init_list) {
+  void assign_from_initializer_list_(const std::initializer_list<T> &init_list) {
     init(init_list.size());
     size_t idx = 0;
     for (const auto &item : init_list) {
@@ -210,7 +210,7 @@ template<typename T> class FixedVector {
 
   /// Constructor from initializer list - allocates exact size needed
   /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
-  FixedVector(std::initializer_list<T> init_list) { assign_from_initializer_list_(init_list); }
+  FixedVector(const std::initializer_list<T> &init_list) { assign_from_initializer_list_(init_list); }
 
   ~FixedVector() { cleanup_(); }
 
@@ -239,7 +239,7 @@ template<typename T> class FixedVector {
 
   /// Assignment from initializer list - avoids temporary and move overhead
   /// This enables: FixedVector<int> v; v = {1, 2, 3};
-  FixedVector &operator=(std::initializer_list<T> init_list) {
+  FixedVector &operator=(const std::initializer_list<T> &init_list) {
     cleanup_();
     reset_();
     assign_from_initializer_list_(init_list);

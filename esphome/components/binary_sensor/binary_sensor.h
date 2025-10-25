@@ -48,7 +48,7 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
   void publish_initial_state(bool new_state);
 
   void add_filter(Filter *filter);
-  void add_filters(std::initializer_list<Filter *> filters);
+  void add_filters(const std::initializer_list<Filter *> &filters);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
