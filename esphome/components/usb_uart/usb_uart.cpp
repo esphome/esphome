@@ -184,48 +184,56 @@ void USBUartComponent::restart_input_(USBUartChannel *channel) {
   }
 }
 
-void USBUartComponent::do_start_input_(USBUartChannel *channel) {
-  // This function does the actual work of starting input
-  // Caller must ensure input_started_ is already set to true
-  const auto *ep = channel->cdc_dev_.in_ep;
-  // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
-  auto callback = [this, channel](const usb_host::TransferStatus &status) {
-    ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
-    if (!status.success) {
-      ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
-      // Transfer failed, slot already released
+void USBUartComponent::input_transfer_callback_(USBUartChannel *channel, const usb_host::TransferStatus &status) {
+  // CALLBACK CONTEXT: This function is executed in USB task via transfer_callback
+  ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
+
+  if (!status.success) {
+    ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
+    // Transfer failed, slot already released
+    // Reset state so normal operations can restart later
+    this->reset_input_state_(channel);
+    return;
+  }
+
+  if (!channel->dummy_receiver_ && status.data_len > 0) {
+    // Allocate a chunk from the pool
+    UsbDataChunk *chunk = this->chunk_pool_.allocate();
+    if (chunk == nullptr) {
+      // No chunks available - queue is full, data dropped, slot already released
+      this->usb_data_queue_.increment_dropped_count();
       // Reset state so normal operations can restart later
       this->reset_input_state_(channel);
       return;
     }
 
-    if (!channel->dummy_receiver_ && status.data_len > 0) {
-      // Allocate a chunk from the pool
-      UsbDataChunk *chunk = this->chunk_pool_.allocate();
-      if (chunk == nullptr) {
-        // No chunks available - queue is full, data dropped, slot already released
-        this->usb_data_queue_.increment_dropped_count();
-        // Reset state so normal operations can restart later
-        this->reset_input_state_(channel);
-        return;
-      }
+    // Copy data to chunk (this is fast, happens in USB task)
+    memcpy(chunk->data, status.data, status.data_len);
+    chunk->length = status.data_len;
+    chunk->channel = channel;
 
-      // Copy data to chunk (this is fast, happens in USB task)
-      memcpy(chunk->data, status.data, status.data_len);
-      chunk->length = status.data_len;
-      chunk->channel = channel;
+    // Push to lock-free queue for main loop processing
+    // Push always succeeds because pool size == queue size
+    this->usb_data_queue_.push(chunk);
+  }
 
-      // Push to lock-free queue for main loop processing
-      // Push always succeeds because pool size == queue size
-      this->usb_data_queue_.push(chunk);
-    }
+  // On success, reset retry count and restart input immediately from USB task for performance
+  // The lock-free queue will handle backpressure
+  channel->input_retry_count_.store(0);
+  channel->input_started_.store(false);
+  this->start_input(channel);
+}
 
-    // On success, reset retry count and restart input immediately from USB task for performance
-    // The lock-free queue will handle backpressure
-    channel->input_retry_count_.store(0);
-    channel->input_started_.store(false);
-    this->start_input(channel);
+void USBUartComponent::do_start_input_(USBUartChannel *channel) {
+  // This function does the actual work of starting input
+  // Caller must ensure input_started_ is already set to true
+  const auto *ep = channel->cdc_dev_.in_ep;
+
+  // Set up callback using a lambda that captures channel and forwards to the named function
+  auto callback = [this, channel](const usb_host::TransferStatus &status) {
+    this->input_transfer_callback_(channel, status);
   };
+
   // input_started_ already set to true by caller
   auto result = this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
   if (result == usb_host::TRANSFER_ERROR_NO_SLOTS) {
