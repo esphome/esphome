@@ -3,3 +3,12 @@
 api:
   encryption:
     key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+  services:
+    - service: test_service_with_arrays
+      variables:
+        bool_array: bool[]
+        int_array: int[]
+        float_array: float[]
+        string_array: string[]
+      then:
+        - logger.log: "Service called"
