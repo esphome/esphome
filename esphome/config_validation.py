@@ -1772,7 +1772,10 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
-        if self._component in CORE.loaded_integrations:
+        if isinstance(self._component, list):
+            if all(c in CORE.loaded_integrations for c in self._component):
+                return self._default
+        elif self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
 
