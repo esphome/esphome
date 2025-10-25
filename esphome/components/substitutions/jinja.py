@@ -1,9 +1,11 @@
 from ast import literal_eval
+from collections.abc import Iterator
 from itertools import chain, islice
 import logging
 import math
 import re
 from types import GeneratorType
+from typing import Any
 
 import jinja2 as jinja
 from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
@@ -26,7 +28,7 @@ detect_jinja_re = re.compile(
 )
 
 
-def has_jinja(st):
+def has_jinja(st: str) -> bool:
     return detect_jinja_re.search(st) is not None
 
 
@@ -111,16 +113,18 @@ class TrackerContext(jinja.runtime.Context):
         return val
 
 
-def concat_nodes(values):
+def _concat_nodes_override(values: Iterator[Any]) -> Any:
     """
-    This function aims at preserving native types when concatenating
-    multiple nodes together. If the result is a single node, its value
+    This function customizes how Jinja preserves native types when concatenating
+    multiple result nodes together. If the result is a single node, its value
     is returned. Otherwise, the nodes are concatenated as strings. If
-    the result can be parsed with :func:`ast.literal_eval`, the parsed
+    the result can be parsed with `ast.literal_eval`, the parsed
     value is returned. Otherwise, the string is returned.
-    This helps preserve metadata such as ESPHomeDataBase from original values.
+    This helps preserve metadata such as ESPHomeDataBase from original values
+    and mimicks how HomeAssistant deals with template evaluation and preserving
+    the original datatype.
     """
-    head = list(islice(values, 2))
+    head: list[Any] = list(islice(values, 2))
 
     if not head:
         return None
@@ -154,10 +158,11 @@ class Jinja(jinja.Environment):
     Wraps a Jinja environment
     """
 
+    # jinja environment customization overrides
     code_generator_class = NativeCodeGenerator
-    concat = staticmethod(concat_nodes)
+    concat = staticmethod(_concat_nodes_override)
 
-    def __init__(self, context_vars):
+    def __init__(self, context_vars: dict):
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -185,10 +190,10 @@ class Jinja(jinja.Environment):
             **SAFE_GLOBALS,
         }
 
-    def expand(self, content_str):
+    def expand(self, content_str: str | JinjaStr) -> Any:
         """
         Renders a string that may contain Jinja expressions or statements
-        Returns the resulting processed string if all values could be resolved.
+        Returns the resulting value if all variables and expressions could be resolved.
         Otherwise, it returns a tagged (JinjaStr) string that captures variables
         in scope (upvalues), like a closure for later evaluation.
         """

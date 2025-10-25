@@ -1,6 +1,7 @@
 import glob
 import logging
 from pathlib import Path
+from typing import Any
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
@@ -60,7 +61,7 @@ def write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml_util.dump(data), encoding="utf-8")
 
 
-def verify_database(value, path=""):
+def verify_database(value: Any, path: str = "") -> str | None:
     if isinstance(value, list):
         for i, v in enumerate(value):
             result = verify_database(v, f"{path}[{i}]")
