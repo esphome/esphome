@@ -55,6 +55,23 @@ struct ESPTime {
    */
   std::string strftime(const std::string &format);
 
+  /** Convert this ESPTime struct to a string as specified by the format argument.
+   * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
+   *
+   * This overload is optimized for string literals and avoids std::string parameter overhead.
+   *
+   * @param format The format string (null-terminated C string)
+   * @param format_len Optional length of the format string. If 0 (default), strlen() will be called.
+   *
+   * @warning This method uses dynamically allocated strings which can cause heap fragmentation with some
+   * microcontrollers.
+   *
+   * @warning This method can return "ERROR" when the underlying strftime() call fails, e.g. when the
+   * format string contains unsupported specifiers or when the format string doesn't produce any
+   * output.
+   */
+  std::string strftime(const char *format, size_t format_len = 0);
+
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
