@@ -1,0 +1,16 @@
+esphome:
+  name: topological-ordering-test
+
+host:
+
+logger:
+
+api:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [building_topological_component_ordering]
+
+building_topological_component_ordering:

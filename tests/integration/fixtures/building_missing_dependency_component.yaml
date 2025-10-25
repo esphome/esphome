@@ -1,0 +1,12 @@
+esphome:
+  name: missing-dependency-test
+
+host:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [building_missing_dependency_component]
+
+building_missing_dependency_component:

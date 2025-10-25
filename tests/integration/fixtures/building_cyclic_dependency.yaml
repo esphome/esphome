@@ -1,0 +1,12 @@
+esphome:
+  name: cyclic-dependency
+
+host:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [building_cyclic_dependency]
+
+building_cyclic_dependency:

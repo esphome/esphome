@@ -1,0 +1,12 @@
+esphome:
+  name: missing-auto-load-test
+
+host:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [building_missing_auto_load_component]
+
+building_missing_auto_load_component:
