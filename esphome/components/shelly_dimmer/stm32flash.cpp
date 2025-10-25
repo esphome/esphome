@@ -445,8 +445,7 @@ template<typename T> stm32_err_t stm32_check_ack_timeout(const stm32_err_t s_err
       return STM32_ERR_OK;
     case STM32_ERR_NACK:
       log();
-      // TODO: c++17 [[fallthrough]]
-      /* fallthrough */
+      [[fallthrough]];
     default:
       return STM32_ERR_UNKNOWN;
   }

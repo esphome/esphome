@@ -1,0 +1,15 @@
+esphome:
+  name: componenttestrp2040ard
+  friendly_name: $component_name
+
+rp2040:
+  board: rpipicow
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

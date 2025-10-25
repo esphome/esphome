@@ -6,12 +6,12 @@
 #include "mqtt_const.h"
 
 #ifdef USE_MQTT
-#ifdef USE_DATETIME_TIME
+#ifdef USE_DATETIME_DATETIME
 
 namespace esphome {
 namespace mqtt {
 
-static const char *const TAG = "mqtt.datetime.time";
+static const char *const TAG = "mqtt.datetime.datetime";
 
 using namespace esphome::datetime;
 
@@ -20,22 +20,22 @@ MQTTDateTimeComponent::MQTTDateTimeComponent(DateTimeEntity *datetime) : datetim
 void MQTTDateTimeComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->datetime_->make_call();
-    if (root.containsKey("year")) {
+    if (root["year"].is<uint16_t>()) {
       call.set_year(root["year"]);
     }
-    if (root.containsKey("month")) {
+    if (root["month"].is<uint8_t>()) {
       call.set_month(root["month"]);
     }
-    if (root.containsKey("day")) {
+    if (root["day"].is<uint8_t>()) {
       call.set_day(root["day"]);
     }
-    if (root.containsKey("hour")) {
+    if (root["hour"].is<uint8_t>()) {
       call.set_hour(root["hour"]);
     }
-    if (root.containsKey("minute")) {
+    if (root["minute"].is<uint8_t>()) {
       call.set_minute(root["minute"]);
     }
-    if (root.containsKey("second")) {
+    if (root["second"].is<uint8_t>()) {
       call.set_second(root["second"]);
     }
     call.perform();
@@ -68,6 +68,7 @@ bool MQTTDateTimeComponent::send_initial_state() {
 bool MQTTDateTimeComponent::publish_state(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute,
                                           uint8_t second) {
   return this->publish_json(this->get_state_topic_(), [year, month, day, hour, minute, second](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root["year"] = year;
     root["month"] = month;
     root["day"] = day;
@@ -80,5 +81,5 @@ bool MQTTDateTimeComponent::publish_state(uint16_t year, uint8_t month, uint8_t 
 }  // namespace mqtt
 }  // namespace esphome
 
-#endif  // USE_DATETIME_TIME
+#endif  // USE_DATETIME_DATETIME
 #endif  // USE_MQTT

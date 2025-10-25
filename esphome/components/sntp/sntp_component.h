@@ -14,10 +14,20 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
+  SNTPComponent(const std::vector<std::string> &servers) : servers_(servers) {}
+
   void setup() override;
   void dump_config() override;
+
   /// Change the servers used by SNTP for timekeeping
-  void set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3);
+  void set_servers(std::string server_1, std::string server_2, std::string server_3) {
+    this->set_servers(std::vector<std::string>{
+        std::move(server_1),
+        std::move(server_2),
+        std::move(server_3),
+    });
+  }
+  void set_servers(std::vector<std::string> servers);
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
   void update() override;
@@ -32,7 +42,7 @@ class SNTPComponent : public time::RealTimeClock {
 
  private:
   // Private because buffer address should stay unchanged
-  std::string servers_[3];
+  std::vector<std::string> servers_;
 
  protected:
 #if !defined(USE_ESP_IDF)

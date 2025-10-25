@@ -22,12 +22,14 @@ enum BinarySensorFlags : uint16_t {
   BINARY_SENSOR_MODE_BYPASS_ARMED_HOME = 1 << 1,
   BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT = 1 << 2,
   BINARY_SENSOR_MODE_CHIME = 1 << 3,
+  BINARY_SENSOR_MODE_BYPASS_AUTO = 1 << 4,
 };
 
 enum AlarmSensorType : uint16_t {
   ALARM_SENSOR_TYPE_DELAYED = 0,
   ALARM_SENSOR_TYPE_INSTANT,
-  ALARM_SENSOR_TYPE_DELAYED_FOLLOWER
+  ALARM_SENSOR_TYPE_DELAYED_FOLLOWER,
+  ALARM_SENSOR_TYPE_INSTANT_ALWAYS,
 };
 
 #endif
@@ -58,6 +60,7 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+  void bypass_before_arming();
 
 #ifdef USE_BINARY_SENSOR
   /** Add a binary_sensor to the alarm_panel.
@@ -120,7 +123,8 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
 #ifdef USE_BINARY_SENSOR
   // This maps a binary sensor to its type and attribute bits
   std::map<binary_sensor::BinarySensor *, SensorInfo> sensor_map_;
-
+  // a list of automatically bypassed sensors
+  std::vector<uint8_t> bypassed_sensor_indicies_;
 #endif
   TemplateAlarmControlPanelRestoreMode restore_mode_{};
 

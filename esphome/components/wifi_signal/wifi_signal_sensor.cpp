@@ -1,4 +1,5 @@
 #include "wifi_signal_sensor.h"
+#ifdef USE_WIFI
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -10,3 +11,4 @@ void WiFiSignalSensor::dump_config() { LOG_SENSOR("", "WiFi Signal", this); }
 
 }  // namespace wifi_signal
 }  // namespace esphome
+#endif

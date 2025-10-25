@@ -1,0 +1,6 @@
+substitutions:
+  light_platform: rp2040_pwm
+  pin_o1: GPIO12
+  pin_o2: GPIO13
+
+<<: !include common.yaml

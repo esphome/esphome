@@ -27,7 +27,7 @@ void ModbusFloatOutput::write_state(float value) {
       return;
     }
   } else {
-    value = multiply_by_ * value;
+    value = this->multiply_by_ * value;
   }
   // lambda didn't set payload
   if (data.empty()) {
@@ -40,20 +40,23 @@ void ModbusFloatOutput::write_state(float value) {
   // Create and send the write command
   ModbusCommandItem write_cmd;
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, data[0]);
+    write_cmd =
+        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]);
   } else {
-    write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
+    write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset,
                                                                  this->register_count, data);
   }
-  parent_->queue_command(write_cmd);
+  this->parent_->queue_command(write_cmd);
 }
 
 void ModbusFloatOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus Float Output:");
   LOG_FLOAT_OUTPUT(this);
-  ESP_LOGCONFIG(TAG, "  Device start address: 0x%X", this->start_address);
-  ESP_LOGCONFIG(TAG, "  Register count: %d", this->register_count);
-  ESP_LOGCONFIG(TAG, "  Value type: %d", static_cast<int>(this->sensor_value_type));
+  ESP_LOGCONFIG(TAG,
+                "  Device start address: 0x%X\n"
+                "  Register count: %d\n"
+                "  Value type: %d",
+                this->start_address, this->register_count, static_cast<int>(this->sensor_value_type));
 }
 
 // ModbusBinaryOutput
@@ -90,9 +93,9 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::vector<bool> states{state};
-      cmd = ModbusCommandItem::create_write_multiple_coils(parent_, this->start_address + this->offset, states);
+      cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
     } else {
-      cmd = ModbusCommandItem::create_write_single_coil(parent_, this->start_address + this->offset, state);
+      cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
     }
   }
   this->parent_->queue_command(cmd);
@@ -101,9 +104,11 @@ void ModbusBinaryOutput::write_state(bool state) {
 void ModbusBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus Binary Output:");
   LOG_BINARY_OUTPUT(this);
-  ESP_LOGCONFIG(TAG, "  Device start address: 0x%X", this->start_address);
-  ESP_LOGCONFIG(TAG, "  Register count: %d", this->register_count);
-  ESP_LOGCONFIG(TAG, "  Value type: %d", static_cast<int>(this->sensor_value_type));
+  ESP_LOGCONFIG(TAG,
+                "  Device start address: 0x%X\n"
+                "  Register count: %d\n"
+                "  Value type: %d",
+                this->start_address, this->register_count, static_cast<int>(this->sensor_value_type));
 }
 
 }  // namespace modbus_controller

@@ -41,15 +41,20 @@ enum class ConditioningMode : uint8_t {
 enum class DataParameters : uint8_t {
   AC_POWER = 0x01,
   SET_POINT = 0x02,
+  VERTICAL_SWING_MODE = 0x03,
   AC_MODE = 0x04,
   FAN_MODE = 0x05,
   USE_FAHRENHEIT = 0x07,
+  DISPLAY_STATUS = 0x09,
   TEN_DEGREE = 0x0A,
   HEALTH_MODE = 0x0B,
+  HORIZONTAL_SWING_MODE = 0x0C,
+  SELF_CLEANING = 0x0D,
   BEEPER_STATUS = 0x16,
   LOCK_REMOTE = 0x17,
   QUIET_MODE = 0x19,
   FAST_MODE = 0x1A,
+  SLEEP_MODE = 0x1B,
 };
 
 enum class SpecialMode : uint8_t { NONE = 0x00, ELDERLY = 0x01, CHILDREN = 0x02, PREGNANT = 0x03 };

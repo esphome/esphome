@@ -16,10 +16,11 @@ class DemoSensor : public sensor::Sensor, public PollingComponent {
       float base = std::isnan(this->state) ? 0.0f : this->state;
       this->publish_state(base + val * 10);
     } else {
-      if (val < 0.1)
+      if (val < 0.1) {
         this->publish_state(NAN);
-      else
+      } else {
         this->publish_state(val * 100);
+      }
     }
   }
 };

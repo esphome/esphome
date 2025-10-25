@@ -1,0 +1,4 @@
+sensor:
+  - platform: tc74
+    i2c_id: i2c_bus
+    name: TC74 Temperature

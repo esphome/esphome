@@ -1,10 +1,5 @@
-uart:
-  - id: uart_wl_134
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-c3-idf.yaml
 
-text_sensor:
-  - platform: wl_134
-    name: Transponder Code
-    reset: true
+<<: !include common.yaml

@@ -1,0 +1,11 @@
+mcp3008:
+  - id: mcp3008_hub
+    cs_pin: ${cs_pin}
+
+sensor:
+  - platform: mcp3008
+    id: mcp3008_sensor
+    mcp3008_id: mcp3008_hub
+    number: 0
+    reference_voltage: 3.19
+    update_interval: 5s

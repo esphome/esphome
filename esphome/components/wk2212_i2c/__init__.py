@@ -1,13 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c, weikai
-from esphome.const import (
-    CONF_ID,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]

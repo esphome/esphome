@@ -17,19 +17,19 @@ class ESPColorCorrection {
                  this->color_correct_blue(color.blue), this->color_correct_white(color.white));
   }
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(red, this->max_brightness_.red), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(red, this->max_brightness_.red, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline uint8_t color_correct_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(green, this->max_brightness_.green), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(green, this->max_brightness_.green, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline uint8_t color_correct_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(blue, this->max_brightness_.blue), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(blue, this->max_brightness_.blue, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline uint8_t color_correct_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = esp_scale8(esp_scale8(white, this->max_brightness_.white), this->local_brightness_);
+    uint8_t res = esp_scale8_twice(white, this->max_brightness_.white, this->local_brightness_);
     return this->gamma_table_[res];
   }
   inline Color color_uncorrect(Color color) const ESPHOME_ALWAYS_INLINE {
@@ -41,29 +41,29 @@ class ESPColorCorrection {
     if (this->max_brightness_.red == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[red] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.red) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.red) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
   inline uint8_t color_uncorrect_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.green == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[green] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.green) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.green) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
   inline uint8_t color_uncorrect_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.blue == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[blue] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.blue) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.blue) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
   inline uint8_t color_uncorrect_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
     if (this->max_brightness_.white == 0 || this->local_brightness_ == 0)
       return 0;
     uint16_t uncorrected = this->gamma_reverse_table_[white] * 255UL;
-    uint8_t res = ((uncorrected / this->max_brightness_.white) * 255UL) / this->local_brightness_;
-    return res;
+    uint16_t res = ((uncorrected / this->max_brightness_.white) * 255UL) / this->local_brightness_;
+    return (uint8_t) std::min(res, uint16_t(255));
   }
 
  protected:

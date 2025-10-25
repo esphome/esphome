@@ -13,6 +13,7 @@ class X9cOutput : public output::FloatOutput, public Component {
   void set_inc_pin(InternalGPIOPin *pin) { inc_pin_ = pin; }
   void set_ud_pin(InternalGPIOPin *pin) { ud_pin_ = pin; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
+  void set_step_delay(int step_delay) { step_delay_ = step_delay; }
 
   void setup() override;
   void dump_config() override;
@@ -26,6 +27,7 @@ class X9cOutput : public output::FloatOutput, public Component {
   InternalGPIOPin *ud_pin_;
   float initial_value_;
   float pot_value_;
+  int step_delay_;
 };
 
 }  // namespace x9c

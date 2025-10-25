@@ -14,7 +14,6 @@
 namespace esphome {
 namespace http_request {
 
-static const char *const TAG = "http_request.ota";
 static const uint8_t MD5_SIZE = 32;
 
 enum OtaHttpRequestError : uint8_t {

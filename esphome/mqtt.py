@@ -1,16 +1,19 @@
+import contextlib
 from datetime import datetime
 import hashlib
+import json
 import logging
 import ssl
-import sys
+import tempfile
 import time
-import json
 
 import paho.mqtt.client as mqtt
 
 from esphome.const import (
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_DISCOVERY_PREFIX,
     CONF_ESPHOME,
     CONF_LOG_TOPIC,
@@ -18,21 +21,22 @@ from esphome.const import (
     CONF_NAME,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_SSL_FINGERPRINTS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USERNAME,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.log import color, Fore
+from esphome.helpers import get_int_env, get_str_env
+from esphome.log import AnsiFore, color
 from esphome.util import safe_print
-from esphome.helpers import get_str_env, get_int_env
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def config_from_env():
-    config = {
+    return {
         CONF_MQTT: {
             CONF_USERNAME: get_str_env("ESPHOME_DASHBOARD_MQTT_USERNAME"),
             CONF_PASSWORD: get_str_env("ESPHOME_DASHBOARD_MQTT_PASSWORD"),
@@ -40,7 +44,6 @@ def config_from_env():
             CONF_PORT: get_int_env("ESPHOME_DASHBOARD_MQTT_PORT", 1883),
         },
     }
-    return config
 
 
 def initialize(
@@ -49,10 +52,8 @@ def initialize(
     client = prepare(
         config, subscriptions, on_message, on_connect, username, password, client_id
     )
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         client.loop_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 
@@ -103,18 +104,24 @@ def prepare(
     if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
         CONF_CERTIFICATE_AUTHORITY
     ):
-        if sys.version_info >= (2, 7, 13):
-            tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
-        else:
-            tls_version = ssl.PROTOCOL_SSLv23
-        client.tls_set(
-            ca_certs=None,
-            certfile=None,
-            keyfile=None,
-            cert_reqs=ssl.CERT_REQUIRED,
-            tls_version=tls_version,
-            ciphers=None,
+        context = ssl.create_default_context(
+            cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
         )
+        if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
+            context.check_hostname = False
+        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
+            CONF_CLIENT_CERTIFICATE_KEY
+        ):
+            with (
+                tempfile.NamedTemporaryFile(mode="w+") as cert_file,
+                tempfile.NamedTemporaryFile(mode="w+") as key_file,
+            ):
+                cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+                cert_file.flush()
+                key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                key_file.flush()
+                context.load_cert_chain(cert_file, key_file)
+        client.tls_set_context(context)
 
     try:
         host = str(config[CONF_MQTT][CONF_BROKER])
@@ -179,8 +186,15 @@ def get_esphome_device_ip(
                 _LOGGER.Warn("Wrong device answer")
                 return
 
-            if "ip" in data:
-                dev_ip = data["ip"]
+            dev_ip = []
+            key = "ip"
+            n = 0
+            while key in data:
+                dev_ip.append(data[key])
+                n = n + 1
+                key = "ip" + str(n)
+
+            if dev_ip:
                 client.disconnect()
 
     def on_connect(client, userdata, flags, return_code):
@@ -213,6 +227,12 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     elif CONF_MQTT in config:
         conf = config[CONF_MQTT]
         if CONF_LOG_TOPIC in conf:
+            if config[CONF_MQTT][CONF_LOG_TOPIC] is None:
+                _LOGGER.error("MQTT log topic set to null, can't start MQTT logs")
+                return 1
+            if CONF_TOPIC not in config[CONF_MQTT][CONF_LOG_TOPIC]:
+                _LOGGER.error("MQTT log topic not available, can't start MQTT logs")
+                return 1
             topic = config[CONF_MQTT][CONF_LOG_TOPIC][CONF_TOPIC]
         elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
             topic = f"{config[CONF_MQTT][CONF_TOPIC_PREFIX]}/debug"
@@ -269,7 +289,7 @@ def get_fingerprint(config):
 
     sha1 = hashlib.sha1(cert_der).hexdigest()
 
-    safe_print(f"SHA1 Fingerprint: {color(Fore.CYAN, sha1)}")
+    safe_print(f"SHA1 Fingerprint: {color(AnsiFore.CYAN, sha1)}")
     safe_print(
         f"Copy the string above into mqtt.ssl_fingerprints section of {CORE.config_path}"
     )

@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include <string>
 #include "ip_address.h"
 
@@ -11,8 +12,9 @@ bool is_connected();
 /// Return whether the network is disabled (only wifi for now)
 bool is_disabled();
 /// Get the active network hostname
-std::string get_use_address();
+const std::string &get_use_address();
 IPAddresses get_ip_addresses();
 
 }  // namespace network
 }  // namespace esphome
+#endif

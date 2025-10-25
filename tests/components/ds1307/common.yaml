@@ -1,0 +1,5 @@
+time:
+  - platform: ds1307
+    i2c_id: i2c_bus
+    id: ds1307_time
+    update_interval: never

@@ -16,7 +16,7 @@ void SMT100Component::loop() {
   while (this->available() != 0) {
     if (readline_(read(), buffer, MAX_LINE_LENGTH) > 0) {
       int counts = (int) strtol((strtok(buffer, ",")), nullptr, 10);
-      float dielectric_constant = (float) strtod((strtok(nullptr, ",")), nullptr);
+      float permittivity = (float) strtod((strtok(nullptr, ",")), nullptr);
       float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
       float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
       float voltage = (float) strtod((strtok(nullptr, ",")), nullptr);
@@ -25,8 +25,8 @@ void SMT100Component::loop() {
         counts_sensor_->publish_state(counts);
       }
 
-      if (this->dielectric_constant_sensor_ != nullptr) {
-        dielectric_constant_sensor_->publish_state(dielectric_constant);
+      if (this->permittivity_sensor_ != nullptr) {
+        permittivity_sensor_->publish_state(permittivity);
       }
 
       if (this->moisture_sensor_ != nullptr) {
@@ -49,8 +49,8 @@ float SMT100Component::get_setup_priority() const { return setup_priority::DATA;
 void SMT100Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SMT100:");
 
-  LOG_SENSOR(TAG, "Counts", this->temperature_sensor_);
-  LOG_SENSOR(TAG, "Dielectric Constant", this->temperature_sensor_);
+  LOG_SENSOR(TAG, "Counts", this->counts_sensor_);
+  LOG_SENSOR(TAG, "Permittivity", this->permittivity_sensor_);
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Moisture", this->moisture_sensor_);
   LOG_UPDATE_INTERVAL(this);

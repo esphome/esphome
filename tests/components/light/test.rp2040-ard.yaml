@@ -1,0 +1,21 @@
+output:
+  - platform: gpio
+    id: test_binary
+    pin: 0
+  - platform: rp2040_pwm
+    id: test_ledc_1
+    pin: 1
+  - platform: rp2040_pwm
+    id: test_ledc_2
+    pin: 2
+  - platform: rp2040_pwm
+    id: test_ledc_3
+    pin: 3
+  - platform: rp2040_pwm
+    id: test_ledc_4
+    pin: 4
+  - platform: rp2040_pwm
+    id: test_ledc_5
+    pin: 5
+
+<<: !include common.yaml

@@ -1,5 +1,6 @@
 import logging
 
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
     CONF_MODE,
@@ -8,9 +9,7 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-import esphome.config_validation as cv
 from esphome.pins import check_strapping_pin
-
 
 _ESP_SDIO_PINS = {
     6: "Flash Clock",
@@ -32,8 +31,7 @@ def esp32_validate_gpio_pin(value):
         )
     if 9 <= value <= 10:
         _LOGGER.warning(
-            "Pin %s (9-10) might already be used by the "
-            "flash interface in QUAD IO flash mode.",
+            "Pin %s (9-10) might already be used by the flash interface in QUAD IO flash mode.",
             value,
         )
     if value in (24, 28, 29, 30, 31):

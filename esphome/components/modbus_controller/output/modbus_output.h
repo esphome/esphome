@@ -25,7 +25,7 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   void dump_config() override;
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
-  void set_write_multiply(float factor) { multiply_by_ = factor; }
+  void set_write_multiply(float factor) { this->multiply_by_ = factor; }
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
@@ -37,9 +37,9 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   void write_state(float value) override;
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
-  ModbusController *parent_;
+  ModbusController *parent_{nullptr};
   float multiply_by_{1.0};
-  bool use_write_multiple_;
+  bool use_write_multiple_{false};
 };
 
 class ModbusBinaryOutput : public output::BinaryOutput, public Component, public SensorItem {
@@ -68,8 +68,8 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   void write_state(bool state) override;
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
-  ModbusController *parent_;
-  bool use_write_multiple_;
+  ModbusController *parent_{nullptr};
+  bool use_write_multiple_{false};
 };
 
 }  // namespace modbus_controller

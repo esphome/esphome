@@ -1,0 +1,11 @@
+esp32:
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: yes
+
+psram:
+  mode: octal
+  speed: 120MHz
+  enable_ecc: true

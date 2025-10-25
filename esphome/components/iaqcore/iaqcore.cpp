@@ -1,7 +1,7 @@
 #include "iaqcore.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace iaqcore {
@@ -26,7 +26,7 @@ struct SensorData {
 
 void IAQCore::setup() {
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, "Communication failed!");
+    ESP_LOGD(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -35,7 +35,7 @@ void IAQCore::setup() {
 void IAQCore::update() {
   uint8_t buffer[sizeof(SensorData)];
 
-  if (this->read_register(0xB5, buffer, sizeof(buffer), false) != i2c::ERROR_OK) {
+  if (this->read_register(0xB5, buffer, sizeof(buffer)) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Read failed");
     this->status_set_warning();
     this->publish_nans_();
@@ -89,7 +89,7 @@ void IAQCore::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AMS iAQ Core failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "CO2", this->co2_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_);

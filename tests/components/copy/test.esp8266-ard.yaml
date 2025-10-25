@@ -1,0 +1,5 @@
+substitutions:
+  pwm_platform: esp8266_pwm
+  pin: GPIO12
+
+<<: !include common.yaml

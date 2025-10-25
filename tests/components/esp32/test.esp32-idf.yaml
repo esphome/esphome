@@ -1,0 +1,12 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    advanced:
+      enable_lwip_mdns_queries: true
+      enable_lwip_bridge_interface: true
+      disable_libc_locks_in_iram: false  # Test explicit opt-out of RAM optimization
+
+wifi:
+  ssid: MySSID
+  password: password1

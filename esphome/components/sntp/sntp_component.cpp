@@ -1,7 +1,7 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "esp_sntp.h"
 #elif USE_ESP8266
 #include "sntp.h"
@@ -17,23 +17,29 @@ static const char *const TAG = "sntp";
 const char *server_name_buffer(const std::string &server) { return server.empty() ? nullptr : server.c_str(); }
 
 void SNTPComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SNTP...");
-#if defined(USE_ESP_IDF)
+#ifdef USE_ESP_IDF
   if (esp_sntp_enabled()) {
     esp_sntp_stop();
   }
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+  esp_sntp_set_sync_interval(this->get_update_interval());
+  esp_sntp_init();
 #else
   sntp_stop();
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #endif
-
   setup_servers_();
   this->servers_was_setup_ = true;
 
-  for (uint8_t i = 0; i < 3; ++i) {
-    const auto &buff = server_name_buffer(servers_[i]);
-    if (buff != nullptr && buff != sntp_getservername(i)) {
+  for (uint8_t i = 0; i < this->servers_.size(); ++i) {
+    const auto &buff = server_name_buffer(this->servers_[i]);
+    if (buff != nullptr &&
+#ifdef USE_ESP_IDF
+        buff != esp_sntp_getservername(i)
+#else
+        buff != sntp_getservername(i)
+#endif
+    ) {
       ESP_LOGCONFIG(TAG, "Can't set server %d", i + 1);
     }
   }
@@ -45,29 +51,35 @@ void SNTPComponent::setup() {
     this->stop_poller();
   });
   esp_sntp_set_sync_interval(time::RealTimeClock::get_update_interval());
-#endif
-
+  esp_sntp_init();
+#else
   sntp_init();
+#endif
 }
 void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SNTP Time:");
-  for (uint8_t i = 0; i < 3; ++i) {
-    ESP_LOGCONFIG(TAG, "  Server %d: '%s'", i + 1, this->servers_[i].c_str());
+  size_t i = 0;
+  for (auto &server : this->servers_) {
+    ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server.c_str());
   }
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
-void SNTPComponent::set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3) {
+void SNTPComponent::set_servers(std::vector<std::string> servers) {
   if (this->servers_was_setup_) {
-    for (uint8_t i = 0; i < 3; ++i) {
+    // Cleanup all the pointers to prevent use after free
+    for (uint8_t i = 0; i < this->servers_.size(); ++i) {
       const auto &buff = this->servers_[i].empty() ? nullptr : this->servers_[i].c_str();
+#ifdef USE_ESP_IDF
+      if (buff != nullptr && buff == esp_sntp_getservername(i))
+        esp_sntp_setservername(i, nullptr);
+#else
       if (buff != nullptr && buff == sntp_getservername(i))
         sntp_setservername(i, nullptr);
+#endif
     }
   }
 
-  this->servers_[0] = server_1;
-  this->servers_[1] = server_2;
-  this->servers_[2] = server_3;
+  this->servers_ = std::move(servers);
 
   if (this->servers_was_setup_) {
     this->setup_servers_();
@@ -80,6 +92,8 @@ void SNTPComponent::update() {
     ESP_LOGD(TAG, "Force resync");
     sntp_restart();
 #else
+  // Some platforms currently cannot set the sync interval at runtime so we need
+  // to do the re-sync by hand for now.
   if (sntp_enabled()) {
     sntp_stop();
     this->has_time_ = false;
@@ -89,22 +103,23 @@ void SNTPComponent::update() {
 }
 void SNTPComponent::loop() {
 #if defined(USE_ESP_IDF)
+  // Tah sntp_get_sync_status call returns SNTP_SYNC_STATUS_COMPLETED only once when time just synched. So we don't need
+  // any callbacks
   if (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED)
     return;
 
   auto time = this->now();
   if (!time.is_valid())
     return;
-#else   // defined(USE_ESP_IDF)
+#else  // defined(USE_ESP_IDF)
   if (this->has_time_)
     return;
-
   auto time = this->now();
-  if (!time.is_valid())
+  this->has_time_ = time.is_valid();
+  if (!this->has_time_)
     return;
+#endif
 
-  this->has_time_ = true;
-#endif  // defined(USE_ESP_IDF)
   ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
   this->time_sync_callback_.call();
@@ -133,10 +148,15 @@ Redirects the call to `sntp_get_sync_interval()` so it's only one source of trut
 uint32_t SNTPComponent::get_update_interval() const { return sntp_get_sync_interval(); }
 #endif  // defined(USE_ESP_IDF)
 void SNTPComponent::setup_servers_() {
-  for (uint8_t i = 0; i < 3; ++i) {
+  for (uint8_t i = 0; i < this->servers_.size(); ++i) {
     const auto &buff = server_name_buffer(this->servers_[i]);
+#ifdef USE_ESP_IDF
+    esp_sntp_setservername(i, buff);
+    if (buff != nullptr && buff != esp_sntp_getservername(i)) {
+#else
     sntp_setservername(i, buff);
     if (buff != nullptr && buff != sntp_getservername(i)) {
+#endif
       ESP_LOGE(TAG, "Can't set server %d", i + 1);
     }
   }

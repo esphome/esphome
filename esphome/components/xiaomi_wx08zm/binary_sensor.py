@@ -1,17 +1,16 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TABLET,
     DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_BUG,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
-    ICON_BUG,
 )
-
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 AUTO_LOAD = ["xiaomi_ble", "sensor"]

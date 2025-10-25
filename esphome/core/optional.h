@@ -24,7 +24,7 @@ namespace esphome {
 
 struct nullopt_t {  // NOLINT
   struct init {};   // NOLINT
-  nullopt_t(init) {}
+  nullopt_t(init /*unused*/) {}
 };
 
 // extra parenthesis to prevent the most vexing parse:
@@ -42,15 +42,20 @@ template<typename T> class optional {  // NOLINT
 
   optional() {}
 
-  optional(nullopt_t) {}
+  optional(nullopt_t /*unused*/) {}
 
   optional(T const &arg) : has_value_(true), value_(arg) {}  // NOLINT
 
   template<class U> optional(optional<U> const &other) : has_value_(other.has_value()), value_(other.value()) {}
 
-  optional &operator=(nullopt_t) {
+  optional &operator=(nullopt_t /*unused*/) {
     reset();
     return *this;
+  }
+  bool operator==(optional<T> const &rhs) const {
+    if (has_value() && rhs.has_value())
+      return value() == rhs.value();
+    return !has_value() && !rhs.has_value();
   }
 
   template<class U> optional &operator=(optional<U> const &other) {
@@ -59,7 +64,7 @@ template<typename T> class optional {  // NOLINT
     return *this;
   }
 
-  void swap(optional &rhs) {
+  void swap(optional &rhs) noexcept {
     using std::swap;
     if (has_value() && rhs.has_value()) {
       swap(**this, *rhs);
@@ -104,7 +109,6 @@ template<typename T> class optional {  // NOLINT
     has_value_ = true;
   }
 
- private:
   bool has_value_{false};  // NOLINT
   value_type value_;       // NOLINT
 };
@@ -131,29 +135,29 @@ template<typename T, typename U> inline bool operator>=(optional<T> const &x, op
 
 // Comparison with nullopt
 
-template<typename T> inline bool operator==(optional<T> const &x, nullopt_t) { return (!x); }
+template<typename T> inline bool operator==(optional<T> const &x, nullopt_t /*unused*/) { return (!x); }
 
-template<typename T> inline bool operator==(nullopt_t, optional<T> const &x) { return (!x); }
+template<typename T> inline bool operator==(nullopt_t /*unused*/, optional<T> const &x) { return (!x); }
 
-template<typename T> inline bool operator!=(optional<T> const &x, nullopt_t) { return bool(x); }
+template<typename T> inline bool operator!=(optional<T> const &x, nullopt_t /*unused*/) { return bool(x); }
 
-template<typename T> inline bool operator!=(nullopt_t, optional<T> const &x) { return bool(x); }
+template<typename T> inline bool operator!=(nullopt_t /*unused*/, optional<T> const &x) { return bool(x); }
 
-template<typename T> inline bool operator<(optional<T> const &, nullopt_t) { return false; }
+template<typename T> inline bool operator<(optional<T> const & /*unused*/, nullopt_t /*unused*/) { return false; }
 
-template<typename T> inline bool operator<(nullopt_t, optional<T> const &x) { return bool(x); }
+template<typename T> inline bool operator<(nullopt_t /*unused*/, optional<T> const &x) { return bool(x); }
 
-template<typename T> inline bool operator<=(optional<T> const &x, nullopt_t) { return (!x); }
+template<typename T> inline bool operator<=(optional<T> const &x, nullopt_t /*unused*/) { return (!x); }
 
-template<typename T> inline bool operator<=(nullopt_t, optional<T> const &) { return true; }
+template<typename T> inline bool operator<=(nullopt_t /*unused*/, optional<T> const & /*unused*/) { return true; }
 
-template<typename T> inline bool operator>(optional<T> const &x, nullopt_t) { return bool(x); }
+template<typename T> inline bool operator>(optional<T> const &x, nullopt_t /*unused*/) { return bool(x); }
 
-template<typename T> inline bool operator>(nullopt_t, optional<T> const &) { return false; }
+template<typename T> inline bool operator>(nullopt_t /*unused*/, optional<T> const & /*unused*/) { return false; }
 
-template<typename T> inline bool operator>=(optional<T> const &, nullopt_t) { return true; }
+template<typename T> inline bool operator>=(optional<T> const & /*unused*/, nullopt_t /*unused*/) { return true; }
 
-template<typename T> inline bool operator>=(nullopt_t, optional<T> const &x) { return (!x); }
+template<typename T> inline bool operator>=(nullopt_t /*unused*/, optional<T> const &x) { return (!x); }
 
 // Comparison with T
 
@@ -207,7 +211,7 @@ template<typename T, typename U> inline bool operator>=(U const &v, optional<T> 
 
 // Specialized algorithms
 
-template<typename T> void swap(optional<T> &x, optional<T> &y) { x.swap(y); }
+template<typename T> void swap(optional<T> &x, optional<T> &y) noexcept { x.swap(y); }
 
 // Convenience function to create an optional.
 

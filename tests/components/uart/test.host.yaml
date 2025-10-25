@@ -1,0 +1,13 @@
+esphome:
+  on_boot:
+    then:
+      - uart.write: 'Hello World'
+      - uart.write: [0x00, 0x20, 0x42]
+
+uart:
+  - id: uart_uart
+    port: "/dev/ttyS0"
+    baud_rate: 9600
+    data_bits: 8
+    parity: EVEN
+    stop_bits: 2

@@ -1,5 +1,6 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
@@ -32,3 +33,4 @@ class WakeOnLanButton : public button::Button, public Component {
 
 }  // namespace wake_on_lan
 }  // namespace esphome
+#endif
