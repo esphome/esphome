@@ -334,7 +334,7 @@ static void control_callback(const usb_transfer_t *xfer) {
 // This multi-threaded access is intentional for performance - USB task can
 // immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
-  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
+  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_acquire);
 
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
@@ -443,14 +443,15 @@ static void transfer_callback(usb_transfer_t *xfer) {
  * @param ep_address The endpoint address.
  * @param callback The callback function to be called when the transfer is complete.
  * @param length The length of the data to be transferred.
+ * @return TransferResult indicating success or specific failure reason
  *
  * @throws None.
  */
-void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
+TransferResult USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return TRANSFER_ERROR_NO_SLOTS;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -460,7 +461,9 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return TRANSFER_ERROR_SUBMIT_FAILED;
   }
+  return TRANSFER_OK;
 }
 
 /**

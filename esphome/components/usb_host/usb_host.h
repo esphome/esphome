@@ -82,6 +82,12 @@ struct TransferStatus {
 
 using transfer_cb_t = std::function<void(const TransferStatus &)>;
 
+enum TransferResult : uint8_t {
+  TRANSFER_OK = 0,
+  TRANSFER_ERROR_NO_SLOTS,
+  TRANSFER_ERROR_SUBMIT_FAILED,
+};
+
 class USBClient;
 
 // struct used to capture all data needed for a transfer
@@ -134,7 +140,7 @@ class USBClient : public Component {
   void on_opened(uint8_t addr);
   void on_removed(usb_device_handle_t handle);
   void control_transfer_callback(const usb_transfer_t *xfer) const;
-  void transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
+  TransferResult transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
   void transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
   void dump_config() override;
   void release_trq(TransferRequest *trq);

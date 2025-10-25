@@ -169,6 +169,25 @@ bool USBUartChannel::read_array(uint8_t *data, size_t len) {
   this->parent_->start_input(this);
   return status;
 }
+void USBUartComponent::defer_input_retry_(USBUartChannel *channel) {
+  static constexpr uint8_t MAX_INPUT_RETRIES = 10;
+
+  // Atomically increment and get previous value
+  uint8_t retry_count = channel->input_retry_count_.fetch_add(1);
+  if (retry_count >= MAX_INPUT_RETRIES) {
+    ESP_LOGE(TAG, "Input retry limit reached for channel %d, stopping retries", channel->index_);
+    channel->input_started_.store(false);
+    return;
+  }
+
+  // Keep input_started_ as true during defer to prevent multiple retries from queueing
+  // The deferred lambda will clear it before calling start_input()
+  this->defer([this, channel] {
+    channel->input_started_.store(false);
+    this->start_input(channel);
+  });
+}
+
 void USBUartComponent::setup() { USBClient::setup(); }
 void USBUartComponent::loop() {
   USBClient::loop();
@@ -214,8 +233,13 @@ void USBUartComponent::dump_config() {
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load() || channel->input_started_.load())
+  if (!channel->initialised_.load())
     return;
+
+  // Atomically check if not started and set to started in one operation
+  bool expected = false;
+  if (!channel->input_started_.compare_exchange_strong(expected, true))
+    return;  // Already started, another thread won the race
   // THREAD CONTEXT: Called from both USB task and main loop threads
   // - USB task: Immediate restart after successful transfer for continuous data flow
   // - Main loop: Controlled restart after consuming data (backpressure mechanism)
@@ -232,8 +256,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
-      // On failure, don't restart - let next read_array() trigger it
-      channel->input_started_.store(false);
+      // On failure, defer retry to main loop
+      this->defer_input_retry_(channel);
       return;
     }
 
@@ -241,10 +265,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Allocate a chunk from the pool
       UsbDataChunk *chunk = this->chunk_pool_.allocate();
       if (chunk == nullptr) {
-        // No chunks available - queue is full or we're out of memory
+        // No chunks available - defer retry to main loop for backpressure
         this->usb_data_queue_.increment_dropped_count();
-        // Mark input as not started so we can retry
-        channel->input_started_.store(false);
+        this->defer_input_retry_(channel);
         return;
       }
 
@@ -258,13 +281,22 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       this->usb_data_queue_.push(chunk);
     }
 
-    // On success, restart input immediately from USB task for performance
+    // On success, reset retry count and restart input immediately from USB task for performance
     // The lock-free queue will handle backpressure
+    channel->input_retry_count_.store(0);
     channel->input_started_.store(false);
     this->start_input(channel);
   };
-  channel->input_started_.store(true);
-  this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  // input_started_ already set to true by compare_exchange_strong above
+  auto result = this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  if (result == usb_host::TRANSFER_ERROR_NO_SLOTS) {
+    // No slots available - defer retry to main loop
+    this->defer_input_retry_(channel);
+  } else if (result != usb_host::TRANSFER_OK) {
+    // Other error (submit failed) - don't retry, just clear flag
+    // Error already logged by transfer_in()
+    channel->input_started_.store(false);
+  }
 }
 
 void USBUartComponent::start_output(USBUartChannel *channel) {
@@ -370,6 +402,7 @@ void USBUartTypeCdcAcm::enable_channels() {
   for (auto *channel : this->channels_) {
     if (!channel->initialised_.load())
       continue;
+    channel->input_retry_count_.store(0);
     channel->input_started_.store(false);
     channel->output_started_.store(false);
     this->start_input(channel);
