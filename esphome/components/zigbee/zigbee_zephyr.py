@@ -52,7 +52,7 @@ async def zephyr_to_code(config):
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
 
-    if CONF_WIPE_ON_BOOT in config:
+    if config[CONF_WIPE_ON_BOOT]:
         cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
     var = cg.new_Pvariable(config[CONF_ID])
 
