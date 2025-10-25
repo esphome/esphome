@@ -43,8 +43,7 @@ extern "C" {
                               (zb_af_simple_desc_1_1_t *) &simple_desc_##ep_name, report_attr_count, \
                               reporting_info##ep_name, 0, NULL)
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 struct BinaryAttrs {
   zb_bool_t out_of_service;
@@ -92,13 +91,6 @@ class Zigbee : public Component {
   Mutex mutex_;
 };
 
-extern Zigbee *global_zigbee;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class FactoryResetAction : public Action<Ts...> {
- public:
-  void play(Ts... x) override { global_zigbee->factory_reset(); }
-};
-
 class ZigbeeEntity {
  public:
   void set_parent(Zigbee *parent) { this->parent_ = parent; }
@@ -109,6 +101,5 @@ class ZigbeeEntity {
   Zigbee *parent_{nullptr};
 };
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 #endif

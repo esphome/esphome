@@ -8,8 +8,7 @@ extern "C" {
 #include <zigbee/zigbee_app_utils.h>
 #include <zb_error_to_string.h>
 }
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 static const char *const TAG = "zigbee.binary_sensor";
 
@@ -26,10 +25,9 @@ void ZigbeeBinarySensor::setup() {
 }
 
 void ZigbeeBinarySensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zigbee Binary Sensor", this);
+  ESP_LOGCONFIG(TAG, "Zigbee Binary Sensor");
   ESP_LOGCONFIG(TAG, "  EP: %d, present_value %u", ep_, cluster_attributes_->present_value);
 }
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 #endif

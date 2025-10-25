@@ -3,7 +3,6 @@ from datetime import datetime
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
-import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, __version__
 from esphome.core import CORE, ID
 from esphome.cpp_generator import (
@@ -37,7 +36,6 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_CLUSTER_ID_SCENES,
     zb_char_t_ptr,
-    zigbee_ns,
 )
 
 
@@ -118,14 +116,6 @@ async def _attr_to_code(config):
         zigbee_assign(scenes_attrs.scene_valid, 0),
         zigbee_assign(scenes_attrs.name_support, 0),
     )
-
-
-FactoryResetAction = zigbee_ns.class_("FactoryResetAction", automation.Action)
-
-
-@automation.register_action("zigbee.factory_reset", FactoryResetAction, cv.Schema({}))
-async def zigbee_factory_reset_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
 
 
 def zigbee_new_variable(id_: ID, type_: "MockObj" = None) -> "MockObj":

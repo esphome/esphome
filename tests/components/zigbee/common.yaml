@@ -9,3 +9,10 @@ zigbee:
   wipe_on_boot: true
   on_join:
     - logger.log: "Hello World"
+
+output:
+  - platform: template
+    id: output_factory
+    type: binary
+    write_action:
+      - zigbee.factory_reset

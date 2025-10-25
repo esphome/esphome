@@ -177,3 +177,11 @@ async def setup_zigbee_binary_sensor(entity, config):
         from .zigbee_zephyr import zephyr_setup_zigbee_binary_sensor
 
         await zephyr_setup_zigbee_binary_sensor(entity, config)
+
+
+FactoryResetAction = zigbee_ns.class_("FactoryResetAction", automation.Action)
+
+
+@automation.register_action("zigbee.factory_reset", FactoryResetAction, cv.Schema({}))
+async def zigbee_factory_reset_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)

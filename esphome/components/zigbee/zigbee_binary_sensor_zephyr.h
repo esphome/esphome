@@ -24,8 +24,7 @@ extern "C" {
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID, (description)) \
   ZB_ZCL_FINISH_DECLARE_ATTRIB_LIST
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 class ZigbeeBinarySensor : public ZigbeeEntity, public Component {
  public:
@@ -43,6 +42,5 @@ class ZigbeeBinarySensor : public ZigbeeEntity, public Component {
   binary_sensor::BinarySensor *binary_sensor_;
 };
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 #endif

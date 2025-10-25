@@ -12,8 +12,7 @@ extern "C" {
 #include <zb_error_to_string.h>
 }
 
-namespace esphome {
-namespace zigbee {
+namespace esphome::zigbee {
 
 static const char *const TAG = "zigbee";
 
@@ -190,8 +189,7 @@ void Zigbee::factory_reset() {
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
 }
 
-}  // namespace zigbee
-}  // namespace esphome
+}  // namespace esphome::zigbee
 
 extern "C" void zboss_signal_handler(zb_uint8_t param) {
   esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param);
