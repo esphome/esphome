@@ -142,6 +142,7 @@ class USBUartComponent : public usb_host::USBClient {
 
  protected:
   void defer_input_retry_(USBUartChannel *channel);
+  void reset_input_state_(USBUartChannel *channel);
   std::vector<USBUartChannel *> channels_{};
 };
 

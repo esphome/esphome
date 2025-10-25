@@ -169,6 +169,11 @@ bool USBUartChannel::read_array(uint8_t *data, size_t len) {
   this->parent_->start_input(this);
   return status;
 }
+void USBUartComponent::reset_input_state_(USBUartChannel *channel) {
+  channel->input_retry_count_.store(0);
+  channel->input_started_.store(false);
+}
+
 void USBUartComponent::defer_input_retry_(USBUartChannel *channel) {
   static constexpr uint8_t MAX_INPUT_RETRIES = 10;
 
@@ -176,7 +181,7 @@ void USBUartComponent::defer_input_retry_(USBUartChannel *channel) {
   uint8_t retry_count = channel->input_retry_count_.fetch_add(1);
   if (retry_count >= MAX_INPUT_RETRIES) {
     ESP_LOGE(TAG, "Input retry limit reached for channel %d, stopping retries", channel->index_);
-    channel->input_started_.store(false);
+    this->reset_input_state_(channel);
     return;
   }
 
@@ -257,8 +262,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
       // Transfer failed, slot already released
-      // Mark input as not started so normal operations can restart later
-      channel->input_started_.store(false);
+      // Reset state so normal operations can restart later
+      this->reset_input_state_(channel);
       return;
     }
 
@@ -268,8 +273,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       if (chunk == nullptr) {
         // No chunks available - queue is full, data dropped, slot already released
         this->usb_data_queue_.increment_dropped_count();
-        // Mark input as not started so normal operations can restart later
-        channel->input_started_.store(false);
+        // Reset state so normal operations can restart later
+        this->reset_input_state_(channel);
         return;
       }
 
@@ -295,9 +300,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     // No slots available - defer retry to main loop
     this->defer_input_retry_(channel);
   } else if (result != usb_host::TRANSFER_OK) {
-    // Other error (submit failed) - don't retry, just clear flag
+    // Other error (submit failed) - don't retry, just reset state
     // Error already logged by transfer_in()
-    channel->input_started_.store(false);
+    this->reset_input_state_(channel);
   }
 }
 
@@ -404,8 +409,7 @@ void USBUartTypeCdcAcm::enable_channels() {
   for (auto *channel : this->channels_) {
     if (!channel->initialised_.load())
       continue;
-    channel->input_retry_count_.store(0);
-    channel->input_started_.store(false);
+    this->reset_input_state_(channel);
     channel->output_started_.store(false);
     this->start_input(channel);
   }
