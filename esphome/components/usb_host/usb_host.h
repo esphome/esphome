@@ -137,6 +137,7 @@ class USBClient : public Component {
   bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
   void dump_config() override;
   void release_trq(TransferRequest *trq);
+  trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
