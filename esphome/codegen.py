@@ -62,7 +62,6 @@ from esphome.cpp_types import (  # noqa: F401
     EntityBase,
     EntityCategory,
     ESPTime,
-    FixedVector,
     GPIOPin,
     InternalGPIOPin,
     JsonObject,

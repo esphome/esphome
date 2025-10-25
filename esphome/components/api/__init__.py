@@ -71,12 +71,10 @@ SERVICE_ARG_NATIVE_TYPES = {
     "int": cg.int32,
     "float": float,
     "string": cg.std_string,
-    "bool[]": cg.FixedVector.template(bool).operator("const").operator("ref"),
-    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
-    "float[]": cg.FixedVector.template(float).operator("const").operator("ref"),
-    "string[]": cg.FixedVector.template(cg.std_string)
-    .operator("const")
-    .operator("ref"),
+    "bool[]": cg.std_vector.template(bool),
+    "int[]": cg.std_vector.template(cg.int32),
+    "float[]": cg.std_vector.template(float),
+    "string[]": cg.std_vector.template(cg.std_string),
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
