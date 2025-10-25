@@ -46,6 +46,9 @@ struct ESPTime {
   /** Convert this ESPTime struct to a string as specified by the format argument.
    * @see https://en.cppreference.com/w/c/chrono/strftime
    *
+   * @warning This method returns a dynamically allocated string which can cause heap fragmentation with some
+   * microcontrollers.
+   *
    * @warning This method can return "ERROR" when the underlying strftime() call fails or when the
    * output exceeds 128 bytes.
    */
