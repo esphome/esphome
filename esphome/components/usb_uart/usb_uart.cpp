@@ -256,8 +256,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
       ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
-      // On failure, defer retry to main loop
-      this->defer_input_retry_(channel);
+      // Transfer failed, slot already released - just clear flag, let read_array() restart later
+      channel->input_started_.store(false);
       return;
     }
 
@@ -265,9 +265,9 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Allocate a chunk from the pool
       UsbDataChunk *chunk = this->chunk_pool_.allocate();
       if (chunk == nullptr) {
-        // No chunks available - defer retry to main loop for backpressure
+        // No chunks available - queue is full, data dropped, slot already released
         this->usb_data_queue_.increment_dropped_count();
-        this->defer_input_retry_(channel);
+        channel->input_started_.store(false);
         return;
       }
 
