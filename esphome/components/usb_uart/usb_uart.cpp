@@ -174,6 +174,15 @@ void USBUartComponent::reset_input_state_(USBUartChannel *channel) {
   channel->input_started_.store(false);
 }
 
+void USBUartComponent::restart_input_(USBUartChannel *channel) {
+  // Atomically check if still started and clear it before calling start_input
+  // This prevents race with concurrent restart attempts from different threads
+  bool expected = true;
+  if (channel->input_started_.compare_exchange_strong(expected, false)) {
+    this->start_input(channel);
+  }
+}
+
 void USBUartComponent::defer_input_retry_(USBUartChannel *channel) {
   static constexpr uint8_t MAX_INPUT_RETRIES = 10;
 
@@ -186,11 +195,8 @@ void USBUartComponent::defer_input_retry_(USBUartChannel *channel) {
   }
 
   // Keep input_started_ as true during defer to prevent multiple retries from queueing
-  // The deferred lambda will clear it before calling start_input()
-  this->defer([this, channel] {
-    channel->input_started_.store(false);
-    this->start_input(channel);
-  });
+  // The deferred lambda will atomically restart
+  this->defer([this, channel] { this->restart_input_(channel); });
 }
 
 void USBUartComponent::setup() { USBClient::setup(); }
@@ -291,8 +297,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     // On success, reset retry count and restart input immediately from USB task for performance
     // The lock-free queue will handle backpressure
     channel->input_retry_count_.store(0);
-    channel->input_started_.store(false);
-    this->start_input(channel);
+    this->restart_input_(channel);
   };
   // input_started_ already set to true by compare_exchange_strong above
   auto result = this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
