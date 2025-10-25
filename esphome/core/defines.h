@@ -279,6 +279,8 @@
 #define USE_NRF52_DFU
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
+#define USE_ZIGBEE
+#define USE_ZIGBEE_WIPE_ON_BOOT
 #endif
 
 // Disabled feature flags
