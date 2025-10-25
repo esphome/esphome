@@ -145,6 +145,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     zigbee_set_core_data,
+    cv.only_with_framework("zephyr"),
 )
 
 

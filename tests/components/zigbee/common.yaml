@@ -8,7 +8,8 @@ binary_sensor:
 zigbee:
   wipe_on_boot: true
   on_join:
-    - logger.log: "Hello World"
+    then:
+      - logger.log: "Joined network"
 
 output:
   - platform: template
