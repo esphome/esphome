@@ -43,17 +43,12 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     servers = config[CONF_SERVERS]
-    server_count = len(servers)
 
     # Define server count at compile time
-    cg.add_define("SNTP_SERVER_COUNT", server_count)
+    cg.add_define("SNTP_SERVER_COUNT", len(servers))
 
     # Pass string literals to constructor - stored in flash/rodata by compiler
-    # On ESP8266, LWIP doesn't support PROGMEM pointers, so strings are in rodata (RAM)
-    # but we still avoid the ~24 byte std::string overhead per server
-    var = cg.new_Pvariable(
-        config[CONF_ID], cg.ArrayInitializer(*[cg.safe_exp(s) for s in servers])
-    )
+    var = cg.new_Pvariable(config[CONF_ID], servers)
 
     await cg.register_component(var, config)
     await time_.register_time(var, config)
