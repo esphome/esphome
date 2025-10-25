@@ -38,6 +38,7 @@ from .types import (
     APIClientConnectedFactory,
     APIClientFactory,
     CompileFunction,
+    CompileOutput,
     ConfigWriter,
     RunCompiledFunction,
 )
@@ -674,3 +675,47 @@ async def run_compiled(
         )
 
     yield _run_compiled
+
+
+@pytest_asyncio.fixture
+async def compile_only(integration_test_dir: Path, shared_platformio_cache: Path):
+    """Compile an ESPHome config and capture stdout/stderr."""
+
+    async def _compile(config_path: Path) -> CompileOutput:
+        env = _get_platformio_env(shared_platformio_cache)
+
+        max_retries = 3
+        last_stdout = ""
+        last_stderr = ""
+        last_rc = 0
+
+        for attempt in range(max_retries):
+            proc = await asyncio.create_subprocess_exec(
+                "esphome",
+                "compile",
+                str(config_path),
+                cwd=integration_test_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.DEVNULL,
+                start_new_session=True,
+                env=env,
+                close_fds=False,
+            )
+            out_b, err_b = await proc.communicate()
+            last_stdout = out_b.decode("utf-8", "backslashreplace")
+            last_stderr = err_b.decode("utf-8", "backslashreplace")
+
+            if proc.returncode:
+                last_rc = proc.returncode
+
+            if proc.returncode == 0:
+                break
+            if proc.returncode == -11 and attempt < max_retries - 1:
+                await asyncio.sleep(1)
+                continue
+            break
+
+        return CompileOutput(returncode=last_rc, stdout=last_stdout, stderr=last_stderr)
+
+    return _compile

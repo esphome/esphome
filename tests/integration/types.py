@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -13,6 +14,16 @@ from aioesphomeapi import APIClient
 ConfigWriter = Callable[[str, str | None], Awaitable[Path]]
 CompileFunction = Callable[[Path], Awaitable[Path]]
 RunFunction = Callable[[Path], Awaitable[asyncio.subprocess.Process]]
+
+
+@dataclass
+class CompileOutput:
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+OnlyCompileFunction = Callable[[Path], Awaitable[CompileOutput]]
 
 
 class RunCompiledFunction(Protocol):
