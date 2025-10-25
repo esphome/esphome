@@ -205,9 +205,7 @@ void Nextion::hide_component(const char *component) {
   this->set_component_visibility(component, false);
 }
 
-void Nextion::show_component(const char *component) {
-  this->set_component_visibility(component, true);
-}
+void Nextion::show_component(const char *component) { this->set_component_visibility(component, true); }
 
 void Nextion::enable_component_touch(const char *component) {
   this->add_no_result_to_queue_with_printf_("enable_component_touch", "tsw %s,1", component);
