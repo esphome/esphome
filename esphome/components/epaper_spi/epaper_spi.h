@@ -74,6 +74,9 @@ class EPaperBase : public display::DisplayBuffer,
   const size_t init_sequence_length_{0};
 
   size_t current_data_index_{0};
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  uint32_t transfer_start_time_;
+#endif
   uint32_t reset_duration_{200};
   uint32_t waiting_for_idle_last_print_{0};
 

@@ -86,12 +86,11 @@ void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color
 
 bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
-  static uint32_t last_transfer_time = 0;
   const size_t buffer_length = this->get_buffer_length();
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "Start sending data");
     this->command(0x10);
-    last_transfer_time = millis();
+    this->transfer_start_time_ = millis();
   }
 
   uint8_t bytes_to_send[128]{0};
@@ -122,7 +121,7 @@ bool HOT EPaperSpectraE6::transfer_data() {
   }
   // Finished the entire dataset
   this->current_data_index_ = 0;
-  ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - last_transfer_time);
+  ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - this->transfer_start_time_);
   return true;
 }
 
