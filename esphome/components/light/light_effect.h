@@ -1,7 +1,5 @@
 #pragma once
 
-#include <utility>
-
 #include "esphome/core/component.h"
 
 namespace esphome {
@@ -11,7 +9,7 @@ class LightState;
 
 class LightEffect {
  public:
-  explicit LightEffect(std::string name) : name_(std::move(name)) {}
+  explicit LightEffect(const char *name) : name_(name) {}
 
   /// Initialize this LightEffect. Will be called once after creation.
   virtual void start() {}
@@ -24,7 +22,11 @@ class LightEffect {
   /// Apply this effect. Use the provided state for starting transitions, ...
   virtual void apply() = 0;
 
-  const std::string &get_name() { return this->name_; }
+  /**
+   * Returns the name of this effect.
+   * The returned pointer is valid for the lifetime of the program and must not be freed.
+   */
+  const char *get_name() const { return this->name_; }
 
   /// Internal method called by the LightState when this light effect is registered in it.
   virtual void init() {}
@@ -47,7 +49,7 @@ class LightEffect {
 
  protected:
   LightState *state_{nullptr};
-  std::string name_;
+  const char *name_;
 
   /// Internal method to find this effect's index in the parent light's effect list.
   uint32_t get_index_in_parent_() const;

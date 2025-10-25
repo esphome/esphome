@@ -24,6 +24,37 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
+
+def run_gh_command(args: list[str], operation: str) -> subprocess.CompletedProcess:
+    """Run a gh CLI command with error handling.
+
+    Args:
+        args: Command arguments (including 'gh')
+        operation: Description of the operation for error messages
+
+    Returns:
+        CompletedProcess result
+
+    Raises:
+        subprocess.CalledProcessError: If command fails (with detailed error output)
+    """
+    try:
+        return subprocess.run(
+            args,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        print(
+            f"ERROR: {operation} failed with exit code {e.returncode}", file=sys.stderr
+        )
+        print(f"ERROR: Command: {' '.join(args)}", file=sys.stderr)
+        print(f"ERROR: stdout: {e.stdout}", file=sys.stderr)
+        print(f"ERROR: stderr: {e.stderr}", file=sys.stderr)
+        raise
+
+
 # Thresholds for emoji significance indicators (percentage)
 OVERALL_CHANGE_THRESHOLD = 1.0  # Overall RAM/Flash changes
 COMPONENT_CHANGE_THRESHOLD = 3.0  # Component breakdown changes
@@ -238,7 +269,6 @@ def create_comment_body(
     pr_analysis: dict | None = None,
     target_symbols: dict | None = None,
     pr_symbols: dict | None = None,
-    target_cache_hit: bool = False,
 ) -> str:
     """Create the comment body with memory impact analysis using Jinja2 templates.
 
@@ -253,7 +283,6 @@ def create_comment_body(
         pr_analysis: Optional component breakdown for PR branch
         target_symbols: Optional symbol map for target branch
         pr_symbols: Optional symbol map for PR branch
-        target_cache_hit: Whether target branch analysis was loaded from cache
 
     Returns:
         Formatted comment body
@@ -283,7 +312,6 @@ def create_comment_body(
         "flash_change": format_change(
             target_flash, pr_flash, threshold=OVERALL_CHANGE_THRESHOLD
         ),
-        "target_cache_hit": target_cache_hit,
         "component_change_threshold": COMPONENT_CHANGE_THRESHOLD,
     }
 
@@ -356,7 +384,7 @@ def find_existing_comment(pr_number: str) -> str | None:
     print(f"DEBUG: Looking for existing comment on PR #{pr_number}", file=sys.stderr)
 
     # Use gh api to get comments directly - this returns the numeric id field
-    result = subprocess.run(
+    result = run_gh_command(
         [
             "gh",
             "api",
@@ -364,9 +392,7 @@ def find_existing_comment(pr_number: str) -> str | None:
             "--jq",
             ".[] | {id, body}",
         ],
-        capture_output=True,
-        text=True,
-        check=True,
+        operation="Get PR comments",
     )
 
     print(
@@ -420,7 +446,8 @@ def update_existing_comment(comment_id: str, comment_body: str) -> None:
         subprocess.CalledProcessError: If gh command fails
     """
     print(f"DEBUG: Updating existing comment {comment_id}", file=sys.stderr)
-    result = subprocess.run(
+    print(f"DEBUG: Comment body length: {len(comment_body)} bytes", file=sys.stderr)
+    result = run_gh_command(
         [
             "gh",
             "api",
@@ -430,9 +457,7 @@ def update_existing_comment(comment_id: str, comment_body: str) -> None:
             "-f",
             f"body={comment_body}",
         ],
-        check=True,
-        capture_output=True,
-        text=True,
+        operation="Update PR comment",
     )
     print(f"DEBUG: Update response: {result.stdout}", file=sys.stderr)
 
@@ -448,11 +473,10 @@ def create_new_comment(pr_number: str, comment_body: str) -> None:
         subprocess.CalledProcessError: If gh command fails
     """
     print(f"DEBUG: Posting new comment on PR #{pr_number}", file=sys.stderr)
-    result = subprocess.run(
+    print(f"DEBUG: Comment body length: {len(comment_body)} bytes", file=sys.stderr)
+    result = run_gh_command(
         ["gh", "pr", "comment", pr_number, "--body", comment_body],
-        check=True,
-        capture_output=True,
-        text=True,
+        operation="Create PR comment",
     )
     print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
 
@@ -485,79 +509,128 @@ def main() -> int:
     )
     parser.add_argument("--pr-number", required=True, help="PR number")
     parser.add_argument(
-        "--components",
-        required=True,
-        help='JSON array of component names (e.g., \'["api", "wifi"]\')',
-    )
-    parser.add_argument("--platform", required=True, help="Platform name")
-    parser.add_argument(
-        "--target-ram", type=int, required=True, help="Target branch RAM usage"
-    )
-    parser.add_argument(
-        "--target-flash", type=int, required=True, help="Target branch flash usage"
-    )
-    parser.add_argument("--pr-ram", type=int, required=True, help="PR branch RAM usage")
-    parser.add_argument(
-        "--pr-flash", type=int, required=True, help="PR branch flash usage"
-    )
-    parser.add_argument(
         "--target-json",
-        help="Optional path to target branch analysis JSON (for detailed analysis)",
+        required=True,
+        help="Path to target branch analysis JSON file",
     )
     parser.add_argument(
         "--pr-json",
-        help="Optional path to PR branch analysis JSON (for detailed analysis)",
-    )
-    parser.add_argument(
-        "--target-cache-hit",
-        action="store_true",
-        help="Indicates that target branch analysis was loaded from cache",
+        required=True,
+        help="Path to PR branch analysis JSON file",
     )
 
     args = parser.parse_args()
 
-    # Parse components from JSON
-    try:
-        components = json.loads(args.components)
-        if not isinstance(components, list):
-            print("Error: --components must be a JSON array", file=sys.stderr)
-            sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing --components JSON: {e}", file=sys.stderr)
+    # Load analysis JSON files (all data comes from JSON for security)
+    target_data: dict | None = load_analysis_json(args.target_json)
+    if not target_data:
+        print("Error: Failed to load target analysis JSON", file=sys.stderr)
         sys.exit(1)
 
-    # Load analysis JSON files
-    target_analysis = None
-    pr_analysis = None
-    target_symbols = None
-    pr_symbols = None
+    pr_data: dict | None = load_analysis_json(args.pr_json)
+    if not pr_data:
+        print("Error: Failed to load PR analysis JSON", file=sys.stderr)
+        sys.exit(1)
 
-    if args.target_json:
-        target_data = load_analysis_json(args.target_json)
-        if target_data and target_data.get("detailed_analysis"):
-            target_analysis = target_data["detailed_analysis"].get("components")
-            target_symbols = target_data["detailed_analysis"].get("symbols")
+    # Extract detailed analysis if available
+    target_analysis: dict | None = None
+    pr_analysis: dict | None = None
+    target_symbols: dict | None = None
+    pr_symbols: dict | None = None
 
-    if args.pr_json:
-        pr_data = load_analysis_json(args.pr_json)
-        if pr_data and pr_data.get("detailed_analysis"):
-            pr_analysis = pr_data["detailed_analysis"].get("components")
-            pr_symbols = pr_data["detailed_analysis"].get("symbols")
+    if target_data.get("detailed_analysis"):
+        target_analysis = target_data["detailed_analysis"].get("components")
+        target_symbols = target_data["detailed_analysis"].get("symbols")
+
+    if pr_data.get("detailed_analysis"):
+        pr_analysis = pr_data["detailed_analysis"].get("components")
+        pr_symbols = pr_data["detailed_analysis"].get("symbols")
+
+    # Extract all values from JSON files (prevents shell injection from PR code)
+    components = target_data.get("components")
+    platform = target_data.get("platform")
+    target_ram = target_data.get("ram_bytes")
+    target_flash = target_data.get("flash_bytes")
+    pr_ram = pr_data.get("ram_bytes")
+    pr_flash = pr_data.get("flash_bytes")
+
+    # Validate required fields and types
+    missing_fields: list[str] = []
+    type_errors: list[str] = []
+
+    if components is None:
+        missing_fields.append("components")
+    elif not isinstance(components, list):
+        type_errors.append(
+            f"components must be a list, got {type(components).__name__}"
+        )
+    else:
+        for idx, comp in enumerate(components):
+            if not isinstance(comp, str):
+                type_errors.append(
+                    f"components[{idx}] must be a string, got {type(comp).__name__}"
+                )
+    if platform is None:
+        missing_fields.append("platform")
+    elif not isinstance(platform, str):
+        type_errors.append(f"platform must be a string, got {type(platform).__name__}")
+
+    if target_ram is None:
+        missing_fields.append("target.ram_bytes")
+    elif not isinstance(target_ram, int):
+        type_errors.append(
+            f"target.ram_bytes must be an integer, got {type(target_ram).__name__}"
+        )
+
+    if target_flash is None:
+        missing_fields.append("target.flash_bytes")
+    elif not isinstance(target_flash, int):
+        type_errors.append(
+            f"target.flash_bytes must be an integer, got {type(target_flash).__name__}"
+        )
+
+    if pr_ram is None:
+        missing_fields.append("pr.ram_bytes")
+    elif not isinstance(pr_ram, int):
+        type_errors.append(
+            f"pr.ram_bytes must be an integer, got {type(pr_ram).__name__}"
+        )
+
+    if pr_flash is None:
+        missing_fields.append("pr.flash_bytes")
+    elif not isinstance(pr_flash, int):
+        type_errors.append(
+            f"pr.flash_bytes must be an integer, got {type(pr_flash).__name__}"
+        )
+
+    if missing_fields or type_errors:
+        if missing_fields:
+            print(
+                f"Error: JSON files missing required fields: {', '.join(missing_fields)}",
+                file=sys.stderr,
+            )
+        if type_errors:
+            print(
+                f"Error: Type validation failed: {'; '.join(type_errors)}",
+                file=sys.stderr,
+            )
+        print(f"Target JSON keys: {list(target_data.keys())}", file=sys.stderr)
+        print(f"PR JSON keys: {list(pr_data.keys())}", file=sys.stderr)
+        sys.exit(1)
 
     # Create comment body
     # Note: Memory totals (RAM/Flash) are summed across all builds if multiple were run.
     comment_body = create_comment_body(
         components=components,
-        platform=args.platform,
-        target_ram=args.target_ram,
-        target_flash=args.target_flash,
-        pr_ram=args.pr_ram,
-        pr_flash=args.pr_flash,
+        platform=platform,
+        target_ram=target_ram,
+        target_flash=target_flash,
+        pr_ram=pr_ram,
+        pr_flash=pr_flash,
         target_analysis=target_analysis,
         pr_analysis=pr_analysis,
         target_symbols=target_symbols,
         pr_symbols=pr_symbols,
-        target_cache_hit=args.target_cache_hit,
     )
 
     # Post or update comment
