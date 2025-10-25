@@ -1,0 +1,11 @@
+---
+binary_sensor:
+  - platform: template
+    name: "Garage Door Open 1"
+  - platform: template
+    name: "Garage Door Open 2"
+
+zigbee:
+  wipe_on_boot: true
+  on_join:
+    - logger.log: "Hello World"
