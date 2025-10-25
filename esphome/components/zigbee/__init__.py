@@ -60,7 +60,6 @@ def consume_ep_slots(config: MutableMapping) -> MutableMapping:
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
     slots.extend([""])
-    # config[KEY_EP_NUMBER] = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
     return config
 
 

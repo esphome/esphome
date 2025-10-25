@@ -253,8 +253,6 @@ async def _ctx_to_code(config):
 
 
 async def zephyr_setup_zigbee_binary_sensor(entity, config):
-    if not config.get(CONF_ZIGBEE_ID):
-        return
     CORE.add_job(_add_binary_sensor, entity, config)
 
 
