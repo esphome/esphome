@@ -3,7 +3,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-
 static constexpr const char *const TAG = "epaper_spi.6c";
 
 static inline uint8_t color_to_hex(Color color) {
@@ -87,35 +86,43 @@ void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color
 
 bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
+  static uint32_t last_transfer_time = 0;
+  const size_t buffer_length = this->get_buffer_length();
   if (this->current_data_index_ == 0) {
-    ESP_LOGV(TAG, "Sending data");
+    ESP_LOGV(TAG, "Start sending data");
     this->command(0x10);
+    last_transfer_time = millis();
   }
 
-  uint8_t bytes_to_send[4]{0};
-  const size_t buffer_length = this->get_buffer_length();
-  for (size_t i = this->current_data_index_; i < buffer_length; i += 3) {
+  uint8_t bytes_to_send[128]{0};
+  uint8_t buf_idx = 0;
+  for (size_t i = this->current_data_index_; i != buffer_length;) {
     const uint32_t triplet = encode_uint24(this->buffer_[i + 0], this->buffer_[i + 1], this->buffer_[i + 2]);
+    i += 3;
     // 8 pixels are stored in 3 bytes
     // |aaabbbaa|abbbaaab|bbaaabbb|
     // | byte 1 | byte 2 | byte 3 |
-    bytes_to_send[0] = ((triplet >> 17) & 0b01110000) | ((triplet >> 18) & 0b00000111);
-    bytes_to_send[1] = ((triplet >> 11) & 0b01110000) | ((triplet >> 12) & 0b00000111);
-    bytes_to_send[2] = ((triplet >> 5) & 0b01110000) | ((triplet >> 6) & 0b00000111);
-    bytes_to_send[3] = ((triplet << 1) & 0b01110000) | ((triplet << 0) & 0b00000111);
+    bytes_to_send[buf_idx++] = ((triplet >> 17) & 0b01110000) | ((triplet >> 18) & 0b00000111);
+    bytes_to_send[buf_idx++] = ((triplet >> 11) & 0b01110000) | ((triplet >> 12) & 0b00000111);
+    bytes_to_send[buf_idx++] = ((triplet >> 5) & 0b01110000) | ((triplet >> 6) & 0b00000111);
+    bytes_to_send[buf_idx++] = ((triplet << 1) & 0b01110000) | ((triplet << 0) & 0b00000111);
 
-    this->start_data_();
-    this->write_array(bytes_to_send, sizeof(bytes_to_send));
-    this->end_data_();
+    if (buf_idx == sizeof bytes_to_send || i == buffer_length) {
+      this->start_data_();
+      this->write_array(bytes_to_send, buf_idx);
+      buf_idx = 0;
+      this->end_data_();
 
-    if (millis() - start_time > MAX_TRANSFER_TIME) {
-      // Let the main loop run and come back next loop
-      this->current_data_index_ = i + 3;
-      return false;
+      if (millis() - start_time > MAX_TRANSFER_TIME) {
+        // Let the main loop run and come back next loop
+        this->current_data_index_ = i;
+        return false;
+      }
     }
   }
   // Finished the entire dataset
   this->current_data_index_ = 0;
+  ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - last_transfer_time);
   return true;
 }
 
@@ -131,5 +138,4 @@ void EPaperSpectraE6::reset() {
     });
   }
 }
-
 }  // namespace esphome::epaper_spi
