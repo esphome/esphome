@@ -26,6 +26,7 @@ from .const_zephyr import (
     CONF_SCENES_ATTRIB_LIST,
     CONF_SCENES_ATTRS,
     CONF_WIPE_ON_BOOT,
+    CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     ESPHOME_ZB_HA_DECLARE_EP,
     KEY_EP_NUMBER,
@@ -92,7 +93,6 @@ ZigbeeBaseSchema = cv.Schema(
     },
 )
 
-CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = cv.Schema(
@@ -151,12 +151,10 @@ CONFIG_SCHEMA = cv.All(
 
 def validate_number_of_ep(config):
     if KEY_ZIGBEE not in CORE.data:
-        raise cv.Invalid("At least one end point shall be defined")
+        raise cv.Invalid("At least one zigbee device need to be included")
     count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
     if count > CONF_MAX_EP_NUMBER:
         raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
-    if count == 0:
-        raise cv.Invalid("At least one zigbee device need to be included")
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -166,8 +164,16 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config):
     cg.add_define("USE_ZIGBEE")
+    if CORE.is_nrf52:
+        from .zigbee_zephyr import zephyr_to_code
+
+        await zephyr_to_code(config)
 
 
 async def setup_zigbee_binary_sensor(entity, config):
     if not config.get(CONF_ZIGBEE_ID):
         return
+    if CORE.is_nrf52:
+        from .zigbee_zephyr import zephyr_setup_zigbee_binary_sensor
+
+        await zephyr_setup_zigbee_binary_sensor(entity, config)
