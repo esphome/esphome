@@ -1,7 +1,7 @@
 import re
 
 from esphome import automation
-from esphome.automation import LambdaAction, StatelessLambdaAction
+from esphome.automation import LambdaAction
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
@@ -430,9 +430,7 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return automation.new_lambda_pvariable(
-        action_id, lambda_, StatelessLambdaAction, template_arg
-    )
+    return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
 @automation.register_action(
@@ -457,9 +455,7 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
         text = str(cg.statement(logger.set_log_level(level)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return automation.new_lambda_pvariable(
-        action_id, lambda_, StatelessLambdaAction, template_arg
-    )
+    return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
