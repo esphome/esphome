@@ -40,7 +40,7 @@ template<typename T, typename... X> class TemplatableValue {
 
   // For stateful lambdas (not convertible to function pointer): use std::function
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> && !std::convertible_to<F, T (*)(X...)> : type_(LAMBDA) {
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
     this->f_ = new std::function<T(X...)>(std::move(f));
   }
 
