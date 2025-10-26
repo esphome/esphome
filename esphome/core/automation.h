@@ -27,21 +27,20 @@ template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() : type_(NONE) {}
 
-  template<typename F>
-  requires(!std::invocable<F, X...>) TemplatableValue(F value) : type_(VALUE) {
+  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
     new (&this->value_) T(std::move(value));
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
   template<typename F>
-  requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)> TemplatableValue(F f)
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
       : type_(STATELESS_LAMBDA) {
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
 
   // For stateful lambdas (not convertible to function pointer): use std::function
   template<typename F>
-  requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) TemplatableValue(F f) : type_(LAMBDA) {
+  TemplatableValue(F f) requires std::invocable<F, X...> && !std::convertible_to<F, T (*)(X...)> : type_(LAMBDA) {
     this->f_ = new std::function<T(X...)>(std::move(f));
   }
 
