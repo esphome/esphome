@@ -87,6 +87,7 @@ def validate_potentially_or_condition(value):
 
 DelayAction = cg.esphome_ns.class_("DelayAction", Action, cg.Component)
 LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
+StatelessLambdaAction = cg.esphome_ns.class_("StatelessLambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
@@ -97,6 +98,7 @@ ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
+StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Condition)
 ForCondition = cg.esphome_ns.class_("ForCondition", Condition, cg.Component)
 
 
@@ -240,6 +242,11 @@ async def lambda_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=bool)
+    # Use optimized StatelessLambdaCondition for lambdas with no capture
+    if lambda_.capture == "":
+        # Override the condition_id type to use StatelessLambdaCondition
+        condition_id = condition_id.copy()
+        condition_id.type = StatelessLambdaCondition
     return cg.new_Pvariable(condition_id, template_arg, lambda_)
 
 
@@ -406,6 +413,11 @@ async def lambda_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=cg.void)
+    # Use optimized StatelessLambdaAction for lambdas with no capture
+    if lambda_.capture == "":
+        # Override the action_id type to use StatelessLambdaAction
+        action_id = action_id.copy()
+        action_id.type = StatelessLambdaAction
     return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 

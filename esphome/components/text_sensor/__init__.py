@@ -57,6 +57,7 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 # Filters
 Filter = text_sensor_ns.class_("Filter")
 LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = text_sensor_ns.class_("StatelessLambdaFilter", Filter)
 ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
 ToLowerFilter = text_sensor_ns.class_("ToLowerFilter", Filter)
 AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
@@ -70,6 +71,10 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
     )
+    # Use optimized StatelessLambdaFilter for lambdas with no capture
+    if lambda_.capture == "":
+        filter_id = filter_id.copy()
+        filter_id.type = StatelessLambdaFilter
     return cg.new_Pvariable(filter_id, lambda_)
 
 

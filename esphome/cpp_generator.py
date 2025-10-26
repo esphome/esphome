@@ -198,7 +198,10 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
-        cpp = f"[{self.capture}]({self.parameters})"
+        # Unary + converts stateless lambda to function pointer
+        # This allows implicit conversion to void (*)() or bool (*)()
+        prefix = "+" if self.capture == "" else ""
+        cpp = f"{prefix}[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
@@ -699,6 +702,12 @@ async def process_lambda(
         else:
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ""
+
+    # All id() references are global variables in generated C++ code.
+    # Global variables should not be captured - they're accessible everywhere.
+    # Use empty capture instead of capture-by-value.
+    if capture == "=":
+        capture = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
         location = value.esp_range.start_mark
