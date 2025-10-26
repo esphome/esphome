@@ -19,7 +19,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.11.0"
+
+# Python 3.14 is currently not supported by IDF <= 5.5.1, see https://github.com/esphome/esphome/issues/11502
+requires-python = ">=3.11.0,<3.14"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
