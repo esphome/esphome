@@ -1,0 +1,8 @@
+binary_sensor:
+  - platform: template
+    name: "Test1"
+  - platform: template
+    name: "Test2"
+
+zigbee:
+  id: zb
