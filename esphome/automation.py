@@ -102,6 +102,23 @@ StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Cond
 ForCondition = cg.esphome_ns.class_("ForCondition", Condition, cg.Component)
 
 
+def use_stateless_lambda_if_applicable(id_obj, lambda_expr, stateless_class):
+    """Replace ID type with stateless lambda class if lambda has no capture.
+
+    Args:
+        id_obj: The ID object (action_id, condition_id, or filter_id)
+        lambda_expr: The lambda expression object
+        stateless_class: The stateless class to use (StatelessLambdaAction, StatelessLambdaCondition, or StatelessLambdaFilter)
+
+    Returns:
+        The original ID or a copy with type replaced to use the stateless class
+    """
+    if lambda_expr.capture == "":
+        id_obj = id_obj.copy()
+        id_obj.type = stateless_class
+    return id_obj
+
+
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
     if extra_schema is None:
         extra_schema = {}
@@ -242,11 +259,9 @@ async def lambda_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=bool)
-    # Use optimized StatelessLambdaCondition for lambdas with no capture
-    if lambda_.capture == "":
-        # Override the condition_id type to use StatelessLambdaCondition
-        condition_id = condition_id.copy()
-        condition_id.type = StatelessLambdaCondition
+    condition_id = use_stateless_lambda_if_applicable(
+        condition_id, lambda_, StatelessLambdaCondition
+    )
     return cg.new_Pvariable(condition_id, template_arg, lambda_)
 
 
@@ -413,11 +428,9 @@ async def lambda_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=cg.void)
-    # Use optimized StatelessLambdaAction for lambdas with no capture
-    if lambda_.capture == "":
-        # Override the action_id type to use StatelessLambdaAction
-        action_id = action_id.copy()
-        action_id.type = StatelessLambdaAction
+    action_id = use_stateless_lambda_if_applicable(
+        action_id, lambda_, StatelessLambdaAction
+    )
     return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 

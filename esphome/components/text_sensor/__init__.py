@@ -71,10 +71,9 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
     )
-    # Use optimized StatelessLambdaFilter for lambdas with no capture
-    if lambda_.capture == "":
-        filter_id = filter_id.copy()
-        filter_id.type = StatelessLambdaFilter
+    filter_id = automation.use_stateless_lambda_if_applicable(
+        filter_id, lambda_, StatelessLambdaFilter
+    )
     return cg.new_Pvariable(filter_id, lambda_)
 
 

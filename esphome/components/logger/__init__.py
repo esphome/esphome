@@ -430,10 +430,9 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    # Use optimized StatelessLambdaAction for lambdas with no capture
-    if lambda_.capture == "":
-        action_id = action_id.copy()
-        action_id.type = StatelessLambdaAction
+    action_id = automation.use_stateless_lambda_if_applicable(
+        action_id, lambda_, StatelessLambdaAction
+    )
     return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
@@ -459,10 +458,9 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
         text = str(cg.statement(logger.set_log_level(level)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    # Use optimized StatelessLambdaAction for lambdas with no capture
-    if lambda_.capture == "":
-        action_id = action_id.copy()
-        action_id.type = StatelessLambdaAction
+    action_id = automation.use_stateless_lambda_if_applicable(
+        action_id, lambda_, StatelessLambdaAction
+    )
     return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
