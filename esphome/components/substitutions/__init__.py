@@ -113,7 +113,7 @@ def _expand_substitutions(
 
     orig_value = value
 
-    i: int = 0
+    i = 0
     while True:
         m: Match[str] = cv.VARIABLE_PROG.search(value, i)
         if not m:
