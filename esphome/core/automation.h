@@ -31,7 +31,16 @@ template<typename T, typename... X> class TemplatableValue {
     new (&this->value_) T(std::move(value));
   }
 
-  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0> TemplatableValue(F f) : type_(LAMBDA) {
+  // For stateless lambdas (convertible to function pointer): use function pointer
+  template<typename F, enable_if_t<is_invocable<F, X...>::value && std::is_convertible<F, T (*)(X...)>::value, int> = 0>
+  TemplatableValue(F f) : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas (not convertible to function pointer): use std::function
+  template<typename F,
+           enable_if_t<is_invocable<F, X...>::value && !std::is_convertible<F, T (*)(X...)>::value, int> = 0>
+  TemplatableValue(F f) : type_(LAMBDA) {
     this->f_ = new std::function<T(X...)>(std::move(f));
   }
 
@@ -41,6 +50,8 @@ template<typename T, typename... X> class TemplatableValue {
       new (&this->value_) T(other.value_);
     } else if (type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
     }
   }
 
@@ -51,6 +62,8 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
     }
     other.type_ = NONE;
   }
@@ -78,13 +91,17 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (type_ == LAMBDA) {
       delete this->f_;
     }
+    // STATELESS_LAMBDA needs no cleanup (function pointer, not heap-allocated)
   }
 
   bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
+    if (this->type_ == STATELESS_LAMBDA) {
+      return this->stateless_f_(x...);  // Direct function pointer call
+    }
     if (this->type_ == LAMBDA) {
-      return (*this->f_)(x...);
+      return (*this->f_)(x...);  // std::function call
     }
     // return value also when none
     return this->type_ == VALUE ? this->value_ : T{};
@@ -109,11 +126,13 @@ template<typename T, typename... X> class TemplatableValue {
     NONE,
     VALUE,
     LAMBDA,
+    STATELESS_LAMBDA,
   } type_;
 
   union {
     T value_;
     std::function<T(X...)> *f_;
+    T (*stateless_f_)(X...);
   };
 };
 
