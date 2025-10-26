@@ -486,6 +486,9 @@ def _detect_variant(value):
     return value
 
 
+custom_partitions = []
+
+
 def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -537,7 +540,21 @@ def final_validate(config):
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
-
+    if CONF_PARTITIONS in config and custom_partitions:
+        print("check part")
+        with open(
+            CORE.relative_config_path(config[CONF_PARTITIONS]), encoding="utf8"
+        ) as f:
+            partitions_tab = f.read()
+            print(partitions_tab)
+            for partition in custom_partitions:
+                print(partition["name"])
+                if partition["name"] not in partitions_tab:
+                    errs.append(
+                        cv.Invalid(
+                            f"Add '{partition['name']}, {partition['type']}, {partition['subtype']},   , {partition['size']},' to your custom partition table."
+                        )
+                    )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -1088,33 +1105,36 @@ async def to_code(config):
         )
 
 
-custom_partitions = []
-
-
-def add_custom_partition(
+def validate_custom_partition(
     name: str, p_type: int | str, subtype: int | str, size: int
 ) -> None:
-    if name in ["nvs", "app0", "app1", "otadata", "eeprom", "spiffs", "phy_init"]:
-        raise cv.Invalid(f"Partition name {name} is reserved.")
-    if isinstance(p_type, str) and p_type not in ["app", "data"]:
-        raise cv.Invalid(
-            f"Type {p_type} is invalid. Only app and data are allowed. Use numbers for custom types"
+    def validator(value):
+        p_type_ = p_type
+        subtype_ = subtype
+        if name in ["nvs", "app0", "app1", "otadata", "eeprom", "spiffs", "phy_init"]:
+            raise cv.Invalid(f"Partition name {name} is reserved.")
+        if isinstance(p_type_, str) and p_type_ not in ["app", "data"]:
+            raise cv.Invalid(
+                f"Type {p_type_} is invalid. Only app and data are allowed. Use numbers for custom types"
+            )
+        if isinstance(p_type_, int):
+            if p_type_ not in range(0x40, 0xFE):
+                raise cv.Invalid(
+                    f"Type 0x{p_type_:X} is invalid. Only 0x40 - 0xFE are allowed"
+                )
+            p_type_ = f"0x{p_type_:X}"
+        if isinstance(subtype_, int):
+            if subtype_ not in range(0x40, 0xFE):
+                raise cv.Invalid(
+                    f"Subtype 0x{subtype_:X} is invalid. Only 0x40 - 0xFE are allowed"
+                )
+            subtype_ = f"0x{subtype_:X}"
+        custom_partitions.append(
+            {"name": name, "type": p_type_, "subtype": subtype_, "size": size}
         )
-    if isinstance(p_type, int):
-        if p_type not in range(0x40, 0xFE):
-            raise cv.Invalid(
-                f"Type 0x{p_type:X} is invalid. Only 0x40 - 0xFE are allowed"
-            )
-        p_type = f"0x{p_type:X}"
-    if isinstance(subtype, int):
-        if subtype not in range(0x40, 0xFE):
-            raise cv.Invalid(
-                f"Subtype 0x{subtype:X} is invalid. Only 0x40 - 0xFE are allowed"
-            )
-        subtype = f"0x{subtype:X}"
-    custom_partitions.append(
-        {"name": name, "type": p_type, "subtype": subtype, "size": size}
-    )
+        return value
+
+    return validator
 
 
 def _get_custom_partition_half_size() -> int:
@@ -1126,21 +1146,6 @@ def _get_custom_partition_half_size() -> int:
             size = ceil(size / 0x1000) * 0x1000  # align to 4KB
         size += partition["size"]
     return int(ceil((size / 2) / 0x10000)) * 0x10000  # align to 64KB
-
-
-def validate_custom_partitions(partitions: list) -> None:
-    # partitions: list of tuple with (name, type, subtype, size)
-    esp_conf = fv.full_config.get()["esp32"]
-    if CONF_PARTITIONS in esp_conf:
-        with open(
-            CORE.relative_config_path(esp_conf[CONF_PARTITIONS]), encoding="utf8"
-        ) as f:
-            partitions_tab = f.read()
-            for partition in partitions:
-                if partition[0] not in partitions_tab:
-                    raise cv.Invalid(
-                        f"Add '{partition[0]}, {partition[1]}, {partition[2]},   , {partition[3]},' to your custom partition table."
-                    )
 
 
 APP_PARTITION_SIZES = {
