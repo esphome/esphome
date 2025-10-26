@@ -342,6 +342,7 @@ esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
 esphome/components/online_image/* @clydebarrow @guillempages
 esphome/components/opentherm/* @olegtarasov
+esphome/components/opentherm_boiler/* @bootc
 esphome/components/openthread/* @mrene
 esphome/components/opt3001/* @ccutrer
 esphome/components/ota/* @esphome/core
