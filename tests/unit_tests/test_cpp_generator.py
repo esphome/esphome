@@ -173,6 +173,46 @@ class TestLambdaExpression:
             "}"
         )
 
+    def test_str__stateless_no_return(self):
+        """Test stateless lambda (empty capture) gets unary + prefix"""
+        target = cg.LambdaExpression(
+            ('ESP_LOGD("main", "Test message");',),
+            (),  # No parameters
+            "",  # Empty capture (stateless)
+        )
+
+        actual = str(target)
+
+        assert actual == ('+[]() {\n  ESP_LOGD("main", "Test message");\n}')
+
+    def test_str__stateless_with_return(self):
+        """Test stateless lambda with return type gets unary + prefix"""
+        target = cg.LambdaExpression(
+            ("return global_value > 0;",),
+            (),  # No parameters
+            "",  # Empty capture (stateless)
+            bool,  # Return type
+        )
+
+        actual = str(target)
+
+        assert actual == ("+[]() -> bool {\n  return global_value > 0;\n}")
+
+    def test_str__stateless_with_params(self):
+        """Test stateless lambda with parameters gets unary + prefix"""
+        target = cg.LambdaExpression(
+            ("return foo + bar;",),
+            ((int, "foo"), (float, "bar")),
+            "",  # Empty capture (stateless)
+            float,
+        )
+
+        actual = str(target)
+
+        assert actual == (
+            "+[](int32_t foo, float bar) -> float {\n  return foo + bar;\n}"
+        )
+
 
 class TestLiterals:
     @pytest.mark.parametrize(

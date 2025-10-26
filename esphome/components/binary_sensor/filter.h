@@ -111,6 +111,23 @@ class LambdaFilter : public Filter {
   std::function<optional<bool>(bool)> f_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 8 bytes (function pointer) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  using stateless_lambda_filter_t = optional<bool> (*)(bool);
+
+  explicit StatelessLambdaFilter(stateless_lambda_filter_t f) : f_(f) {}
+
+  optional<bool> new_value(bool value) override { return this->f_(value); }
+
+ protected:
+  stateless_lambda_filter_t f_;
+};
+
 class SettleFilter : public Filter, public Component {
  public:
   optional<bool> new_value(bool value) override;
