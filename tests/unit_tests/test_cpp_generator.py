@@ -174,7 +174,7 @@ class TestLambdaExpression:
         )
 
     def test_str__stateless_no_return(self):
-        """Test stateless lambda (empty capture) gets unary + prefix"""
+        """Test stateless lambda (empty capture) generates correctly"""
         target = cg.LambdaExpression(
             ('ESP_LOGD("main", "Test message");',),
             (),  # No parameters
@@ -183,10 +183,10 @@ class TestLambdaExpression:
 
         actual = str(target)
 
-        assert actual == ('+[]() {\n  ESP_LOGD("main", "Test message");\n}')
+        assert actual == ('[]() {\n  ESP_LOGD("main", "Test message");\n}')
 
     def test_str__stateless_with_return(self):
-        """Test stateless lambda with return type gets unary + prefix"""
+        """Test stateless lambda with return type generates correctly"""
         target = cg.LambdaExpression(
             ("return global_value > 0;",),
             (),  # No parameters
@@ -196,10 +196,10 @@ class TestLambdaExpression:
 
         actual = str(target)
 
-        assert actual == ("+[]() -> bool {\n  return global_value > 0;\n}")
+        assert actual == ("[]() -> bool {\n  return global_value > 0;\n}")
 
     def test_str__stateless_with_params(self):
-        """Test stateless lambda with parameters gets unary + prefix"""
+        """Test stateless lambda with parameters generates correctly"""
         target = cg.LambdaExpression(
             ("return foo + bar;",),
             ((int, "foo"), (float, "bar")),
@@ -210,11 +210,11 @@ class TestLambdaExpression:
         actual = str(target)
 
         assert actual == (
-            "+[](int32_t foo, float bar) -> float {\n  return foo + bar;\n}"
+            "[](int32_t foo, float bar) -> float {\n  return foo + bar;\n}"
         )
 
-    def test_str__with_capture_no_prefix(self):
-        """Test lambda with capture (not stateless) does NOT get + prefix"""
+    def test_str__with_capture(self):
+        """Test lambda with capture generates correctly"""
         target = cg.LambdaExpression(
             ("return captured_var + x;",),
             ((int, "x"),),
@@ -224,11 +224,9 @@ class TestLambdaExpression:
 
         actual = str(target)
 
-        # Should NOT have + prefix
         assert actual == (
             "[captured_var](int32_t x) -> int32_t {\n  return captured_var + x;\n}"
         )
-        assert not actual.startswith("+")
 
 
 class TestLiterals:
