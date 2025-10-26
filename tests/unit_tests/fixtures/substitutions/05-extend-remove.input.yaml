@@ -1,0 +1,22 @@
+substitutions:
+  A: component1
+  B: component2
+  C: component3
+
+packages:
+  - some_component:
+      - id: component1
+        value: 1
+      - id: !extend ${B}
+        value: 4
+      - id: !extend ${B}
+        value: 5
+      - id: component3
+        value: 6
+
+some_component:
+  - id: !extend ${A}
+    value: 2
+  - id: component2
+    value: 3
+  - id: !remove ${C}

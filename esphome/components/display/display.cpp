@@ -775,7 +775,7 @@ void Display::test_card() {
     int shift_y = (h - image_h) / 2;
     int line_w = (image_w - 6) / 6;
     int image_c = image_w / 2;
-    for (auto i = 0; i <= image_h; i++) {
+    for (auto i = 0; i != image_h; i++) {
       int c = esp_scale(i, image_h);
       this->horizontal_line(shift_x + 0, shift_y + i, line_w, r.fade_to_white(c));
       this->horizontal_line(shift_x + line_w, shift_y + i, line_w, r.fade_to_black(c));  //
@@ -809,8 +809,11 @@ void Display::test_card() {
       }
     }
   }
-  this->rectangle(0, 0, w, h, Color(127, 0, 127));
   this->filled_rectangle(0, 0, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(w - 10, 0, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(0, h - 10, 10, 10, Color(255, 0, 255));
+  this->filled_rectangle(w - 10, h - 10, 10, 10, Color(255, 0, 255));
+  this->rectangle(0, 0, w, h, Color(255, 255, 255));
   this->stop_poller();
 }
 

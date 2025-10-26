@@ -186,6 +186,11 @@ This document provides essential context for AI models interacting with this pro
         └── components/[component]/ # Component-specific tests
         ```
         Run them using `script/test_build_components`. Use `-c <component>` to test specific components and `-t <target>` for specific platforms.
+    *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
+        ```bash
+        ./script/test_component_grouping.py -e config --all
+        ```
+        This tests all components in a single build to catch conflicts that might not appear when testing components individually. Use `-e config` for fast configuration validation, or `-e compile` for full compilation testing.
 *   **Debugging and Troubleshooting:**
     *   **Debug Tools:**
         - `esphome config <file>.yaml` to validate configuration.
@@ -216,6 +221,146 @@ This document provides essential context for AI models interacting with this pro
     *   **Component Development:** Keep dependencies minimal, provide clear error messages, and write comprehensive docstrings and tests.
     *   **Code Generation:** Generate minimal and efficient C++ code. Validate all user inputs thoroughly. Support multiple platform variations.
     *   **Configuration Design:** Aim for simplicity with sensible defaults, while allowing for advanced customization.
+    *   **Embedded Systems Optimization:** ESPHome targets resource-constrained microcontrollers. Be mindful of flash size and RAM usage.
+
+        **STL Container Guidelines:**
+
+        ESPHome runs on embedded systems with limited resources. Choose containers carefully:
+
+        1. **Compile-time-known sizes:** Use `std::array` instead of `std::vector` when size is known at compile time.
+           ```cpp
+           // Bad - generates STL realloc code
+           std::vector<int> values;
+
+           // Good - no dynamic allocation
+           std::array<int, MAX_VALUES> values;
+           ```
+           Use `cg.add_define("MAX_VALUES", count)` to set the size from Python configuration.
+
+           **For byte buffers:** Avoid `std::vector<uint8_t>` unless the buffer needs to grow. Use `std::unique_ptr<uint8_t[]>` instead.
+
+           > **Note:** `std::unique_ptr<uint8_t[]>` does **not** provide bounds checking or iterator support like `std::vector<uint8_t>`. Use it only when you do not need these features and want minimal overhead.
+
+           ```cpp
+           // Bad - STL overhead for simple byte buffer
+           std::vector<uint8_t> buffer;
+           buffer.resize(256);
+
+           // Good - minimal overhead, single allocation
+           std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(256);
+           // Or if size is constant:
+           std::array<uint8_t, 256> buffer;
+           ```
+
+        2. **Compile-time-known fixed sizes with vector-like API:** Use `StaticVector` from `esphome/core/helpers.h` for fixed-size stack allocation with `push_back()` interface.
+           ```cpp
+           // Bad - generates STL realloc code (_M_realloc_insert)
+           std::vector<ServiceRecord> services;
+           services.reserve(5);  // Still includes reallocation machinery
+
+           // Good - compile-time fixed size, stack allocated, no reallocation machinery
+           StaticVector<ServiceRecord, MAX_SERVICES> services;  // Allocates all MAX_SERVICES on stack
+           services.push_back(record1);  // Tracks count but all slots allocated
+           ```
+           Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
+           Like `std::array` but with vector-like API (`push_back()`, `size()`) and no STL reallocation code.
+
+        3. **Runtime-known sizes:** Use `FixedVector` from `esphome/core/helpers.h` when the size is only known at runtime initialization.
+           ```cpp
+           // Bad - generates STL realloc code (_M_realloc_insert)
+           std::vector<TxtRecord> txt_records;
+           txt_records.reserve(5);  // Still includes reallocation machinery
+
+           // Good - runtime size, single allocation, no reallocation machinery
+           FixedVector<TxtRecord> txt_records;
+           txt_records.init(record_count);  // Initialize with exact size at runtime
+           ```
+           **Benefits:**
+           - Eliminates `_M_realloc_insert`, `_M_default_append` template instantiations (saves 200-500 bytes per instance)
+           - Single allocation, no upper bound needed
+           - No reallocation overhead
+           - Compatible with protobuf code generation when using `[(fixed_vector) = true]` option
+
+        4. **Small datasets (1-16 elements):** Use `std::vector` or `std::array` with simple structs instead of `std::map`/`std::set`/`std::unordered_map`.
+           ```cpp
+           // Bad - 2KB+ overhead for red-black tree/hash table
+           std::map<std::string, int> small_lookup;
+           std::unordered_map<int, std::string> tiny_map;
+
+           // Good - simple struct with linear search (std::vector is fine)
+           struct LookupEntry {
+             const char *key;
+             int value;
+           };
+           std::vector<LookupEntry> small_lookup = {
+             {"key1", 10},
+             {"key2", 20},
+             {"key3", 30},
+           };
+           // Or std::array if size is compile-time constant:
+           // std::array<LookupEntry, 3> small_lookup = {{ ... }};
+           ```
+           Linear search on small datasets (1-16 elements) is often faster than hashing/tree overhead, but this depends on lookup frequency and access patterns. For frequent lookups in hot code paths, the O(1) vs O(n) complexity difference may still matter even for small datasets. `std::vector` with simple structs is usually fine—it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets unless profiling shows otherwise.
+
+        5. **Detection:** Look for these patterns in compiler output:
+           - Large code sections with STL symbols (vector, map, set)
+           - `alloc`, `realloc`, `dealloc` in symbol names
+           - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
+           - Red-black tree code (`rb_tree`, `_Rb_tree`)
+           - Hash table infrastructure (`unordered_map`, `hash`)
+
+        **When to optimize:**
+        - Core components (API, network, logger)
+        - Widely-used components (mdns, wifi, ble)
+        - Components causing flash size complaints
+
+        **When not to optimize:**
+        - Single-use niche components
+        - Code where readability matters more than bytes
+        - Already using appropriate containers
+
+    *   **State Management:** Use `CORE.data` for component state that needs to persist during configuration generation. Avoid module-level mutable globals.
+
+        **Bad Pattern (Module-Level Globals):**
+        ```python
+        # Don't do this - state persists between compilation runs
+        _component_state = []
+        _use_feature = None
+
+        def enable_feature():
+            global _use_feature
+            _use_feature = True
+        ```
+
+        **Good Pattern (CORE.data with Helpers):**
+        ```python
+        from esphome.core import CORE
+
+        # Keys for CORE.data storage
+        COMPONENT_STATE_KEY = "my_component_state"
+        USE_FEATURE_KEY = "my_component_use_feature"
+
+        def _get_component_state() -> list:
+            """Get component state from CORE.data."""
+            return CORE.data.setdefault(COMPONENT_STATE_KEY, [])
+
+        def _get_use_feature() -> bool | None:
+            """Get feature flag from CORE.data."""
+            return CORE.data.get(USE_FEATURE_KEY)
+
+        def _set_use_feature(value: bool) -> None:
+            """Set feature flag in CORE.data."""
+            CORE.data[USE_FEATURE_KEY] = value
+
+        def enable_feature():
+            _set_use_feature(True)
+        ```
+
+        **Why this matters:**
+        - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
+        - `CORE.data` automatically clears between runs
+        - Typed helper functions provide better IDE support and maintainability
+        - Encapsulation makes state management explicit and testable
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 

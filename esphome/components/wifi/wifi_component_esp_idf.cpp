@@ -408,11 +408,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
       err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                    (uint8_t *) eap.client_key, client_key_len + 1,
-                                                   (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                   (uint8_t *) eap.password.c_str(), eap.password.length());
 #else
       err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                (uint8_t *) eap.client_key, client_key_len + 1,
-                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                               (uint8_t *) eap.password.c_str(), eap.password.length());
 #endif
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "set_cert_key failed %d", err);
@@ -776,22 +776,21 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    std::vector<wifi_ap_record_t> records(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.data());
+    auto records = std::make_unique<wifi_ap_record_t[]>(number);
+    err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
       return;
     }
-    records.resize(number);
 
-    scan_result_.reserve(number);
+    scan_result_.init(number);
     for (int i = 0; i < number; i++) {
       auto &record = records[i];
       bssid_t bssid;
       std::copy(record.bssid, record.bssid + 6, bssid.begin());
       std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      WiFiScanResult result(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN, ssid.empty());
-      scan_result_.push_back(result);
+      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
+                                ssid.empty());
     }
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
