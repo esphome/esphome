@@ -198,10 +198,9 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
-        # Unary + converts stateless lambda to function pointer
-        # This allows implicit conversion to void (*)() or bool (*)()
-        prefix = "+" if self.capture == "" else ""
-        cpp = f"{prefix}[{self.capture}]({self.parameters})"
+        # Stateless lambdas (empty capture) implicitly convert to function pointers
+        # when assigned to function pointer types - no unary + needed
+        cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
