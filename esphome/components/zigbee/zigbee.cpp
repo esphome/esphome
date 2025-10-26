@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_check.h"
@@ -69,7 +73,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
           esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          zigbeeC->searchBindings();
+          zigbeeC->search_bindings();
         }
       } else {
         ESP_LOGE(TAG, "FIRST_START.  Device started up in %sfactory-reset mode with an error %d (%s)",
@@ -83,13 +87,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
       // BDB network steering completed (Network steering only)
       if (err_status == ESP_OK) {
         steering_retry_count = 0;
-        esp_zb_ieee_addr_t extended_pan_id;
-        esp_zb_get_extended_pan_id(extended_pan_id);
-        ESP_LOGI(TAG,
-                 "Joined network successfully (Extended PAN ID: %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, PAN ID: "
-                 "0x%04hx, Channel:%d)",
-                 extended_pan_id[7], extended_pan_id[6], extended_pan_id[5], extended_pan_id[4], extended_pan_id[3],
-                 extended_pan_id[2], extended_pan_id[1], extended_pan_id[0], esp_zb_get_pan_id(),
+        ESP_LOGI(TAG, "Joined network successfully (PAN ID: 0x%04hx, Channel:%d)", esp_zb_get_pan_id(),
                  esp_zb_get_current_channel());
         zigbeeC->connected_ = true;
       } else {
@@ -121,7 +119,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 }
 
 // Recall bounded devices from the binding table after reboot
-void ZigBeeComponent::bindingTableCb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx) {
+void ZigBeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx) {
   bool done = true;
   esp_zb_zdo_mgmt_bind_param_t *req = (esp_zb_zdo_mgmt_bind_param_t *) user_ctx;
   esp_zb_zdp_status_t zdo_status = (esp_zb_zdp_status_t) table_info->status;
@@ -142,7 +140,6 @@ void ZigBeeComponent::bindingTableCb(const esp_zb_zdo_binding_table_info_t *tabl
     for (int i = 0; i < table_info->count; i++) {
       ESP_LOGD(TAG, "Binding table record: src_endp %d, dst_endp %d, cluster_id 0x%04x, dst_addr_mode %d",
                record->src_endp, record->dst_endp, record->cluster_id, record->dst_addr_mode);
-
       zb_device_params_t *device = (zb_device_params_t *) calloc(1, sizeof(zb_device_params_t));
       device->endpoint = record->dst_endp;
       if (record->dst_addr_mode == ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT ||
@@ -151,12 +148,6 @@ void ZigBeeComponent::bindingTableCb(const esp_zb_zdo_binding_table_info_t *tabl
       } else {  // ESP_ZB_APS_ADDR_MODE_64_ENDP_PRESENT
         memcpy(device->ieee_addr, record->dst_address.addr_long, sizeof(esp_zb_ieee_addr_t));
       }
-      ESP_LOGD(TAG,
-               "Device bound to EP %d -> device endpoint: %d, short addr: 0x%04x, ieee addr: "
-               "%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
-               record->src_endp, device->endpoint, device->short_addr, device->ieee_addr[7], device->ieee_addr[6],
-               device->ieee_addr[5], device->ieee_addr[4], device->ieee_addr[3], device->ieee_addr[2],
-               device->ieee_addr[1], device->ieee_addr[0]);
       record = record->next;
     }
 
@@ -164,7 +155,7 @@ void ZigBeeComponent::bindingTableCb(const esp_zb_zdo_binding_table_info_t *tabl
     if (table_info->index + table_info->count < table_info->total) {
       /* There are unreported binding table entries, request for them. */
       req->start_index = table_info->index + table_info->count;
-      esp_zb_zdo_binding_table_req(req, bindingTableCb, req);
+      esp_zb_zdo_binding_table_req(req, binding_table_cb, req);
       done = false;
     }
   }
@@ -177,12 +168,12 @@ void ZigBeeComponent::bindingTableCb(const esp_zb_zdo_binding_table_info_t *tabl
   }
 }
 
-void ZigBeeComponent::searchBindings() {
+void ZigBeeComponent::search_bindings() {
   esp_zb_zdo_mgmt_bind_param_t *mb_req = (esp_zb_zdo_mgmt_bind_param_t *) malloc(sizeof(esp_zb_zdo_mgmt_bind_param_t));
   mb_req->dst_addr = esp_zb_get_short_address();
   mb_req->start_index = 0;
   ESP_LOGD(TAG, "Requesting binding table for address 0x%04x", mb_req->dst_addr);
-  esp_zb_zdo_binding_table_req(mb_req, bindingTableCb, (void *) mb_req);
+  esp_zb_zdo_binding_table_req(mb_req, binding_table_cb, (void *) mb_req);
 }
 
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message) {
@@ -238,19 +229,11 @@ void ZigBeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
 
-void ZigBeeComponent::set_basic_cluster(std::string model, std::string manufacturer, std::string date, uint8_t power,
-                                        uint8_t app_version, uint8_t stack_version, uint8_t hw_version,
-                                        std::string area, uint8_t physical_env) {
+void ZigBeeComponent::set_basic_cluster(std::string model, std::string manufacturer, std::string date) {
   this->basic_cluster_data_ = {
       .model = model,
       .manufacturer = manufacturer,
       .date = date,
-      .power = power,
-      .app_version = app_version,
-      .stack_version = stack_version,
-      .hw_version = hw_version,
-      .area = area,
-      .physical_env = physical_env,
   };
 }
 
@@ -258,34 +241,19 @@ esp_zb_attribute_list_t *ZigBeeComponent::create_basic_cluster_() {
   // ------------------------------ Cluster BASIC ------------------------------
   esp_zb_basic_cluster_cfg_t basic_cluster_cfg = {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
-      .power_source = this->basic_cluster_data_.power,
+      .power_source = 0,
   };
-  ESP_LOGD(TAG, "Model: %s", this->basic_cluster_data_.model.c_str());
-  ESP_LOGD(TAG, "Manufacturer: %s", this->basic_cluster_data_.manufacturer.c_str());
-  ESP_LOGD(TAG, "Date: %s", this->basic_cluster_data_.date.c_str());
-  ESP_LOGD(TAG, "Area: %s", this->basic_cluster_data_.area.c_str());
   uint8_t *ManufacturerName = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(),
                                              32);  // warning: this is in format {length, 'string'} :
   uint8_t *ModelIdentifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 32);
   uint8_t *DateCode = get_zcl_string(this->basic_cluster_data_.date.c_str(), 16);
-  uint8_t *Location = get_zcl_string(this->basic_cluster_data_.area.c_str(), 16);
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_APPLICATION_VERSION_ID,
-                                &(this->basic_cluster_data_.app_version));
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_STACK_VERSION_ID,
-                                &(this->basic_cluster_data_.stack_version));
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_HW_VERSION_ID,
-                                &(this->basic_cluster_data_.hw_version));
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ManufacturerName);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ModelIdentifier);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, DateCode);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID, Location);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_PHYSICAL_ENVIRONMENT_ID,
-                                &(this->basic_cluster_data_.physical_env));
   delete[] ManufacturerName;
   delete[] ModelIdentifier;
   delete[] DateCode;
-  delete[] Location;
   return attr_list;
 }
 
@@ -304,13 +272,7 @@ static void esp_zb_task_(void *pvParameters) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
-
-  if ((zigbeeC->device_role_ == ESP_ZB_DEVICE_TYPE_ED) && (zigbeeC->basic_cluster_data_.power == 0x03)) {
-    ESP_LOGD(TAG, "Battery powered!");
-    esp_zb_set_node_descriptor_power_source(0);
-  } else {
-    esp_zb_set_node_descriptor_power_source(1);
-  }
+  esp_zb_set_node_descriptor_power_source(1);
   esp_zb_stack_main_loop();
 }
 
@@ -405,3 +367,6 @@ void ZigBeeComponent::dump_config() {
 
 }  // namespace zigbee
 }  // namespace esphome
+
+#endif
+#endif

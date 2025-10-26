@@ -9,7 +9,7 @@ ResetZigbeeAction = zigbee_ns.class_(
     "ResetZigbeeAction", automation.Action, cg.Parented.template(ZigBeeComponent)
 )
 
-report = zigbee_ns.enum("zigbee_report_t")
+report = zigbee_ns.enum("ZigbeeReportT")
 REPORT = {
     "no": report.ZIGBEE_REPORT_NO,
     "yes": report.ZIGBEE_REPORT_YES,

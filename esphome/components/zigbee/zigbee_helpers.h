@@ -1,4 +1,9 @@
 #pragma once
+
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,4 +29,7 @@ namespace esphome {
 namespace zigbee {}
 }  // namespace esphome
 
+#endif
+
+#endif
 #endif

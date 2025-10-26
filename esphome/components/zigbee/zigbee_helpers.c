@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
+
 #include "ha/esp_zigbee_ha_standard.h"
 #include "zigbee_helpers.h"
 
@@ -75,3 +79,6 @@ esp_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, esp_zb_attribute_list
       return ESP_FAIL;
   }
 }
+
+#endif
+#endif

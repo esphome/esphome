@@ -247,6 +247,7 @@ async def attributes_to_code(var, ep_num, cl):
 
 
 async def to_code(config):
+    cg.add_define("USE_ZIGBEE")
     add_idf_component(
         name="espressif/esp-zboss-lib",
         ref="1.6.4",
@@ -278,12 +279,6 @@ async def to_code(config):
             config[CONF_NAME],
             "esphome",
             datetime.datetime.now().strftime("%Y%m%d"),
-            0,
-            0,
-            0,
-            0,
-            "",
-            0,
         )
     )
     for ep in ep_list:

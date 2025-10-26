@@ -1,5 +1,8 @@
 #include "zigbee_attribute.h"
 #include "esphome/core/log.h"
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
 
 namespace esphome {
 namespace zigbee {
@@ -10,7 +13,7 @@ void ZigBeeAttribute::set_attr_() {
   }
   if (esp_zb_lock_acquire(10 / portTICK_PERIOD_MS)) {
     esp_zb_zcl_status_t state = esp_zb_zcl_set_attribute_val(this->endpoint_id_, this->cluster_id_, this->role_,
-                                                             this->attr_id_, this->value_p, false);
+                                                             this->attr_id_, this->value_p_, false);
     if (this->force_report_) {
       this->report_(true);
     }
@@ -92,3 +95,6 @@ void ZigBeeAttribute::loop() {
 
 }  // namespace zigbee
 }  // namespace esphome
+
+#endif
+#endif

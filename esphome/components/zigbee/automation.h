@@ -1,6 +1,10 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
+
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
 #include "zigbee.h"
 
 namespace esphome {
@@ -13,3 +17,6 @@ template<typename... Ts> class ResetZigbeeAction : public Action<Ts...>, public 
 
 }  // namespace zigbee
 }  // namespace esphome
+
+#endif
+#endif

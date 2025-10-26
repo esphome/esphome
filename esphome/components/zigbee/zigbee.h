@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
+
 #include <map>
 #include <tuple>
 #include <deque>
@@ -32,13 +36,13 @@ using zdo_info_user_ctx_t = struct ZdoInfoCtxS {
   uint16_t short_addr;
 };
 
-using zb_device_params_t = struct zb_device_params_s {
+using zb_device_params_t = struct ZbDeviceParamsS {
   esp_zb_ieee_addr_t ieee_addr;
   uint8_t endpoint;
   uint16_t short_addr;
 };
 
-enum zigbee_report_t {
+enum ZigbeeReportT {
   ZIGBEE_REPORT_NO,
   ZIGBEE_REPORT_YES,
   ZIGBEE_REPORT_FORCE,
@@ -68,9 +72,7 @@ class ZigBeeComponent : public Component {
   void setup() override;
   void dump_config() override;
   esp_err_t create_endpoint(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id);
-  void set_basic_cluster(std::string model, std::string manufacturer, std::string date, uint8_t power,
-                         uint8_t app_version, uint8_t stack_version, uint8_t hw_version, std::string area,
-                         uint8_t physical_env);
+  void set_basic_cluster(std::string model, std::string manufacturer, std::string date);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id);
 
@@ -80,8 +82,8 @@ class ZigBeeComponent : public Component {
 
   void set_report(ZigBeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info);
   void handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute);
-  void searchBindings();
-  static void bindingTableCb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx);
+  void search_bindings();
+  static void binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx);
 
   void reset() {
     esp_zb_lock_acquire(portMAX_DELAY);
@@ -100,12 +102,6 @@ class ZigBeeComponent : public Component {
     std::string model;
     std::string manufacturer;
     std::string date;
-    uint8_t power;
-    uint8_t app_version;
-    uint8_t stack_version;
-    uint8_t hw_version;
-    std::string area;
-    uint8_t physical_env;
   } basic_cluster_data_;
 #ifdef ZB_ED_ROLE
   esp_zb_nwk_device_type_t device_role_ = ESP_ZB_DEVICE_TYPE_ED;
@@ -161,3 +157,6 @@ void ZigBeeComponent::add_attr_(ZigBeeAttribute *attr, uint8_t endpoint_id, uint
 
 }  // namespace zigbee
 }  // namespace esphome
+
+#endif
+#endif

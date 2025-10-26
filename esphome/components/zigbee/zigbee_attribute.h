@@ -2,9 +2,14 @@
 
 #include <type_traits>
 
-#include "esp_zigbee_core.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
+
+#include "esp_zigbee_core.h"
 #include "zigbee.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -57,7 +62,7 @@ class ZigBeeAttribute : public Component {
   uint8_t max_size_;
   float scale_;
   CallbackManager<void(esp_zb_zcl_attribute_t attribute)> on_value_callback_{};
-  void *value_p{nullptr};
+  void *value_p_{nullptr};
   bool set_attr_requested_{false};
   bool report_requested_{false};
   bool force_report_{false};
@@ -72,24 +77,24 @@ template<typename T> void ZigBeeAttribute::set_attr(const T &value) {
   if constexpr (std::is_convertible<T, const char *>::value) {
     auto zcl_str = get_zcl_string(value, this->max_size_);
 
-    if (this->value_p != nullptr) {
-      delete[](char *) this->value_p;
+    if (this->value_p_ != nullptr) {
+      delete[](char *) this->value_p_;
     }
-    this->value_p = (void *) zcl_str;
+    this->value_p_ = (void *) zcl_str;
   } else if constexpr (std::is_same<T, std::string>::value) {
     auto zcl_str = get_zcl_string(value.c_str(), this->max_size_);
 
-    if (this->value_p != nullptr) {
-      delete[](char *) this->value_p;
+    if (this->value_p_ != nullptr) {
+      delete[](char *) this->value_p_;
     }
-    this->value_p = (void *) zcl_str;
+    this->value_p_ = (void *) zcl_str;
   } else {
-    if (this->value_p != nullptr) {
-      delete (T *) this->value_p;
+    if (this->value_p_ != nullptr) {
+      delete (T *) this->value_p_;
     }
     T *value_p = new T;
     *value_p = value;
-    this->value_p = (void *) value_p;
+    this->value_p_ = (void *) value_p;
   }
   this->set_attr_requested_ = true;
   this->enable_loop();
@@ -97,9 +102,12 @@ template<typename T> void ZigBeeAttribute::set_attr(const T &value) {
 
 #ifdef USE_BINARY_SENSOR
 template<typename T> void ZigBeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
-  sensor->add_on_state_callback([=, this](bool value) { this->set_attr((T) (this->scale_ * value)); });
+  sensor->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
 }
 #endif
 
 }  // namespace zigbee
 }  // namespace esphome
+
+#endif
+#endif
