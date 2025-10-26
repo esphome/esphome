@@ -81,7 +81,7 @@ template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
 
 /// Optimized lambda condition for stateless lambdas (no capture).
 /// Uses function pointer instead of std::function to reduce memory overhead.
-/// Memory: 8 bytes (function pointer) vs 32 bytes (std::function).
+/// Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
 template<typename... Ts> class StatelessLambdaCondition : public Condition<Ts...> {
  public:
   explicit StatelessLambdaCondition(bool (*f)(Ts...)) : f_(f) {}
@@ -204,7 +204,7 @@ template<typename... Ts> class LambdaAction : public Action<Ts...> {
 
 /// Optimized lambda action for stateless lambdas (no capture).
 /// Uses function pointer instead of std::function to reduce memory overhead.
-/// Memory: 8 bytes (function pointer) vs 32 bytes (std::function).
+/// Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
 template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
  public:
   explicit StatelessLambdaAction(void (*f)(Ts...)) : f_(f) {}

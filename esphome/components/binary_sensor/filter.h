@@ -114,7 +114,7 @@ class LambdaFilter : public Filter {
 /** Optimized lambda filter for stateless lambdas (no capture).
  *
  * Uses function pointer instead of std::function to reduce memory overhead.
- * Memory: 8 bytes (function pointer) vs 32 bytes (std::function).
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
  */
 class StatelessLambdaFilter : public Filter {
  public:
