@@ -69,14 +69,12 @@ class LambdaFilter : public Filter {
  */
 class StatelessLambdaFilter : public Filter {
  public:
-  using stateless_lambda_filter_t = optional<std::string> (*)(std::string);
-
-  explicit StatelessLambdaFilter(stateless_lambda_filter_t lambda_filter) : lambda_filter_(lambda_filter) {}
+  explicit StatelessLambdaFilter(optional<std::string> (*lambda_filter)(std::string)) : lambda_filter_(lambda_filter) {}
 
   optional<std::string> new_value(std::string value) override { return this->lambda_filter_(value); }
 
  protected:
-  stateless_lambda_filter_t lambda_filter_;
+  optional<std::string> (*lambda_filter_)(std::string);
 };
 
 /// A simple filter that converts all text to uppercase

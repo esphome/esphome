@@ -303,14 +303,12 @@ class LambdaFilter : public Filter {
  */
 class StatelessLambdaFilter : public Filter {
  public:
-  using stateless_lambda_filter_t = optional<float> (*)(float);
-
-  explicit StatelessLambdaFilter(stateless_lambda_filter_t lambda_filter) : lambda_filter_(lambda_filter) {}
+  explicit StatelessLambdaFilter(optional<float> (*lambda_filter)(float)) : lambda_filter_(lambda_filter) {}
 
   optional<float> new_value(float value) override { return this->lambda_filter_(value); }
 
  protected:
-  stateless_lambda_filter_t lambda_filter_;
+  optional<float> (*lambda_filter_)(float);
 };
 
 /// A simple filter that adds `offset` to each value it receives.

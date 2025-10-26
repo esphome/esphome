@@ -118,14 +118,12 @@ class LambdaFilter : public Filter {
  */
 class StatelessLambdaFilter : public Filter {
  public:
-  using stateless_lambda_filter_t = optional<bool> (*)(bool);
-
-  explicit StatelessLambdaFilter(stateless_lambda_filter_t f) : f_(f) {}
+  explicit StatelessLambdaFilter(optional<bool> (*f)(bool)) : f_(f) {}
 
   optional<bool> new_value(bool value) override { return this->f_(value); }
 
  protected:
-  stateless_lambda_filter_t f_;
+  optional<bool> (*f_)(bool);
 };
 
 class SettleFilter : public Filter, public Component {
