@@ -111,7 +111,7 @@ def _expand_substitutions(
     if "$" not in value:
         return value
 
-    orig_value: str = value
+    orig_value = value
 
     i: int = 0
     while True:
