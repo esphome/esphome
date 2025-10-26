@@ -430,10 +430,13 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    action_id = automation.use_stateless_lambda_if_applicable(
-        action_id, lambda_, StatelessLambdaAction
+    return cg.new_Pvariable(
+        automation.use_stateless_lambda_if_applicable(
+            action_id, lambda_, StatelessLambdaAction
+        ),
+        template_arg,
+        lambda_,
     )
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
 @automation.register_action(
@@ -458,10 +461,13 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
         text = str(cg.statement(logger.set_log_level(level)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    action_id = automation.use_stateless_lambda_if_applicable(
-        action_id, lambda_, StatelessLambdaAction
+    return cg.new_Pvariable(
+        automation.use_stateless_lambda_if_applicable(
+            action_id, lambda_, StatelessLambdaAction
+        ),
+        template_arg,
+        lambda_,
     )
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

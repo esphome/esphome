@@ -103,7 +103,11 @@ ForCondition = cg.esphome_ns.class_("ForCondition", Condition, cg.Component)
 
 
 def use_stateless_lambda_if_applicable(id_obj, lambda_expr, stateless_class):
-    """Replace ID type with stateless lambda class if lambda has no capture.
+    """Return appropriate ID for lambda based on whether it has capture.
+
+    For stateless lambdas (empty capture), returns a copy of id_obj with type
+    set to stateless_class to use function pointer instead of std::function.
+    Otherwise returns the original ID unchanged.
 
     Args:
         id_obj: The ID object (action_id, condition_id, or filter_id)
@@ -111,7 +115,7 @@ def use_stateless_lambda_if_applicable(id_obj, lambda_expr, stateless_class):
         stateless_class: The stateless class to use (StatelessLambdaAction, StatelessLambdaCondition, or StatelessLambdaFilter)
 
     Returns:
-        The original ID or a copy with type replaced to use the stateless class
+        ID to use with cg.new_Pvariable() - either original or modified copy
     """
     if lambda_expr.capture == "":
         id_obj = id_obj.copy()
@@ -259,10 +263,13 @@ async def lambda_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=bool)
-    condition_id = use_stateless_lambda_if_applicable(
-        condition_id, lambda_, StatelessLambdaCondition
+    return cg.new_Pvariable(
+        use_stateless_lambda_if_applicable(
+            condition_id, lambda_, StatelessLambdaCondition
+        ),
+        template_arg,
+        lambda_,
     )
-    return cg.new_Pvariable(condition_id, template_arg, lambda_)
 
 
 @register_condition(
@@ -428,10 +435,11 @@ async def lambda_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     lambda_ = await cg.process_lambda(config, args, return_type=cg.void)
-    action_id = use_stateless_lambda_if_applicable(
-        action_id, lambda_, StatelessLambdaAction
+    return cg.new_Pvariable(
+        use_stateless_lambda_if_applicable(action_id, lambda_, StatelessLambdaAction),
+        template_arg,
+        lambda_,
     )
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
 @register_action(
