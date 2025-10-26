@@ -24,7 +24,6 @@ import voluptuous as vol
 
 from esphome import core
 import esphome.codegen as cg
-from esphome.config_helpers import Extend, Remove
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
@@ -244,6 +243,20 @@ RESERVED_IDS = [
     "uart0",
     "uart1",
     "uart2",
+    # ESP32 ROM functions
+    "crc16_be",
+    "crc16_le",
+    "crc32_be",
+    "crc32_le",
+    "crc8_be",
+    "crc8_le",
+    "dbg_state",
+    "debug_timer",
+    "one_bits",
+    "recv_packet",
+    "send_packet",
+    "check_pos",
+    "software_reset",
 ]
 
 
@@ -609,12 +622,6 @@ def declare_id(type):
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
-
-        if isinstance(value, Extend):
-            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
-
-        if isinstance(value, Remove):
-            raise Invalid(f"Source for Removal of ID '{value.value}' was not found.")
 
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
@@ -1195,6 +1202,13 @@ def validate_bytes(value):
 
 
 def hostname(value):
+    """Validate that the value is a valid hostname.
+
+    Maximum length is 63 characters per RFC 1035.
+
+    Note: If this limit is changed, update MAX_NAME_WITH_SUFFIX_SIZE in
+    esphome/core/helpers.cpp to accommodate the new maximum length.
+    """
     value = string(value)
     if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
         return value

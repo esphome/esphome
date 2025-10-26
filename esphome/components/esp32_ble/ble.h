@@ -125,19 +125,25 @@ class ESP32BLE : public Component {
   void advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback);
 #endif
 
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
   void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
+#endif
+#ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
   void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
     this->gap_scan_event_handlers_.push_back(handler);
   }
-#ifdef USE_ESP32_BLE_CLIENT
+#endif
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
   void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
 #endif
-#ifdef USE_ESP32_BLE_SERVER
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
   void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
 #endif
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
   void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
     this->ble_status_event_handlers_.push_back(handler);
   }
+#endif
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
@@ -159,16 +165,22 @@ class ESP32BLE : public Component {
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
 
-  // Vectors (12 bytes each on 32-bit, naturally aligned to 4 bytes)
-  std::vector<GAPEventHandler *> gap_event_handlers_;
-  std::vector<GAPScanEventHandler *> gap_scan_event_handlers_;
-#ifdef USE_ESP32_BLE_CLIENT
-  std::vector<GATTcEventHandler *> gattc_event_handlers_;
+  // Handler vectors - use StaticVector when counts are known at compile time
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
+  StaticVector<GAPEventHandler *, ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT> gap_event_handlers_;
 #endif
-#ifdef USE_ESP32_BLE_SERVER
-  std::vector<GATTsEventHandler *> gatts_event_handlers_;
+#ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
+  StaticVector<GAPScanEventHandler *, ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT> gap_scan_event_handlers_;
 #endif
-  std::vector<BLEStatusEventHandler *> ble_status_event_handlers_;
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
+  StaticVector<GATTcEventHandler *, ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT> gattc_event_handlers_;
+#endif
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
+  StaticVector<GATTsEventHandler *, ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT> gatts_event_handlers_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
+  StaticVector<BLEStatusEventHandler *, ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT> ble_status_event_handlers_;
+#endif
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;

@@ -215,7 +215,7 @@ void Rtttl::loop() {
           sample[x].right = 0;
         }
 
-        if (x >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
+        if (static_cast<size_t>(x) >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
         }
         this->samples_sent_++;

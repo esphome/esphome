@@ -1,5 +1,5 @@
 substitutions:
-  gate_pin: GPIO18
-  zero_cross_pin: GPIO19
+  gate_pin: GPIO4
+  zero_cross_pin: GPIO5
 
 <<: !include common.yaml

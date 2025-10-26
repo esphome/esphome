@@ -10,7 +10,9 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_ADVERTISING
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 

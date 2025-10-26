@@ -105,9 +105,9 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
-  virtual bool setup_internal();
-  virtual Error send_message(struct CanFrame *frame);
-  virtual Error read_message(struct CanFrame *frame);
+  virtual bool setup_internal() = 0;
+  virtual Error send_message(struct CanFrame *frame) = 0;
+  virtual Error read_message(struct CanFrame *frame) = 0;
 };
 
 template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
