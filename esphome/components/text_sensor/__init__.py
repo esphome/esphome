@@ -71,10 +71,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
     )
-    filter_id = automation.use_stateless_lambda_if_applicable(
-        filter_id, lambda_, StatelessLambdaFilter
-    )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 @FILTER_REGISTRY.register("to_upper", ToUpperFilter, {})

@@ -300,10 +300,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=cg.optional.template(bool)
     )
-    filter_id = automation.use_stateless_lambda_if_applicable(
-        filter_id, lambda_, StatelessLambdaFilter
-    )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 @register_filter(
