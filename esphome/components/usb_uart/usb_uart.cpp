@@ -214,7 +214,7 @@ void USBUartComponent::dump_config() {
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load() || channel->input_started_.load())
+  if (!channel->initialised_.load())
     return;
   // THREAD CONTEXT: Called from both USB task and main loop threads
   // - USB task: Immediate restart after successful transfer for continuous data flow
@@ -226,6 +226,12 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   //
   // The underlying transfer_in() uses lock-free atomic allocation from the
   // TransferRequest pool, making this multi-threaded access safe
+
+  // if already started, don't restart. A spurious failure in compare_exchange_weak
+  // is not a problem, as it will be retried on the next read_array()
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_weak(started, true))
+    return;
   const auto *ep = channel->cdc_dev_.in_ep;
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
@@ -263,7 +269,6 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     channel->input_started_.store(false);
     this->start_input(channel);
   };
-  channel->input_started_.store(true);
   if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
     channel->input_started_.store(false);
   }
