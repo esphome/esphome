@@ -46,24 +46,36 @@ template<typename T, typename... X> class TemplatableValue {
 
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
-    if (type_ == VALUE) {
-      new (&this->value_) T(other.value_);
-    } else if (type_ == LAMBDA) {
-      this->f_ = new std::function<T(X...)>(*other.f_);
-    } else if (type_ == STATELESS_LAMBDA) {
-      this->stateless_f_ = other.stateless_f_;
+    switch (type_) {
+      case VALUE:
+        new (&this->value_) T(other.value_);
+        break;
+      case LAMBDA:
+        this->f_ = new std::function<T(X...)>(*other.f_);
+        break;
+      case STATELESS_LAMBDA:
+        this->stateless_f_ = other.stateless_f_;
+        break;
+      case NONE:
+        break;
     }
   }
 
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
-    if (type_ == VALUE) {
-      new (&this->value_) T(std::move(other.value_));
-    } else if (type_ == LAMBDA) {
-      this->f_ = other.f_;
-      other.f_ = nullptr;
-    } else if (type_ == STATELESS_LAMBDA) {
-      this->stateless_f_ = other.stateless_f_;
+    switch (type_) {
+      case VALUE:
+        new (&this->value_) T(std::move(other.value_));
+        break;
+      case LAMBDA:
+        this->f_ = other.f_;
+        other.f_ = nullptr;
+        break;
+      case STATELESS_LAMBDA:
+        this->stateless_f_ = other.stateless_f_;
+        break;
+      case NONE:
+        break;
     }
     other.type_ = NONE;
   }
@@ -86,25 +98,34 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
   ~TemplatableValue() {
-    if (type_ == VALUE) {
-      this->value_.~T();
-    } else if (type_ == LAMBDA) {
-      delete this->f_;
+    switch (type_) {
+      case VALUE:
+        this->value_.~T();
+        break;
+      case LAMBDA:
+        delete this->f_;
+        break;
+      case STATELESS_LAMBDA:
+      case NONE:
+        // No cleanup needed (function pointer or empty, not heap-allocated)
+        break;
     }
-    // STATELESS_LAMBDA needs no cleanup (function pointer, not heap-allocated)
   }
 
   bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
-    if (this->type_ == STATELESS_LAMBDA) {
-      return this->stateless_f_(x...);  // Direct function pointer call
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        return this->stateless_f_(x...);  // Direct function pointer call
+      case LAMBDA:
+        return (*this->f_)(x...);  // std::function call
+      case VALUE:
+        return this->value_;
+      case NONE:
+      default:
+        return T{};
     }
-    if (this->type_ == LAMBDA) {
-      return (*this->f_)(x...);  // std::function call
-    }
-    // return value also when none
-    return this->type_ == VALUE ? this->value_ : T{};
   }
 
   optional<T> optional_value(X... x) {
