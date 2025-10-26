@@ -299,18 +299,16 @@ class LambdaFilter : public Filter {
 /** Optimized lambda filter for stateless lambdas (no capture).
  *
  * Uses function pointer instead of std::function to reduce memory overhead.
- * Memory: 8 bytes (function pointer) vs 32 bytes (std::function).
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
  */
 class StatelessLambdaFilter : public Filter {
  public:
-  using stateless_lambda_filter_t = optional<float> (*)(float);
-
-  explicit StatelessLambdaFilter(stateless_lambda_filter_t lambda_filter) : lambda_filter_(lambda_filter) {}
+  explicit StatelessLambdaFilter(optional<float> (*lambda_filter)(float)) : lambda_filter_(lambda_filter) {}
 
   optional<float> new_value(float value) override { return this->lambda_filter_(value); }
 
  protected:
-  stateless_lambda_filter_t lambda_filter_;
+  optional<float> (*lambda_filter_)(float);
 };
 
 /// A simple filter that adds `offset` to each value it receives.

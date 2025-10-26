@@ -213,6 +213,23 @@ class TestLambdaExpression:
             "+[](int32_t foo, float bar) -> float {\n  return foo + bar;\n}"
         )
 
+    def test_str__with_capture_no_prefix(self):
+        """Test lambda with capture (not stateless) does NOT get + prefix"""
+        target = cg.LambdaExpression(
+            ("return captured_var + x;",),
+            ((int, "x"),),
+            "captured_var",  # Has capture (not stateless)
+            int,
+        )
+
+        actual = str(target)
+
+        # Should NOT have + prefix
+        assert actual == (
+            "[captured_var](int32_t x) -> int32_t {\n  return captured_var + x;\n}"
+        )
+        assert not actual.startswith("+")
+
 
 class TestLiterals:
     @pytest.mark.parametrize(
