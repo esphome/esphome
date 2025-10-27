@@ -72,7 +72,7 @@ void Esp32HostedUpdate::dump_config() {
 }
 
 void Esp32HostedUpdate::perform(bool force) {
-  update::UpdateState prev_state_ = this->state_;
+  update::UpdateState prev_state = this->state_;
 
   if (this->state_ != update::UPDATE_STATE_AVAILABLE && !force) {
     ESP_LOGW(TAG, "Update not available");
@@ -112,7 +112,7 @@ void Esp32HostedUpdate::perform(bool force) {
     wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
     esp_task_wdt_reconfigure(&wdtc);
 #endif
-    this->state_ = prev_state_;
+    this->state_ = prev_state;
     this->status_set_error("Failed to begin OTA");
     this->publish_state();
     return;
@@ -132,7 +132,7 @@ void Esp32HostedUpdate::perform(bool force) {
       wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
       esp_task_wdt_reconfigure(&wdtc);
 #endif
-      this->state_ = prev_state_;
+      this->state_ = prev_state;
       this->status_set_error("Failed to write OTA data");
       this->publish_state();
       return;
@@ -149,7 +149,7 @@ void Esp32HostedUpdate::perform(bool force) {
     wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
     esp_task_wdt_reconfigure(&wdtc);
 #endif
-    this->state_ = prev_state_;
+    this->state_ = prev_state;
     this->status_set_error("Failed to end OTA");
     this->publish_state();
     return;
@@ -163,7 +163,7 @@ void Esp32HostedUpdate::perform(bool force) {
     wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
     esp_task_wdt_reconfigure(&wdtc);
 #endif
-    this->state_ = prev_state_;
+    this->state_ = prev_state;
     this->status_set_error("Failed to activate OTA");
     this->publish_state();
     return;
