@@ -8,7 +8,7 @@ namespace template_ {
 
 class TemplateSensor : public sensor::Sensor, public PollingComponent {
  public:
-  void set_template(std::function<optional<float>()> &&f);
+  void set_template(optional<float> (*f)());
 
   void update() override;
 
@@ -17,7 +17,7 @@ class TemplateSensor : public sensor::Sensor, public PollingComponent {
   float get_setup_priority() const override;
 
  protected:
-  optional<std::function<optional<float>()>> f_;
+  optional<optional<float> (*)()> f_;
 };
 
 }  // namespace template_
