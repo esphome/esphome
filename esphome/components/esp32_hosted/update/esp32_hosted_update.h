@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/component.h"
 #include "esphome/components/update/update_entity.h"
 
@@ -25,3 +27,5 @@ class Esp32HostedUpdate : public update::UpdateEntity, public Component {
 
 }  // namespace esp32_hosted
 }  // namespace esphome
+
+#endif

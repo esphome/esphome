@@ -1,3 +1,4 @@
+#ifdef USE_ESP_IDF
 #include "esp32_hosted_update.h"
 
 #include "esphome/core/application.h"
@@ -188,3 +189,4 @@ void Esp32HostedUpdate::perform(bool force) {
 
 }  // namespace esp32_hosted
 }  // namespace esphome
+#endif
