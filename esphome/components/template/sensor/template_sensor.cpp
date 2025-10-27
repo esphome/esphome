@@ -17,7 +17,7 @@ void TemplateSensor::update() {
   }
 }
 float TemplateSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
-void TemplateSensor::set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
+void TemplateSensor::set_template(optional<float> (*f)()) { this->f_ = f; }
 void TemplateSensor::dump_config() {
   LOG_SENSOR("", "Template Sensor", this);
   LOG_UPDATE_INTERVAL(this);
