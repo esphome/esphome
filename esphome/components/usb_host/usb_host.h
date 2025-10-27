@@ -65,6 +65,7 @@ static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be bet
 // This is tied to the static_assert above, which enforces MAX_REQUESTS is between 1 and 32.
 // If MAX_REQUESTS is increased above 32, this logic and the static_assert must be updated.
 using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
+static constexpr trq_bitmask_t ALL_REQUESTS_IN_USE = MAX_REQUESTS == 32 ? ~0 : (1 << MAX_REQUESTS) - 1;
 
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)

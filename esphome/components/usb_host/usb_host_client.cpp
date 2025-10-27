@@ -338,7 +338,7 @@ TransferRequest *USBClient::get_trq_() {
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
   for (;;) {
-    if (mask == (1 << MAX_REQUESTS) - 1) {
+    if (mask == ALL_REQUESTS_IN_USE) {
       ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
       return nullptr;
     }
