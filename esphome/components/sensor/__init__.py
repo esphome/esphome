@@ -261,6 +261,7 @@ ExponentialMovingAverageFilter = sensor_ns.class_(
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
@@ -573,7 +574,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(float, "x")], return_type=cg.optional.template(float)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 DELTA_SCHEMA = cv.Schema(

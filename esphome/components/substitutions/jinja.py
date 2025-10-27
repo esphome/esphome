@@ -1,10 +1,14 @@
 from ast import literal_eval
+from collections.abc import Iterator
+from itertools import chain, islice
 import logging
 import math
 import re
+from types import GeneratorType
+from typing import Any
 
 import jinja2 as jinja
-from jinja2.sandbox import SandboxedEnvironment
+from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
 
 from esphome.yaml_util import ESPLiteralValue
 
@@ -24,7 +28,7 @@ detect_jinja_re = re.compile(
 )
 
 
-def has_jinja(st):
+def has_jinja(st: str) -> bool:
     return detect_jinja_re.search(st) is not None
 
 
@@ -109,12 +113,56 @@ class TrackerContext(jinja.runtime.Context):
         return val
 
 
-class Jinja(SandboxedEnvironment):
+def _concat_nodes_override(values: Iterator[Any]) -> Any:
+    """
+    This function customizes how Jinja preserves native types when concatenating
+    multiple result nodes together. If the result is a single node, its value
+    is returned. Otherwise, the nodes are concatenated as strings. If
+    the result can be parsed with `ast.literal_eval`, the parsed
+    value is returned. Otherwise, the string is returned.
+    This helps preserve metadata such as ESPHomeDataBase from original values
+    and mimicks how HomeAssistant deals with template evaluation and preserving
+    the original datatype.
+    """
+    head: list[Any] = list(islice(values, 2))
+
+    if not head:
+        return None
+
+    if len(head) == 1:
+        raw = head[0]
+        if not isinstance(raw, str):
+            return raw
+    else:
+        if isinstance(values, GeneratorType):
+            values = chain(head, values)
+        raw = "".join([str(v) for v in values])
+
+    try:
+        # Attempt to parse the concatenated string into a Python literal.
+        # This allows expressions like "1 + 2" to be evaluated to the integer 3.
+        # If the result is also a string or there is a parsing error,
+        # fall back to returning the raw string. This is consistent with
+        #  Home Assistant's behavior when evaluating templates
+        result = literal_eval(raw)
+        if not isinstance(result, str):
+            return result
+
+    except (ValueError, SyntaxError, MemoryError, TypeError):
+        pass
+    return raw
+
+
+class Jinja(jinja.Environment):
     """
     Wraps a Jinja environment
     """
 
-    def __init__(self, context_vars):
+    # jinja environment customization overrides
+    code_generator_class = NativeCodeGenerator
+    concat = staticmethod(_concat_nodes_override)
+
+    def __init__(self, context_vars: dict):
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -142,19 +190,10 @@ class Jinja(SandboxedEnvironment):
             **SAFE_GLOBALS,
         }
 
-    def safe_eval(self, expr):
-        try:
-            result = literal_eval(expr)
-            if not isinstance(result, str):
-                return result
-        except (ValueError, SyntaxError, MemoryError, TypeError):
-            pass
-        return expr
-
-    def expand(self, content_str):
+    def expand(self, content_str: str | JinjaStr) -> Any:
         """
         Renders a string that may contain Jinja expressions or statements
-        Returns the resulting processed string if all values could be resolved.
+        Returns the resulting value if all variables and expressions could be resolved.
         Otherwise, it returns a tagged (JinjaStr) string that captures variables
         in scope (upvalues), like a closure for later evaluation.
         """
@@ -172,7 +211,7 @@ class Jinja(SandboxedEnvironment):
         self.context_trace = {}
         try:
             template = self.from_string(content_str)
-            result = self.safe_eval(template.render(override_vars))
+            result = template.render(override_vars)
             if isinstance(result, Undefined):
                 print("" + result)  # force a UndefinedError exception
         except (TemplateSyntaxError, UndefinedError) as err:
@@ -201,3 +240,10 @@ class Jinja(SandboxedEnvironment):
             content_str.result = result
 
         return result, None
+
+
+class JinjaTemplate(NativeTemplate):
+    environment_class = Jinja
+
+
+Jinja.template_class = JinjaTemplate
