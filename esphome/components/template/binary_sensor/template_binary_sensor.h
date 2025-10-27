@@ -8,7 +8,7 @@ namespace template_ {
 
 class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
-  void set_template(std::function<optional<bool>()> &&f) { this->f_ = f; }
+  void set_template(optional<bool> (*f)()) { this->f_ = f; }
 
   void setup() override;
   void loop() override;
@@ -17,7 +17,7 @@ class TemplateBinarySensor : public Component, public binary_sensor::BinarySenso
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  std::function<optional<bool>()> f_{nullptr};
+  optional<optional<bool> (*)()> f_;
 };
 
 }  // namespace template_
