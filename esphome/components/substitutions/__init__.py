@@ -51,15 +51,12 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
     if isinstance(value, ESPHomeDataBase):
         return value
     if isinstance(value, dict):
-        new_value = {}
-        for k, v in value.items():
-            key = _restore_data_base(k, orig_value)
-            new_value[key] = _restore_data_base(v, orig_value)
-        return new_value
+        return {
+            _restore_data_base(k, orig_value): _restore_data_base(v, orig_value)
+            for k, v in value.items()
+        }
     if isinstance(value, list):
-        for i, v in enumerate(value):
-            value[i] = _restore_data_base(v, orig_value)
-        return value
+        return [_restore_data_base(v, orig_value) for v in value]
     if isinstance(value, str):
         return make_data_base(value, orig_value)
     return value
