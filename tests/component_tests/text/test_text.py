@@ -58,7 +58,7 @@ def test_text_config_value_mode_set(generate_main):
 
 def test_text_config_lamda_is_set(generate_main):
     """
-    Test if lambda is set for lambda mode (optimized with stateless lambda)
+    Test if lambda is set for lambda mode
     """
     # Given
 
@@ -66,6 +66,5 @@ def test_text_config_lamda_is_set(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    # Stateless lambda optimization: empty capture list allows function pointer conversion
-    assert "it_4->set_template([]() -> esphome::optional<std::string> {" in main_cpp
+    assert "it_4->set_template([=]() -> esphome::optional<std::string> {" in main_cpp
     assert 'return std::string{"Hello"};' in main_cpp
