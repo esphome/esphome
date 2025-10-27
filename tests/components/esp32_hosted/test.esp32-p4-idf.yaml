@@ -1,1 +1,6 @@
 <<: !include common.yaml
+
+update:
+  - platform: esp32_hosted
+    name: "Coprocessor Firmware Update"
+    path: esp32_hosted.test.esp32-p4-idf.yaml
