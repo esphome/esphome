@@ -32,13 +32,13 @@ from .const import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_DEVICE_TYPE,
     CONF_NUM,
     CONF_REPORT,
-    CONF_ROLE,
     CONF_ROUTER,
     CONF_SCALE,
+    DEVICE_TYPE,
     REPORT,
+    ROLE,
     ResetZigbeeAction,
     ZigBeeAttribute,
     ZigBeeComponent,
@@ -223,7 +223,7 @@ async def attributes_to_code(var, ep_num, cl):
             var,
             ep_num,
             CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-            cl[CONF_ROLE],
+            cl[ROLE],
             attr[CONF_ATTRIBUTE_ID],
             ATTR_TYPE[attr[CONF_TYPE]],
             attr.get(CONF_SCALE, 1),
@@ -282,9 +282,7 @@ async def to_code(config):
         )
     )
     for ep in ep_list:
-        cg.add(
-            var.create_default_cluster(ep[CONF_NUM], DEVICE_ID[ep[CONF_DEVICE_TYPE]])
-        )
+        cg.add(var.create_default_cluster(ep[CONF_NUM], DEVICE_ID[ep[DEVICE_TYPE]]))
         cg.add(
             var.add_cluster(ep[CONF_NUM], CLUSTER_ID["BASIC"], CLUSTER_ROLE["SERVER"])
         )
@@ -293,7 +291,7 @@ async def to_code(config):
                 var.add_cluster(
                     ep[CONF_NUM],
                     CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-                    cl[CONF_ROLE],
+                    cl[ROLE],
                 )
             )
             await attributes_to_code(var, ep[CONF_NUM], cl)

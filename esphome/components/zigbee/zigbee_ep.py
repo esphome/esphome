@@ -5,22 +5,22 @@ from .const import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_DEVICE_TYPE,
     CONF_NUM,
     CONF_REPORT,
-    CONF_ROLE,
+    DEVICE_TYPE,
     REPORT,
+    ROLE,
 )
 from .zigbee_const import CLUSTER_ROLE
 
 # endpoint configs:
 ep_configs = {
     "binary_input": {
-        CONF_DEVICE_TYPE: "SIMPLE_SENSOR",
+        DEVICE_TYPE: "SIMPLE_SENSOR",
         CONF_CLUSTERS: [
             {
                 CONF_ID: "BINARY_INPUT",
-                CONF_ROLE: CLUSTER_ROLE["SERVER"],
+                ROLE: CLUSTER_ROLE["SERVER"],
                 CONF_ATTRIBUTES: [
                     {
                         CONF_ATTRIBUTE_ID: 0x55,
@@ -64,7 +64,7 @@ def create_ep(ep_list):
     if not ep_list:
         ep_list = [
             {
-                CONF_DEVICE_TYPE: "CUSTOM_ATTR",
+                DEVICE_TYPE: "CUSTOM_ATTR",
             }
         ]
     # enumerate endpoints

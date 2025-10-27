@@ -16,11 +16,11 @@ REPORT = {
     "force": report.ZIGBEE_REPORT_FORCE,
 }
 
-CONF_DEVICE_TYPE = "device_type"
+DEVICE_TYPE = "device_type"
+ROLE = "role"
 CONF_NUM = "num"
 CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
-CONF_ROLE = "role"
 CONF_ENDPOINT = "endpoint"
 CONF_CLUSTER = "cluster"
 CONF_REPORT = "report"

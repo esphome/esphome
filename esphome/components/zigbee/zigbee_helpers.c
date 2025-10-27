@@ -27,6 +27,10 @@ esp_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, esp_zb_attr
       ret = esphome_zb_cluster_add_attr(cluster_id, attr_list, attr_id, value_p);
     }
   }
+  if (ret != ESP_OK) {
+    ESP_LOGE("zigbee_helper", "Could not add attribute 0x%04X to cluster 0x%04X: %s", attr_id, cluster_id,
+             esp_err_to_name(ret));
+  }
   return ret;
 }
 

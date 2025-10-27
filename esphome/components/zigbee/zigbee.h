@@ -13,7 +13,6 @@
 #include "ha/esp_zigbee_ha_standard.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/log.h"
 #include "zigbee_helpers.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -51,8 +50,8 @@ enum ZigbeeReportT {
 /* Zigbee configuration */
 #define INSTALLCODE_POLICY_ENABLE false /* enable the install code policy for security */
 #define ED_AGING_TIMEOUT ESP_ZB_ED_AGING_TIMEOUT_64MIN
-#define ED_KEEP_ALIVE 3000 /* 3000 millisecond */
-#define MAX_CHILDREN 10
+static const uint16_t ED_KEEP_ALIVE = 3000; /* 3000 millisecond */
+static const uint8_t MAX_CHILDREN = 10;
 #define ESP_ZB_PRIMARY_CHANNEL_MASK \
   ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK /* Zigbee primary channel mask use in the example */
 
@@ -148,10 +147,6 @@ void ZigBeeComponent::add_attr_(ZigBeeAttribute *attr, uint8_t endpoint_id, uint
   esp_zb_attribute_list_t *attr_list = this->attribute_list_[{endpoint_id, cluster_id, role}];
   esp_err_t ret =
       esphome_zb_cluster_add_or_update_attr(cluster_id, attr_list, attr_id, attr_type, attr_access, value_p);
-  if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Could not add attribute 0x%04X to cluster 0x%04X in endpoint %u: %s", attr_id, cluster_id,
-             endpoint_id, esp_err_to_name(ret));
-  }
   this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;
 }
 
