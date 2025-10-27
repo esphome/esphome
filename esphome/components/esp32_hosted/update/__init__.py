@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import update
+from esphome.components import esp32, update
 import esphome.config_validation as cv
 from esphome.const import CONF_PATH, CONF_RAW_DATA_ID
 from esphome.core import CORE, HexInt
@@ -12,15 +12,19 @@ Esp32HostedUpdate = esp32_hosted_ns.class_(
     "Esp32HostedUpdate", update.UpdateEntity, cg.Component
 )
 
-CONFIG_SCHEMA = (
-    update.update_schema(Esp32HostedUpdate, device_class="firmware")
-    .extend(
+CONFIG_SCHEMA = cv.All(
+    update.update_schema(Esp32HostedUpdate, device_class="firmware").extend(
         {
             cv.Required(CONF_PATH): cv.file_,
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+    ),
+    esp32.only_on_variant(
+        supported=[
+            esp32.const.VARIANT_ESP32H2,
+            esp32.const.VARIANT_ESP32P4,
+        ]
+    ),
 )
 
 
