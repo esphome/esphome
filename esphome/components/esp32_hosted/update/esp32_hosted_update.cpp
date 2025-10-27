@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "esp32_hosted_update.h"
 
 #include "esphome/core/application.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "esphome/core/component.h"
 #include "esphome/components/update/update_entity.h"
