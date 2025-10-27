@@ -13,7 +13,7 @@ network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
 
 
-def ip_address_literal(ip: str | None) -> cg.MockObj:
+def ip_address_literal(ip: str | int | None) -> cg.MockObj:
     """Generate an IPAddress with compile-time initialization instead of runtime parsing.
 
     This function parses the IP address in Python during code generation and generates
@@ -32,7 +32,7 @@ def ip_address_literal(ip: str | None) -> cg.MockObj:
 
     try:
         # Parse using Python's ipaddress module
-        ip_obj = ipaddress.ip_address(str(ip))
+        ip_obj = ipaddress.ip_address(ip)
     except (ValueError, TypeError):
         pass
     else:
