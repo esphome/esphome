@@ -29,17 +29,6 @@ class EPaper7p3InSpectraE6 : public EPaperSpectraE6 {
 
  public:
   EPaper7p3InSpectraE6() : EPaperSpectraE6(INIT_SEQUENCE, sizeof(INIT_SEQUENCE)) {}
-
-  void dump_config() override;
-
- protected:
-  int get_width_internal() override { return WIDTH; };
-  int get_height_internal() override { return HEIGHT; };
-
-  void refresh_screen() override;
-  void power_on() override;
-  void power_off() override;
-  void deep_sleep() override;
 };
 
 }  // namespace esphome::epaper_spi

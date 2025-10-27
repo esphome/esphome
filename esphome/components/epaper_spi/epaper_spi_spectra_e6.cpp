@@ -33,6 +33,40 @@ static inline uint8_t color_to_hex(Color color) {
   }
 }
 
+void EPaperSpectraE6::power_on() {
+  ESP_LOGI(TAG, "Power on");
+  this->command(0x04);
+  this->waiting_for_idle_ = true;
+}
+
+void EPaperSpectraE6::power_off() {
+  ESP_LOGI(TAG, "Power off");
+  this->command(0x02);
+  this->data(0x00);
+  this->waiting_for_idle_ = true;
+}
+
+void EPaperSpectraE6::refresh_screen() {
+  ESP_LOGI(TAG, "Refresh");
+  this->command(0x12);
+  this->data(0x00);
+  this->waiting_for_idle_ = true;
+}
+
+void EPaperSpectraE6::deep_sleep() {
+  ESP_LOGI(TAG, "Deep sleep");
+  this->command(0x07);
+  this->data(0xA5);
+}
+
+void EPaperSpectraE6::dump_config() {
+  LOG_DISPLAY("", "E-Paper SPI", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.3in Spectra E6");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 void EPaperSpectraE6::fill(Color color) {
   uint8_t pixel_color;
   if (color.is_on()) {
@@ -54,11 +88,6 @@ void EPaperSpectraE6::fill(Color color) {
     this->buffer_[i + 1] = byte_2;
     this->buffer_[i + 2] = byte_3;
   }
-}
-
-uint32_t EPaperSpectraE6::get_buffer_length() {
-  // 6 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
-  return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
 }
 
 void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -86,7 +115,7 @@ void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color
 
 bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
-  const size_t buffer_length = this->get_buffer_length();
+  const size_t buffer_length = this->buffer_length_;
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "Start sending data");
     this->command(0x10);

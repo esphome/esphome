@@ -8,29 +8,14 @@ namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi";
 
-static const LogString *epaper_state_to_string(EPaperState state) {
-  switch (state) {
-    case EPaperState::IDLE:
-      return LOG_STR("IDLE");
-    case EPaperState::UPDATE:
-      return LOG_STR("UPDATE");
-    case EPaperState::RESET:
-      return LOG_STR("RESET");
-    case EPaperState::INITIALISE:
-      return LOG_STR("INITIALISE");
-    case EPaperState::TRANSFER_DATA:
-      return LOG_STR("TRANSFER_DATA");
-    case EPaperState::POWER_ON:
-      return LOG_STR("POWER_ON");
-    case EPaperState::REFRESH_SCREEN:
-      return LOG_STR("REFRESH_SCREEN");
-    case EPaperState::POWER_OFF:
-      return LOG_STR("POWER_OFF");
-    case EPaperState::DEEP_SLEEP:
-      return LOG_STR("DEEP_SLEEP");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+static constexpr const char *const EPAPER_STATE_STRINGS[] = {
+    "IDLE", "UPDATE", "RESET", "INITIALISE", "TRANSFER_DATA", "POWER_ON", "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP",
+};
+
+static const char *epaper_state_to_string(EPaperState state) {
+  if (auto idx = static_cast<unsigned>(state); idx < std::size(EPAPER_STATE_STRINGS))
+    return EPAPER_STATE_STRINGS[idx];
+  return "Unknown";
 }
 
 void EPaperBase::setup() {
@@ -50,7 +35,7 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   return true;
 }
 
-void EPaperBase::setup_pins_() {
+void EPaperBase::setup_pins_() const {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
 
@@ -81,11 +66,7 @@ void EPaperBase::data(uint8_t value) {
 // write a command followed by zero or more bytes of data.
 // The command is the first byte, length is the length of data only in the second byte, followed by the data.
 // [COMMAND, LENGTH, DATA...]
-void EPaperBase::cmd_data(const uint8_t *data) {
-  const uint8_t command = data[0];
-  const uint8_t length = data[1];
-  const uint8_t *ptr = data + 2;
-
+void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
   ESP_LOGVV(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
             format_hex_pretty(ptr, length, '.', false).c_str());
 
@@ -99,7 +80,7 @@ void EPaperBase::cmd_data(const uint8_t *data) {
   this->disable();
 }
 
-bool EPaperBase::is_idle_() {
+bool EPaperBase::is_idle_() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -150,9 +131,7 @@ void EPaperBase::loop() {
     }
   }
 
-  auto state = this->state_queue_.front();
-
-  switch (state) {
+  switch (this->state_queue_.front()) {
     case EPaperState::IDLE:
       this->disable_loop();
       break;
@@ -203,22 +182,28 @@ void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
 void EPaperBase::initialise_() {
   size_t index = 0;
-  const auto &sequence = this->init_sequence_;
-  const size_t sequence_size = this->init_sequence_length_;
-  while (index != sequence_size) {
-    if (sequence_size - index < 2) {
-      this->mark_failed("Malformed init sequence");
-      return;
-    }
-    const auto *ptr = sequence + index;
-    const uint8_t length = ptr[1];
-    if (sequence_size - index < length + 2) {
-      this->mark_failed("Malformed init sequence");
-      return;
-    }
 
-    this->cmd_data(ptr);
-    index += length + 2;
+  auto &sequence = this->init_sequence_;
+  while (index != this->init_sequence_length_) {
+    if (this->init_sequence_length_ - index < 2) {
+      this->mark_failed("Malformed init sequence");
+      return;
+    }
+    const uint8_t cmd = sequence[index++];
+    if (const uint8_t x = sequence[index++]; x == DELAY_FLAG) {
+      ESP_LOGD(TAG, "Delay %dms", cmd);
+      delay(cmd);
+    } else {
+      const uint8_t num_args = x & 0x7F;
+      if (this->init_sequence_length_ - index < num_args) {
+        ESP_LOGE(TAG, "Malformed init sequence");
+        this->mark_failed();
+        return;
+      }
+      const auto *ptr = sequence + index;
+      ESP_LOGD(TAG, "Command %02X, length %d", cmd, num_args);
+      this->cmd_data(cmd, ptr, num_args);
+    }
   }
 
   this->power_on();
