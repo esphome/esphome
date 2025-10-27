@@ -1,5 +1,7 @@
 import re
 
+from esphome.yaml_util import ESPHomeDataBase, make_data_base
+
 DETECT_JINJA = r"(\$\{)"
 detect_jinja_re = re.compile(
     r"<%.+?%>"  # Block form expression: <% ... %>
@@ -41,3 +43,14 @@ class JinjaStr(str):
         obj.upvalues = merged
         obj.result = JinjaStr.Undefined
         return obj
+
+    @staticmethod
+    def merge(old, new):
+        st = JinjaStr(
+            r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
+        )
+        if isinstance(new, ESPHomeDataBase):
+            return make_data_base(st, new)
+        if isinstance(old, ESPHomeDataBase):
+            return make_data_base(st, old)
+        return st

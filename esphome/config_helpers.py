@@ -44,9 +44,7 @@ def merge_config(old, new):
     if isinstance(new, dict):
         if has_jinja(old):
             # Postpone merging until jinja expression is resolved
-            return JinjaStr(
-                r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
-            )
+            return JinjaStr.merge(old, new)
         if not isinstance(old, dict):
             return new
         # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
@@ -60,17 +58,13 @@ def merge_config(old, new):
     if isinstance(new, list):
         if has_jinja(old):
             # Postpone merging until jinja expression is resolved
-            return JinjaStr(
-                r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
-            )
+            return JinjaStr.merge(old, new)
         if not isinstance(old, list):
             return new
         return old + new
     if has_jinja(new):
         # Postpone merging until jinja expression is resolved
-        return JinjaStr(
-            r"${merge(eval(__old), eval(__new))}", {"__old": old, "__new": new}
-        )
+        return JinjaStr.merge(old, new)
     if new is None:
         return old
 

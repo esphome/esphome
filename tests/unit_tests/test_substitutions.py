@@ -70,8 +70,8 @@ def verify_database(value: Any, path: str = "") -> str | None:
         return None
     if isinstance(value, dict):
         for k, v in value.items():
-            if k in {"jinja", "substitutions"}:
-                return None
+            if k == CONF_SUBSTITUTIONS:
+                continue
             key_result = verify_database(k, f"{path}/{k}")
             if key_result is not None:
                 return key_result

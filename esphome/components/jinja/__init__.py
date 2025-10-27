@@ -29,6 +29,11 @@ Undefined = jinja.Undefined
 CODEOWNERS = ["@jpeletier"]
 _LOGGER = logging.getLogger(__name__)
 
+CONF_PARAMETERS = make_data_base("parameters")
+CONF_VARS = make_data_base("vars")
+CONF_BODY = make_data_base("body")
+CONF_RETURN = "return"
+
 # SAFE_GLOBALS defines a allowlist of built-in functions or modules that are considered safe to expose
 # in Jinja templates or other sandboxed evaluation contexts. Only functions that do not allow
 # arbitrary code execution, file access, or other security risks are included.
@@ -68,21 +73,31 @@ def validate_identifier(value):
     return value
 
 
-def _merge_return_into_body(obj):
+def _fix_data_base(value: Any, source: Any) -> Any:
+    if isinstance(source, ESPHomeDataBase):
+        return make_data_base(value, source)
+    return value
+
+
+def _merge_return_into_body(macro_def):
     """
     Combines the value of "return" into the macro body
     """
-    params = obj.get("parameters", {})
-    vars = obj.get("vars", {})
-    body = obj.get("body", "")
-    ret = obj.get("return")
+    if CONF_PARAMETERS not in macro_def:
+        macro_def[CONF_PARAMETERS] = {}
 
-    if ret is not None:
+    if CONF_VARS not in macro_def:
+        macro_def[CONF_VARS] = {}
+
+    if (ret := macro_def.pop(CONF_RETURN, None)) is not None:
+        body = macro_def.get(CONF_BODY, "")
         # wrap the return value
-        ret_stmt = f"${{{ret}}}"
-        body = f"{body}\n{ret_stmt}" if body else ret_stmt
+        ret_stmt = _fix_data_base(f"${{{ret}}}", ret)
+        macro_def[CONF_BODY] = (
+            _fix_data_base(f"{body}\n{ret_stmt}", body) if body else ret_stmt
+        )
 
-    return {"parameters": params, "body": body, "vars": vars}
+    return macro_def
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -91,12 +106,12 @@ CONFIG_SCHEMA = cv.Schema(
             {
                 validate_identifier: cv.All(
                     {
-                        cv.Optional("parameters"): cv.ensure_schema(
+                        cv.Optional(str(CONF_PARAMETERS)): cv.ensure_schema(
                             cv.Schema({validate_identifier: object})
                         ),
-                        cv.Optional("vars"): dict,
-                        cv.Optional("body"): cv.string,
-                        cv.Optional("return"): cv.string,
+                        cv.Optional(str(CONF_VARS)): dict,
+                        cv.Optional(str(CONF_BODY)): cv.string,
+                        cv.Optional(CONF_RETURN): cv.string,
                     },
                     _merge_return_into_body,
                 )
