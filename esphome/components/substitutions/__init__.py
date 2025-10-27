@@ -163,7 +163,7 @@ def _substitute_item(
     path: list[int | str],
     jinja: Jinja,
     ignore_missing: bool,
-):
+) -> Any | None:
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
     if isinstance(item, list):
@@ -204,7 +204,7 @@ def _substitute_item(
 
 def do_substitution_pass(
     config: dict, command_line_substitutions: dict, ignore_missing: bool = False
-):
+) -> None:
     if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 
