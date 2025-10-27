@@ -234,6 +234,7 @@ class ESP32Camera : public camera::Camera {
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C
+  RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
 class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {
