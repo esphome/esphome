@@ -305,7 +305,9 @@ ZIGBEE_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "zigbee.reset", ResetZigbeeAction, automation.maybe_simple_id(ZIGBEE_ACTION_SCHEMA)
+    "zigbee.factory_reset",
+    ResetZigbeeAction,
+    automation.maybe_simple_id(ZIGBEE_ACTION_SCHEMA),
 )
 async def reset_zigbee_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
