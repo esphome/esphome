@@ -17,7 +17,7 @@ inline static float random_cubic_float() {
 /// Pulse effect.
 class PulseLightEffect : public LightEffect {
  public:
-  explicit PulseLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit PulseLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
     const uint32_t now = millis();
@@ -60,7 +60,7 @@ class PulseLightEffect : public LightEffect {
 /// Random effect. Sets random colors every 10 seconds and slowly transitions between them.
 class RandomLightEffect : public LightEffect {
  public:
-  explicit RandomLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit RandomLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
     const uint32_t now = millis();
@@ -112,7 +112,7 @@ class RandomLightEffect : public LightEffect {
 
 class LambdaLightEffect : public LightEffect {
  public:
-  LambdaLightEffect(const std::string &name, std::function<void(bool initial_run)> f, uint32_t update_interval)
+  LambdaLightEffect(const char *name, std::function<void(bool initial_run)> f, uint32_t update_interval)
       : LightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
 
   void start() override { this->initial_run_ = true; }
@@ -138,7 +138,7 @@ class LambdaLightEffect : public LightEffect {
 
 class AutomationLightEffect : public LightEffect {
  public:
-  AutomationLightEffect(const std::string &name) : LightEffect(name) {}
+  AutomationLightEffect(const char *name) : LightEffect(name) {}
   void stop() override { this->trig_->stop_action(); }
   void apply() override {
     if (!this->trig_->is_action_running()) {
@@ -163,7 +163,7 @@ struct StrobeLightEffectColor {
 
 class StrobeLightEffect : public LightEffect {
  public:
-  explicit StrobeLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit StrobeLightEffect(const char *name) : LightEffect(name) {}
   void apply() override {
     const uint32_t now = millis();
     if (now - this->last_switch_ < this->colors_[this->at_color_].duration)
@@ -198,7 +198,7 @@ class StrobeLightEffect : public LightEffect {
 
 class FlickerLightEffect : public LightEffect {
  public:
-  explicit FlickerLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit FlickerLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
     LightColorValues remote = this->state_->remote_values;
