@@ -3,7 +3,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.network import IPAddress
+from esphome.components.network import ip_address_literal
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.config_validation import only_with_esp_idf
@@ -334,9 +334,7 @@ def eap_auth(config):
 
 
 def safe_ip(ip):
-    if ip is None:
-        return IPAddress(0, 0, 0, 0)
-    return IPAddress(str(ip))
+    return ip_address_literal(ip)
 
 
 def manual_ip(config):
