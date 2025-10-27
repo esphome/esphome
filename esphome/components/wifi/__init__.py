@@ -213,11 +213,15 @@ def _validate(config):
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
         if CONF_NETWORKS in config:
-            raise cv.Invalid(
-                "You cannot use the 'ssid:' option together with 'networks:'. Please "
-                "copy your network into the 'networks:' key"
-            )
-        config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
+            # In testing mode, merged component tests may have both ssid and networks
+            # Just use the networks list and ignore the single ssid
+            if not CORE.testing_mode:
+                raise cv.Invalid(
+                    "You cannot use the 'ssid:' option together with 'networks:'. Please "
+                    "copy your network into the 'networks:' key"
+                )
+        else:
+            config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
         config = config.copy()
@@ -378,14 +382,19 @@ async def to_code(config):
     # Track if any network uses Enterprise authentication
     has_eap = False
 
-    def add_sta(ap, network):
-        ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+    # Initialize FixedVector with the count of networks
+    networks = config.get(CONF_NETWORKS, [])
+    if networks:
+        cg.add(var.init_sta(len(networks)))
 
-    for network in config.get(CONF_NETWORKS, []):
-        if CONF_EAP in network:
-            has_eap = True
-        cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
+        def add_sta(ap: cg.MockObj, network: dict) -> None:
+            ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+            cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+
+        for network in networks:
+            if CONF_EAP in network:
+                has_eap = True
+            cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
