@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <concepts>
+#include <functional>
 #include <utility>
 #include <vector>
 
