@@ -155,6 +155,7 @@ esphome/components/esp32_ble_tracker/* @bdraco
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_hosted/* @swoboda1337
+esphome/components/esp32_hosted/update/* @swoboda1337
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
