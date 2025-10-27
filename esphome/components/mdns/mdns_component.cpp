@@ -31,7 +31,7 @@ static const char *const TAG = "mdns";
 #endif
 
 #ifdef USE_RESONATE
-static const uint32_t RESONATE_PORT = 8927;
+#define RESONATE_PORT 8927  // NOLINT
 #endif
 
 // Define all constant strings using the macro
@@ -110,30 +110,6 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
     txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
 
-    auto &txt_records = service.txt_records;
-    txt_records.reserve(txt_count);
-
-    if (!friendly_name_empty) {
-      txt_records.emplace_back(MDNSTXTRecord{"friendly_name", friendly_name});
-    }
-    txt_records.emplace_back(MDNSTXTRecord{"version", ESPHOME_VERSION});
-    txt_records.emplace_back(MDNSTXTRecord{"mac", get_mac_address()});
-
-#ifdef USE_ESP8266
-    MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP8266)});
-#elif defined(USE_ESP32)
-    MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP32)});
-#elif defined(USE_RP2040)
-    MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2040)});
-#elif defined(USE_LIBRETINY)
-    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(lt_cpu_get_model_name())});
-#endif
-
-    txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
-
 #if defined(USE_WIFI)
     MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_WIFI)});
@@ -180,6 +156,18 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   prom_service.port = USE_WEBSERVER_PORT;
 #endif
 
+#ifdef USE_RESONATE
+  MDNS_STATIC_CONST_CHAR(SERVICE_RESONATE, "_resonate");
+  MDNS_STATIC_CONST_CHAR(TXT_PATH, "path");
+  MDNS_STATIC_CONST_CHAR(VALUE_PATH, "/resonate");
+
+  auto &resonate_service = services.emplace_next();
+  resonate_service.service_type = MDNS_STR(SERVICE_RESONATE);
+  resonate_service.proto = MDNS_STR(SERVICE_TCP);
+  resonate_service.port = RESONATE_PORT;
+  resonate_service.txt_records = {{MDNS_STR(TXT_PATH), MDNS_STR(VALUE_PATH)}};
+#endif
+
 #ifdef USE_WEBSERVER
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
 
@@ -189,19 +177,8 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   web_service.port = USE_WEBSERVER_PORT;
 #endif
 
-#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
-  MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
-  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
-
-  // Publish "http" service if not using native API or any other services
-  // This is just to have *some* mDNS service so that .local resolution works
-  auto &fallback_service = services.emplace_next();
-  fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
-  fallback_service.proto = MDNS_STR(SERVICE_TCP);
-  fallback_service.port = USE_WEBSERVER_PORT;
-  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
-#endif
-#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
+#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_RESONATE) && \
+    !defined(USE_MDNS_EXTRA_SERVICES)
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
 

@@ -135,7 +135,7 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
-    add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+    # add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
 
     add_idf_sdkconfig_option(f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True)
 

@@ -476,6 +476,7 @@ void ResonateMediaPlayer::sync_task(void *params) {
                  decoded_chunk->timestamp, esp_timer_get_time());
         decoded_chunk = nullptr;  // shared_ptr automatically handles cleanup
         release_chunk = false;
+        this_resonate->decoded_chunk_queue_->reset();  // We are way behind, so drop any pending audio
         continue;
       }
 

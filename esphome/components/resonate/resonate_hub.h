@@ -90,6 +90,7 @@ class ResonateHub : public Component {
   void start();
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+  void set_buffer_size(size_t buffer_size) { this->buffer_size_ = buffer_size; }
 
 #ifdef USE_RESONATE_AUDIO
   // Simple audio chunk callback registration
@@ -179,14 +180,16 @@ class ResonateHub : public Component {
   int64_t last_sent_time_message_{std::numeric_limits<int64_t>::max()};
 
   uint8_t *websocket_payload_{nullptr};
-  size_t websocket_offset_{0};
+  size_t websocket_write_offset_{0};
   size_t websocket_len_{0};
 
   bool task_stack_in_psram_{false};
+  size_t buffer_size_{1000000};
 
   bool force_publish_state_{false};
 
   bool pending_time_message_{false};
+  bool hello_message_sent_{false};
 
   double kalman_process_error_;
   double kalman_forget_factor_;

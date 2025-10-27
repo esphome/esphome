@@ -48,7 +48,7 @@ static const UBaseType_t WEBSOCKET_TASK_PRIORITY = 17;
 
 enum EventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),
-  COMMAND_START = (1 << 7),
+  COMMAND_START = (1 << 1),
   TASK_STARTING = (1 << 8),
   TASK_RUNNING = (1 << 9),
   TASK_STOPPING = (1 << 10),
@@ -85,7 +85,7 @@ void ResonateHub::setup() {
 }
 
 void ResonateHub::send_time_message_() {
-  if (!this->resonate_websocket_->is_connected() || this->pending_time_message_) {
+  if (!this->resonate_websocket_->is_connected() || this->pending_time_message_ || !this->hello_message_sent_) {
     return;
   }
 
@@ -127,8 +127,8 @@ void ResonateHub::loop() {
   EventBits_t event_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_bits & EventGroupBits::COMMAND_START) {
-    ESP_LOGD(TAG, "Trying to start decode task");
     if (this->decode_task_handle_ == nullptr) {
+      ESP_LOGD(TAG, "Trying to start decode task");
       if (this->decode_task_stack_buffer_ == nullptr) {
         // Allocate stack for decode task
         if (this->task_stack_in_psram_) {
@@ -151,6 +151,9 @@ void ResonateHub::loop() {
       } else {
         ESP_LOGW(TAG, "Couldn't allocate memory for decode task stack");
       }
+    } else {
+      // Already running
+      xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_START);
     }
   }
 
@@ -206,7 +209,7 @@ void ResonateHub::start() {
       .support_bit_depth = {16},
       .support_channels = {2, 1},
       .support_sample_rates = {48000},
-      .buffer_capacity = 1000000,
+      .buffer_capacity = this->buffer_size_,
   };
   msg.player_support = player_support;
 #endif
@@ -235,6 +238,7 @@ void ResonateHub::start() {
   this->resonate_websocket_->send_hello_message(&msg);
   this->last_sent_time_message_ = esp_timer_get_time();
   this->publish_client_state();
+  this->hello_message_sent_ = true;
 }
 
 #ifdef USE_MEDIA_PLAYER
@@ -251,6 +255,9 @@ void ResonateHub::websocket_close_callback(void *context) {
   this_resonate->controls_callbacks_.call(ResonateControls::STOP);
 
   this_resonate->time_filter_->reset();
+  this_resonate->hello_message_sent_ = false;
+  this_resonate->pending_time_message_ = false;
+  this_resonate->deallocate_websocket_payload_();
 
   ESP_LOGD(TAG, "Connection closed");
 }
@@ -295,7 +302,7 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
 
     size_t new_length = ws_pkt.len;
 
-    if (this_resonate->websocket_offset_ == 0) {
+    if (this_resonate->websocket_write_offset_ == 0) {
       if (this_resonate->websocket_payload_ != nullptr) {
         ESP_LOGE(TAG, "websocket payload wasn't deallocated, closing connection");
         this_resonate->deallocate_websocket_payload_();
@@ -318,7 +325,7 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
 
     this_resonate->websocket_len_ += new_length;  // Successfully allocated, update length
 
-    ws_pkt.payload = this_resonate->websocket_payload_ + this_resonate->websocket_offset_;
+    ws_pkt.payload = this_resonate->websocket_payload_ + this_resonate->websocket_write_offset_;
 
     /* Set max_len = ws_pkt.len to get the frame payload */
     ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
@@ -327,7 +334,7 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
       this_resonate->deallocate_websocket_payload_();
       return ret;
     }
-    this_resonate->websocket_offset_ += ws_pkt.len;
+    this_resonate->websocket_write_offset_ += ws_pkt.len;
 
     if (is_fin) {
       if (is_text) {
@@ -339,8 +346,10 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
         this_resonate->deallocate_websocket_payload_();
       } else if (is_binary) {
         if (this_resonate->process_binary_message_(this_resonate->websocket_payload_, this_resonate->websocket_len_)) {
-          // Ownership was transferred, just clear the pointer
+          // Ownership was transferred, just clear the pointer and reset lengths
           this_resonate->websocket_payload_ = nullptr;
+          this_resonate->websocket_write_offset_ = 0;
+          this_resonate->websocket_len_ = 0;
         } else {
           // Ownership not transferred, we must deallocate
           this_resonate->deallocate_websocket_payload_();
@@ -349,8 +358,6 @@ esp_err_t ResonateHub::websocket_server_handler(httpd_req_t *req) {
         // Unknown type - deallocate payload
         this_resonate->deallocate_websocket_payload_();
       }
-      this_resonate->websocket_offset_ = 0;
-      this_resonate->websocket_len_ = 0;
     }
   }
 
@@ -499,6 +506,9 @@ bool ResonateHub::process_json_message_(const std::string &message, int64_t time
       ESP_LOGD(TAG, "Stream ended");
       xEventGroupSetBits(this->event_group_, COMMAND_STOP);  // Handles stopping in the hub component
       this->controls_callbacks_.call(ResonateControls::STOP);
+#ifdef USE_RESONATE_AUDIO
+      this->encoded_chunk_queue_->reset();
+#endif
       break;
     }
     case ResonateServerToClientMessageType::SERVER_HELLO: {
@@ -563,6 +573,8 @@ void ResonateHub::deallocate_websocket_payload_() {
     allocator.deallocate(this->websocket_payload_, this->websocket_len_);
     this->websocket_payload_ = nullptr;
   }
+  this->websocket_write_offset_ = 0;
+  this->websocket_len_ = 0;
 }
 
 #ifdef USE_RESONATE_AUDIO
@@ -622,12 +634,6 @@ void ResonateHub::decode_task(void *params) {
 
   xEventGroupSetBits(this_resonate->event_group_, TASK_RUNNING);
   while (!(xEventGroupGetBits(this_resonate->event_group_) & COMMAND_STOP)) {
-    // EventBits_t event_bits = xEventGroupGetBits(this_resonate->event_group_);
-
-    // if (event_bits & COMMAND_STOP) {
-    //   // Processes the stop command by stopping the speaker and resetting all states
-    // }
-
     if (decoded_chunk != nullptr) {
       // Add decoded chunk to the queue
       if ((esp_timer_get_time() > decoded_chunk->timestamp) ||
@@ -706,15 +712,12 @@ void ResonateHub::decode_task(void *params) {
   }
 
   xEventGroupSetBits(this_resonate->event_group_, TASK_STOPPING);
+
   decoder->reset_decoders();
 
   // shared_ptr automatically handles cleanup
   encoded_chunk = nullptr;
   decoded_chunk = nullptr;
-
-  this_resonate->encoded_chunk_queue_->reset();
-
-  vTaskDelay(pdMS_TO_TICKS(50));
 
   xEventGroupSetBits(this_resonate->event_group_, TASK_STOPPED);
   while (true) {
