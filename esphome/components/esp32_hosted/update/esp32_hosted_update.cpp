@@ -16,6 +16,8 @@ namespace esp32_hosted {
 
 static const char *const TAG = "esp32_hosted.update";
 
+constexpr size_t CHUNK_SIZE = 1500;
+
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
 
@@ -103,7 +105,7 @@ void Esp32HostedUpdate::perform(bool force) {
   esp_task_wdt_reconfigure(&wdtc);
 #endif
 
-  esp_err_t err = esp_hosted_slave_ota_begin();
+  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
@@ -116,16 +118,16 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  // write firmware in chunks, older firmware versions support only 1024 bytes chunks
-  // note: the hosted api expects a non-const pointer even though it doesn't modify the data
+  uint8_t chunk[CHUNK_SIZE];
   const uint8_t *data_ptr = this->firmware_data_;
   size_t remaining = this->firmware_size_;
   while (remaining > 0) {
-    size_t chunk_size = std::min(remaining, static_cast<size_t>(1024));
-    err = esp_hosted_slave_ota_write(const_cast<uint8_t *>(data_ptr), chunk_size);
+    size_t chunk_size = std::min(remaining, static_cast<size_t>(CHUNK_SIZE));
+    memcpy(chunk, data_ptr, chunk_size);
+    err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-      esp_hosted_slave_ota_end();
+      esp_hosted_slave_ota_end();  // NOLINT
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
       wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
       esp_task_wdt_reconfigure(&wdtc);
@@ -140,7 +142,7 @@ void Esp32HostedUpdate::perform(bool force) {
     App.feed_wdt();
   }
 
-  err = esp_hosted_slave_ota_end();
+  err = esp_hosted_slave_ota_end();  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(err));
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
@@ -154,7 +156,7 @@ void Esp32HostedUpdate::perform(bool force) {
   }
 
   // activate new firmware
-  err = esp_hosted_slave_ota_activate();
+  err = esp_hosted_slave_ota_activate();  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(err));
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
