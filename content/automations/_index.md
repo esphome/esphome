@@ -7,6 +7,8 @@ params:
     image: auto-fix.svg
 ---
 
+{{< anchor "automation" >}}
+
 Automations are a very powerful aspect of ESPHome; they allow you to easily perform actions given some condition(s).
 
 When you want your ESPHome device to respond to its environment, you use an automation. Here are some examples:
