@@ -20,6 +20,7 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
+    CONF_ENABLED,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
@@ -28,8 +29,11 @@ from .const import (
     CONF_ON_OFFLINE,
     CONF_ON_ONLINE,
     CONF_REGISTER_COUNT,
+    CONF_REGISTER_LAST_ADDRESS,
     CONF_REGISTER_TYPE,
+    CONF_REGISTER_VALUE,
     CONF_RESPONSE_SIZE,
+    CONF_SERVER_COURTESY_RESPONSE,
     CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
 )
@@ -39,6 +43,7 @@ CODEOWNERS = ["@martgras"]
 AUTO_LOAD = ["modbus"]
 
 CONF_READ_LAMBDA = "read_lambda"
+CONF_WRITE_LAMBDA = "write_lambda"
 CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
@@ -48,6 +53,7 @@ ModbusController = modbus_controller_ns.class_(
 )
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
+ServerCourtesyResponse = modbus_controller_ns.struct("ServerCourtesyResponse")
 ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
 ModbusFunctionCode_ns = modbus_controller_ns.namespace("ModbusFunctionCode")
@@ -142,12 +148,21 @@ ModbusOfflineTrigger = modbus_controller_ns.class_(
 
 _LOGGER = logging.getLogger(__name__)
 
+SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
+        cv.Optional(CONF_REGISTER_LAST_ADDRESS, default=0xFFFF): cv.hex_uint16_t,
+        cv.Optional(CONF_REGISTER_VALUE, default=0): cv.hex_uint16_t,
+    }
+)
+
 ModbusServerRegisterSchema = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ServerRegister),
         cv.Required(CONF_ADDRESS): cv.positive_int,
         cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
     }
 )
 
@@ -160,6 +175,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SERVER_COURTESY_RESPONSE): SERVER_COURTESY_RESPONSE_SCHEMA,
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(
@@ -230,7 +246,7 @@ def validate_modbus_register(config):
 
 
 def _final_validate(config):
-    if CONF_SERVER_REGISTERS in config:
+    if CONF_SERVER_COURTESY_RESPONSE in config or CONF_SERVER_REGISTERS in config:
         return modbus.final_validate_modbus_device("modbus_controller", role="server")(
             config
         )
@@ -297,6 +313,20 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
     cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
+    if server_courtesy_response := config.get(CONF_SERVER_COURTESY_RESPONSE):
+        cg.add(
+            var.set_server_courtesy_response(
+                cg.StructInitializer(
+                    ServerCourtesyResponse,
+                    ("enabled", server_courtesy_response[CONF_ENABLED]),
+                    (
+                        "register_last_address",
+                        server_courtesy_response[CONF_REGISTER_LAST_ADDRESS],
+                    ),
+                    ("register_value", server_courtesy_response[CONF_REGISTER_VALUE]),
+                )
+            )
+        )
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     if CONF_SERVER_REGISTERS in config:
@@ -318,6 +348,17 @@ async def to_code(config):
                     ),
                 )
             )
+            if CONF_WRITE_LAMBDA in server_register:
+                cg.add(
+                    server_register_var.set_write_lambda(
+                        cg.TemplateArguments(cpp_type),
+                        await cg.process_lambda(
+                            server_register[CONF_WRITE_LAMBDA],
+                            parameters=[(cg.uint16, "address"), (cpp_type, "x")],
+                            return_type=cg.bool_,
+                        ),
+                    )
+                )
             cg.add(var.add_server_register(server_register_var))
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_COMMAND_SENT, []):

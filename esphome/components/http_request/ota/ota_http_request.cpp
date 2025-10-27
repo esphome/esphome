@@ -258,7 +258,7 @@ bool OtaHttpRequestComponent::http_get_md5_() {
 }
 
 bool OtaHttpRequestComponent::validate_url_(const std::string &url) {
-  if ((url.length() < 8) || (url.find("http") != 0) || (url.find("://") == std::string::npos)) {
+  if ((url.length() < 8) || !url.starts_with("http") || (url.find("://") == std::string::npos)) {
     ESP_LOGE(TAG, "URL is invalid and/or must be prefixed with 'http://' or 'https://'");
     return false;
   }

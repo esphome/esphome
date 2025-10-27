@@ -73,11 +73,29 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
-AirthingsWavePlus::AirthingsWavePlus() {
-  this->service_uuid_ = espbt::ESPBTUUID::from_raw(SERVICE_UUID);
-  this->sensors_data_characteristic_uuid_ = espbt::ESPBTUUID::from_raw(CHARACTERISTIC_UUID);
+void AirthingsWavePlus::setup() {
+  const char *service_uuid;
+  const char *characteristic_uuid;
+  const char *access_control_point_characteristic_uuid;
+
+  // Change UUIDs for Wave Radon Gen2
+  switch (this->wave_device_type_) {
+    case WaveDeviceType::WAVE_GEN2:
+      service_uuid = SERVICE_UUID_WAVE_RADON_GEN2;
+      characteristic_uuid = CHARACTERISTIC_UUID_WAVE_RADON_GEN2;
+      access_control_point_characteristic_uuid = ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID_WAVE_RADON_GEN2;
+      break;
+    default:
+      // Wave Plus
+      service_uuid = SERVICE_UUID;
+      characteristic_uuid = CHARACTERISTIC_UUID;
+      access_control_point_characteristic_uuid = ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID;
+  }
+
+  this->service_uuid_ = espbt::ESPBTUUID::from_raw(service_uuid);
+  this->sensors_data_characteristic_uuid_ = espbt::ESPBTUUID::from_raw(characteristic_uuid);
   this->access_control_point_characteristic_uuid_ =
-      espbt::ESPBTUUID::from_raw(ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID);
+      espbt::ESPBTUUID::from_raw(access_control_point_characteristic_uuid);
 }
 
 }  // namespace airthings_wave_plus

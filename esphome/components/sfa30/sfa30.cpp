@@ -11,8 +11,6 @@ static const uint16_t SFA30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0006;
 static const uint16_t SFA30_CMD_READ_MEASUREMENT = 0x0327;
 
 void SFA30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Serial Number identification
   uint16_t raw_device_marking[16];
   if (!this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5)) {
@@ -34,8 +32,6 @@ void SFA30Component::setup() {
     this->mark_failed();
     return;
   }
-
-  ESP_LOGD(TAG, "Sensor initialized");
 }
 
 void SFA30Component::dump_config() {

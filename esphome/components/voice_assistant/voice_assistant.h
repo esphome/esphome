@@ -90,6 +90,15 @@ struct Configuration {
   uint32_t max_active_wake_words;
 };
 
+#ifdef USE_MEDIA_PLAYER
+enum class MediaPlayerResponseState {
+  IDLE,
+  URL_SENT,
+  PLAYING,
+  FINISHED,
+};
+#endif
+
 class VoiceAssistant : public Component {
  public:
   VoiceAssistant();
@@ -177,6 +186,7 @@ class VoiceAssistant : public Component {
 
   Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
   Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
+  Trigger<std::string> *get_intent_progress_trigger() const { return this->intent_progress_trigger_; }
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_end_trigger() const { return this->end_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
@@ -233,6 +243,7 @@ class VoiceAssistant : public Component {
   Trigger<> *tts_stream_start_trigger_ = new Trigger<>();
   Trigger<> *tts_stream_end_trigger_ = new Trigger<>();
 #endif
+  Trigger<std::string> *intent_progress_trigger_ = new Trigger<std::string>();
   Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
@@ -268,8 +279,10 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
-  bool media_player_wait_for_announcement_start_{false};
-  bool media_player_wait_for_announcement_end_{false};
+  std::string tts_response_url_{""};
+  bool started_streaming_tts_{false};
+
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
 
   bool local_output_{false};

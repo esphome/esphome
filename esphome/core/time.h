@@ -109,10 +109,10 @@ struct ESPTime {
   void increment_second();
   /// Increment this clock instance by one day.
   void increment_day();
-  bool operator<(ESPTime other);
-  bool operator<=(ESPTime other);
-  bool operator==(ESPTime other);
-  bool operator>=(ESPTime other);
-  bool operator>(ESPTime other);
+  bool operator<(const ESPTime &other) const;
+  bool operator<=(const ESPTime &other) const;
+  bool operator==(const ESPTime &other) const;
+  bool operator>=(const ESPTime &other) const;
+  bool operator>(const ESPTime &other) const;
 };
 }  // namespace esphome

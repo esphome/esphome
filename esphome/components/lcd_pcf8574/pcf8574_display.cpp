@@ -11,7 +11,6 @@ static const uint8_t LCD_DISPLAY_BACKLIGHT_ON = 0x08;
 static const uint8_t LCD_DISPLAY_BACKLIGHT_OFF = 0x00;
 
 void PCF8574LCDDisplay::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->backlight_value_ = LCD_DISPLAY_BACKLIGHT_ON;
   if (!this->write_bytes(this->backlight_value_, nullptr, 0)) {
     this->mark_failed();

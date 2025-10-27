@@ -52,7 +52,6 @@ static const uint8_t POWER_PGA_CAP_EN = 0x80;
 static const uint8_t DEVICE_REV = 0x1F;
 
 void NAU7802Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   i2c::I2CRegister pu_ctrl = this->reg(PU_CTRL_REG);
   uint8_t rev;
 
@@ -219,7 +218,7 @@ void NAU7802Sensor::dump_config() {
 
 void NAU7802Sensor::write_value_(uint8_t start_reg, size_t size, int32_t value) {
   uint8_t data[4];
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     data[i] = 0xFF & (value >> (size - 1 - i) * 8);
   }
   this->write_register(start_reg, data, size);
@@ -229,7 +228,7 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   uint8_t data[4];
   this->read_register(start_reg, data, size);
   int32_t result = 0;
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
   // extend sign bit

@@ -13,7 +13,6 @@ class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
   void update() override { this->publish_state(wifi::global_wifi_component->wifi_rssi()); }
   void dump_config() override;
 
-  std::string unique_id() override { return get_mac_address() + "-wifisignal"; }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 };
 

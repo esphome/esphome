@@ -15,7 +15,7 @@ void SX1509FloatOutputChannel::write_state(float state) {
 }
 
 void SX1509FloatOutputChannel::setup() {
-  ESP_LOGD(TAG, "setup pin %d", this->pin_);
+  ESP_LOGD(TAG, "Pin %d", this->pin_);
   this->parent_->pin_mode(this->pin_, gpio::FLAG_OUTPUT);
   this->parent_->setup_led_driver(this->pin_);
   this->turn_off();

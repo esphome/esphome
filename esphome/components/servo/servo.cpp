@@ -88,9 +88,9 @@ void Servo::internal_write(float value) {
   value = clamp(value, -1.0f, 1.0f);
   float level;
   if (value < 0.0) {
-    level = lerp(-value, this->idle_level_, this->min_level_);
+    level = std::lerp(this->idle_level_, this->min_level_, -value);
   } else {
-    level = lerp(value, this->idle_level_, this->max_level_);
+    level = std::lerp(this->idle_level_, this->max_level_, value);
   }
   this->output_->set_level(level);
   this->current_value_ = value;

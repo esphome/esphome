@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_bme680
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 bme680_bsec:
+  i2c_id: i2c_bus
   address: 0x77
 
 sensor:

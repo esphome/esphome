@@ -14,9 +14,10 @@ namespace http_request {
 
 static const char *const TAG = "http_request.arduino";
 
-std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std::string method, std::string body,
-                                                           std::list<Header> request_headers,
-                                                           std::set<std::string> collect_headers) {
+std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
+                                                           const std::string &body,
+                                                           const std::list<Header> &request_headers,
+                                                           const std::set<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -133,7 +134,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std:
       std::string header_value = container->client_.header(i).c_str();
       ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
       container->response_headers_[header_name].push_back(header_value);
-      break;
     }
   }
 

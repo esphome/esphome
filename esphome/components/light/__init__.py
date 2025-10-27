@@ -37,9 +37,9 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WHITE,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 from .automation import LIGHT_STATE_SCHEMA
 from .effects import (
@@ -109,6 +109,8 @@ LIGHT_SCHEMA = (
         }
     )
 )
+
+LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {
@@ -207,7 +209,7 @@ def validate_color_temperature_channels(value):
 
 
 async def setup_light_core_(light_var, output_var, config):
-    await setup_entity(light_var, config)
+    await setup_entity(light_var, config, "light")
 
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
@@ -281,7 +283,6 @@ async def new_light(config, *args):
     return output_var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_LIGHT")
     cg.add_global(light_ns.using)

@@ -1,9 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_CARRIER_DUTY_PERCENT,
+    CONF_CARRIER_FREQUENCY,
     CONF_CLOCK_RESOLUTION,
     CONF_DUMP,
     CONF_FILTER,
@@ -15,6 +18,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_DMA,
     CONF_VALUE,
+    PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
 
@@ -58,6 +62,20 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
+def validate_config(config):
+    if CORE.is_esp32:
+        variant = esp32.get_esp32_variant()
+        if variant in (esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S2):
+            max_idle = 65535
+        else:
+            max_idle = 32767
+        if CONF_CLOCK_RESOLUTION in config:
+            max_idle = int(max_idle * 1000000 / config[CONF_CLOCK_RESOLUTION])
+        if config[CONF_IDLE].total_microseconds > max_idle:
+            raise cv.Invalid(f"config 'idle' exceeds the maximum value of {max_idle}us")
+    return config
+
+
 def validate_tolerance(value):
     if isinstance(value, dict):
         return TOLERANCE_SCHEMA(value)
@@ -94,6 +112,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32="10000b",
                 esp8266="1000b",
                 bk72xx="1000b",
+                ln882x="1000b",
                 rtl87xx="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
@@ -132,8 +151,18 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 ),
                 cv.boolean,
             ),
+            cv.SplitDefault(CONF_CARRIER_DUTY_PERCENT, esp32=100): cv.All(
+                cv.only_on_esp32,
+                cv.percentage_int,
+                cv.Range(min=1, max=100),
+            ),
+            cv.SplitDefault(CONF_CARRIER_FREQUENCY, esp32="0Hz"): cv.All(
+                cv.only_on_esp32, cv.frequency, cv.int_
+            ),
         }
-    ).extend(cv.COMPONENT_SCHEMA)
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(validate_config)
 )
 
 
@@ -149,6 +178,8 @@ async def to_code(config):
             cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
         if CONF_FILTER_SYMBOLS in config:
             cg.add(var.set_filter_symbols(config[CONF_FILTER_SYMBOLS]))
+        cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
+        cg.add(var.set_carrier_frequency(config[CONF_CARRIER_FREQUENCY]))
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 
@@ -169,3 +200,19 @@ async def to_code(config):
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "remote_receiver_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "remote_receiver.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

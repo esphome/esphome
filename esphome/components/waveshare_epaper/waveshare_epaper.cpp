@@ -2274,11 +2274,11 @@ void GDEW0154M09::clear_() {
   uint32_t pixsize = this->get_buffer_length_();
   for (uint8_t j = 0; j < 2; j++) {
     this->command(CMD_DTM1_DATA_START_TRANS);
-    for (int count = 0; count < pixsize; count++) {
+    for (uint32_t count = 0; count < pixsize; count++) {
       this->data(0x00);
     }
     this->command(CMD_DTM2_DATA_START_TRANS2);
-    for (int count = 0; count < pixsize; count++) {
+    for (uint32_t count = 0; count < pixsize; count++) {
       this->data(0xff);
     }
     this->command(CMD_DISPLAY_REFRESH);
@@ -2291,11 +2291,11 @@ void HOT GDEW0154M09::display() {
   this->init_internal_();
   // "Mode 0 display" for now
   this->command(CMD_DTM1_DATA_START_TRANS);
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     this->data(0xff);
   }
   this->command(CMD_DTM2_DATA_START_TRANS2);  // write 'new' data to SRAM
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     this->data(this->buffer_[i]);
   }
   this->command(CMD_DISPLAY_REFRESH);
@@ -3132,7 +3132,7 @@ void HOT GDEY0583T81::display() {
   } else {
     // Partial out (PTOUT), makes the display exit partial mode
     this->command(0x92);
-    ESP_LOGD(TAG, "Partial update done, next full update after %d cycles",
+    ESP_LOGD(TAG, "Partial update done, next full update after %" PRIu32 " cycles",
              this->full_update_every_ - this->at_update_ - 1);
   }
 

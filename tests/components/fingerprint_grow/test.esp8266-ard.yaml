@@ -1,6 +1,9 @@
 substitutions:
-  tx_pin: GPIO4
-  rx_pin: GPIO5
+  tx_pin: GPIO0
+  rx_pin: GPIO2
   sensing_pin: GPIO15
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
 <<: !include common.yaml

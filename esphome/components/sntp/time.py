@@ -7,6 +7,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_RP2040,
             PLATFORM_BK72XX,
+            PLATFORM_LN882X,
             PLATFORM_RTL87XX,
         ]
     ),
@@ -41,6 +43,11 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     servers = config[CONF_SERVERS]
+
+    # Define server count at compile time
+    cg.add_define("SNTP_SERVER_COUNT", len(servers))
+
+    # Pass string literals to constructor - stored in flash/rodata by compiler
     var = cg.new_Pvariable(config[CONF_ID], servers)
 
     await cg.register_component(var, config)

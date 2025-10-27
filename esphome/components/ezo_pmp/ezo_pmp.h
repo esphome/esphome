@@ -23,7 +23,6 @@ namespace ezo_pmp {
 class EzoPMP : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void loop() override;
   void update() override;

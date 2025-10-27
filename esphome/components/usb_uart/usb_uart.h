@@ -1,15 +1,19 @@
 #pragma once
 
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/usb_host/usb_host.h"
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
+#include <atomic>
 
 namespace esphome {
 namespace usb_uart {
 class USBUartTypeCdcAcm;
 class USBUartComponent;
+class USBUartChannel;
 
 static const char *const TAG = "usb_uart";
 
@@ -25,7 +29,8 @@ struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
-  uint8_t interface_number;
+  uint8_t bulk_interface_number;
+  uint8_t interrupt_interface_number;
 };
 
 enum UARTParityOptions {
@@ -67,6 +72,17 @@ class RingBuffer {
   uint8_t *buffer_;
 };
 
+// Structure for queuing received USB data chunks
+struct UsbDataChunk {
+  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB packet size
+  uint8_t data[MAX_CHUNK_SIZE];
+  uint8_t length;  // Max 64 bytes, so uint8_t is sufficient
+  USBUartChannel *channel;
+
+  // Required for EventPool - no cleanup needed for POD types
+  void release() {}
+};
+
 class USBUartChannel : public uart::UARTComponent, public Parented<USBUartComponent> {
   friend class USBUartComponent;
   friend class USBUartTypeCdcAcm;
@@ -89,16 +105,20 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
 
  protected:
-  const uint8_t index_;
+  // Larger structures first for better alignment
   RingBuffer input_buffer_;
   RingBuffer output_buffer_;
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
-  bool input_started_{true};
-  bool output_started_{true};
   CdcEps cdc_dev_{};
+  // Enum (likely 4 bytes)
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  // Group atomics together (each 1 byte)
+  std::atomic<bool> input_started_{true};
+  std::atomic<bool> output_started_{true};
+  std::atomic<bool> initialised_{false};
+  // Group regular bytes together to minimize padding
+  const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
-  bool initialised_{};
 };
 
 class USBUartComponent : public usb_host::USBClient {
@@ -114,6 +134,11 @@ class USBUartComponent : public usb_host::USBClient {
   void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
 
+  // Lock-free data transfer from USB task to main loop
+  static constexpr int USB_DATA_QUEUE_SIZE = 32;
+  LockFreeQueue<UsbDataChunk, USB_DATA_QUEUE_SIZE> usb_data_queue_;
+  EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE> chunk_pool_;
+
  protected:
   std::vector<USBUartChannel *> channels_{};
 };
@@ -123,7 +148,7 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   USBUartTypeCdcAcm(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
  protected:
-  virtual std::vector<CdcEps> parse_descriptors_(usb_device_handle_t dev_hdl);
+  virtual std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl);
   void on_connected() override;
   virtual void enable_channels();
   void on_disconnected() override;
@@ -134,7 +159,7 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
   USBUartTypeCP210X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
  protected:
-  std::vector<CdcEps> parse_descriptors_(usb_device_handle_t dev_hdl) override;
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   void enable_channels() override;
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {

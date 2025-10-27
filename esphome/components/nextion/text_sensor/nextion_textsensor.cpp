@@ -26,7 +26,7 @@ void NextionTextSensor::set_state(const std::string &state, bool publish, bool s
     return;
 
   if (send_to_nextion) {
-    if (this->nextion_->is_sleeping() || !this->visible_) {
+    if (this->nextion_->is_sleeping() || !this->component_flags_.visible) {
       this->needs_to_send_update_ = true;
     } else {
       this->nextion_->add_no_result_to_queue_with_set(this, state);

@@ -225,9 +225,10 @@ class _Schema(vol.Schema):
             return ret
 
         schema = schemas[0]
+        extra_schemas = self._extra_schemas.copy()
+        if isinstance(schema, _Schema):
+            extra_schemas.extend(schema._extra_schemas)
         if isinstance(schema, vol.Schema):
             schema = schema.schema
         ret = super().extend(schema, extra=extra)
-        return _Schema(
-            ret.schema, extra=ret.extra, extra_schemas=self._extra_schemas.copy()
-        )
+        return _Schema(ret.schema, extra=ret.extra, extra_schemas=extra_schemas)

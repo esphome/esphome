@@ -294,9 +294,8 @@ async def to_code(config):
         )
     )
 
-    if get_esp32_variant() == VARIANT_ESP32:
-        if CONF_IIR_FILTER in config:
-            cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
+    if get_esp32_variant() == VARIANT_ESP32 and CONF_IIR_FILTER in config:
+        cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
 
     if get_esp32_variant() == VARIANT_ESP32S2 or get_esp32_variant() == VARIANT_ESP32S3:
         if CONF_FILTER_MODE in config:

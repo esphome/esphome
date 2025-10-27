@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALTITUDE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_AUTOMATIC_SELF_CALIBRATION,
@@ -49,9 +50,6 @@ PerformForcedCalibrationAction = scd4x_ns.class_(
 )
 FactoryResetAction = scd4x_ns.class_("FactoryResetAction", automation.Action)
 
-
-CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -83,7 +81,7 @@ CONFIG_SCHEMA = (
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
             ),

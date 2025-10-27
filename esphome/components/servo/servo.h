@@ -20,7 +20,6 @@ class Servo : public Component {
   void detach();
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_min_level(float min_level) { min_level_ = min_level; }
   void set_idle_level(float idle_level) { idle_level_ = idle_level; }
   void set_max_level(float max_level) { max_level_ = max_level; }
