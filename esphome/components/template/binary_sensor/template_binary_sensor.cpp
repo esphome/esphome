@@ -9,10 +9,10 @@ static const char *const TAG = "template.binary_sensor";
 void TemplateBinarySensor::setup() { this->loop(); }
 
 void TemplateBinarySensor::loop() {
-  if (!this->f_.has_value())
+  if (this->f_ == nullptr)
     return;
 
-  auto s = (*this->f_)();
+  auto s = this->f_();
   if (s.has_value()) {
     this->publish_state(*s);
   }
