@@ -55,6 +55,14 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
   /// The current reported state of the binary sensor.
   bool state;
 
+  /** Control this switch using a boolean state value.
+   *
+   * This method provides a unified interface for setting the switch state based on a boolean parameter.
+   * It automatically calls turn_on() when state is true or turn_off() when state is false.
+   *
+   * @param target_state The desired state: true to turn the switch ON, false to turn it OFF.
+   */
+  void control(bool target_state);
   /** Turn this switch on. This is called by the front-end.
    *
    * For implementing switches, please override write_state.

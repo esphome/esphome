@@ -14,8 +14,6 @@ static const bool DEFAULT_INVERT = false;
 static const uint32_t DEFAULT_TICK = 330;
 
 void LightWaveRF::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->lwtx_.lwtx_setup(pin_tx_, DEFAULT_REPEAT, DEFAULT_INVERT, DEFAULT_TICK);
   this->lwrx_.lwrx_setup(pin_rx_);
 }

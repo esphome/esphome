@@ -72,10 +72,9 @@ binary_sensor:
       if (id(template_sens).state > 30) {
         // Garage Door is open.
         return true;
-      } else {
-        // Garage Door is closed.
-        return false;
       }
+      // Garage Door is closed.
+      return false;
     on_state:
       - mqtt.publish:
           topic: some/topic/binary_sensor
@@ -217,9 +216,8 @@ cover:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;
-      } else {
-        return COVER_CLOSED;
       }
+      return COVER_CLOSED;
     open_action:
       - logger.log: open_action
     close_action:
@@ -321,9 +319,8 @@ lock:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     lock_action:
       - logger.log: lock_action
     unlock_action:
@@ -360,9 +357,8 @@ sensor:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return 42.0;
-      } else {
-        return 0.0;
       }
+      return 0.0;
     update_interval: 60s
     on_value:
       - mqtt.publish:
@@ -390,9 +386,8 @@ switch:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return true;
-      } else {
-        return false;
       }
+      return false;
     turn_on_action:
       - logger.log: turn_on_action
     turn_off_action:
@@ -436,9 +431,8 @@ valve:
     lambda: |-
       if (id(some_binary_sensor).state) {
         return VALVE_OPEN;
-      } else {
-        return VALVE_CLOSED;
       }
+      return VALVE_CLOSED;
 
 alarm_control_panel:
   - platform: template

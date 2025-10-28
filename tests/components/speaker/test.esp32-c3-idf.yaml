@@ -6,4 +6,7 @@ substitutions:
   i2s_mclk_pin: GPIO9
   i2s_dout_pin: GPIO8
 
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-c3-idf.yaml
+
 <<: !include common.yaml

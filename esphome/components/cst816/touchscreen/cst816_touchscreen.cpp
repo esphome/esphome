@@ -35,11 +35,9 @@ void CST816Touchscreen::continue_setup_() {
   if (this->y_raw_max_ == this->y_raw_min_) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-  ESP_LOGCONFIG(TAG, "CST816 Touchscreen setup complete");
 }
 
 void CST816Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);

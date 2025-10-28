@@ -1,5 +1,0 @@
-substitutions:
-  remote_transmitter_pin: GPIO33
-  remote_receiver_pin: GPIO32
-
-<<: !include common.yaml

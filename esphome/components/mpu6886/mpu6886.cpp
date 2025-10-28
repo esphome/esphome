@@ -26,7 +26,6 @@ const float TEMPERATURE_SENSITIVITY = 326.8;
 const float TEMPERATURE_OFFSET = 25.0;
 
 void MPU6886Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t who_am_i;
   if (!this->read_byte(MPU6886_REGISTER_WHO_AM_I, &who_am_i) || who_am_i != MPU6886_WHO_AM_I_IDENTIFIER) {
     this->mark_failed();

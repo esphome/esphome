@@ -20,8 +20,6 @@ static const uint8_t TM1638_UNKNOWN_CHAR = 0b11111111;
 static const uint8_t TM1638_SHIFT_DELAY = 4;  // clock pause between commands, default 4ms
 
 void TM1638Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->clk_pin_->setup();  // OUTPUT
   this->dio_pin_->setup();  // OUTPUT
   this->stb_pin_->setup();  // OUTPUT

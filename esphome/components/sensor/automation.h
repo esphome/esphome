@@ -40,7 +40,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   template<typename V> void set_max(V max) { this->max_ = max; }
 
   void setup() override {
-    this->rtc_ = global_preferences->make_preference<bool>(this->parent_->get_object_id_hash());
+    this->rtc_ = global_preferences->make_preference<bool>(this->parent_->get_preference_hash());
     bool initial_state;
     if (this->rtc_.load(&initial_state)) {
       this->previous_in_range_ = initial_state;

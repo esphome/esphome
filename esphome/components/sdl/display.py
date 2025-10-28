@@ -36,7 +36,9 @@ def get_sdl_options(value):
     if value != "":
         return value
     try:
-        return subprocess.check_output(["sdl2-config", "--cflags", "--libs"]).decode()
+        return subprocess.check_output(
+            ["sdl2-config", "--cflags", "--libs"], close_fds=False
+        ).decode()
     except Exception as e:
         raise cv.Invalid("Unable to run sdl2-config - have you installed sdl2?") from e
 
