@@ -710,7 +710,7 @@ int8_t PacketTransport::find_remote_binary_sensor_(uint8_t provider_index, const
 }
 
 void PacketTransport::add_remote_binary_sensor(const char *hostname, const char *remote_id,
-                                                binary_sensor::BinarySensor *sensor) {
+                                               binary_sensor::BinarySensor *sensor) {
   int8_t provider_index = this->find_or_create_provider_(hostname);
   if (provider_index < 0)
     return;
