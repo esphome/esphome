@@ -312,18 +312,12 @@ climate::ClimateTraits TuyaClimate::traits() {
     traits.add_supported_preset(climate::CLIMATE_PRESET_NONE);
   }
   if (this->swing_vertical_id_.has_value() && this->swing_horizontal_id_.has_value()) {
-    std::set<climate::ClimateSwingMode> supported_swing_modes = {
-        climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-        climate::CLIMATE_SWING_HORIZONTAL};
-    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
+                                      climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
   } else if (this->swing_vertical_id_.has_value()) {
-    std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF,
-                                                                 climate::CLIMATE_SWING_VERTICAL};
-    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL});
   } else if (this->swing_horizontal_id_.has_value()) {
-    std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF,
-                                                                 climate::CLIMATE_SWING_HORIZONTAL};
-    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL});
   }
 
   if (fan_speed_id_) {

@@ -1377,16 +1377,16 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
 #endif
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
-  const std::set<climate::ClimateMode> *supported_modes{};
+  const climate::ClimateModeMask *supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  const std::set<climate::ClimateFanMode> *supported_fan_modes{};
-  const std::set<climate::ClimateSwingMode> *supported_swing_modes{};
-  const std::set<std::string> *supported_custom_fan_modes{};
-  const std::set<climate::ClimatePreset> *supported_presets{};
-  const std::set<std::string> *supported_custom_presets{};
+  const climate::ClimateFanModeMask *supported_fan_modes{};
+  const climate::ClimateSwingModeMask *supported_swing_modes{};
+  const std::vector<std::string> *supported_custom_fan_modes{};
+  const climate::ClimatePresetMask *supported_presets{};
+  const std::vector<std::string> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
