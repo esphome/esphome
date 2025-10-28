@@ -48,7 +48,6 @@ import sys
 from typing import Any
 
 from helpers import (
-    BASE_BUS_COMPONENTS,
     CPP_FILE_EXTENSIONS,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
@@ -453,7 +452,7 @@ def detect_memory_impact_config(
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
 
-    # Find all changed components (excluding core and base bus components)
+    # Find all changed components (excluding core)
     # Also collect platform hints from platform-specific filenames
     changed_component_set: set[str] = set()
     has_core_cpp_changes = False
@@ -462,13 +461,13 @@ def detect_memory_impact_config(
     for file in files:
         component = get_component_from_path(file)
         if component:
-            # Skip base bus components as they're used across many builds
-            if component not in BASE_BUS_COMPONENTS:
-                changed_component_set.add(component)
-                # Check if this is a platform-specific file
-                platform_hint = _detect_platform_hint_from_filename(file)
-                if platform_hint:
-                    platform_hints.append(platform_hint)
+            # Add all changed components, including base bus components
+            # Base bus components (uart, i2c, spi, etc.) should still be analyzed
+            # when directly changed, even though they're also used as dependencies
+            changed_component_set.add(component)
+            # Check if this is a platform-specific file
+            if platform_hint := _detect_platform_hint_from_filename(file):
+                platform_hints.append(platform_hint)
         elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
             # Core ESPHome C++ files changed (not component-specific)
             # Only C++ files affect memory usage
