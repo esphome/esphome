@@ -1,8 +1,7 @@
 from typing import Any, Self
 
-from const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
-
 import esphome.config_validation as cv
+from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 
 
 class EpaperModel:

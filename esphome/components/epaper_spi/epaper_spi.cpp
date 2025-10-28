@@ -19,7 +19,7 @@ static const char *epaper_state_to_string(EPaperState state) {
 }
 
 void EPaperBase::setup() {
-  if (!this->init_buffer_(this->get_buffer_length())) {
+  if (!this->init_buffer_(this->buffer_length_)) {
     this->mark_failed("Failed to initialise buffer");
     return;
   }
@@ -100,8 +100,7 @@ void EPaperBase::reset() {
 
 void EPaperBase::update() {
   if (!this->state_queue_.empty()) {
-    ESP_LOGE(TAG, "Display update already in progress - %s",
-             LOG_STR_ARG(epaper_state_to_string(this->state_queue_.front())));
+    ESP_LOGE(TAG, "Display update already in progress - %s", epaper_state_to_string(this->state_queue_.front()));
     return;
   }
 
@@ -162,6 +161,7 @@ void EPaperBase::loop() {
       this->deep_sleep();
       break;
   }
+  ESP_LOGV(TAG, "Exiting state %s", epaper_state_to_string(this->state_queue_.front()));
   this->state_queue_.pop();
 }
 
@@ -183,9 +183,10 @@ void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 void EPaperBase::initialise_() {
   size_t index = 0;
 
-  auto &sequence = this->init_sequence_;
-  while (index != this->init_sequence_length_) {
-    if (this->init_sequence_length_ - index < 2) {
+  auto *sequence = this->init_sequence_.data();
+  auto length = this->init_sequence_.size();
+  while (index != length) {
+    if (length - index < 2) {
       this->mark_failed("Malformed init sequence");
       return;
     }
@@ -195,17 +196,17 @@ void EPaperBase::initialise_() {
       delay(cmd);
     } else {
       const uint8_t num_args = x & 0x7F;
-      if (this->init_sequence_length_ - index < num_args) {
-        ESP_LOGE(TAG, "Malformed init sequence");
+      if (length - index < num_args) {
+        ESP_LOGE(TAG, "Malformed init sequence, cmd = %X, num_args = %u", cmd, num_args);
         this->mark_failed();
         return;
       }
       const auto *ptr = sequence + index;
       ESP_LOGD(TAG, "Command %02X, length %d", cmd, num_args);
       this->cmd_data(cmd, ptr, num_args);
+      index += num_args;
     }
   }
-
   this->power_on();
 }
 

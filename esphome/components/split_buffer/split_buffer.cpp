@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::split_buffer {
-
 static constexpr const char *const TAG = "split_buffer";
 
 SplitBuffer::~SplitBuffer() { this->free(); }
@@ -128,6 +127,16 @@ const uint8_t &SplitBuffer::operator[](size_t index) const {
   size_t offset_in_buffer = index - this->buffer_size_ * buffer_index;
 
   return this->buffers_[buffer_index][offset_in_buffer];
+}
+
+/**
+ * Fill the entire buffer with a single byte value
+ * @param value Fill value
+ */
+void SplitBuffer::fill(uint8_t value) {
+  for (size_t i = 0; i != this->buffer_count_; i++) {
+    memset(this->buffers_[i], value, this->buffer_size_);
+  }
 }
 
 }  // namespace esphome::split_buffer

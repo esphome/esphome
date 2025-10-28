@@ -1,88 +1,36 @@
-from const import CONF_HEIGHT, CONF_WIDTH
+from typing import Any
+
+from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 
 from . import EpaperModel
 
 
 class SpectraE6(EpaperModel):
-    def __init__(self):
-        super().__init__("spectra_e6", "EPaperSpectraE6")
+    def __init__(self, name, class_name):
+        super().__init__(name, class_name)
 
+    # fmt: off
     def get_init_sequence(self, config: dict):
-        width = config[CONF_WIDTH]
-        height = config[CONF_HEIGHT]
+        width = config[CONF_DIMENSIONS][CONF_WIDTH]
+        height = config[CONF_DIMENSIONS][CONF_HEIGHT]
         return (
-            (
-                0xAA,
-                0x49,
-                0x55,
-                0x20,
-                0x08,
-                0x09,
-                0x18,
-            ),
-            (
-                0x01,
-                0x3F,
-            ),
-            (
-                0x00,
-                0x5F,
-                0x69,
-            ),
-            (
-                0x03,
-                0x00,
-                0x54,
-                0x00,
-                0x44,
-            ),
-            (
-                0x05,
-                0x40,
-                0x1F,
-                0x1F,
-                0x2C,
-            ),
-            (
-                0x06,
-                0x6F,
-                0x1F,
-                0x17,
-                0x49,
-            ),
-            (
-                0x08,
-                0x6F,
-                0x1F,
-                0x1F,
-                0x22,
-            ),
-            (
-                0x30,
-                0x03,
-            ),
-            (
-                0x50,
-                0x3F,
-            ),
-            (
-                0x60,
-                0x02,
-                0x00,
-            ),
-            (
-                0x61,
-                width / 256,
-                width % 256,
-                height / 256,
-                height % 256,
-            ),
-            (
-                0x84,
-                0x01,
-            ),
-            (
-                0xE3,
-                0x2F,
-            ),
+            (0xAA, 0x49, 0x55, 0x20, 0x08, 0x09, 0x18,),
+            (0x01, 0x3F,),
+            (0x00, 0x5F, 0x69,),
+            (0x03, 0x00, 0x54, 0x00, 0x44,),
+            (0x05, 0x40, 0x1F, 0x1F, 0x2C,),
+            (0x06, 0x6F, 0x1F, 0x17, 0x49,),
+            (0x08, 0x6F, 0x1F, 0x1F, 0x22,),
+            (0x30, 0x03,),
+            (0x50, 0x3F,),
+            (0x60, 0x02, 0x00,),
+            (0x61, width // 256, width % 256, height // 256, height % 256,),
+            (0x84, 0x01,),
+            (0xE3, 0x2F,),
         )
+
+    def get_default(self, key, fallback: Any = False) -> Any:
+        return self.defaults.get(key, fallback)
+
+
+SpectraE6("spectra-e6", "EPaperSpectraE6")

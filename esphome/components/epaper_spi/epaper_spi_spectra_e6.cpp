@@ -1,9 +1,12 @@
 #include "epaper_spi_spectra_e6.h"
 
+#include <algorithm>
+
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.6c";
+static constexpr const size_t MAX_TRANSFER_SIZE = 128;
 
 static inline uint8_t color_to_hex(Color color) {
   if (color.red > 127) {
@@ -75,19 +78,8 @@ void EPaperSpectraE6::fill(Color color) {
     pixel_color = 0x1;
   }
 
-  // We store 8 bitset<3> in 3 bytes
-  // | byte 1 | byte 2 | byte 3 |
-  // |aaabbbaa|abbbaaab|bbaaabbb|
-  uint8_t byte_1 = pixel_color << 5 | pixel_color << 2 | pixel_color >> 1;
-  uint8_t byte_2 = pixel_color << 7 | pixel_color << 4 | pixel_color << 1 | pixel_color >> 2;
-  uint8_t byte_3 = pixel_color << 6 | pixel_color << 3 | pixel_color << 0;
-
-  const size_t buffer_length = this->get_buffer_length();
-  for (size_t i = 0; i < buffer_length; i += 3) {
-    this->buffer_[i + 0] = byte_1;
-    this->buffer_[i + 1] = byte_2;
-    this->buffer_[i + 2] = byte_3;
-  }
+  // We store 2 pixels per byte
+  this->buffer_.fill(pixel_color + (pixel_color << 4));
 }
 
 void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -96,20 +88,12 @@ void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color
 
   uint8_t pixel_bits = color_to_hex(color);
   uint32_t pixel_position = x + y * this->get_width_controller();
-  uint32_t first_bit_position = pixel_position * 3;
-  uint32_t byte_position = first_bit_position / 8u;
-  uint32_t byte_subposition = first_bit_position % 8u;
-
-  if (byte_subposition <= 5) {
-    this->buffer_[byte_position] = (this->buffer_[byte_position] & (0xFF ^ (0b111 << (5 - byte_subposition)))) |
-                                   (pixel_bits << (5 - byte_subposition));
+  uint32_t byte_position = pixel_position / 2;
+  auto original = this->buffer_[byte_position];
+  if ((pixel_position & 1) == 0) {
+    this->buffer_[byte_position] = (original & 0xF0) | pixel_bits;
   } else {
-    this->buffer_[byte_position] = (this->buffer_[byte_position] & (0xFF ^ (0b111 >> (byte_subposition - 5)))) |
-                                   (pixel_bits >> (byte_subposition - 5));
-
-    this->buffer_[byte_position + 1] =
-        (this->buffer_[byte_position + 1] & (0xFF ^ (0xFF & (0b111 << (13 - byte_subposition))))) |
-        (pixel_bits << (13 - byte_subposition));
+    this->buffer_[byte_position] = (original & 0x0F) | (pixel_bits << 4);
   }
 }
 
@@ -117,38 +101,37 @@ bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
   const size_t buffer_length = this->buffer_length_;
   if (this->current_data_index_ == 0) {
-    ESP_LOGV(TAG, "Start sending data");
-    this->command(0x10);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     this->transfer_start_time_ = millis();
+#endif
+    ESP_LOGV(TAG, "Start sending data at %ums", (unsigned) millis());
+    this->command(0x10);
   }
 
-  uint8_t bytes_to_send[128]{0};
-  uint8_t buf_idx = 0;
-  for (size_t i = this->current_data_index_; i != buffer_length;) {
-    const uint32_t triplet = encode_uint24(this->buffer_[i + 0], this->buffer_[i + 1], this->buffer_[i + 2]);
-    i += 3;
-    // 8 pixels are stored in 3 bytes
-    // |aaabbbaa|abbbaaab|bbaaabbb|
-    // | byte 1 | byte 2 | byte 3 |
-    bytes_to_send[buf_idx++] = ((triplet >> 17) & 0b01110000) | ((triplet >> 18) & 0b00000111);
-    bytes_to_send[buf_idx++] = ((triplet >> 11) & 0b01110000) | ((triplet >> 12) & 0b00000111);
-    bytes_to_send[buf_idx++] = ((triplet >> 5) & 0b01110000) | ((triplet >> 6) & 0b00000111);
-    bytes_to_send[buf_idx++] = ((triplet << 1) & 0b01110000) | ((triplet << 0) & 0b00000111);
+  size_t buf_idx = 0;
+  uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
+  while (this->current_data_index_ != buffer_length) {
+    bytes_to_send[buf_idx++] = this->buffer_[this->current_data_index_++];
 
-    if (buf_idx == sizeof bytes_to_send || i == buffer_length) {
+    if (buf_idx == sizeof bytes_to_send) {
       this->start_data_();
       this->write_array(bytes_to_send, buf_idx);
-      buf_idx = 0;
       this->end_data_();
+      ESP_LOGV(TAG, "Wrote %d bytes at %ums", buf_idx, (unsigned) millis());
+      buf_idx = 0;
 
       if (millis() - start_time > MAX_TRANSFER_TIME) {
         // Let the main loop run and come back next loop
-        this->current_data_index_ = i;
         return false;
       }
     }
   }
   // Finished the entire dataset
+  if (buf_idx != 0) {
+    this->start_data_();
+    this->write_array(bytes_to_send, buf_idx);
+    this->end_data_();
+  }
   this->current_data_index_ = 0;
   ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - this->transfer_start_time_);
   return true;

@@ -19,6 +19,7 @@ class SplitBuffer {
   // Access operators
   uint8_t &operator[](size_t index);
   const uint8_t &operator[](size_t index) const;
+  void fill(uint8_t value);
 
   // Get the total length
   size_t size() const { return this->total_length_; }

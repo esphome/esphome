@@ -1,12 +1,10 @@
 import importlib
 import pkgutil
 
-from components.epaper_spi import models
-from components.mipi import map_sequence
-
 from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.mipi import flatten_sequence, map_sequence
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUSY_PIN,
@@ -24,6 +22,8 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_WIDTH,
 )
+
+from . import models
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -53,6 +53,7 @@ DIMENSION_SCHEMA = cv.Schema(
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
+    class_name = epaper_spi_ns.class_(model.class_name, EPaperBase)
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     return (
         display.FULL_DISPLAY_SCHEMA.extend(
@@ -70,14 +71,16 @@ def model_schema(config):
         )
         .extend(
             {
-                cv.GenerateID(): cv.declare_id(model.class_name),
+                cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+                cv.GenerateID(): cv.declare_id(class_name),
                 cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
                 model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
                     pins.gpio_output_pin_schema
                 ),
-                cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                cv.Optional(CONF_INIT_SEQUENCE): cv.ensure_list(map_sequence),
-                model.option(CONF_RESET_DURATION): cv.All(
+                model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
+                    map_sequence
+                ),
+                model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
                     cv.positive_time_period_milliseconds,
                     cv.Range(max=core.TimePeriod(milliseconds=500)),
                 ),
@@ -93,13 +96,6 @@ def customise_schema(config):
     :return: The validated configuration dictionary
     :raises cv.Invalid: If the configuration is invalid
     """
-    # First get the model and bus mode
-    config = cv.Schema(
-        {
-            cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
-        },
-        extra=cv.ALLOW_EXTRA,
-    )(config)
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
@@ -119,8 +115,14 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
 
-    rhs = model.new()
-    var = cg.Pvariable(config[CONF_ID], rhs, model)
+    init_sequence = config.get(CONF_INIT_SEQUENCE)
+    if init_sequence is None:
+        init_sequence = model.get_init_sequence(config)
+    init_sequence = flatten_sequence(init_sequence)
+    init_sequence = cg.ArrayInitializer(*init_sequence)
+    width = config[CONF_DIMENSIONS][CONF_WIDTH]
+    height = config[CONF_DIMENSIONS][CONF_HEIGHT]
+    var = cg.new_Pvariable(config[CONF_ID], width, height, init_sequence)
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
