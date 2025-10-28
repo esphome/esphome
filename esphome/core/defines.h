@@ -87,6 +87,7 @@
 #define USE_MDNS_STORE_SERVICES
 #define MDNS_SERVICE_COUNT 3
 #define MDNS_DYNAMIC_TXT_COUNT 3
+#define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_NUMBER
@@ -122,6 +123,7 @@
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
 #define USE_API_SERVICES
+#define USE_API_CUSTOM_SERVICES
 #define API_MAX_SEND_QUEUE 8
 #define USE_MD5
 #define USE_SHA256
@@ -243,8 +245,10 @@
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
+// clang-format off
 #define USE_SHD_FIRMWARE_DATA \
   {}
+// clang-format on
 
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH

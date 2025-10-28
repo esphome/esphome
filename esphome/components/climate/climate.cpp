@@ -524,13 +524,23 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     call.set_target_humidity(this->target_humidity);
   }
-  if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
+  if (this->uses_custom_fan_mode) {
+    if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
+      call.fan_mode_.reset();
+      call.custom_fan_mode_ = *std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
+    }
+  } else if (traits.supports_fan_mode(this->fan_mode)) {
     call.set_fan_mode(this->fan_mode);
   }
-  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
+  if (this->uses_custom_preset) {
+    if (this->custom_preset < traits.get_supported_custom_presets().size()) {
+      call.preset_.reset();
+      call.custom_preset_ = *std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
+    }
+  } else if (traits.supports_preset(this->preset)) {
     call.set_preset(this->preset);
   }
-  if (traits.get_supports_swing_modes()) {
+  if (traits.supports_swing_mode(this->swing_mode)) {
     call.set_swing_mode(this->swing_mode);
   }
   return call;
@@ -549,41 +559,25 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
     climate->target_humidity = this->target_humidity;
   }
-  if (traits.get_supports_fan_modes() && !this->uses_custom_fan_mode) {
+  if (this->uses_custom_fan_mode) {
+    if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
+      climate->fan_mode.reset();
+      climate->custom_fan_mode = *std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
+    }
+  } else if (traits.supports_fan_mode(this->fan_mode)) {
     climate->fan_mode = this->fan_mode;
+    climate->custom_fan_mode.reset();
   }
-  if (!traits.get_supported_custom_fan_modes().empty() && this->uses_custom_fan_mode) {
-    // std::set has consistent order (lexicographic for strings)
-    const auto &modes = traits.get_supported_custom_fan_modes();
-    if (custom_fan_mode < modes.size()) {
-      size_t i = 0;
-      for (const auto &mode : modes) {
-        if (i == this->custom_fan_mode) {
-          climate->custom_fan_mode = mode;
-          break;
-        }
-        i++;
-      }
+  if (this->uses_custom_preset) {
+    if (this->custom_preset < traits.get_supported_custom_presets().size()) {
+      climate->preset.reset();
+      climate->custom_preset = *std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
     }
-  }
-  if (traits.get_supports_presets() && !this->uses_custom_preset) {
+  } else if (traits.supports_preset(this->preset)) {
     climate->preset = this->preset;
+    climate->custom_preset.reset();
   }
-  if (!traits.get_supported_custom_presets().empty() && uses_custom_preset) {
-    // std::set has consistent order (lexicographic for strings)
-    const auto &presets = traits.get_supported_custom_presets();
-    if (custom_preset < presets.size()) {
-      size_t i = 0;
-      for (const auto &preset : presets) {
-        if (i == this->custom_preset) {
-          climate->custom_preset = preset;
-          break;
-        }
-        i++;
-      }
-    }
-  }
-  if (traits.get_supports_swing_modes()) {
+  if (traits.supports_swing_mode(this->swing_mode)) {
     climate->swing_mode = this->swing_mode;
   }
   climate->publish_state();
