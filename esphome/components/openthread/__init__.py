@@ -180,8 +180,8 @@ async def to_code(config):
     ot = cg.new_Pvariable(config[CONF_ID])
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
-    if CONF_POLL_PERIOD in config:
-        cg.add(ot.set_poll_period(config[CONF_POLL_PERIOD]))
+    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
+        cg.add(ot.set_poll_period(poll_period))
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
