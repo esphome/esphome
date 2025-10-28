@@ -178,8 +178,16 @@ async def register_packet_transport(var, config):
             key_hash = hash_encryption_key(encryption)
             # Create a static array variable and pass its pointer
             key_var_name = f"{var.base}_{name.replace('-', '_')}_key"
-            cg.add(cg.RawStatement(f"static const uint8_t {key_var_name}[] = {{{', '.join(map(str, key_hash))}}};"))
-            cg.add(var.set_provider_encryption(name, cg.RawExpression(key_var_name), len(key_hash)))
+            cg.add(
+                cg.RawStatement(
+                    f"static const uint8_t {key_var_name}[] = {{{', '.join(map(str, key_hash))}}};"
+                )
+            )
+            cg.add(
+                var.set_provider_encryption(
+                    name, cg.RawExpression(key_var_name), len(key_hash)
+                )
+            )
 
     for sens_conf in config.get(CONF_SENSORS, ()):
         sens_id = sens_conf[CONF_ID]
@@ -197,7 +205,11 @@ async def register_packet_transport(var, config):
         key_hash = hash_encryption_key(encryption)
         # Create a static array variable and pass its pointer
         key_var_name = f"{var.base}_encryption_key"
-        cg.add(cg.RawStatement(f"static const uint8_t {key_var_name}[] = {{{', '.join(map(str, key_hash))}}};"))
+        cg.add(
+            cg.RawStatement(
+                f"static const uint8_t {key_var_name}[] = {{{', '.join(map(str, key_hash))}}};"
+            )
+        )
         cg.add(var.set_encryption_key(cg.RawExpression(key_var_name), len(key_hash)))
     return providers
 
