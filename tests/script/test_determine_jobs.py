@@ -5,7 +5,6 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 from unittest.mock import Mock, call, patch
 
@@ -56,9 +55,9 @@ def mock_should_run_python_linters() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_subprocess_run() -> Generator[Mock, None, None]:
-    """Mock subprocess.run for list-components.py calls."""
-    with patch.object(determine_jobs.subprocess, "run") as mock:
+def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
+    """Mock determine_cpp_unit_tests from helpers."""
+    with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
         yield mock
 
 
@@ -82,8 +81,8 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -95,6 +94,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
+    mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
@@ -114,15 +114,15 @@ def test_main_all_tests_should_run(
         ),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
             determine_jobs,
             "get_components_with_dependencies",
-            side_effect=lambda files, deps: ["wifi", "api"]
-            if not deps
-            else ["wifi", "api", "sensor"],
+            side_effect=lambda files, deps: (
+                ["wifi", "api"] if not deps else ["wifi", "api", "sensor"]
+            ),
         ),
     ):
         determine_jobs.main()
@@ -150,6 +150,8 @@ def test_main_all_tests_should_run(
     # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+    assert output["cpp_unit_tests_run_all"] is False
+    assert output["cpp_unit_tests_components"] == ["wifi", "api", "sensor"]
 
 
 def test_main_no_tests_should_run(
@@ -157,8 +159,8 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,6 +172,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -178,7 +181,9 @@ def test_main_no_tests_should_run(
     with (
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "get_changed_components", return_value=[]),
-        patch.object(determine_jobs, "filter_component_files", return_value=False),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
         patch.object(
             determine_jobs, "get_components_with_dependencies", return_value=[]
         ),
@@ -202,31 +207,8 @@ def test_main_no_tests_should_run(
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
-
-
-def test_main_list_components_fails(
-    mock_should_run_integration_tests: Mock,
-    mock_should_run_clang_tidy: Mock,
-    mock_should_run_clang_format: Mock,
-    mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Test when list-components.py fails."""
-    mock_should_run_integration_tests.return_value = True
-    mock_should_run_clang_tidy.return_value = True
-    mock_should_run_clang_format.return_value = True
-    mock_should_run_python_linters.return_value = True
-
-    # Mock list-components.py failure
-    mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd")
-
-    # Run main function with mocked argv - should raise
-    with (
-        patch("sys.argv", ["determine-jobs.py"]),
-        pytest.raises(subprocess.CalledProcessError),
-    ):
-        determine_jobs.main()
+    assert output["cpp_unit_tests_run_all"] is False
+    assert output["cpp_unit_tests_components"] == []
 
 
 def test_main_with_branch_argument(
@@ -234,8 +216,8 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -247,6 +229,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
+    mock_determine_cpp_unit_tests.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
     # Memory impact only runs when component C++ files change
@@ -258,7 +241,7 @@ def test_main_with_branch_argument(
         patch.object(determine_jobs, "get_changed_components", return_value=["mqtt"]),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
@@ -296,6 +279,8 @@ def test_main_with_branch_argument(
     # memory_impact should be false (no component C++ files changed)
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+    assert output["cpp_unit_tests_run_all"] is False
+    assert output["cpp_unit_tests_components"] == ["mqtt"]
 
 
 def test_should_run_integration_tests(
@@ -506,7 +491,6 @@ def test_main_filters_components_without_tests(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -556,16 +540,17 @@ def test_main_filters_components_without_tests(
         ),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
             determine_jobs,
             "get_components_with_dependencies",
-            side_effect=lambda files, deps: ["wifi", "sensor"]
-            if not deps
-            else ["wifi", "sensor", "airthings_ble"],
+            side_effect=lambda files, deps: (
+                ["wifi", "sensor"] if not deps else ["wifi", "sensor", "airthings_ble"]
+            ),
         ),
+        patch.object(determine_jobs, "changed_files", return_value=[]),
     ):
         # Clear the cache since we're mocking root_path
         determine_jobs._component_has_tests.cache_clear()
@@ -587,6 +572,105 @@ def test_main_filters_components_without_tests(
     # memory_impact should be present
     assert "memory_impact" in output
     assert output["memory_impact"]["should_run"] == "false"
+
+
+def test_main_detects_components_with_variant_tests(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that components with only variant test files (test-*.yaml) are detected.
+
+    This test verifies the fix for components like improv_serial, ethernet, mdns,
+    improv_base, and safe_mode which only have variant test files (test-*.yaml)
+    instead of base test files (test.*.yaml).
+    """
+    # Ensure we're not in GITHUB_ACTIONS mode for this test
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = False
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+
+    # Mock changed_files to return component files
+    mock_changed_files.return_value = [
+        "esphome/components/improv_serial/improv_serial.cpp",
+        "esphome/components/ethernet/ethernet.cpp",
+        "esphome/components/no_tests/component.cpp",
+    ]
+
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # improv_serial has only variant tests (like the real component)
+    improv_serial_dir = tests_dir / "improv_serial"
+    improv_serial_dir.mkdir(parents=True)
+    (improv_serial_dir / "test-uart0.esp32-idf.yaml").write_text("test: config")
+    (improv_serial_dir / "test-uart0.esp8266-ard.yaml").write_text("test: config")
+    (improv_serial_dir / "test-usb_cdc.esp32-s2-idf.yaml").write_text("test: config")
+
+    # ethernet also has only variant tests
+    ethernet_dir = tests_dir / "ethernet"
+    ethernet_dir.mkdir(parents=True)
+    (ethernet_dir / "test-manual_ip.esp32-idf.yaml").write_text("test: config")
+    (ethernet_dir / "test-dhcp.esp32-idf.yaml").write_text("test: config")
+
+    # no_tests component has no test files at all
+    no_tests_dir = tests_dir / "no_tests"
+    no_tests_dir.mkdir(parents=True)
+
+    # Mock root_path to use tmp_path (need to patch both determine_jobs and helpers)
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["improv_serial", "ethernet", "no_tests"],
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: (
+                ["improv_serial", "ethernet"]
+                if not deps
+                else ["improv_serial", "ethernet", "no_tests"]
+            ),
+        ),
+        patch.object(determine_jobs, "changed_files", return_value=[]),
+    ):
+        # Clear the cache since we're mocking root_path
+        determine_jobs._component_has_tests.cache_clear()
+        determine_jobs.main()
+
+    # Check output
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    # changed_components should have all components
+    assert set(output["changed_components"]) == {
+        "improv_serial",
+        "ethernet",
+        "no_tests",
+    }
+    # changed_components_with_tests should include components with variant tests
+    assert set(output["changed_components_with_tests"]) == {"improv_serial", "ethernet"}
+    # component_test_count should be 2 (improv_serial and ethernet)
+    assert output["component_test_count"] == 2
+    # no_tests should be excluded since it has no test files
+    assert "no_tests" not in output["changed_components_with_tests"]
 
 
 # Tests for detect_memory_impact_config function
@@ -800,6 +884,51 @@ def test_detect_memory_impact_config_skips_base_bus_components(tmp_path: Path) -
     assert "i2c" not in result["components"]
 
 
+def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
+    """Test memory impact detection for components with only variant test files.
+
+    This verifies that memory impact analysis works correctly for components like
+    improv_serial, ethernet, mdns, etc. which only have variant test files
+    (test-*.yaml) instead of base test files (test.*.yaml).
+    """
+    # Create test directory structure
+    tests_dir = tmp_path / "tests" / "components"
+
+    # improv_serial with only variant tests
+    improv_serial_dir = tests_dir / "improv_serial"
+    improv_serial_dir.mkdir(parents=True)
+    (improv_serial_dir / "test-uart0.esp32-idf.yaml").write_text("test: improv")
+    (improv_serial_dir / "test-uart0.esp8266-ard.yaml").write_text("test: improv")
+    (improv_serial_dir / "test-usb_cdc.esp32-s2-idf.yaml").write_text("test: improv")
+
+    # ethernet with only variant tests
+    ethernet_dir = tests_dir / "ethernet"
+    ethernet_dir.mkdir(parents=True)
+    (ethernet_dir / "test-manual_ip.esp32-idf.yaml").write_text("test: ethernet")
+    (ethernet_dir / "test-dhcp.esp32-c3-idf.yaml").write_text("test: ethernet")
+
+    # Mock changed_files to return both components
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        mock_changed_files.return_value = [
+            "esphome/components/improv_serial/improv_serial.cpp",
+            "esphome/components/ethernet/ethernet.cpp",
+        ]
+        determine_jobs._component_has_tests.cache_clear()
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # Should detect both components even though they only have variant tests
+    assert result["should_run"] == "true"
+    assert set(result["components"]) == {"improv_serial", "ethernet"}
+    # Both components support esp32-idf
+    assert result["platform"] == "esp32-idf"
+    assert result["use_merged_config"] == "true"
+
+
 # Tests for clang-tidy split mode logic
 
 
@@ -808,7 +937,6 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -829,7 +957,9 @@ def test_clang_tidy_mode_full_scan(
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=True),
         patch.object(determine_jobs, "get_changed_components", return_value=[]),
-        patch.object(determine_jobs, "filter_component_files", return_value=False),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
         patch.object(
             determine_jobs, "get_components_with_dependencies", return_value=[]
         ),
@@ -873,7 +1003,6 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
-    mock_subprocess_run: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -912,7 +1041,7 @@ def test_clang_tidy_mode_targeted_scan(
         patch.object(determine_jobs, "get_changed_components", return_value=components),
         patch.object(
             determine_jobs,
-            "filter_component_files",
+            "filter_component_and_test_files",
             side_effect=lambda f: f.startswith("esphome/components/"),
         ),
         patch.object(
@@ -925,3 +1054,60 @@ def test_clang_tidy_mode_targeted_scan(
     output = json.loads(captured.out)
 
     assert output["clang_tidy_mode"] == expected_mode
+
+
+def test_main_core_files_changed_still_detects_components(
+    mock_should_run_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that component changes are detected even when core files change."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_should_run_integration_tests.return_value = True
+    mock_should_run_clang_tidy.return_value = True
+    mock_should_run_clang_format.return_value = True
+    mock_should_run_python_linters.return_value = True
+    mock_determine_cpp_unit_tests.return_value = (True, [])
+
+    mock_changed_files.return_value = [
+        "esphome/core/helpers.h",
+        "esphome/components/select/select_traits.h",
+        "esphome/components/select/select_traits.cpp",
+        "esphome/components/api/api.proto",
+    ]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(determine_jobs, "get_changed_components", return_value=None),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: (
+                ["select", "api"]
+                if not deps
+                else ["select", "api", "bluetooth_proxy", "logger"]
+            ),
+        ),
+    ):
+        determine_jobs.main()
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] == "split"
+    assert "select" in output["changed_components"]
+    assert "api" in output["changed_components"]
+    assert len(output["changed_components"]) > 0

@@ -178,6 +178,8 @@ jobs:
       component-test-count: ${{ steps.determine.outputs.component-test-count }}
       changed-cpp-file-count: ${{ steps.determine.outputs.changed-cpp-file-count }}
       memory_impact: ${{ steps.determine.outputs.memory-impact }}
+      cpp-unit-tests-run-all: ${{ steps.determine.outputs.cpp-unit-tests-run-all }}
+      cpp-unit-tests-components: ${{ steps.determine.outputs.cpp-unit-tests-components }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -210,6 +212,8 @@ jobs:
           echo "component-test-count=$(echo "$output" | jq -r '.component_test_count')" >> $GITHUB_OUTPUT
           echo "changed-cpp-file-count=$(echo "$output" | jq -r '.changed_cpp_file_count')" >> $GITHUB_OUTPUT
           echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
+          echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
+          echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
 
   integration-tests:
     name: Run integration tests
@@ -246,6 +250,33 @@ jobs:
         run: |
           . venv/bin/activate
           pytest -vv --no-cov --tb=native -n auto tests/integration/
+
+  cpp-unit-tests:
+    name: Run C++ unit tests
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && (needs.determine-jobs.outputs.cpp-unit-tests-run-all == 'true' || needs.determine-jobs.outputs.cpp-unit-tests-components != '[]')
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Run cpp_unit_test.py
+        run: |
+          . venv/bin/activate
+          if [ "${{ needs.determine-jobs.outputs.cpp-unit-tests-run-all }}" = "true" ]; then
+            script/cpp_unit_test.py --all
+          else
+            ARGS=$(echo '${{ needs.determine-jobs.outputs.cpp-unit-tests-components }}' | jq -r '.[] | @sh' | xargs)
+            script/cpp_unit_test.py $ARGS
+          fi
 
   clang-tidy-single:
     name: ${{ matrix.name }}
