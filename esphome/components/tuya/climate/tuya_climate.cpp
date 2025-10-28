@@ -67,7 +67,9 @@ void TuyaClimate::setup() {
   }
   if (this->eco_id_.has_value()) {
     this->parent_->register_listener(*this->eco_id_, [this](const TuyaDatapoint &datapoint) {
+      // Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both cases
       this->eco_ = datapoint.value_bool;
+      this->eco_type_ = datapoint.type;
       ESP_LOGV(TAG, "MCU reported eco is: %s", ONOFF(this->eco_));
       this->compute_preset_();
       this->compute_target_temperature_();
@@ -176,7 +178,11 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     if (this->eco_id_.has_value()) {
       const bool eco = preset == climate::CLIMATE_PRESET_ECO;
       ESP_LOGV(TAG, "Setting eco: %s", ONOFF(eco));
-      this->parent_->set_boolean_datapoint_value(*this->eco_id_, eco);
+      if (this->eco_type_ == TuyaDatapointType::ENUM) {
+        this->parent_->set_enum_datapoint_value(*this->eco_id_, eco);
+      } else {
+        this->parent_->set_boolean_datapoint_value(*this->eco_id_, eco);
+      }
     }
     if (this->sleep_id_.has_value()) {
       const bool sleep = preset == climate::CLIMATE_PRESET_SLEEP;
