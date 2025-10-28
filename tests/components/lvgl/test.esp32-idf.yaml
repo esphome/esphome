@@ -1,10 +1,7 @@
-spi:
-  clk_pin: 14
-  mosi_pin: 13
-
-i2c:
-  sda: GPIO18
-  scl: GPIO19
+packages:
+  lvgl: !include lvgl-package.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 sensor:
   - platform: rotary_encoder
@@ -25,6 +22,7 @@ binary_sensor:
 
 display:
   - platform: ili9xxx
+    spi_id: spi_bus
     model: st7789v
     id: second_display
     dimensions:
@@ -44,6 +42,7 @@ display:
     update_interval: never
 
   - platform: ili9xxx
+    spi_id: spi_bus
     model: st7789v
     id: tft_display
     dimensions:
@@ -59,9 +58,6 @@ display:
     auto_clear_enabled: false
     invert_colors: false
     update_interval: never
-
-packages:
-  lvgl: !include lvgl-package.yaml
 
 lvgl:
   displays:

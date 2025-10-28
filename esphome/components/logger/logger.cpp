@@ -148,9 +148,11 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
 inline uint8_t Logger::level_for(const char *tag) {
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   auto it = this->log_levels_.find(tag);
   if (it != this->log_levels_.end())
     return it->second;
+#endif
   return this->current_level_;
 }
 
@@ -220,7 +222,9 @@ void Logger::process_messages_() {
 }
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-void Logger::set_log_level(const std::string &tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
+#endif
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 UARTSelection Logger::get_uart() const { return this->uart_; }
@@ -271,9 +275,11 @@ void Logger::dump_config() {
   }
 #endif
 
+#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first.c_str(), LOG_STR_ARG(LOG_LEVELS[it.second]));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LOG_LEVELS[it.second]));
   }
+#endif
 }
 
 void Logger::set_log_level(uint8_t level) {

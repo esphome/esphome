@@ -15,6 +15,8 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
+    get_str_env,
+    is_ha_addon,
     read_file,
     walk_files,
     write_file_if_changed,
@@ -338,16 +340,21 @@ def clean_build():
 def clean_all(configuration: list[str]):
     import shutil
 
-    # Clean entire build dir
-    for dir in configuration:
-        build_dir = Path(dir) / ".esphome"
-        if build_dir.is_dir():
-            _LOGGER.info("Cleaning %s", build_dir)
-            # Don't remove storage as it will cause the dashboard to regenerate all configs
-            for item in build_dir.iterdir():
-                if item.is_file():
+    data_dirs = [Path(dir) / ".esphome" for dir in configuration]
+    if is_ha_addon():
+        data_dirs.append(Path("/data"))
+    if "ESPHOME_DATA_DIR" in os.environ:
+        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+
+    # Clean build dir
+    for dir in data_dirs:
+        if dir.is_dir():
+            _LOGGER.info("Cleaning %s", dir)
+            # Don't remove storage or .json files which are needed by the dashboard
+            for item in dir.iterdir():
+                if item.is_file() and not item.name.endswith(".json"):
                     item.unlink()
-                elif item.name != "storage" and item.is_dir():
+                elif item.is_dir() and item.name != "storage":
                     shutil.rmtree(item)
 
     # Clean PlatformIO project files
