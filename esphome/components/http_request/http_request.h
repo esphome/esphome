@@ -124,7 +124,7 @@ class HttpRequestComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
-  void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+  void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
   uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
@@ -173,7 +173,7 @@ class HttpRequestComponent : public Component {
   const char *useragent_{nullptr};
   bool follow_redirects_{};
   uint16_t redirect_limit_{};
-  uint16_t timeout_{4500};
+  uint32_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
 };
 
