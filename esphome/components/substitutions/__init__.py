@@ -1,4 +1,6 @@
 import logging
+from re import Match
+from typing import Any
 
 from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
@@ -39,7 +41,34 @@ async def to_code(config):
     pass
 
 
-def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
+def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBase:
+    """This function restores ESPHomeDataBase metadata held by the original string.
+    This is needed because during jinja evaluation, strings can be replaced by other types,
+    but we want to keep the original metadata for error reporting and source mapping.
+    For example, if a substitution replaces a string with a dictionary, we want that items
+    in the dictionary to still point to the original document location
+    """
+    if isinstance(value, ESPHomeDataBase):
+        return value
+    if isinstance(value, dict):
+        return {
+            _restore_data_base(k, orig_value): _restore_data_base(v, orig_value)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_restore_data_base(v, orig_value) for v in value]
+    if isinstance(value, str):
+        return make_data_base(value, orig_value)
+    return value
+
+
+def _expand_jinja(
+    value: str | JinjaStr,
+    orig_value: str | JinjaStr,
+    path,
+    jinja: Jinja,
+    ignore_missing: bool,
+) -> Any:
     if has_jinja(value):
         # If the original value passed in to this function is a JinjaStr, it means it contains an unresolved
         # Jinja expression from a previous pass.
@@ -65,10 +94,17 @@ def _expand_jinja(value, orig_value, path, jinja, ignore_missing):
                 f"\nSee {'->'.join(str(x) for x in path)}",
                 path,
             )
+        # If the original, unexpanded string, contained document metadata (ESPHomeDatabase),
+        # assign this same document metadata to the resulting value.
+        if isinstance(orig_value, ESPHomeDataBase):
+            value = _restore_data_base(value, orig_value)
+
     return value
 
 
-def _expand_substitutions(substitutions, value, path, jinja, ignore_missing):
+def _expand_substitutions(
+    substitutions: dict, value: str, path, jinja: Jinja, ignore_missing: bool
+) -> Any:
     if "$" not in value:
         return value
 
@@ -76,14 +112,14 @@ def _expand_substitutions(substitutions, value, path, jinja, ignore_missing):
 
     i = 0
     while True:
-        m = cv.VARIABLE_PROG.search(value, i)
+        m: Match[str] = cv.VARIABLE_PROG.search(value, i)
         if not m:
             # No more variable substitutions found. See if the remainder looks like a jinja template
             value = _expand_jinja(value, orig_value, path, jinja, ignore_missing)
             break
 
         i, j = m.span(0)
-        name = m.group(1)
+        name: str = m.group(1)
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
         if name not in substitutions:
@@ -98,7 +134,7 @@ def _expand_substitutions(substitutions, value, path, jinja, ignore_missing):
             i = j
             continue
 
-        sub = substitutions[name]
+        sub: Any = substitutions[name]
 
         if i == 0 and j == len(value):
             # The variable spans the whole expression, e.g., "${varName}". Return its resolved value directly
@@ -121,7 +157,13 @@ def _expand_substitutions(substitutions, value, path, jinja, ignore_missing):
     return value
 
 
-def _substitute_item(substitutions, item, path, jinja, ignore_missing):
+def _substitute_item(
+    substitutions: dict,
+    item: Any,
+    path: list[int | str],
+    jinja: Jinja,
+    ignore_missing: bool,
+) -> Any | None:
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
     if isinstance(item, list):
@@ -160,7 +202,9 @@ def _substitute_item(substitutions, item, path, jinja, ignore_missing):
     return None
 
 
-def do_substitution_pass(config, command_line_substitutions, ignore_missing=False):
+def do_substitution_pass(
+    config: dict, command_line_substitutions: dict, ignore_missing: bool = False
+) -> None:
     if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 

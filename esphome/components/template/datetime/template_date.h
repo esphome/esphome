@@ -15,7 +15,7 @@ namespace template_ {
 
 class TemplateDate : public datetime::DateEntity, public PollingComponent {
  public:
-  void set_template(std::function<optional<ESPTime>()> &&f) { this->f_ = f; }
+  void set_template(optional<ESPTime> (*f)()) { this->f_ = f; }
 
   void setup() override;
   void update() override;
@@ -35,7 +35,7 @@ class TemplateDate : public datetime::DateEntity, public PollingComponent {
   ESPTime initial_value_{};
   bool restore_value_{false};
   Trigger<ESPTime> *set_trigger_ = new Trigger<ESPTime>();
-  optional<std::function<optional<ESPTime>()>> f_;
+  optional<optional<ESPTime> (*)()> f_;
 
   ESPPreferenceObject pref_;
 };
