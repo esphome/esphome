@@ -117,9 +117,9 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
 }
 
 float BLESensor::parse_data_(uint8_t *value, uint16_t value_len) {
-  if (this->data_to_value_func_.has_value()) {
+  if (this->has_data_to_value_) {
     std::vector<uint8_t> data(value, value + value_len);
-    return (*this->data_to_value_func_)(data);
+    return this->data_to_value_func_(data);
   } else {
     return value[0];
   }
