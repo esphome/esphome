@@ -47,6 +47,10 @@ def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
         return expr[6:][:-1].strip()
+    # If lambda has parameters, call it with those parameter names
+    if lamb.parameters and lamb.parameters.parameters:
+        param_names = ", ".join(param.name for param in lamb.parameters.parameters)
+        return f"{lamb}({param_names})"
     return f"{lamb}()"
 
 
