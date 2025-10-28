@@ -5,6 +5,7 @@ from esphome.const import CONF_PATH, CONF_RAW_DATA_ID
 from esphome.core import CORE, HexInt
 
 CODEOWNERS = ["@swoboda1337"]
+AUTO_LOAD = ["watchdog"]
 DEPENDENCIES = ["esp32_hosted"]
 
 esp32_hosted_ns = cg.esphome_ns.namespace("esp32_hosted")

@@ -1,12 +1,11 @@
 #if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
-#include "esp32_hosted_update.h"
-
+#include "esphome/components/esp32_hosted/update/esp32_hosted_update.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <esp_image_format.h>
 #include <esp_app_desc.h>
 #include <esp_hosted.h>
-#include <esp_task_wdt.h>
 
 extern "C" {
 #include <esp_hosted_ota.h>
@@ -73,8 +72,6 @@ void Esp32HostedUpdate::dump_config() {
 }
 
 void Esp32HostedUpdate::perform(bool force) {
-  update::UpdateState prev_state = this->state_;
-
   if (this->state_ != update::UPDATE_STATE_AVAILABLE && !force) {
     ESP_LOGW(TAG, "Update not available");
     return;
@@ -87,32 +84,16 @@ void Esp32HostedUpdate::perform(bool force) {
 
   ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
 
+  watchdog::WatchdogManager watchdog(20000);
+  update::UpdateState prev_state = this->state_;
+
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->update_info_.has_progress = false;
   this->publish_state();
 
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-  // extend watchdog timeout for OTA operation
-  esp_task_wdt_config_t wdtc;
-  wdtc.idle_core_mask = 0;
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
-  wdtc.idle_core_mask |= (1 << 0);
-#endif
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
-  wdtc.idle_core_mask |= (1 << 1);
-#endif
-  wdtc.timeout_ms = 30000;
-  wdtc.trigger_panic = false;
-  esp_task_wdt_reconfigure(&wdtc);
-#endif
-
   esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
     this->state_ = prev_state;
     this->status_set_error("Failed to begin OTA");
     this->publish_state();
@@ -129,10 +110,6 @@ void Esp32HostedUpdate::perform(bool force) {
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
       esp_hosted_slave_ota_end();  // NOLINT
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-      wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-      esp_task_wdt_reconfigure(&wdtc);
-#endif
       this->state_ = prev_state;
       this->status_set_error("Failed to write OTA data");
       this->publish_state();
@@ -146,10 +123,6 @@ void Esp32HostedUpdate::perform(bool force) {
   err = esp_hosted_slave_ota_end();  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(err));
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
     this->state_ = prev_state;
     this->status_set_error("Failed to end OTA");
     this->publish_state();
@@ -160,10 +133,6 @@ void Esp32HostedUpdate::perform(bool force) {
   err = esp_hosted_slave_ota_activate();  // NOLINT
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(err));
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
     this->state_ = prev_state;
     this->status_set_error("Failed to activate OTA");
     this->publish_state();
@@ -172,10 +141,6 @@ void Esp32HostedUpdate::perform(bool force) {
 
   // restore watchdog and update state
   ESP_LOGI(TAG, "OTA update successful");
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-  esp_task_wdt_reconfigure(&wdtc);
-#endif
   this->state_ = update::UPDATE_STATE_NO_UPDATE;
   this->status_clear_error();
   this->publish_state();
