@@ -52,6 +52,11 @@ void HttpRequestUpdate::update_task(void *params) {
     std::string msg = str_sprintf("Failed to fetch manifest from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
     this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
+
+    if (container->status_code != HTTP_STATUS_OK) {
+      container->end();
+      container.reset();
+    }
     UPDATE_RETURN;
   }
 

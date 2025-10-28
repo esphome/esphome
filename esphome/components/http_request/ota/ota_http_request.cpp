@@ -106,7 +106,12 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   auto container = this->parent_->get(url_with_auth);
 
-  if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
+  if (container == nullptr) {
+    return OTA_CONNECTION_ERROR;
+  }
+  if (container->status_code != HTTP_STATUS_OK) {
+    container->end();
+    container.reset();
     return OTA_CONNECTION_ERROR;
   }
 
