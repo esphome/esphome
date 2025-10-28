@@ -56,6 +56,14 @@ binary_sensor:
     register_type: read
     address: 0x3200
     bitmask: 0x80
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_binary_sensor2
+    name: Test Binary Sensor with Lambda
+    register_type: read
+    address: 0x3201
+    lambda: |-
+      return x;
 
 number:
   - platform: modbus_controller
@@ -65,6 +73,16 @@ number:
     address: 0x9001
     value_type: U_WORD
     multiply: 1.0
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_number2
+    name: Test Number with Lambda
+    address: 0x9002
+    value_type: U_WORD
+    lambda: |-
+      return x * 2.0;
+    write_lambda: |-
+      return x / 2.0;
 
 output:
   - platform: modbus_controller
@@ -74,6 +92,14 @@ output:
     register_type: holding
     value_type: U_WORD
     multiply: 1000
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_output2
+    address: 2049
+    register_type: holding
+    value_type: U_WORD
+    write_lambda: |-
+      return x * 100.0;
 
 select:
   - platform: modbus_controller
@@ -87,6 +113,34 @@ select:
       "One": 1
       "Two": 2
       "Three": 3
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_select2
+    name: Test Select with Lambda
+    address: 1001
+    value_type: U_WORD
+    optionsmap:
+      "Off": 0
+      "On": 1
+      "Two": 2
+    lambda: |-
+      ESP_LOGD("Reg1001", "Received value %lld", x);
+      if (x > 1) {
+        return std::string("Two");
+      } else if (x == 1) {
+        return std::string("On");
+      }
+      return std::string("Off");
+    write_lambda: |-
+      ESP_LOGD("Reg1001", "Set option to %s (%lld)", x.c_str(), value);
+      if (x == "On") {
+        return 1;
+      }
+      if (x == "Two") {
+        payload.push_back(0x0002);
+        return 0;
+      }
+      return value;
 
 sensor:
   - platform: modbus_controller
@@ -97,6 +151,15 @@ sensor:
     address: 0x9001
     unit_of_measurement: "AH"
     value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor2
+    name: Test Sensor with Lambda
+    register_type: holding
+    address: 0x9002
+    value_type: U_WORD
+    lambda: |-
+      return x / 10.0;
 
 switch:
   - platform: modbus_controller
@@ -106,6 +169,16 @@ switch:
     register_type: coil
     address: 0x15
     bitmask: 1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_switch2
+    name: Test Switch with Lambda
+    register_type: coil
+    address: 0x16
+    lambda: |-
+      return !x;
+    write_lambda: |-
+      return !x;
 
 text_sensor:
   - platform: modbus_controller
@@ -117,3 +190,13 @@ text_sensor:
     register_count: 3
     raw_encode: HEXBYTES
     response_size: 6
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor2
+    name: Test Text Sensor with Lambda
+    register_type: holding
+    address: 0x9014
+    register_count: 2
+    response_size: 4
+    lambda: |-
+      return "Modified: " + x;
