@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
     CONF_REFRESH,
+    CONF_SIZE,
     CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
@@ -81,6 +82,8 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
+CONF_SUBTYPE = "subtype"
+CONF_CUSTOM_PARTITIONS = "custom_partitions"
 
 LOG_LEVELS_IDF = [
     "NONE",
@@ -486,7 +489,7 @@ def _detect_variant(value):
     return value
 
 
-custom_partitions = []
+custom_partitions = {}
 
 
 def final_validate(config):
@@ -547,12 +550,12 @@ def final_validate(config):
         ) as f:
             partitions_tab = f.read()
             print(partitions_tab)
-            for partition in custom_partitions:
+            for partition, types in custom_partitions.items():
                 print(partition["name"])
-                if partition["name"] not in partitions_tab:
+                if partition not in partitions_tab:
                     errs.append(
                         cv.Invalid(
-                            f"Add '{partition['name']}, {partition['type']}, {partition['subtype']},   , {partition['size']},' to your custom partition table."
+                            f"Add '{partition}, {types['type']}, {types['subtype']},   , {types['size']},' to your custom partition table."
                         )
                     )
     if errs:
@@ -766,6 +769,12 @@ def _set_default_framework(config):
     return config
 
 
+def _validate_custom_partition(config):
+    return validate_custom_partition(
+        config[CONF_NAME], config[CONF_TYPE], config[CONF_SUBTYPE], config[CONF_SIZE]
+    )(config)
+
+
 FLASH_SIZES = [
     "2MB",
     "4MB",
@@ -788,6 +797,25 @@ CONFIG_SCHEMA = cv.All(
                 *FLASH_SIZES, upper=True
             ),
             cv.Optional(CONF_PARTITIONS): cv.file_,
+            cv.Optional(CONF_CUSTOM_PARTITIONS): cv.ensure_list(
+                cv.All(
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_NAME): cv.string_strict,
+                            cv.Optional(CONF_TYPE): cv.Any(
+                                cv.string_strict,
+                                cv.int_range(0x40, 0xFE),
+                            ),
+                            cv.Optional(CONF_SUBTYPE): cv.Any(
+                                cv.string_strict,
+                                cv.int_range(0, 0xFE),
+                            ),
+                            cv.Optional(CONF_SIZE): cv.int_,
+                        }
+                    ),
+                    _validate_custom_partition,
+                ),
+            ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
@@ -796,6 +824,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     set_core_data,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
+    cv.has_at_most_one_key(CONF_PARTITIONS, CONF_CUSTOM_PARTITIONS),
 )
 
 
@@ -1120,18 +1149,16 @@ def validate_custom_partition(
         if isinstance(p_type_, int):
             if p_type_ not in range(0x40, 0xFE):
                 raise cv.Invalid(
-                    f"Type 0x{p_type_:X} is invalid. Only 0x40 - 0xFE are allowed"
+                    f"Type 0x{p_type_:X} is invalid. Only custom types 0x40 - 0xFE are allowed"
                 )
             p_type_ = f"0x{p_type_:X}"
         if isinstance(subtype_, int):
-            if subtype_ not in range(0x40, 0xFE):
+            if subtype_ not in range(0x0, 0xFE):
                 raise cv.Invalid(
-                    f"Subtype 0x{subtype_:X} is invalid. Only 0x40 - 0xFE are allowed"
+                    f"Subtype 0x{subtype_:X} is invalid. Only 0x0 - 0xFE are allowed"
                 )
             subtype_ = f"0x{subtype_:X}"
-        custom_partitions.append(
-            {"name": name, "type": p_type_, "subtype": subtype_, "size": size}
-        )
+        custom_partitions[name] = {"type": p_type_, "subtype": subtype_, "size": size}
         return value
 
     return validator
@@ -1139,7 +1166,7 @@ def validate_custom_partition(
 
 def _get_custom_partition_half_size() -> int:
     size = 0
-    for partition in custom_partitions:
+    for partition in custom_partitions.values():
         if partition["type"] == "app":
             size = ceil(size / 0x10000) * 0x10000  # align to 64KB
         else:
@@ -1178,8 +1205,8 @@ app1,     app,  ota_1,   0x{app1_partition_start:X}, 0x{app_partition_size:X},
 eeprom,   data, 0x99,    0x{eeprom_partition_start:X}, 0x{eeprom_partition_size:X},
 spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:X},
 """
-    for partition in custom_partitions:
-        if partition["type"] == "app":
+    for partition, types in custom_partitions.items():
+        if types["type"] == "app":
             custom_partition_start = (
                 ceil(custom_partition_start / 0x10000) * 0x10000
             )  # align to 64KB
@@ -1187,8 +1214,8 @@ spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:
             custom_partition_start = (
                 ceil(custom_partition_start / 0x1000) * 0x1000
             )  # align to 4KB
-        partition_csv += f"{partition['name']}, {partition['type']},   {partition['subtype']},    0x{custom_partition_start:X},   0x{partition['size']:X},\n"
-        custom_partition_start = custom_partition_start + partition.size
+        partition_csv += f"{partition}, {types['type']},   {types['subtype']},    0x{custom_partition_start:X},   0x{types['size']:X},\n"
+        custom_partition_start = custom_partition_start + types["size"]
     return partition_csv
 
 
@@ -1204,8 +1231,8 @@ app0,     app,  ota_0,   ,        0x{app_partition_size:X},
 app1,     app,  ota_1,   ,        0x{app_partition_size:X},
 nvs,      data, nvs,     ,        0x6D000,
 """
-    for partition in custom_partitions:
-        partition_csv += f"{partition['name']}, {partition['type']},   {partition['subtype']},    , 0x{partition['size']:X},\n"
+    for partition, types in custom_partitions.items():
+        partition_csv += f"{partition}, {types['type']},   {types['subtype']},    , 0x{types['size']:X},\n"
     return partition_csv
 
 
