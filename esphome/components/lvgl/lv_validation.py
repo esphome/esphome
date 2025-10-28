@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
@@ -31,6 +33,9 @@ from .defines import (
 )
 from .helpers import add_lv_use, esphome_fonts_used, lv_fonts_used, requires_component
 from .types import lv_font_t, lv_gradient_t
+
+if TYPE_CHECKING:
+    pass
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -389,6 +394,15 @@ class TextValidator(LValidator):
         return super().__call__(value)
 
     async def process(self, value, args=()):
+        # If args not provided, try to get them from the current LambdaContext
+        # This allows nested lambdas in automations to access outer automation parameters
+        if not args:
+            # Import here to avoid circular import at module level
+            from .lvcode import CodeContext, LambdaContext
+
+            if isinstance(CodeContext.code_context, LambdaContext):
+                args = CodeContext.code_context.parameters
+
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
                 args = [str(x) for x in value[CONF_ARGS]]

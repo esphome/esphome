@@ -110,3 +110,21 @@ text:
     platform: lvgl
     widget: hello_label
     mode: text
+
+text_sensor:
+  - platform: template
+    id: test_text_sensor
+    name: "Test Text Sensor"
+    # Test nested lambdas in LVGL actions can access automation parameters
+    on_value:
+      - lvgl.label.update:
+          id: hello_label
+          text: !lambda return x.c_str();
+      - lvgl.label.update:
+          id: hello_label
+          text: !lambda |-
+            // Test complex lambda with conditionals accessing x parameter
+            if (x == "*") {
+              return "WILDCARD";
+            }
+            return x.c_str();
