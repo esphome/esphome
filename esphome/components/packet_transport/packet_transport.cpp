@@ -197,7 +197,7 @@ void PacketTransport::setup() {
     this->status_set_error("Device name exceeds 255 chars");
     return;
   }
-  this->provider_count_ = 0;
+  this->providers_.count = 0;
   this->ping_key_count_ = 0;
 #ifdef USE_SENSOR
   this->remote_sensor_count_ = 0;
@@ -336,15 +336,16 @@ void PacketTransport::update() {
     ESP_LOGV(TAG, "Ping request, age %u", now - this->last_key_time_);
     this->last_key_time_ = now;
   }
-  for (uint8_t i = 0; i < this->provider_count_; i++) {
-    if (!this->providers_[i].active)
+  for (uint8_t i = 0; i < this->providers_.count; i++) {
+    if (!this->providers_.data[i].active)
       continue;
-    uint32_t key_response_age = now - this->providers_[i].last_key_response_time;
+    uint32_t key_response_age = now - this->providers_.data[i].last_key_response_time;
     if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
 #ifdef USE_STATUS_SENSOR
-      if (this->providers_[i].status_sensor != nullptr && this->providers_[i].status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_[i].name, now, key_response_age);
-        this->providers_[i].status_sensor->publish_state(false);
+      if (this->providers_.data[i].status_sensor != nullptr && this->providers_.data[i].status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", this->providers_.data[i].name, now,
+                 key_response_age);
+        this->providers_.data[i].status_sensor->publish_state(false);
       }
 #endif
 #ifdef USE_SENSOR
@@ -363,9 +364,10 @@ void PacketTransport::update() {
 #endif
     } else {
 #ifdef USE_STATUS_SENSOR
-      if (this->providers_[i].status_sensor != nullptr && !this->providers_[i].status_sensor->state) {
-        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_[i].name, now, key_response_age);
-        this->providers_[i].status_sensor->publish_state(true);
+      if (this->providers_.data[i].status_sensor != nullptr && !this->providers_.data[i].status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", this->providers_.data[i].name, now,
+                 key_response_age);
+        this->providers_.data[i].status_sensor->publish_state(true);
       }
 #endif
     }
@@ -468,7 +470,7 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     return;
   }
 
-  auto &provider = this->providers_[provider_index];
+  auto &provider = this->providers_.data[provider_index];
   // if encryption not used with this host, ping check is pointless since it would be easily spoofed.
   if (provider.key_length == 0)
     ping_key_seen = true;
@@ -549,11 +551,11 @@ void PacketTransport::dump_config() {
   for (auto sensor : this->binary_sensors_)
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
 #endif
-  for (uint8_t i = 0; i < this->provider_count_; i++) {
-    if (!this->providers_[i].active)
+  for (uint8_t i = 0; i < this->providers_.count; i++) {
+    if (!this->providers_.data[i].active)
       continue;
-    ESP_LOGCONFIG(TAG, "  Remote host: %s", this->providers_[i].name);
-    ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(this->providers_[i].key_length > 0));
+    ESP_LOGCONFIG(TAG, "  Remote host: %s", this->providers_.data[i].name);
+    ESP_LOGCONFIG(TAG, "    Encrypted: %s", YESNO(this->providers_.data[i].key_length > 0));
 #ifdef USE_SENSOR
     for (uint8_t j = 0; j < this->remote_sensor_count_; j++) {
       if (this->remote_sensors_[j].active && this->remote_sensors_[j].provider_index == i) {
@@ -604,8 +606,8 @@ void PacketTransport::send_ping_pong_request_() {
 }
 
 int8_t PacketTransport::find_provider_(const char *name) {
-  for (uint8_t i = 0; i < this->provider_count_; i++) {
-    if (this->providers_[i].active && strcmp(this->providers_[i].name, name) == 0) {
+  for (uint8_t i = 0; i < this->providers_.count; i++) {
+    if (this->providers_.data[i].active && strcmp(this->providers_.data[i].name, name) == 0) {
       return i;
     }
   }
@@ -617,20 +619,20 @@ int8_t PacketTransport::find_or_create_provider_(const char *name) {
   if (index >= 0)
     return index;
 
-  if (this->provider_count_ >= MAX_PROVIDERS) {
+  if (this->providers_.count >= MAX_PROVIDERS) {
     ESP_LOGE(TAG, "Maximum number of providers (%d) reached", MAX_PROVIDERS);
     return -1;
   }
 
-  index = this->provider_count_++;
-  this->providers_[index].name = name;
-  this->providers_[index].key_length = 0;
-  this->providers_[index].last_code[0] = 0;
-  this->providers_[index].last_code[1] = 0;
-  this->providers_[index].last_key_response_time = 0;
-  this->providers_[index].active = true;
+  index = this->providers_.count++;
+  this->providers_.data[index].name = name;
+  this->providers_.data[index].key_length = 0;
+  this->providers_.data[index].last_code[0] = 0;
+  this->providers_.data[index].last_code[1] = 0;
+  this->providers_.data[index].last_key_response_time = 0;
+  this->providers_.data[index].active = true;
 #ifdef USE_STATUS_SENSOR
-  this->providers_[index].status_sensor = nullptr;
+  this->providers_.data[index].status_sensor = nullptr;
 #endif
   return index;
 }
@@ -654,8 +656,8 @@ void PacketTransport::set_provider_encryption(const char *name, const uint8_t *k
     ESP_LOGE(TAG, "Encryption key too large for provider %s: %d > %d", name, key_length, MAX_ENCRYPTION_KEY_SIZE);
     return;
   }
-  memcpy(this->providers_[index].encryption_key, key, key_length);
-  this->providers_[index].key_length = key_length;
+  memcpy(this->providers_.data[index].encryption_key, key, key_length);
+  this->providers_.data[index].key_length = key_length;
 }
 
 #ifdef USE_STATUS_SENSOR
@@ -663,7 +665,7 @@ void PacketTransport::set_provider_status_sensor(const char *name, binary_sensor
   int8_t index = this->find_or_create_provider_(name);
   if (index < 0)
     return;
-  this->providers_[index].status_sensor = sensor;
+  this->providers_.data[index].status_sensor = sensor;
 }
 #endif
 
@@ -708,7 +710,7 @@ int8_t PacketTransport::find_remote_binary_sensor_(uint8_t provider_index, const
 }
 
 void PacketTransport::add_remote_binary_sensor(const char *hostname, const char *remote_id,
-                                               binary_sensor::BinarySensor *sensor) {
+                                                binary_sensor::BinarySensor *sensor) {
   int8_t provider_index = this->find_or_create_provider_(hostname);
   if (provider_index < 0)
     return;

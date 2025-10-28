@@ -41,6 +41,19 @@ struct Provider {
 #endif
 };
 
+// Wrapper to provide std::map-like interface for backward compatibility
+class ProvidersArray {
+ public:
+  Provider data[MAX_PROVIDERS];
+  uint8_t count{0};
+
+  bool empty() const { return this->count == 0; }
+  size_t size() const { return this->count; }
+
+  Provider &operator[](size_t index) { return this->data[index]; }
+  const Provider &operator[](size_t index) const { return this->data[index]; }
+};
+
 #ifdef USE_SENSOR
 struct Sensor {
   sensor::Sensor *sensor;
@@ -113,11 +126,10 @@ class PacketTransport : public PollingComponent {
   void set_platform_name(const char *name) { this->platform_name_ = name; }
 
   // Helper method for compatibility with code checking if providers exist
-  bool has_providers() const { return this->provider_count_ > 0; }
+  bool has_providers() const { return this->providers_.count > 0; }
 
   // Public access to providers for child classes (backward compatibility)
-  Provider providers_[MAX_PROVIDERS];
-  uint8_t provider_count_{};
+  ProvidersArray providers_;
 
  protected:
   // child classes must implement this
