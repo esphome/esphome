@@ -53,7 +53,7 @@ void HttpRequestUpdate::update_task(void *params) {
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
     this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
 
-    if (container->status_code != HTTP_STATUS_OK) {
+    if (container != nullptr && container->status_code != HTTP_STATUS_OK) {
       container->end();
       container.reset();
     }
@@ -67,6 +67,7 @@ void HttpRequestUpdate::update_task(void *params) {
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
     this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
     container->end();
+    container.reset();
     UPDATE_RETURN;
   }
 
