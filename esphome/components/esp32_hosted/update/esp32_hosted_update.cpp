@@ -145,10 +145,8 @@ void Esp32HostedUpdate::perform(bool force) {
   this->publish_state();
 
   // schedule a restart to ensure everything is in sync
-  this->defer("restart", [this]() {
-    ESP_LOGI(TAG, "Restarting in 5 seconds...");
-    this->set_timeout(5000, []() { App.safe_reboot(); });
-  });
+  ESP_LOGI(TAG, "Restarting in 1 second...");
+  this->set_timeout(1000, []() { App.safe_reboot(); });
 }
 
 }  // namespace esp32_hosted
