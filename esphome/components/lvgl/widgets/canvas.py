@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
-from esphome.cpp_generator import Literal, MockObj
+from esphome.cpp_generator import Literal, MockObj, RawStatement
 
 from ..automation import action_to_code
 from ..defines import (
@@ -33,7 +33,7 @@ from ..lv_validation import (
     pixels,
     size,
 )
-from ..lvcode import LocalVariable, lv, lv_assign
+from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, STYLE_REMAP, TEXT_SCHEMA, point_schema
 from ..types import LvType, ObjUpdateAction, WidgetType
 from . import Widget, get_widgets
@@ -70,11 +70,18 @@ class CanvasType(WidgetType):
         width = config[CONF_WIDTH]
         height = config[CONF_HEIGHT]
         use_alpha = "_ALPHA" if config[CONF_TRANSPARENT] else ""
+        buf_size = literal(
+            f"LV_CANVAS_BUF_SIZE_TRUE_COLOR{use_alpha}({width}, {height})"
+        )
+        buf_name = f"buf_{w.obj}"
+        cg.add(
+            RawStatement(f"void *{buf_name} = {lv_expr.custom_mem_alloc(buf_size)};")
+        )
+        cg.add(RawStatement(f"memset({buf_name}, 0, {buf_size});"))
+
         lv.canvas_set_buffer(
             w.obj,
-            lv.custom_mem_alloc(
-                literal(f"LV_CANVAS_BUF_SIZE_TRUE_COLOR{use_alpha}({width}, {height})")
-            ),
+            MockObj(buf_name),
             width,
             height,
             literal(f"LV_IMG_CF_TRUE_COLOR{use_alpha}"),
