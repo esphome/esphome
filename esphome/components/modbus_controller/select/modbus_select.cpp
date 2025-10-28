@@ -28,7 +28,7 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
 
     if (map_it != this->mapping_.cend()) {
       size_t idx = std::distance(this->mapping_.cbegin(), map_it);
-      new_state = std::string(this->traits.get_options()[idx]);
+      new_state = std::string(this->option_at(idx));
       ESP_LOGV(TAG, "Found option %s for value %lld", new_state->c_str(), value);
     } else {
       ESP_LOGE(TAG, "No option found for mapping %lld", value);
