@@ -257,6 +257,15 @@ lvgl:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
             align: bottom_mid
+        - label:
+            id: setup_lambda_label
+            # Test lambda in widget property during setup (LvContext)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              char buf[32];
+              snprintf(buf, sizeof(buf), "Setup: %d", 42);
+              return std::string(buf);
+            align: top_mid
             text_font: space16
         - obj:
             align: center
