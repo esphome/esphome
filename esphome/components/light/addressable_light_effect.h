@@ -57,9 +57,9 @@ class AddressableLightEffect : public LightEffect {
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const char *name, std::function<void(AddressableLight &, Color, bool initial_run)> f,
+  AddressableLambdaLightEffect(const char *name, void (*f)(AddressableLight &, Color, bool initial_run),
                                uint32_t update_interval)
-      : AddressableLightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
+      : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
   void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -72,7 +72,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
   }
 
  protected:
-  std::function<void(AddressableLight &, Color, bool initial_run)> f_;
+  void (*f_)(AddressableLight &, Color, bool initial_run);
   uint32_t update_interval_;
   uint32_t last_run_{0};
   bool initial_run_;
