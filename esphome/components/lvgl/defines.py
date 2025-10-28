@@ -5,7 +5,6 @@ Constants already defined in esphome.const are not duplicated here and must be i
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
@@ -15,9 +14,6 @@ from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from .helpers import requires_component
-
-if TYPE_CHECKING:
-    pass
 
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")

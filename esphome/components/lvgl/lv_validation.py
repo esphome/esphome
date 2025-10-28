@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING
-
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
@@ -33,9 +31,6 @@ from .defines import (
 )
 from .helpers import add_lv_use, esphome_fonts_used, lv_fonts_used, requires_component
 from .types import lv_font_t, lv_gradient_t
-
-if TYPE_CHECKING:
-    pass
 
 opacity_consts = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
