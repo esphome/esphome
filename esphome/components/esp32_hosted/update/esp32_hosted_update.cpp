@@ -1,5 +1,5 @@
 #if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
-#include "esphome/components/esp32_hosted/update/esp32_hosted_update.h"
+#include "esp32_hosted_update.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -86,7 +86,6 @@ void Esp32HostedUpdate::perform(bool force) {
 
   watchdog::WatchdogManager watchdog(20000);
   update::UpdateState prev_state = this->state_;
-
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->update_info_.has_progress = false;
   this->publish_state();
