@@ -4,11 +4,14 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
     only_on_variant,
+    require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
+from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import (
     CONF_DEVICE_TYPE,
@@ -106,6 +109,20 @@ _CONNECTION_SCHEMA = cv.Schema(
     }
 )
 
+
+def _validate(config: ConfigType) -> ConfigType:
+    if CONF_USE_ADDRESS not in config:
+        config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
+    return config
+
+
+def _require_vfs_select(config):
+    """Register VFS select requirement during config validation."""
+    # OpenThread uses esp_vfs_eventfd which requires VFS select support
+    require_vfs_select()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -117,11 +134,14 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.string_strict,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     cv.only_with_esp_idf,
     only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    _validate,
+    _require_vfs_select,
 )
 
 
@@ -145,6 +165,7 @@ async def to_code(config):
     enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
+    cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
