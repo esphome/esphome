@@ -45,6 +45,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   - **dish**: Decode and dump Dish infrared codes.
   - **dooya**: Decode and dump Dooya RF codes.
   - **drayton**: Decode and dump Drayton Digistat RF codes.
+  - **dyson**: Decode and dump Dyson Cool AM7 tower fan codes.
   - **jvc**: Decode and dump JVC infrared codes.
   - **gobox**: Decode and dump Go-Box infrared codes.
   - **keeloq**: Decode and dump KeeLoq RF codes.
@@ -186,6 +187,10 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
 
 - **on_drayton** (*Optional*, [Automation](#automation)): An automation to perform when a
   Drayton Digistat RF code has been decoded. A variable `x` of type {{< apistruct "remote_base::DraytonData" "remote_base::DraytonData" >}}
+  is passed to the automation for use in lambdas.
+
+- **on_dyson** (*Optional*, [Automation](#automation)): An automation to perform when a
+  Dyson cool AM07 code has been decoded. A variable `x` of type {{< apistruct "remote_base::DysonData" "remote_base::DysonData" >}}
   is passed to the automation for use in lambdas.
 
 - **on_gobox** (*Optional*, [Automation](#automation)): An automation to perform when a
@@ -428,6 +433,11 @@ Remote code selection (exactly one of these has to be included):
   - **address** (**Required**, int): The 16-bit ID code to trigger on, see dumper output for more info.
   - **channel** (**Required**, int): The 7-bit switch/channel to listen for.
   - **command** (**Required**, int): The 5-bit command to listen for.
+
+- **dyson**: Trigger on a decoded dyson cool AM07 infrared remote code with the given data.
+
+  - **code** (**Required**, int): The 16-bit code to trigger on, e.g. 0x1200=power, 0x1215=fan++,0x122a=swing..., see dumper output for more info.
+  - **index** (**Required**, int): The 8-bit rolling index [0..3], to be increased with every transmit, see dumper output for more info.
 
 - **gobox**: Trigger on a decoded Go-Box remote code with the given data.
 
