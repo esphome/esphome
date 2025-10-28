@@ -22,12 +22,12 @@
 namespace esphome {
 namespace packet_transport {
 
-static const uint8_t MAX_PROVIDERS = 8;
-static const uint8_t MAX_REMOTE_SENSORS = 16;
-static const uint8_t MAX_REMOTE_BINARY_SENSORS = 16;
-static const uint8_t MAX_ENCRYPTION_KEY_SIZE = 32;
-static const uint8_t MAX_PING_KEYS = 4;
-static const uint8_t MAX_PACKET_BUFFER_SIZE = 255;
+constexpr uint8_t MAX_PROVIDERS = 8;
+constexpr uint8_t MAX_REMOTE_SENSORS = 16;
+constexpr uint8_t MAX_REMOTE_BINARY_SENSORS = 16;
+constexpr uint8_t MAX_ENCRYPTION_KEY_SIZE = 32;
+constexpr uint8_t MAX_PING_KEYS = 4;
+constexpr uint8_t MAX_PACKET_BUFFER_SIZE = 255;
 
 struct Provider {
   uint8_t encryption_key[MAX_ENCRYPTION_KEY_SIZE];
