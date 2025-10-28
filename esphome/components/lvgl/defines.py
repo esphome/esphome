@@ -48,8 +48,10 @@ def call_lambda(lamb: LambdaExpression):
     if expr.startswith("return") and expr.endswith(";"):
         return expr[6:][:-1].strip()
     # If lambda has parameters, call it with those parameter names
+    # Parameter names come from hardcoded component code (like "x", "it", "event")
+    # not from user input, so they're safe to use directly
     if lamb.parameters and lamb.parameters.parameters:
-        param_names = ", ".join(param.name for param in lamb.parameters.parameters)
+        param_names = ", ".join(str(param.id) for param in lamb.parameters.parameters)
         return f"{lamb}({param_names})"
     return f"{lamb}()"
 
