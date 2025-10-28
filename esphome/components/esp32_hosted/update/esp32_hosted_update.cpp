@@ -139,7 +139,7 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  // restore watchdog and update state
+  // update state
   ESP_LOGI(TAG, "OTA update successful");
   this->state_ = update::UPDATE_STATE_NO_UPDATE;
   this->status_clear_error();
