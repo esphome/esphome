@@ -60,5 +60,7 @@ optional<std::string> Select::at(size_t index) const {
   }
 }
 
+const char *Select::option_at(size_t index) const { return traits.get_options().at(index); }
+
 }  // namespace select
 }  // namespace esphome
