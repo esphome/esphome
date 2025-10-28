@@ -52,6 +52,19 @@ number:
     widget: spinbox_id
     id: lvgl_spinbox_number
     name: LVGL Spinbox Number
+  - platform: template
+    id: test_brightness
+    name: "Test Brightness"
+    min_value: 0
+    max_value: 255
+    step: 1
+    optimistic: true
+    # Test lambda in automation accessing x parameter directly
+    # This is a real-world pattern from user configs
+    on_value:
+      - lambda: !lambda |-
+          // Direct use of x parameter in automation
+          ESP_LOGD("test", "Brightness: %.0f", x);
 
 light:
   - platform: lvgl
