@@ -236,16 +236,25 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+
+  std::string ssid = ap.get_ssid();
+  std::string password = ap.get_password();
+
+  size_t ssid_len = ssid.length();
+  size_t password_len = password.length();
+
+  if (ssid_len > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
     return false;
   }
-  if (ap.get_password().size() > sizeof(conf.password)) {
+
+  if (password_len > sizeof(conf.password)) {
     ESP_LOGE(TAG, "Password too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+
+  memcpy(conf.ssid, ssid.c_str(), ssid_len);
+  memcpy(conf.password, password.c_str(), password_len);
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -791,27 +800,35 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  if (ap.get_ssid().size() > sizeof(conf.ssid)) {
+
+  std::string ssid = ap.get_ssid();
+  std::string password = ap.get_password();
+
+  size_t ssid_len = ssid.length();
+  size_t password_len = password.length();
+
+  if (ssid_len > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
   }
-  memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
+
+  memcpy(conf.ssid, ssid.c_str(), ssid_len);
+  conf.ssid_len = static_cast<uint8>(ssid_len);
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 
-  if (ap.get_password().empty()) {
+  if (password_len == 0) {
     conf.authmode = AUTH_OPEN;
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    if (ap.get_password().size() > sizeof(conf.password)) {
+    if (password_len > sizeof(conf.password)) {
       ESP_LOGE(TAG, "AP password too long");
       return false;
     }
-    memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
+    memcpy(conf.password, password.c_str(), password_len);
   }
 
   ETS_UART_INTR_DISABLE();

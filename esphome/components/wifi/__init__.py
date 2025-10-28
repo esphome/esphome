@@ -140,17 +140,21 @@ EAP_AUTH_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE),
 )
 
+CONF_AP_TIMEOUT = "ap_timeout"
+CONF_SSID_DATA_ID = "ssid_data_id"
+CONF_PASSWORD_DATA_ID = "password_data_id"
+
 WIFI_NETWORK_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WiFiAP),
+        cv.GenerateID(CONF_SSID_DATA_ID): cv.declare_id(cg.uint8),
+        cv.GenerateID(CONF_PASSWORD_DATA_ID): cv.declare_id(cg.uint8),
         cv.Optional(CONF_SSID): cv.ssid,
         cv.Optional(CONF_PASSWORD): validate_password,
         cv.Optional(CONF_CHANNEL): validate_channel,
         cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
     }
 )
-
-CONF_AP_TIMEOUT = "ap_timeout"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
@@ -352,9 +356,23 @@ def manual_ip(config):
 
 def wifi_network(config, ap, static_ip):
     if CONF_SSID in config:
-        cg.add(ap.set_ssid(config[CONF_SSID]))
+        ssid = config[CONF_SSID]
+        if CORE.is_esp8266:
+            # On ESP8266, store SSID in PROGMEM to save RAM
+            prog_arr = cg.progmem_array(config[CONF_SSID_DATA_ID], ssid)
+            cg.add(ap.set_ssid_flash(prog_arr))
+        else:
+            # On ESP32/RP2040, string literals are already in rodata (flash)
+            cg.add(ap.set_ssid_flash(ssid))
     if CONF_PASSWORD in config:
-        cg.add(ap.set_password(config[CONF_PASSWORD]))
+        password = config[CONF_PASSWORD]
+        if CORE.is_esp8266:
+            # On ESP8266, store password in PROGMEM to save RAM
+            prog_arr = cg.progmem_array(config[CONF_PASSWORD_DATA_ID], password)
+            cg.add(ap.set_password_flash(prog_arr))
+        else:
+            # On ESP32/RP2040, string literals are already in rodata (flash)
+            cg.add(ap.set_password_flash(password))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")

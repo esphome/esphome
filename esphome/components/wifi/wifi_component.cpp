@@ -888,19 +888,68 @@ void WiFiComponent::save_fast_connect_settings_() {
 }
 #endif
 
-void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
+void WiFiAP::set_ssid(const std::string &ssid) {
+  this->ssid_storage_ = ssid;
+  this->ssid_ = this->ssid_storage_->c_str();
+}
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_bssid(optional<bssid_t> bssid) { this->bssid_ = bssid; }
-void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
+void WiFiAP::set_password(const std::string &password) {
+  this->password_storage_ = password;
+  this->password_ = this->password_storage_->c_str();
+}
+#ifdef USE_ESP8266
+void WiFiAP::set_ssid_flash(const uint8_t *ssid) {
+  this->ssid_storage_.reset();
+  this->ssid_ = reinterpret_cast<const char *>(ssid);
+}
+void WiFiAP::set_password_flash(const uint8_t *password) {
+  this->password_storage_.reset();
+  this->password_ = reinterpret_cast<const char *>(password);
+}
+#else
+void WiFiAP::set_ssid_flash(const char *ssid) {
+  this->ssid_storage_.reset();
+  this->ssid_ = ssid;
+}
+void WiFiAP::set_password_flash(const char *password) {
+  this->password_storage_.reset();
+  this->password_ = password;
+}
+#endif
 #ifdef USE_WIFI_WPA2_EAP
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
-const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
+std::string WiFiAP::get_ssid() const {
+#ifdef USE_ESP8266
+  if (!this->ssid_storage_.has_value()) {
+    // Flash storage - read from PROGMEM
+    size_t len = strlen_P(this->ssid_);
+    std::string result;
+    result.resize(len);
+    memcpy_P(&result[0], this->ssid_, len);
+    return result;
+  }
+#endif
+  return std::string(this->ssid_);
+}
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
-const std::string &WiFiAP::get_password() const { return this->password_; }
+std::string WiFiAP::get_password() const {
+#ifdef USE_ESP8266
+  if (!this->password_storage_.has_value()) {
+    // Flash storage - read from PROGMEM
+    size_t len = strlen_P(this->password_);
+    std::string result;
+    result.resize(len);
+    memcpy_P(&result[0], this->password_, len);
+    return result;
+  }
+#endif
+  return std::string(this->password_);
+}
 #ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif

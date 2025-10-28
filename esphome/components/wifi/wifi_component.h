@@ -135,6 +135,18 @@ class WiFiAP {
   void set_bssid(bssid_t bssid);
   void set_bssid(optional<bssid_t> bssid);
   void set_password(const std::string &password);
+  /// Set SSID from flash string (PROGMEM on ESP8266, rodata on ESP32)
+#ifdef USE_ESP8266
+  void set_ssid_flash(const uint8_t *ssid);
+#else
+  void set_ssid_flash(const char *ssid);
+#endif
+  /// Set password from flash string (PROGMEM on ESP8266, rodata on ESP32)
+#ifdef USE_ESP8266
+  void set_password_flash(const uint8_t *password);
+#else
+  void set_password_flash(const char *password);
+#endif
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
@@ -142,9 +154,9 @@ class WiFiAP {
   void set_priority(float priority) { priority_ = priority; }
   void set_manual_ip(optional<ManualIP> manual_ip);
   void set_hidden(bool hidden);
-  const std::string &get_ssid() const;
+  std::string get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
-  const std::string &get_password() const;
+  std::string get_password() const;
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
@@ -154,8 +166,10 @@ class WiFiAP {
   bool get_hidden() const;
 
  protected:
-  std::string ssid_;
-  std::string password_;
+  const char *ssid_{nullptr};
+  const char *password_{nullptr};
+  optional<std::string> ssid_storage_;
+  optional<std::string> password_storage_;
   optional<bssid_t> bssid_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
