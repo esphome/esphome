@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -32,7 +33,9 @@ class SDS011Component : public Component, public uart::UARTDevice {
   uint8_t sds011_checksum_(const uint8_t *command_data, uint8_t length) const;
   optional<bool> check_byte_() const;
   void parse_data_();
-  uint16_t get_16_bit_uint_(uint8_t start_index) const;
+  uint16_t get_16_bit_uint_(uint8_t start_index) const {
+    return encode_uint16(this->data_[start_index + 1], this->data_[start_index]);
+  }
 
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};

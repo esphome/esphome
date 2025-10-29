@@ -21,29 +21,64 @@ class NextionComponent : public NextionComponentBase {
   void set_visible(bool visible);
 
  protected:
+  /**
+   * @brief Constructor initializes component state with visible=true (default state)
+   */
+  NextionComponent() {
+    component_flags_ = {};         // Zero-initialize all state
+    component_flags_.visible = 1;  // Set default visibility to true
+  }
+
   NextionBase *nextion_;
 
-  bool bco_needs_update_ = false;
-  bool bco_is_set_ = false;
-  Color bco_;
-  bool bco2_needs_update_ = false;
-  bool bco2_is_set_ = false;
-  Color bco2_;
-  bool pco_needs_update_ = false;
-  bool pco_is_set_ = false;
-  Color pco_;
-  bool pco2_needs_update_ = false;
-  bool pco2_is_set_ = false;
-  Color pco2_;
+  // Color and styling properties
+  Color bco_;   // Background color
+  Color bco2_;  // Pressed background color
+  Color pco_;   // Foreground color
+  Color pco2_;  // Pressed foreground color
   uint8_t font_id_ = 0;
-  bool font_id_needs_update_ = false;
-  bool font_id_is_set_ = false;
 
-  bool visible_ = true;
-  bool visible_needs_update_ = false;
-  bool visible_is_set_ = false;
+  /**
+   * @brief Component state management using compact bitfield structure
+   *
+   * Stores all component state flags and properties in a single 16-bit bitfield
+   * for efficient memory usage and improved cache locality.
+   *
+   * Each component property maintains two state flags:
+   * - needs_update: Indicates the property requires synchronization with the display
+   * - is_set: Tracks whether the property has been explicitly configured
+   *
+   * The visible field stores both the update flags and the actual visibility state.
+   */
+  struct ComponentState {
+    // Background color flags
+    uint16_t bco_needs_update : 1;
+    uint16_t bco_is_set : 1;
 
-  // void send_state_to_nextion() = 0;
+    // Pressed background color flags
+    uint16_t bco2_needs_update : 1;
+    uint16_t bco2_is_set : 1;
+
+    // Foreground color flags
+    uint16_t pco_needs_update : 1;
+    uint16_t pco_is_set : 1;
+
+    // Pressed foreground color flags
+    uint16_t pco2_needs_update : 1;
+    uint16_t pco2_is_set : 1;
+
+    // Font ID flags
+    uint16_t font_id_needs_update : 1;
+    uint16_t font_id_is_set : 1;
+
+    // Visibility flags
+    uint16_t visible_needs_update : 1;
+    uint16_t visible_is_set : 1;
+    uint16_t visible : 1;  // Actual visibility state
+
+    // Reserved bits for future expansion
+    uint16_t reserved : 3;
+  } component_flags_;
 };
 }  // namespace nextion
 }  // namespace esphome

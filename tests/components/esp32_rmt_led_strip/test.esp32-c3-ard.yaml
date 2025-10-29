@@ -1,5 +1,0 @@
-substitutions:
-  pin1: GPIO3
-  pin2: GPIO4
-
-<<: !include common-ard.yaml

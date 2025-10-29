@@ -50,13 +50,15 @@ void Touchscreen::loop() {
       tp.second.x_prev = tp.second.x;
       tp.second.y_prev = tp.second.y;
     }
+    // The interrupt flag must be reset BEFORE calling update_touches, otherwise we might miss an interrupt that was
+    // triggered while we were reading touch data.
+    this->store_.touched = false;
     this->update_touches();
     if (this->skip_update_) {
       for (auto &tp : this->touches_) {
         tp.second.state &= ~STATE_RELEASING;
       }
     } else {
-      this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
       if (this->touch_timeout_ > 0) {
         // Simulate a touch after <this->touch_timeout_> ms. This will reset any existing timeout operation.

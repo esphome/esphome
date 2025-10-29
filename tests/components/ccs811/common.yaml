@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_ccs811
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: ccs811
+    i2c_id: i2c_bus
     eco2:
       name: CCS811 eCO2
     tvoc:

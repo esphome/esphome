@@ -22,7 +22,7 @@ def esp32_c2_validate_supports(value):
     is_input = mode[CONF_INPUT]
 
     if num < 0 or num > 20:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-20)")
+        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-20)")
 
     if is_input:
         # All ESP32 pins support input mode

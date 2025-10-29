@@ -1,7 +1,10 @@
 substitutions:
-  lrclk_pin: GPIO16
-  bclk_pin: GPIO17
+  lrclk_pin: GPIO4
+  bclk_pin: GPIO5
   mclk_pin: GPIO15
   dout_pin: GPIO14
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml

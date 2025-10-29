@@ -30,7 +30,10 @@ speaker:
     i2s_dout_pin: ${i2s_dout_pin}
 
 voice_assistant:
-  microphone: mic_id_external
+  microphone:
+    microphone: mic_id_external
+    gain_factor: 4
+    channels: 0
   speaker: speaker_id
   conversation_timeout: 60s
   on_listening:

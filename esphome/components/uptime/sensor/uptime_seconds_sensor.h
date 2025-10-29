@@ -13,8 +13,6 @@ class UptimeSecondsSensor : public sensor::Sensor, public PollingComponent {
 
   float get_setup_priority() const override;
 
-  std::string unique_id() override;
-
  protected:
   uint64_t uptime_{0};
 };

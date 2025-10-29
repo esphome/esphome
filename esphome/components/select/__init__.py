@@ -16,9 +16,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -48,7 +48,7 @@ SELECT_OPERATION_OPTIONS = {
 }
 
 
-SELECT_SCHEMA = (
+_SELECT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -64,33 +64,30 @@ SELECT_SCHEMA = (
     )
 )
 
-_UNDEF = object()
+
+_SELECT_SCHEMA.add_extra(entity_duplicate_validator("select"))
 
 
 def select_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass,
     *,
-    entity_category: str = _UNDEF,
-    icon: str = _UNDEF,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
 ):
-    schema = cv.Schema({})
-    if class_ is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
-    if entity_category is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=entity_category
-                ): cv.entity_category
-            }
-        )
-    if icon is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
-    return SELECT_SCHEMA.extend(schema)
+    schema = {cv.GenerateID(): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _SELECT_SCHEMA.extend(schema)
 
 
 async def setup_select_core_(var, config, *, options: list[str]):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "select")
 
     cg.add(var.traits.set_options(options))
 
@@ -112,18 +109,18 @@ async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_select(var))
+    CORE.register_platform_component("select", var)
     await setup_select_core_(var, config, options=options)
 
 
-async def new_select(config, *, options: list[str]):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_select(config, *args, options: list[str]):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_select(var, config, options=options)
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
 
 

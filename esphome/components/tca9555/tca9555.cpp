@@ -16,7 +16,6 @@ namespace tca9555 {
 static const char *const TAG = "tca9555";
 
 void TCA9555Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TCA9555...");
   if (!this->read_gpio_modes_()) {
     this->mark_failed();
     return;
@@ -30,7 +29,7 @@ void TCA9555Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9555:");
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TCA9555 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
@@ -51,7 +50,7 @@ bool TCA9555Component::read_gpio_outputs_() {
     return false;
   uint8_t data[2];
   if (!this->read_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
-    this->status_set_warning("Failed to read output register");
+    this->status_set_warning(LOG_STR("Failed to read output register"));
     return false;
   }
   this->output_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
@@ -65,7 +64,7 @@ bool TCA9555Component::read_gpio_modes_() {
   uint8_t data[2];
   bool success = this->read_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2);
   if (!success) {
-    this->status_set_warning("Failed to read mode register");
+    this->status_set_warning(LOG_STR("Failed to read mode register"));
     return false;
   }
   this->mode_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
@@ -76,14 +75,19 @@ bool TCA9555Component::read_gpio_modes_() {
 bool TCA9555Component::digital_read_hw(uint8_t pin) {
   if (this->is_failed())
     return false;
-  bool success;
-  uint8_t data[2];
-  success = this->read_bytes(TCA9555_INPUT_PORT_REGISTER_0, data, 2);
-  this->input_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
-
-  if (!success) {
-    this->status_set_warning("Failed to read input register");
+  uint8_t data;
+  uint8_t bank_number = pin < 8 ? 0 : 1;
+  uint8_t register_to_read = bank_number ? TCA9555_INPUT_PORT_REGISTER_1 : TCA9555_INPUT_PORT_REGISTER_0;
+  if (!this->read_bytes(register_to_read, &data, 1)) {
+    this->status_set_warning(LOG_STR("Failed to read input register"));
     return false;
+  }
+  uint8_t second_half = this->input_mask_ >> 8;
+  uint8_t first_half = this->input_mask_;
+  if (bank_number) {
+    this->input_mask_ = (data << 8) | (uint16_t(first_half) << 0);
+  } else {
+    this->input_mask_ = (uint16_t(second_half) << 8) | (data << 0);
   }
 
   this->status_clear_warning();
@@ -104,7 +108,7 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
   data[0] = this->output_mask_;
   data[1] = this->output_mask_ >> 8;
   if (!this->write_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
-    this->status_set_warning("Failed to write output register");
+    this->status_set_warning(LOG_STR("Failed to write output register"));
     return;
   }
 
@@ -119,7 +123,7 @@ bool TCA9555Component::write_gpio_modes_() {
   data[0] = this->mode_mask_;
   data[1] = this->mode_mask_ >> 8;
   if (!this->write_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2)) {
-    this->status_set_warning("Failed to write mode register");
+    this->status_set_warning(LOG_STR("Failed to write mode register"));
     return false;
   }
   this->status_clear_warning();
