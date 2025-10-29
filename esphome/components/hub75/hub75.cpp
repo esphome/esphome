@@ -1,195 +1,182 @@
-#include "hub75.h"
+#include "hub75_component.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace hub75 {
+namespace esphome::hub75_display {
 
 static const char *const TAG = "hub75";
+
+// ========================================
+// Constructor
+// ========================================
+
+HUB75Display::HUB75Display(const Hub75Config &config) : config_(config) {
+  // Initialize runtime state from config
+  this->brightness_ = config.brightness;
+  this->enabled_ = (config.brightness > 0);
+}
+
+// ========================================
+// Core Component methods
+// ========================================
 
 void HUB75Display::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HUB75Display...");
 
-  // Handle "never" and 0 to avoid divide by 0
-  if (this->update_interval_ == 4294967295 || this->update_interval_ == 0) {
-    // LVGL-driven: pick a constant
-    this->mxconfig_.min_refresh_rate = 60;  // Hz
-  } else {
-    this->mxconfig_.min_refresh_rate = 1000 / this->update_interval_;
+  // Create driver with pre-configured config
+  driver_ = new Hub75Driver(config_);
+  if (!driver_->begin()) {
+    ESP_LOGE(TAG, "Failed to initialize HUB75 driver!");
+    return;
   }
 
-  dma_display_ = new MatrixPanel_I2S_DMA(this->mxconfig_);
-  this->dma_display_->begin();
-  set_brightness(this->initial_brightness_);
-  this->dma_display_->clearScreen();
-
-#ifdef USE_VIRTUAL_PANEL
-  this->virtual_display_ =
-      new VPanelType(this->v_rows_, this->v_cols_, this->mxconfig_.mx_width, this->mxconfig_.mx_height);
-  this->virtual_display_->setDisplay(*this->dma_display_);
-#endif
-}
-
-void HUB75Display::update() {
-  if (!this->dma_display_)
-    return;
-  if (!this->enabled_)
-    return;
-
-  this->do_update_();
-
-  if (this->mxconfig_.double_buff) {
-    this->dma_display_->flipDMABuffer();
-  }
+  this->enabled_ = true;
 }
 
 void HUB75Display::dump_config() {
   LOG_DISPLAY("", "HUB75", this);
 
-  HUB75_I2S_CFG cfg = this->dma_display_->getCfg();
+  ESP_LOGCONFIG(TAG, "  Panel: %dx%d pixels", config_.panel_width, config_.panel_height);
+  ESP_LOGCONFIG(TAG, "  Layout: %dx%d panels", config_.layout_cols, config_.layout_rows);
+  ESP_LOGCONFIG(TAG, "  Virtual Display: %dx%d pixels", config_.panel_width * config_.layout_cols,
+                config_.panel_height * config_.layout_rows);
 
-  ESP_LOGCONFIG(TAG, "Pins: R1:%i, G1:%i, B1:%i, R2:%i, G2:%i, B2:%i", cfg.gpio.r1, cfg.gpio.g1, cfg.gpio.b1,
-                cfg.gpio.r2, cfg.gpio.g2, cfg.gpio.b2);
-  ESP_LOGCONFIG(TAG, "Pins: A:%i, B:%i, C:%i, D:%i, E:%i", cfg.gpio.a, cfg.gpio.b, cfg.gpio.c, cfg.gpio.d, cfg.gpio.e);
-  ESP_LOGCONFIG(TAG, "Pins: LAT:%i, OE:%i, CLK:%i", cfg.gpio.lat, cfg.gpio.oe, cfg.gpio.clk);
+  ESP_LOGCONFIG(TAG, "  Scan Wiring: %d", static_cast<int>(config_.scan_wiring));
+  ESP_LOGCONFIG(TAG, "  Shift Driver: %d", static_cast<int>(config_.shift_driver));
 
-  switch (cfg.driver) {
-    case HUB75_I2S_CFG::shift_driver::SHIFTREG:
-      ESP_LOGCONFIG(TAG, "Driver: SHIFTREG");
-      break;
-    case HUB75_I2S_CFG::shift_driver::FM6124:
-      ESP_LOGCONFIG(TAG, "Driver: FM6124");
-      break;
-    case HUB75_I2S_CFG::shift_driver::FM6126A:
-      ESP_LOGCONFIG(TAG, "Driver: FM6126A");
-      break;
-    case HUB75_I2S_CFG::shift_driver::ICN2038S:
-      ESP_LOGCONFIG(TAG, "Driver: ICN2038S");
-      break;
-    case HUB75_I2S_CFG::shift_driver::MBI5124:
-      ESP_LOGCONFIG(TAG, "Driver: MBI5124");
-      break;
-    case HUB75_I2S_CFG::shift_driver::DP3246:
-      ESP_LOGCONFIG(TAG, "Driver: DP3246");
-      break;
-  }
+  ESP_LOGCONFIG(TAG, "  Pins: R1:%i, G1:%i, B1:%i, R2:%i, G2:%i, B2:%i", config_.pins.r1, config_.pins.g1,
+                config_.pins.b1, config_.pins.r2, config_.pins.g2, config_.pins.b2);
+  ESP_LOGCONFIG(TAG, "  Pins: A:%i, B:%i, C:%i, D:%i, E:%i", config_.pins.a, config_.pins.b, config_.pins.c,
+                config_.pins.d, config_.pins.e);
+  ESP_LOGCONFIG(TAG, "  Pins: LAT:%i, OE:%i, CLK:%i", config_.pins.lat, config_.pins.oe, config_.pins.clk);
 
-  ESP_LOGCONFIG(TAG, "I2S Speed: %u MHz", (uint32_t) cfg.i2sspeed / 1000000);
-  ESP_LOGCONFIG(TAG, "Latch Blanking: %i", cfg.latch_blanking);
-  ESP_LOGCONFIG(TAG, "Clock Phase: %s", TRUEFALSE(cfg.clkphase));
-  ESP_LOGCONFIG(TAG, "Min Refresh Rate: %i", cfg.min_refresh_rate);
-
-#ifdef USE_VIRTUAL_PANEL
-  ESP_LOGCONFIG(TAG, "VirtualMatrix: ENABLED");
-  ESP_LOGCONFIG(TAG, "  Grid: %ux%u panels (total %u)", (unsigned) this->v_cols_, (unsigned) this->v_rows_,
-                (unsigned) (this->v_cols_ * this->v_rows_));
-#endif
+  ESP_LOGCONFIG(TAG, "  Clock Speed: %u MHz", static_cast<uint32_t>(config_.output_clock_speed) / 1000000);
+  ESP_LOGCONFIG(TAG, "  Latch Blanking: %i", config_.latch_blanking);
+  ESP_LOGCONFIG(TAG, "  Clock Phase: %s", TRUEFALSE(config_.clk_phase_inverted));
+  ESP_LOGCONFIG(TAG, "  Min Refresh Rate: %i Hz", config_.min_refresh_rate);
+  ESP_LOGCONFIG(TAG, "  Bit Depth: %i", config_.bit_depth);
+  ESP_LOGCONFIG(TAG, "  Double Buffer: %s", YESNO(config_.double_buffer));
 }
 
-void HUB75Display::set_brightness(int brightness) {
-  this->enabled_ = (brightness > 0);
-  if (this->dma_display_ != nullptr) {
-    this->dma_display_->setBrightness8(brightness);
-  }
-}
+// ========================================
+// Display/PollingComponent methods
+// ========================================
 
-void HOT HUB75Display::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (!this->dma_display_)
+void HUB75Display::update() {
+  if (!driver_) [[unlikely]]
     return;
-  if (!this->enabled_)
+  if (!this->enabled_) [[unlikely]]
     return;
 
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
-    return;
+  this->do_update_();
 
-  this->draw_pixel_rgb888_(x, y, color.r, color.g, color.b);
-}
-
-inline uint8_t expand5to8(uint8_t v) { return (v << 3) | (v >> 2); }
-inline uint8_t expand6to8(uint8_t v) { return (v << 2) | (v >> 4); }
-
-void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  if (!this->dma_display_)
-    return;
-  if (!this->enabled_)
-    return;
-
-  const int stride_px = x_offset + w + x_pad;
-
-  for (int yy = 0; yy < h; ++yy) {
-    const int row_base_px = (y_offset + yy) * stride_px + x_offset;
-
-    if (bitness == ColorBitness::COLOR_BITNESS_565) {
-      const uint16_t *src16 = reinterpret_cast<const uint16_t *>(ptr);
-      for (int xx = 0; xx < w; ++xx) {
-        const uint8_t *p = reinterpret_cast<const uint8_t *>(&src16[row_base_px + xx]);
-        const uint16_t pix565 = big_endian ? (uint16_t(p[0]) << 8) | p[1] : (uint16_t(p[1]) << 8) | p[0];
-
-        uint8_t r = expand5to8((pix565 >> 11) & 0x1F);
-        uint8_t g = expand6to8((pix565 >> 5) & 0x3F);
-        uint8_t b = expand5to8(pix565 & 0x1F);
-
-        this->draw_pixel_rgb888_(x_start + xx, y_start + yy, r, g, b);
-      }
-    } else if (bitness == ColorBitness::COLOR_BITNESS_888) {
-#if LV_COLOR_DEPTH == 32
-      const uint8_t *src = ptr + row_base_px * 4;
-
-      for (int xx = 0; xx < w; ++xx) {
-        const uint8_t *p = src + xx * 4;
-
-        uint8_t r, g, b;
-        if (big_endian) {
-          r = p[1];  // [A][R][G][B]
-          g = p[2];
-          b = p[3];
-        } else {
-          r = p[2];  // [B][G][R][A]
-          g = p[1];
-          b = p[0];
-        }
-
-        this->draw_pixel_rgb888_(x_start + xx, y_start + yy, r, g, b);
-      }
-#elif LV_COLOR_DEPTH == 24
-      ESP_LOGE(TAG, "LV_COLOR_DEPTH=24 not supported");
-#else
-      ESP_LOGE(TAG, "Bitness 888 unknown depth");
-#endif
-    } else {
-      ESP_LOGE(TAG, "Unsupported bitness: %d", bitness);
-    }
+  if (config_.double_buffer) {
+    driver_->flip_buffer();
   }
 }
 
 void HUB75Display::fill(Color color) {
-  if (!this->dma_display_)
+  if (!driver_) [[unlikely]]
     return;
-  if (!this->enabled_)
+  if (!this->enabled_) [[unlikely]]
     return;
 
-  this->fill_screen_rgb888_(color.r, color.g, color.b);
+  // Special case: black (off) - use fast hardware clear
+  if (!color.is_on()) {
+    driver_->clear();
+    return;
+  }
+
+  // For non-black colors, fall back to base class (pixel-by-pixel)
+  Display::fill(color);
 }
 
-void HUB75Display::filled_rectangle(int x1, int y1, int width, int height, Color color) {
-  if (!this->dma_display_)
+void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
+  if (!driver_) [[unlikely]]
     return;
-  if (!this->enabled_)
+  if (!this->enabled_) [[unlikely]]
     return;
 
-#ifdef USE_VIRTUAL_PANEL
-  for (int yy = 0; yy < height; ++yy) {
-    for (int xx = 0; xx < width; ++xx) {
-      this->draw_pixel_rgb888_(x1 + xx, y1 + yy, color.r, color.g, color.b);
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) [[unlikely]]
+    return;
+
+  driver_->set_pixel(x, y, color.r, color.g, color.b);
+  App.feed_wdt();
+}
+
+void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  if (!driver_) [[unlikely]]
+    return;
+  if (!this->enabled_) [[unlikely]]
+    return;
+
+  // Map ESPHome enums to hub75 enums
+  Hub75PixelFormat format;
+  Hub75ColorOrder color_order = Hub75ColorOrder::RGB;
+  int bytes_per_pixel;
+
+  // Determine format based on bitness
+  if (bitness == ColorBitness::COLOR_BITNESS_565) {
+    format = Hub75PixelFormat::RGB565;
+    bytes_per_pixel = 2;
+  } else if (bitness == ColorBitness::COLOR_BITNESS_888) {
+#ifdef USE_LVGL
+#if LV_COLOR_DEPTH == 32
+    // 32-bit: 4 bytes per pixel with padding byte (LVGL mode)
+    format = Hub75PixelFormat::RGB888_32;
+    bytes_per_pixel = 4;
+
+    // Map ESPHome ColorOrder to Hub75ColorOrder
+    // ESPHome ColorOrder is typically BGR for little-endian 32-bit
+    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::RGB : Hub75ColorOrder::BGR;
+#elif LV_COLOR_DEPTH == 24
+    // 24-bit: 3 bytes per pixel, tightly packed
+    format = Hub75PixelFormat::RGB888;
+    bytes_per_pixel = 3;
+    // Note: 24-bit is always RGB order in LVGL
+#else
+    ESP_LOGE(TAG, "Unsupported LV_COLOR_DEPTH: %d", LV_COLOR_DEPTH);
+    return;
+#endif
+#else
+    // Non-LVGL mode: standard 24-bit RGB888
+    format = Hub75PixelFormat::RGB888;
+    bytes_per_pixel = 3;
+    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::RGB : Hub75ColorOrder::BGR;
+#endif
+  } else {
+    ESP_LOGE(TAG, "Unsupported bitness: %d", static_cast<int>(bitness));
+    return;
+  }
+
+  // Check if buffer is tightly packed (no stride)
+  const int stride_px = x_offset + w + x_pad;
+  const bool is_packed = (x_offset == 0 && x_pad == 0 && y_offset == 0);
+
+  if (is_packed) {
+    // Tightly packed buffer - single bulk call for best performance
+    driver_->draw_pixels(x_start, y_start, w, h, ptr, format, color_order, big_endian);
+  } else {
+    // Buffer has stride (padding between rows) - draw row by row
+    for (int yy = 0; yy < h; ++yy) {
+      const size_t row_offset = ((y_offset + yy) * stride_px + x_offset) * bytes_per_pixel;
+      const uint8_t *row_ptr = ptr + row_offset;
+
+      driver_->draw_pixels(x_start, y_start + yy, w, 1, row_ptr, format, color_order, big_endian);
     }
   }
-#else
-  this->dma_display_->fillRect(x1, y1, width, height, color.r, color.g, color.b);
-#endif
 }
 
-}  // namespace hub75
-}  // namespace esphome
+void HUB75Display::set_brightness(int brightness) {
+  this->brightness_ = brightness;
+  this->enabled_ = (brightness > 0);
+  if (this->driver_ != nullptr) {
+    this->driver_->set_brightness(brightness);
+  }
+}
+
+}  // namespace esphome::hub75_display
 
 #endif
