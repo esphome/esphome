@@ -18,10 +18,7 @@ class TemplateValve : public valve::Valve, public Component {
  public:
   TemplateValve();
 
-  template<typename F> void set_state_lambda(F &&f) {
-    this->state_f_.set(std::forward<F>(f));
-    this->enable_loop();
-  }
+  template<typename F> void set_state_lambda(F &&f) { this->state_f_.set(std::forward<F>(f)); }
   Trigger<> *get_open_trigger() const;
   Trigger<> *get_close_trigger() const;
   Trigger<> *get_stop_trigger() const;
