@@ -101,7 +101,8 @@ FanCall FanRestoreState::to_call(Fan &fan) {
 
   if (fan.get_traits().supports_preset_modes()) {
     // Use stored preset index to get preset name
-    const auto &preset_modes = fan.get_traits().supported_preset_modes();
+    auto traits = fan.get_traits();
+    const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
       call.set_preset_mode(preset_modes[this->preset_mode]);
     }
@@ -116,7 +117,8 @@ void FanRestoreState::apply(Fan &fan) {
 
   if (fan.get_traits().supports_preset_modes()) {
     // Use stored preset index to get preset name
-    const auto &preset_modes = fan.get_traits().supported_preset_modes();
+    auto traits = fan.get_traits();
+    const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
       fan.preset_mode = preset_modes[this->preset_mode];
     }
@@ -196,7 +198,8 @@ void Fan::save_state_() {
   state.direction = this->direction;
 
   if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
-    const auto &preset_modes = this->get_traits().supported_preset_modes();
+    auto traits = this->get_traits();
+    const auto &preset_modes = traits.supported_preset_modes();
     // Store index of current preset mode
     size_t i = 0;
     for (const auto &mode : preset_modes) {
