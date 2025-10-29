@@ -9,7 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/time.h"
-#include "../template_lambda.h"
+#include "esphome/core/template_lambda.h"
 
 namespace esphome {
 namespace template_ {

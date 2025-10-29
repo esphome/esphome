@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "../template_lambda.h"
+#include "esphome/core/template_lambda.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {

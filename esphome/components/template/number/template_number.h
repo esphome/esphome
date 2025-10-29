@@ -4,7 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "../template_lambda.h"
+#include "esphome/core/template_lambda.h"
 
 namespace esphome {
 namespace template_ {
