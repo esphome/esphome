@@ -34,6 +34,8 @@ from typing import Any
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from helpers import BASE_BUS_COMPONENTS
+
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
 
@@ -67,18 +69,6 @@ NO_BUSES_SIGNATURE = "no_buses"
 # Isolated components have unique signatures and cannot be merged with others
 ISOLATED_SIGNATURE_PREFIX = "isolated_"
 
-# Base bus components - these ARE the bus implementations and should not
-# be flagged as needing migration since they are the platform/base components
-BASE_BUS_COMPONENTS = {
-    "i2c",
-    "spi",
-    "uart",
-    "modbus",
-    "canbus",
-    "remote_transmitter",
-    "remote_receiver",
-}
-
 # Components that must be tested in isolation (not grouped or batched with others)
 # These have known build issues that prevent grouping
 # NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
@@ -87,6 +77,7 @@ ISOLATED_COMPONENTS = {
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
+    "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
     "openthread": "Conflicts with wifi: used by most components",

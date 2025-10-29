@@ -99,9 +99,8 @@ enum BedjetCommand : uint8_t {
 
 static const uint8_t BEDJET_FAN_SPEED_COUNT = 20;
 
-static const char *const BEDJET_FAN_STEP_NAMES[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
+static constexpr const char *const BEDJET_FAN_STEP_NAMES[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
 static const std::string BEDJET_FAN_STEP_NAME_STRINGS[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
-static const std::set<std::string> BEDJET_FAN_STEP_NAMES_SET BEDJET_FAN_STEP_NAMES_;
 
 }  // namespace bedjet
 }  // namespace esphome

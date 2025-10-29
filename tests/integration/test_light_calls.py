@@ -8,6 +8,7 @@ import asyncio
 from typing import Any
 
 from aioesphomeapi import LightState
+from aioesphomeapi.model import ColorMode
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -35,10 +36,51 @@ async def test_light_calls(
         # Get the light entities
         entities = await client.list_entities_services()
         lights = [e for e in entities[0] if e.object_id.startswith("test_")]
-        assert len(lights) >= 2  # Should have RGBCW and RGB lights
+        assert len(lights) >= 3  # Should have RGBCW, RGB, and Binary lights
 
         rgbcw_light = next(light for light in lights if "RGBCW" in light.name)
         rgb_light = next(light for light in lights if "RGB Light" in light.name)
+        binary_light = next(light for light in lights if "Binary" in light.name)
+
+        # Test color mode encoding: Verify supported_color_modes contains actual ColorMode enum values
+        # not bit positions. This is critical - the iterator must convert bit positions to actual
+        # ColorMode enum values for API encoding.
+
+        # RGBCW light (rgbww platform) should support RGB_COLD_WARM_WHITE mode
+        assert ColorMode.RGB_COLD_WARM_WHITE in rgbcw_light.supported_color_modes, (
+            f"RGBCW light missing RGB_COLD_WARM_WHITE mode. Got: {rgbcw_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.RGB_COLD_WARM_WHITE.value in [
+            mode.value for mode in rgbcw_light.supported_color_modes
+        ], (
+            f"RGBCW light has wrong color mode values. Expected {ColorMode.RGB_COLD_WARM_WHITE.value} "
+            f"(RGB_COLD_WARM_WHITE), got: {[mode.value for mode in rgbcw_light.supported_color_modes]}"
+        )
+
+        # RGB light should support RGB mode
+        assert ColorMode.RGB in rgb_light.supported_color_modes, (
+            f"RGB light missing RGB color mode. Got: {rgb_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.RGB.value in [
+            mode.value for mode in rgb_light.supported_color_modes
+        ], (
+            f"RGB light has wrong color mode values. Expected {ColorMode.RGB.value} (RGB), got: "
+            f"{[mode.value for mode in rgb_light.supported_color_modes]}"
+        )
+
+        # Binary light (on/off only) should support ON_OFF mode
+        assert ColorMode.ON_OFF in binary_light.supported_color_modes, (
+            f"Binary light missing ON_OFF color mode. Got: {binary_light.supported_color_modes}"
+        )
+        # Verify it's the actual enum value, not bit position
+        assert ColorMode.ON_OFF.value in [
+            mode.value for mode in binary_light.supported_color_modes
+        ], (
+            f"Binary light has wrong color mode values. Expected {ColorMode.ON_OFF.value} (ON_OFF), got: "
+            f"{[mode.value for mode in binary_light.supported_color_modes]}"
+        )
 
         async def wait_for_state_change(key: int, timeout: float = 1.0) -> Any:
             """Wait for a state change for the given entity key."""

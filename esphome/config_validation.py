@@ -24,7 +24,6 @@ import voluptuous as vol
 
 from esphome import core
 import esphome.codegen as cg
-from esphome.config_helpers import Extend, Remove
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
@@ -623,12 +622,6 @@ def declare_id(type):
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
-
-        if isinstance(value, Extend):
-            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
-
-        if isinstance(value, Remove):
-            raise Invalid(f"Source for Removal of ID '{value.value}' was not found.")
 
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
@@ -2199,29 +2192,6 @@ def rename_key(old_key, new_key):
         config = config.copy()
         if old_key in config:
             config[new_key] = config.pop(old_key)
-        return config
-
-    return validator
-
-
-# Remove before 2025.11.0
-def deprecated_schema_constant(entity_type: str):
-    def validator(config):
-        type: str = "unknown"
-        if (id := config.get(CONF_ID)) is not None and isinstance(id, core.ID):
-            type = str(id.type).split("::", maxsplit=1)[0]
-        _LOGGER.warning(
-            "Using `%s.%s_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
-            "Please use `%s.%s_schema(...)` instead. "
-            "If you are seeing this, report an issue to the external_component author and ask them to update it. "
-            "https://developers.esphome.io/blog/2025/05/14/_schema-deprecations/. "
-            "Component using this schema: %s",
-            entity_type,
-            entity_type.upper(),
-            entity_type,
-            entity_type,
-            type,
-        )
         return config
 
     return validator
