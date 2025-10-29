@@ -3,7 +3,6 @@ usb_uart:
     type: cdc_acm
     vid: 0x1234
     pid: 0x5678
-    max_reqtuests: 32
     channels:
       - id: channel_0_1
   - id: uart_1
