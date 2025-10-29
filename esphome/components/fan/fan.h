@@ -60,8 +60,6 @@ class FanCall {
     this->speed_ = speed;
     return *this;
   }
-  ESPDEPRECATED("set_speed() with string argument is deprecated, use integer argument instead.", "2021.9")
-  FanCall &set_speed(const char *legacy_speed);
   optional<int> get_speed() const { return this->speed_; }
   FanCall &set_direction(FanDirection direction) {
     this->direction_ = direction;

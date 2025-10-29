@@ -52,6 +52,19 @@ number:
     widget: spinbox_id
     id: lvgl_spinbox_number
     name: LVGL Spinbox Number
+  - platform: template
+    id: test_brightness
+    name: "Test Brightness"
+    min_value: 0
+    max_value: 255
+    step: 1
+    optimistic: true
+    # Test lambda in automation accessing x parameter directly
+    # This is a real-world pattern from user configs
+    on_value:
+      - lambda: !lambda |-
+          // Direct use of x parameter in automation
+          ESP_LOGD("test", "Brightness: %.0f", x);
 
 light:
   - platform: lvgl
@@ -110,3 +123,21 @@ text:
     platform: lvgl
     widget: hello_label
     mode: text
+
+text_sensor:
+  - platform: template
+    id: test_text_sensor
+    name: "Test Text Sensor"
+    # Test nested lambdas in LVGL actions can access automation parameters
+    on_value:
+      - lvgl.label.update:
+          id: hello_label
+          text: !lambda return x.c_str();
+      - lvgl.label.update:
+          id: hello_label
+          text: !lambda |-
+            // Test complex lambda with conditionals accessing x parameter
+            if (x == "*") {
+              return "WILDCARD";
+            }
+            return x.c_str();
