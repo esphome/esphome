@@ -1,7 +1,9 @@
 from esphome import automation
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
 
+from ...animation import Animation_
 from ..automation import action_to_code
 from ..defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
 from ..helpers import lvgl_components_required
@@ -27,17 +29,24 @@ ANIMIMG_BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
     }
 )
+
 ANIMIMG_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
     {
-        cv.Required(CONF_DURATION): lv_milliseconds,
-        cv.Required(CONF_SRC): lv_image_list,
+        cv.Optional(CONF_DURATION): lv_milliseconds,  # Optional - auto from Animation
+        cv.Required(CONF_SRC): cv.Any(
+            cv.use_id(Animation_),  # Single Animation reference
+            lv_image_list,  # List of images (existing behavior)
+        ),
     }
 )
 
 ANIMIMG_MODIFY_SCHEMA = ANIMIMG_BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_DURATION): lv_milliseconds,
-        cv.Optional(CONF_SRC): lv_image_list,
+        cv.Optional(CONF_SRC): cv.Any(
+            cv.use_id(Animation_),
+            lv_image_list,
+        ),
     }
 )
 
@@ -55,15 +64,39 @@ class AnimimgType(WidgetType):
         )
 
     async def to_code(self, w: Widget, config):
+        from esphome import core
+        from esphome.core import EsphomeError
+
         lvgl_components_required.add(CONF_IMAGE)
         lvgl_components_required.add(CONF_ANIMIMG)
+
         if srcs := config.get(CONF_SRC):
-            srcs = await lv_image_list.process(srcs)
-            lv.animimg_set_src(w.obj, srcs)
+            # Check if source is an Animation ID or a list of images
+            if isinstance(srcs, core.ID):
+                # Single Animation reference
+                anim_var = await cg.get_variable(srcs)
+                lv.animimg_set_src(w.obj, anim_var)
+
+                # Set duration - use Animation's total duration if not specified
+                if duration := config.get(CONF_DURATION):
+                    lv.animimg_set_duration(w.obj, duration)
+                else:
+                    lv.animimg_set_duration(w.obj, anim_var.get_total_duration())
+            else:
+                # List of Images (existing behavior)
+                srcs = await lv_image_list.process(srcs)
+                lv.animimg_set_src(w.obj, srcs)
+
+                # Duration is required for image lists
+                duration = config.get(CONF_DURATION)
+                if duration is None:
+                    raise EsphomeError(
+                        "'duration' is required when 'src' is a list of images"
+                    )
+                lv.animimg_set_duration(w.obj, duration)
+
         if repeat_count := config.get(CONF_REPEAT_COUNT):
             lv.animimg_set_repeat_count(w.obj, repeat_count)
-        if duration := config.get(CONF_DURATION):
-            lv.animimg_set_duration(w.obj, duration)
         if config[CONF_AUTO_START]:
             lv.animimg_start(w.obj)
 

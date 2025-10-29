@@ -90,7 +90,26 @@ async def to_code(config):
         image_type,
         trans_value,
         frame_count,
+        frame_durations,
     ) = await espImage.write_image(config, all_frames=True)
+
+    # Generate frame durations array if we have timing data
+    durations_arr = cg.nullptr
+    if frame_durations:
+        # Validate that frame durations matches frame count
+        if len(frame_durations) != frame_count:
+            raise cv.Invalid(
+                f"Frame durations length ({len(frame_durations)}) does not match frame count ({frame_count})"
+            )
+        # Create static constexpr array for frame durations (stored in flash)
+        durations_name = f"{config[CONF_ID]}_durations"
+        durations_str = ", ".join(str(d) for d in frame_durations)
+        cg.add(
+            cg.RawExpression(
+                f"static constexpr uint32_t {durations_name}[{len(frame_durations)}] = {{{durations_str}}}"
+            )
+        )
+        durations_arr = cg.RawExpression(durations_name)
 
     var = cg.new_Pvariable(
         config[CONF_ID],
@@ -100,6 +119,7 @@ async def to_code(config):
         frame_count,
         image_type,
         trans_value,
+        durations_arr,
     )
     if loop_config := config.get(CONF_LOOP):
         start = loop_config[CONF_START_FRAME]

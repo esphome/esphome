@@ -9,7 +9,8 @@ namespace animation {
 class Animation : public image::Image {
  public:
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type,
-            image::Transparency transparent);
+            image::Transparency transparent, const uint32_t *frame_durations = nullptr,
+            uint32_t default_duration_ms = 100);
 
   uint32_t get_animation_frame_count() const;
   int get_current_frame() const;
@@ -24,6 +25,21 @@ class Animation : public image::Image {
 
   void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
 
+  /** Get duration for specific frame (milliseconds). */
+  uint32_t get_frame_duration(int frame) const;
+
+  /** Get average duration across all frames (milliseconds). */
+  uint32_t get_average_duration() const;
+
+  /** Get total animation duration (milliseconds). */
+  uint32_t get_total_duration() const;
+
+  /** Check if frame timing data is available. */
+  bool has_frame_timing() const;
+
+  /** Get base animation data pointer (for LVGL descriptor generation). */
+  const uint8_t *get_animation_data_start() const;
+
  protected:
   void update_data_start_();
 
@@ -34,6 +50,8 @@ class Animation : public image::Image {
   uint32_t loop_end_frame_;
   int loop_count_;
   int loop_current_iteration_;
+  const uint32_t *frame_durations_{nullptr};
+  uint32_t default_frame_duration_{100};
 };
 
 template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {

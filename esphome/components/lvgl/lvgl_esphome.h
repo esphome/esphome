@@ -7,6 +7,9 @@
 #ifdef USE_LVGL_IMAGE
 #include "esphome/components/image/image.h"
 #endif  // USE_LVGL_IMAGE
+#ifdef USE_LVGL_ANIMIMG
+#include "esphome/components/animation/animation.h"
+#endif  // USE_LVGL_ANIMIMG
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -90,6 +93,49 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
     dsc->push_back(image->get_lv_img_dsc());
   }
   lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
+}
+
+// Overload for single Animation object - extracts frames automatically
+inline void lv_animimg_set_src(lv_obj_t *img, animation::Animation *anim) {
+  uint32_t frame_count = anim->get_animation_frame_count();
+
+  // Allocate descriptors (one per frame)
+  auto *dsc_array = new std::vector<lv_img_dsc_t>(frame_count);  // NOLINT
+
+  // Get animation parameters
+  uint32_t frame_size = anim->get_width_stride() * anim->get_height();
+  const uint8_t *base_data = anim->get_animation_data_start();
+
+  // Get the first frame's descriptor as template for format info
+  const lv_img_dsc_t *template_dsc = anim->get_lv_img_dsc();
+
+  // Create descriptor for each frame by copying template and updating data pointer
+  for (uint32_t i = 0; i < frame_count; i++) {
+    // Copy entire template descriptor (preserves header structure)
+    (*dsc_array)[i] = *template_dsc;
+    // Update data pointer for this specific frame
+    (*dsc_array)[i].data = base_data + (i * frame_size);
+    (*dsc_array)[i].data_size = frame_size;
+  }
+
+  // Build pointer array for LVGL
+  auto *dsc_ptrs = new std::vector<lv_img_dsc_t *>();  // NOLINT
+  for (auto &dsc : *dsc_array) {
+    dsc_ptrs->push_back(&dsc);
+  }
+
+  // Create struct to hold both vectors (prevents orphaning of descriptor memory)
+  struct AnimImgData {
+    std::vector<lv_img_dsc_t> *descriptors;  // Owns the actual descriptor structs
+    std::vector<lv_img_dsc_t *> *pointers;   // Pointers into descriptors
+  };
+  auto *data = new AnimImgData{dsc_array, dsc_ptrs};  // NOLINT
+
+  // Store both vectors so descriptor memory remains referenced
+  lv_obj_set_user_data(img, data);
+
+  // Call LVGL API with the pointer array
+  lv_animimg_set_src(img, (const void **) data->pointers->data(), frame_count);
 }
 
 #endif  // USE_LVGL_ANIMIMG

@@ -663,6 +663,35 @@ def _config_schema(value):
 CONFIG_SCHEMA = _config_schema
 
 
+# Disposal method constants
+DISPOSAL_NONE = 0  # Leave frame as-is
+DISPOSAL_BACKGROUND = 1  # Clear to background
+DISPOSAL_PREVIOUS = 2  # Restore previous
+
+
+def _get_disposal_method(pil_img):
+    """Get normalized disposal method (GIF and APNG handle this differently)."""
+    # GIF: has disposal_method attribute (0/1=none, 2=background, 3=previous)
+    if hasattr(pil_img, "disposal_method"):
+        disposal = pil_img.disposal_method
+        if disposal in (0, 1):
+            return DISPOSAL_NONE
+        if disposal == 2:
+            return DISPOSAL_BACKGROUND
+        if disposal == 3:
+            return DISPOSAL_PREVIOUS
+    # APNG: uses info['disposal'] dict key (0=none, 1=background, 2=previous)
+    elif "disposal" in pil_img.info:
+        disposal = pil_img.info["disposal"]
+        if disposal == 0:
+            return DISPOSAL_NONE
+        if disposal == 1:
+            return DISPOSAL_BACKGROUND
+        if disposal == 2:
+            return DISPOSAL_PREVIOUS
+    return DISPOSAL_NONE  # default
+
+
 async def write_image(config, all_frames=False):
     path = Path(config[CONF_FILE])
     if not path.is_file():
@@ -720,26 +749,81 @@ async def write_image(config, all_frames=False):
     if byte_order := config.get(CONF_BYTE_ORDER):
         # Check for valid type has already been done in validate_settings
         encoder.set_big_endian(byte_order == "BIG_ENDIAN")
+
+    # Initialize compositing canvas for animated images (RGBA for proper disposal)
+    canvas = None
+    previous_canvas = None
+    frame_durations = []
+    MIN_DELAY_MS = 10  # Clamp very small delays
+
     for frame_index in range(frame_count):
         image.seek(frame_index)
-        pixels = encoder.convert(image.resize((width, height)), path).getdata()
+        image.load()  # Required for WebP to populate .info
+
+        # Extract timing (milliseconds) for animated images
+        if all_frames and frame_count > 1:
+            duration = image.info.get("duration", 100)  # Default 100ms = 10 FPS
+            duration = max(MIN_DELAY_MS, int(duration))
+            frame_durations.append(duration)
+
+            # Get disposal method (normalized across GIF/APNG)
+            disposal = _get_disposal_method(image)
+
+            # Initialize canvas on first frame
+            if canvas is None:
+                canvas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+
+            # Save previous canvas if needed for DISPOSAL_PREVIOUS
+            if disposal == DISPOSAL_PREVIOUS:
+                previous_canvas = canvas.copy()
+
+            # Resize frame to target dimensions BEFORE compositing
+            frame_rgba = image.convert("RGBA").resize(
+                (width, height), Image.Resampling.LANCZOS
+            )
+            canvas.paste(frame_rgba, (0, 0), frame_rgba)
+
+            # Feed composite through existing encoder (handles format/transparency)
+            pixels = encoder.convert(canvas, path).getdata()
+        else:
+            # Static image - use as-is
+            pixels = encoder.convert(image.resize((width, height)), path).getdata()
+
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
+
+        # Apply disposal for next iteration
+        if all_frames and frame_count > 1:
+            if disposal == DISPOSAL_BACKGROUND:
+                canvas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+            elif disposal == DISPOSAL_PREVIOUS and previous_canvas:
+                canvas = previous_canvas.copy()
+            # DISPOSAL_NONE: leave canvas as-is
 
     rhs = [HexInt(x) for x in encoder.data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     image_type = get_image_type_enum(type)
     trans_value = get_transparency_enum(encoder.transparency)
 
-    return prog_arr, width, height, image_type, trans_value, frame_count
+    return (
+        prog_arr,
+        width,
+        height,
+        image_type,
+        trans_value,
+        frame_count,
+        frame_durations,
+    )
 
 
 async def to_code(config):
     # By now the config should be a simple list.
     for entry in config:
-        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
+        prog_arr, width, height, image_type, trans_value, _, _ = await write_image(
+            entry
+        )
         cg.new_Pvariable(
             entry[CONF_ID], prog_arr, width, height, image_type, trans_value
         )
