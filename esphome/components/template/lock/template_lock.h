@@ -12,6 +12,7 @@ class TemplateLock : public lock::Lock, public Component {
  public:
   TemplateLock();
 
+  void setup() override;
   void dump_config() override;
 
   template<typename F> void set_state_lambda(F &&f) { this->f_.set(std::forward<F>(f)); }
