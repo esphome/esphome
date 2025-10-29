@@ -26,7 +26,6 @@ void ZephyrI2CBus::setup() {
     ESP_LOGE(TAG, "I2C recover bus failed, err %d", this->recovery_result_);
   }
   if (this->scan_) {
-    // FIXME it should be done one by one since it takes over 18sec
     ESP_LOGV(TAG, "Scanning I2C bus for active devices...");
     this->i2c_scan_();
   }
