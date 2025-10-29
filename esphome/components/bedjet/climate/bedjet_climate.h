@@ -43,7 +43,7 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
     });
 
     // It would be better if we had a slider for the fan modes.
-    traits.set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES_SET);
+    traits.set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES);
     traits.set_supported_presets({
         // If we support NONE, then have to decide what happens if the user switches to it (turn off?)
         // climate::CLIMATE_PRESET_NONE,

@@ -849,39 +849,47 @@ def test_detect_memory_impact_config_no_components_with_tests(tmp_path: Path) ->
     assert result["should_run"] == "false"
 
 
-def test_detect_memory_impact_config_skips_base_bus_components(tmp_path: Path) -> None:
-    """Test that base bus components (i2c, spi, uart) are skipped."""
+def test_detect_memory_impact_config_includes_base_bus_components(
+    tmp_path: Path,
+) -> None:
+    """Test that base bus components (i2c, spi, uart) are included when directly changed.
+
+    Base bus components should be analyzed for memory impact when they are directly
+    changed, even though they are often used as dependencies. This ensures that
+    optimizations to base components (like using move semantics or initializer_list)
+    are properly measured.
+    """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
 
-    # i2c component (should be skipped as it's a base bus component)
-    i2c_dir = tests_dir / "i2c"
-    i2c_dir.mkdir(parents=True)
-    (i2c_dir / "test.esp32-idf.yaml").write_text("test: i2c")
+    # uart component (base bus component that should be included)
+    uart_dir = tests_dir / "uart"
+    uart_dir.mkdir(parents=True)
+    (uart_dir / "test.esp32-idf.yaml").write_text("test: uart")
 
-    # wifi component (should not be skipped)
+    # wifi component (regular component)
     wifi_dir = tests_dir / "wifi"
     wifi_dir.mkdir(parents=True)
     (wifi_dir / "test.esp32-idf.yaml").write_text("test: wifi")
 
-    # Mock changed_files to return both i2c and wifi
+    # Mock changed_files to return both uart and wifi
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         patch.object(helpers, "root_path", str(tmp_path)),
         patch.object(determine_jobs, "changed_files") as mock_changed_files,
     ):
         mock_changed_files.return_value = [
-            "esphome/components/i2c/i2c.cpp",
+            "esphome/components/uart/automation.h",  # Header file with inline code
             "esphome/components/wifi/wifi.cpp",
         ]
         determine_jobs._component_has_tests.cache_clear()
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should only include wifi, not i2c
+    # Should include both uart and wifi
     assert result["should_run"] == "true"
-    assert result["components"] == ["wifi"]
-    assert "i2c" not in result["components"]
+    assert set(result["components"]) == {"uart", "wifi"}
+    assert result["platform"] == "esp32-idf"  # Common platform
 
 
 def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:

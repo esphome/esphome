@@ -88,6 +88,12 @@ static void dump_field(std::string &out, const char *field_name, StringRef value
   out.append("\n");
 }
 
+static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\n");
+}
+
 template<typename T> static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
