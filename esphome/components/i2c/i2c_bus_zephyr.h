@@ -28,6 +28,7 @@ class ZephyrI2CBus : public InternalI2CBus, public Component {
   int recovery_result_ = 0;
   uint8_t sda_pin_{};
   uint8_t scl_pin_{};
+  uint32_t dev_config_{};
 };
 
 }  // namespace esphome::i2c

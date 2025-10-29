@@ -68,7 +68,13 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
-            cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
+            cv.SplitDefault(
+                CONF_FREQUENCY,
+                esp32="50kHz",
+                esp8266="50kHz",
+                rp2040="50kHz",
+                nrf52="100kHz",
+            ): cv.All(
                 cv.frequency,
                 cv.Range(min=0, min_included=False),
             ),

@@ -35,29 +35,22 @@ void ZephyrI2CBus::dump_config() {
     ESP_LOGCONFIG(TAG, "  Not initialized");
     return;
   }
-  uint32_t dev_config = 0;
-  // FIXME this function is not implemented in driver
-  int err = i2c_get_config(this->i2c_dev_, &dev_config);
-  if (err != 0) {
-    ESP_LOGE(TAG, "Cannot get I2C config, err %d", err);
-  } else {
-    auto get_speed = [](uint32_t dev_config) {
-      switch (I2C_SPEED_GET(dev_config)) {
-        case I2C_SPEED_STANDARD:
-          return "100 kHz";
-        case I2C_SPEED_FAST:
-          return "400 kHz";
-        case I2C_SPEED_FAST_PLUS:
-          return "1 MHz";
-        case I2C_SPEED_HIGH:
-          return "3.4 MHz";
-        case I2C_SPEED_ULTRA:
-          return "5 MHz";
-      }
-      return "unknown";
-    };
-    ESP_LOGCONFIG(TAG, "  Frequency: %s", get_speed(dev_config));
-  }
+  auto get_speed = [](uint32_t dev_config) {
+    switch (I2C_SPEED_GET(dev_config)) {
+      case I2C_SPEED_STANDARD:
+        return "100 kHz";
+      case I2C_SPEED_FAST:
+        return "400 kHz";
+      case I2C_SPEED_FAST_PLUS:
+        return "1 MHz";
+      case I2C_SPEED_HIGH:
+        return "3.4 MHz";
+      case I2C_SPEED_ULTRA:
+        return "5 MHz";
+    }
+    return "unknown";
+  };
+  ESP_LOGCONFIG(TAG, "  Frequency: %s", get_speed(this->dev_config_));
 
   if (this->recovery_result_ != 0) {
     ESP_LOGCONFIG(TAG, "  Recovery: failed, err %d", this->recovery_result_);
