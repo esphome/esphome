@@ -16,6 +16,11 @@ void ZephyrI2CBus::setup() {
   }
   this->i2c_dev_ = i2c_dev;
 
+  int ret = i2c_configure(this->i2c_dev_, this->dev_config_);
+  if (ret < 0) {
+    ESP_LOGE(TAG, "I2C: Failed to configure device");
+  }
+
   this->recovery_result_ = i2c_recover_bus(this->i2c_dev_);
   if (this->recovery_result_ != 0) {
     ESP_LOGE(TAG, "I2C recover bus failed, err %d", this->recovery_result_);
@@ -114,6 +119,15 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
   }
 
   return ERROR_OK;
+}
+
+void ZephyrI2CBus::set_frequency(uint32_t frequency) {
+  this->dev_config_ &= ~I2C_SPEED_MASK;
+  if (frequency == 400000) {
+    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_FAST);
+  } else {
+    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
+  }
 }
 
 }  // namespace esphome::i2c
