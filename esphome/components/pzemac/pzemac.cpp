@@ -3,7 +3,7 @@
 
 unsigned long last_update_time_;
 
-static float last_energy_sensor [10] = {};
+static uint16_t last_energy_sensor [10] = {};
 
 namespace esphome {
 namespace pzemac {
