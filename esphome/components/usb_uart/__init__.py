@@ -41,7 +41,6 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-# By default, log in hex format when no specific sequence is provided.
 
 
 class Type:
@@ -74,7 +73,7 @@ def channel_schema(channels, baud_rate_required):
                     cv.Schema(
                         {
                             cv.GenerateID(): cv.declare_id(USBUartChannel),
-                            cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(
+                            cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(
                                 min=64, max=8192
                             ),
                             (

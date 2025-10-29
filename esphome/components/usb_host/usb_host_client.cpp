@@ -189,7 +189,7 @@ void USBClient::setup() {
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
   for (size_t i = 0; i < MAX_REQUESTS; i++) {
-    usb_host_transfer_alloc(1024, 0, &this->requests_[i].transfer);
+    usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &this->requests_[i].transfer);
     this->requests_[i].client = this;  // Set once, never changes
   }
 

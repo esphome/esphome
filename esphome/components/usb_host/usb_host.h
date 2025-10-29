@@ -64,11 +64,17 @@ static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be bet
 // - Use uint32_t for 17-32 requests (MAX_REQUESTS > 16)
 // This is tied to the static_assert above, which enforces MAX_REQUESTS is between 1 and 32.
 // If MAX_REQUESTS is increased above 32, this logic and the static_assert must be updated.
-using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 32), uint32_t, uint32_t>::type;
+using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
 
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
+
+#ifdef USE_ESP32_VARIANT_ESP32P4
+static const uint16_t USB_MAX_PACKET_SIZE = 512;
+#else
+static const uint8_t USB_MAX_PACKET_SIZE = 64;
+#endif
 
 // used to report a transfer status
 struct TransferStatus {

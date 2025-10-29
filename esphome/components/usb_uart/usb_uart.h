@@ -28,11 +28,6 @@ static constexpr uint8_t USB_DEVICE_PROTOCOL_IAD = 0x01;
 static constexpr uint8_t USB_VENDOR_IFC = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_INTERFACE;
 static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_DEVICE;
 
-#ifdef USE_ESP32_VARIANT_ESP32P4
-static const uint16_t CH934_MAX_PACKET_SIZE = 512;
-#else
-static const uint8_t CH934_MAX_PACKET_SIZE = 64;
-#endif
 static const uint16_t CH9344_TTY_MINORS = 256;
 
 struct CdcEps {
@@ -65,44 +60,6 @@ enum UARTStopBitsOptions {
   UART_CONFIG_STOP_BITS_2,
 };
 
-#if defined(USE_UART_DEBUGGER)
-enum CH934X_CHIPTYPE {
-  CHIP_CH9344L = 0,
-  CHIP_CH9344Q,
-  CHIP_CH348L,
-  CHIP_CH348Q,
-};
-
-enum CH34X_CHIPTYPE {
-  CHIP_CH342F = 0x00,
-  CHIP_CH342K,
-  CHIP_CH343GP,
-  CHIP_CH343G_AUTOBAUD,
-  CHIP_CH343K,
-  CHIP_CH343J,
-  CHIP_CH344L,
-  CHIP_CH344L_V2,
-  CHIP_CH344Q,
-  CHIP_CH347TF,
-  CHIP_CH9101UH,
-  CHIP_CH9101RY,
-  CHIP_CH9102F,
-  CHIP_CH9102X,
-  CHIP_CH9103M,
-  CHIP_CH9104L,
-  CHIP_CH340B,
-  CHIP_CH339W,
-  CHIP_CH9111L_M0,
-  CHIP_CH9111L_M1,
-  CHIP_CH9114L,
-  CHIP_CH9114W,
-  CHIP_CH9114F,
-  CHIP_CH346C_M0,
-  CHIP_CH346C_M1,
-  CHIP_CH346C_M2,
-};
-#endif
-
 static const char *const PARITY_NAMES[] = {"NONE", "ODD", "EVEN", "MARK", "SPACE"};
 static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
@@ -130,12 +87,7 @@ class RingBuffer {
 
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
-#ifdef USE_ESP32_VARIANT_ESP32P4
-  static constexpr size_t MAX_CHUNK_SIZE = 512;  // USB 2.0 HS
-#else
-  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB 1.1 FS
-#endif
-  uint8_t data[MAX_CHUNK_SIZE];
+  uint8_t data[esphome::usb_host::USB_MAX_PACKET_SIZE];
   uint16_t length;
   USBUartChannel *channel;
 
