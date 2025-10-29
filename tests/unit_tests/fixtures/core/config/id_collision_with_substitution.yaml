@@ -1,0 +1,12 @@
+esphome:
+  name: conditional_example
+
+host:
+
+substitutions:
+  support_switches:
+    - platform: gpio
+      id: some_switch_id
+      pin: 12
+
+switch: $support_switches
