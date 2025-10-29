@@ -220,7 +220,8 @@ class ProtoWriteBuffer {
   void write(uint8_t value) { this->buffer_->push_back(value); }
 
   // Single implementation that all overloads delegate to
-  void encode_varint(uint64_t value) {
+  // Use aggressive optimization for this hot path even in -Os builds
+  __attribute__((optimize("O3"))) void encode_varint(uint64_t value) {
     auto buffer = this->buffer_;
     size_t start = buffer->size();
 
