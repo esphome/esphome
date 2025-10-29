@@ -1,10 +1,5 @@
 esp32:
   board: esp32dev
-  custom_partitions:
-    - name: test
-      type: data
-      subtype: nvs
-      size: 0x1000
   framework:
     type: esp-idf
     advanced:
