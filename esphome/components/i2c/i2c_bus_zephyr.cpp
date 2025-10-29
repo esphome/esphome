@@ -100,7 +100,7 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
     if (read_count) {
       msgs[cnt].buf = const_cast<uint8_t *>(read_buffer);
       msgs[cnt].len = read_count;
-      msgs[cnt++].flags = I2C_MSG_READ | write_count ? I2C_MSG_RESTART : 0;
+      msgs[cnt++].flags = I2C_MSG_READ | I2C_MSG_RESTART;
     }
   }
 
