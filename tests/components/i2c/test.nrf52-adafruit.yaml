@@ -1,3 +1,10 @@
 i2c:
-  sda: P1.04
-  scl: P1.06
+  - id: a
+    sda: P1.04
+    scl: P1.06
+  - id: b
+    sda: P1.08
+    scl: P1.09
+  - id: c
+    sda: P1.10
+    scl: P1.11
