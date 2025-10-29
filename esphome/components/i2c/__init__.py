@@ -2,7 +2,6 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import zephyr
 from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.config_helpers import filter_source_files_from_platform
@@ -31,6 +30,7 @@ I2CBus = i2c_ns.class_("I2CBus")
 InternalI2CBus = i2c_ns.class_("InternalI2CBus", I2CBus)
 ArduinoI2CBus = i2c_ns.class_("ArduinoI2CBus", InternalI2CBus, cg.Component)
 IDFI2CBus = i2c_ns.class_("IDFI2CBus", InternalI2CBus, cg.Component)
+ZephyrI2CBus = i2c_ns.class_("ZephyrI2CBus", I2CBus, cg.Component)
 I2CDevice = i2c_ns.class_("I2CDevice")
 
 
@@ -76,7 +76,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SCAN, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
     validate_config,
 )
 
