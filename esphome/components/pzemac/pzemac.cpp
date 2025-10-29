@@ -1,12 +1,11 @@
 #include "pzemac.h"
 #include "esphome/core/log.h"
 
-unsigned long last_update_time_;
-
-static float last_energy_sensor[10] = {};
-
 namespace esphome {
 namespace pzemac {
+
+uint32_t last_update_time_;
+static float last_energy_sensor[10] = {};
 
 static const char *const TAG = "pzemac";
 
