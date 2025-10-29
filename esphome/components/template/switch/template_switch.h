@@ -15,10 +15,7 @@ class TemplateSwitch : public switch_::Switch, public Component {
   void setup() override;
   void dump_config() override;
 
-  template<typename F> void set_state_lambda(F &&f) {
-    this->f_.set(std::forward<F>(f));
-    this->enable_loop();
-  }
+  template<typename F> void set_state_lambda(F &&f) { this->f_.set(std::forward<F>(f)); }
   Trigger<> *get_turn_on_trigger() const;
   Trigger<> *get_turn_off_trigger() const;
   void set_optimistic(bool optimistic);

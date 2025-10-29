@@ -11,6 +11,11 @@ static const char *const TAG = "template.lock";
 TemplateLock::TemplateLock()
     : lock_trigger_(new Trigger<>()), unlock_trigger_(new Trigger<>()), open_trigger_(new Trigger<>()) {}
 
+void TemplateLock::setup() {
+  if (!this->f_.has_value())
+    this->disable_loop();
+}
+
 void TemplateLock::loop() {
   auto val = this->f_();
   if (val.has_value()) {
