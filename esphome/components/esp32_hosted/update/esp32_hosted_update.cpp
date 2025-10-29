@@ -1,6 +1,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "esp32_hosted_update.h"
 #include "esphome/components/watchdog/watchdog.h"
+#include "esphome/components/sha256/sha256.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <esp_image_format.h>
@@ -79,6 +80,16 @@ void Esp32HostedUpdate::perform(bool force) {
 
   if (this->firmware_data_ == nullptr || this->firmware_size_ == 0) {
     ESP_LOGE(TAG, "No firmware data available");
+    return;
+  }
+
+  sha256::SHA256 hasher;
+  hasher.init();
+  hasher.add(this->firmware_data_, this->firmware_size_);
+  hasher.calculate();
+  if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
+    this->status_set_error("SHA256 verification failed");
+    this->publish_state();
     return;
   }
 
