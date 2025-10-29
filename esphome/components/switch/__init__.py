@@ -139,11 +139,6 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-SWITCH_SCHEMA = switch_schema(Switch)
-SWITCH_SCHEMA.add_extra(cv.deprecated_schema_constant("switch"))
-
-
 async def setup_switch_core_(var, config):
     await setup_entity(var, config, "switch")
 
