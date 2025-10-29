@@ -389,17 +389,11 @@ class TextValidator(LValidator):
         return super().__call__(value)
 
     async def process(self, value, args=()):
-        # If args not provided, try to get them from the current LambdaContext
-        # This allows nested lambdas in automations to access outer automation parameters
-        # But not from LvContext (setup context) which has LVGL_COMP_ARG by default
-        if not args:
-            # Import here to avoid circular import at module level
-            from .lvcode import CodeContext, LambdaContext, LvContext
+        # Import here to avoid circular import at module level
+        from .lvcode import get_automation_parameters
 
-            if isinstance(CodeContext.code_context, LambdaContext) and not isinstance(
-                CodeContext.code_context, LvContext
-            ):
-                args = CodeContext.code_context.parameters
+        # Get automation parameters, filtering out setup context parameters
+        args = get_automation_parameters(args)
 
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
