@@ -27,7 +27,9 @@ class EpaperModel:
     def get_init_sequence(self, config: dict):
         return self.initsequence
 
-    def option(self, name, fallback=False) -> cv.Optional:
+    def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
+        if fallback is None and self.get_default(name, None) is None:
+            return cv.Required(name)
         return cv.Optional(name, default=self.get_default(name, fallback))
 
     def get_dimensions(self, config) -> tuple[int, int]:

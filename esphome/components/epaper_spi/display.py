@@ -67,17 +67,18 @@ def model_schema(config):
         )
         .extend(
             {
-                model.option(pin, cv.UNDEFINED): pins.gpio_output_pin_schema
-                for pin in (CONF_RESET_PIN, CONF_CS_PIN, CONF_DC_PIN, CONF_BUSY_PIN)
+                model.option(pin): pins.gpio_output_pin_schema
+                for pin in (CONF_RESET_PIN, CONF_CS_PIN, CONF_BUSY_PIN)
             }
         )
         .extend(
             {
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+                model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
                 cv.GenerateID(): cv.declare_id(class_name),
                 cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
                 cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
-                model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
+                model.option(CONF_ENABLE_PIN): cv.ensure_list(
                     pins.gpio_output_pin_schema
                 ),
                 model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
