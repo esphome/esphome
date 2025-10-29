@@ -14,6 +14,13 @@
 #define HAS_PROTO_MESSAGE_DUMP
 #endif
 
+// Branch prediction hints for hot paths
+#if defined(__GNUC__) || defined(__clang__)
+#define ESPHOME_LIKELY(x) __builtin_expect(!!(x), 1)
+#else
+#define ESPHOME_LIKELY(x) (x)
+#endif
+
 namespace esphome::api {
 
 // Protocol Buffer wire type constants
@@ -225,7 +232,7 @@ class ProtoWriteBuffer {
     size_t start = buffer->size();
 
     // Fast paths for common cases (1-3 bytes)
-    if (value < (1ULL << 7)) [[likely]] {
+    if (ESPHOME_LIKELY(value < (1ULL << 7))) {
       // 1 byte - very common for field IDs and small lengths
       buffer->resize(start + 1);
       buffer->data()[start] = static_cast<uint8_t>(value);
@@ -233,7 +240,7 @@ class ProtoWriteBuffer {
     }
 
     uint8_t *p;
-    if (value < (1ULL << 14)) [[likely]] {
+    if (ESPHOME_LIKELY(value < (1ULL << 14))) {
       // 2 bytes - common for medium field IDs and lengths
       buffer->resize(start + 2);
       p = buffer->data() + start;
