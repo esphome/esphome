@@ -65,7 +65,7 @@ display:
     id: my_display
 ```
 
-## Configuration variables
+## Configuration options
 
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`.
   This option cannot be used with `transform`.
@@ -134,7 +134,8 @@ Displays needing a custom init sequence require an SPI bus to be configured, plu
 - **invert_colors** (*Optional*): Inverts the display colors, (white becomes black.) Defaults to false.
 - **color_order** (*Optional*): Should be one of `bgr` (default) or `rgb`.
 - **transform** (*Optional*): Transform the display presentation using hardware. All defaults are `false`.
-  This option cannot be used with `rotation`.
+  This option should not be used with `rotation`. For the `CUSTOM` model, use `transform: disabled`
+  if the display does not support it, which will prevent a `rotation` being translated to a hardware transform.
 
   - **mirror_x** (*Optional*, boolean): If true, mirror the x-axis.
   - **mirror_y** (*Optional*, boolean): If true, mirror the y-axis.

@@ -42,44 +42,44 @@ using an octal SPI bus, so references here to parallel and octal SPI are equival
 | ----------- | ------------------ |
 | RM690B0     | 320x240            |
 | ILI9341     | 320x240            |
-| ILI9481 | 320x480 |
-| ILI9486 | 320x480 |
-| ILI9488 | 320x480 |
-| ILI9488_A | 320x480 |
-| ST7796 | 320x480 |
-| ST7789V | 240x320 |
-| GC9A01A | 240x240 |
-| GC9D01N | 240x240 |
-| AXS15231 | 320x240 |
-| ST7735 | 128x160 |
-| CO5300 | 466x466 |
-| CUSTOM | Customisable |
+| ILI9481     | 320x480            |
+| ILI9486     | 320x480            |
+| ILI9488     | 320x480            |
+| ILI9488_A   | 320x480            |
+| ST7796      | 320x480            |
+| ST7789V     | 240x320            |
+| GC9A01A     | 240x240            |
+| GC9D01N     | 240x240            |
+| AXS15231    | 320x240            |
+| ST7735      | 128x160            |
+| CO5300      | 466x466            |
+| CUSTOM      | Customisable       |
 
 ### Boards with integrated displays
 
 | Model                                | Manufacturer | Product Description                                               |
-|--------------------------------------| ------------ | ----------------------------------------------------------------- |
+| ------------------------------------ | ------------ | ----------------------------------------------------------------- |
 | ADAFRUIT-S2-TFT-FEATHER              | Adafruit     | <https://www.adafruit.com/product/6312>                           |
 | ADAFRUIT-FUNHOUSE                    | Adafruit     | <https://www.adafruit.com/product/4985>                           |
-| M5CORE                               | M5Stack | <https://docs.m5stack.com/en/core/BASIC%20v2.6> |
-| S3BOX                                | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box> |
-| S3BOXLITE                            | Espressif | <https://www.espressif.com/en/products/devkits/esp32-s3-box-lite> |
-| WAVESHARE-4-TFT                      | Waveshare | <https://www.waveshare.com/4inch-tft-touch-shield.htm> |
-| PICO-RESTOUCH-LCD-3.5                | Waveshare | <https://www.waveshare.com/pico-restouch-lcd-3.5.htm> |
-| WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.75 | Waveshare | <https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm> |
-| WT32-SC01-PLUS                       | Wireless-Tag | <https://www.wireless-tag.com/portfolio/wt32-sc01-plus/> |
-| ESP32-2432S028                       | Sunton | <https://www.espressif.com/en/products/devkits/esp32-2432s028> |
-| JC3248W535                           | Guition | <https://www.aliexpress.com/item/1005007566332450.html> |
-| JC3636W518                           | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
-| JC3636W518V2                         | Guition | <https://www.aliexpress.com/item/1005007890666293.html> |
-| LANBON-L8                            | Lanbon | <https://www.lanbon.cn/product/lanbon-l8> |
-| T4-S3                                | Lilygo | <https://www.lilygo.cc/products/t4-s3> |
-| T-EMBED                              | Lilygo | <https://www.lilygo.cc/products/t-embed> |
-| T-DISPLAY                            | Lilygo | <https://www.lilygo.cc/products/t-display> |
-| T-DISPLAY-S3                         | Lilygo | <https://www.lilygo.cc/products/t-display-s3> |
-| T-DISPLAY-S3-PRO                     | Lilygo | <https://www.lilygo.cc/products/t-display-s3-pro> |
-| T-DISPLAY-S3-AMOLED                  | Lilygo | <https://www.lilygo.cc/products/t-display-s3-amoled> |
-| T-DISPLAY-S3-AMOLED-PLUS             | Lilygo | <https://www.lilygo.cc/products/t-display-s3-amoled-plus> |
+| M5CORE                               | M5Stack      | <https://docs.m5stack.com/en/core/BASIC%20v2.6>                   |
+| S3BOX                                | Espressif    | <https://www.espressif.com/en/products/devkits/esp32-s3-box>      |
+| S3BOXLITE                            | Espressif    | <https://www.espressif.com/en/products/devkits/esp32-s3-box-lite> |
+| WAVESHARE-4-TFT                      | Waveshare    | <https://www.waveshare.com/4inch-tft-touch-shield.htm>            |
+| PICO-RESTOUCH-LCD-3.5                | Waveshare    | <https://www.waveshare.com/pico-restouch-lcd-3.5.htm>             |
+| WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.75 | Waveshare    | <https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm>        |
+| WT32-SC01-PLUS                       | Wireless-Tag | <https://www.wireless-tag.com/portfolio/wt32-sc01-plus/>          |
+| ESP32-2432S028                       | Sunton       | <https://www.espressif.com/en/products/devkits/esp32-2432s028>    |
+| JC3248W535                           | Guition      | <https://www.aliexpress.com/item/1005007566332450.html>           |
+| JC3636W518                           | Guition      | <https://www.aliexpress.com/item/1005007890666293.html>           |
+| JC3636W518V2                         | Guition      | <https://www.aliexpress.com/item/1005007890666293.html>           |
+| LANBON-L8                            | Lanbon       | <https://www.lanbon.cn/product/lanbon-l8>                         |
+| T4-S3                                | Lilygo       | <https://www.lilygo.cc/products/t4-s3>                            |
+| T-EMBED                              | Lilygo       | <https://www.lilygo.cc/products/t-embed>                          |
+| T-DISPLAY                            | Lilygo       | <https://www.lilygo.cc/products/t-display>                        |
+| T-DISPLAY-S3                         | Lilygo       | <https://www.lilygo.cc/products/t-display-s3>                     |
+| T-DISPLAY-S3-PRO                     | Lilygo       | <https://www.lilygo.cc/products/t-display-s3-pro>                 |
+| T-DISPLAY-S3-AMOLED                  | Lilygo       | <https://www.lilygo.cc/products/t-display-s3-amoled>              |
+| T-DISPLAY-S3-AMOLED-PLUS             | Lilygo       | <https://www.lilygo.cc/products/t-display-s3-amoled-plus>         |
 
 ## SPI Bus
 
@@ -125,7 +125,9 @@ most of the configuration will be set by default, but can be overridden if neede
 
 - **invert_colors** (*Optional*, boolean): Specifies whether the display colors should be inverted. Options are `true` or `false`. Defaults to `false`.
 - **rotation** (*Optional*): Rotate the display presentation in software. Choose one of `0°`, `90°`, `180°`, or `270°`. If the driver chip supports hardware rotation for the given orientation this will be translated to the appropriate hardware command. If hardware rotation is not supported, the display will be rotated in software.
-- **transform** (*Optional*): If `rotation` is not sufficient, use this to transform the display. If this option is specified, then the `dimensions` option must also be provided. Options are:
+- **transform** (*Optional*): If `rotation` is not sufficient, use this to transform the display. If this option is specified, then the `dimensions` option must also be provided. The value can either be the string `disabled` to disable hardware transform, or a dictionary. Options are:
+  This option should not be used with `rotation`. For the `CUSTOM` model, use `transform: disabled`
+  if the display does not support it, which will prevent a `rotation` being translated to a hardware transform.
 
   - **swap_xy** (**Required**, boolean): If true, exchange the x and y axes.
   - **mirror_x** (**Required**, boolean): If true, mirror the x axis.
