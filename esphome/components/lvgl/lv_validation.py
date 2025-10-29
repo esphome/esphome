@@ -389,11 +389,10 @@ class TextValidator(LValidator):
         return super().__call__(value)
 
     async def process(self, value, args=()):
-        # Import here to avoid circular import at module level
-        from .lvcode import get_automation_parameters
+        # Local import to avoid circular import at module level
+        from .lvcode import CodeContext
 
-        # Get automation parameters, filtering out setup context parameters
-        args = get_automation_parameters(args)
+        args = args or CodeContext.code_context.get_automation_parameters()
 
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):

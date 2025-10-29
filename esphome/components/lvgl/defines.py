@@ -75,11 +75,10 @@ class LValidator:
         if value is None:
             return None
         if isinstance(value, Lambda):
-            # Import here to avoid circular import at module level
-            from .lvcode import get_automation_parameters
+            # Local import to avoid circular import
+            from .lvcode import CodeContext
 
-            # Get automation parameters, filtering out setup context parameters
-            args = get_automation_parameters(args)
+            args = args or CodeContext.code_context.get_automation_parameters()
             return cg.RawExpression(
                 call_lambda(
                     await cg.process_lambda(value, args, return_type=self.rtype)
