@@ -31,9 +31,9 @@ class HttpContainerArduino : public HttpContainer {
 
 class HttpRequestArduino : public HttpRequestComponent {
  protected:
-  std::shared_ptr<HttpContainer> perform(std::string url, std::string method, std::string body,
-                                         std::list<Header> request_headers,
-                                         std::set<std::string> collect_headers) override;
+  std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
+                                         const std::list<Header> &request_headers,
+                                         const std::set<std::string> &collect_headers) override;
 };
 
 }  // namespace http_request

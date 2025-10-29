@@ -159,8 +159,6 @@ enum class ClientState : uint8_t {
   IDLE,
   // Device advertisement found.
   DISCOVERED,
-  // Device is discovered and the scanner is stopped
-  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.
@@ -304,6 +302,7 @@ class ESP32BLETracker : public Component,
   /// Count clients in each state
   ClientStateCounts count_client_states_() const {
     ClientStateCounts counts;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
       switch (client->state()) {
         case ClientState::DISCONNECTING:
@@ -313,19 +312,23 @@ class ESP32BLETracker : public Component,
           counts.discovered++;
           break;
         case ClientState::CONNECTING:
-        case ClientState::READY_TO_CONNECT:
           counts.connecting++;
           break;
         default:
           break;
       }
     }
+#endif
     return counts;
   }
 
   // Group 1: Large objects (12+ bytes) - vectors and callback manager
-  std::vector<ESPBTDeviceListener *> listeners_;
-  std::vector<ESPBTClient *> clients_;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
+  StaticVector<ESPBTDeviceListener *, ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT> listeners_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
+#endif
   CallbackManager<void(ScannerState)> scanner_state_callbacks_;
 #ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info

@@ -85,11 +85,6 @@ def event_schema(
     return _EVENT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-EVENT_SCHEMA = event_schema()
-EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
-
-
 async def setup_event_core_(var, config, *, event_types: list[str]):
     await setup_entity(var, config, "event")
 

@@ -16,15 +16,30 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "socket"]
 DEPENDENCIES = ["network"]
+
+
+def supports_sha256() -> bool:
+    """Check if the current platform supports SHA256 for OTA authentication."""
+    return bool(CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny)
+
+
+def AUTO_LOAD() -> list[str]:
+    """Conditionally auto-load sha256 only on platforms that support it."""
+    base_components = ["md5", "socket"]
+    if supports_sha256():
+        return base_components + ["sha256"]
+    return base_components
+
 
 esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
@@ -88,7 +103,16 @@ def ota_esphome_final_validate(config):
         )
 
 
-CONFIG_SCHEMA = (
+def _consume_ota_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for OTA component."""
+    from esphome.components import socket
+
+    # OTA needs 1 listening socket (client connections are temporary during updates)
+    socket.consume_sockets(1, "ota")(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
@@ -115,19 +139,27 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(BASE_OTA_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _consume_ota_sockets,
 )
 
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
-@coroutine_with_priority(CoroPriority.COMMUNICATION)
-async def to_code(config):
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
-    if CONF_PASSWORD in config:
+
+    # Password could be set to an empty string and we can assume that means no password
+    if config.get(CONF_PASSWORD):
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
+        # Only include hash algorithms when password is configured
+        cg.add_define("USE_OTA_MD5")
+        # Only include SHA256 support on platforms that have it
+        if supports_sha256():
+            cg.add_define("USE_OTA_SHA256")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
     await cg.register_component(var, config)

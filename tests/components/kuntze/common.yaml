@@ -1,14 +1,6 @@
-uart:
-  - id: uart_kuntze
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
-modbus:
-  flow_control_pin: ${flow_control_pin}
-
 sensor:
   - platform: kuntze
+    modbus_id: modbus_bus
     ph:
       name: Kuntze pH
     temperature:

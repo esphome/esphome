@@ -21,7 +21,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
 )
-from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
 
@@ -344,8 +343,7 @@ async def to_code(config):
 
     cg.add_define("USE_CAMERA")
 
-    if CORE.using_esp_idf:
-        add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
+    add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
