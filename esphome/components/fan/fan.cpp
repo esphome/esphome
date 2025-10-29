@@ -191,14 +191,15 @@ void Fan::save_state_() {
     return;
   }
 
+  auto traits = this->get_traits();
+
   FanRestoreState state{};
   state.state = this->state;
   state.oscillating = this->oscillating;
   state.speed = this->speed;
   state.direction = this->direction;
 
-  if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
-    auto traits = this->get_traits();
+  if (traits.supports_preset_modes() && !this->preset_mode.empty()) {
     const auto &preset_modes = traits.supported_preset_modes();
     // Store index of current preset mode
     size_t i = 0;
