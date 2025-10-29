@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
-from esphome.cpp_generator import Literal, MockObj, RawStatement
+from esphome.cpp_generator import Literal, MockObj
 
 from ..automation import action_to_code
 from ..defines import (
@@ -73,19 +73,15 @@ class CanvasType(WidgetType):
         buf_size = literal(
             f"LV_CANVAS_BUF_SIZE_TRUE_COLOR{use_alpha}({width}, {height})"
         )
-        buf_name = f"buf_{w.obj}"
-        cg.add(
-            RawStatement(f"void *{buf_name} = {lv_expr.custom_mem_alloc(buf_size)};")
-        )
-        cg.add(RawStatement(f"memset({buf_name}, 0, {buf_size});"))
-
-        lv.canvas_set_buffer(
-            w.obj,
-            MockObj(buf_name),
-            width,
-            height,
-            literal(f"LV_IMG_CF_TRUE_COLOR{use_alpha}"),
-        )
+        with LocalVariable("buf", cg.void, lv_expr.custom_mem_alloc(buf_size)) as buf:
+            cg.add(cg.RawExpression(f"memset({buf}, 0, {buf_size});"))
+            lv.canvas_set_buffer(
+                w.obj,
+                buf,
+                width,
+                height,
+                literal(f"LV_IMG_CF_TRUE_COLOR{use_alpha}"),
+            )
 
 
 canvas_spec = CanvasType()
