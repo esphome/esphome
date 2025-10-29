@@ -180,6 +180,7 @@ jobs:
       memory_impact: ${{ steps.determine.outputs.memory-impact }}
       cpp-unit-tests-run-all: ${{ steps.determine.outputs.cpp-unit-tests-run-all }}
       cpp-unit-tests-components: ${{ steps.determine.outputs.cpp-unit-tests-components }}
+      component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -599,8 +600,8 @@ jobs:
             echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
           fi
 
-          # Convert JSON array to comma-separated for Python script
-          components_csv=$(echo '${{ toJson(matrix.components) }}' | jq -r 'join(",")')
+          # Convert space-separated components to comma-separated for Python script
+          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
 
           # Only isolate directly changed components when targeting dev branch
           # For beta/release branches, group everything for faster CI
