@@ -802,15 +802,15 @@ CONFIG_SCHEMA = cv.All(
                     cv.Schema(
                         {
                             cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_TYPE): cv.Any(
+                            cv.Required(CONF_TYPE): cv.Any(
                                 cv.string_strict,
                                 cv.int_range(0x40, 0xFE),
                             ),
-                            cv.Optional(CONF_SUBTYPE): cv.Any(
+                            cv.Required(CONF_SUBTYPE): cv.Any(
                                 cv.string_strict,
                                 cv.int_range(0, 0xFE),
                             ),
-                            cv.Optional(CONF_SIZE): cv.int_,
+                            cv.Required(CONF_SIZE): cv.int_,
                         }
                     ),
                     _validate_custom_partition,
