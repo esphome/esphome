@@ -10,7 +10,7 @@ esphome:
         state: !lambda "return 42.0;"
 
     # Test C++ API: set_template() with stateless lambda (no captures)
-    # IMPORTANT: set_template() is an internal API. Only stateless lambdas are supported.
+    # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
         id(template_sens).set_template([]() -> esphome::optional<float> {
           return 123.0f;
