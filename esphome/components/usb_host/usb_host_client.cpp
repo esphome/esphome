@@ -348,7 +348,7 @@ TransferRequest *USBClient::get_trq_() {
     // Slot i appears available, try to claim it atomically
     trq_bitmask_t desired = mask | lsb;
 
-    if (this->trq_in_use_.compare_exchange_weak(mask, desired)) {
+    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order::acquire)) {
       auto i = __builtin_ctz(lsb);  // count trailing zeroes
       // Successfully claimed slot i - prepare the TransferRequest
       auto *trq = &this->requests_[i];
