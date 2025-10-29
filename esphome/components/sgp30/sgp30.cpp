@@ -1,8 +1,10 @@
 #include "sgp30.h"
-#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 
 namespace esphome {
 namespace sgp30 {
@@ -39,9 +41,8 @@ void SGP30Component::setup() {
     this->mark_failed();
     return;
   }
-  this->serial_number_ = (uint64_t(raw_serial_number[0]) << 24) | (uint64_t(raw_serial_number[1]) << 16) |
-                         (uint64_t(raw_serial_number[2]));
-  ESP_LOGD(TAG, "Serial Number: %" PRIu64, this->serial_number_);
+  this->serial_number_ = encode_uint24(raw_serial_number[0], raw_serial_number[1], raw_serial_number[2]);
+  ESP_LOGD(TAG, "Serial number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
   uint16_t raw_featureset;
@@ -61,11 +62,11 @@ void SGP30Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
+  ESP_LOGV(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
 
   // Sensor initialization
   if (!this->write_command(SGP30_CMD_IAQ_INIT)) {
-    ESP_LOGE(TAG, "Sensor sgp30_iaq_init failed.");
+    ESP_LOGE(TAG, "sgp30_iaq_init failed");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
@@ -123,7 +124,7 @@ void SGP30Component::read_iaq_baseline_() {
       uint16_t eco2baseline = (raw_data[0]);
       uint16_t tvocbaseline = (raw_data[1]);
 
-      ESP_LOGI(TAG, "Current eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2baseline, tvocbaseline);
+      ESP_LOGI(TAG, "Baselines: eCO2: 0x%04X, TVOC: 0x%04X", eco2baseline, tvocbaseline);
       if (eco2baseline != this->eco2_baseline_ || tvocbaseline != this->tvoc_baseline_) {
         this->eco2_baseline_ = eco2baseline;
         this->tvoc_baseline_ = tvocbaseline;
@@ -142,7 +143,7 @@ void SGP30Component::read_iaq_baseline_() {
           this->baselines_storage_.eco2 = this->eco2_baseline_;
           this->baselines_storage_.tvoc = this->tvoc_baseline_;
           if (this->pref_.save(&this->baselines_storage_)) {
-            ESP_LOGI(TAG, "Store eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
+            ESP_LOGI(TAG, "Store baselines: eCO2: 0x%04X, TVOC: 0x%04X", this->baselines_storage_.eco2,
                      this->baselines_storage_.tvoc);
           } else {
             ESP_LOGW(TAG, "Could not store eCO2 and TVOC baselines");
@@ -164,7 +165,7 @@ void SGP30Component::send_env_data_() {
   if (this->humidity_sensor_ != nullptr)
     humidity = this->humidity_sensor_->state;
   if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
-    ESP_LOGW(TAG, "Compensation not possible yet: bad humidity data.");
+    ESP_LOGW(TAG, "Compensation not possible yet: bad humidity data");
     return;
   } else {
     ESP_LOGD(TAG, "External compensation data received: Humidity %0.2f%%", humidity);
@@ -174,7 +175,7 @@ void SGP30Component::send_env_data_() {
     temperature = float(this->temperature_sensor_->state);
   }
   if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
-    ESP_LOGW(TAG, "Compensation not possible yet: bad temperature value data.");
+    ESP_LOGW(TAG, "Compensation not possible yet: bad temperature value");
     return;
   } else {
     ESP_LOGD(TAG, "External compensation data received: Temperature %0.2f°C", temperature);
@@ -192,18 +193,17 @@ void SGP30Component::send_env_data_() {
         ((humidity * 0.061121f * std::exp((18.678f - temperature / 234.5f) * (temperature / (257.14f + temperature)))) /
          (273.15f + temperature));
   }
-  uint8_t humidity_full = uint8_t(std::floor(absolute_humidity));
-  uint8_t humidity_dec = uint8_t(std::floor((absolute_humidity - std::floor(absolute_humidity)) * 256));
-  ESP_LOGD(TAG, "Calculated Absolute humidity: %0.3f g/m³ (0x%04X)", absolute_humidity,
-           uint16_t(uint16_t(humidity_full) << 8 | uint16_t(humidity_dec)));
-  uint8_t crc = sht_crc_(humidity_full, humidity_dec);
-  uint8_t data[4];
-  data[0] = SGP30_CMD_SET_ABSOLUTE_HUMIDITY & 0xFF;
-  data[1] = humidity_full;
-  data[2] = humidity_dec;
-  data[3] = crc;
+  uint8_t data[4] = {
+      SGP30_CMD_SET_ABSOLUTE_HUMIDITY & 0xFF,
+      uint8_t(std::floor(absolute_humidity)),                                          // humidity_full
+      uint8_t(std::floor((absolute_humidity - std::floor(absolute_humidity)) * 256)),  // humidity_dec
+      0,
+  };
+  data[3] = crc8(&data[1], 2, 0xFF, sensirion_common::CRC_POLYNOMIAL, true);
+  ESP_LOGD(TAG, "Calculated absolute humidity: %0.3f g/m³ (0x%04X)", absolute_humidity,
+           encode_uint16(data[1], data[2]));
   if (!this->write_bytes(SGP30_CMD_SET_ABSOLUTE_HUMIDITY >> 8, data, 4)) {
-    ESP_LOGE(TAG, "Error sending compensation data.");
+    ESP_LOGE(TAG, "Error sending compensation data");
   }
 }
 
@@ -212,15 +212,14 @@ void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_b
   data[0] = SGP30_CMD_SET_IAQ_BASELINE & 0xFF;
   data[1] = tvoc_baseline >> 8;
   data[2] = tvoc_baseline & 0xFF;
-  data[3] = sht_crc_(data[1], data[2]);
+  data[3] = crc8(&data[1], 2, 0xFF, sensirion_common::CRC_POLYNOMIAL, true);
   data[4] = eco2_baseline >> 8;
   data[5] = eco2_baseline & 0xFF;
-  data[6] = sht_crc_(data[4], data[5]);
+  data[6] = crc8(&data[4], 2, 0xFF, sensirion_common::CRC_POLYNOMIAL, true);
   if (!this->write_bytes(SGP30_CMD_SET_IAQ_BASELINE >> 8, data, 7)) {
-    ESP_LOGE(TAG, "Error applying eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline, tvoc_baseline);
+    ESP_LOGE(TAG, "Error applying baselines: eCO2: 0x%04X, TVOC: 0x%04X", eco2_baseline, tvoc_baseline);
   } else {
-    ESP_LOGI(TAG, "Initial baselines applied successfully! eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline,
-             tvoc_baseline);
+    ESP_LOGI(TAG, "Initial baselines applied: eCO2: 0x%04X, TVOC: 0x%04X", eco2_baseline, tvoc_baseline);
   }
 }
 
@@ -236,10 +235,10 @@ void SGP30Component::dump_config() {
         ESP_LOGW(TAG, "Measurement Initialization failed");
         break;
       case INVALID_ID:
-        ESP_LOGW(TAG, "Sensor reported an invalid ID. Is this an SGP30?");
+        ESP_LOGW(TAG, "Invalid ID");
         break;
       case UNSUPPORTED_ID:
-        ESP_LOGW(TAG, "Sensor reported an unsupported ID (SGPC3)");
+        ESP_LOGW(TAG, "Unsupported ID");
         break;
       default:
         ESP_LOGW(TAG, "Unknown setup error");
@@ -249,12 +248,12 @@ void SGP30Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
     if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
       ESP_LOGCONFIG(TAG,
-                    "  Baseline:\n"
-                    "    eCO2 Baseline: 0x%04X\n"
-                    "    TVOC Baseline: 0x%04X",
+                    "  Baselines:\n"
+                    "    eCO2: 0x%04X\n"
+                    "    TVOC: 0x%04X",
                     this->eco2_baseline_, this->tvoc_baseline_);
     } else {
-      ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
+      ESP_LOGCONFIG(TAG, "  Baselines not configured");
     }
     ESP_LOGCONFIG(TAG, "  Warm up time: %" PRIu32 "s", this->required_warm_up_time_);
   }
@@ -266,8 +265,8 @@ void SGP30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Store baseline: %s", YESNO(this->store_baseline_));
   if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Compensation:");
-    LOG_SENSOR("    ", "Temperature Source:", this->temperature_sensor_);
-    LOG_SENSOR("    ", "Humidity Source:", this->humidity_sensor_);
+    LOG_SENSOR("    ", "Temperature source:", this->temperature_sensor_);
+    LOG_SENSOR("    ", "Humidity source:", this->humidity_sensor_);
   } else {
     ESP_LOGCONFIG(TAG, "  Compensation: No source configured");
   }
@@ -289,7 +288,7 @@ void SGP30Component::update() {
     float eco2 = (raw_data[0]);
     float tvoc = (raw_data[1]);
 
-    ESP_LOGD(TAG, "Got eCO2=%.1fppm TVOC=%.1fppb", eco2, tvoc);
+    ESP_LOGV(TAG, "eCO2=%.1fppm TVOC=%.1fppb", eco2, tvoc);
     if (this->eco2_sensor_ != nullptr)
       this->eco2_sensor_->publish_state(eco2);
     if (this->tvoc_sensor_ != nullptr)

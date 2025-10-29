@@ -20,7 +20,7 @@ void TemplateDate::setup() {
   } else {
     datetime::DateEntityRestoreState temp;
     this->pref_ =
-        global_preferences->make_preference<datetime::DateEntityRestoreState>(194434030U ^ this->get_object_id_hash());
+        global_preferences->make_preference<datetime::DateEntityRestoreState>(194434030U ^ this->get_preference_hash());
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;

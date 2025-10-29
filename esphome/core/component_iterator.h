@@ -168,8 +168,9 @@ class ComponentIterator {
     UPDATE,
 #endif
     MAX,
-  } state_{IteratorState::NONE};
+  };
   uint16_t at_{0};  // Supports up to 65,535 entities per type
+  IteratorState state_{IteratorState::NONE};
   bool include_internal_{false};
 
   template<typename Container>
