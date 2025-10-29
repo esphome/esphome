@@ -99,9 +99,9 @@ FanCall FanRestoreState::to_call(Fan &fan) {
   call.set_speed(this->speed);
   call.set_direction(this->direction);
 
-  if (fan.get_traits().supports_preset_modes()) {
+  auto traits = fan.get_traits();
+  if (traits.supports_preset_modes()) {
     // Use stored preset index to get preset name
-    auto traits = fan.get_traits();
     const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
       call.set_preset_mode(preset_modes[this->preset_mode]);
@@ -115,9 +115,9 @@ void FanRestoreState::apply(Fan &fan) {
   fan.speed = this->speed;
   fan.direction = this->direction;
 
-  if (fan.get_traits().supports_preset_modes()) {
+  auto traits = fan.get_traits();
+  if (traits.supports_preset_modes()) {
     // Use stored preset index to get preset name
-    auto traits = fan.get_traits();
     const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
       fan.preset_mode = preset_modes[this->preset_mode];
