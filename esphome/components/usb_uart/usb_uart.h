@@ -8,6 +8,9 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
 namespace esphome {
 namespace usb_uart {
@@ -25,12 +28,27 @@ static constexpr uint8_t USB_DEVICE_PROTOCOL_IAD = 0x01;
 static constexpr uint8_t USB_VENDOR_IFC = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_INTERFACE;
 static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_DEVICE;
 
+#ifdef USE_ESP32_VARIANT_ESP32P4
+#define CH934_MAX_PACKET_SIZE 512
+#else
+#define CH934_MAX_PACKET_SIZE 64
+#endif
+#define CH9344_TTY_MINORS 256
+
 struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
   uint8_t bulk_interface_number;
   uint8_t interrupt_interface_number;
+};
+
+struct Ch934xEps {
+  const usb_ep_desc_t *in_ep;
+  const usb_ep_desc_t *out_ep;
+  const usb_ep_desc_t *ep_cmd_read;
+  const usb_ep_desc_t *ep_cmd_write;
+  uint8_t data_interface = 0;
 };
 
 enum UARTParityOptions {
@@ -46,6 +64,44 @@ enum UARTStopBitsOptions {
   UART_CONFIG_STOP_BITS_1_5,
   UART_CONFIG_STOP_BITS_2,
 };
+
+#if defined(USE_UART_DEBUGGER)
+enum CH934X_CHIPTYPE {
+  CHIP_CH9344L = 0,
+  CHIP_CH9344Q,
+  CHIP_CH348L,
+  CHIP_CH348Q,
+};
+
+enum CH34X_CHIPTYPE {
+  CHIP_CH342F = 0x00,
+  CHIP_CH342K,
+  CHIP_CH343GP,
+  CHIP_CH343G_AUTOBAUD,
+  CHIP_CH343K,
+  CHIP_CH343J,
+  CHIP_CH344L,
+  CHIP_CH344L_V2,
+  CHIP_CH344Q,
+  CHIP_CH347TF,
+  CHIP_CH9101UH,
+  CHIP_CH9101RY,
+  CHIP_CH9102F,
+  CHIP_CH9102X,
+  CHIP_CH9103M,
+  CHIP_CH9104L,
+  CHIP_CH340B,
+  CHIP_CH339W,
+  CHIP_CH9111L_M0,
+  CHIP_CH9111L_M1,
+  CHIP_CH9114L,
+  CHIP_CH9114W,
+  CHIP_CH9114F,
+  CHIP_CH346C_M0,
+  CHIP_CH346C_M1,
+  CHIP_CH346C_M2,
+};
+#endif
 
 static const char *const PARITY_NAMES[] = {"NONE", "ODD", "EVEN", "MARK", "SPACE"};
 static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
@@ -74,9 +130,13 @@ class RingBuffer {
 
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
-  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB packet size
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  static constexpr size_t MAX_CHUNK_SIZE = 512;  // USB 2.0 HS
+#else
+  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB 1.1 FS
+#endif
   uint8_t data[MAX_CHUNK_SIZE];
-  uint8_t length;  // Max 64 bytes, so uint8_t is sufficient
+  uint16_t length;
   USBUartChannel *channel;
 
   // Required for EventPool - no cleanup needed for POD types
@@ -88,6 +148,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
+  friend class USBUartTypeCH934X;
 
  public:
   USBUartChannel(uint8_t index, uint16_t buffer_size)
@@ -170,7 +231,64 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   void enable_channels() override;
 };
 
+class USBUartTypeCH934X : public USBUartComponent {
+ public:
+  USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
+
+  // Overridden methods from USBUartComponent
+  void on_connected() override;
+  void on_disconnected() override;
+  bool parse_descriptors(usb_device_handle_t dev_hdl);
+  void enable_channels();
+
+  // ESPHome component loop - handles RX queue processing and TX multiplexing
+  void loop() override;
+
+ protected:
+  // Device-level configuration
+  void configure_device_();
+  void configure_channels_after_detection_();  // Called via defer after chip detection
+
+  // Channel-level configuration
+  bool configure_channel_(USBUartChannel *channel);
+  bool set_uart_mode(USBUartChannel *channel);
+  bool configure_uart_parameters_(USBUartChannel *channel);
+
+  // Multiplexed RX handling (demultiplexes to channels)
+  void start_rx_reader_();
+  void handle_rx_data_(const uint8_t *data, size_t len);
+
+  // Multiplexed TX handling (sends data from channels)
+  void handle_tx_multiplexing_();
+  void send_next_channel_data_(USBUartChannel *channel);
+
+  // Command channel for status updates
+  void start_command_reader_();
+  void handle_command_data_(const uint8_t *data, size_t len);
+
+  // Helper functions
+  uint8_t get_reg_address_(uint8_t portnum);
+
+ private:
+  // Device information
+  Ch934xEps uart_host_dev_{};
+  uint16_t pid_ = 0;
+  uint8_t chiptype_ = 0;
+  uint8_t chipversion_ = 0;
+  uint8_t num_ports_ = 0;
+  uint8_t port_offset_ = 0;
+  bool bpackload_ = false;
+
+  // RX/CMD reader state
+  std::atomic<bool> rx_running_{false};
+  std::atomic<bool> cmd_running_{false};
+
+  // TX multiplexing state
+  size_t tx_current_channel_index_ = 0;
+  std::atomic<bool> tx_in_progress_{false};
+};
+
 }  // namespace usb_uart
 }  // namespace esphome
 
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4

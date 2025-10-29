@@ -41,6 +41,7 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
+# By default, log in hex format when no specific sequence is provided.
 
 
 class Type:
@@ -55,12 +56,13 @@ class Type:
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
+    Type("CH934X", 0x1A86, 0x55D9, "CH934X", 8),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 4),
 )
 
 
@@ -72,7 +74,7 @@ def channel_schema(channels, baud_rate_required):
                     cv.Schema(
                         {
                             cv.GenerateID(): cv.declare_id(USBUartChannel),
-                            cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
+                            cv.Optional(CONF_BUFFER_SIZE, default=4096): cv.int_range(
                                 min=64, max=8192
                             ),
                             (

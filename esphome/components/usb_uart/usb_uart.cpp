@@ -198,6 +198,7 @@ void USBUartComponent::loop() {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
   }
 }
+
 void USBUartComponent::dump_config() {
   USBClient::dump_config();
   for (auto &channel : this->channels_) {
@@ -213,6 +214,7 @@ void USBUartComponent::dump_config() {
                   STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
   }
 }
+
 void USBUartComponent::start_input(USBUartChannel *channel) {
   if (!channel->initialised_.load() || channel->input_started_.load())
     return;
@@ -290,7 +292,8 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   this->transfer_out(ep->bEndpointAddress, callback, data, len);
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
+    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX,
+      std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
   }
 #endif
   ESP_LOGV(TAG, "Output %d bytes started", len);
@@ -326,8 +329,10 @@ void USBUartTypeCdcAcm::on_connected() {
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
+#if !defined(USE_ESP32_VARIANT_P4)
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
+#endif
     channel->initialised_.store(true);
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
@@ -378,4 +383,4 @@ void USBUartTypeCdcAcm::enable_channels() {
 
 }  // namespace usb_uart
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4

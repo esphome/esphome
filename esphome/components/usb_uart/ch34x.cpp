@@ -78,4 +78,4 @@ void USBUartTypeCH34X::enable_channels() {
 }
 }  // namespace usb_uart
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4
