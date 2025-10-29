@@ -82,77 +82,47 @@ void ZephyrI2CBus::dump_config() {
     }
   }
 }
-/*
-ErrorCode ZephyrI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
-  if (!this->i2c_dev_) {
-    return ERROR_NOT_INITIALIZED;
-  }
-
-  std::vector<i2c_msg> msgs(cnt);
-
-  for (size_t i = 0; i < cnt; ++i) {
-    msgs[i].buf = buffers[i].data;
-    msgs[i].len = buffers[i].len;
-    // TODO how to use I2C_MSG_RESTART
-    msgs[i].flags = I2C_MSG_READ | I2C_MSG_RESTART;
-  }
-  msgs[cnt - 1].flags |= I2C_MSG_STOP;
-
-  auto err = i2c_transfer(this->i2c_dev_, &msgs[0], msgs.size(), address);
-
-  if (err == -EIO) {
-    return ERROR_NOT_ACKNOWLEDGED;
-  }
-
-  if (err != 0) {
-    ESP_LOGE(TAG, "i2c writing error %d", err);
-    return ERROR_UNKNOWN;
-  }
-
-  return ERROR_OK;
-}
-
-ErrorCode ZephyrI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
-  if (!this->i2c_dev_) {
-    return ERROR_NOT_INITIALIZED;
-  }
-
-  uint8_t dst = 0x00;  // dummy data to not use random value
-
-  std::vector<i2c_msg> msgs(cnt == 0 ? 1 : cnt);
-
-  for (size_t i = 0; i < cnt; ++i) {
-    if (buffers) {
-      msgs[i].buf = const_cast<uint8_t *>(buffers[i].data);
-      msgs[i].len = buffers[i].len;
-    } else {
-      msgs[i].buf = &dst;
-      msgs[i].len = 0U;
-    }
-    msgs[i].flags = I2C_MSG_WRITE;
-  }
-
-  if (stop) {
-    msgs[cnt - 1].flags |= I2C_MSG_STOP;
-  }
-
-  auto err = i2c_transfer(this->i2c_dev_, &msgs[0], msgs.size(), address);
-
-  if (err == -EIO) {
-    return ERROR_NOT_ACKNOWLEDGED;
-  }
-
-  if (err != 0) {
-    ESP_LOGE(TAG, "i2c writing error %d", err);
-    return ERROR_UNKNOWN;
-  }
-
-  return ERROR_OK;
-}
-*/
 
 ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                     uint8_t *read_buffer, size_t read_count) {
+  if (!this->i2c_dev_) {
+    return ERROR_NOT_INITIALIZED;
+  }
+
+  i2c_msg msgs[8]{};
+  size_t cnt = 0;
+  uint8_t dst = 0x00;  // dummy data to not use random value
+
+  if (read_count == 0 && write_count == 0) {
+    msgs[cnt].buf = &dst;
+    msgs[cnt].len = 0U;
+    msgs[cnt++].flags = I2C_MSG_WRITE;
+  } else {
+    if (write_count) {
+      msgs[cnt].buf = const_cast<uint8_t *>(write_buffer);
+      msgs[cnt].len = write_count;
+      msgs[cnt++].flags = I2C_MSG_WRITE;
+    }
+    if (read_count) {
+      msgs[cnt].buf = const_cast<uint8_t *>(read_buffer);
+      msgs[cnt].len = read_count;
+      msgs[cnt++].flags = I2C_MSG_READ | write_count ? I2C_MSG_RESTART : 0;
+    }
+  }
+
+  msgs[cnt - 1].flags |= I2C_MSG_STOP;
+
+  auto err = i2c_transfer(this->i2c_dev_, msgs, cnt, address);
+
+  if (err == -EIO) {
+    return ERROR_NOT_ACKNOWLEDGED;
+  }
+
+  if (err != 0) {
+    ESP_LOGE(TAG, "i2c transfer error %d", err);
+    return ERROR_UNKNOWN;
+  }
+
   return ERROR_OK;
 }
 

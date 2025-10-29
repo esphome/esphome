@@ -19,12 +19,11 @@ class ZephyrI2CBus : public InternalI2CBus, public Component {
 
   void set_scan(bool scan) { scan_ = scan; }
 
-  int get_port() const override { return this->port_; }
+  int get_port() const override { return 0; }
 
  protected:
   const struct device *i2c_dev_ = nullptr;
   int recovery_result_ = 0;
-  int port_;
 };
 
 }  // namespace esphome::i2c
