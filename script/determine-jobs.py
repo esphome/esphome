@@ -695,15 +695,17 @@ def main() -> None:
 
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
-    component_test_batches: list[list[str]]
+    component_test_batches: list[str]
     if changed_components_with_tests:
         tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
-        component_test_batches, _ = create_intelligent_batches(
+        batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
             batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=directly_changed_with_tests,
         )
+        # Convert batches to space-separated strings for CI matrix
+        component_test_batches = [" ".join(batch) for batch in batches]
     else:
         component_test_batches = []
 
