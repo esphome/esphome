@@ -1,9 +1,9 @@
 #include "pzemac.h"
 #include "esphome/core/log.h"
 
-unsigned long last_update_time_;
+uint32_t last_update_time_;
 
-static uint16_t last_energy_sensor [10] = {};
+static uint32_t last_energy_sensor [10] = {};
 
 namespace esphome {
 namespace pzemac {
