@@ -9,10 +9,7 @@ namespace template_ {
 
 class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
-  template<typename F> void set_template(F &&f) {
-    this->f_.set(std::forward<F>(f));
-    this->enable_loop();
-  }
+  template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
   void loop() override;

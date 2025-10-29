@@ -14,10 +14,7 @@ class TemplateLock : public lock::Lock, public Component {
 
   void dump_config() override;
 
-  template<typename F> void set_state_lambda(F &&f) {
-    this->f_.set(std::forward<F>(f));
-    this->enable_loop();
-  }
+  template<typename F> void set_state_lambda(F &&f) { this->f_.set(std::forward<F>(f)); }
   Trigger<> *get_lock_trigger() const;
   Trigger<> *get_unlock_trigger() const;
   Trigger<> *get_open_trigger() const;
