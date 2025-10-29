@@ -70,9 +70,8 @@ async def to_code(config):
     rhs = [HexInt(x) for x in firmware_data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
-    cg.add(
-        var.set_firmware_sha256([HexInt(b) for b in bytes.fromhex(config[CONF_SHA256])])
-    )
+    sha256_bytes = bytes.fromhex(config[CONF_SHA256])
+    cg.add(var.set_firmware_sha256([HexInt(b) for b in sha256_bytes]))
     cg.add(var.set_firmware_data(prog_arr))
     cg.add(var.set_firmware_size(len(firmware_data)))
     await cg.register_component(var, config)
