@@ -43,6 +43,11 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     servers = config[CONF_SERVERS]
+
+    # Define server count at compile time
+    cg.add_define("SNTP_SERVER_COUNT", len(servers))
+
+    # Pass string literals to constructor - stored in flash/rodata by compiler
     var = cg.new_Pvariable(config[CONF_ID], servers)
 
     await cg.register_component(var, config)
