@@ -542,7 +542,7 @@ jobs:
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.component-test-batches != '[]'
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
