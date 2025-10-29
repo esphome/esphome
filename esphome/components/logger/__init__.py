@@ -175,7 +175,7 @@ def uart_selection(value):
 
 def validate_local_no_higher_than_global(config):
     global_level = config[CONF_LEVEL]
-    global_level_index = LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+    global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
     for tag, level in config.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
