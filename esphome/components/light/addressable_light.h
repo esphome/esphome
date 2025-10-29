@@ -1,14 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/color.h"
 #include "esp_color_correction.h"
 #include "esp_color_view.h"
 #include "esp_range_view.h"
+#include "esphome/core/color.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "light_output.h"
 #include "light_state.h"
-#include "transformers.h"
+#include "light_transformer.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
@@ -16,8 +16,6 @@
 
 namespace esphome {
 namespace light {
-
-using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphome::Color instead.", "v1.21") = Color;
 
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
 Color color_from_light_color_values(LightColorValues val);
@@ -97,15 +95,15 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
-  bool effect_active_{false};
   ESPColorCorrection correction_{};
+  LightState *state_parent_{nullptr};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
-  LightState *state_parent_{nullptr};
+  bool effect_active_{false};
 };
 
-class AddressableLightTransformer : public LightTransitionTransformer {
+class AddressableLightTransformer : public LightTransformer {
  public:
   AddressableLightTransformer(AddressableLight &light) : light_(light) {}
 
@@ -114,9 +112,8 @@ class AddressableLightTransformer : public LightTransitionTransformer {
 
  protected:
   AddressableLight &light_;
-  Color target_color_{};
   float last_transition_progress_{0.0f};
-  float accumulated_alpha_{0.0f};
+  Color target_color_{};
 };
 
 }  // namespace light

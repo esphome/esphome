@@ -5,9 +5,9 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_DEVICE
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
@@ -93,7 +93,7 @@ esp_err_t BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size)
   return write_value(new_val, new_val_size, ESP_GATT_WRITE_TYPE_NO_RSP);
 }
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
+#endif  // USE_ESP32_BLE_DEVICE
 #endif  // USE_ESP32

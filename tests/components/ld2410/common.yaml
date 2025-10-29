@@ -1,9 +1,3 @@
-uart:
-  - id: uart_ld2410
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 ld2410:
   id: my_ld2410
 

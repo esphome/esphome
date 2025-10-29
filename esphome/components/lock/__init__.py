@@ -4,6 +4,8 @@ import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_LOCK,
@@ -11,8 +13,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -31,7 +34,19 @@ LockCondition = lock_ns.class_("LockCondition", Condition)
 LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
 
-LOCK_SCHEMA = (
+LockState = lock_ns.enum("LockState")
+
+LOCK_STATES = {
+    "LOCKED": LockState.LOCK_STATE_LOCKED,
+    "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
+    "JAMMED": LockState.LOCK_STATE_JAMMED,
+    "LOCKING": LockState.LOCK_STATE_LOCKING,
+    "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
+}
+
+validate_lock_state = cv.enum(LOCK_STATES, upper=True)
+
+_LOCK_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -52,8 +67,32 @@ LOCK_SCHEMA = (
 )
 
 
-async def setup_lock_core_(var, config):
-    await setup_entity(var, config)
+_LOCK_SCHEMA.add_extra(entity_duplicate_validator("lock"))
+
+
+def lock_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _LOCK_SCHEMA.extend(schema)
+
+
+async def _setup_lock_core(var, config):
+    await setup_entity(var, config, "lock")
 
     for conf in config.get(CONF_ON_LOCK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -74,12 +113,19 @@ async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_lock(var))
-    await setup_lock_core_(var, config)
+    CORE.register_platform_component("lock", var)
+    await _setup_lock_core(var, config)
+
+
+async def new_lock(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_lock(var, config)
+    return var
 
 
 LOCK_ACTION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(Lock),
+        cv.GenerateID(CONF_ID): cv.use_id(Lock),
     }
 )
 
@@ -104,7 +150,6 @@ async def lock_is_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(lock_ns.using)
-    cg.add_define("USE_LOCK")

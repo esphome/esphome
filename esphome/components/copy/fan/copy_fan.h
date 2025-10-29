@@ -11,7 +11,6 @@ class CopyFan : public fan::Fan, public Component {
   void set_source(fan::Fan *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   fan::FanTraits get_traits() override;
 

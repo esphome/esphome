@@ -5,7 +5,6 @@ from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG, ICON_ACCELER
 
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
 
-
 DEPENDENCIES = ["seeed_mr60fda2"]
 
 InstallHeightSelect = mr60fda2_ns.class_("InstallHeightSelect", select.Select)

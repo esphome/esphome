@@ -41,6 +41,7 @@ bool MQTTUpdateComponent::publish_state() {
 }
 
 void MQTTUpdateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   root["schema"] = "json";
   root[MQTT_PAYLOAD_INSTALL] = "INSTALL";
 }

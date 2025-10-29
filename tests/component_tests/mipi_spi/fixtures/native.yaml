@@ -1,0 +1,20 @@
+esphome:
+  name: jc3636w518
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+spi:
+  id: display_qspi
+  type: quad
+  clk_pin: 9
+  data_pins: [11, 12, 13, 14]
+
+display:
+  - platform: mipi_spi
+    model: jc3636w518

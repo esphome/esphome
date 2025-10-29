@@ -1,7 +1,7 @@
 #ifdef USE_ARDUINO
 
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "air_conditioner.h"
 #include "ac_adapter.h"
 #include <cmath>
@@ -77,7 +77,7 @@ void AirConditioner::control(const ClimateCall &call) {
 
 ClimateTraits AirConditioner::traits() {
   auto traits = ClimateTraits();
-  traits.set_supports_current_temperature(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   traits.set_visual_min_temperature(17);
   traits.set_visual_max_temperature(30);
   traits.set_visual_temperature_step(0.5);
@@ -103,10 +103,12 @@ ClimateTraits AirConditioner::traits() {
 }
 
 void AirConditioner::dump_config() {
-  ESP_LOGCONFIG(Constants::TAG, "MideaDongle:");
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Period: %dms", this->base_.getPeriod());
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Response timeout: %dms", this->base_.getTimeout());
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Request attempts: %d", this->base_.getNumAttempts());
+  ESP_LOGCONFIG(Constants::TAG,
+                "MideaDongle:\n"
+                "  [x] Period: %dms\n"
+                "  [x] Response timeout: %dms\n"
+                "  [x] Request attempts: %d",
+                this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
   ESP_LOGCONFIG(Constants::TAG, "  [x] Using RemoteTransmitter");
 #endif

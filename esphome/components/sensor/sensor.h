@@ -1,35 +1,20 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
+#include <memory>
 
 namespace esphome {
 namespace sensor {
 
-#define LOG_SENSOR(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
-    } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->get_state_class()).c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-    if (!(obj)->unique_id().empty()) { \
-      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
-    } \
-    if ((obj)->get_force_update()) { \
-      ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
-    } \
-  }
+void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
+
+#define LOG_SENSOR(prefix, type, obj) log_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_SENSOR(name) \
  protected: \
@@ -48,7 +33,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL = 3,
 };
 
-std::string state_class_to_string(StateClass state_class);
+const LogString *state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *
@@ -75,9 +60,9 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    * state changes to the database when they are published, even if the state is the
    * same as before.
    */
-  bool get_force_update() const { return force_update_; }
+  bool get_force_update() const { return sensor_flags_.force_update; }
   /// Set force update mode.
-  void set_force_update(bool force_update) { force_update_ = force_update; }
+  void set_force_update(bool force_update) { sensor_flags_.force_update = force_update; }
 
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
@@ -92,10 +77,10 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
    * });
    */
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();
@@ -136,27 +121,25 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    */
   float raw_state;
 
-  /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
-  bool has_state() const;
-
-  /** Override this method to set the unique ID of this sensor.
-   *
-   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
-   */
-  virtual std::string unique_id();
-
   void internal_send_state_to_frontend(float state);
 
  protected:
-  CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
-  CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
+  std::unique_ptr<CallbackManager<void(float)>> raw_callback_;  ///< Storage for raw state callbacks (lazy allocated).
+  CallbackManager<void(float)> callback_;                       ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
-  optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
-  optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
-  bool force_update_{false};                            ///< Force update mode
-  bool has_state_{false};
+  // Group small members together to avoid padding
+  int8_t accuracy_decimals_{-1};              ///< Accuracy in decimals (-1 = not set)
+  StateClass state_class_{STATE_CLASS_NONE};  ///< State class (STATE_CLASS_NONE = not set)
+
+  // Bit-packed flags for sensor-specific settings
+  struct SensorFlags {
+    uint8_t has_accuracy_override : 1;
+    uint8_t has_state_class_override : 1;
+    uint8_t force_update : 1;
+    uint8_t reserved : 5;  // Reserved for future use
+  } sensor_flags_{};
 };
 
 }  // namespace sensor

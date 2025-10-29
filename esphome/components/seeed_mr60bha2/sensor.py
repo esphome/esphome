@@ -4,10 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISTANCE,
     DEVICE_CLASS_DISTANCE,
+    ICON_COUNTER,
     ICON_HEART_PULSE,
     ICON_PULSE,
     ICON_SIGNAL,
-    ICON_COUNTER,
     STATE_CLASS_MEASUREMENT,
     UNIT_BEATS_PER_MINUTE,
     UNIT_CENTIMETER,

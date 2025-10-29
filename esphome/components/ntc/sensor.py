@@ -1,8 +1,8 @@
 from math import log
 
-import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
     CONF_REFERENCE_RESISTANCE,

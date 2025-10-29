@@ -1,0 +1,109 @@
+esphome:
+  name: scheduler-defer-fifo-simple
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  services:
+    - service: test_set_timeout
+      then:
+        - lambda: |-
+            // Test set_timeout with 0 delay (direct scheduler call)
+            static int set_timeout_order = 0;
+            static bool set_timeout_passed = true;
+
+            // Reset for this test
+            set_timeout_order = 0;
+            set_timeout_passed = true;
+
+            ESP_LOGD("defer_test", "Testing set_timeout(0) for FIFO order...");
+            for (int i = 0; i < 10; i++) {
+              int expected = i;
+              App.scheduler.set_timeout((Component*)nullptr, nullptr, 0, [expected]() {
+                ESP_LOGD("defer_test", "set_timeout(0) item %d executed, order %d", expected, set_timeout_order);
+                if (set_timeout_order != expected) {
+                  ESP_LOGE("defer_test", "FIFO violation in set_timeout: expected %d but got execution order %d", expected, set_timeout_order);
+                  set_timeout_passed = false;
+                }
+                set_timeout_order++;
+
+                if (set_timeout_order == 10) {
+                  if (set_timeout_passed) {
+                    ESP_LOGI("defer_test", "✓ Test PASSED - set_timeout(0) maintains FIFO order");
+                    id(test_result)->trigger("passed");
+                  } else {
+                    ESP_LOGE("defer_test", "✗ Test FAILED - set_timeout(0) executed out of order");
+                    id(test_result)->trigger("failed");
+                  }
+                  id(test_complete)->trigger("test_finished");
+                }
+              });
+            }
+
+            ESP_LOGD("defer_test", "Deferred 10 items using set_timeout(0), waiting for execution...");
+
+    - service: test_defer
+      then:
+        - lambda: |-
+            // Test defer() method (component method)
+            static int defer_order = 0;
+            static bool defer_passed = true;
+
+            // Reset for this test
+            defer_order = 0;
+            defer_passed = true;
+
+            ESP_LOGD("defer_test", "Testing defer() for FIFO order...");
+
+            // Create a test component class that exposes defer()
+            class TestComponent : public Component {
+            public:
+              void test_defer() {
+                for (int i = 0; i < 10; i++) {
+                  int expected = i;
+                  this->defer([expected]() {
+                    ESP_LOGD("defer_test", "defer() item %d executed, order %d", expected, defer_order);
+                    if (defer_order != expected) {
+                      ESP_LOGE("defer_test", "FIFO violation in defer: expected %d but got execution order %d", expected, defer_order);
+                      defer_passed = false;
+                    }
+                    defer_order++;
+
+                    if (defer_order == 10) {
+                      if (defer_passed) {
+                        ESP_LOGI("defer_test", "✓ Test PASSED - defer() maintains FIFO order");
+                        id(test_result)->trigger("passed");
+                      } else {
+                        ESP_LOGE("defer_test", "✗ Test FAILED - defer() executed out of order");
+                        id(test_result)->trigger("failed");
+                      }
+                      id(test_complete)->trigger("test_finished");
+                    }
+                  });
+                }
+              }
+            };
+
+            // Use a static instance so it doesn't go out of scope
+            static TestComponent test_component;
+            test_component.test_defer();
+
+            ESP_LOGD("defer_test", "Deferred 10 items using defer(), waiting for execution...");
+
+event:
+  - platform: template
+    name: "Test Complete"
+    id: test_complete
+    device_class: button
+    event_types:
+      - "test_finished"
+  - platform: template
+    name: "Test Result"
+    id: test_result
+    device_class: button
+    event_types:
+      - "passed"
+      - "failed"

@@ -56,7 +56,8 @@ async def to_code(config):
         sens = await text_sensor.new_text_sensor(mac_address_config)
         cg.add(ld2450_component.set_mac_text_sensor(sens))
     for n in range(MAX_TARGETS):
-        if direction_conf := config.get(f"target_{n + 1}"):
-            if direction_config := direction_conf.get(CONF_DIRECTION):
-                sens = await text_sensor.new_text_sensor(direction_config)
-                cg.add(ld2450_component.set_direction_text_sensor(n, sens))
+        if (direction_conf := config.get(f"target_{n + 1}")) and (
+            direction_config := direction_conf.get(CONF_DIRECTION)
+        ):
+            sens = await text_sensor.new_text_sensor(direction_config)
+            cg.add(ld2450_component.set_direction_text_sensor(n, sens))

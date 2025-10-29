@@ -1,12 +1,12 @@
 substitutions:
-  clk_pin: GPIO16
-  mosi_pin: GPIO17
-  miso_pin: GPIO18
   clock_pin: GPIO15
   data_pin: GPIO14
   latch_pin1: GPIO21
   oe_pin1: GPIO22
-  latch_pin2: GPIO23
-  oe_pin2: GPIO25
+  latch_pin2: GPIO25
+  oe_pin2: GPIO26
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml

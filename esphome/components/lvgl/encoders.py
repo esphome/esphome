@@ -18,6 +18,7 @@ from .helpers import lvgl_components_required, requires_component
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t, lv_key_t
+from .widgets import get_widgets
 
 ENCODERS_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(
@@ -76,5 +77,5 @@ async def encoders_to_code(var, config, default_group):
 async def initial_focus_to_code(config):
     for enc_conf in config[CONF_ENCODERS]:
         if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
-            obj = await cg.get_variable(default_focus)
-            lv.group_focus_obj(obj)
+            widget = await get_widgets(default_focus)
+            lv.group_focus_obj(widget[0].obj)
