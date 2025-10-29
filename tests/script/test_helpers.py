@@ -1065,3 +1065,39 @@ def test_parse_list_components_output(output: str, expected: list[str]) -> None:
     """Test parse_list_components_output function."""
     result = helpers.parse_list_components_output(output)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected_component"),
+    [
+        # Component files
+        ("esphome/components/wifi/wifi.cpp", "wifi"),
+        ("esphome/components/uart/uart.h", "uart"),
+        ("esphome/components/api/api_server.cpp", "api"),
+        ("esphome/components/sensor/sensor.cpp", "sensor"),
+        # Test files
+        ("tests/components/uart/test.esp32-idf.yaml", "uart"),
+        ("tests/components/wifi/test.esp8266-ard.yaml", "wifi"),
+        ("tests/components/sensor/test.esp32-idf.yaml", "sensor"),
+        ("tests/components/api/test_api.cpp", "api"),
+        ("tests/components/uart/common.h", "uart"),
+        # Non-component files
+        ("esphome/core/component.cpp", None),
+        ("esphome/core/helpers.h", None),
+        ("tests/integration/test_api.py", None),
+        ("tests/unit_tests/test_helpers.py", None),
+        ("README.md", None),
+        ("script/helpers.py", None),
+        # Edge cases
+        ("esphome/components/", None),  # No component name
+        ("tests/components/", None),  # No component name
+        ("esphome/components", None),  # No trailing slash
+        ("tests/components", None),  # No trailing slash
+    ],
+)
+def test_get_component_from_path(
+    file_path: str, expected_component: str | None
+) -> None:
+    """Test extraction of component names from file paths."""
+    result = helpers.get_component_from_path(file_path)
+    assert result == expected_component

@@ -10,7 +10,7 @@ namespace template_ {
 
 class TemplateSelect : public select::Select, public PollingComponent {
  public:
-  void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
+  void set_template(optional<std::string> (*f)()) { this->f_ = f; }
 
   void setup() override;
   void update() override;
@@ -19,16 +19,16 @@ class TemplateSelect : public select::Select, public PollingComponent {
 
   Trigger<std::string> *get_set_trigger() const { return this->set_trigger_; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  void set_initial_option(const std::string &initial_option) { this->initial_option_ = initial_option; }
+  void set_initial_option_index(size_t initial_option_index) { this->initial_option_index_ = initial_option_index; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:
   void control(const std::string &value) override;
   bool optimistic_ = false;
-  std::string initial_option_;
+  size_t initial_option_index_{0};
   bool restore_value_ = false;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
-  optional<std::function<optional<std::string>()>> f_;
+  optional<optional<std::string> (*)()> f_;
 
   ESPPreferenceObject pref_;
 };

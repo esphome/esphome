@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_qmc5883l
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: qmc5883l
+    i2c_id: i2c_bus
     address: 0x0D
     field_strength_x:
       name: QMC5883L Field Strength X

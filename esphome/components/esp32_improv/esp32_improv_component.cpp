@@ -1,10 +1,10 @@
 #include "esp32_improv_component.h"
 
+#include "esphome/components/bytebuffer/bytebuffer.h"
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include "esphome/components/bytebuffer/bytebuffer.h"
 
 #ifdef USE_ESP32
 
@@ -143,6 +143,7 @@ void ESP32ImprovComponent::loop() {
 #else
       this->set_state_(improv::STATE_AUTHORIZED);
 #endif
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_AUTHORIZED: {
@@ -156,31 +157,12 @@ void ESP32ImprovComponent::loop() {
       if (!this->check_identify_()) {
         this->set_status_indicator_state_((now % 1000) < 500);
       }
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_PROVISIONING: {
       this->set_status_indicator_state_((now % 200) < 100);
-      if (wifi::global_wifi_component->is_connected()) {
-        wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
-                                                   this->connecting_sta_.get_password());
-        this->connecting_sta_ = {};
-        this->cancel_timeout("wifi-connect-timeout");
-        this->set_state_(improv::STATE_PROVISIONED);
-
-        std::vector<std::string> urls = {ESPHOME_MY_LINK};
-#ifdef USE_WEBSERVER
-        for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
-          if (ip.is_ip4()) {
-            std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-            urls.push_back(webserver_url);
-            break;
-          }
-        }
-#endif
-        std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
-        this->send_response_(data);
-        this->stop();
-      }
+      this->check_wifi_connection_();
       break;
     }
     case improv::STATE_PROVISIONED: {
@@ -288,8 +270,8 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
-  this->rpc_response_->set_value(ByteBuffer::wrap(response));
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &&response) {
+  this->rpc_response_->set_value(std::move(response));
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }
@@ -390,6 +372,51 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
+}
+
+void ESP32ImprovComponent::check_wifi_connection_() {
+  if (!wifi::global_wifi_component->is_connected()) {
+    return;
+  }
+
+  if (this->state_ == improv::STATE_PROVISIONING) {
+    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+    this->connecting_sta_ = {};
+    this->cancel_timeout("wifi-connect-timeout");
+
+    // Build URL list with minimal allocations
+    // Maximum 3 URLs: custom next_url + ESPHOME_MY_LINK + webserver URL
+    std::string url_strings[3];
+    size_t url_count = 0;
+
+#ifdef USE_ESP32_IMPROV_NEXT_URL
+    // Add next_url if configured (should be first per Improv BLE spec)
+    std::string next_url = this->get_formatted_next_url_();
+    if (!next_url.empty()) {
+      url_strings[url_count++] = std::move(next_url);
+    }
+#endif
+
+    // Add default URLs for backward compatibility
+    url_strings[url_count++] = ESPHOME_MY_LINK;
+#ifdef USE_WEBSERVER
+    for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+      if (ip.is_ip4()) {
+        char url_buffer[64];
+        snprintf(url_buffer, sizeof(url_buffer), "http://%s:%d", ip.str().c_str(), USE_WEBSERVER_PORT);
+        url_strings[url_count++] = url_buffer;
+        break;
+      }
+    }
+#endif
+    this->send_response_(improv::build_rpc_response(improv::WIFI_SETTINGS,
+                                                    std::vector<std::string>(url_strings, url_strings + url_count)));
+  } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
+    ESP_LOGD(TAG, "WiFi provisioned externally");
+  }
+
+  this->set_state_(improv::STATE_PROVISIONED);
+  this->stop();
 }
 
 void ESP32ImprovComponent::advertise_service_data_() {

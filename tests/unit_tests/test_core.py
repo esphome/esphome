@@ -570,6 +570,15 @@ class TestEsphomeCore:
 
         assert target.address == "4.3.2.1"
 
+    def test_address__openthread(self, target):
+        target.config = {}
+        target.config[const.CONF_OPENTHREAD] = {
+            const.CONF_USE_ADDRESS: "test-device.local"
+        }
+        target.name = "test-device"
+
+        assert target.address == "test-device.local"
+
     def test_is_esp32(self, target):
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 

@@ -10,6 +10,10 @@ from esphome.helpers import get_bool_env
 
 from .util.password import password_hash
 
+# Sentinel file name used for CORE.config_path when dashboard initializes.
+# This ensures .parent returns the config directory instead of root.
+_DASHBOARD_SENTINEL_FILE = "___DASHBOARD_SENTINEL___.yaml"
+
 
 class DashboardSettings:
     """Settings for the dashboard."""
@@ -48,7 +52,12 @@ class DashboardSettings:
         self.config_dir = Path(args.configuration)
         self.absolute_config_dir = self.config_dir.resolve()
         self.verbose = args.verbose
-        CORE.config_path = self.config_dir / "."
+        # Set to a sentinel file so .parent gives us the config directory.
+        # Previously this was `os.path.join(self.config_dir, ".")` which worked because
+        # os.path.dirname("/config/.") returns "/config", but Path("/config/.").parent
+        # normalizes to Path("/config") first, then .parent returns Path("/"), breaking
+        # secret resolution. Using a sentinel file ensures .parent gives the correct directory.
+        CORE.config_path = self.config_dir / _DASHBOARD_SENTINEL_FILE
 
     @property
     def relative_url(self) -> str:
