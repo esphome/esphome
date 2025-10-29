@@ -35,14 +35,14 @@ template<typename T, typename... Args> class TemplateLambda {
   bool has_value() const { return this->f_ != nullptr; }
 
   /** Call the lambda, returning nullopt if no lambda is set */
-  optional<T> operator()(Args... args) {
+  optional<T> operator()(Args &&...args) {
     if (this->f_ == nullptr)
       return nullopt;
-    return this->f_(args...);
+    return this->f_(std::forward<Args>(args)...);
   }
 
   /** Alias for operator() for compatibility */
-  optional<T> call(Args... args) { return (*this)(args...); }
+  optional<T> call(Args &&...args) { return (*this)(std::forward<Args>(args)...); }
 
  protected:
   optional<T> (*f_)(Args...);  // Function pointer (4 bytes on ESP32)
