@@ -113,8 +113,6 @@ async def to_code(config):
 }};
 """
         )
-    else:
-        cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
 
     cg.add(var.set_sda_pin(config[CONF_SDA]))
     if CONF_SDA_PULLUP_ENABLED in config:
@@ -122,6 +120,8 @@ async def to_code(config):
     cg.add(var.set_scl_pin(config[CONF_SCL]))
     if CONF_SCL_PULLUP_ENABLED in config:
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+    if CONF_FREQUENCY in config:
+        cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
