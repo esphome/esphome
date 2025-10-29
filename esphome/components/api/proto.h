@@ -221,7 +221,11 @@ class ProtoWriteBuffer {
 
   // Single implementation that all overloads delegate to
   // Use aggressive optimization for this hot path even in -Os builds
-  __attribute__((optimize("O3"))) void encode_varint(uint64_t value) {
+#if defined(__GNUC__) && !defined(__clang__)
+  __attribute__((optimize("O3")))
+#endif
+  void
+  encode_varint(uint64_t value) {
     auto buffer = this->buffer_;
     size_t start = buffer->size();
 
