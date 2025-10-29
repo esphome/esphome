@@ -1,9 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID
+import esphome.codegen as cg
 from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_FACTORY_RESET, CONF_ID, CONF_SENSITIVITY
 
 CODEOWNERS = ["@niklasweber"]
 DEPENDENCIES = ["uart"]
@@ -28,8 +28,6 @@ CONF_DELAY_AFTER_DETECT = "delay_after_detect"
 CONF_DELAY_AFTER_DISAPPEAR = "delay_after_disappear"
 CONF_DETECTION_SEGMENTS = "detection_segments"
 CONF_OUTPUT_LATENCY = "output_latency"
-CONF_FACTORY_RESET = "factory_reset"
-CONF_SENSITIVITY = "sensitivity"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -76,8 +74,7 @@ def range_segment_list(input):
     if isinstance(input, list):
         for list_item in input:
             if isinstance(list_item, list):
-                for item in list_item:
-                    flat_list.append(item)
+                flat_list.extend(list_item)
             else:
                 flat_list.append(list_item)
     else:

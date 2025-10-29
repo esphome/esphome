@@ -1,10 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, sensor
-from esphome.const import (
-    CONF_SENSOR_ID,
-    CONF_THRESHOLD,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_SENSOR_ID, CONF_THRESHOLD
 
 analog_threshold_ns = cg.esphome_ns.namespace("analog_threshold")
 
@@ -21,11 +18,11 @@ CONFIG_SCHEMA = (
         {
             cv.Required(CONF_SENSOR_ID): cv.use_id(sensor.Sensor),
             cv.Required(CONF_THRESHOLD): cv.Any(
-                cv.float_,
+                cv.templatable(cv.float_),
                 cv.Schema(
                     {
-                        cv.Required(CONF_UPPER): cv.float_,
-                        cv.Required(CONF_LOWER): cv.float_,
+                        cv.Required(CONF_UPPER): cv.templatable(cv.float_),
+                        cv.Required(CONF_LOWER): cv.templatable(cv.float_),
                     }
                 ),
             ),
@@ -42,9 +39,11 @@ async def to_code(config):
     sens = await cg.get_variable(config[CONF_SENSOR_ID])
     cg.add(var.set_sensor(sens))
 
-    if isinstance(config[CONF_THRESHOLD], float):
-        cg.add(var.set_upper_threshold(config[CONF_THRESHOLD]))
-        cg.add(var.set_lower_threshold(config[CONF_THRESHOLD]))
+    if isinstance(config[CONF_THRESHOLD], dict):
+        lower = await cg.templatable(config[CONF_THRESHOLD][CONF_LOWER], [], float)
+        upper = await cg.templatable(config[CONF_THRESHOLD][CONF_UPPER], [], float)
     else:
-        cg.add(var.set_upper_threshold(config[CONF_THRESHOLD][CONF_UPPER]))
-        cg.add(var.set_lower_threshold(config[CONF_THRESHOLD][CONF_LOWER]))
+        lower = await cg.templatable(config[CONF_THRESHOLD], [], float)
+        upper = lower
+    cg.add(var.set_upper_threshold(upper))
+    cg.add(var.set_lower_threshold(lower))

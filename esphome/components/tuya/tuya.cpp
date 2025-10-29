@@ -215,21 +215,52 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
       }
       break;
-    case TuyaCommandType::WIFI_RESET:
-      ESP_LOGE(TAG, "WIFI_RESET is not handled");
-      break;
     case TuyaCommandType::WIFI_SELECT:
-      ESP_LOGE(TAG, "WIFI_SELECT is not handled");
+    case TuyaCommandType::WIFI_RESET: {
+      const bool is_select = (len >= 1);
+      // Send WIFI_SELECT ACK
+      TuyaCommand ack;
+      ack.cmd = is_select ? TuyaCommandType::WIFI_SELECT : TuyaCommandType::WIFI_RESET;
+      ack.payload.clear();
+      this->send_command_(ack);
+      // Establish pairing mode for correct first WIFI_STATE byte, EZ (0x00) default
+      uint8_t first = 0x00;
+      const char *mode_str = "EZ";
+      if (is_select && buffer[0] == 0x01) {
+        first = 0x01;
+        mode_str = "AP";
+      }
+      // Send WIFI_STATE response, MCU exits pairing mode
+      TuyaCommand st;
+      st.cmd = TuyaCommandType::WIFI_STATE;
+      st.payload.resize(1);
+      st.payload[0] = first;
+      this->send_command_(st);
+      st.payload[0] = 0x02;
+      this->send_command_(st);
+      st.payload[0] = 0x03;
+      this->send_command_(st);
+      st.payload[0] = 0x04;
+      this->send_command_(st);
+      ESP_LOGI(TAG, "%s received (%s), replied with WIFI_STATE confirming connection established",
+               is_select ? "WIFI_SELECT" : "WIFI_RESET", mode_str);
       break;
+    }
     case TuyaCommandType::DATAPOINT_DELIVER:
       break;
-    case TuyaCommandType::DATAPOINT_REPORT:
+    case TuyaCommandType::DATAPOINT_REPORT_ASYNC:
+    case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
         this->initialized_callback_.call();
       }
       this->handle_datapoints_(buffer, len);
+
+      if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
+        this->send_command_(
+            TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_REPORT_ACK, .payload = std::vector<uint8_t>{0x01}});
+      }
       break;
     case TuyaCommandType::DATAPOINT_QUERY:
       break;
@@ -267,6 +298,30 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       this->send_command_(
           TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
       ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
+      break;
+    }
+    case TuyaCommandType::EXTENDED_SERVICES: {
+      uint8_t subcommand = buffer[0];
+      switch ((TuyaExtendedServicesCommandType) subcommand) {
+        case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
+          this->send_command_(
+              TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
+                          .payload = std::vector<uint8_t>{
+                              static_cast<uint8_t>(TuyaExtendedServicesCommandType::RESET_NOTIFICATION), 0x00}});
+          ESP_LOGV(TAG, "Reset status notification enabled");
+          break;
+        }
+        case TuyaExtendedServicesCommandType::MODULE_RESET: {
+          ESP_LOGE(TAG, "EXTENDED_SERVICES::MODULE_RESET is not handled");
+          break;
+        }
+        case TuyaExtendedServicesCommandType::UPDATE_IN_PROGRESS: {
+          ESP_LOGE(TAG, "EXTENDED_SERVICES::UPDATE_IN_PROGRESS is not handled");
+          break;
+        }
+        default:
+          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
+      }
       break;
     }
     default:
@@ -399,7 +454,7 @@ void Tuya::send_raw_command_(TuyaCommand command) {
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
     case TuyaCommandType::DATAPOINT_QUERY:
-      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
+      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT_ASYNC;
       break;
     default:
       break;

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Any
 import contextvars
+from typing import Any
 
-from esphome.types import ConfigFragmentType, ID, ConfigPathType
 import esphome.config_validation as cv
+from esphome.types import ID, ConfigFragmentType, ConfigPathType
 
 
 class FinalValidateConfig(ABC):

@@ -1,6 +1,7 @@
 #include "ct_clamp_sensor.h"
 
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <cmath>
 
 namespace esphome {
@@ -37,8 +38,8 @@ void CTClampSensor::update() {
     float rms_ac = 0;
     if (rms_ac_squared > 0)
       rms_ac = std::sqrt(rms_ac_squared);
-    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %d different samples (%d SPS)", this->name_.c_str(), rms_ac,
-             this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
+    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %" PRIu32 " different samples (%" PRIu32 " SPS)",
+             this->name_.c_str(), rms_ac, this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
     this->publish_state(rms_ac);
   });
 

@@ -12,7 +12,6 @@ namespace pmwcs3 {
 
 class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void setup() override;
   void update() override;
   void dump_config() override;
   float get_setup_priority() const override;

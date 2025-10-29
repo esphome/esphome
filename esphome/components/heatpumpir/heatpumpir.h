@@ -28,6 +28,7 @@ enum Protocol {
   PROTOCOL_GREEYAN,
   PROTOCOL_GREEYAC,
   PROTOCOL_GREEYT,
+  PROTOCOL_GREEYAP,
   PROTOCOL_HISENSE_AUD,
   PROTOCOL_HITACHI,
   PROTOCOL_HYUNDAI,
@@ -46,6 +47,7 @@ enum Protocol {
   PROTOCOL_MITSUBISHI_SEZ,
   PROTOCOL_PANASONIC_CKP,
   PROTOCOL_PANASONIC_DKE,
+  PROTOCOL_PANASONIC_EKE,
   PROTOCOL_PANASONIC_JKE,
   PROTOCOL_PANASONIC_LKE,
   PROTOCOL_PANASONIC_NKE,
@@ -55,6 +57,17 @@ enum Protocol {
   PROTOCOL_TOSHIBA_DAISEIKAI,
   PROTOCOL_TOSHIBA,
   PROTOCOL_ZHLT01,
+  PROTOCOL_NIBE,
+  PROTOCOL_QLIMA_1,
+  PROTOCOL_QLIMA_2,
+  PROTOCOL_SAMSUNG_AQV12MSAN,
+  PROTOCOL_ZHJG01,
+  PROTOCOL_AIRWAY,
+  PROTOCOL_BGH_AUD,
+  PROTOCOL_PANASONIC_ALTDKE,
+  PROTOCOL_PHILCO_PHS32,
+  PROTOCOL_VAILLANTVAI8,
+  PROTOCOL_R51M,
 };
 
 // Simple enum to represent horizontal directios
@@ -84,12 +97,11 @@ const float TEMP_MAX = 100;  // Celsius
 class HeatpumpIRClimate : public climate_ir::ClimateIR {
  public:
   HeatpumpIRClimate()
-      : climate_ir::ClimateIR(
-            TEMP_MIN, TEMP_MAX, 1.0f, true, true,
-            std::set<climate::ClimateFanMode>{climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                                              climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_AUTO},
-            std::set<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
-                                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
+      : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                               climate::CLIMATE_FAN_AUTO},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
   void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {

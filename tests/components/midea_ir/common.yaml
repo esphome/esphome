@@ -1,0 +1,5 @@
+climate:
+  - platform: midea_ir
+    name: Midea IR
+    use_fahrenheit: true
+    transmitter_id: xmitr

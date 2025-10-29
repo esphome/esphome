@@ -24,9 +24,9 @@ class NextionBase;
 
 class NextionBase {
  public:
-  virtual void add_no_result_to_queue_with_set(NextionComponentBase *component, int state_value) = 0;
+  virtual void add_no_result_to_queue_with_set(NextionComponentBase *component, int32_t state_value) = 0;
   virtual void add_no_result_to_queue_with_set(const std::string &variable_name,
-                                               const std::string &variable_name_to_send, int state_value) = 0;
+                                               const std::string &variable_name_to_send, int32_t state_value) = 0;
 
   virtual void add_no_result_to_queue_with_set(NextionComponentBase *component, const std::string &state_value) = 0;
   virtual void add_no_result_to_queue_with_set(const std::string &variable_name,
@@ -45,8 +45,11 @@ class NextionBase {
   virtual void set_component_pressed_font_color(const char *component, Color color) = 0;
   virtual void set_component_font(const char *component, uint8_t font_id) = 0;
 
+  virtual void set_component_visibility(const char *component, bool show) = 0;
   virtual void show_component(const char *component) = 0;
   virtual void hide_component(const char *component) = 0;
+
+  virtual bool is_updating() { return false; }
 
   bool is_sleeping() { return this->is_sleeping_; }
   bool is_setup() { return this->is_setup_; }

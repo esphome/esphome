@@ -1,0 +1,8 @@
+<<: !include common-base.yaml
+
+time:
+  - platform: sntp  # Required for datetime
+    id: sntp_time
+
+wifi:  # Required for sntp time
+  ap:

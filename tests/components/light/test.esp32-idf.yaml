@@ -1,0 +1,21 @@
+output:
+  - platform: gpio
+    id: test_binary
+    pin: 12
+  - platform: ledc
+    id: test_ledc_1
+    pin: 13
+  - platform: ledc
+    id: test_ledc_2
+    pin: 14
+  - platform: ledc
+    id: test_ledc_3
+    pin: 15
+  - platform: ledc
+    id: test_ledc_4
+    pin: 16
+  - platform: ledc
+    id: test_ledc_5
+    pin: 17
+
+<<: !include common.yaml

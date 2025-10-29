@@ -1,0 +1,9 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml
+spi_device:
+  - id: spi_device_test
+    release_device: true
+    data_rate: 1MHz
+    spi_mode: 0

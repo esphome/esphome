@@ -4,9 +4,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
-#include <sstream>
-#include <iostream>  // std::cout, std::fixed
-#include <iomanip>
 namespace esphome {
 namespace graph {
 
@@ -135,6 +132,10 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     yrange = ymax - ymin;
   }
 
+  // Store graph limts
+  this->graph_limit_max_ = ymax;
+  this->graph_limit_min_ = ymin;
+
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
@@ -164,7 +165,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
   ESP_LOGV(TAG, "Updating graph. ymin %f, ymax %f", ymin, ymax);
   for (auto *trace : traces_) {
     Color c = trace->get_line_color();
-    uint16_t thick = trace->get_line_thickness();
+    int16_t thick = trace->get_line_thickness();
     bool continuous = trace->get_continuous();
     bool has_prev = false;
     bool prev_b = false;
@@ -177,22 +178,26 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
         bool b = (trace->get_line_type() & bit) == bit;
         if (b) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
+          auto draw_pixel_at = [&buff, c, y_offset, this](int16_t x, int16_t y) {
+            if (y >= y_offset && static_cast<uint32_t>(y) < y_offset + this->height_)
+              buff->draw_pixel_at(x, y, c);
+          };
           if (!continuous || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {
-            for (uint16_t t = 0; t < thick; t++) {
-              buff->draw_pixel_at(x, y + t, c);
+            for (int16_t t = 0; t < thick; t++) {
+              draw_pixel_at(x, y + t);
             }
           } else {
             int16_t mid_y = (y + prev_y + thick) / 2;
             if (y > prev_y) {
-              for (uint16_t t = prev_y + thick; t <= mid_y; t++)
-                buff->draw_pixel_at(x + 1, t, c);
-              for (uint16_t t = mid_y + 1; t < y + thick; t++)
-                buff->draw_pixel_at(x, t, c);
+              for (int16_t t = prev_y + thick; t <= mid_y; t++)
+                draw_pixel_at(x + 1, t);
+              for (int16_t t = mid_y + 1; t < y + thick; t++)
+                draw_pixel_at(x, t);
             } else {
-              for (uint16_t t = prev_y - 1; t >= mid_y; t--)
-                buff->draw_pixel_at(x + 1, t, c);
-              for (uint16_t t = mid_y - 1; t >= y; t--)
-                buff->draw_pixel_at(x, t, c);
+              for (int16_t t = prev_y - 1; t >= mid_y; t--)
+                draw_pixel_at(x + 1, t);
+              for (int16_t t = mid_y - 1; t >= y; t--)
+                draw_pixel_at(x, t);
             }
           }
           prev_y = y;
@@ -227,9 +232,8 @@ void GraphLegend::init(Graph *g) {
     ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
-      std::stringstream ss;
-      ss << std::fixed << std::setprecision(trace->sensor_->get_accuracy_decimals()) << trace->sensor_->get_state();
-      std::string valstr = ss.str();
+      std::string valstr =
+          value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (this->units_) {
         valstr += trace->sensor_->get_unit_of_measurement();
       }
@@ -364,9 +368,8 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
     if (legend_->values_ != VALUE_POSITION_TYPE_NONE) {
       int xv = x + legend_->xv_;
       int yv = y + legend_->yv_;
-      std::stringstream ss;
-      ss << std::fixed << std::setprecision(trace->sensor_->get_accuracy_decimals()) << trace->sensor_->get_state();
-      std::string valstr = ss.str();
+      std::string valstr =
+          value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (legend_->units_) {
         valstr += trace->sensor_->get_unit_of_measurement();
       }

@@ -1,9 +1,9 @@
 #pragma once
-#include "esphome/core/defines.h"
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-
-#include "ota_component.h"
 #include "ota_backend.h"
+
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ota {
@@ -16,6 +16,9 @@ class ArduinoESP32OTABackend : public OTABackend {
   OTAResponseTypes end() override;
   void abort() override;
   bool supports_compression() override { return false; }
+
+ private:
+  bool md5_set_{false};
 };
 
 }  // namespace ota

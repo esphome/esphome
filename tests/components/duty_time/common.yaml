@@ -1,0 +1,13 @@
+binary_sensor:
+  - platform: template
+    id: bin1
+    lambda: |-
+      if (millis() > 10000) {
+        return true;
+      }
+      return false;
+
+sensor:
+  - platform: duty_time
+    name: Duty Time
+    sensor: bin1

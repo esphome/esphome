@@ -1,0 +1,4 @@
+interval:
+  - interval: 1s
+    then:
+      - logger.log: Tick

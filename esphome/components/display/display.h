@@ -8,6 +8,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/time.h"
+#include "esphome/core/log.h"
 #include "display_color_utils.h"
 
 #ifdef USE_GRAPH
@@ -137,8 +138,6 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-#define PI 3.1415926535897932384626433832795
-
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -181,9 +180,11 @@ using display_writer_t = std::function<void(Display &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
+    ESP_LOGCONFIG(TAG, \
+                  prefix type "\n" \
+                              "%s  Rotations: %d °\n" \
+                              "%s  Dimensions: %dpx x %dpx", \
+                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 /// Turn the pixel OFF.
@@ -200,7 +201,7 @@ class BaseImage {
 
 class BaseFont {
  public:
-  virtual void print(int x, int y, Display *display, Color color, const char *text) = 0;
+  virtual void print(int x, int y, Display *display, Color color, const char *text, Color background) = 0;
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
@@ -258,6 +259,13 @@ class Display : public PollingComponent {
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
 
+  /// Draw a straight line at the given angle based on the origin [x, y] for a specified length with the given color.
+  void line_at_angle(int x, int y, int angle, int length, Color color = COLOR_ON);
+
+  /// Draw a straight line at the given angle based on the origin [x, y] from a specified start and stop radius with the
+  /// given color.
+  void line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color = COLOR_ON);
+
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
@@ -276,6 +284,13 @@ class Display : public PollingComponent {
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
   void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
+
+  /// Fill a ring centered around [center_x,center_y] between two circles with the radius1 and radius2 with the given
+  /// color.
+  void filled_ring(int center_x, int center_y, int radius1, int radius2, Color color = COLOR_ON);
+  /// Fill a half-ring "gauge" centered around [center_x,center_y] between two circles with the radius1 and radius2
+  /// with he given color and filled up to 'progress' percent
+  void filled_gauge(int center_x, int center_y, int radius1, int radius2, int progress, Color color = COLOR_ON);
 
   /// Draw the outline of a triangle contained between the points [x1,y1], [x2,y2] and [x3,y3] with the given color.
   void triangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color = COLOR_ON);
@@ -327,8 +342,10 @@ class Display : public PollingComponent {
    * @param color The color to draw the text with.
    * @param align The alignment of the text.
    * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text,
+             Color background = COLOR_OFF);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -337,8 +354,9 @@ class Display : public PollingComponent {
    * @param font The font to draw the text with.
    * @param color The color to draw the text with.
    * @param text The text to draw.
+   * @param background When using multi-bit (anti-aliased) fonts, blend this background color into pixels
    */
-  void print(int x, int y, BaseFont *font, Color color, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, const char *text, Color background = COLOR_OFF);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -358,6 +376,20 @@ class Display : public PollingComponent {
    * @param text The text to draw.
    */
   void print(int x, int y, BaseFont *font, const char *text);
+
+  /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param background The background color to use for anti-aliasing
+   * @param align The alignment of the text.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void printf(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format, ...)
+      __attribute__((format(printf, 8, 9)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -404,6 +436,20 @@ class Display : public PollingComponent {
    * @param ... The arguments to use for the text formatting.
    */
   void printf(int x, int y, BaseFont *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
+
+  /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
+   *
+   * @param x The x coordinate of the text alignment anchor point.
+   * @param y The y coordinate of the text alignment anchor point.
+   * @param font The font to draw the text with.
+   * @param color The color to draw the text with.
+   * @param background The background color to draw the text with.
+   * @param align The alignment of the text.
+   * @param format The format to use.
+   * @param ... The arguments to use for the text formatting.
+   */
+  void strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                ESPTime time) __attribute__((format(strftime, 8, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -607,10 +653,14 @@ class Display : public PollingComponent {
    */
   bool clip(int x, int y);
 
+  void test_card();
+  void show_test_card() { this->show_test_card_ = true; }
+
  protected:
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
-  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
+                va_list arg);
 
   void do_update_();
   void clear_clipping_();
@@ -634,6 +684,7 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  bool show_test_card_{false};
 };
 
 class DisplayPage {
@@ -707,6 +758,8 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
   DisplayPage *from_{nullptr};
   DisplayPage *to_{nullptr};
 };
+
+const LogString *text_align_to_string(TextAlign textalign);
 
 }  // namespace display
 }  // namespace esphome

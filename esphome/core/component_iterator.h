@@ -4,13 +4,13 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_ESP32_CAMERA
-#include "esphome/components/esp32_camera/esp32_camera.h"
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
 #endif
 
 namespace esphome {
 
-#ifdef USE_API
+#ifdef USE_API_SERVICES
 namespace api {
 class UserServiceDescriptor;
 }  // namespace api
@@ -45,17 +45,26 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
 #endif
-#ifdef USE_API
+#ifdef USE_API_SERVICES
   virtual bool on_service(api::UserServiceDescriptor *service);
 #endif
-#ifdef USE_ESP32_CAMERA
-  virtual bool on_camera(esp32_camera::ESP32Camera *camera);
+#ifdef USE_CAMERA
+  virtual bool on_camera(camera::Camera *camera);
 #endif
 #ifdef USE_CLIMATE
   virtual bool on_climate(climate::Climate *climate) = 0;
 #endif
 #ifdef USE_NUMBER
   virtual bool on_number(number::Number *number) = 0;
+#endif
+#ifdef USE_DATETIME_DATE
+  virtual bool on_date(datetime::DateEntity *date) = 0;
+#endif
+#ifdef USE_DATETIME_TIME
+  virtual bool on_time(datetime::TimeEntity *time) = 0;
+#endif
+#ifdef USE_DATETIME_DATETIME
+  virtual bool on_datetime(datetime::DateTimeEntity *datetime) = 0;
 #endif
 #ifdef USE_TEXT
   virtual bool on_text(text::Text *text) = 0;
@@ -66,16 +75,27 @@ class ComponentIterator {
 #ifdef USE_LOCK
   virtual bool on_lock(lock::Lock *a_lock) = 0;
 #endif
+#ifdef USE_VALVE
+  virtual bool on_valve(valve::Valve *valve) = 0;
+#endif
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) = 0;
 #endif
+#ifdef USE_EVENT
+  virtual bool on_event(event::Event *event) = 0;
+#endif
+#ifdef USE_UPDATE
+  virtual bool on_update(update::UpdateEntity *update) = 0;
+#endif
   virtual bool on_end();
 
  protected:
-  enum class IteratorState {
+  // Iterates over all ESPHome entities (sensors, switches, lights, etc.)
+  // Supports up to 256 entity types and up to 65,535 entities of each type
+  enum class IteratorState : uint8_t {
     NONE = 0,
     BEGIN,
 #ifdef USE_BINARY_SENSOR
@@ -102,10 +122,10 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
     TEXT_SENSOR,
 #endif
-#ifdef USE_API
+#ifdef USE_API_SERVICES
     SERVICE,
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
     CAMERA,
 #endif
 #ifdef USE_CLIMATE
@@ -113,6 +133,15 @@ class ComponentIterator {
 #endif
 #ifdef USE_NUMBER
     NUMBER,
+#endif
+#ifdef USE_DATETIME_DATE
+    DATETIME_DATE,
+#endif
+#ifdef USE_DATETIME_TIME
+    DATETIME_TIME,
+#endif
+#ifdef USE_DATETIME_DATETIME
+    DATETIME_DATETIME,
 #endif
 #ifdef USE_TEXT
     TEXT,
@@ -123,16 +152,41 @@ class ComponentIterator {
 #ifdef USE_LOCK
     LOCK,
 #endif
+#ifdef USE_VALVE
+    VALVE,
+#endif
 #ifdef USE_MEDIA_PLAYER
     MEDIA_PLAYER,
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
     ALARM_CONTROL_PANEL,
 #endif
+#ifdef USE_EVENT
+    EVENT,
+#endif
+#ifdef USE_UPDATE
+    UPDATE,
+#endif
     MAX,
-  } state_{IteratorState::NONE};
-  size_t at_{0};
+  };
+  uint16_t at_{0};  // Supports up to 65,535 entities per type
+  IteratorState state_{IteratorState::NONE};
   bool include_internal_{false};
+
+  template<typename Container>
+  void process_platform_item_(const Container &items,
+                              bool (ComponentIterator::*on_item)(typename Container::value_type)) {
+    if (this->at_ >= items.size()) {
+      this->advance_platform_();
+    } else {
+      typename Container::value_type item = items[this->at_];
+      if ((item->is_internal() && !this->include_internal_) || (this->*on_item)(item)) {
+        this->at_++;
+      }
+    }
+  }
+
+  void advance_platform_();
 };
 
 }  // namespace esphome

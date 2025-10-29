@@ -1,26 +1,27 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import sensor
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FREQUENCY,
     CONF_IRQ_PIN,
     CONF_VOLTAGE,
-    CONF_FREQUENCY,
-    DEVICE_CLASS_CURRENT,
+    CONF_VOLTAGE_GAIN,
     DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
+    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-    UNIT_HERTZ,
     UNIT_AMPERE,
-    UNIT_VOLT_AMPS,
-    UNIT_WATT,
-    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_HERTZ,
     UNIT_PERCENT,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
 )
 
 CONF_CURRENT_A = "current_a"
@@ -36,11 +37,11 @@ CONF_POWER_FACTOR_B = "power_factor_b"
 CONF_VOLTAGE_PGA_GAIN = "voltage_pga_gain"
 CONF_CURRENT_PGA_GAIN_A = "current_pga_gain_a"
 CONF_CURRENT_PGA_GAIN_B = "current_pga_gain_b"
-CONF_VOLTAGE_GAIN = "voltage_gain"
 CONF_CURRENT_GAIN_A = "current_gain_a"
 CONF_CURRENT_GAIN_B = "current_gain_b"
 CONF_ACTIVE_POWER_GAIN_A = "active_power_gain_a"
 CONF_ACTIVE_POWER_GAIN_B = "active_power_gain_b"
+CONF_USE_ACCUMULATED_ENERGY_REGISTERS = "use_accumulated_energy_registers"
 PGA_GAINS = {
     "1x": 0b000,
     "2x": 0b001,
@@ -155,6 +156,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ACTIVE_POWER_GAIN_B, default=0x400000): cv.hex_int_range(
             min=0x100000, max=0x800000
         ),
+        cv.Optional(CONF_USE_ACCUMULATED_ENERGY_REGISTERS, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("60s"))
 
@@ -174,6 +176,9 @@ async def register_ade7953(var, config):
     cg.add(var.set_bigain(config.get(CONF_CURRENT_GAIN_B)))
     cg.add(var.set_awgain(config.get(CONF_ACTIVE_POWER_GAIN_A)))
     cg.add(var.set_bwgain(config.get(CONF_ACTIVE_POWER_GAIN_B)))
+    cg.add(
+        var.set_use_acc_energy_regs(config.get(CONF_USE_ACCUMULATED_ENERGY_REGISTERS))
+    )
 
     for key in [
         CONF_VOLTAGE,

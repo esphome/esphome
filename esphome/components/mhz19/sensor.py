@@ -1,23 +1,24 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
 )
 
 DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
+CONF_WARMUP_TIME = "warmup_time"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
 MHZ19Component = mhz19_ns.class_("MHZ19Component", cg.PollingComponent, uart.UARTDevice)
@@ -31,7 +32,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MHZ19Component),
-            cv.Required(CONF_CO2): sensor.sensor_schema(
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
@@ -45,6 +46,9 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.boolean,
+            cv.Optional(
+                CONF_WARMUP_TIME, default="75s"
+            ): cv.positive_time_period_seconds,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -57,16 +61,22 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
+    if co2 := config.get(CONF_CO2):
+        sens = await sensor.new_sensor(co2)
         cg.add(var.set_co2_sensor(sens))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature)
         cg.add(var.set_temperature_sensor(sens))
 
-    if CONF_AUTOMATIC_BASELINE_CALIBRATION in config:
-        cg.add(var.set_abc_enabled(config[CONF_AUTOMATIC_BASELINE_CALIBRATION]))
+    if (
+        automatic_baseline_calibration := config.get(
+            CONF_AUTOMATIC_BASELINE_CALIBRATION
+        )
+    ) is not None:
+        cg.add(var.set_abc_enabled(automatic_baseline_calibration))
+
+    cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

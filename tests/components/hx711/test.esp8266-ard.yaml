@@ -1,0 +1,5 @@
+substitutions:
+  clk_pin: GPIO0
+  dout_pin: GPIO2
+
+<<: !include common.yaml

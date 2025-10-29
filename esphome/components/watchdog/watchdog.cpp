@@ -1,0 +1,71 @@
+#include "watchdog.h"
+
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+
+#include <cinttypes>
+#include <cstdint>
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#include "esp_idf_version.h"
+#include "esp_task_wdt.h"
+#endif
+#ifdef USE_RP2040
+#include "hardware/watchdog.h"
+#include "pico/stdlib.h"
+#endif
+
+namespace esphome {
+namespace watchdog {
+
+static const char *const TAG = "http_request.watchdog";
+
+WatchdogManager::WatchdogManager(uint32_t timeout_ms) : timeout_ms_(timeout_ms) {
+  if (timeout_ms == 0) {
+    return;
+  }
+  this->saved_timeout_ms_ = this->get_timeout_();
+  this->set_timeout_(timeout_ms);
+}
+
+WatchdogManager::~WatchdogManager() {
+  if (this->timeout_ms_ == 0) {
+    return;
+  }
+  this->set_timeout_(this->saved_timeout_ms_);
+}
+
+void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
+  ESP_LOGV(TAG, "Adjusting WDT to %" PRIu32 "ms", timeout_ms);
+#ifdef USE_ESP32
+  esp_task_wdt_config_t wdt_config = {
+      .timeout_ms = timeout_ms,
+      .idle_core_mask = (1 << SOC_CPU_CORES_NUM) - 1,
+      .trigger_panic = true,
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+#endif  // USE_ESP32
+
+#ifdef USE_RP2040
+  watchdog_enable(timeout_ms, true);
+#endif
+}
+
+uint32_t WatchdogManager::get_timeout_() {
+  uint32_t timeout_ms = 0;
+
+#ifdef USE_ESP32
+  timeout_ms = (uint32_t) CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
+#endif  // USE_ESP32
+
+#ifdef USE_RP2040
+  timeout_ms = watchdog_get_count() / 1000;
+#endif
+
+  ESP_LOGVV(TAG, "get_timeout: %" PRIu32 "ms", timeout_ms);
+
+  return timeout_ms;
+}
+
+}  // namespace watchdog
+}  // namespace esphome

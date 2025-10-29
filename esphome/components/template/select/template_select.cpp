@@ -10,27 +10,21 @@ void TemplateSelect::setup() {
   if (this->f_.has_value())
     return;
 
-  std::string value;
-  ESP_LOGD(TAG, "Setting up Template Select");
-  if (!this->restore_value_) {
-    value = this->initial_option_;
-    ESP_LOGD(TAG, "State from initial: %s", value.c_str());
-  } else {
-    size_t index;
-    this->pref_ = global_preferences->make_preference<size_t>(this->get_object_id_hash());
-    if (!this->pref_.load(&index)) {
-      value = this->initial_option_;
-      ESP_LOGD(TAG, "State from initial (could not load stored index): %s", value.c_str());
-    } else if (!this->has_index(index)) {
-      value = this->initial_option_;
-      ESP_LOGD(TAG, "State from initial (restored index %d out of bounds): %s", index, value.c_str());
+  size_t index = this->initial_option_index_;
+  if (this->restore_value_) {
+    this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
+    size_t restored_index;
+    if (this->pref_.load(&restored_index) && this->has_index(restored_index)) {
+      index = restored_index;
+      ESP_LOGD(TAG, "State from restore: %s", this->at(index).value().c_str());
     } else {
-      value = this->at(index).value();
-      ESP_LOGD(TAG, "State from restore: %s", value.c_str());
+      ESP_LOGD(TAG, "State from initial (could not load or invalid stored index): %s", this->at(index).value().c_str());
     }
+  } else {
+    ESP_LOGD(TAG, "State from initial: %s", this->at(index).value().c_str());
   }
 
-  this->publish_state(value);
+  this->publish_state(this->at(index).value());
 }
 
 void TemplateSelect::update() {
@@ -66,9 +60,12 @@ void TemplateSelect::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   if (this->f_.has_value())
     return;
-  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
-  ESP_LOGCONFIG(TAG, "  Initial Option: %s", this->initial_option_.c_str());
-  ESP_LOGCONFIG(TAG, "  Restore Value: %s", YESNO(this->restore_value_));
+  ESP_LOGCONFIG(TAG,
+                "  Optimistic: %s\n"
+                "  Initial Option: %s\n"
+                "  Restore Value: %s",
+                YESNO(this->optimistic_), this->at(this->initial_option_index_).value().c_str(),
+                YESNO(this->restore_value_));
 }
 
 }  // namespace template_

@@ -1,0 +1,15 @@
+substitutions:
+  verify_ssl: "true"
+
+http_request:
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+    id: mqtt_http_request_ota
+
+update:
+  - platform: http_request
+    name: "OTA Update"
+    ota_id: mqtt_http_request_ota
+    source: https://example.com/ota.json

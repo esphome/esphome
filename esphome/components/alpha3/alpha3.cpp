@@ -97,9 +97,11 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
 void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
-      this->response_offset_ = 0;
-      this->response_length_ = 0;
-      ESP_LOGI(TAG, "[%s] connection open", this->parent_->address_str().c_str());
+      if (param->open.status == ESP_GATT_OK) {
+        this->response_offset_ = 0;
+        this->response_length_ = 0;
+        ESP_LOGI(TAG, "[%s] connection open", this->parent_->address_str().c_str());
+      }
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {

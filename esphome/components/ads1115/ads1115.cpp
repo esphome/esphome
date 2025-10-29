@@ -1,6 +1,6 @@
 #include "ads1115.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ads1115 {
@@ -9,17 +9,12 @@ static const char *const TAG = "ads1115";
 static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
 static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 
-static const uint8_t ADS1115_DATA_RATE_860_SPS = 0b111;  // 3300_SPS for ADS1015
-
 void ADS1115Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
   uint16_t value;
   if (!this->read_byte_16(ADS1115_REGISTER_CONVERSION, &value)) {
     this->mark_failed();
     return;
   }
-
-  ESP_LOGCONFIG(TAG, "Configuring ADS1115...");
 
   uint16_t config = 0;
   // Clear single-shot bit
@@ -43,9 +38,9 @@ void ADS1115Component::setup() {
     config |= 0b0000000100000000;
   }
 
-  // Set data rate - 860 samples per second (we're in singleshot mode)
+  // Set data rate - 860 samples per second
   //        0bxxxxxxxx100xxxxx
-  config |= ADS1115_DATA_RATE_860_SPS << 5;
+  config |= ADS1115_860SPS << 5;
 
   // Set comparator mode - hysteresis
   //        0bxxxxxxxxxxx0xxxx
@@ -70,30 +65,29 @@ void ADS1115Component::setup() {
   this->prev_config_ = config;
 }
 void ADS1115Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
+  ESP_LOGCONFIG(TAG, "ADS1115:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with ADS1115 failed!");
-  }
-
-  for (auto *sensor : this->sensors_) {
-    LOG_SENSOR("  ", "Sensor", sensor);
-    ESP_LOGCONFIG(TAG, "    Multiplexer: %u", sensor->get_multiplexer());
-    ESP_LOGCONFIG(TAG, "    Gain: %u", sensor->get_gain());
-    ESP_LOGCONFIG(TAG, "    Resolution: %u", sensor->get_resolution());
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
-float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
+float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1115Gain gain,
+                                            ADS1115Resolution resolution, ADS1115Samplerate samplerate) {
   uint16_t config = this->prev_config_;
   // Multiplexer
   //        0bxBBBxxxxxxxxxxxx
   config &= 0b1000111111111111;
-  config |= (sensor->get_multiplexer() & 0b111) << 12;
+  config |= (multiplexer & 0b111) << 12;
 
   // Gain
   //        0bxxxxBBBxxxxxxxxx
   config &= 0b1111000111111111;
-  config |= (sensor->get_gain() & 0b111) << 9;
+  config |= (gain & 0b111) << 9;
+
+  // Sample rate
+  //        0bxxxxxxxxBBBxxxxx
+  config &= 0b1111111100011111;
+  config |= (samplerate & 0b111) << 5;
 
   if (!this->continuous_mode_) {
     // Start conversion
@@ -107,8 +101,54 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
     }
     this->prev_config_ = config;
 
-    // about 1.2 ms with 860 samples per second
-    delay(2);
+    // Delay calculated as: ceil((1000/SPS)+.5)
+    if (resolution == ADS1015_12_BITS) {
+      switch (samplerate) {
+        case ADS1115_8SPS:
+          delay(9);
+          break;
+        case ADS1115_16SPS:
+          delay(5);
+          break;
+        case ADS1115_32SPS:
+          delay(3);
+          break;
+        case ADS1115_64SPS:
+        case ADS1115_128SPS:
+          delay(2);
+          break;
+        default:
+          delay(1);
+          break;
+      }
+    } else {
+      switch (samplerate) {
+        case ADS1115_8SPS:
+          delay(126);  // NOLINT
+          break;
+        case ADS1115_16SPS:
+          delay(63);  // NOLINT
+          break;
+        case ADS1115_32SPS:
+          delay(32);
+          break;
+        case ADS1115_64SPS:
+          delay(17);
+          break;
+        case ADS1115_128SPS:
+          delay(9);
+          break;
+        case ADS1115_250SPS:
+          delay(5);
+          break;
+        case ADS1115_475SPS:
+          delay(3);
+          break;
+        case ADS1115_860SPS:
+          delay(2);
+          break;
+      }
+    }
 
     // in continuous mode, conversion will always be running, rely on the delay
     // to ensure conversion is taking place with the correct settings
@@ -132,7 +172,7 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
     return NAN;
   }
 
-  if (sensor->get_resolution() == ADS1015_12_BITS) {
+  if (resolution == ADS1015_12_BITS) {
     bool negative = (raw_conversion >> 15) == 1;
 
     // shift raw_conversion as it's only 12-bits, left justified
@@ -151,8 +191,8 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   auto signed_conversion = static_cast<int16_t>(raw_conversion);
 
   float millivolts;
-  float divider = (sensor->get_resolution() == ADS1115_16_BITS) ? 32768.0f : 2048.0f;
-  switch (sensor->get_gain()) {
+  float divider = (resolution == ADS1115_16_BITS) ? 32768.0f : 2048.0f;
+  switch (gain) {
     case ADS1115_GAIN_6P144:
       millivolts = (signed_conversion * 6144) / divider;
       break;
@@ -177,15 +217,6 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
 
   this->status_clear_warning();
   return millivolts / 1e3f;
-}
-
-float ADS1115Sensor::sample() { return this->parent_->request_measurement(this); }
-void ADS1115Sensor::update() {
-  float v = this->parent_->request_measurement(this);
-  if (!std::isnan(v)) {
-    ESP_LOGD(TAG, "'%s': Got Voltage=%fV", this->get_name().c_str(), v);
-    this->publish_state(v);
-  }
 }
 
 }  // namespace ads1115

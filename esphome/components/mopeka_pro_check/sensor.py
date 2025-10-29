@@ -1,31 +1,37 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
-    CONF_DISTANCE,
-    CONF_MAC_ADDRESS,
-    CONF_ID,
-    ICON_THERMOMETER,
-    ICON_RULER,
-    UNIT_PERCENT,
-    CONF_LEVEL,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
-    UNIT_CELSIUS,
-    STATE_CLASS_MEASUREMENT,
     CONF_BATTERY_LEVEL,
+    CONF_DISTANCE,
+    CONF_ID,
+    CONF_LEVEL,
+    CONF_MAC_ADDRESS,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_COUNTER,
+    ICON_RULER,
+    ICON_SIGNAL,
+    ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_MILLIMETER,
+    UNIT_PERCENT,
 )
 
 CONF_TANK_TYPE = "tank_type"
 CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
 CONF_CUSTOM_DISTANCE_EMPTY = "custom_distance_empty"
+CONF_SIGNAL_QUALITY = "signal_quality"
+CONF_MINIMUM_SIGNAL_QUALITY = "minimum_signal_quality"
+CONF_IGNORED_READS = "ignored_reads"
 
 ICON_PROPANE_TANK = "mdi:propane-tank"
 
 TANK_TYPE_CUSTOM = "CUSTOM"
-
-UNIT_MILLIMETER = "mm"
 
 
 def small_distance(value):
@@ -56,6 +62,14 @@ mopeka_pro_check_ns = cg.esphome_ns.namespace("mopeka_pro_check")
 MopekaProCheck = mopeka_pro_check_ns.class_(
     "MopekaProCheck", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
 )
+
+SensorReadQuality = mopeka_pro_check_ns.enum("SensorReadQuality")
+SIGNAL_QUALITIES = {
+    "ZERO": SensorReadQuality.QUALITY_ZERO,
+    "LOW": SensorReadQuality.QUALITY_LOW,
+    "MEDIUM": SensorReadQuality.QUALITY_MED,
+    "HIGH": SensorReadQuality.QUALITY_HIGH,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -90,6 +104,21 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_BATTERY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_SIGNAL_QUALITY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_SIGNAL,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_IGNORED_READS): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_MINIMUM_SIGNAL_QUALITY, default="MEDIUM"): cv.enum(
+                SIGNAL_QUALITIES, upper=True
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -120,6 +149,11 @@ async def to_code(config):
         cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[t][0]))
         cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[t][1]))
 
+    if (
+        minimum_signal_quality := config.get(CONF_MINIMUM_SIGNAL_QUALITY, None)
+    ) is not None:
+        cg.add(var.set_min_signal_quality(minimum_signal_quality))
+
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
@@ -132,3 +166,9 @@ async def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
+    if CONF_SIGNAL_QUALITY in config:
+        sens = await sensor.new_sensor(config[CONF_SIGNAL_QUALITY])
+        cg.add(var.set_signal_quality(sens))
+    if CONF_IGNORED_READS in config:
+        sens = await sensor.new_sensor(config[CONF_IGNORED_READS])
+        cg.add(var.set_ignored_reads(sens))

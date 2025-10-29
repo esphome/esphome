@@ -1,0 +1,9 @@
+esp32_camera_web_server:
+  - port: 8080
+    mode: stream
+  - port: 8081
+    mode: snapshot
+
+wifi:
+  ssid: MySSID
+  password: password1

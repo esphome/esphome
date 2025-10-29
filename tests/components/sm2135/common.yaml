@@ -1,0 +1,22 @@
+sm2135:
+  clock_pin: ${clock_pin}
+  data_pin: ${data_pin}
+  rgb_current: 20mA
+  cw_current: 60mA
+
+output:
+  - platform: sm2135
+    id: sm2135_0
+    channel: 0
+  - platform: sm2135
+    id: sm2135_1
+    channel: 1
+  - platform: sm2135
+    id: sm2135_2
+    channel: 2
+  - platform: sm2135
+    id: sm2135_3
+    channel: 3
+  - platform: sm2135
+    id: sm2135_4
+    channel: 4

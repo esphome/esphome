@@ -1,0 +1,23 @@
+display:
+  - id: cst226_display
+    platform: ili9xxx
+    model: ili9342
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${disp_reset_pin}
+    invert_colors: false
+
+touchscreen:
+  - id: ts_cst226
+    i2c_id: i2c_bus
+    platform: cst226
+    display: cst226_display
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
+
+binary_sensor:
+  - id: cst226_touch
+    platform: cst226
+    on_press:
+      then:
+        - component.update: ts_cst226

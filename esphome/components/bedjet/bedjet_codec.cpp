@@ -13,8 +13,10 @@ float bedjet_temp_to_f(const uint8_t temp) {
 
 /** Cleans up the packet before sending. */
 BedjetPacket *BedjetCodec::clean_packet_() {
-  // So far no commands require more than 2 bytes of data.
-  assert(this->packet_.data_length <= 2);
+  // So far no commands require more than 2 bytes of data
+  if (this->packet_.data_length > 2) {
+    ESP_LOGW(TAG, "Packet may be malformed");
+  }
   for (int i = this->packet_.data_length; i < 2; i++) {
     this->packet_.data[i] = '\0';
   }
@@ -155,6 +157,12 @@ bool BedjetCodec::compare(const uint8_t *data, uint16_t length) {
                                  this->buf_.target_temp_step != test->target_temp_step;
 
   return explicit_fields_changed;
+}
+
+/// Converts a BedJet temp step into degrees Celsius.
+float bedjet_temp_to_c(uint8_t temp) {
+  // BedJet temp is "C*2"; to get C, divide by 2.
+  return temp / 2.0f;
 }
 
 }  // namespace bedjet

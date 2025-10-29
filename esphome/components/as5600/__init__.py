@@ -1,12 +1,13 @@
 from esphome import pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_DIR_PIN,
     CONF_DIRECTION,
     CONF_HYSTERESIS,
+    CONF_ID,
+    CONF_POWER_MODE,
     CONF_RANGE,
 )
 
@@ -54,11 +55,9 @@ FAST_FILTER = {
     "LSB10": 7,
 }
 
-CONF_ANGLE = "angle"
 CONF_RAW_ANGLE = "raw_angle"
 CONF_RAW_POSITION = "raw_position"
 CONF_WATCHDOG = "watchdog"
-CONF_POWER_MODE = "power_mode"
 CONF_SLOW_FILTER = "slow_filter"
 CONF_FAST_FILTER = "fast_filter"
 CONF_START_POSITION = "start_position"

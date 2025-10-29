@@ -1,0 +1,38 @@
+esphome:
+  name: sched-rapid-cancel-test
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_rapid_cancellation_component]
+
+host:
+
+logger:
+  level: VERBOSE
+
+scheduler_rapid_cancellation_component:
+  id: rapid_cancel
+
+api:
+  services:
+    - service: run_rapid_cancellation_test
+      then:
+        - lambda: |-
+            id(rapid_cancel)->run_rapid_cancellation_test();
+
+event:
+  - platform: template
+    name: "Test Complete"
+    id: test_complete
+    device_class: button
+    event_types:
+      - "test_finished"
+  - platform: template
+    name: "Test Result"
+    id: test_result
+    device_class: button
+    event_types:
+      - "passed"
+      - "failed"

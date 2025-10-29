@@ -1,0 +1,7 @@
+sensor:
+  - platform: tx20
+    wind_speed:
+      name: Windspeed
+    wind_direction_degrees:
+      name: Winddirection Degrees
+    pin: 4

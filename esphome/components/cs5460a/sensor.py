@@ -1,20 +1,21 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
+from esphome.components import sensor, spi
 import esphome.config_validation as cv
-from esphome.components import spi, sensor
 from esphome.const import (
     CONF_CURRENT,
     CONF_ID,
     CONF_POWER,
     CONF_VOLTAGE,
-    UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_WATT,
-    DEVICE_CLASS_POWER,
+    CONF_VOLTAGE_GAIN,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    UNIT_AMPERE,
+    UNIT_VOLT,
+    UNIT_WATT,
 )
-from esphome import automation
-from esphome.automation import maybe_simple_id
 
 CODEOWNERS = ["@balrog-kun"]
 DEPENDENCIES = ["spi"]
@@ -33,7 +34,6 @@ CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
 CONF_PGA_GAIN = "pga_gain"
 CONF_CURRENT_GAIN = "current_gain"
-CONF_VOLTAGE_GAIN = "voltage_gain"
 CONF_CURRENT_HPF = "current_hpf"
 CONF_VOLTAGE_HPF = "voltage_hpf"
 CONF_PULSE_ENERGY = "pulse_energy"

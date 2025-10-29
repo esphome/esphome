@@ -1,20 +1,21 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
-    CONF_DISTANCE,
-    CONF_MAC_ADDRESS,
-    CONF_ID,
-    ICON_THERMOMETER,
-    ICON_RULER,
-    UNIT_PERCENT,
-    CONF_LEVEL,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
-    UNIT_CELSIUS,
-    STATE_CLASS_MEASUREMENT,
     CONF_BATTERY_LEVEL,
+    CONF_DISTANCE,
+    CONF_ID,
+    CONF_LEVEL,
+    CONF_MAC_ADDRESS,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_RULER,
+    ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_MILLIMETER,
+    UNIT_PERCENT,
 )
 
 CONF_TANK_TYPE = "tank_type"
@@ -25,8 +26,6 @@ CONF_PROPANE_BUTANE_MIX = "propane_butane_mix"
 ICON_PROPANE_TANK = "mdi:propane-tank"
 
 TANK_TYPE_CUSTOM = "CUSTOM"
-
-UNIT_MILLIMETER = "mm"
 
 
 def small_distance(value):

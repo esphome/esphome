@@ -9,6 +9,8 @@ namespace esphome {
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end);
 
+uint8_t days_in_month(uint8_t month, uint16_t year);
+
 /// A more user-friendly version of struct tm from time.h
 struct ESPTime {
   /** seconds after the minute [0-60]
@@ -42,16 +44,18 @@ struct ESPTime {
   size_t strftime(char *buffer, size_t buffer_len, const char *format);
 
   /** Convert this ESPTime struct to a string as specified by the format argument.
-   * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
+   * @see https://en.cppreference.com/w/c/chrono/strftime
    *
-   * @warning This method uses dynamically allocated strings which can cause heap fragmentation with some
+   * @warning This method returns a dynamically allocated string which can cause heap fragmentation with some
    * microcontrollers.
    *
-   * @warning This method can return "ERROR" when the underlying strftime() call fails, e.g. when the
-   * format string contains unsupported specifiers or when the format string doesn't produce any
-   * output.
+   * @warning This method can return "ERROR" when the underlying strftime() call fails or when the
+   * output exceeds 128 bytes.
    */
   std::string strftime(const std::string &format);
+
+  /// @copydoc strftime(const std::string &format)
+  std::string strftime(const char *format);
 
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
@@ -62,6 +66,13 @@ struct ESPTime {
            this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 &&
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
+
+  /** Convert a string to ESPTime struct as specified by the format argument.
+   * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
+   * @param esp_time an instance of a ESPTime struct
+   * @return the success sate of the parsing
+   */
+  static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
 
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
   static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);
@@ -88,6 +99,9 @@ struct ESPTime {
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
   void recalc_timestamp_utc(bool use_day_of_year = true);
 
+  /// Recalculate the timestamp field from the other fields of this ESPTime instance assuming local fields.
+  void recalc_timestamp_local();
+
   /// Convert this ESPTime instance back to a tm struct.
   struct tm to_c_tm();
 
@@ -97,10 +111,10 @@ struct ESPTime {
   void increment_second();
   /// Increment this clock instance by one day.
   void increment_day();
-  bool operator<(ESPTime other);
-  bool operator<=(ESPTime other);
-  bool operator==(ESPTime other);
-  bool operator>=(ESPTime other);
-  bool operator>(ESPTime other);
+  bool operator<(const ESPTime &other) const;
+  bool operator<=(const ESPTime &other) const;
+  bool operator==(const ESPTime &other) const;
+  bool operator>=(const ESPTime &other) const;
+  bool operator>(const ESPTime &other) const;
 };
 }  // namespace esphome

@@ -1,0 +1,7 @@
+sensor:
+  - platform: max31856
+    name: MAX31856 Temperature
+    cs_pin: ${cs_pin}
+    update_interval: 15s
+    mains_filter: 50Hz
+    thermocouple_type: N

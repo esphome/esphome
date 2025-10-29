@@ -25,7 +25,7 @@ class SpeedFan : public Component, public fan::Fan {
   void control(const fan::FanCall &call) override;
   void write_state_();
 
-  output::FloatOutput *output_{nullptr};
+  output::FloatOutput *output_;
   output::BinaryOutput *oscillating_{nullptr};
   output::BinaryOutput *direction_{nullptr};
   int speed_count_{};

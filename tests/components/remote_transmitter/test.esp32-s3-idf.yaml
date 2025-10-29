@@ -1,0 +1,16 @@
+substitutions:
+  pin: GPIO38
+  clock_resolution: "2000000"
+  rmt_symbols: "64"
+
+# WARNING: Using !extend or !remove prevents automatic component grouping in CI, making builds slower.
+remote_transmitter:
+  - id: xmitr
+    pin: ${pin}
+    carrier_duty_percent: 50%
+    clock_resolution: ${clock_resolution}
+    rmt_symbols: ${rmt_symbols}
+    use_dma: "true"
+
+packages:
+  buttons: !include common-buttons.yaml

@@ -1,0 +1,44 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: pvvx_ble_display
+
+display:
+  - platform: pvvx_mithermometer
+    ble_client_id: pvvx_ble_display
+    time_id: sntp_time
+    disconnect_delay: 3s
+    update_interval: 10min
+    validity_period: 20min
+    lambda: |-
+      it.print_bignum(188.8);
+      it.print_unit(pvvx_mithermometer::UNIT_DEG_E);
+      it.print_smallnum(88);
+      it.print_percent(true);
+      it.print_happy(true);
+      it.print_sad(true);
+      it.print_bracket(true);
+      it.print_battery(true);
+
+sensor:
+  - platform: pvvx_mithermometer
+    mac_address: A4:C1:38:4E:16:78
+    temperature:
+      name: PVVX Temperature
+    humidity:
+      name: PVVX Humidity
+    battery_level:
+      name: PVVX Battery-Level
+    battery_voltage:
+      name: PVVX Battery-Voltage
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org

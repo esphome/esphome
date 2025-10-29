@@ -1,16 +1,17 @@
-output:
-  - platform: ledc
-    id: light_output_1
-    pin: 12
-  - platform: ledc
-    id: light_output_2
-    pin: 13
+substitutions:
+  light_platform: ledc
+  pin_o1: GPIO16
+  pin_o2: GPIO17
 
-light:
-  - platform: cwww
-    name: CWWW Light
-    cold_white: light_output_1
-    warm_white: light_output_2
-    cold_white_color_temperature: 153 mireds
-    warm_white_color_temperature: 500 mireds
-    constant_brightness: true
+output:
+  - platform: ${light_platform}
+    id: light_output_1
+    pin: ${pin_o1}
+    channel: 0
+  - platform: ${light_platform}
+    id: light_output_2
+    pin: ${pin_o2}
+    channel: 1
+    phase_angle: 180°
+
+<<: !include common.yaml

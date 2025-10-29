@@ -1,18 +1,4 @@
-i2c:
-  - id: i2c_bme280
-    scl: 16
-    sda: 17
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-sensor:
-  - platform: bme280_i2c
-    address: 0x76
-    temperature:
-      id: bme280_temperature
-      name: BME280 Temperature
-    humidity:
-      id: bme280_humidity
-      name: BME280 Humidity
-    pressure:
-      id: bme280_pressure
-      name: BME280 Pressure
-    update_interval: 15s
+<<: !include common.yaml

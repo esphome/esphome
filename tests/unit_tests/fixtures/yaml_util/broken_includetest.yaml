@@ -12,7 +12,7 @@ esphome:
   # not overwritten by vars in the !include above
   name: ${name}
   name_add_mac_suffix: true
-  platform: esp8266
-  board: !include {file: includes/scalar.yaml, vars: {var1: nodemcu}}
-
   libraries: !include {file: includes/list.yaml, vars: {var1: Wire}}
+
+esp8266:
+  board: !include {file: includes/scalar.yaml, vars: {var1: nodemcu}}

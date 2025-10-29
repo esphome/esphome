@@ -4,6 +4,8 @@ esphome:
 esp32:
   board: esp32dev
 
+logger:
+
 text:
   - platform: template
     name: "test 1 text"
@@ -31,3 +33,15 @@ text:
     optimistic: true
     internal: true
     max_length: 255
+
+  - platform: template
+    name: "test 4 key"
+    id: "it_4"
+    mode: text
+    set_action:
+      - then:
+          - logger.log:
+              format: Template text set to %s
+              args: ["x.c_str()"]
+    lambda: |
+      return std::string{"Hello"};
