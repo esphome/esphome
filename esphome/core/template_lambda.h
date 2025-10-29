@@ -32,7 +32,7 @@ template<typename T, typename... Args> class TemplateLambda {
   template<typename F>
   requires std::invocable<F, Args...> && std::convertible_to < F, optional<T>(*)
   (Args...) > void set(F f) {
-    this->reset();
+    this->reset_();
     this->type_ = STATELESS_LAMBDA;
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
@@ -42,12 +42,12 @@ template<typename T, typename... Args> class TemplateLambda {
   requires std::invocable<F, Args...> &&
       (!std::convertible_to<F, optional<T> (*)(Args...)>) &&std::convertible_to<std::invoke_result_t<F, Args...>,
                                                                                 optional<T>> void set(F &&f) {
-    this->reset();
+    this->reset_();
     this->type_ = LAMBDA;
     this->f_ = new std::function<optional<T>(Args...)>(std::forward<F>(f));
   }
 
-  ~TemplateLambda() { this->reset(); }
+  ~TemplateLambda() { this->reset_(); }
 
   // Copy constructor
   TemplateLambda(const TemplateLambda &) = delete;
@@ -66,7 +66,7 @@ template<typename T, typename... Args> class TemplateLambda {
 
   TemplateLambda &operator=(TemplateLambda &&other) noexcept {
     if (this != &other) {
-      this->reset();
+      this->reset_();
       this->type_ = other.type_;
       if (type_ == LAMBDA) {
         this->f_ = other.f_;
@@ -97,7 +97,7 @@ template<typename T, typename... Args> class TemplateLambda {
   optional<T> call(Args... args) { return (*this)(args...); }
 
  protected:
-  void reset() {
+  void reset_() {
     if (this->type_ == LAMBDA) {
       delete this->f_;
       this->f_ = nullptr;
