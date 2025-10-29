@@ -4,8 +4,7 @@
 #include <zephyr/drivers/i2c.h>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c.zephyr";
 
@@ -15,9 +14,9 @@ void ZephyrI2CBus::setup() {
     ESP_LOGE(TAG, "I2C dev is not ready.");
     return;
   }
-  i2c_dev_ = i2c_dev;
+  this->i2c_dev_ = i2c_dev;
 
-  this->recovery_result_ = i2c_recover_bus(i2c_dev_);
+  this->recovery_result_ = i2c_recover_bus(this->i2c_dev_);
   if (this->recovery_result_ != 0) {
     ESP_LOGE(TAG, "I2C recover bus failed, err %d", this->recovery_result_);
   }
@@ -32,13 +31,13 @@ void ZephyrI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   // ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   // ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
-  if (!i2c_dev_) {
+  if (!this->i2c_dev_) {
     ESP_LOGCONFIG(TAG, "  Not initialized");
     return;
   }
   uint32_t dev_config = 0;
   // FIXME this function is not implemented in driver
-  int err = i2c_get_config(i2c_dev_, &dev_config);
+  int err = i2c_get_config(this->i2c_dev_, &dev_config);
   if (err != 0) {
     ESP_LOGE(TAG, "Cannot get I2C config, err %d", err);
   } else {
@@ -83,9 +82,9 @@ void ZephyrI2CBus::dump_config() {
     }
   }
 }
-
+/*
 ErrorCode ZephyrI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
-  if (!i2c_dev_) {
+  if (!this->i2c_dev_) {
     return ERROR_NOT_INITIALIZED;
   }
 
@@ -99,7 +98,7 @@ ErrorCode ZephyrI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) 
   }
   msgs[cnt - 1].flags |= I2C_MSG_STOP;
 
-  auto err = i2c_transfer(i2c_dev_, &msgs[0], msgs.size(), address);
+  auto err = i2c_transfer(this->i2c_dev_, &msgs[0], msgs.size(), address);
 
   if (err == -EIO) {
     return ERROR_NOT_ACKNOWLEDGED;
@@ -114,7 +113,7 @@ ErrorCode ZephyrI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) 
 }
 
 ErrorCode ZephyrI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
-  if (!i2c_dev_) {
+  if (!this->i2c_dev_) {
     return ERROR_NOT_INITIALIZED;
   }
 
@@ -137,7 +136,7 @@ ErrorCode ZephyrI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt
     msgs[cnt - 1].flags |= I2C_MSG_STOP;
   }
 
-  auto err = i2c_transfer(i2c_dev_, &msgs[0], msgs.size(), address);
+  auto err = i2c_transfer(this->i2c_dev_, &msgs[0], msgs.size(), address);
 
   if (err == -EIO) {
     return ERROR_NOT_ACKNOWLEDGED;
@@ -150,8 +149,13 @@ ErrorCode ZephyrI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt
 
   return ERROR_OK;
 }
+*/
 
-}  // namespace i2c
-}  // namespace esphome
+ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
+                                    uint8_t *read_buffer, size_t read_count) {
+  return ERROR_OK;
+}
+
+}  // namespace esphome::i2c
 
 #endif
