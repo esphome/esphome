@@ -71,6 +71,7 @@ ignore_types = (
     ".apng",
     ".gif",
     ".webp",
+    ".bin",
 )
 
 LINT_FILE_CHECKS = []
