@@ -14,8 +14,6 @@ class EPaperSpectraE6 : public EPaperBase {
 
   void fill(Color color) override;
 
-  void dump_config() override;
-
  protected:
   void refresh_screen() override;
   void power_on() override;

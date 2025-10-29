@@ -1,7 +1,5 @@
 from typing import Any
 
-from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
-
 from . import EpaperModel
 
 
@@ -11,8 +9,7 @@ class SpectraE6(EpaperModel):
 
     # fmt: off
     def get_init_sequence(self, config: dict):
-        width = config[CONF_DIMENSIONS][CONF_WIDTH]
-        height = config[CONF_DIMENSIONS][CONF_HEIGHT]
+        width, height = self.get_dimensions(config)
         return (
             (0xAA, 0x49, 0x55, 0x20, 0x08, 0x09, 0x18,),
             (0x01, 0x3F,),

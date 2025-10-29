@@ -126,10 +126,14 @@ async def to_code(config):
     init_sequence_id = cg.static_const_array(
         config[CONF_INIT_SEQUENCE_ID], init_sequence
     )
-    width = config[CONF_DIMENSIONS][CONF_WIDTH]
-    height = config[CONF_DIMENSIONS][CONF_HEIGHT]
+    width, height = model.get_dimensions(config)
     var = cg.new_Pvariable(
-        config[CONF_ID], width, height, init_sequence_id, init_sequence_length
+        config[CONF_ID],
+        model.name,
+        width,
+        height,
+        init_sequence_id,
+        init_sequence_length,
     )
 
     await display.register_display(var, config)
