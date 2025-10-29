@@ -13,8 +13,6 @@ void TLC5971::setup() {
   this->clock_pin_->digital_write(true);
 
   this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
-
-  ESP_LOGCONFIG(TAG, "Done setting up TLC5971 output component.");
 }
 void TLC5971::dump_config() {
   ESP_LOGCONFIG(TAG, "TLC5971:");

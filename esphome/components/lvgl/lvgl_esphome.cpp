@@ -434,7 +434,6 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
 }
 
 void LvglComponent::setup() {
-  ESP_LOGCONFIG(TAG, "LVGL Setup starts");
   auto *display = this->displays_[0];
   auto width = display->get_width();
   auto height = display->get_height();
@@ -452,7 +451,8 @@ void LvglComponent::setup() {
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
     buffer_pixels /= MIN_BUFFER_FRAC;
-    buffer = lv_custom_mem_alloc(buf_bytes / MIN_BUFFER_FRAC);  // NOLINT
+    buf_bytes /= MIN_BUFFER_FRAC;
+    buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   }
   if (buffer == nullptr) {
     this->status_set_error("Memory allocation failure");
@@ -489,7 +489,6 @@ void LvglComponent::setup() {
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
   lv_disp_trig_activity(this->disp_);
-  ESP_LOGCONFIG(TAG, "LVGL Setup complete");
 }
 
 void LvglComponent::update() {

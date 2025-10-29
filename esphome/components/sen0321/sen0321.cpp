@@ -8,7 +8,6 @@ namespace sen0321_sensor {
 static const char *const TAG = "sen0321_sensor.sensor";
 
 void Sen0321Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->write_byte(SENSOR_MODE_REGISTER, SENSOR_MODE_AUTO)) {
     ESP_LOGW(TAG, "Error setting measurement mode.");
     this->mark_failed();

@@ -2,8 +2,9 @@ import logging
 
 from esphome.automation import build_automation, register_action, validate_automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_DRAW_ROUNDING
+from esphome.components.const import CONF_COLOR_DEPTH, CONF_DRAW_ROUNDING
 from esphome.components.display import Display
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_LOG_LEVEL,
     CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
@@ -185,8 +187,8 @@ def multi_conf_validate(configs: list[dict]):
     base_config = configs[0]
     for config in configs[1:]:
         for item in (
-            df.CONF_LOG_LEVEL,
-            df.CONF_COLOR_DEPTH,
+            CONF_LOG_LEVEL,
+            CONF_COLOR_DEPTH,
             df.CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
         ):
@@ -201,9 +203,8 @@ def final_validation(configs):
         multi_conf_validate(configs)
     global_config = full_config.get()
     for config in configs:
-        if pages := config.get(CONF_PAGES):
-            if all(p[df.CONF_SKIP] for p in pages):
-                raise cv.Invalid("At least one page must not be skipped")
+        if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
+            raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
             path = global_config.get_path_for_id(display_id)[:-1]
             display = global_config.get_config_for_path(path)
@@ -220,7 +221,7 @@ def final_validation(configs):
                     draw_rounding, config[CONF_DRAW_ROUNDING]
                 )
         buffer_frac = config[CONF_BUFFER_SIZE]
-        if CORE.is_esp32 and buffer_frac > 0.5 and "psram" not in global_config:
+        if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
         for image_id in lv_images_used:
             path = global_config.get_path_for_id(image_id)[:-1]
@@ -269,17 +270,17 @@ async def to_code(configs):
 
     add_define(
         "LV_LOG_LEVEL",
-        f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[df.CONF_LOG_LEVEL]]}",
+        f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[CONF_LOG_LEVEL]]}",
     )
     cg.add_define(
         "LVGL_LOG_LEVEL",
-        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[df.CONF_LOG_LEVEL]}"),
+        cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
-    add_define("LV_COLOR_DEPTH", config_0[df.CONF_COLOR_DEPTH])
+    add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
         add_define(f"LV_FONT_{font.upper()}")
 
-    if config_0[df.CONF_COLOR_DEPTH] == 16:
+    if config_0[CONF_COLOR_DEPTH] == 16:
         add_define(
             "LV_COLOR_16_SWAP",
             "1" if config_0[df.CONF_BYTE_ORDER] == "big_endian" else "0",
@@ -416,14 +417,14 @@ LVGL_SCHEMA = cv.All(
             {
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-                cv.Optional(df.CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+                cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
                 cv.Optional(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
-                cv.Optional(df.CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+                cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
                 cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(

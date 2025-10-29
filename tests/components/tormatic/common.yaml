@@ -1,12 +1,5 @@
-uart:
-  - id: uart_tormatic
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 cover:
   - platform: tormatic
-    uart_id: uart_tormatic
     id: tormatic_garage_door
     name: Tormatic Garage Door
     open_duration: 15s

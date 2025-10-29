@@ -38,8 +38,7 @@ async def test_duplicate_entities_on_different_devices(
         # Get entity list
         entities = await client.list_entities_services()
         all_entities: list[EntityInfo] = []
-        for entity_list in entities[0]:
-            all_entities.append(entity_list)
+        all_entities.extend(entities[0])
 
         # Group entities by type for easier testing
         sensors = [e for e in all_entities if e.__class__.__name__ == "SensorInfo"]

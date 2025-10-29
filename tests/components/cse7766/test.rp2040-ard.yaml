@@ -2,4 +2,7 @@ substitutions:
   tx_pin: GPIO4
   rx_pin: GPIO5
 
+packages:
+  uart_4800_even: !include ../../test_build_components/common/uart_4800_even/rp2040-ard.yaml
+
 <<: !include common.yaml

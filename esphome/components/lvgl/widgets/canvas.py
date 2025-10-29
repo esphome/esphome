@@ -24,7 +24,7 @@ from ..defines import (
     literal,
 )
 from ..lv_validation import (
-    lv_angle,
+    lv_angle_degrees,
     lv_bool,
     lv_color,
     lv_image,
@@ -395,15 +395,15 @@ ARC_PROPS = {
     DRAW_OPA_SCHEMA.extend(
         {
             cv.Required(CONF_RADIUS): pixels,
-            cv.Required(CONF_START_ANGLE): lv_angle,
-            cv.Required(CONF_END_ANGLE): lv_angle,
+            cv.Required(CONF_START_ANGLE): lv_angle_degrees,
+            cv.Required(CONF_END_ANGLE): lv_angle_degrees,
         }
     ).extend({cv.Optional(prop): validator for prop, validator in ARC_PROPS.items()}),
 )
 async def canvas_draw_arc(config, action_id, template_arg, args):
     radius = await size.process(config[CONF_RADIUS])
-    start_angle = await lv_angle.process(config[CONF_START_ANGLE])
-    end_angle = await lv_angle.process(config[CONF_END_ANGLE])
+    start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+    end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
 
     async def do_draw_arc(w: Widget, x, y, dsc_addr):
         lv.canvas_draw_arc(w.obj, x, y, radius, start_angle, end_angle, dsc_addr)
