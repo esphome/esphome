@@ -5,6 +5,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 """
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
@@ -12,6 +13,7 @@ from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.cpp_types import uint32
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import Expression, SafeExpType
 
 from .helpers import requires_component
 
@@ -42,7 +44,13 @@ def static_cast(type, value):
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[6:][:-1].strip()
+        return expr[6:-1].strip()
+    # If lambda has parameters, call it with those parameter names
+    # Parameter names come from hardcoded component code (like "x", "it", "event")
+    # not from user input, so they're safe to use directly
+    if lamb.parameters and lamb.parameters.parameters:
+        param_names = ", ".join(str(param.id) for param in lamb.parameters.parameters)
+        return f"{lamb}({param_names})"
     return f"{lamb}()"
 
 
@@ -65,10 +73,20 @@ class LValidator:
             return cv.returning_lambda(value)
         return self.validator(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
         if value is None:
             return None
         if isinstance(value, Lambda):
+            # Local import to avoid circular import
+            from .lvcode import CodeContext, LambdaContext
+
+            if TYPE_CHECKING:
+                # CodeContext does not have get_automation_parameters
+                # so we need to assert the type here
+                assert isinstance(CodeContext.code_context, LambdaContext)
+            args = args or CodeContext.code_context.get_automation_parameters()
             return cg.RawExpression(
                 call_lambda(
                     await cg.process_lambda(value, args, return_type=self.rtype)

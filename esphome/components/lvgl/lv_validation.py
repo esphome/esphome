@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any
+
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
@@ -17,6 +19,7 @@ from esphome.cpp_generator import MockObj
 from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import Expression, SafeExpType
 
 from . import types as ty
 from .defines import (
@@ -388,11 +391,23 @@ class TextValidator(LValidator):
             return value
         return super().__call__(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+
+        from .lvcode import CodeContext, LambdaContext
+
+        if TYPE_CHECKING:
+            # CodeContext does not have get_automation_parameters
+            # so we need to assert the type here
+            assert isinstance(CodeContext.code_context, LambdaContext)
+        args = args or CodeContext.code_context.get_automation_parameters()
+
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
-                args = [str(x) for x in value[CONF_ARGS]]
-                arg_expr = cg.RawExpression(",".join(args))
+                str_args = [str(x) for x in value[CONF_ARGS]]
+                arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
                 return literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
             if time_format := value.get(CONF_TIME_FORMAT):

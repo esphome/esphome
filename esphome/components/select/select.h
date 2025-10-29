@@ -56,6 +56,9 @@ class Select : public EntityBase {
   /// Return the (optional) option value at the provided index offset.
   optional<std::string> at(size_t index) const;
 
+  /// Return the option value at the provided index offset (as const char* from flash).
+  const char *option_at(size_t index) const;
+
   void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
 
  protected:
