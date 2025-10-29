@@ -69,7 +69,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
             cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
-                cv.frequency, cv.Range(min=0, min_included=False)
+                cv.only_with_framework(["arduino", "esp-idf"]),
+                cv.frequency,
+                cv.Range(min=0, min_included=False),
             ),
             cv.Optional(CONF_TIMEOUT): cv.All(
                 cv.only_with_framework(["arduino", "esp-idf"]),
@@ -111,14 +113,13 @@ async def to_code(config):
 }};
 """
         )
-
     else:
-        cg.add(var.set_sda_pin(config[CONF_SDA]))
-        cg.add(var.set_scl_pin(config[CONF_SCL]))
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
 
+    cg.add(var.set_sda_pin(config[CONF_SDA]))
     if CONF_SDA_PULLUP_ENABLED in config:
         cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+    cg.add(var.set_scl_pin(config[CONF_SCL]))
     if CONF_SCL_PULLUP_ENABLED in config:
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
     cg.add(var.set_scan(config[CONF_SCAN]))

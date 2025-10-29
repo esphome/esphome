@@ -29,8 +29,8 @@ void ZephyrI2CBus::setup() {
 
 void ZephyrI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
-  // ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
-  // ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
+  ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
+  ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   if (!this->i2c_dev_) {
     ESP_LOGCONFIG(TAG, "  Not initialized");
     return;

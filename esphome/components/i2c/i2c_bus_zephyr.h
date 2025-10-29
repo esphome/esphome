@@ -18,12 +18,16 @@ class ZephyrI2CBus : public InternalI2CBus, public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { scan_ = scan; }
+  void set_sda_pin(uint8_t sda_pin) { this->sda_pin_ = sda_pin; }
+  void set_scl_pin(uint8_t scl_pin) { this->scl_pin_ = scl_pin; }
 
   int get_port() const override { return 0; }
 
  protected:
   const struct device *i2c_dev_ = nullptr;
   int recovery_result_ = 0;
+  uint8_t sda_pin_{};
+  uint8_t scl_pin_{};
 };
 
 }  // namespace esphome::i2c
