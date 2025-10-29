@@ -1,0 +1,44 @@
+esphome:
+  name: action-concurrent-reentry-test
+host:
+
+api:
+
+globals:
+  - id: global_counter
+    type: int
+
+script:
+  - id: handler
+
+    mode: parallel
+
+    parameters:
+      arg: int
+
+    then:
+      - logger.log:
+          format: "BEFORE WAIT ARG %d"
+          args:
+            - arg
+
+      - wait_until:
+          condition:
+            lambda: return (id(global_counter) % 3) == 0;
+
+      - logger.log:
+          format: "AFTER WAIT ARG %d"
+          args:
+            - arg
+
+time:
+  - platform: host
+    timezone: Etc/UTC
+
+    on_time:
+      - seconds: '*'
+        then:
+          - lambda: id(handler)->execute(id(global_counter)++);
+
+logger:
+  level: DEBUG
