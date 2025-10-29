@@ -42,7 +42,7 @@ def static_cast(type, value):
 def call_lambda(lamb: LambdaExpression):
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[6:][:-1].strip()
+        return expr[6:-1].strip()
     # If lambda has parameters, call it with those parameter names
     # Parameter names come from hardcoded component code (like "x", "it", "event")
     # not from user input, so they're safe to use directly
