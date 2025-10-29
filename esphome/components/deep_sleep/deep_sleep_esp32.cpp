@@ -116,11 +116,35 @@ void DeepSleepComponent::deep_sleep_() {
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
     !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32H2)
     // Single pin wakeup (ext0) - ESP32, S2, S3 only
-    esp_sleep_enable_ext0_wakeup(gpio_num_t(pin->get_pin()), level);
+    const auto gpio_pin = gpio_num_t(pin->get_pin());
+    if (pin->get_flags() & gpio::FLAG_PULLUP) {
+      gpio_pullup_en(gpio_pin);
+      gpio_pulldown_dis(gpio_pin);
+    } else if (pin->get_flags() & gpio::FLAG_PULLDOWN) {
+      gpio_pullup_dis(gpio_pin);
+      gpio_pulldown_en(gpio_pin);
+    } else {
+      gpio_pullup_dis(gpio_pin);
+      gpio_pulldown_dis(gpio_pin);
+    }
+    esp_sleep_enable_ext0_wakeup(gpio_pin, level);
 #endif
 
 #if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6)
     // GPIO wakeup - C2, C3, C6 only
+    const auto gpio_pin = gpio_num_t(pin->get_pin());
+    if (pin->get_flags() & gpio::FLAG_PULLUP) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLUP_ONLY);
+    } else if (pin->get_flags() & gpio::FLAG_PULLDOWN) {
+      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLDOWN_ONLY);
+    }
+    gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
+    gpio_hold_en(gpio_pin);
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+    // Some ESP32 variants support holding a single GPIO during deep sleep without this function
+    // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
+    gpio_deep_sleep_hold_en();
+#endif
     pin_mask |= 1ULL << pin->get_pin();
     wakeup_mode = static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level);
 #endif

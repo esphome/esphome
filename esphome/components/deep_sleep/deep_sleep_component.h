@@ -123,12 +123,11 @@ class DeepSleepComponent : public Component {
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
   optional<Ext1Wakeup> ext1_wakeup_;
 #endif
-#endif
 
   optional<bool> touch_wakeup_;
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
   bool prepare_pin_(esphome::InternalGPIOPin *pin, WakeupPinMode pin_mode);
-#endif
+#endif // USE_ESP32
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
