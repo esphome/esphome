@@ -75,17 +75,11 @@ class LValidator:
         if value is None:
             return None
         if isinstance(value, Lambda):
-            # If args not provided, try to get them from the current LambdaContext
-            # This allows nested lambdas in automations to access outer automation parameters
-            # But not from LvContext (setup context) which has LVGL_COMP_ARG by default
-            if not args:
-                # Import here to avoid circular import at module level
-                from .lvcode import CodeContext, LambdaContext, LvContext
+            # Import here to avoid circular import at module level
+            from .lvcode import get_automation_parameters
 
-                if isinstance(
-                    CodeContext.code_context, LambdaContext
-                ) and not isinstance(CodeContext.code_context, LvContext):
-                    args = CodeContext.code_context.parameters
+            # Get automation parameters, filtering out setup context parameters
+            args = get_automation_parameters(args)
             return cg.RawExpression(
                 call_lambda(
                     await cg.process_lambda(value, args, return_type=self.rtype)
