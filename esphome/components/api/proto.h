@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/macros.h"
 #include "esphome/core/string_ref.h"
 
 #include <cassert>
@@ -12,13 +13,6 @@
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define HAS_PROTO_MESSAGE_DUMP
-#endif
-
-// Branch prediction hints for hot paths
-#if defined(__GNUC__) || defined(__clang__)
-#define ESPHOME_LIKELY(x) __builtin_expect(!!(x), 1)
-#else
-#define ESPHOME_LIKELY(x) (x)
 #endif
 
 namespace esphome::api {
