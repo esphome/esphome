@@ -226,5 +226,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "i2c_bus_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "i2c_bus_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
