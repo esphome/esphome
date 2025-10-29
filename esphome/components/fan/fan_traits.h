@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vector>
+#include "esphome/core/helpers.h"
+#include <initializer_list>
 
 namespace esphome {
 
@@ -35,31 +36,20 @@ class FanTraits {
   /// Set whether this fan supports changing direction
   void set_direction(bool direction) { this->direction_ = direction; }
   /// Return the preset modes supported by the fan.
-  const std::vector<std::string> &supported_preset_modes() const { return this->preset_modes_; }
-  /// Set the preset modes supported by the fan.
-  void set_supported_preset_modes(const std::vector<std::string> &preset_modes) { this->preset_modes_ = preset_modes; }
+  const FixedVector<const char *> &supported_preset_modes() const { return this->preset_modes_; }
   /// Set the preset modes supported by the fan (from initializer list).
-  void set_supported_preset_modes(std::initializer_list<std::string> preset_modes) {
-    this->preset_modes_ = preset_modes;
-  }
+  void set_supported_preset_modes(const std::initializer_list<const char *> &preset_modes);
+  /// Set the preset modes supported by the fan (from FixedVector).
+  void set_supported_preset_modes(const FixedVector<const char *> &preset_modes);
   /// Return if preset modes are supported
   bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
 
  protected:
-#ifdef USE_API
-  // The API connection is a friend class to access internal methods
-  friend class api::APIConnection;
-  // This method returns a reference to the internal preset modes.
-  // It is used by the API to avoid copying data when encoding messages.
-  // Warning: Do not use this method outside of the API connection code.
-  // It returns a reference to internal data that can be invalidated.
-  const std::vector<std::string> &supported_preset_modes_for_api_() const { return this->preset_modes_; }
-#endif
   bool oscillation_{false};
   bool speed_{false};
   bool direction_{false};
   int speed_count_{};
-  std::vector<std::string> preset_modes_{};
+  FixedVector<const char *> preset_modes_{};
 };
 
 }  // namespace fan

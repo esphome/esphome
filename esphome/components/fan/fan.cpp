@@ -53,7 +53,7 @@ void FanCall::validate_() {
     const auto &preset_modes = traits.supported_preset_modes();
     bool found = false;
     for (const auto &mode : preset_modes) {
-      if (mode == this->preset_mode_) {
+      if (strcmp(mode, this->preset_mode_.c_str()) == 0) {
         found = true;
         break;
       }
@@ -103,7 +103,7 @@ FanCall FanRestoreState::to_call(Fan &fan) {
     // Use stored preset index to get preset name
     const auto &preset_modes = fan.get_traits().supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      call.set_preset_mode(*std::next(preset_modes.begin(), this->preset_mode));
+      call.set_preset_mode(preset_modes[this->preset_mode]);
     }
   }
   return call;
@@ -118,7 +118,7 @@ void FanRestoreState::apply(Fan &fan) {
     // Use stored preset index to get preset name
     const auto &preset_modes = fan.get_traits().supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      fan.preset_mode = *std::next(preset_modes.begin(), this->preset_mode);
+      fan.preset_mode = preset_modes[this->preset_mode];
     }
   }
   fan.publish_state();
@@ -200,7 +200,7 @@ void Fan::save_state_() {
     // Store index of current preset mode
     size_t i = 0;
     for (const auto &mode : preset_modes) {
-      if (mode == this->preset_mode) {
+      if (strcmp(mode, this->preset_mode.c_str()) == 0) {
         state.preset_mode = i;
         break;
       }
@@ -228,8 +228,8 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (traits.supports_preset_modes()) {
     ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
-    for (const std::string &s : traits.supported_preset_modes())
-      ESP_LOGCONFIG(tag, "%s    - %s", prefix, s.c_str());
+    for (const char *s : traits.supported_preset_modes())
+      ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
   }
 }
 
