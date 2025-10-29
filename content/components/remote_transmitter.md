@@ -57,6 +57,8 @@ remote_transmitter:
 | ESP32-S3 | 192 symbols | 48 symbols |
 
 - **clock_resolution** (*Optional*, int): The clock resolution used by the RMT peripheral in Hz. Defaults to `1000000`.
+- **non_blocking** (*Optional*, boolean): If enabled, any transmit will return immediately and the RMT will run in the
+  background. The `on_complete` automation will trigger after the transmit completes. Defaults to `true`.
 - **use_dma** (*Optional*, boolean): Enable DMA on variants that support it. If enabled `rmt_symbols` controls
   the DMA buffer size and can be set to a large value.
 
