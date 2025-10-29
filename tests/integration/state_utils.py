@@ -44,6 +44,7 @@ class InitialStateHelper:
         helper = InitialStateHelper(entities)
         client.subscribe_states(helper.on_state_wrapper(user_callback))
         await helper.wait_for_initial_states()
+        # Access initial states via helper.initial_states[key]
     """
 
     def __init__(self, entities: list[EntityInfo]) -> None:
@@ -63,6 +64,8 @@ class InitialStateHelper:
         self._entities_by_id = {
             (entity.device_id, entity.key): entity for entity in entities
         }
+        # Store initial states by key for test access
+        self.initial_states: dict[int, EntityState] = {}
 
         # Log all entities
         _LOGGER.debug(
@@ -127,6 +130,9 @@ class InitialStateHelper:
 
             # If this entity is waiting for initial state
             if entity_id in self._wait_initial_states:
+                # Store the initial state for test access
+                self.initial_states[state.key] = state
+
                 # Remove from waiting set
                 self._wait_initial_states.discard(entity_id)
 
