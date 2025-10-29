@@ -54,6 +54,11 @@ APIError APIPlaintextFrameHelper::loop() {
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  */
 APIError APIPlaintextFrameHelper::try_read_frame_() {
+  // Clear buffer when starting a new frame (rx_buf_len_ == 0 means not resuming after WOULD_BLOCK)
+  if (this->rx_buf_len_ == 0) {
+    this->rx_buf_.clear();
+  }
+
   // read header
   while (!rx_header_parsed_) {
     // Now that we know when the socket is ready, we can read up to 3 bytes

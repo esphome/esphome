@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -159,22 +160,6 @@ class ProtoVarInt {
       }
     }
   }
-  void encode(std::vector<uint8_t> &out) {
-    uint64_t val = this->value_;
-    if (val <= 0x7F) {
-      out.push_back(val);
-      return;
-    }
-    while (val) {
-      uint8_t temp = val & 0x7F;
-      val >>= 7;
-      if (val) {
-        out.push_back(temp | 0x80);
-      } else {
-        out.push_back(temp);
-      }
-    }
-  }
 
  protected:
   uint64_t value_;
@@ -233,8 +218,86 @@ class ProtoWriteBuffer {
  public:
   ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer) {}
   void write(uint8_t value) { this->buffer_->push_back(value); }
-  void encode_varint_raw(ProtoVarInt value) { value.encode(*this->buffer_); }
-  void encode_varint_raw(uint32_t value) { this->encode_varint_raw(ProtoVarInt(value)); }
+
+  // Single implementation that all overloads delegate to
+  void encode_varint(uint64_t value) {
+    auto buffer = this->buffer_;
+    size_t start = buffer->size();
+
+    // Fast paths for common cases (1-3 bytes)
+    if (value < (1ULL << 7)) {
+      // 1 byte - very common for field IDs and small lengths
+      buffer->resize(start + 1);
+      buffer->data()[start] = static_cast<uint8_t>(value);
+      return;
+    }
+
+    uint8_t *p;
+    if (value < (1ULL << 14)) {
+      // 2 bytes - common for medium field IDs and lengths
+      buffer->resize(start + 2);
+      p = buffer->data() + start;
+      p[0] = (value & 0x7F) | 0x80;
+      p[1] = (value >> 7) & 0x7F;
+      return;
+    }
+    if (value < (1ULL << 21)) {
+      // 3 bytes - rare
+      buffer->resize(start + 3);
+      p = buffer->data() + start;
+      p[0] = (value & 0x7F) | 0x80;
+      p[1] = ((value >> 7) & 0x7F) | 0x80;
+      p[2] = (value >> 14) & 0x7F;
+      return;
+    }
+
+    // Rare case: 4-10 byte values - calculate size from bit position
+    // Value is guaranteed >= (1ULL << 21), so CLZ is safe (non-zero)
+    uint32_t size;
+#if defined(__GNUC__) || defined(__clang__)
+    // Use compiler intrinsic for efficient bit position lookup
+    size = (64 - __builtin_clzll(value) + 6) / 7;
+#else
+    // Fallback for compilers without __builtin_clzll
+    if (value < (1ULL << 28)) {
+      size = 4;
+    } else if (value < (1ULL << 35)) {
+      size = 5;
+    } else if (value < (1ULL << 42)) {
+      size = 6;
+    } else if (value < (1ULL << 49)) {
+      size = 7;
+    } else if (value < (1ULL << 56)) {
+      size = 8;
+    } else if (value < (1ULL << 63)) {
+      size = 9;
+    } else {
+      size = 10;
+    }
+#endif
+
+    buffer->resize(start + size);
+    p = buffer->data() + start;
+    size_t bytes = 0;
+    while (value) {
+      uint8_t temp = value & 0x7F;
+      value >>= 7;
+      p[bytes++] = value ? temp | 0x80 : temp;
+    }
+  }
+
+  // Common case: uint32_t values (field IDs, lengths, most integers)
+  void encode_varint(uint32_t value) { this->encode_varint(static_cast<uint64_t>(value)); }
+
+  // size_t overload (only enabled if size_t is distinct from uint32_t and uint64_t)
+  template<typename T>
+  void encode_varint(T value) requires(std::is_same_v<T, size_t> && !std::is_same_v<size_t, uint32_t> &&
+                                       !std::is_same_v<size_t, uint64_t>) {
+    this->encode_varint(static_cast<uint64_t>(value));
+  }
+
+  // Rare case: ProtoVarInt wrapper
+  void encode_varint(ProtoVarInt value) { this->encode_varint(value.as_uint64()); }
   /**
    * Encode a field key (tag/wire type combination).
    *
@@ -249,14 +312,14 @@ class ProtoWriteBuffer {
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) {
     uint32_t val = (field_id << 3) | (type & WIRE_TYPE_MASK);
-    this->encode_varint_raw(val);
+    this->encode_varint(val);
   }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
 
     this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
-    this->encode_varint_raw(len);
+    this->encode_varint(len);
 
     // Using resize + memcpy instead of insert provides significant performance improvement:
     // ~10-11x faster for 16-32 byte strings, ~3x faster for 64-byte strings
@@ -278,13 +341,13 @@ class ProtoWriteBuffer {
     if (value == 0 && !force)
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - uint32
-    this->encode_varint_raw(value);
+    this->encode_varint(value);
   }
   void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
     if (value == 0 && !force)
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - uint64
-    this->encode_varint_raw(ProtoVarInt(value));
+    this->encode_varint(value);
   }
   void encode_bool(uint32_t field_id, bool value, bool force = false) {
     if (!value && !force)

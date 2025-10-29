@@ -142,6 +142,11 @@ APIError APINoiseFrameHelper::loop() {
  * errno API_ERROR_HANDSHAKE_PACKET_LEN: Packet too big for this phase.
  */
 APIError APINoiseFrameHelper::try_read_frame_() {
+  // Clear buffer when starting a new frame (rx_buf_len_ == 0 means not resuming after WOULD_BLOCK)
+  if (this->rx_buf_len_ == 0) {
+    this->rx_buf_.clear();
+  }
+
   // read header
   if (rx_header_buf_len_ < 3) {
     // no header information yet
