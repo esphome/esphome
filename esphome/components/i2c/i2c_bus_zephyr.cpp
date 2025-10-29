@@ -59,9 +59,6 @@ void ZephyrI2CBus::dump_config() {
     ESP_LOGCONFIG(TAG, "  Frequency: %s", get_speed(dev_config));
   }
 
-  // if (timeout_ > 0) {
-  //   ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
-  // }
   if (this->recovery_result_ != 0) {
     ESP_LOGCONFIG(TAG, "  Recovery: failed, err %d", this->recovery_result_);
   } else {
