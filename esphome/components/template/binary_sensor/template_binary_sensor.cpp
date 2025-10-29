@@ -7,9 +7,11 @@ namespace template_ {
 static const char *const TAG = "template.binary_sensor";
 
 void TemplateBinarySensor::setup() {
-  if (!this->f_.has_value())
+  if (!this->f_.has_value()) {
     this->disable_loop();
-  this->loop();
+  } else {
+    this->loop();
+  }
 }
 
 void TemplateBinarySensor::loop() {
