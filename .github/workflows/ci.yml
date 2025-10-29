@@ -537,12 +537,12 @@ jobs:
         if: always()
 
   test-build-components-split:
-    name: Test components batch (${{ join(matrix.components, ' ') }})
+    name: Test components batch (${{ matrix.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.component-test-batches != '[]'
+    if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -555,7 +555,7 @@ jobs:
           df -h
 
       - name: List components
-        run: echo ${{ join(matrix.components, ' ') }}
+        run: echo ${{ matrix.components }}
 
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
