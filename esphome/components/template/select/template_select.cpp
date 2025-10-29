@@ -28,6 +28,9 @@ void TemplateSelect::setup() {
 }
 
 void TemplateSelect::update() {
+  if (!this->f_.has_value())
+    return;
+
   auto val = this->f_();
   if (val.has_value()) {
     if (!this->has_option(*val)) {

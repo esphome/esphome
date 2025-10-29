@@ -37,6 +37,9 @@ void TemplateDate::setup() {
 }
 
 void TemplateDate::update() {
+  if (!this->f_.has_value())
+    return;
+
   auto val = this->f_();
   if (val.has_value()) {
     this->year_ = val->year;

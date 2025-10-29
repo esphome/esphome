@@ -7,6 +7,9 @@ namespace template_ {
 static const char *const TAG = "template.text_sensor";
 
 void TemplateTextSensor::update() {
+  if (!this->f_.has_value())
+    return;
+
   auto val = this->f_();
   if (val.has_value()) {
     this->publish_state(*val);

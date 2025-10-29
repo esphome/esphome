@@ -37,6 +37,9 @@ void TemplateTime::setup() {
 }
 
 void TemplateTime::update() {
+  if (!this->f_.has_value())
+    return;
+
   auto val = this->f_();
   if (val.has_value()) {
     this->hour_ = val->hour;
