@@ -125,6 +125,7 @@ async def to_code(config):
     cg.add(var.set_scl_pin(config[CONF_SCL]))
     if CONF_SCL_PULLUP_ENABLED in config:
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
     if CONF_TIMEOUT in config:
