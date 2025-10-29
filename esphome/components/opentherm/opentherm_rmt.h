@@ -53,6 +53,7 @@ class OpenTherm : public OpenThermBase {
   void rmt_read_();
   void rmt_write_();
   static bool rmt_read_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *evt, void *arg);
+  static bool rmt_write_callback(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *evt, void *arg);
 
   void set_protocol_error_(ProtocolErrorType error_type);
 
