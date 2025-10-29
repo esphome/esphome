@@ -281,7 +281,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
 
   if (this->non_blocking_) {
-    set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
+    this->set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
   } else {
     this->wait_for_rmt_();
   }
