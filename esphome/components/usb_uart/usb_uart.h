@@ -111,11 +111,10 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   CdcEps cdc_dev_{};
   // Enum (likely 4 bytes)
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
-  // Group atomics together
+  // Group atomics together (each 1 byte)
   std::atomic<bool> input_started_{true};
   std::atomic<bool> output_started_{true};
   std::atomic<bool> initialised_{false};
-  std::atomic<uint8_t> input_retry_count_{0};
   // Group regular bytes together to minimize padding
   const uint8_t index_;
   bool debug_{};
@@ -141,11 +140,6 @@ class USBUartComponent : public usb_host::USBClient {
   EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE> chunk_pool_;
 
  protected:
-  void defer_input_retry_(USBUartChannel *channel);
-  void reset_input_state_(USBUartChannel *channel);
-  void restart_input_(USBUartChannel *channel);
-  void do_start_input_(USBUartChannel *channel);
-  void input_transfer_callback_(USBUartChannel *channel, const usb_host::TransferStatus &status);
   std::vector<USBUartChannel *> channels_{};
 };
 
