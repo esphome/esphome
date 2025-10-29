@@ -145,6 +145,10 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
         # fall back to returning the raw string. This is consistent with
         #  Home Assistant's behavior when evaluating templates
         result = literal_eval(raw)
+        if isinstance(result, set):
+            # Sets are not supported, return raw string
+            return raw
+
         if not isinstance(result, str):
             return result
 
