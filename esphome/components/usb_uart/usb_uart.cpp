@@ -292,8 +292,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   this->transfer_out(ep->bEndpointAddress, callback, data, len);
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX,
-      std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
+    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
   }
 #endif
   ESP_LOGV(TAG, "Output %d bytes started", len);

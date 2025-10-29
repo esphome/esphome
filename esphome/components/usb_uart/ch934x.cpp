@@ -982,9 +982,7 @@ void USBUartTypeCH934X::send_next_channel_data_(USBUartChannel *channel) {
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
       // Defer debug logging to main loop
-      this->defer([channel, debug_data] {
-        uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, debug_data, ',');
-      });
+      this->defer([channel, debug_data] { uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, debug_data, ','); });
     }
 #endif
 
