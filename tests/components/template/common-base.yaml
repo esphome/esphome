@@ -10,24 +10,10 @@ esphome:
         state: !lambda "return 42.0;"
 
     # Test C++ API: set_template() with stateless lambda (no captures)
+    # IMPORTANT: set_template() is an internal API. Only stateless lambdas are supported.
     - lambda: |-
         id(template_sens).set_template([]() -> esphome::optional<float> {
           return 123.0f;
-        });
-
-    # Test C++ API: set_template() with stateful lambda (with captures)
-    # This is the regression test for issue #11555
-    - lambda: |-
-        float captured_value = 456.0f;
-        id(template_sens).set_template([captured_value]() -> esphome::optional<float> {
-          return captured_value;
-        });
-
-    # Test C++ API: set_template() with more complex capture
-    - lambda: |-
-        auto sensor_id = id(template_sens);
-        id(template_number).set_template([sensor_id]() -> esphome::optional<float> {
-          return sensor_id->state * 2.0f;
         });
 
     - datetime.date.set:

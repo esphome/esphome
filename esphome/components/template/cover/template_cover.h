@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/template_lambda.h"
+#include "../template_lambda.h"
 #include "esphome/components/cover/cover.h"
 
 namespace esphome {
