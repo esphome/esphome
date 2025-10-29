@@ -28,7 +28,7 @@ class SpeedFan : public Component, public fan::Fan {
   output::BinaryOutput *direction_{nullptr};
   int speed_count_{};
   fan::FanTraits traits_;
-  FixedVector<const char *> preset_modes_{};
+  std::vector<const char *> preset_modes_{};
 };
 
 }  // namespace speed

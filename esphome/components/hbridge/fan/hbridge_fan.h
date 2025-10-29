@@ -36,7 +36,7 @@ class HBridgeFan : public Component, public fan::Fan {
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
   fan::FanTraits traits_;
-  FixedVector<const char *> preset_modes_{};
+  std::vector<const char *> preset_modes_{};
 
   void control(const fan::FanCall &call) override;
   void write_state_();

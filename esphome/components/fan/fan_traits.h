@@ -1,15 +1,9 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
+#include <vector>
 #include <initializer_list>
 
 namespace esphome {
-
-#ifdef USE_API
-namespace api {
-class APIConnection;
-}  // namespace api
-#endif
 
 namespace fan {
 
@@ -36,11 +30,13 @@ class FanTraits {
   /// Set whether this fan supports changing direction
   void set_direction(bool direction) { this->direction_ = direction; }
   /// Return the preset modes supported by the fan.
-  const FixedVector<const char *> &supported_preset_modes() const { return this->preset_modes_; }
+  const std::vector<const char *> &supported_preset_modes() const { return this->preset_modes_; }
   /// Set the preset modes supported by the fan (from initializer list).
-  void set_supported_preset_modes(const std::initializer_list<const char *> &preset_modes);
-  /// Set the preset modes supported by the fan (from FixedVector).
-  void set_supported_preset_modes(const FixedVector<const char *> &preset_modes);
+  void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
+    this->preset_modes_ = preset_modes;
+  }
+  /// Set the preset modes supported by the fan (from vector).
+  void set_supported_preset_modes(const std::vector<const char *> &preset_modes) { this->preset_modes_ = preset_modes; }
   /// Return if preset modes are supported
   bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
 
@@ -49,7 +45,7 @@ class FanTraits {
   bool speed_{false};
   bool direction_{false};
   int speed_count_{};
-  FixedVector<const char *> preset_modes_{};
+  std::vector<const char *> preset_modes_{};
 };
 
 }  // namespace fan

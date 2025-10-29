@@ -24,7 +24,7 @@ class TemplateFan : public Component, public fan::Fan {
   bool has_direction_{false};
   int speed_count_{0};
   fan::FanTraits traits_;
-  FixedVector<const char *> preset_modes_{};
+  std::vector<const char *> preset_modes_{};
 };
 
 }  // namespace template_
