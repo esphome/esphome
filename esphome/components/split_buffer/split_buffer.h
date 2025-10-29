@@ -4,7 +4,13 @@
 #include <cstdlib>
 
 namespace esphome::split_buffer {
-
+/**
+ * A SplitBuffer allocates a large memory buffer potentially as multiple smaller buffers
+ * to facilitate allocation of large buffers on devices with fragmented memory spaces.
+ * Each sub-buffer is the same size.
+ * Standard array indexing using `[]` is possible on the buffer, but since the buffer may not be contiguous in memory so
+ * there is no easy way to access the buffer as a single array, i.e. no `.data()` access like a vector.
+ */
 class SplitBuffer {
  public:
   SplitBuffer() = default;
