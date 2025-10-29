@@ -71,7 +71,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
                 cv.frequency, cv.Range(min=0, min_included=False)
             ),
-            cv.Optional(CONF_TIMEOUT): cv.positive_time_period,
+            cv.Optional(CONF_TIMEOUT): cv.All(
+                cv.only_with_framework(["arduino", "esp-idf"]),
+                cv.positive_time_period,
+            ),
             cv.Optional(CONF_SCAN, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -111,15 +114,16 @@ async def to_code(config):
 
     else:
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
 
-        cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
-        if CONF_TIMEOUT in config:
-            cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
+    cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
+
+    if CONF_TIMEOUT in config:
+        cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
+    if CONF_SDA_PULLUP_ENABLED in config:
+        cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+    if CONF_SCL_PULLUP_ENABLED in config:
+        cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
     cg.add(var.set_scan(config[CONF_SCAN]))
     if CORE.using_arduino:
         cg.add_library("Wire", None)
