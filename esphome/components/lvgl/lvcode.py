@@ -164,7 +164,7 @@ class LambdaContext(CodeContext):
             code_text.append(text)
         return code_text
 
-    def get_automation_parameters(self):
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
         return self.parameters
 
     async def __aenter__(self):
@@ -191,7 +191,7 @@ class LvContext(LambdaContext):
         cg.add(expression)
         return expression
 
-    def get_automation_parameters(self):
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
         # When generating automations, we don't want the `lv_component` parameter to be passed
         # to the lambda.
         return []
