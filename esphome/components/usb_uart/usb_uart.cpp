@@ -324,9 +324,58 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   //
   // The underlying transfer_in() uses lock-free atomic allocation from the
   // TransferRequest pool, making this multi-threaded access safe
+<<<<<<< HEAD
 
   // Do the actual work (input_started_ already set to true by CAS above)
   this->do_start_input_(channel);
+=======
+
+  // if already started, don't restart. A spurious failure in compare_exchange_weak
+  // is not a problem, as it will be retried on the next read_array()
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_weak(started, true))
+    return;
+  const auto *ep = channel->cdc_dev_.in_ep;
+  // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
+  auto callback = [this, channel](const usb_host::TransferStatus &status) {
+    ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
+    if (!status.success) {
+      ESP_LOGE(TAG, "Input transfer failed, status=%s", esp_err_to_name(status.error_code));
+      // On failure, don't restart - let next read_array() trigger it
+      channel->input_started_.store(false);
+      return;
+    }
+
+    if (!channel->dummy_receiver_ && status.data_len > 0) {
+      // Allocate a chunk from the pool
+      UsbDataChunk *chunk = this->chunk_pool_.allocate();
+      if (chunk == nullptr) {
+        // No chunks available - queue is full or we're out of memory
+        this->usb_data_queue_.increment_dropped_count();
+        // Mark input as not started so we can retry
+        channel->input_started_.store(false);
+        return;
+      }
+
+      // Copy data to chunk (this is fast, happens in USB task)
+      memcpy(chunk->data, status.data, status.data_len);
+      chunk->length = status.data_len;
+      chunk->channel = channel;
+
+      // Push to lock-free queue for main loop processing
+      // Push always succeeds because pool size == queue size
+      this->usb_data_queue_.push(chunk);
+    }
+
+    // On success, restart input immediately from USB task for performance
+    // The lock-free queue will handle backpressure
+    channel->input_started_.store(false);
+    this->start_input(channel);
+  };
+  if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+    channel->input_started_.store(false);
+  }
+>>>>>>> clydebarrow/usb-uart
 }
 
 void USBUartComponent::start_output(USBUartChannel *channel) {
@@ -419,11 +468,12 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
-    channel->initialised_.store(false);
-    channel->input_started_.store(false);
-    channel->output_started_.store(false);
+    // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
+    channel->input_started_.store(true);
+    channel->output_started_.store(true);
     channel->input_buffer_.clear();
     channel->output_buffer_.clear();
+    channel->initialised_.store(false);
   }
   USBClient::on_disconnected();
 }
