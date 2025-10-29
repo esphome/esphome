@@ -45,3 +45,19 @@ class EpaperModel:
             width = self.get_default(CONF_WIDTH)
             height = self.get_default(CONF_HEIGHT)
         return width, height
+
+    def extend(self, name, **kwargs) -> "EpaperModel":
+        """
+        Extend the current model with additional parameters or a modified init sequence.
+        Parameters supplied here will override the defaults of the current model.
+        if the initsequence is not provided, the current model's initsequence will be used.
+        If add_init_sequence is provided, it will be appended to the current initsequence.
+        :param name:
+        :param kwargs:
+        :return:
+        """
+        initsequence = list(kwargs.pop("initsequence", self.initsequence) or ())
+        initsequence.extend(kwargs.pop("add_init_sequence", ()))
+        defaults = self.defaults.copy()
+        defaults.update(kwargs)
+        return self.__class__(name, initsequence=tuple(initsequence), **defaults)

@@ -28,6 +28,8 @@ from . import models
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
+CONF_INIT_SEQUENCE_ID = "init_sequence_id"
+
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
@@ -73,6 +75,7 @@ def model_schema(config):
             {
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
                 cv.GenerateID(): cv.declare_id(class_name),
+                cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
                 cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
                 model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
                     pins.gpio_output_pin_schema
@@ -119,10 +122,15 @@ async def to_code(config):
     if init_sequence is None:
         init_sequence = model.get_init_sequence(config)
     init_sequence = flatten_sequence(init_sequence)
-    init_sequence = cg.ArrayInitializer(*init_sequence)
+    init_sequence_length = len(init_sequence)
+    init_sequence_id = cg.static_const_array(
+        config[CONF_INIT_SEQUENCE_ID], init_sequence
+    )
     width = config[CONF_DIMENSIONS][CONF_WIDTH]
     height = config[CONF_DIMENSIONS][CONF_HEIGHT]
-    var = cg.new_Pvariable(config[CONF_ID], width, height, init_sequence)
+    var = cg.new_Pvariable(
+        config[CONF_ID], width, height, init_sequence_id, init_sequence_length
+    )
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)

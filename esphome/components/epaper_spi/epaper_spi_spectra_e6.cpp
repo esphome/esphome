@@ -6,9 +6,9 @@
 
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.6c";
-static constexpr const size_t MAX_TRANSFER_SIZE = 128;
+static constexpr size_t MAX_TRANSFER_SIZE = 128;
 
-static inline uint8_t color_to_hex(Color color) {
+static uint8_t color_to_hex(Color color) {
   if (color.red > 127) {
     if (color.green > 170) {
       if (color.blue > 127) {
@@ -62,14 +62,6 @@ void EPaperSpectraE6::deep_sleep() {
   this->data(0xA5);
 }
 
-void EPaperSpectraE6::dump_config() {
-  LOG_DISPLAY("", "E-Paper SPI", this);
-  ESP_LOGCONFIG(TAG, "  Model: 7.3in Spectra E6");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  LOG_UPDATE_INTERVAL(this);
-}
 void EPaperSpectraE6::fill(Color color) {
   uint8_t pixel_color;
   if (color.is_on()) {
@@ -90,7 +82,7 @@ void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color
   uint32_t pixel_position = x + y * this->get_width_controller();
   uint32_t byte_position = pixel_position / 2;
   auto original = this->buffer_[byte_position];
-  if ((pixel_position & 1) == 0) {
+  if ((pixel_position & 1) != 0) {
     this->buffer_[byte_position] = (original & 0xF0) | pixel_bits;
   } else {
     this->buffer_[byte_position] = (original & 0x0F) | (pixel_bits << 4);

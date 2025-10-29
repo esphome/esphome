@@ -29,14 +29,20 @@ class EPaperBase : public DisplayBuffer,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                          spi::DATA_RATE_2MHZ> {
  public:
-  EPaperBase(uint16_t width, uint16_t height, std::vector<uint8_t> init_sequence,
-             DisplayType display_type = DISPLAY_TYPE_BINARY)
-      : width_(width), height_(height), init_sequence_(std::move(init_sequence)), display_type_(display_type) {}
+  EPaperBase(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
+             size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
+      : name_(name),
+        width_(width),
+        height_(height),
+        init_sequence_(init_sequence),
+        init_sequence_length_(init_sequence_length),
+        display_type_(display_type) {}
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
+  void dump_config() override;
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -79,9 +85,11 @@ class EPaperBase : public DisplayBuffer,
   void end_data_();
 
   // properties initialised in the constructor
+  const char *name_;
   uint16_t width_;
   uint16_t height_;
-  std::vector<uint8_t> init_sequence_;
+  const uint8_t *init_sequence_;
+  size_t init_sequence_length_;
   DisplayType display_type_;
 
   size_t buffer_length_{};

@@ -84,7 +84,7 @@ bool EPaperBase::is_idle_() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
-  return this->busy_pin_->digital_read();
+  return !this->busy_pin_->digital_read();
 }
 
 void EPaperBase::reset() {
@@ -183,8 +183,8 @@ void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 void EPaperBase::initialise_() {
   size_t index = 0;
 
-  auto *sequence = this->init_sequence_.data();
-  auto length = this->init_sequence_.size();
+  auto *sequence = this->init_sequence_;
+  auto length = this->init_sequence_length_;
   while (index != length) {
     if (length - index < 2) {
       this->mark_failed("Malformed init sequence");
@@ -192,7 +192,7 @@ void EPaperBase::initialise_() {
     }
     const uint8_t cmd = sequence[index++];
     if (const uint8_t x = sequence[index++]; x == DELAY_FLAG) {
-      ESP_LOGD(TAG, "Delay %dms", cmd);
+      ESP_LOGV(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
       const uint8_t num_args = x & 0x7F;
@@ -201,13 +201,21 @@ void EPaperBase::initialise_() {
         this->mark_failed();
         return;
       }
-      const auto *ptr = sequence + index;
-      ESP_LOGD(TAG, "Command %02X, length %d", cmd, num_args);
-      this->cmd_data(cmd, ptr, num_args);
+      ESP_LOGV(TAG, "Command %02X, length %d", cmd, num_args);
+      this->cmd_data(cmd, sequence + index, num_args);
       index += num_args;
     }
   }
   this->power_on();
+}
+
+void EPaperBase::dump_config() {
+  LOG_DISPLAY("", "E-Paper SPI", this);
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->name_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 }  // namespace esphome::epaper_spi

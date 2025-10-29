@@ -6,8 +6,8 @@ from . import EpaperModel
 
 
 class SpectraE6(EpaperModel):
-    def __init__(self, name, class_name):
-        super().__init__(name, class_name)
+    def __init__(self, name, class_name="EPaperSpectraE6", **kwargs):
+        super().__init__(name, class_name, **kwargs)
 
     # fmt: off
     def get_init_sequence(self, config: dict):
@@ -33,4 +33,15 @@ class SpectraE6(EpaperModel):
         return self.defaults.get(key, fallback)
 
 
-SpectraE6("spectra-e6", "EPaperSpectraE6")
+spectra_e6 = SpectraE6("spectra-e6")
+
+spectra_e6.extend(
+    "Seeed-reTerminal-E1002",
+    width=800,
+    height=480,
+    data_rate="20MHz",
+    cs_pin=10,
+    dc_pin=11,
+    reset_pin=12,
+    busy_pin=13,
+)
