@@ -62,16 +62,20 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
       this->voltage_sensor_->publish_state(220.0f);
   }
   if (this->current_sensor_ != nullptr) {
-    if (current < 150)
+    if (current < 150) {
       this->current_sensor_->publish_state(current);
-    else
+    }
+    else {
       this->current_sensor_->publish_state(1.0f);
+    }
   }
   if (this->power_sensor_ != nullptr) {
-    if (active_power < 16000)
+    if (active_power < 16000) {
       this->power_sensor_->publish_state(active_power);
-    else
+    }
+    else {
       this->power_sensor_->publish_state(101.0f);
+    }
   }
   //  if (this->energy_sensor_ != nullptr)
   //    this->energy_sensor_->publish_state(active_energy);
@@ -89,10 +93,12 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
       }
     }
   }
-  if (this->frequency_sensor_ != nullptr)
+  if (this->frequency_sensor_ != nullptr) {
     this->frequency_sensor_->publish_state(frequency);
-  if (this->power_factor_sensor_ != nullptr)
+  }
+  if (this->power_factor_sensor_ != nullptr) {
     this->power_factor_sensor_->publish_state(power_factor);
+  }
 }
 
 void PZEMAC::update() {
@@ -101,19 +107,25 @@ void PZEMAC::update() {
   if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
       (millis() - last_update_time_) > this->get_update_interval() * 2) {
     ESP_LOGE(TAG, "PZEM AC Addr 0x%02X: Timeout!!!", int(this->address_));
-    if (this->voltage_sensor_ != nullptr)
+    if (this->voltage_sensor_ != nullptr) {
       this->voltage_sensor_->publish_state(0.0f);
-    if (this->current_sensor_ != nullptr)
+    }
+    if (this->current_sensor_ != nullptr) {
       this->current_sensor_->publish_state(0.0f);
-    if (this->power_sensor_ != nullptr)
+    }
+    if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
-    if (this->energy_sensor_ != nullptr)  //
-                                          //      this->energy_sensor_->publish_state(0.0f);   //
+    }
+    if (this->energy_sensor_ != nullptr) {
+//      this->energy_sensor_->publish_state(0.0f);   //
       this->energy_sensor_->publish_state(last_energy_sensor[this->address_ - 1]);
-    if (this->frequency_sensor_ != nullptr)
+    }
+    if (this->frequency_sensor_ != nullptr) {
       this->frequency_sensor_->publish_state(0.0f);
-    if (this->power_factor_sensor_ != nullptr)
+    }
+    if (this->power_factor_sensor_ != nullptr) {
       this->power_factor_sensor_->publish_state(0.0f);
+    }
   }
 }
 
