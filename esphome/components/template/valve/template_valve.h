@@ -17,7 +17,7 @@ class TemplateValve : public valve::Valve, public Component {
  public:
   TemplateValve();
 
-  void set_state_lambda(std::function<optional<float>()> &&f);
+  void set_state_lambda(optional<float> (*f)());
   Trigger<> *get_open_trigger() const;
   Trigger<> *get_close_trigger() const;
   Trigger<> *get_stop_trigger() const;
@@ -42,7 +42,7 @@ class TemplateValve : public valve::Valve, public Component {
   void stop_prev_trigger_();
 
   TemplateValveRestoreMode restore_mode_{VALVE_NO_RESTORE};
-  optional<std::function<optional<float>()>> state_f_;
+  optional<optional<float> (*)()> state_f_;
   bool assumed_state_{false};
   bool optimistic_{false};
   Trigger<> *open_trigger_;

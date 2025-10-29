@@ -48,7 +48,6 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_level(sensor::Sensor *level) { this->level_ = level; };
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };

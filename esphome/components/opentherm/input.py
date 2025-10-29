@@ -2,7 +2,8 @@ from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from . import schema, generate
+
+from . import generate, schema
 
 CONF_min_value = "min_value"
 CONF_max_value = "max_value"

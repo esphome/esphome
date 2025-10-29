@@ -1,0 +1,311 @@
+esphome:
+  name: test-ha-api
+  friendly_name: Home Assistant API Test
+
+host:
+
+api:
+  services:
+    - service: trigger_all_tests
+      then:
+        - logger.log: "=== Starting Home Assistant API Tests ==="
+        - button.press: test_basic_service
+        - button.press: test_templated_service
+        - button.press: test_empty_string_service
+        - button.press: test_multiple_fields_service
+        - button.press: test_complex_lambda_service
+        - button.press: test_all_empty_service
+        - button.press: test_rapid_service_calls
+        - button.press: test_read_ha_states
+        - number.set:
+            id: ha_number
+            value: 42.5
+        - switch.turn_on: ha_switch
+        - switch.turn_off: ha_switch
+        - logger.log: "=== All tests completed ==="
+
+logger:
+  level: DEBUG
+
+# Time component for templated values
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+# Global variables for testing
+globals:
+  - id: test_brightness
+    type: int
+    initial_value: '75'
+  - id: test_string
+    type: std::string
+    initial_value: '"test_value"'
+
+# Sensors for testing state reading
+sensor:
+  - platform: template
+    name: "Test Sensor"
+    id: test_sensor
+    lambda: return 42.0;
+    update_interval: 0.1s
+
+  # Home Assistant sensor that reads external state
+  - platform: homeassistant
+    name: "HA Temperature"
+    entity_id: sensor.external_temperature
+    id: ha_temperature
+    on_value:
+      then:
+        - logger.log:
+            format: "HA Temperature state updated: %.1f"
+            args: ['x']
+
+  # Test multiple HA state sensors
+  - platform: homeassistant
+    name: "HA Humidity"
+    entity_id: sensor.external_humidity
+    id: ha_humidity
+    on_value:
+      then:
+        - logger.log:
+            format: "HA Humidity state updated: %.1f"
+            args: ['x']
+
+# Binary sensor from Home Assistant
+binary_sensor:
+  - platform: homeassistant
+    name: "HA Motion"
+    entity_id: binary_sensor.external_motion
+    id: ha_motion
+    on_state:
+      then:
+        - logger.log:
+            format: "HA Motion state changed: %s"
+            args: ['x ? "ON" : "OFF"']
+
+# Text sensor from Home Assistant
+text_sensor:
+  - platform: homeassistant
+    name: "HA Weather"
+    entity_id: weather.home
+    attribute: condition
+    id: ha_weather
+    on_value:
+      then:
+        - logger.log:
+            format: "HA Weather condition updated: %s"
+            args: ['x.c_str()']
+
+  # Test empty state handling
+  - platform: homeassistant
+    name: "HA Empty State"
+    entity_id: sensor.nonexistent_sensor
+    id: ha_empty_state
+    on_value:
+      then:
+        - logger.log:
+            format: "HA Empty state updated: %s"
+            args: ['x.c_str()']
+
+# Number component for testing HA number control
+number:
+  - platform: template
+    name: "HA Controlled Number"
+    id: ha_number
+    min_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+    set_action:
+      - logger.log:
+          format: "Setting HA number to: %.1f"
+          args: ['x']
+      - homeassistant.action:
+          action: input_number.set_value
+          data:
+            entity_id: input_number.test_number
+            value: !lambda 'return to_string(x);'
+
+# Switch component for testing HA switch control
+switch:
+  - platform: template
+    name: "HA Controlled Switch"
+    id: ha_switch
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Toggling HA switch: switch.test_switch ON"
+      - homeassistant.action:
+          action: switch.turn_on
+          data:
+            entity_id: switch.test_switch
+    turn_off_action:
+      - logger.log: "Toggling HA switch: switch.test_switch OFF"
+      - homeassistant.action:
+          action: switch.turn_off
+          data:
+            entity_id: switch.test_switch
+
+# Buttons for testing various service call scenarios
+button:
+  # Test 1: Basic service call with static values
+  - platform: template
+    name: "Test Basic Service"
+    id: test_basic_service
+    on_press:
+      - logger.log: "Sending HomeAssistant service call: light.turn_off"
+      - homeassistant.action:
+          action: light.turn_off
+          data:
+            entity_id: light.test_light
+      - logger.log: "Service data: entity_id=light.test_light"
+
+  # Test 2: Service call with templated/lambda values (main bug fix test)
+  - platform: template
+    name: "Test Templated Service"
+    id: test_templated_service
+    on_press:
+      - logger.log: "Testing templated service call"
+      - lambda: |-
+          int brightness_percent = id(test_brightness);
+          std::string computed = to_string(brightness_percent * 255 / 100);
+          ESP_LOGI("test", "Lambda computed value: %s", computed.c_str());
+      - homeassistant.action:
+          action: light.turn_on
+          data:
+            entity_id: light.test_light
+            # This creates a temporary string - the main test case
+            brightness: !lambda 'return to_string(id(test_brightness) * 255 / 100);'
+          data_template:
+            color_name: !lambda 'return id(test_string);'
+          variables:
+            transition: !lambda 'return "2.5";'
+
+  # Test 3: Service call with empty string values
+  - platform: template
+    name: "Test Empty String Service"
+    id: test_empty_string_service
+    on_press:
+      - logger.log: "Testing empty string values"
+      - homeassistant.action:
+          action: notify.test
+          data:
+            message: "Test message"
+            title: ""
+          data_template:
+            target: !lambda 'return "";'
+          variables:
+            sound: !lambda 'return "";'
+
+      - logger.log: "Empty value for key: title"
+      - logger.log: "Empty value for key: target"
+      - logger.log: "Empty value for key: sound"
+
+  # Test 4: Service call with multiple data fields
+  - platform: template
+    name: "Test Multiple Fields Service"
+    id: test_multiple_fields_service
+    on_press:
+      - logger.log: "Testing multiple data fields"
+      - homeassistant.action:
+          action: climate.set_temperature
+          data:
+            entity_id: climate.test_climate
+            temperature: "22"
+            hvac_mode: "heat"
+          data_template:
+            target_temp_high: !lambda 'return "24";'
+            target_temp_low: !lambda 'return "20";'
+          variables:
+            preset_mode: !lambda 'return "comfort";'
+
+  # Test 5: Complex lambda with string operations
+  - platform: template
+    name: "Test Complex Lambda Service"
+    id: test_complex_lambda_service
+    on_press:
+      - logger.log: "Testing complex lambda expressions"
+      - homeassistant.action:
+          action: script.test_script
+          data:
+            entity_id: !lambda |-
+              std::string base = "light.";
+              std::string room = "living_room";
+              return base + room;
+            brightness_pct: !lambda |-
+              float sensor_val = id(test_sensor).state;
+              int pct = (int)(sensor_val * 2.38);  // 42 * 2.38 ≈ 100
+              return to_string(pct);
+          data_template:
+            message: !lambda |-
+              char buffer[50];
+              snprintf(buffer, sizeof(buffer), "Sensor: %.1f, Time: %02d:%02d",
+                       id(test_sensor).state,
+                       id(homeassistant_time).now().hour,
+                       id(homeassistant_time).now().minute);
+              return std::string(buffer);
+
+  # Test 6: Service with only empty strings to verify size calculation
+  - platform: template
+    name: "Test All Empty Service"
+    id: test_all_empty_service
+    on_press:
+      - logger.log: "Testing all empty string values"
+      - homeassistant.action:
+          action: test.empty
+          data:
+            field1: ""
+            field2: ""
+          data_template:
+            field3: !lambda 'return "";'
+          variables:
+            field4: !lambda 'return "";'
+      - logger.log: "All empty service call completed"
+
+  # Test 7: Rapid successive service calls
+  - platform: template
+    name: "Test Rapid Service Calls"
+    id: test_rapid_service_calls
+    on_press:
+      - logger.log: "Testing rapid service calls"
+      - repeat:
+          count: 5
+          then:
+            - homeassistant.action:
+                action: counter.increment
+                data:
+                  entity_id: counter.test_counter
+            - delay: 10ms
+      - logger.log: "Rapid service calls completed"
+
+  # Test 8: Log current HA states
+  - platform: template
+    name: "Test Read HA States"
+    id: test_read_ha_states
+    on_press:
+      - logger.log: "Reading current HA states"
+      - lambda: |-
+          if (id(ha_temperature).has_state()) {
+            ESP_LOGI("test", "Current HA Temperature: %.1f", id(ha_temperature).state);
+          } else {
+            ESP_LOGI("test", "HA Temperature has no state");
+          }
+
+          if (id(ha_humidity).has_state()) {
+            ESP_LOGI("test", "Current HA Humidity: %.1f", id(ha_humidity).state);
+          } else {
+            ESP_LOGI("test", "HA Humidity has no state");
+          }
+
+          ESP_LOGI("test", "Current HA Motion: %s", id(ha_motion).state ? "ON" : "OFF");
+
+          if (id(ha_weather).has_state()) {
+            ESP_LOGI("test", "Current HA Weather: %s", id(ha_weather).state.c_str());
+          } else {
+            ESP_LOGI("test", "HA Weather has no state");
+          }
+
+          if (id(ha_empty_state).has_state()) {
+            ESP_LOGI("test", "HA Empty State value: %s", id(ha_empty_state).state.c_str());
+          } else {
+            ESP_LOGI("test", "HA Empty State has no value (expected)");
+          }

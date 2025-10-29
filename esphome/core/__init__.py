@@ -1,13 +1,17 @@
+from collections import defaultdict
+from contextlib import contextmanager
 import logging
 import math
 import os
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
@@ -19,12 +23,15 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
 
 # pylint: disable=unused-import
 from esphome.coroutine import (  # noqa: F401
+    CoroPriority,
     FakeAwaitable as _FakeAwaitable,
     FakeEventLoop as _FakeEventLoop,
     coroutine,
@@ -34,8 +41,10 @@ from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
+    from esphome.address_cache import AddressCache
+
     from ..cpp_generator import MockObj, MockObjClass, Statement
-    from ..types import ConfigType
+    from ..types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,16 +61,6 @@ class HexInt(int):
         if 0 <= value <= 255:
             return f"{sign}0x{value:02X}"
         return f"{sign}0x{value:X}"
-
-
-class IPAddress:
-    def __init__(self, *args):
-        if len(args) != 4:
-            raise ValueError("IPAddress must consist of 4 items")
-        self.args = args
-
-    def __str__(self):
-        return ".".join(str(x) for x in self.args)
 
 
 class MACAddress:
@@ -270,7 +269,7 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
-LAMBDA_PROG = re.compile(r"id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
+LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
@@ -336,7 +335,7 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: Optional[MockObjClass] = type
+        self.type: MockObjClass | None = type
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -386,7 +385,7 @@ class DocumentLocation:
 
     @classmethod
     def from_mark(cls, mark):
-        return cls(mark.name, mark.line, mark.column)
+        return cls(str(mark.name), mark.line, mark.column)
 
     def __str__(self):
         return f"{self.document} {self.line}:{self.column}"
@@ -477,6 +476,52 @@ class Library:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def reconcile_with(self, other):
+        """Merge two libraries, reconciling any conflicts."""
+
+        if self.name != other.name:
+            # Different libraries, no reconciliation possible
+            raise ValueError(
+                f"Cannot reconcile libraries with different names: {self.name} and {other.name}"
+            )
+
+        # repository specificity takes precedence over version specificity
+        if self.repository is None and other.repository is None:
+            pass  # No repositories, no conflict, continue on
+
+        elif self.repository is None:
+            # incoming library has a repository, use it
+            self.repository = other.repository
+            self.version = other.version
+            return self
+
+        elif other.repository is None:
+            return self  # use the repository/version already present
+
+        elif self.repository != other.repository:
+            raise ValueError(
+                f"Reconciliation failed! Libraries {self} and {other} requested with conflicting repositories!"
+            )
+
+        if self.version is None and other.version is None:
+            return self  # Arduino library reconciled against another Arduino library, current is acceptable
+
+        if self.version is None:
+            # incoming library has a version, use it
+            self.version = other.version
+            return self
+
+        if other.version is None:
+            return self  # incoming library has no version, current is acceptable
+
+            # Same versions, current library is acceptable
+        if self.version != other.version:
+            raise ValueError(
+                f"Version pinning failed! Libraries {other} and {self} "
+                "requested with conflicting versions!"
+            )
+        return self
+
 
 # pylint: disable=too-many-public-methods
 class EsphomeCore:
@@ -485,22 +530,23 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
-        self.ace = False
+        # True if running in testing mode (disables validation checks for grouped testing)
+        self.testing_mode = False
         # The name of the node
-        self.name: Optional[str] = None
+        self.name: str | None = None
         # The friendly name of the node
-        self.friendly_name: Optional[str] = None
+        self.friendly_name: str | None = None
         # The area / zone of the node
-        self.area: Optional[str] = None
+        self.area: str | None = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
         # The relative path to the configuration YAML
-        self.config_path: Optional[str] = None
+        self.config_path: Path | None = None
         # The relative path to where all build files are stored
-        self.build_path: Optional[str] = None
+        self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional[ConfigType] = None
+        self.config: ConfigType | None = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -513,22 +559,38 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
-        # A set of platformio libraries to add to the project
-        self.libraries: list[Library] = []
+        # A map of platformio libraries to add to the project (shortname: (name, version, repository))
+        self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A set of build unflags to set in the platformio project
+        self.build_unflags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
-        self.platformio_options: dict[str, Union[str, list[str]]] = {}
+        self.platformio_options: dict[str, str | list[str]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
+        # A set of strings for platform/integration combos
+        self.loaded_platforms: set[str] = set()
         # A set of component IDs to track what Component subclasses are declared
         self.component_ids = set()
+        # Dict to track platform entity counts for pre-allocation
+        # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
+        self.platform_counts: defaultdict[str, int] = defaultdict(int)
+        # Track entity unique IDs to handle duplicates
+        # Dict mapping (device_id, platform, sanitized_name) -> entity metadata
+        self.unique_ids: dict[tuple[str, str, str], EntityMetadata] = {}
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # A list of all known ID classes
+        self.id_classes = {}
+        # The current component being processed during validation
+        self.current_component: str | None = None
+        # Address cache for DNS and mDNS lookups from command line arguments
+        self.address_cache: AddressCache | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -546,29 +608,45 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
-        self.libraries = []
+        self.platformio_libraries = {}
         self.build_flags = set()
+        self.build_unflags = set()
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
+        self.platform_counts = defaultdict(int)
+        self.unique_ids = {}
+        self.current_component = None
+        self.address_cache = None
         PIN_SCHEMA_REGISTRY.reset()
 
+    @contextmanager
+    def component_context(self, component: str):
+        """Context manager to set the current component being processed."""
+        old_component = self.current_component
+        self.current_component = component
+        try:
+            yield
+        finally:
+            self.current_component = old_component
+
     @property
-    def address(self) -> Optional[str]:
+    def address(self) -> str | None:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if CONF_WIFI in self.config:
-            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
+        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+            if network_type in self.config:
+                return self.config[network_type][CONF_USE_ADDRESS]
 
-        if CONF_ETHERNET in self.config:
-            return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
 
         return None
 
     @property
-    def web_port(self) -> Optional[int]:
+    def web_port(self) -> int | None:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
@@ -581,7 +659,7 @@ class EsphomeCore:
         return None
 
     @property
-    def comment(self) -> Optional[str]:
+    def comment(self) -> str | None:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
@@ -591,43 +669,46 @@ class EsphomeCore:
         return None
 
     @property
-    def config_dir(self):
-        return os.path.dirname(self.config_path)
+    def config_dir(self) -> Path:
+        if self.config_path.is_dir():
+            return self.config_path.absolute()
+        return self.config_path.absolute().parent
 
     @property
-    def data_dir(self):
+    def data_dir(self) -> Path:
         if is_ha_addon():
-            return os.path.join("/data")
+            return Path("/data")
         if "ESPHOME_DATA_DIR" in os.environ:
-            return get_str_env("ESPHOME_DATA_DIR", None)
+            return Path(get_str_env("ESPHOME_DATA_DIR", None))
         return self.relative_config_path(".esphome")
 
     @property
-    def config_filename(self):
-        return os.path.basename(self.config_path)
+    def config_filename(self) -> str:
+        return self.config_path.name
 
-    def relative_config_path(self, *path):
-        path_ = os.path.expanduser(os.path.join(*path))
-        return os.path.join(self.config_dir, path_)
+    def relative_config_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.config_dir / path_
 
-    def relative_internal_path(self, *path: str) -> str:
-        return os.path.join(self.data_dir, *path)
+    def relative_internal_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.data_dir / path_
 
-    def relative_build_path(self, *path):
-        path_ = os.path.expanduser(os.path.join(*path))
-        return os.path.join(self.build_path, path_)
+    def relative_build_path(self, *path: str | Path) -> Path:
+        path_ = Path(*path).expanduser()
+        return self.build_path / path_
 
-    def relative_src_path(self, *path):
+    def relative_src_path(self, *path: str | Path) -> Path:
         return self.relative_build_path("src", *path)
 
-    def relative_pioenvs_path(self, *path):
+    def relative_pioenvs_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".pioenvs", *path)
 
-    def relative_piolibdeps_path(self, *path):
+    def relative_piolibdeps_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
-    def firmware_bin(self):
+    def firmware_bin(self) -> Path:
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
@@ -657,8 +738,16 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_RTL87XX
 
     @property
+    def is_ln882x(self):
+        return self.target_platform == PLATFORM_LN882X
+
+    @property
     def is_libretiny(self):
-        return self.is_bk72xx or self.is_rtl87xx
+        return self.is_bk72xx or self.is_rtl87xx or self.is_ln882x
+
+    @property
+    def is_nrf52(self):
+        return self.target_platform == PLATFORM_NRF52
 
     @property
     def is_host(self):
@@ -676,16 +765,21 @@ class EsphomeCore:
     def using_esp_idf(self):
         return self.target_framework == "esp-idf"
 
-    def add_job(self, func, *args, **kwargs):
+    @property
+    def using_zephyr(self):
+        return self.target_framework == "zephyr"
+
+    def add_job(self, func, *args, **kwargs) -> None:
         self.event_loop.add_job(func, *args, **kwargs)
 
-    def flush_tasks(self):
+    def flush_tasks(self) -> None:
         try:
             self.event_loop.flush_tasks()
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression):
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -695,11 +789,14 @@ class EsphomeCore:
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
 
-        self.main_statements.append(expression)
+        if prepend:
+            self.main_statements.insert(0, expression)
+        else:
+            self.main_statements.append(expression)
         _LOGGER.debug("Adding: %s", expression)
         return expression
 
-    def add_global(self, expression):
+    def add_global(self, expression, prepend=False) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -708,63 +805,42 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
-        self.global_statements.append(expression)
+        if prepend:
+            self.global_statements.insert(0, expression)
+        else:
+            self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
         return expression
 
-    def add_library(self, library):
+    def add_library(self, library: Library):
         if not isinstance(library, Library):
-            raise ValueError(
+            raise TypeError(
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
-        for other in self.libraries[:]:
-            if other.name is None or library.name is None:
-                continue
-            library_name = (
-                library.name if "/" not in library.name else library.name.split("/")[1]
-            )
-            other_name = (
-                other.name if "/" not in other.name else other.name.split("/")[1]
-            )
-            if other_name != library_name:
-                continue
-            if other.repository is not None:
-                if library.repository is None or other.repository == library.repository:
-                    # Other is using a/the same repository, takes precedence
-                    break
-                raise ValueError(
-                    f"Adding named Library with repository failed! Libraries {library} and {other} "
-                    "requested with conflicting repositories!"
-                )
 
-            if library.repository is not None:
-                # This is more specific since its using a repository
-                self.libraries.remove(other)
-                continue
+        if not library.name:
+            raise ValueError(f"The library for {library.repository} must have a name")
 
-            if library.version is None:
-                # Other requirement is more specific
-                break
-            if other.version is None:
-                # Found more specific version requirement
-                self.libraries.remove(other)
-                continue
-            if other.version == library.version:
-                break
+        short_name = (
+            library.name if "/" not in library.name else library.name.split("/")[-1]
+        )
 
-            raise ValueError(
-                f"Version pinning failed! Libraries {library} and {other} "
-                "requested with conflicting versions!"
-            )
-        else:
+        if short_name not in self.platformio_libraries:
             _LOGGER.debug("Adding library: %s", library)
-            self.libraries.append(library)
-        return library
+            self.platformio_libraries[short_name] = library
+            return library
 
-    def add_build_flag(self, build_flag):
+        self.platformio_libraries[short_name].reconcile_with(library)
+        return self.platformio_libraries[short_name]
+
+    def add_build_flag(self, build_flag: str) -> str:
         self.build_flags.add(build_flag)
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
+
+    def add_build_unflag(self, build_unflag: str) -> None:
+        self.build_unflags.add(build_unflag)
+        _LOGGER.debug("Adding build unflag: %s", build_unflag)
 
     def add_define(self, define):
         if isinstance(define, str):
@@ -779,7 +855,7 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
+    def add_platformio_option(self, key: str, value: str | list[str]) -> None:
         new_val = value
         old_val = self.platformio_options.get(key)
         if isinstance(old_val, list):
@@ -825,6 +901,14 @@ class EsphomeCore:
 
     def has_id(self, id):
         return id in self.variables
+
+    def register_platform_component(self, platform_name: str, var) -> None:
+        """Register a component for a platform and track its count.
+
+        :param platform_name: The name of the platform (e.g., 'sensor', 'binary_sensor')
+        :param var: The variable (component) being registered (currently unused but kept for future use)
+        """
+        self.platform_counts[platform_name] += 1
 
     @property
     def cpp_main_section(self):

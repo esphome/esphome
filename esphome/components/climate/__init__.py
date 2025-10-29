@@ -11,9 +11,11 @@ from esphome.const import (
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
+    CONF_ENTITY_CATEGORY,
     CONF_FAN_MODE,
     CONF_FAN_MODE_COMMAND_TOPIC,
     CONF_FAN_MODE_STATE_TOPIC,
+    CONF_ICON,
     CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -45,8 +47,9 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.cpp_generator import MockObjClass
 
 IS_PLATFORM_COMPONENT = True
 
@@ -115,7 +118,7 @@ CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
 visual_temperature = cv.float_with_unit(
-    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
+    "visual_temperature", "(°C|° C|°|C|°K|° K|K|°F|° F|F)?"
 )
 
 
@@ -128,7 +131,6 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
 
 
 def visual_temperature_step(value):
-
     # Allow defining target/current temperature steps separately
     if isinstance(value, dict):
         return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
@@ -152,12 +154,11 @@ ControlTrigger = climate_ns.class_(
     "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
 )
 
-CLIMATE_SCHEMA = (
+_CLIMATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Climate),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
@@ -246,8 +247,31 @@ CLIMATE_SCHEMA = (
 )
 
 
+_CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
+
+
+def climate_schema(
+    class_: MockObjClass,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _CLIMATE_SCHEMA.extend(schema)
+
+
 async def setup_climate_core_(var, config):
-    await setup_entity(var, config)
+    await setup_entity(var, config, "climate")
 
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
@@ -417,7 +441,14 @@ async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_climate(var))
+    CORE.register_platform_component("climate", var)
     await setup_climate_core_(var, config)
+
+
+async def new_climate(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_climate(var, config)
+    return var
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -481,7 +512,6 @@ async def climate_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_CLIMATE")
     cg.add_global(climate_ns.using)

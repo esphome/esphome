@@ -7,42 +7,38 @@ namespace binary_sensor {
 
 static const char *const TAG = "binary_sensor";
 
-void BinarySensor::add_on_state_callback(std::function<void(bool)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
+// Function implementation of LOG_BINARY_SENSOR macro to reduce code size
+void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
+  if (obj == nullptr) {
+    return;
+  }
 
-void BinarySensor::publish_state(bool state) {
-  if (!this->publish_dedup_.next(state))
-    return;
-  if (this->filter_list_ == nullptr) {
-    this->send_state_internal(state, false);
-  } else {
-    this->filter_list_->input(state, false);
-  }
-}
-void BinarySensor::publish_initial_state(bool state) {
-  if (!this->publish_dedup_.next(state))
-    return;
-  if (this->filter_list_ == nullptr) {
-    this->send_state_internal(state, true);
-  } else {
-    this->filter_list_->input(state, true);
-  }
-}
-void BinarySensor::send_state_internal(bool state, bool is_initial) {
-  if (is_initial) {
-    ESP_LOGD(TAG, "'%s': Sending initial state %s", this->get_name().c_str(), ONOFF(state));
-  } else {
-    ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), ONOFF(state));
-  }
-  this->has_state_ = true;
-  this->state = state;
-  if (!is_initial || this->publish_initial_state_) {
-    this->state_callback_.call(state);
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+
+  if (!obj->get_device_class_ref().empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
   }
 }
 
-BinarySensor::BinarySensor() : state(false) {}
+void BinarySensor::publish_state(bool new_state) {
+  if (this->filter_list_ == nullptr) {
+    this->send_state_internal(new_state);
+  } else {
+    this->filter_list_->input(new_state);
+  }
+}
+void BinarySensor::publish_initial_state(bool new_state) {
+  this->invalidate_state();
+  this->publish_state(new_state);
+}
+void BinarySensor::send_state_internal(bool new_state) {
+  // copy the new state to the visible property for backwards compatibility, before any callbacks
+  this->state = new_state;
+  // Note that set_state_ de-dups and will only trigger callbacks if the state has actually changed
+  if (this->set_state_(new_state)) {
+    ESP_LOGD(TAG, "'%s': New state is %s", this->get_name().c_str(), ONOFF(new_state));
+  }
+}
 
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;
@@ -55,12 +51,11 @@ void BinarySensor::add_filter(Filter *filter) {
     last_filter->next_ = filter;
   }
 }
-void BinarySensor::add_filters(const std::vector<Filter *> &filters) {
+void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
-bool BinarySensor::has_state() const { return this->has_state_; }
 bool BinarySensor::is_status_binary_sensor() const { return false; }
 
 }  // namespace binary_sensor

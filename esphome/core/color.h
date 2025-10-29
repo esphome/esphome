@@ -1,11 +1,27 @@
 #pragma once
 
+#include "defines.h"
 #include "component.h"
 #include "helpers.h"
 
+#ifdef USE_LVGL
+#include "esphome/components/lvgl/lvgl_proxy.h"
+#endif  // USE_LVGL
+
 namespace esphome {
 
-inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
+inline static constexpr uint8_t esp_scale8(uint8_t i, uint8_t scale) {
+  return (uint16_t(i) * (1 + uint16_t(scale))) / 256;
+}
+
+/// Scale an 8-bit value by two 8-bit scale factors with improved precision.
+/// This is more accurate than calling esp_scale8() twice because it delays
+/// truncation until after both multiplications, preserving intermediate precision.
+/// For example: esp_scale8_twice(value, max_brightness, local_brightness)
+/// gives better results than esp_scale8(esp_scale8(value, max_brightness), local_brightness)
+inline static constexpr uint8_t esp_scale8_twice(uint8_t i, uint8_t scale1, uint8_t scale2) {
+  return (uint32_t(i) * (1 + uint32_t(scale1)) * (1 + uint32_t(scale2))) >> 16;
+}
 
 struct Color {
   union {
@@ -31,17 +47,25 @@ struct Color {
     uint32_t raw_32;
   };
 
-  inline Color() ESPHOME_ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline Color(uint8_t red, uint8_t green, uint8_t blue) ESPHOME_ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
+#ifdef USE_LVGL
+  // convenience function for Color to get a lv_color_t representation
+  operator lv_color_t() const { return lv_color_make(this->r, this->g, this->b); }
+#endif
 
-  inline Color(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ESPHOME_ALWAYS_INLINE : r(red),
-                                                                                                g(green),
-                                                                                                b(blue),
-                                                                                                w(white) {}
-  inline explicit Color(uint32_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                                    g((colorcode >> 8) & 0xFF),
-                                                                    b((colorcode >> 0) & 0xFF),
-                                                                    w((colorcode >> 24) & 0xFF) {}
+  inline constexpr Color() ESPHOME_ALWAYS_INLINE : raw_32(0) {}  // NOLINT
+  inline constexpr Color(uint8_t red, uint8_t green, uint8_t blue) ESPHOME_ALWAYS_INLINE : r(red),
+                                                                                           g(green),
+                                                                                           b(blue),
+                                                                                           w(0) {}
+
+  inline constexpr Color(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ESPHOME_ALWAYS_INLINE : r(red),
+                                                                                                          g(green),
+                                                                                                          b(blue),
+                                                                                                          w(white) {}
+  inline explicit constexpr Color(uint32_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
+                                                                              g((colorcode >> 8) & 0xFF),
+                                                                              b((colorcode >> 0) & 0xFF),
+                                                                              w((colorcode >> 24) & 0xFF) {}
 
   inline bool is_on() ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
 
@@ -168,10 +192,5 @@ struct Color {
   static const Color BLACK;
   static const Color WHITE;
 };
-
-ESPDEPRECATED("Use Color::BLACK instead of COLOR_BLACK", "v1.21")
-extern const Color COLOR_BLACK;
-ESPDEPRECATED("Use Color::WHITE instead of COLOR_WHITE", "v1.21")
-extern const Color COLOR_WHITE;
 
 }  // namespace esphome

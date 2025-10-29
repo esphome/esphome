@@ -1,14 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_CS_PIN,
+    CONF_ID,
     CONF_INC_PIN,
-    CONF_UD_PIN,
     CONF_INITIAL_VALUE,
     CONF_STEP_DELAY,
+    CONF_UD_PIN,
 )
 
 CODEOWNERS = ["@EtienneMD"]

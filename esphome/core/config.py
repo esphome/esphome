@@ -1,26 +1,31 @@
-import logging
-import multiprocessing
-import os
-import re
+from __future__ import annotations
 
-from esphome import automation
+import logging
+import os
+from pathlib import Path
+
+from esphome import automation, core
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ARDUINO_VERSION,
     CONF_AREA,
-    CONF_BOARD,
-    CONF_BOARD_FLASH_MODE,
+    CONF_AREA_ID,
+    CONF_AREAS,
     CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
+    CONF_DEBUG_SCHEDULER,
+    CONF_DEVICES,
     CONF_ESPHOME,
-    CONF_FRAMEWORK,
     CONF_FRIENDLY_NAME,
+    CONF_ID,
     CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
@@ -29,21 +34,23 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
-    CONF_SOURCE,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
     CONF_VERSION,
     KEY_CORE,
-    PLATFORM_ESP8266,
-    TARGET_PLATFORMS,
+    PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.helpers import copy_file_if_changed, get_str_env, walk_files
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.helpers import (
+    copy_file_if_changed,
+    fnv1a_32bit_hash,
+    get_str_env,
+    walk_files,
+)
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
 StartupTrigger = cg.esphome_ns.class_(
     "StartupTrigger", cg.Component, automation.Trigger.template()
 )
@@ -56,11 +63,8 @@ LoopTrigger = cg.esphome_ns.class_(
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
-
-VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
-
-CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
-
+Device = cg.esphome_ns.class_("Device")
+Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
@@ -83,18 +87,71 @@ def validate_hostname(config):
     return config
 
 
-def valid_include(value):
+def validate_ids_and_references(config: ConfigType) -> ConfigType:
+    """Validate that there are no hash collisions between IDs and that area_id references are valid.
+
+    This validation is critical because we use 32-bit hashes for performance on microcontrollers.
+    By detecting collisions at compile time, we prevent any runtime issues while maintaining
+    optimal performance on 32-bit platforms. In practice, with typical deployments having only
+    a handful of areas and devices, hash collisions are virtually impossible.
+    """
+
+    # Helper to check hash collisions
+    def check_hash_collision(
+        id_obj: core.ID,
+        hash_dict: dict[int, str],
+        item_type: str,
+        path: list[str | int],
+    ) -> None:
+        hash_val: int = fnv1a_32bit_hash(id_obj.id)
+        if hash_val in hash_dict and hash_dict[hash_val] != id_obj.id:
+            raise cv.Invalid(
+                f"{item_type} ID '{id_obj.id}' with hash {hash_val} collides with "
+                f"existing {item_type.lower()} ID '{hash_dict[hash_val]}'",
+                path=path,
+            )
+        hash_dict[hash_val] = id_obj.id
+
+    # Collect all areas
+    all_areas: list[dict[str, str | core.ID]] = []
+    if CONF_AREA in config:
+        all_areas.append(config[CONF_AREA])
+    all_areas.extend(config[CONF_AREAS])
+
+    # Validate area hash collisions and collect IDs
+    area_hashes: dict[int, str] = {}
+    area_ids: set[str] = set()
+    for area in all_areas:
+        area_id: core.ID = area[CONF_ID]
+        check_hash_collision(area_id, area_hashes, "Area", [CONF_AREAS, area_id.id])
+        area_ids.add(area_id.id)
+
+    # Validate device hash collisions and area references
+    device_hashes: dict[int, str] = {}
+    for device in config[CONF_DEVICES]:
+        device_id: core.ID = device[CONF_ID]
+        check_hash_collision(
+            device_id, device_hashes, "Device", [CONF_DEVICES, device_id.id]
+        )
+
+    return config
+
+
+def valid_include(value: str) -> str:
+    # Look for "<...>" includes
+    if value.startswith("<") and value.endswith(">"):
+        return value
     try:
-        return cv.directory(value)
+        return str(cv.directory(value))
     except cv.Invalid:
         pass
-    value = cv.file_(value)
-    _, ext = os.path.splitext(value)
+    path = cv.file_(value)
+    ext = path.suffix
     if ext not in VALID_INCLUDE_EXTS:
         raise cv.Invalid(
             f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
-    return value
+    return str(path)
 
 
 def valid_project_name(value: str):
@@ -103,22 +160,49 @@ def valid_project_name(value: str):
     return value
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs that can be used for processes.
+    On Python 3.13+ this is the number of CPUs that can be used for processes.
+    On older Python versions this is the number of CPUs.
+    """
+    return (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+
+
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
-        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
-        multiprocessing.cpu_count(),
+        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]), get_usable_cpu_count()
     )
 else:
     _compile_process_limit_default = cv.UNDEFINED
 
+AREA_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(Area),
+        cv.Required(CONF_NAME): cv.string,
+    }
+)
 
-CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
+DEVICE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(Device),
+        cv.Required(CONF_NAME): cv.string,
+        cv.Optional(CONF_AREA_ID): cv.use_id(Area),
+    }
+)
+
+
+def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
+    return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
-            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
-            cv.Optional(CONF_AREA, ""): cv.string,
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
+            cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
@@ -144,8 +228,10 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
+            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -166,24 +252,25 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
-            ): cv.int_range(min=1, max=multiprocessing.cpu_count()),
+            ): cv.int_range(min=1, max=get_usable_cpu_count()),
+            cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
+            cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
         }
     ),
     validate_hostname,
 )
 
+
+FINAL_VALIDATE_SCHEMA = cv.All(validate_ids_and_references)
+
+
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.valid_name,
         cv.Optional(CONF_BUILD_PATH): cv.string,
-        # Compat options, these were moved to target-platform specific sections
-        # but we'll keep these around for a long time because every config would
-        # be impacted
-        cv.Optional(CONF_PLATFORM): cv.one_of(*TARGET_PLATFORMS, lower=True),
-        cv.Optional(CONF_BOARD): cv.string_strict,
-        cv.Optional(CONF_ESP8266_RESTORE_FROM_FLASH): cv.valid,
-        cv.Optional(CONF_BOARD_FLASH_MODE): cv.valid,
-        cv.Optional(CONF_ARDUINO_VERSION): cv.valid,
+        cv.Optional(CONF_PLATFORM): cv.invalid(
+            "Please remove the `platform` key from the [esphome] block and use the correct platform component. This style of configuration has now been removed."
+        ),
         cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
             cv.version_number, cv.validate_esphome_version
         ),
@@ -192,7 +279,43 @@ PRELOAD_CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def preload_core_config(config, result):
+def _is_target_platform(name):
+    from esphome.loader import get_component
+
+    try:
+        return get_component(name, True).is_target_platform
+    except KeyError:
+        pass
+    except ImportError:
+        pass
+    return False
+
+
+def _list_target_platforms():
+    target_platforms = []
+    root = Path(__file__).parents[1]
+    for path in (root / "components").iterdir():
+        if not path.is_dir():
+            continue
+        if not (path / "__init__.py").is_file():
+            continue
+        if _is_target_platform(path.name):
+            target_platforms += [path.name]
+    return target_platforms
+
+
+def _sort_includes_by_type(includes: list[str]) -> tuple[list[str], list[str]]:
+    system_includes = []
+    other_includes = []
+    for include in includes:
+        if include.startswith("<") and include.endswith(">"):
+            system_includes.append(include)
+        else:
+            other_includes.append(include)
+    return system_includes, other_includes
+
+
+def preload_core_config(config, result) -> str:
     with cv.prepend_path(CONF_ESPHOME):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
 
@@ -201,78 +324,50 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        build_path = get_str_env("ESPHOME_BUILD_PATH", "build")
-        conf[CONF_BUILD_PATH] = os.path.join(build_path, CORE.name)
-    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
+        build_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
+        conf[CONF_BUILD_PATH] = str(build_path / CORE.name)
+    CORE.build_path = CORE.data_dir / conf[CONF_BUILD_PATH]
 
-    has_oldstyle = CONF_PLATFORM in conf
-    newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
-    oldstyle_opts = [
-        CONF_ESP8266_RESTORE_FROM_FLASH,
-        CONF_BOARD_FLASH_MODE,
-        CONF_ARDUINO_VERSION,
-        CONF_BOARD,
-    ]
+    target_platforms = []
 
-    if not has_oldstyle and not newstyle_found:
+    for domain in config:
+        if domain.startswith("."):
+            continue
+        if _is_target_platform(domain):
+            target_platforms += [domain]
+
+    if not target_platforms:
         raise cv.Invalid(
             "Platform missing. You must include one of the available platform keys: "
-            + ", ".join(TARGET_PLATFORMS),
+            + ", ".join(_list_target_platforms()),
             [CONF_ESPHOME],
         )
-    if has_oldstyle and newstyle_found:
+    if len(target_platforms) > 1:
         raise cv.Invalid(
-            f"Please remove the `platform` key from the [esphome] block. You're already using the new style with the [{conf[CONF_PLATFORM]}] block",
-            [CONF_ESPHOME, CONF_PLATFORM],
+            f"Found multiple target platform blocks: {', '.join(target_platforms)}. Only one is allowed.",
+            [target_platforms[0]],
         )
-    if len(newstyle_found) > 1:
-        raise cv.Invalid(
-            f"Found multiple target platform blocks: {', '.join(newstyle_found)}. Only one is allowed.",
-            [newstyle_found[0]],
-        )
-    if newstyle_found:
-        # Convert to newstyle
-        for key in oldstyle_opts:
-            if key in conf:
-                raise cv.Invalid(
-                    f"Please move {key} to the [{newstyle_found[0]}] block.",
-                    [CONF_ESPHOME, key],
-                )
 
-    if has_oldstyle:
-        plat = conf.pop(CONF_PLATFORM)
-        plat_conf = {}
-        if CONF_ESP8266_RESTORE_FROM_FLASH in conf:
-            plat_conf["restore_from_flash"] = conf.pop(CONF_ESP8266_RESTORE_FROM_FLASH)
-        if CONF_BOARD_FLASH_MODE in conf:
-            plat_conf[CONF_BOARD_FLASH_MODE] = conf.pop(CONF_BOARD_FLASH_MODE)
-        if CONF_ARDUINO_VERSION in conf:
-            plat_conf[CONF_FRAMEWORK] = {}
-            if plat != PLATFORM_ESP8266:
-                plat_conf[CONF_FRAMEWORK][CONF_TYPE] = "arduino"
-
-            try:
-                if conf[CONF_ARDUINO_VERSION] not in ("recommended", "latest", "dev"):
-                    cv.Version.parse(conf[CONF_ARDUINO_VERSION])
-                plat_conf[CONF_FRAMEWORK][CONF_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
-            except ValueError:
-                plat_conf[CONF_FRAMEWORK][CONF_SOURCE] = conf.pop(CONF_ARDUINO_VERSION)
-        if CONF_BOARD in conf:
-            plat_conf[CONF_BOARD] = conf.pop(CONF_BOARD)
-        # Insert generated target platform config to main config
-        config[plat] = plat_conf
     config[CONF_ESPHOME] = conf
+    return target_platforms[0]
 
 
-def include_file(path, basename):
-    parts = basename.split(os.path.sep)
+def include_file(path: Path, basename: Path, is_c_header: bool = False):
+    parts = basename.parts
     dst = CORE.relative_src_path(*parts)
     copy_file_if_changed(path, dst)
 
-    _, ext = os.path.splitext(path)
+    ext = path.suffix
     if ext in [".h", ".hpp", ".tcc"]:
         # Header, add include statement
-        cg.add_global(cg.RawStatement(f'#include "{basename}"'))
+        if is_c_header:
+            # Wrap in extern "C" block for C headers
+            cg.add_global(
+                cg.RawStatement(f'extern "C" {{\n  #include "{basename}"\n}}')
+            )
+        else:
+            # Regular include
+            cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
 ARDUINO_GLUE_CODE = """\
@@ -284,7 +379,7 @@ ARDUINO_GLUE_CODE = """\
 """
 
 
-@coroutine_with_priority(-999.0)
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
 async def add_arduino_global_workaround():
     # The Arduino framework defined these itself in the global
     # namespace. For the esphome codebase that is not a problem,
@@ -301,32 +396,32 @@ async def add_arduino_global_workaround():
         cg.add_global(cg.RawStatement(line))
 
 
-@coroutine_with_priority(-1000.0)
-async def add_includes(includes):
+@coroutine_with_priority(CoroPriority.FINAL)
+async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
-        if os.path.isdir(path):
+        if path.is_dir():
             # Directory, copy tree
             for p in walk_files(path):
-                basename = os.path.relpath(p, os.path.dirname(path))
-                include_file(p, basename)
+                basename = p.relative_to(path.parent)
+                include_file(p, basename, is_c_header)
         else:
             # Copy file
-            basename = os.path.basename(path)
-            include_file(path, basename)
+            basename = Path(path.name)
+            include_file(path, basename, is_c_header)
 
 
-@coroutine_with_priority(-1000.0)
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options):
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
-        if key == "build_flags" and not isinstance(val, list):
+        if key in ["build_flags", "lib_ignore"] and not isinstance(val, list):
             val = [val]
         cg.add_platformio_option(key, val)
 
 
-@coroutine_with_priority(30.0)
+@coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
@@ -344,8 +439,31 @@ async def _add_automations(config):
         await automation.build_automation(trigger, [], conf)
 
 
-@coroutine_with_priority(100.0)
-async def to_code(config):
+# Datetime component has special subtypes that need additional defines
+DATETIME_SUBTYPES = {"date", "time", "datetime"}
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_platform_defines() -> None:
+    # Generate compile-time defines for platforms that have actual entities
+    # Only add USE_* and count defines when there are entities
+    for platform_name, count in sorted(CORE.platform_counts.items()):
+        if count <= 0:
+            continue
+
+        define_name = f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT"
+        cg.add_define(define_name, count)
+
+        # Datetime subtypes only use USE_DATETIME_* defines
+        if platform_name in DATETIME_SUBTYPES:
+            cg.add_define(f"USE_DATETIME_{platform_name.upper()}")
+        else:
+            # Regular platforms use USE_* defines
+            cg.add_define(f"USE_{platform_name.upper()}")
+
+
+@coroutine_with_priority(CoroPriority.CORE)
+async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
     # These can be used by user lambdas, put them to default scope
     cg.add_global(cg.RawExpression("using std::isnan"))
@@ -356,12 +474,15 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config[CONF_AREA],
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
+    # Define component count for static allocation
+    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+
+    CORE.add_job(_add_platform_defines)
 
     CORE.add_job(_add_automations, config)
 
@@ -386,12 +507,32 @@ async def to_code(config):
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    if config[CONF_DEBUG_SCHEDULER]:
+        cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
     if CORE.using_arduino and not CORE.is_bk72xx:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
-        CORE.add_job(add_includes, config[CONF_INCLUDES])
+        system_includes, other_includes = _sort_includes_by_type(config[CONF_INCLUDES])
+        # <...> includes should be at the start
+        for include in system_includes:
+            cg.add_global(cg.RawStatement(f"#include {include}"), prepend=True)
+        # Other includes should be at the end
+        CORE.add_job(add_includes, other_includes, False)
+
+    if config[CONF_INCLUDES_C]:
+        system_includes, other_includes = _sort_includes_by_type(
+            config[CONF_INCLUDES_C]
+        )
+        # <...> includes should be at the start
+        for include in system_includes:
+            cg.add_global(
+                cg.RawStatement(f'extern "C" {{\n  #include {include}\n}}'),
+                prepend=True,
+            )
+        # Other includes should be at the end
+        CORE.add_job(add_includes, other_includes, True)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])
@@ -406,3 +547,63 @@ async def to_code(config):
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    # Process areas
+    all_areas: list[dict[str, str | core.ID]] = []
+    if CONF_AREA in config:
+        all_areas.append(config[CONF_AREA])
+    all_areas.extend(config[CONF_AREAS])
+
+    if all_areas:
+        cg.add_define("USE_AREAS")
+        cg.add_define("ESPHOME_AREA_COUNT", len(all_areas))
+
+        for area_conf in all_areas:
+            area_id: core.ID = area_conf[CONF_ID]
+            area_id_hash: int = fnv1a_32bit_hash(area_id.id)
+            area_name: str = area_conf[CONF_NAME]
+
+            area_var = cg.new_Pvariable(area_id)
+            cg.add(area_var.set_area_id(area_id_hash))
+            cg.add(area_var.set_name(area_name))
+            cg.add(cg.App.register_area(area_var))
+
+    # Process devices
+    devices: list[dict[str, str | core.ID]] = config[CONF_DEVICES]
+    if not devices:
+        return
+
+    # Define device count for static allocation
+    cg.add_define("USE_DEVICES")
+    cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
+
+    # Process each device
+    for dev_conf in devices:
+        device_id: core.ID = dev_conf[CONF_ID]
+        device_id_hash = fnv1a_32bit_hash(device_id.id)
+        device_name: str = dev_conf[CONF_NAME]
+
+        dev = cg.new_Pvariable(device_id)
+        cg.add(dev.set_device_id(device_id_hash))
+        cg.add(dev.set_name(device_name))
+
+        # Set area if specified
+        if CONF_AREA_ID in dev_conf:
+            area_id: core.ID = dev_conf[CONF_AREA_ID]
+            area_id_hash = fnv1a_32bit_hash(area_id.id)
+            cg.add(dev.set_area_id(area_id_hash))
+
+        cg.add(cg.App.register_device(dev))
+
+
+# Platform-specific source files for core
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "ring_buffer.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
+        # as they are only included when needed by the preprocessor
+    }
+)

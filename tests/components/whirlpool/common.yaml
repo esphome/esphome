@@ -1,0 +1,4 @@
+climate:
+  - platform: whirlpool
+    name: Whirlpool Climate
+    transmitter_id: xmitr

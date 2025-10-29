@@ -7,8 +7,6 @@ namespace xl9535 {
 static const char *const TAG = "xl9535";
 
 void XL9535Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up XL9535...");
-
   // Check to see if the device can read from the register
   uint8_t port = 0;
   if (this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
@@ -22,7 +20,7 @@ void XL9535Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with XL9535 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

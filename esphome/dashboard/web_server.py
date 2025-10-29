@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Iterable
+import binascii
+from collections.abc import Callable, Iterable
+import contextlib
 import datetime
 import functools
+from functools import partial
 import gzip
 import hashlib
 import importlib
@@ -17,7 +20,7 @@ import shutil
 import subprocess
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import urlparse
 
 import tornado
@@ -33,25 +36,31 @@ import tornado.process
 import tornado.queues
 import tornado.web
 import tornado.websocket
+import voluptuous as vol
 import yaml
 from yaml.nodes import Node
 
 from esphome import const, platformio_api, yaml_util
-from esphome.helpers import get_bool_env, mkdir_p
-from esphome.storage_json import StorageJSON, ext_storage_path, trash_storage_path
+from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
+from esphome.storage_json import (
+    StorageJSON,
+    archive_storage_path,
+    ext_storage_path,
+    trash_storage_path,
+)
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
-from .const import DASHBOARD_COMMAND
-from .core import DASHBOARD
-from .entries import EntryState, entry_state_to_bool
-from .util.file import write_file
+from ..helpers import write_file
+from .const import DASHBOARD_COMMAND, DashboardEvent
+from .core import DASHBOARD, ESPHomeDashboard, Event
+from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
+from .models import build_device_list_response
 from .util.subprocess import async_run_system_command
 from .util.text import friendly_name_slugify
 
 if TYPE_CHECKING:
     from requests import Response
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -108,6 +117,12 @@ def is_authenticated(handler: BaseHandler) -> bool:
             return True
 
     if settings.using_auth:
+        if auth_header := handler.request.headers.get("Authorization"):
+            assert isinstance(auth_header, str)
+            if auth_header.startswith("Basic "):
+                auth_decoded = base64.b64decode(auth_header[6:]).decode()
+                username, password = auth_decoded.split(":", 1)
+                return settings.check_password(username, password)
         return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
 
     return True
@@ -133,7 +148,7 @@ def websocket_class(cls):
     if not hasattr(cls, "_message_handlers"):
         cls._message_handlers = {}
 
-    for _, method in cls.__dict__.items():
+    for method in cls.__dict__.values():
         if hasattr(method, "_message_handler"):
             cls._message_handlers[method._message_handler] = method
 
@@ -218,6 +233,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                close_fds=False,
             )
             stdout_thread = threading.Thread(target=self._stdout_thread)
             stdout_thread.daemon = True
@@ -270,11 +286,23 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def _stdout_thread(self) -> None:
         if not self._use_popen:
             return
+        line = b""
+        cr = False
         while True:
-            data = self._proc.stdout.readline()
+            data = self._proc.stdout.read(1)
             if data:
-                data = data.replace(b"\r", b"")
-                self._queue.put_nowait(data)
+                if data == b"\r":
+                    cr = True
+                elif data == b"\n":
+                    self._queue.put_nowait(line + b"\n")
+                    line = b""
+                    cr = False
+                elif cr:
+                    self._queue.put_nowait(line + b"\r")
+                    line = data
+                    cr = False
+                else:
+                    line += data
             if self._proc.poll() is not None:
                 break
         self._proc.wait(1.0)
@@ -301,6 +329,73 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         raise NotImplementedError
 
 
+def build_cache_arguments(
+    entry: DashboardEntry | None,
+    dashboard: ESPHomeDashboard,
+    now: float,
+) -> list[str]:
+    """Build cache arguments for passing to CLI.
+
+    Args:
+        entry: Dashboard entry for the configuration
+        dashboard: Dashboard instance with cache access
+        now: Current monotonic time for DNS cache expiry checks
+
+    Returns:
+        List of cache arguments to pass to CLI
+    """
+    cache_args: list[str] = []
+
+    if not entry:
+        return cache_args
+
+    _LOGGER.debug(
+        "Building cache for entry (address=%s, name=%s)",
+        entry.address,
+        entry.name,
+    )
+
+    def add_cache_entry(hostname: str, addresses: list[str], cache_type: str) -> None:
+        """Add a cache entry to the command arguments."""
+        if not addresses:
+            return
+        normalized = hostname.rstrip(".").lower()
+        cache_args.extend(
+            [
+                f"--{cache_type}-address-cache",
+                f"{normalized}={','.join(sort_ip_addresses(addresses))}",
+            ]
+        )
+
+    # Check entry.address for cached addresses
+    if use_address := entry.address:
+        if use_address.endswith(".local"):
+            # mDNS cache for .local addresses
+            if (mdns := dashboard.mdns_status) and (
+                cached := mdns.get_cached_addresses(use_address)
+            ):
+                _LOGGER.debug("mDNS cache hit for %s: %s", use_address, cached)
+                add_cache_entry(use_address, cached, "mdns")
+        # DNS cache for non-.local addresses
+        elif cached := dashboard.dns_cache.get_cached_addresses(use_address, now):
+            _LOGGER.debug("DNS cache hit for %s: %s", use_address, cached)
+            add_cache_entry(use_address, cached, "dns")
+
+    # Check entry.name if we haven't already cached via address
+    # For mDNS devices, entry.name typically doesn't have .local suffix
+    if entry.name and not use_address:
+        mdns_name = (
+            f"{entry.name}.local" if not entry.name.endswith(".local") else entry.name
+        )
+        if (mdns := dashboard.mdns_status) and (
+            cached := mdns.get_cached_addresses(mdns_name)
+        ):
+            _LOGGER.debug("mDNS cache hit for %s: %s", mdns_name, cached)
+            add_cache_entry(mdns_name, cached, "mdns")
+
+    return cache_args
+
+
 class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
     """Base class for commands that require a port."""
 
@@ -313,38 +408,22 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
         configuration = json_message["configuration"]
         config_file = settings.rel_path(configuration)
         port = json_message["port"]
+
+        # Build cache arguments to pass to CLI
+        cache_args: list[str] = []
+
         if (
             port == "OTA"  # pylint: disable=too-many-boolean-expressions
             and (entry := entries.get(config_file))
             and entry.loaded_integrations
             and "api" in entry.loaded_integrations
         ):
-            if (mdns := dashboard.mdns_status) and (
-                address_list := await mdns.async_resolve_host(entry.name)
-            ):
-                # Use the IP address if available but only
-                # if the API is loaded and the device is online
-                # since MQTT logging will not work otherwise
-                port = address_list[0]
-            elif (
-                entry.address
-                and (
-                    address_list := await dashboard.dns_cache.async_resolve(
-                        entry.address, time.monotonic()
-                    )
-                )
-                and not isinstance(address_list, Exception)
-            ):
-                # If mdns is not available, try to use the DNS cache
-                port = address_list[0]
+            cache_args = build_cache_arguments(entry, dashboard, time.monotonic())
 
-        return [
-            *DASHBOARD_COMMAND,
-            *args,
-            config_file,
-            "--device",
-            port,
-        ]
+        # Cache arguments must come before the subcommand
+        cmd = [*DASHBOARD_COMMAND, *cache_args, *args, config_file, "--device", port]
+        _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
@@ -375,7 +454,7 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
         # Remove the old ping result from the cache
         entries = DASHBOARD.entries
         if entry := entries.get(self.old_name):
-            entries.async_set_state(entry, EntryState.UNKNOWN)
+            entries.async_set_state(entry, UNKNOWN_STATE)
 
 
 class EsphomeUploadHandler(EsphomePortCommandWebSocket):
@@ -415,6 +494,14 @@ class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
         return [*DASHBOARD_COMMAND, "clean-mqtt", config_file]
 
 
+class EsphomeCleanAllHandler(EsphomeCommandWebSocket):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
+        clean_build_dir = json_message.get("clean_build_dir", True)
+        if clean_build_dir:
+            return [*DASHBOARD_COMMAND, "clean-all", settings.config_dir]
+        return [*DASHBOARD_COMMAND, "clean-all"]
+
+
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
@@ -434,6 +521,243 @@ class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         return [*DASHBOARD_COMMAND, "update-all", settings.config_dir]
+
+
+# Dashboard polling constants
+DASHBOARD_POLL_INTERVAL = 2  # seconds
+DASHBOARD_ENTRIES_UPDATE_INTERVAL = 10  # seconds
+DASHBOARD_ENTRIES_UPDATE_ITERATIONS = (
+    DASHBOARD_ENTRIES_UPDATE_INTERVAL // DASHBOARD_POLL_INTERVAL
+)
+
+
+class DashboardSubscriber:
+    """Manages dashboard event polling task lifecycle based on active subscribers."""
+
+    def __init__(self) -> None:
+        """Initialize the dashboard subscriber."""
+        self._subscribers: set[DashboardEventsWebSocket] = set()
+        self._event_loop_task: asyncio.Task | None = None
+        self._refresh_event: asyncio.Event = asyncio.Event()
+
+    def subscribe(self, subscriber: DashboardEventsWebSocket) -> Callable[[], None]:
+        """Subscribe to dashboard updates and start event loop if needed."""
+        self._subscribers.add(subscriber)
+        if not self._event_loop_task or self._event_loop_task.done():
+            self._event_loop_task = asyncio.create_task(self._event_loop())
+            _LOGGER.info("Started dashboard event loop")
+        return partial(self._unsubscribe, subscriber)
+
+    def _unsubscribe(self, subscriber: DashboardEventsWebSocket) -> None:
+        """Unsubscribe from dashboard updates and stop event loop if no subscribers."""
+        self._subscribers.discard(subscriber)
+        if (
+            not self._subscribers
+            and self._event_loop_task
+            and not self._event_loop_task.done()
+        ):
+            self._event_loop_task.cancel()
+            self._event_loop_task = None
+            _LOGGER.info("Stopped dashboard event loop - no subscribers")
+
+    def request_refresh(self) -> None:
+        """Signal the polling loop to refresh immediately."""
+        self._refresh_event.set()
+
+    async def _event_loop(self) -> None:
+        """Run the event polling loop while there are subscribers."""
+        dashboard = DASHBOARD
+        entries_update_counter = 0
+
+        while self._subscribers:
+            # Signal that we need ping updates (non-blocking)
+            dashboard.ping_request.set()
+            if settings.status_use_mqtt:
+                dashboard.mqtt_ping_request.set()
+
+            # Check if it's time to update entries or if refresh was requested
+            entries_update_counter += 1
+            if (
+                entries_update_counter >= DASHBOARD_ENTRIES_UPDATE_ITERATIONS
+                or self._refresh_event.is_set()
+            ):
+                entries_update_counter = 0
+                await dashboard.entries.async_request_update_entries()
+                # Clear the refresh event if it was set
+                self._refresh_event.clear()
+
+            # Wait for either timeout or refresh event
+            try:
+                async with asyncio.timeout(DASHBOARD_POLL_INTERVAL):
+                    await self._refresh_event.wait()
+                    # If we get here, refresh was requested - continue loop immediately
+            except TimeoutError:
+                # Normal timeout - continue with regular polling
+                pass
+
+
+# Global dashboard subscriber instance
+DASHBOARD_SUBSCRIBER = DashboardSubscriber()
+
+
+@websocket_class
+class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
+    """WebSocket handler for real-time dashboard events."""
+
+    _event_listeners: list[Callable[[], None]] | None = None
+    _dashboard_unsubscribe: Callable[[], None] | None = None
+
+    async def get(self, *args: str, **kwargs: str) -> None:
+        """Handle WebSocket upgrade request."""
+        if not is_authenticated(self):
+            self.set_status(401)
+            self.finish("Unauthorized")
+            return
+        await super().get(*args, **kwargs)
+
+    async def open(self, *args: str, **kwargs: str) -> None:  # pylint: disable=invalid-overridden-method
+        """Handle new WebSocket connection."""
+        # Ensure messages are sent immediately to avoid
+        # a 200-500ms delay when nodelay is not set.
+        self.set_nodelay(True)
+
+        # Update entries first
+        await DASHBOARD.entries.async_request_update_entries()
+        # Send initial state
+        self._send_initial_state()
+        # Subscribe to events
+        self._subscribe_to_events()
+        # Subscribe to dashboard updates
+        self._dashboard_unsubscribe = DASHBOARD_SUBSCRIBER.subscribe(self)
+        _LOGGER.debug("Dashboard status WebSocket opened")
+
+    def _send_initial_state(self) -> None:
+        """Send initial device list and ping status."""
+        entries = DASHBOARD.entries.async_all()
+
+        # Send initial state
+        self._safe_send_message(
+            {
+                "event": DashboardEvent.INITIAL_STATE,
+                "data": {
+                    "devices": build_device_list_response(DASHBOARD, entries),
+                    "ping": {
+                        entry.filename: entry_state_to_bool(entry.state)
+                        for entry in entries
+                    },
+                },
+            }
+        )
+
+    def _subscribe_to_events(self) -> None:
+        """Subscribe to dashboard events."""
+        async_add_listener = DASHBOARD.bus.async_add_listener
+        # Subscribe to all events
+        self._event_listeners = [
+            async_add_listener(
+                DashboardEvent.ENTRY_STATE_CHANGED, self._on_entry_state_changed
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_ADDED,
+                self._make_entry_handler(DashboardEvent.ENTRY_ADDED),
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_REMOVED,
+                self._make_entry_handler(DashboardEvent.ENTRY_REMOVED),
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_UPDATED,
+                self._make_entry_handler(DashboardEvent.ENTRY_UPDATED),
+            ),
+            async_add_listener(
+                DashboardEvent.IMPORTABLE_DEVICE_ADDED, self._on_importable_added
+            ),
+            async_add_listener(
+                DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
+                self._on_importable_removed,
+            ),
+        ]
+
+    def _on_entry_state_changed(self, event: Event) -> None:
+        """Handle entry state change event."""
+        entry = event.data["entry"]
+        state = event.data["state"]
+        self._safe_send_message(
+            {
+                "event": DashboardEvent.ENTRY_STATE_CHANGED,
+                "data": {
+                    "filename": entry.filename,
+                    "name": entry.name,
+                    "state": entry_state_to_bool(state),
+                },
+            }
+        )
+
+    def _make_entry_handler(
+        self, event_type: DashboardEvent
+    ) -> Callable[[Event], None]:
+        """Create an entry event handler."""
+
+        def handler(event: Event) -> None:
+            self._safe_send_message(
+                {"event": event_type, "data": {"device": event.data["entry"].to_dict()}}
+            )
+
+        return handler
+
+    def _on_importable_added(self, event: Event) -> None:
+        """Handle importable device added event."""
+        # Don't send if device is already configured
+        device_name = event.data.get("device", {}).get("name")
+        if device_name and DASHBOARD.entries.get_by_name(device_name):
+            return
+        self._safe_send_message(
+            {"event": DashboardEvent.IMPORTABLE_DEVICE_ADDED, "data": event.data}
+        )
+
+    def _on_importable_removed(self, event: Event) -> None:
+        """Handle importable device removed event."""
+        self._safe_send_message(
+            {"event": DashboardEvent.IMPORTABLE_DEVICE_REMOVED, "data": event.data}
+        )
+
+    def _safe_send_message(self, message: dict[str, Any]) -> None:
+        """Send a message to the WebSocket client, ignoring closed errors."""
+        with contextlib.suppress(tornado.websocket.WebSocketClosedError):
+            self.write_message(json.dumps(message))
+
+    def on_message(self, message: str) -> None:
+        """Handle incoming WebSocket messages."""
+        _LOGGER.debug("WebSocket received message: %s", message)
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError as err:
+            _LOGGER.debug("Failed to parse WebSocket message: %s", err)
+            return
+
+        event = data.get("event")
+        _LOGGER.debug("WebSocket message event: %s", event)
+        if event == DashboardEvent.PING:
+            # Send pong response for client ping
+            _LOGGER.debug("Received client ping, sending pong")
+            self._safe_send_message({"event": DashboardEvent.PONG})
+        elif event == DashboardEvent.REFRESH:
+            # Signal the polling loop to refresh immediately
+            _LOGGER.debug("Received refresh request, signaling polling loop")
+            DASHBOARD_SUBSCRIBER.request_refresh()
+
+    def on_close(self) -> None:
+        """Handle WebSocket close."""
+        # Unsubscribe from dashboard updates
+        if self._dashboard_unsubscribe:
+            self._dashboard_unsubscribe()
+            self._dashboard_unsubscribe = None
+
+        # Unsubscribe from events
+        for remove_listener in self._event_listeners or []:
+            remove_listener()
+
+        _LOGGER.debug("Dashboard status WebSocket closed")
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -464,7 +788,17 @@ class WizardRequestHandler(BaseHandler):
         kwargs = {
             k: v
             for k, v in json.loads(self.request.body.decode()).items()
-            if k in ("name", "platform", "board", "ssid", "psk", "password")
+            if k
+            in (
+                "type",
+                "name",
+                "platform",
+                "board",
+                "ssid",
+                "psk",
+                "password",
+                "file_content",
+            )
         }
         if not kwargs["name"]:
             self.set_status(422)
@@ -472,19 +806,65 @@ class WizardRequestHandler(BaseHandler):
             self.write(json.dumps({"error": "Name is required"}))
             return
 
+        if "type" not in kwargs:
+            # Default to basic wizard type for backwards compatibility
+            kwargs["type"] = "basic"
+
         kwargs["friendly_name"] = kwargs["name"]
         kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
-
-        kwargs["ota_password"] = secrets.token_hex(16)
-        noise_psk = secrets.token_bytes(32)
-        kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
+        if kwargs["type"] == "basic":
+            kwargs["ota_password"] = secrets.token_hex(16)
+            noise_psk = secrets.token_bytes(32)
+            kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
+        elif kwargs["type"] == "upload":
+            try:
+                kwargs["file_text"] = base64.b64decode(kwargs["file_content"]).decode(
+                    "utf-8"
+                )
+            except (binascii.Error, UnicodeDecodeError):
+                self.set_status(422)
+                self.set_header("content-type", "application/json")
+                self.write(
+                    json.dumps({"error": "The uploaded file is not correctly encoded."})
+                )
+                return
+        elif kwargs["type"] != "empty":
+            self.set_status(422)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps(
+                    {"error": f"Invalid wizard type specified: {kwargs['type']}"}
+                )
+            )
+            return
         filename = f"{kwargs['name']}.yaml"
         destination = settings.rel_path(filename)
-        wizard.wizard_write(path=destination, **kwargs)
-        self.set_status(200)
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps({"configuration": filename}))
-        self.finish()
+
+        # Check if destination file already exists
+        if destination.exists():
+            self.set_status(409)  # Conflict status code
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps({"error": f"Configuration file '{filename}' already exists"})
+            )
+            self.finish()
+            return
+
+        success = wizard.wizard_write(path=destination, **kwargs)
+        if success:
+            self.set_status(200)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"configuration": filename}))
+            self.finish()
+        else:
+            self.set_status(500)
+            self.set_header("content-type", "application/json")
+            self.write(
+                json.dumps(
+                    {"error": "Failed to write configuration, see logs for details"}
+                )
+            )
+            self.finish()
 
 
 class ImportRequestHandler(BaseHandler):
@@ -586,21 +966,53 @@ class IgnoreDeviceRequestHandler(BaseHandler):
 class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
-    def get(self, configuration: str | None = None) -> None:
+    async def get(self, configuration: str | None = None) -> None:
+        loop = asyncio.get_running_loop()
+        try:
+            downloads_json = await loop.run_in_executor(None, self._get, configuration)
+        except vol.Invalid as exc:
+            _LOGGER.exception("Error while fetching downloads", exc_info=exc)
+            self.send_error(404)
+            return
+        if downloads_json is None:
+            _LOGGER.error("Configuration %s not found", configuration)
+            self.send_error(404)
+            return
+        self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(downloads_json)
+        self.finish()
+
+    def _get(self, configuration: str | None = None) -> dict[str, Any] | None:
         storage_path = ext_storage_path(configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
-            self.send_error(404)
-            return
+            return None
+
+        try:
+            config = yaml_util.load_yaml(settings.rel_path(configuration))
+
+            if const.CONF_EXTERNAL_COMPONENTS in config:
+                from esphome.components.external_components import (
+                    do_external_components_pass,
+                )
+
+                do_external_components_pass(config)
+        except vol.Invalid:
+            _LOGGER.info("Could not parse `external_components`, skipping")
 
         from esphome.components.esp32 import VARIANTS as ESP32_VARIANTS
 
-        downloads = []
+        downloads: list[dict[str, Any]] = []
         platform: str = storage_json.target_platform.lower()
 
         if platform.upper() in ESP32_VARIANTS:
             platform = "esp32"
-        elif platform in (const.PLATFORM_RTL87XX, const.PLATFORM_BK72XX):
+        elif platform in (
+            const.PLATFORM_RTL87XX,
+            const.PLATFORM_BK72XX,
+            const.PLATFORM_LN882X,
+        ):
             platform = "libretiny"
 
         try:
@@ -609,12 +1021,7 @@ class DownloadListRequestHandler(BaseHandler):
         except AttributeError as exc:
             raise ValueError(f"Unknown platform {platform}") from exc
         downloads = get_download_types(storage_json)
-
-        self.set_status(200)
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps(downloads))
-        self.finish()
-        return
+        return json.dumps(downloads)
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
@@ -651,10 +1058,10 @@ class DownloadBinaryRequestHandler(BaseHandler):
             "download",
             f"{storage_json.name}-{file_name}",
         )
-        path = os.path.dirname(storage_json.firmware_bin_path)
-        path = os.path.join(path, file_name)
 
-        if not Path(path).is_file():
+        path = storage_json.firmware_bin_path.parent.joinpath(file_name)
+
+        if not path.is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = await async_run_system_command(args)
 
@@ -708,28 +1115,7 @@ class ListDevicesHandler(BaseHandler):
         await dashboard.entries.async_request_update_entries()
         entries = dashboard.entries.async_all()
         self.set_header("content-type", "application/json")
-        configured = {entry.name for entry in entries}
-
-        self.write(
-            json.dumps(
-                {
-                    "configured": [entry.to_dict() for entry in entries],
-                    "importable": [
-                        {
-                            "name": res.device_name,
-                            "friendly_name": res.friendly_name,
-                            "package_import_url": res.package_import_url,
-                            "project_name": res.project_name,
-                            "project_version": res.project_version,
-                            "network": res.network,
-                            "ignored": res.device_name in dashboard.ignored_devices,
-                        }
-                        for res in dashboard.import_result.values()
-                        if res.device_name not in configured
-                    ],
-                }
-            )
-        )
+        self.write(json.dumps(build_device_list_response(dashboard, entries)))
 
 
 class MainRequestHandler(BaseHandler):
@@ -803,6 +1189,10 @@ class BoardsRequestHandler(BaseHandler):
             from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
 
             boards = BK72XX_BOARDS
+        elif platform == const.PLATFORM_LN882X:
+            from esphome.components.ln882x.boards import BOARDS as LN882X_BOARDS
+
+            boards = LN882X_BOARDS
         elif platform == const.PLATFORM_RTL87XX:
             from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
@@ -847,7 +1237,7 @@ class InfoRequestHandler(BaseHandler):
         dashboard = DASHBOARD
         entry = dashboard.entries.get(yaml_path)
 
-        if not entry:
+        if not entry or entry.storage is None:
             self.set_status(404)
             return
 
@@ -865,7 +1255,7 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
@@ -888,10 +1278,6 @@ class EditRequestHandler(BaseHandler):
             self.set_status(404)
             return None
 
-    def _write_file(self, filename: str, content: bytes) -> None:
-        """Write a file with the given content."""
-        write_file(filename, content)
-
     @authenticated
     @bind_config
     async def post(self, configuration: str | None = None) -> None:
@@ -901,44 +1287,41 @@ class EditRequestHandler(BaseHandler):
             return
 
         filename = settings.rel_path(configuration)
-        if Path(filename).resolve().parent != settings.absolute_config_dir:
+        if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._write_file, filename, self.request.body)
+        await loop.run_in_executor(None, write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
         DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
 
 
-class DeleteRequestHandler(BaseHandler):
+class ArchiveRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration: str | None = None) -> None:
         config_file = settings.rel_path(configuration)
         storage_path = ext_storage_path(configuration)
 
-        trash_path = trash_storage_path()
-        mkdir_p(trash_path)
-        shutil.move(config_file, os.path.join(trash_path, configuration))
+        archive_path = archive_storage_path()
+        mkdir_p(archive_path)
+        shutil.move(config_file, archive_path / configuration)
 
         storage_json = StorageJSON.load(storage_path)
-        if storage_json is not None:
+        if storage_json is not None and storage_json.build_path:
             # Delete build folder (if exists)
-            name = storage_json.name
-            build_folder = os.path.join(settings.config_dir, name)
-            if build_folder is not None:
-                shutil.rmtree(build_folder, os.path.join(trash_path, name))
+            shutil.rmtree(storage_json.build_path, ignore_errors=True)
 
 
-class UndoDeleteRequestHandler(BaseHandler):
+class UnArchiveRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration: str | None = None) -> None:
         config_file = settings.rel_path(configuration)
-        trash_path = trash_storage_path()
-        shutil.move(os.path.join(trash_path, configuration), config_file)
+        archive_path = archive_storage_path()
+        shutil.move(archive_path / configuration, config_file)
 
 
 class LoginHandler(BaseHandler):
@@ -1025,7 +1408,7 @@ class SecretKeysRequestHandler(BaseHandler):
 
         for secret_filename in const.SECRETS_FILES:
             relative_filename = settings.rel_path(secret_filename)
-            if os.path.isfile(relative_filename):
+            if relative_filename.is_file():
                 filename = relative_filename
                 break
 
@@ -1058,16 +1441,17 @@ class JsonConfigRequestHandler(BaseHandler):
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         filename = settings.rel_path(configuration)
-        if not os.path.isfile(filename):
+        if not filename.is_file():
             self.send_error(404)
             return
 
-        args = ["esphome", "config", filename, "--show-secrets"]
+        args = ["esphome", "config", str(filename), "--show-secrets"]
 
-        rc, stdout, _ = await async_run_system_command(args)
+        rc, stdout, stderr = await async_run_system_command(args)
 
         if rc != 0:
-            self.send_error(422)
+            self.set_status(422)
+            self.write(stderr)
             return
 
         data = yaml.load(stdout, Loader=SafeLoaderIgnoreUnknown)
@@ -1076,7 +1460,7 @@ class JsonConfigRequestHandler(BaseHandler):
         self.finish()
 
 
-def get_base_frontend_path() -> str:
+def get_base_frontend_path() -> Path:
     if ENV_DEV not in os.environ:
         import esphome_dashboard
 
@@ -1087,11 +1471,12 @@ def get_base_frontend_path() -> str:
         static_path += "/"
 
     # This path can be relative, so resolve against the root or else templates don't work
-    return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
+    path = Path(os.getcwd()) / static_path / "esphome_dashboard"
+    return path.resolve()
 
 
-def get_static_path(*args: Iterable[str]) -> str:
-    return os.path.join(get_base_frontend_path(), "static", *args)
+def get_static_path(*args: Iterable[str]) -> Path:
+    return get_base_frontend_path() / "static" / Path(*args)
 
 
 @functools.cache
@@ -1108,8 +1493,7 @@ def get_static_file_url(name: str) -> str:
         return base.replace("index.js", esphome_dashboard.entrypoint())
 
     path = get_static_path(name)
-    with open(path, "rb") as f_handle:
-        hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
+    hash_ = hashlib.md5(path.read_bytes()).hexdigest()[:8]
     return f"{base}?hash={hash_}"
 
 
@@ -1169,6 +1553,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
+            (f"{rel}clean-all", EsphomeCleanAllHandler),
             (f"{rel}clean", EsphomeCleanHandler),
             (f"{rel}vscode", EsphomeVscodeHandler),
             (f"{rel}ace", EsphomeAceEditorHandler),
@@ -1179,11 +1564,14 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
-            (f"{rel}delete", DeleteRequestHandler),
-            (f"{rel}undo-delete", UndoDeleteRequestHandler),
+            (f"{rel}delete", ArchiveRequestHandler),
+            (f"{rel}undo-delete", UnArchiveRequestHandler),
+            (f"{rel}archive", ArchiveRequestHandler),
+            (f"{rel}unarchive", UnArchiveRequestHandler),
             (f"{rel}wizard", WizardRequestHandler),
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
+            (f"{rel}events", DashboardEventsWebSocket),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
             (f"{rel}json-config", JsonConfigRequestHandler),
@@ -1205,6 +1593,13 @@ def start_web_server(
     config_dir: str,
 ) -> None:
     """Start the web server listener."""
+
+    trash_path = trash_storage_path()
+    if trash_path.is_dir() and trash_path.exists():
+        _LOGGER.info("Renaming 'trash' folder to 'archive'")
+        archive_path = archive_storage_path()
+        shutil.move(trash_path, archive_path)
+
     if socket is None:
         _LOGGER.info(
             "Starting dashboard web server on http://%s:%s and configuration dir %s...",

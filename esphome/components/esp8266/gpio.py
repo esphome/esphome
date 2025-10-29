@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_PULLUP,
     PLATFORM_ESP8266,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
@@ -112,8 +112,7 @@ def validate_supports(value):
         )
     if is_pullup and num == 16:
         raise cv.Invalid(
-            "GPIO Pin 16 does not support pullup pin mode. "
-            "Please choose another pin.",
+            "GPIO Pin 16 does not support pullup pin mode. Please choose another pin.",
             [CONF_MODE, CONF_PULLUP],
         )
     if is_pulldown and num != 16:
@@ -166,7 +165,10 @@ async def esp8266_pin_to_code(config):
     num = config[CONF_NUMBER]
     mode = config[CONF_MODE]
     cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    # Only set if true to avoid bloating setup() function
+    # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
+    if config[CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
     cg.add(var.set_flags(pins.gpio_flags_expr(mode)))
     if num < 16:
         initial_state: PinInitialState = CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES][
@@ -189,7 +191,7 @@ async def esp8266_pin_to_code(config):
     return var
 
 
-@coroutine_with_priority(-999.0)
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
 async def add_pin_initial_states_array():
     # Add includes at the very end, so that they override everything
     initial_states: list[PinInitialState] = CORE.data[KEY_ESP8266][
@@ -200,11 +202,11 @@ async def add_pin_initial_states_array():
 
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] = {{{initial_modes_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] PROGMEM = {{{initial_modes_s}}}"
         )
     )
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] = {{{initial_levels_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] PROGMEM = {{{initial_levels_s}}}"
         )
     )

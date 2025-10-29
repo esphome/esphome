@@ -2,15 +2,10 @@
 # inputs of the OpenTherm component.
 
 from dataclasses import dataclass
-from typing import Optional, TypeVar
+from typing import Any, TypeVar
 
+import esphome.config_validation as cv
 from esphome.const import (
-    UNIT_CELSIUS,
-    UNIT_EMPTY,
-    UNIT_KILOWATT,
-    UNIT_MICROAMP,
-    UNIT_PERCENT,
-    UNIT_REVOLUTIONS_PER_MINUTE,
     DEVICE_CLASS_COLD,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_EMPTY,
@@ -21,6 +16,12 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_KILOWATT,
+    UNIT_MICROAMP,
+    UNIT_PERCENT,
+    UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
 
@@ -60,10 +61,11 @@ TSchema = TypeVar("TSchema", bound=EntitySchema)
 class SensorSchema(EntitySchema):
     accuracy_decimals: int
     state_class: str
-    unit_of_measurement: Optional[str] = None
-    icon: Optional[str] = None
-    device_class: Optional[str] = None
+    unit_of_measurement: str | None = None
+    icon: str | None = None
+    device_class: str | None = None
     disabled_by_default: bool = False
+    order: int | None = None
 
 
 SENSORS: dict[str, SensorSchema] = {
@@ -399,6 +401,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="OT_VERSION_DEVICE",
         keep_updated=False,
         message_data="f88",
+        order=2,
     ),
     "device_type": SensorSchema(
         description="Device product type",
@@ -409,6 +412,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="VERSION_DEVICE",
         keep_updated=False,
         message_data="u8_hb",
+        order=0,
     ),
     "device_version": SensorSchema(
         description="Device product version",
@@ -419,6 +423,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="VERSION_DEVICE",
         keep_updated=False,
         message_data="u8_lb",
+        order=0,
     ),
     "device_id": SensorSchema(
         description="Device ID code",
@@ -429,6 +434,7 @@ SENSORS: dict[str, SensorSchema] = {
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="u8_lb",
+        order=4,
     ),
     "otc_hc_ratio_ub": SensorSchema(
         description="OTC heat curve ratio upper bound",
@@ -455,8 +461,9 @@ SENSORS: dict[str, SensorSchema] = {
 
 @dataclass
 class BinarySensorSchema(EntitySchema):
-    icon: Optional[str] = None
-    device_class: Optional[str] = None
+    icon: str | None = None
+    device_class: str | None = None
+    order: int | None = None
 
 
 BINARY_SENSORS: dict[str, BinarySensorSchema] = {
@@ -525,48 +532,56 @@ BINARY_SENSORS: dict[str, BinarySensorSchema] = {
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_0",
+        order=4,
     ),
     "control_type_on_off": BinarySensorSchema(
         description="Configuration: Control type is on/off",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_1",
+        order=4,
     ),
     "cooling_supported": BinarySensorSchema(
         description="Configuration: Cooling supported",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_2",
+        order=4,
     ),
     "dhw_storage_tank": BinarySensorSchema(
         description="Configuration: DHW storage tank",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_3",
+        order=4,
     ),
     "controller_pump_control_allowed": BinarySensorSchema(
         description="Configuration: Controller pump control allowed",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_4",
+        order=4,
     ),
     "ch2_present": BinarySensorSchema(
         description="Configuration: CH2 present",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_5",
+        order=4,
     ),
     "water_filling": BinarySensorSchema(
         description="Configuration: Remote water filling",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_6",
+        order=4,
     ),
     "heat_mode": BinarySensorSchema(
         description="Configuration: Heating or cooling",
         message="DEVICE_CONFIG",
         keep_updated=False,
         message_data="flag8_hb_7",
+        order=4,
     ),
     "dhw_setpoint_transfer_enabled": BinarySensorSchema(
         description="Remote boiler parameters: DHW setpoint transfer enabled",
@@ -639,7 +654,7 @@ BINARY_SENSORS: dict[str, BinarySensorSchema] = {
 
 @dataclass
 class SwitchSchema(EntitySchema):
-    default_mode: Optional[str] = None
+    default_mode: str | None = None
 
 
 SWITCHES: dict[str, SwitchSchema] = {
@@ -706,9 +721,9 @@ class InputSchema(EntitySchema):
     unit_of_measurement: str
     step: float
     range: tuple[int, int]
-    icon: Optional[str] = None
-    auto_max_value: Optional[AutoConfigure] = None
-    auto_min_value: Optional[AutoConfigure] = None
+    icon: str | None = None
+    auto_max_value: AutoConfigure | None = None
+    auto_min_value: AutoConfigure | None = None
 
 
 INPUTS: dict[str, InputSchema] = {
@@ -810,5 +825,67 @@ INPUTS: dict[str, InputSchema] = {
         range=(0, 127),
         auto_min_value=AutoConfigure(message="OTC_CURVE_BOUNDS", message_data="u8_lb"),
         auto_max_value=AutoConfigure(message="OTC_CURVE_BOUNDS", message_data="u8_hb"),
+    ),
+}
+
+
+@dataclass
+class SettingSchema(EntitySchema):
+    backing_type: str
+    validation_schema: cv.Schema
+    default_value: Any
+    order: int | None = None
+
+
+SETTINGS: dict[str, SettingSchema] = {
+    "controller_product_type": SettingSchema(
+        description="Controller product type",
+        message="VERSION_CONTROLLER",
+        keep_updated=False,
+        message_data="u8_hb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=1,
+    ),
+    "controller_product_version": SettingSchema(
+        description="Controller product version",
+        message="VERSION_CONTROLLER",
+        keep_updated=False,
+        message_data="u8_lb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=1,
+    ),
+    "opentherm_version_controller": SettingSchema(
+        description="Version of OpenTherm implemented by controller",
+        message="OT_VERSION_CONTROLLER",
+        keep_updated=False,
+        message_data="f88",
+        backing_type="float",
+        validation_schema=cv.positive_float,
+        default_value=0,
+        order=3,
+    ),
+    "controller_configuration": SettingSchema(
+        description="Controller configuration",
+        message="CONTROLLER_CONFIG",
+        keep_updated=False,
+        message_data="u8_hb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=5,
+    ),
+    "controller_id": SettingSchema(
+        description="Controller ID code",
+        message="CONTROLLER_CONFIG",
+        keep_updated=False,
+        message_data="u8_lb",
+        backing_type="uint8_t",
+        validation_schema=cv.int_range(min=0, max=255),
+        default_value=0,
+        order=5,
     ),
 }

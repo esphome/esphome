@@ -19,7 +19,7 @@ static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, ui
   const auto *gd = fe->get_glyph_data(unicode_letter);
   if (gd == nullptr)
     return false;
-  dsc->adv_w = gd->offset_x + gd->width;
+  dsc->adv_w = gd->advance;
   dsc->ofs_x = gd->offset_x;
   dsc->ofs_y = fe->height - gd->height - gd->offset_y - fe->baseline;
   dsc->box_w = gd->width;

@@ -1,11 +1,14 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
+#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
+#include "esphome/core/gpio.h"
+#include "driver/gpio.h"
+#include "soc/gpio_num.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -42,17 +45,13 @@ uart_config_t IDFUARTComponent::get_config_() {
       break;
   }
 
-  uart_config_t uart_config;
+  uart_config_t uart_config{};
   uart_config.baud_rate = this->baud_rate_;
   uart_config.data_bits = data_bits;
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
   uart_config.source_clk = UART_SCLK_DEFAULT;
-#else
-  uart_config.source_clk = UART_SCLK_APB;
-#endif
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -84,34 +83,64 @@ void IDFUARTComponent::setup() {
   }
 #endif  // USE_LOGGER
 
-  if (next_uart_num >= UART_NUM_MAX) {
-    ESP_LOGW(TAG, "Maximum number of UART components created already.");
+  if (next_uart_num >= SOC_UART_NUM) {
+    ESP_LOGW(TAG, "Maximum number of UART components created already");
     this->mark_failed();
     return;
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
-  ESP_LOGCONFIG(TAG, "Setting up UART %u...", this->uart_num_);
-
   this->lock_ = xSemaphoreCreateMutex();
 
   xSemaphoreTake(this->lock_, portMAX_DELAY);
 
-  uart_config_t uart_config = this->get_config_();
-  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  this->load_settings(false);
+
+  xSemaphoreGive(this->lock_);
+}
+
+void IDFUARTComponent::load_settings(bool dump_config) {
+  esp_err_t err;
+
+  if (uart_is_driver_installed(this->uart_num_)) {
+    err = uart_driver_delete(this->uart_num_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
+      this->mark_failed();
+      return;
+    }
+  }
+  err = uart_driver_install(this->uart_num_,        // UART number
+                            this->rx_buffer_size_,  // RX ring buffer size
+                            0,   // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
+                                 // block task until all data has been sent out
+                            20,  // event queue size/depth
+                            &this->uart_event_queue_,  // event queue
+                            0                          // Flags used to allocate the interrupt
+  );
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
+  if (this->rx_pin_) {
+    this->rx_pin_->setup();
+  }
+  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+    this->tx_pin_->setup();
+  }
+
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
-  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_TXD_INV;
-  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RXD_INV;
+  }
 
   err = uart_set_line_inverse(this->uart_num_, invert);
   if (err != ESP_OK) {
@@ -120,53 +149,90 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  err = uart_set_pin(this->uart_num_, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+  err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
-  err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
-                            /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
-                               block task until all data have been sent out.*/
-                            0,
-                            /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
-                            /* Flags used to allocate the interrupt. */ 0);
+  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
-  xSemaphoreGive(this->lock_);
-}
+  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
 
-void IDFUARTComponent::load_settings(bool dump_config) {
+  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
+  err = uart_set_mode(this->uart_num_, mode);  // per docs, must be called only after uart_driver_install()
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
   uart_config_t uart_config = this->get_config_();
-  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
-  } else if (dump_config) {
-    ESP_LOGCONFIG(TAG, "UART %u was reloaded.", this->uart_num_);
+  }
+
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
     this->dump_config();
   }
 }
 
 void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
-  LOG_PIN("  TX Pin: ", tx_pin_);
-  LOG_PIN("  RX Pin: ", rx_pin_);
+  LOG_PIN("  TX Pin: ", this->tx_pin_);
+  LOG_PIN("  RX Pin: ", this->rx_pin_);
+  LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   if (this->rx_pin_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
+    ESP_LOGCONFIG(TAG,
+                  "  RX Buffer Size: %u\n"
+                  "  RX Full Threshold: %u\n"
+                  "  RX Timeout: %u",
+                  this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %" PRIu32 " baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %" PRIu32 " baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
+}
+
+void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
+  if (this->is_ready()) {
+    esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+  this->rx_full_threshold_ = rx_full_threshold;
+}
+
+void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
+  if (this->is_ready()) {
+    esp_err_t err = uart_set_rx_timeout(this->uart_num_, rx_timeout);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+      return;
+    }
+  }
+  this->rx_timeout_ = rx_timeout;
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
@@ -234,7 +300,7 @@ int IDFUARTComponent::available() {
 }
 
 void IDFUARTComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
   xSemaphoreGive(this->lock_);

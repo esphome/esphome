@@ -4,7 +4,7 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import CONF_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
-from esphome.core import CORE, TimePeriod
+from esphome.core import TimePeriod
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
@@ -65,12 +65,16 @@ FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 
 async def to_code(config):
+    cg.add_define("USE_ESP32_BLE_UUID")
+
     uuid = config[CONF_UUID].hex
-    uuid_arr = [cg.RawExpression(f"0x{uuid[i:i + 2]}") for i in range(0, len(uuid), 2)]
+    uuid_arr = [
+        cg.RawExpression(f"0x{uuid[i : i + 2]}") for i in range(0, len(uuid), 2)
+    ]
     var = cg.new_Pvariable(config[CONF_ID], uuid_arr)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    cg.add(parent.register_gap_event_handler(var))
+    esp32_ble.register_gap_event_handler(parent, var)
 
     await cg.register_component(var, config)
     cg.add(var.set_major(config[CONF_MAJOR]))
@@ -80,6 +84,7 @@ async def to_code(config):
     cg.add(var.set_measured_power(config[CONF_MEASURED_POWER]))
     cg.add(var.set_tx_power(config[CONF_TX_POWER]))
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    cg.add_define("USE_ESP32_BLE_ADVERTISING")
+
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)

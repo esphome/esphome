@@ -42,7 +42,6 @@ def schema_extractor_extended(func):
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
-            assert len(args) == 2
             extended_schemas[repr(ret)] = args
             return ret
 

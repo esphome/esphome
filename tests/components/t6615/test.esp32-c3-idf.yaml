@@ -1,10 +1,4 @@
-uart:
-  - id: uart_t6615
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 19200
+packages:
+  uart_19200: !include ../../test_build_components/common/uart_19200/esp32-c3-idf.yaml
 
-sensor:
-  - platform: t6615
-    co2:
-      name: CO2 Sensor
+<<: !include common.yaml

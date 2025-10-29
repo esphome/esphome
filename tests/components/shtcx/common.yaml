@@ -1,0 +1,9 @@
+sensor:
+  - platform: shtcx
+    i2c_id: i2c_bus
+    temperature:
+      name: SHTCX Temperature
+    humidity:
+      name: SHTCX Humidity
+    address: 0x70
+    update_interval: 15s

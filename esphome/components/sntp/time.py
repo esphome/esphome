@@ -1,16 +1,17 @@
+import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.core import CORE
 from esphome.const import (
     CONF_ID,
     CONF_SERVERS,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
-    PLATFORM_BK72XX,
 )
+from esphome.core import CORE
 
 DEPENDENCIES = ["network"]
 sntp_ns = cg.esphome_ns.namespace("sntp")
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_RP2040,
             PLATFORM_BK72XX,
+            PLATFORM_LN882X,
             PLATFORM_RTL87XX,
         ]
     ),
@@ -40,11 +42,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-
     servers = config[CONF_SERVERS]
-    servers += [""] * (3 - len(servers))
-    cg.add(var.set_servers(*servers))
+
+    # Define server count at compile time
+    cg.add_define("SNTP_SERVER_COUNT", len(servers))
+
+    # Pass string literals to constructor - stored in flash/rodata by compiler
+    var = cg.new_Pvariable(config[CONF_ID], servers)
 
     await cg.register_component(var, config)
     await time_.register_time(var, config)

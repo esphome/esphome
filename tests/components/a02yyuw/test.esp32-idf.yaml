@@ -1,13 +1,8 @@
-uart:
-  - id: uart_a02yyuw
-    tx_pin:
-      number: 17
-    rx_pin:
-      number: 16
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
 
-sensor:
-  - platform: a02yyuw
-    id: a02yyuw_sensor
-    name: a02yyuw Distance
-    uart_id: uart_a02yyuw
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+<<: !include common.yaml

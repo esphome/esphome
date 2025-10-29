@@ -1,12 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_VIBRATIONS,
     DEVICE_CLASS_VIBRATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_VIBRATE,
 )
+
 from . import CONF_GDK101_ID, GDK101Component
 
 DEPENDENCIES = ["gdk101"]

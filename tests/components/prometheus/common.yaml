@@ -2,10 +2,32 @@ esphome:
   name: livingroomdevice
   friendly_name: Living Room Device
   area: Living Room
+  on_boot:
+    then:
+      - if:
+          condition:
+            update.is_available:
+          then:
+            - logger.log: "Update available"
+      - update.perform:
+          force_update: true
 
 wifi:
   ssid: MySSID
   password: password1
+
+http_request:
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+    id: prometheus_http_request_ota
+
+update:
+  - platform: http_request
+    name: Firmware Update
+    ota_id: prometheus_http_request_ota
+    source: http://example.com/manifest.json
 
 sensor:
   - platform: template
@@ -13,9 +35,8 @@ sensor:
     lambda: |-
       if (millis() > 10000) {
         return 42.0;
-      } else {
-        return 0.0;
       }
+      return 0.0;
     update_interval: 60s
 
 text_sensor:
@@ -27,9 +48,8 @@ text_sensor:
     lambda: |-
       if (millis() > 10000) {
         return {"Hello World"};
-      } else {
-        return {"Goodbye (cruel) World"};
       }
+      return {"Goodbye (cruel) World"};
     update_interval: 60s
 
 binary_sensor:
@@ -38,9 +58,8 @@ binary_sensor:
     lambda: |-
       if (millis() > 10000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
 
 switch:
   - platform: template
@@ -48,9 +67,8 @@ switch:
     lambda: |-
       if (millis() > 10000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
     optimistic: true
 
 fan:
@@ -63,9 +81,8 @@ cover:
     lambda: |-
       if (millis() > 10000) {
         return COVER_OPEN;
-      } else {
-        return COVER_CLOSED;
       }
+      return COVER_CLOSED;
 
 lock:
   - platform: template
@@ -73,10 +90,42 @@ lock:
     lambda: |-
       if (millis() > 10000) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     optimistic: true
+
+select:
+  - platform: template
+    id: template_select1
+    name: "Template select"
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+number:
+  - platform: template
+    id: template_number1
+    name: "Template number"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+valve:
+  - platform: template
+    name: "Template Valve"
+    lambda: |-
+      return VALVE_OPEN;
+    optimistic: true
+    has_position: true
+
+climate:
+  - platform: climate_ir_lg
+    name: LG Climate
+    transmitter_id: xmitr
 
 prometheus:
   include_internal: true
