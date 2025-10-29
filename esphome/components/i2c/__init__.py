@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     PlatformFramework,
 )
@@ -54,8 +55,6 @@ def validate_config(config):
         return cv.require_framework_version(esp_idf=cv.Version(5, 4, 2))(config)
     return config
 
-
-PLATFORM_NRF52 = "nrf52"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

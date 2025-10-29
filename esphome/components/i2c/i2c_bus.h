@@ -5,7 +5,6 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include "esphome/core/hal.h"
 
 #include "esphome/core/helpers.h"
 
