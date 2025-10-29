@@ -232,20 +232,24 @@ class ProtoWriteBuffer {
       return;
     }
 
-    if (value < (1ULL << 21)) {
-      // 2-3 bytes - common for field IDs and lengths
-      uint32_t size = (value < (1ULL << 14)) ? 2 : 3;
-      buffer->resize(start + size);
-      uint8_t *p = buffer->data() + start;
+    uint8_t *p;
+    if (value < (1ULL << 14)) {
+      // 2 bytes - common for medium field IDs and lengths
+      buffer->resize(start + 2);
+      p = buffer->data() + start;
       p[0] = (value & 0x7F) | 0x80;
-      p[1] = (value >> 7) & 0x7F | (size == 3 ? 0x80 : 0);
-      if (size == 3) {
-        p[2] = (value >> 14) & 0x7F;
-      }
+      p[1] = (value >> 7) & 0x7F;
       return;
     }
-
-    uint8_t *p;
+    if (value < (1ULL << 21)) {
+      // 3 bytes - rare
+      buffer->resize(start + 3);
+      p = buffer->data() + start;
+      p[0] = (value & 0x7F) | 0x80;
+      p[1] = ((value >> 7) & 0x7F) | 0x80;
+      p[2] = (value >> 14) & 0x7F;
+      return;
+    }
 
     // Rare case: 4-10 byte values - calculate size from bit position
     // Value is guaranteed >= (1ULL << 21), so CLZ is safe (non-zero)
