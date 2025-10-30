@@ -51,6 +51,11 @@ class APIServer : public Component, public Controller {
   // Get reference to shared buffer for API connections
   std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
 
+#ifdef USE_LOGGER
+  // Static log handler (uses global_api_server)
+  static void log_callback_(uint8_t level, const char *tag, const char *message, size_t message_len);
+#endif
+
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
