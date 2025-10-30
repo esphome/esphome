@@ -26,6 +26,7 @@ void Select::publish_state(size_t index) {
   const char *option = this->option_at(index);
   this->set_has_state(true);
   this->active_index_ = index;
+  this->state = option;  // Update deprecated member for backward compatibility
   ESP_LOGD(TAG, "'%s': Sending state %s (index %zu)", this->get_name().c_str(), option, index);
   // Callback signature requires std::string, create temporary for compatibility
   this->state_callback_.call(std::string(option), index);
