@@ -10,7 +10,7 @@ class PzemacTemp {
   float last_energy_sensor[10] = {};
 };
 
-PzemacTemp tmp;
+PzemacTemp static tmp;
 
 static const char *const TAG = "pzemac";
 
