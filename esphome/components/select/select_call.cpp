@@ -49,7 +49,7 @@ SelectCall &SelectCall::with_index(size_t index) {
 optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   const auto &options = this->parent_->traits.get_options();
   if (options.empty()) {
-    ESP_LOGW(TAG, "'%s' - Cannot perform SelectCall, select has no options", name);
+    ESP_LOGW(TAG, "'%s' - Select has no options", name);
     return {};
   }
 
