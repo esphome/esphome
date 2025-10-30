@@ -45,7 +45,9 @@ async def test_climate_custom_fan_modes_and_presets(
             f"Expected 3 custom presets, got {len(custom_presets)}: {custom_presets}"
         )
         assert "Eco Plus" in custom_presets, "Expected 'Eco Plus' in custom presets"
-        assert "Comfort" in custom_presets, "Expected 'Comfort' in custom presets"
+        assert "Super Saver" in custom_presets, (
+            "Expected 'Super Saver' in custom presets"
+        )
         assert "Vacation Mode" in custom_presets, (
             "Expected 'Vacation Mode' in custom presets"
         )
