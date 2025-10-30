@@ -282,10 +282,9 @@ class GridLayout(Layout):
                         if value is None
                     )
                 except StopIteration:
-                    # pylint: disable=raise-missing-from
                     raise cv.Invalid(
                         "No free cells available in grid layout", [CONF_WIDGETS, index]
-                    )
+                    ) from None
                 w[CONF_GRID_CELL_ROW_POS] = row
                 w[CONF_GRID_CELL_COLUMN_POS] = column
 
