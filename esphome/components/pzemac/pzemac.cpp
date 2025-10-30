@@ -5,9 +5,9 @@ namespace esphome {
 namespace pzemac {
 
 class PzemacTemp {
-public:
-    uint32_t last_update_time_;
-    float last_energy_sensor[10] = {};
+ public:
+  uint32_t last_update_time_;
+  float last_energy_sensor[10] = {};
 };
 
 PzemacTemp tmp;
