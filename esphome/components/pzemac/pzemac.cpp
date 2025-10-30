@@ -4,13 +4,13 @@
 namespace esphome {
 namespace pzemac {
 
-class pzemac_temp {
- public:
-  uint32_t last_update_time_;
-  float last_energy_sensor[10] = {};
+class PzemacTemp {
+public:
+    uint32_t last_update_time_;
+    float last_energy_sensor[10] = {};
 };
 
-pzemac_temp tmp;
+PzemacTemp tmp;
 
 static const char *const TAG = "pzemac";
 
