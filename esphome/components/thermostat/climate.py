@@ -1014,13 +1014,11 @@ async def to_code(config):
         )
 
     # Collect all custom preset names (from preset map + custom_presets list)
-    all_custom_preset_names = []
-    if CONF_PRESET in config:
-        for preset_config in config[CONF_PRESET]:
-            name = preset_config[CONF_NAME]
-            # Only include non-standard presets
-            if name.upper() not in climate.CLIMATE_PRESETS:
-                all_custom_preset_names.append(name)
+    all_custom_preset_names = [
+        preset_config[CONF_NAME]
+        for preset_config in config.get(CONF_PRESET, [])
+        if preset_config[CONF_NAME].upper() not in climate.CLIMATE_PRESETS
+    ]
 
     # Add additional custom presets from custom_presets list
     if CONF_CUSTOM_PRESETS in config:
