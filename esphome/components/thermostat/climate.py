@@ -1028,6 +1028,12 @@ async def to_code(config):
     if all_custom_preset_names:
         cg.add(var.set_custom_presets(all_custom_preset_names))
 
-    # Set custom fan modes
+    # Set custom fan modes (filter out standard enum fan modes)
     if CONF_CUSTOM_FAN_MODES in config:
-        cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
+        custom_fan_modes = [
+            mode
+            for mode in config[CONF_CUSTOM_FAN_MODES]
+            if mode.upper() not in climate.CLIMATE_FAN_MODES
+        ]
+        if custom_fan_modes:
+            cg.add(var.set_custom_fan_modes(custom_fan_modes))

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from aioesphomeapi import ClimateInfo
+from aioesphomeapi import ClimateInfo, ClimatePreset
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -24,9 +24,6 @@ async def test_climate_custom_fan_modes_and_presets(
         test_climate = climate_infos[0]
 
         # Verify custom fan modes are exposed
-        assert hasattr(test_climate, "supported_custom_fan_modes"), (
-            "Climate should have supported_custom_fan_modes"
-        )
         custom_fan_modes = test_climate.supported_custom_fan_modes
         assert len(custom_fan_modes) == 3, (
             f"Expected 3 custom fan modes, got {len(custom_fan_modes)}"
@@ -38,19 +35,11 @@ async def test_climate_custom_fan_modes_and_presets(
         )
 
         # Verify enum presets are exposed (from preset: config map)
-        assert hasattr(test_climate, "supported_presets"), (
-            "Climate should have supported_presets"
-        )
-        from aioesphomeapi import ClimatePreset
-
         assert ClimatePreset.AWAY in test_climate.supported_presets, (
             "Expected AWAY in enum presets"
         )
 
         # Verify custom string presets are exposed (from custom_presets: config list)
-        assert hasattr(test_climate, "supported_custom_presets"), (
-            "Climate should have supported_custom_presets"
-        )
         custom_presets = test_climate.supported_custom_presets
         assert len(custom_presets) == 3, (
             f"Expected 3 custom presets, got {len(custom_presets)}: {custom_presets}"
