@@ -282,7 +282,7 @@ lvgl:
               #endif
               return std::string(buf);
             align: top_left
-        - obj:
+        - container:
             align: center
             arc_opa: COVER
             arc_color: 0xFF0000
@@ -415,6 +415,7 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            layout: 2x1
             id: button_button
             width: 20%
             height: 10%
@@ -545,6 +546,7 @@ lvgl:
                       - logger.log: "tile 1 is now showing"
             tiles:
               - id: tile_1
+                layout: vertical
                 row: 0
                 column: 0
                 dir: ALL
@@ -560,6 +562,7 @@ lvgl:
                       bg_color: 0x000000
 
     - id: page2
+      layout: vertical
       widgets:
         - canvas:
             id: canvas_id
@@ -1011,6 +1014,7 @@ lvgl:
                                 r_mod: -20
                                 opa: 0%
     - id: page3
+      layout: horizontal
       widgets:
         - keyboard:
             id: lv_keyboard
