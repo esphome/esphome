@@ -1212,7 +1212,7 @@ std::string WebServer::select_all_json_generator(WebServer *web_server, void *so
   return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->current_option(),
                                  DETAIL_ALL);
 }
-std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
+std::string WebServer::select_json(select::Select *obj, const char *value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
