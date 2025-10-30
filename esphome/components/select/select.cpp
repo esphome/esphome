@@ -14,13 +14,13 @@ void Select::publish_state(const char *state) {
   if (index.has_value()) {
     this->publish_state(index.value());
   } else {
-    ESP_LOGE(TAG, "'%s': invalid state for publish_state(): %s", this->get_name().c_str(), state);
+    ESP_LOGE(TAG, "'%s': Invalid option %s", this->get_name().c_str(), state);
   }
 }
 
 void Select::publish_state(size_t index) {
   if (!this->has_index(index)) {
-    ESP_LOGE(TAG, "'%s': invalid index for publish_state(): %zu", this->get_name().c_str(), index);
+    ESP_LOGE(TAG, "'%s': Invalid index %zu", this->get_name().c_str(), index);
     return;
   }
   const char *option = this->option_at(index);
