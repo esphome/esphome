@@ -5,7 +5,7 @@ namespace ld2450 {
 
 void ZoneTypeSelect::control(const std::string &value) {
   this->publish_state(value);
-  this->parent_->set_zone_type(state);
+  this->parent_->set_zone_type(value);
 }
 
 }  // namespace ld2450
