@@ -24,7 +24,7 @@ void TemplateSelect::setup() {
     ESP_LOGD(TAG, "State from initial: %s", this->option_at(index));
   }
 
-  this->publish_state(this->at(index).value());
+  this->publish_state(index);
 }
 
 void TemplateSelect::update() {

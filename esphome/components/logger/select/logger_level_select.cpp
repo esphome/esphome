@@ -3,10 +3,10 @@
 namespace esphome::logger {
 
 void LoggerLevelSelect::publish_state(int level) {
-  const auto &option = this->at(level_to_index(level));
-  if (!option)
+  auto index = level_to_index(level);
+  if (!this->has_index(index))
     return;
-  Select::publish_state(option.value());
+  Select::publish_state(index);
 }
 
 void LoggerLevelSelect::setup() {
