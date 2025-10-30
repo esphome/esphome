@@ -57,6 +57,7 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 # Filters
 Filter = text_sensor_ns.class_("Filter")
 LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
+StatelessLambdaFilter = text_sensor_ns.class_("StatelessLambdaFilter", Filter)
 ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
 ToLowerFilter = text_sensor_ns.class_("ToLowerFilter", Filter)
 AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
@@ -70,7 +71,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
     )
-    return cg.new_Pvariable(filter_id, lambda_)
+    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
 @FILTER_REGISTRY.register("to_upper", ToUpperFilter, {})
@@ -190,11 +191,6 @@ def text_sensor_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _TEXT_SENSOR_SCHEMA.extend(schema)
-
-
-# Remove before 2025.11.0
-TEXT_SENSOR_SCHEMA = text_sensor_schema()
-TEXT_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("text_sensor"))
 
 
 async def build_filters(config):

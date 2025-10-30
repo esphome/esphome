@@ -44,16 +44,18 @@ struct ESPTime {
   size_t strftime(char *buffer, size_t buffer_len, const char *format);
 
   /** Convert this ESPTime struct to a string as specified by the format argument.
-   * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
+   * @see https://en.cppreference.com/w/c/chrono/strftime
    *
-   * @warning This method uses dynamically allocated strings which can cause heap fragmentation with some
+   * @warning This method returns a dynamically allocated string which can cause heap fragmentation with some
    * microcontrollers.
    *
-   * @warning This method can return "ERROR" when the underlying strftime() call fails, e.g. when the
-   * format string contains unsupported specifiers or when the format string doesn't produce any
-   * output.
+   * @warning This method can return "ERROR" when the underlying strftime() call fails or when the
+   * output exceeds 128 bytes.
    */
   std::string strftime(const std::string &format);
+
+  /// @copydoc strftime(const std::string &format)
+  std::string strftime(const char *format);
 
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }

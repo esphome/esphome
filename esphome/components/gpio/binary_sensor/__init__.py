@@ -94,6 +94,8 @@ async def to_code(config):
         )
         use_interrupt = False
 
-    cg.add(var.set_use_interrupt(use_interrupt))
     if use_interrupt:
         cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
+    else:
+        # Only generate call when disabling interrupts (default is true)
+        cg.add(var.set_use_interrupt(use_interrupt))
