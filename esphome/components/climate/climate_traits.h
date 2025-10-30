@@ -135,12 +135,15 @@ class ClimateTraits {
     this->supported_custom_fan_modes_.assign(modes, modes + N);
   }
   const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
-  bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
+  bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     for (const char *mode : this->supported_custom_fan_modes_) {
-      if (strcmp(mode, custom_fan_mode.c_str()) == 0)
+      if (strcmp(mode, custom_fan_mode) == 0)
         return true;
     }
     return false;
+  }
+  bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
+    return this->supports_custom_fan_mode(custom_fan_mode.c_str());
   }
 
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
@@ -159,12 +162,15 @@ class ClimateTraits {
     this->supported_custom_presets_.assign(presets, presets + N);
   }
   const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
-  bool supports_custom_preset(const std::string &custom_preset) const {
+  bool supports_custom_preset(const char *custom_preset) const {
     for (const char *preset : this->supported_custom_presets_) {
-      if (strcmp(preset, custom_preset.c_str()) == 0)
+      if (strcmp(preset, custom_preset) == 0)
         return true;
     }
     return false;
+  }
+  bool supports_custom_preset(const std::string &custom_preset) const {
+    return this->supports_custom_preset(custom_preset.c_str());
   }
 
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }

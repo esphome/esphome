@@ -74,9 +74,13 @@ class ClimateCall {
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(optional<ClimateFanMode> fan_mode);
   /// Set the fan mode of the climate device based on a string.
-  ClimateCall &set_fan_mode(const std::string &fan_mode);
+  __attribute__((deprecated("Use set_fan_mode(const char*) instead"))) ClimateCall &set_fan_mode(
+      const std::string &fan_mode);
   /// Set the fan mode of the climate device based on a string.
-  ClimateCall &set_fan_mode(optional<std::string> fan_mode);
+  __attribute__((deprecated("Use set_fan_mode(const char*) instead"))) ClimateCall &set_fan_mode(
+      optional<std::string> fan_mode);
+  /// Set the custom fan mode of the climate device.
+  ClimateCall &set_fan_mode(const char *custom_fan_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
@@ -88,9 +92,12 @@ class ClimateCall {
   /// Set the preset of the climate device.
   ClimateCall &set_preset(optional<ClimatePreset> preset);
   /// Set the preset of the climate device based on a string.
-  ClimateCall &set_preset(const std::string &preset);
+  __attribute__((deprecated("Use set_preset(const char*) instead"))) ClimateCall &set_preset(const std::string &preset);
   /// Set the preset of the climate device based on a string.
-  ClimateCall &set_preset(optional<std::string> preset);
+  __attribute__((deprecated("Use set_preset(const char*) instead"))) ClimateCall &set_preset(
+      optional<std::string> preset);
+  /// Set the custom preset of the climate device.
+  ClimateCall &set_preset(const char *custom_preset);
 
   void perform();
 
@@ -103,8 +110,12 @@ class ClimateCall {
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<ClimatePreset> &get_preset() const;
-  const optional<std::string> &get_custom_fan_mode() const;
-  const optional<std::string> &get_custom_preset() const;
+  const char *get_custom_fan_mode() const;
+  const char *get_custom_preset() const;
+  /// @deprecated Use get_custom_fan_mode() (returns const char*) instead (since 2025.11.0)
+  optional<std::string> get_custom_fan_mode_optional() const;
+  /// @deprecated Use get_custom_preset() (returns const char*) instead (since 2025.11.0)
+  optional<std::string> get_custom_preset_optional() const;
 
  protected:
   void validate_();
@@ -118,8 +129,8 @@ class ClimateCall {
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<ClimatePreset> preset_;
-  optional<std::string> custom_fan_mode_;
-  optional<std::string> custom_preset_;
+  const char *custom_fan_mode_{nullptr};
+  const char *custom_preset_{nullptr};
 };
 
 /// Struct used to save the state of the climate device in restore memory.
@@ -239,10 +250,10 @@ class Climate : public EntityBase {
   optional<ClimatePreset> preset;
 
   /// The active custom fan mode of the climate device.
-  optional<std::string> custom_fan_mode;
+  const char *custom_fan_mode{nullptr};
 
   /// The active custom preset mode of the climate device.
-  optional<std::string> custom_preset;
+  const char *custom_preset{nullptr};
 
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
