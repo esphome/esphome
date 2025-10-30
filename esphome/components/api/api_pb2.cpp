@@ -1240,7 +1240,7 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
   }
   if (!this->supported_custom_presets->empty()) {
     for (const char *it : *this->supported_custom_presets) {
-      size.add_length_force(1, strlen(it));
+      size.add_length_force(2, strlen(it));
     }
   }
   size.add_bool(2, this->disabled_by_default);
