@@ -232,13 +232,12 @@ ClimateCall &ClimateCall::set_preset(const char *custom_preset) {
     }
   }
   // Find the matching pointer from traits
-  const auto &supported = this->parent_->get_traits().get_supported_custom_presets();
-  for (const char *preset : supported) {
-    if (strcmp(preset, custom_preset) == 0) {
-      this->custom_preset_ = preset;
-      this->preset_.reset();
-      return *this;
-    }
+  auto traits = this->parent_->get_traits();
+  const char *preset_ptr = traits.find_custom_preset(custom_preset);
+  if (preset_ptr != nullptr) {
+    this->custom_preset_ = preset_ptr;
+    this->preset_.reset();
+    return *this;
   }
   ESP_LOGW(TAG, "'%s' - Unrecognized preset %s", this->parent_->get_name().c_str(), custom_preset);
   return *this;
