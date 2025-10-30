@@ -335,6 +335,58 @@ bool ESP32BLE::ble_dismantle_() {
   return true;
 }
 
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
+inline void ESP32BLE::dispatch_gap_event_(esp_gap_ble_cb_event_t gap_event, BLEEvent *ble_event) {
+  // Determine which union member to use based on event type.
+  // All event structures are properly laid out in memory per ESP-IDF.
+  // The reinterpret_cast operations are safe because:
+  // 1. Structure sizes match ESP-IDF expectations (verified by static_assert in ble_event.h)
+  // 2. Status fields are at offset 0 (verified by static_assert in ble_event.h)
+  // 3. The struct already contains our copy of the data (copied in BLEEvent constructor)
+  esp_ble_gap_cb_param_t *param;
+
+  switch (gap_event) {
+    // Scan complete events - all have same structure with just status
+    case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+      param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete);
+      break;
+
+    // Advertising complete events - all have same structure with just status
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+      param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete);
+      break;
+
+    // RSSI complete event
+    case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+      param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete);
+      break;
+
+    // Security events
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+    case ESP_GAP_BLE_NC_REQ_EVT:
+      param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security);
+      break;
+
+    default:
+      return;  // Shouldn't happen - all cases covered by loop() switch
+  }
+
+  // Dispatch to all registered handlers
+  for (auto *gap_handler : this->gap_event_handlers_) {
+    gap_handler->gap_event_handler(gap_event, param);
+  }
+}
+#endif
+
 void ESP32BLE::loop() {
   switch (this->state_) {
     case BLE_COMPONENT_STATE_OFF:
@@ -417,46 +469,14 @@ void ESP32BLE::loop() {
           case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
           case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
           case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-            // All three scan complete events have the same structure with just status
-            // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
-            // This is verified at compile-time by static_assert checks in ble_event.h
-            // The struct already contains our copy of the status (copied in BLEEvent constructor)
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
-            }
-#endif
-            break;
-
           // Advertising complete events
           case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
           case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
           case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
           case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
           case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
-            // All advertising complete events have the same structure with just status
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
-            }
-#endif
-            break;
-
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
-            }
-#endif
-            break;
-
           // Security events
           case ESP_GAP_BLE_AUTH_CMPL_EVT:
           case ESP_GAP_BLE_SEC_REQ_EVT:
@@ -465,10 +485,7 @@ void ESP32BLE::loop() {
           case ESP_GAP_BLE_NC_REQ_EVT:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
-            }
+            this->dispatch_gap_event_(gap_event, ble_event);
 #endif
             break;
 
