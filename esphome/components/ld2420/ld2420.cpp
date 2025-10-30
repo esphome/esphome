@@ -131,8 +131,8 @@ static const uint8_t CMD_FRAME_STATUS = 7;
 static const uint8_t CMD_ERROR_WORD = 8;
 static const uint8_t ENERGY_SENSOR_START = 9;
 static const uint8_t CALIBRATE_REPORT_INTERVAL = 4;
-static const std::string OP_NORMAL_MODE_STRING = "Normal";
-static const std::string OP_SIMPLE_MODE_STRING = "Simple";
+static const char *const OP_NORMAL_MODE_STRING = "Normal";
+static const char *const OP_SIMPLE_MODE_STRING = "Simple";
 
 // Memory-efficient lookup tables
 struct StringToUint8 {
