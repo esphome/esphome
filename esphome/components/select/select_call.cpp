@@ -78,8 +78,9 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
-  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
-           this->cycle_ ? "" : "out");
+  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name,
+           this->operation_ == SELECT_OP_NEXT ? LOG_STR_LITERAL("next") : LOG_STR_LITERAL("previous"),
+           this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
 
   const auto size = options.size();
   if (!this->parent_->has_state()) {
