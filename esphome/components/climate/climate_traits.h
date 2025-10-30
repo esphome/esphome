@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <vector>
 #include "climate_mode.h"
 #include "esphome/core/finite_set_mask.h"
@@ -17,16 +18,6 @@ using ClimateFanModeMask = FiniteSetMask<ClimateFanMode, DefaultBitPolicy<Climat
 using ClimateSwingModeMask =
     FiniteSetMask<ClimateSwingMode, DefaultBitPolicy<ClimateSwingMode, CLIMATE_SWING_HORIZONTAL + 1>>;
 using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimatePreset, CLIMATE_PRESET_ACTIVITY + 1>>;
-
-// Lightweight linear search for small vectors (1-20 items)
-// Avoids std::find template overhead
-template<typename T> inline bool vector_contains(const std::vector<T> &vec, const T &value) {
-  for (const auto &item : vec) {
-    if (item == value)
-      return true;
-  }
-  return false;
-}
 
 /** This class contains all static data for climate devices.
  *
@@ -128,46 +119,52 @@ class ClimateTraits {
 
   void set_supported_fan_modes(ClimateFanModeMask modes) { this->supported_fan_modes_ = modes; }
   void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
-  void add_supported_custom_fan_mode(const std::string &mode) { this->supported_custom_fan_modes_.push_back(mode); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
     return !this->supported_fan_modes_.empty() || !this->supported_custom_fan_modes_.empty();
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
 
-  void set_supported_custom_fan_modes(std::vector<std::string> supported_custom_fan_modes) {
-    this->supported_custom_fan_modes_ = std::move(supported_custom_fan_modes);
+  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
+    this->supported_custom_fan_modes_ = modes;
   }
-  void set_supported_custom_fan_modes(std::initializer_list<std::string> modes) {
+  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
     this->supported_custom_fan_modes_ = modes;
   }
   template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
     this->supported_custom_fan_modes_.assign(modes, modes + N);
   }
-  const std::vector<std::string> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
+  const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
-    return vector_contains(this->supported_custom_fan_modes_, custom_fan_mode);
+    for (const char *mode : this->supported_custom_fan_modes_) {
+      if (strcmp(mode, custom_fan_mode.c_str()) == 0)
+        return true;
+    }
+    return false;
   }
 
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
   void add_supported_preset(ClimatePreset preset) { this->supported_presets_.insert(preset); }
-  void add_supported_custom_preset(const std::string &preset) { this->supported_custom_presets_.push_back(preset); }
   bool supports_preset(ClimatePreset preset) const { return this->supported_presets_.count(preset); }
   bool get_supports_presets() const { return !this->supported_presets_.empty(); }
   const ClimatePresetMask &get_supported_presets() const { return this->supported_presets_; }
 
-  void set_supported_custom_presets(std::vector<std::string> supported_custom_presets) {
-    this->supported_custom_presets_ = std::move(supported_custom_presets);
+  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
+    this->supported_custom_presets_ = presets;
   }
-  void set_supported_custom_presets(std::initializer_list<std::string> presets) {
+  void set_supported_custom_presets(const std::vector<const char *> &presets) {
     this->supported_custom_presets_ = presets;
   }
   template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
     this->supported_custom_presets_.assign(presets, presets + N);
   }
-  const std::vector<std::string> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
+  const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
   bool supports_custom_preset(const std::string &custom_preset) const {
-    return vector_contains(this->supported_custom_presets_, custom_preset);
+    for (const char *preset : this->supported_custom_presets_) {
+      if (strcmp(preset, custom_preset.c_str()) == 0)
+        return true;
+    }
+    return false;
   }
 
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
@@ -239,8 +236,11 @@ class ClimateTraits {
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
-  std::vector<std::string> supported_custom_fan_modes_;
-  std::vector<std::string> supported_custom_presets_;
+  // Store const char* pointers to avoid std::string overhead
+  // Pointers must remain valid for traits lifetime (typically string literals in rodata,
+  // or pointers to strings with sufficient lifetime like member variables)
+  std::vector<const char *> supported_custom_fan_modes_;
+  std::vector<const char *> supported_custom_presets_;
 };
 
 }  // namespace climate

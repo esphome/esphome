@@ -48,7 +48,7 @@ void BedJetClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_fan_mode_to_string(mode)));
   }
   for (const auto &mode : traits.get_supported_custom_fan_modes()) {
-    ESP_LOGCONFIG(TAG, "   - %s (c)", mode.c_str());
+    ESP_LOGCONFIG(TAG, "   - %s (c)", mode);
   }
 
   ESP_LOGCONFIG(TAG, "  Supported presets:");
@@ -56,7 +56,7 @@ void BedJetClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_preset_to_string(preset)));
   }
   for (const auto &preset : traits.get_supported_custom_presets()) {
-    ESP_LOGCONFIG(TAG, "   - %s (c)", preset.c_str());
+    ESP_LOGCONFIG(TAG, "   - %s (c)", preset);
   }
 }
 
