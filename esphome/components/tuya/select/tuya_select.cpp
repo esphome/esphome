@@ -17,8 +17,7 @@ void TuyaSelect::setup() {
       return;
     }
     size_t mapping_idx = std::distance(mappings.cbegin(), it);
-    auto value = this->at(mapping_idx);
-    this->publish_state(value.value());
+    this->publish_state(mapping_idx);
   });
 }
 
