@@ -67,11 +67,6 @@ class Select : public EntityBase {
 
   void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
 
- protected:
-  friend class SelectCall;
-
-  size_t active_index_{0};
-
   /** Set the value of the select by index, this is an optional virtual method.
    *
    * This method is called by the SelectCall when the index is already known.
@@ -81,6 +76,11 @@ class Select : public EntityBase {
    * @param index The index as validated by the SelectCall.
    */
   virtual void control(size_t index) { this->control(this->option_at(index)); }
+
+ protected:
+  friend class SelectCall;
+
+  size_t active_index_{0};
 
   /** Set the value of the select, this is a virtual method that each select integration must implement.
    *
