@@ -63,18 +63,16 @@ optional<size_t> Select::index_of(const char *option) const {
 optional<size_t> Select::active_index() const {
   if (this->has_state()) {
     return this->active_index_;
-  } else {
-    return {};
   }
+  return {};
 }
 
 optional<std::string> Select::at(size_t index) const {
   if (this->has_index(index)) {
     const auto &options = traits.get_options();
     return std::string(options.at(index));
-  } else {
-    return {};
   }
+  return {};
 }
 
 const char *Select::option_at(size_t index) const { return traits.get_options().at(index); }
