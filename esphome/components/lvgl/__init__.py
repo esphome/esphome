@@ -366,11 +366,11 @@ async def to_code(configs):
                     conf[CONF_TRIGGER_ID], lv_component, templ
                 )
                 await build_automation(idle_trigger, [], conf)
-            for conf in config.get(df.CONF_ON_PAUSE, ()):
+            if conf := config.get(df.CONF_ON_PAUSE):
                 pause_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                 await build_automation(pause_trigger, [], conf)
                 cg.add(lv_component.set_pause_trigger(pause_trigger))
-            for conf in config.get(df.CONF_ON_RESUME, ()):
+            if conf := config.get(df.CONF_ON_RESUME):
                 resume_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                 await build_automation(resume_trigger, [], conf)
                 cg.add(lv_component.set_resume_trigger(resume_trigger))
