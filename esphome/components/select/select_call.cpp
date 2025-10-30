@@ -46,67 +46,81 @@ SelectCall &SelectCall::with_index(size_t index) {
   return *this;
 }
 
+optional<size_t> SelectCall::calculate_target_index_(const char *name) {
+  const auto &options = this->parent_->traits.get_options();
+  if (options.empty()) {
+    ESP_LOGW(TAG, "'%s' - Cannot perform SelectCall, select has no options", name);
+    return {};
+  }
+
+  if (this->operation_ == SELECT_OP_FIRST) {
+    return 0;
+  }
+
+  if (this->operation_ == SELECT_OP_LAST) {
+    return options.size() - 1;
+  }
+
+  if (this->operation_ == SELECT_OP_SET || this->operation_ == SELECT_OP_SET_INDEX) {
+    if (!this->index_.has_value()) {
+      ESP_LOGW(TAG, "'%s' - No option value set for SelectCall", name);
+      return {};
+    }
+    auto idx = this->index_.value();
+    if (idx >= options.size()) {
+      ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", name, idx);
+      return {};
+    }
+    if (this->operation_ == SELECT_OP_SET) {
+      ESP_LOGD(TAG, "'%s' - Setting", name);
+    }
+    return idx;
+  }
+
+  // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
+  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
+           this->cycle_ ? "" : "out");
+
+  const auto size = options.size();
+  if (!this->parent_->has_state()) {
+    return this->operation_ == SELECT_OP_NEXT ? 0 : size - 1;
+  }
+
+  // Use cached active_index_ instead of index_of() lookup
+  const auto index = this->parent_->active_index_;
+  if (this->cycle_) {
+    return (size + index + (this->operation_ == SELECT_OP_NEXT ? +1 : -1)) % size;
+  }
+
+  if (this->operation_ == SELECT_OP_PREVIOUS && index > 0) {
+    return index - 1;
+  }
+
+  if (this->operation_ == SELECT_OP_NEXT && index < size - 1) {
+    return index + 1;
+  }
+
+  return {};  // Can't navigate further without cycling
+}
+
 void SelectCall::perform() {
   auto *parent = this->parent_;
   const auto *name = parent->get_name().c_str();
-  const auto &traits = parent->traits;
-  const auto &options = traits.get_options();
 
   if (this->operation_ == SELECT_OP_NONE) {
     ESP_LOGW(TAG, "'%s' - SelectCall performed without selecting an operation", name);
     return;
   }
-  if (options.empty()) {
-    ESP_LOGW(TAG, "'%s' - Cannot perform SelectCall, select has no options", name);
+
+  auto target_index = this->calculate_target_index_(name);
+  if (!target_index.has_value()) {
     return;
   }
 
-  size_t target_index;
-
-  if (this->operation_ == SELECT_OP_SET || this->operation_ == SELECT_OP_SET_INDEX) {
-    if (this->operation_ == SELECT_OP_SET) {
-      ESP_LOGD(TAG, "'%s' - Setting", name);
-    }
-    if (!this->index_.has_value()) {
-      ESP_LOGW(TAG, "'%s' - No option value set for SelectCall", name);
-      return;
-    }
-    if (this->index_.value() >= options.size()) {
-      ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", name, this->index_.value());
-      return;
-    }
-    target_index = this->index_.value();
-  } else if (this->operation_ == SELECT_OP_FIRST) {
-    target_index = 0;
-  } else if (this->operation_ == SELECT_OP_LAST) {
-    target_index = options.size() - 1;
-  } else {  // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
-    auto cycle = this->cycle_;
-    ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
-             cycle ? "" : "out");
-    if (!parent->has_state()) {
-      target_index = this->operation_ == SELECT_OP_NEXT ? 0 : options.size() - 1;
-    } else {
-      // Use cached active_index_ instead of index_of() lookup
-      auto index = parent->active_index_;
-      auto size = options.size();
-      if (cycle) {
-        target_index = (size + index + (this->operation_ == SELECT_OP_NEXT ? +1 : -1)) % size;
-      } else {
-        if (this->operation_ == SELECT_OP_PREVIOUS && index > 0) {
-          target_index = index - 1;
-        } else if (this->operation_ == SELECT_OP_NEXT && index < options.size() - 1) {
-          target_index = index + 1;
-        } else {
-          return;
-        }
-      }
-    }
-  }
-
   // All operations use indices, call control() by index to avoid string conversion
-  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, options[target_index]);
-  parent->control(target_index);
+  const auto &options = parent->traits.get_options();
+  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, options[target_index.value()]);
+  parent->control(target_index.value());
 }
 
 }  // namespace select
