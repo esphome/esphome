@@ -171,7 +171,6 @@ class LvglComponent : public PollingComponent {
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
-  void add_on_pause_callback(std::function<void(bool)> &&callback) { this->pause_callbacks_.add(std::move(callback)); }
   void dump_config() override;
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   lv_disp_t *get_disp() { return this->disp_; }
@@ -213,6 +212,8 @@ class LvglComponent : public PollingComponent {
   size_t draw_rounding{2};
 
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
+  void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
+  void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
 
  protected:
   void write_random_();
@@ -235,7 +236,8 @@ class LvglComponent : public PollingComponent {
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};
-  CallbackManager<void(bool)> pause_callbacks_{};
+  Trigger<> *pause_callback_{};
+  Trigger<> *resume_callback_{};
   lv_color_t *rotate_buf_{};
 };
 
@@ -246,14 +248,6 @@ class IdleTrigger : public Trigger<> {
  protected:
   TemplatableValue<uint32_t> timeout_;
   bool is_idle_{};
-};
-
-class PauseTrigger : public Trigger<> {
- public:
-  explicit PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused);
-
- protected:
-  TemplatableValue<bool> paused_;
 };
 
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {

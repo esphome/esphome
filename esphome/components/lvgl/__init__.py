@@ -27,7 +27,7 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, refreshed_widgets, update_to_code
-from .defines import add_define
+from .defines import add_define, single_automation
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -58,7 +58,7 @@ from .types import (
     FontEngine,
     IdleTrigger,
     ObjUpdateAction,
-    PauseTrigger,
+    PlainTrigger,
     lv_font_t,
     lv_group_t,
     lv_style_t,
@@ -367,15 +367,13 @@ async def to_code(configs):
                 )
                 await build_automation(idle_trigger, [], conf)
             for conf in config.get(df.CONF_ON_PAUSE, ()):
-                pause_trigger = cg.new_Pvariable(
-                    conf[CONF_TRIGGER_ID], lv_component, True
-                )
+                pause_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                 await build_automation(pause_trigger, [], conf)
+                cg.add(lv_component.set_pause_trigger(pause_trigger))
             for conf in config.get(df.CONF_ON_RESUME, ()):
-                resume_trigger = cg.new_Pvariable(
-                    conf[CONF_TRIGGER_ID], lv_component, False
-                )
+                resume_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                 await build_automation(resume_trigger, [], conf)
+                cg.add(lv_component.set_resume_trigger(resume_trigger))
             await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
@@ -443,14 +441,14 @@ LVGL_SCHEMA = cv.All(
                         ),
                     }
                 ),
-                cv.Optional(df.CONF_ON_PAUSE): validate_automation(
+                cv.Optional(df.CONF_ON_PAUSE): single_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
                     }
                 ),
-                cv.Optional(df.CONF_ON_RESUME): validate_automation(
+                cv.Optional(df.CONF_ON_RESUME): single_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
                     }
                 ),
                 cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(

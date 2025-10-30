@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from esphome import codegen as cg, config_validation as cv
+from esphome.automation import validate_automation
 from esphome.const import CONF_ITEMS
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
@@ -483,6 +484,8 @@ CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
+CONF_ON_DRAW_START = "on_draw_start"
+CONF_ON_DRAW_END = "on_draw_end"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
@@ -567,3 +570,22 @@ def join_enums(enums, prefix=""):
     if prefix:
         return literal("|".join(f"{prefix}{e.upper()}" for e in enums))
     return literal("|".join(f"(int){e.upper()}" for e in enums))
+
+
+def single_automation(schema):
+    """
+    An automation where only a single instance is allowed, i.e. no list of `then:`
+    A list of actions will still be permitted
+    :param schema: The automation schema
+    :return:
+    """
+
+    schema = validate_automation(schema)
+
+    def validator(value):
+        value = schema(value)
+        if len(value) != 1:
+            raise cv.Invalid("This trigger allows only a single automation")
+        return value[0]
+
+    return validator

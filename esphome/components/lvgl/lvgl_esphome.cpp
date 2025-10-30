@@ -101,7 +101,10 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
     lv_disp_trig_activity(this->disp_);  // resets the inactivity time
     lv_obj_invalidate(lv_scr_act());
   }
-  this->pause_callbacks_.call(paused);
+  if (paused && this->pause_callback_ != nullptr)
+    this->pause_callback_->trigger();
+  if (!paused && this->resume_callback_ != nullptr)
+    this->resume_callback_->trigger();
 }
 
 void LvglComponent::esphome_lvgl_init() {
@@ -222,13 +225,6 @@ IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeo
     } else if (this->is_idle_ && idle_time < this->timeout_.value()) {
       this->is_idle_ = false;
     }
-  });
-}
-
-PauseTrigger::PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused) : paused_(std::move(paused)) {
-  parent->add_on_pause_callback([this](bool pausing) {
-    if (this->paused_.value() == pausing)
-      this->trigger();
   });
 }
 
