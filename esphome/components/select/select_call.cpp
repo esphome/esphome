@@ -88,17 +88,17 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   }
 
   // Use cached active_index_ instead of index_of() lookup
-  const auto index = this->parent_->active_index_;
+  const auto active_index = this->parent_->active_index_;
   if (this->cycle_) {
-    return (size + index + (this->operation_ == SELECT_OP_NEXT ? +1 : -1)) % size;
+    return (size + active_index + (this->operation_ == SELECT_OP_NEXT ? +1 : -1)) % size;
   }
 
-  if (this->operation_ == SELECT_OP_PREVIOUS && index > 0) {
-    return index - 1;
+  if (this->operation_ == SELECT_OP_PREVIOUS && active_index > 0) {
+    return active_index - 1;
   }
 
-  if (this->operation_ == SELECT_OP_NEXT && index < size - 1) {
-    return index + 1;
+  if (this->operation_ == SELECT_OP_NEXT && active_index < size - 1) {
+    return active_index + 1;
   }
 
   return {};  // Can't navigate further without cycling
