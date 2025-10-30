@@ -32,8 +32,12 @@ class Select : public EntityBase {
  public:
   SelectTraits traits;
 
-  /// @deprecated Use current_option() instead. This member will be removed in a future release.
-  __attribute__((deprecated("Use current_option() instead of .state"))) std::string state{};
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.5.0.
+  __attribute__((deprecated("Use current_option() instead of .state. Will be removed in 2026.5.0")))
+  std::string state{};
+#pragma GCC diagnostic pop
 
   void publish_state(const std::string &state);
   void publish_state(const char *state);
