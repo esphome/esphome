@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_HEIGHT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_CONTAINER, CONF_LAYOUT, CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
+from ..defines import CONF_CONTAINER, CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
 from ..lv_validation import size
 from ..lvcode import lv
 from ..types import WidgetType, lv_obj_t
@@ -32,11 +32,6 @@ class ContainerType(WidgetType):
             lv_name=CONF_OBJ,
         )
         self.styles = {}
-
-    def validate(self, value):
-        if value.get(CONF_LAYOUT) is None:
-            value[CONF_LAYOUT] = "horizontal"
-        return value
 
     def on_create(self, var: MockObj, config: dict):
         lv.obj_remove_style_all(var)

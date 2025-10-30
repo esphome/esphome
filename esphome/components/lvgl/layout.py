@@ -63,9 +63,13 @@ FLEX_OBJ_SCHEMA = {
     cv.Optional(CONF_FLEX_GROW): cv.int_,
 }
 
-FLEX_HV_SCHEMA = {
-    cv.Optional(CONF_FLEX_GROW, default=1): cv.int_,
-}
+
+def flex_hv_schema(dir):
+    dir = CONF_HEIGHT if dir == "horizontal" else CONF_WIDTH
+    return {
+        cv.Optional(CONF_FLEX_GROW, default=1): cv.int_,
+        cv.Optional(dir, default="100%"): size,
+    }
 
 
 def grid_free_space(value):
@@ -159,7 +163,7 @@ class DirectionalLayout(FlexLayout):
     def get_layout_schemas(self, config: dict) -> tuple:
         if config.get(CONF_LAYOUT, "").lower() != self.direction:
             return None, {}
-        return cv.one_of(self.direction, lower=True), FLEX_HV_SCHEMA
+        return cv.one_of(self.direction, lower=True), flex_hv_schema(self.direction)
 
     def validate(self, config):
         assert config[CONF_LAYOUT].lower() == self.direction
