@@ -291,61 +291,67 @@ def _validate_config(config):
 
 
 def _final_validate(config):
-    """Validate LVGL-specific requirements when using HUB75 display"""
-    # Local import to avoid circular dependencies
-    try:
-        from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-    except ImportError:
-        # LVGL component not available in this ESPHome installation
-        return config
+    """Validate requirements when using HUB75 display"""
+    # Local imports to avoid circular dependencies
+    from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32.const import VARIANT_ESP32P4
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+    from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
     full_config = fv.full_config.get()
-
-    # Check if LVGL component is loaded
-    if LVGL_DOMAIN not in full_config:
-        return config
-
     errs = []
 
-    # Check update_interval (converted from "never" to NEVER constant)
-    update_interval = config.get(CONF_UPDATE_INTERVAL)
-    if update_interval is not None:
-        # Handle both integer (NEVER) and time object cases
-        interval_ms = (
-            update_interval
-            if isinstance(update_interval, int)
-            else update_interval.total_milliseconds
+    # ESP32-P4 requires PSRAM
+    variant = get_esp32_variant()
+    if variant == VARIANT_ESP32P4 and PSRAM_DOMAIN not in full_config:
+        errs.append(
+            cv.Invalid(
+                "HUB75 display on ESP32-P4 requires PSRAM. Add 'psram:' to your configuration.",
+                path=[CONF_ID],
+            )
         )
-        if interval_ms != NEVER:
+
+    # LVGL-specific validation
+    if LVGL_DOMAIN in full_config:
+        # Check update_interval (converted from "never" to NEVER constant)
+        update_interval = config.get(CONF_UPDATE_INTERVAL)
+        if update_interval is not None:
+            # Handle both integer (NEVER) and time object cases
+            interval_ms = (
+                update_interval
+                if isinstance(update_interval, int)
+                else update_interval.total_milliseconds
+            )
+            if interval_ms != NEVER:
+                errs.append(
+                    cv.Invalid(
+                        "HUB75 display with LVGL must have 'update_interval: never'. "
+                        "LVGL manages its own refresh timing.",
+                        path=[CONF_UPDATE_INTERVAL],
+                    )
+                )
+
+        # Check auto_clear_enabled
+        auto_clear = config[CONF_AUTO_CLEAR_ENABLED]
+        if auto_clear is not False:
             errs.append(
                 cv.Invalid(
-                    "HUB75 display with LVGL must have 'update_interval: never'. "
-                    "LVGL manages its own refresh timing.",
-                    path=[CONF_UPDATE_INTERVAL],
+                    f"HUB75 display with LVGL must have 'auto_clear_enabled: false' (got '{auto_clear}'). "
+                    "LVGL manages screen clearing.",
+                    path=[CONF_AUTO_CLEAR_ENABLED],
                 )
             )
 
-    # Check auto_clear_enabled
-    auto_clear = config[CONF_AUTO_CLEAR_ENABLED]
-    if auto_clear is not False:
-        errs.append(
-            cv.Invalid(
-                f"HUB75 display with LVGL must have 'auto_clear_enabled: false' (got '{auto_clear}'). "
-                "LVGL manages screen clearing.",
-                path=[CONF_AUTO_CLEAR_ENABLED],
+        # Check double_buffer (C++ default: false)
+        double_buffer = config.get(CONF_DOUBLE_BUFFER, False)
+        if double_buffer is not False:
+            errs.append(
+                cv.Invalid(
+                    f"HUB75 display with LVGL must have 'double_buffer: false' (got '{double_buffer}'). "
+                    "LVGL uses its own buffering strategy.",
+                    path=[CONF_DOUBLE_BUFFER],
+                )
             )
-        )
-
-    # Check double_buffer (C++ default: false)
-    double_buffer = config.get(CONF_DOUBLE_BUFFER, False)
-    if double_buffer is not False:
-        errs.append(
-            cv.Invalid(
-                f"HUB75 display with LVGL must have 'double_buffer: false' (got '{double_buffer}'). "
-                "LVGL uses its own buffering strategy.",
-                path=[CONF_DOUBLE_BUFFER],
-            )
-        )
 
     if errs:
         raise cv.MultipleInvalid(errs)
