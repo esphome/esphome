@@ -619,18 +619,40 @@ template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optio
   return is_changed;
 }
 
+// Overload for optional + const char* pointer
+template<typename T> bool set_alternative(optional<T> &dst, const char *&alt, const T &src) {
+  bool is_changed = (alt != nullptr);
+  alt = nullptr;
+  if (is_changed || dst != src) {
+    dst = src;
+    is_changed = true;
+  }
+  return is_changed;
+}
+
+// Overload for const char* pointer + optional
+template<typename T> bool set_alternative(const char *&dst, optional<T> &alt, const char *src) {
+  bool is_changed = alt.has_value();
+  alt.reset();
+  if (is_changed || dst != src) {
+    dst = src;
+    is_changed = true;
+  }
+  return is_changed;
+}
+
 bool Climate::set_fan_mode_(ClimateFanMode mode) {
   return set_alternative(this->fan_mode, this->custom_fan_mode, mode);
 }
 
 bool Climate::set_custom_fan_mode_(const std::string &mode) {
-  return set_alternative(this->custom_fan_mode, this->fan_mode, mode);
+  return set_alternative(this->custom_fan_mode, this->fan_mode, mode.c_str());
 }
 
 bool Climate::set_preset_(ClimatePreset preset) { return set_alternative(this->preset, this->custom_preset, preset); }
 
 bool Climate::set_custom_preset_(const std::string &preset) {
-  return set_alternative(this->custom_preset, this->preset, preset);
+  return set_alternative(this->custom_preset, this->preset, preset.c_str());
 }
 
 void Climate::dump_traits_(const char *tag) {
