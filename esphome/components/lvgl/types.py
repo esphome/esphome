@@ -170,9 +170,9 @@ class WidgetType:
         """
         return lv_expr.call(f"{self.lv_name}_create", parent)
 
-    def on_create(self, var: MockObjClass, config: dict):
+    def on_create(self, var: MockObj, config: dict):
         """
-        Called when the widget is created, to set up any initial properties
+        Called from to_code when the widget is created, to set up any initial properties
         :param var: The variable representing the widget
         :param config: Its configuration
         """
@@ -195,6 +195,14 @@ class WidgetType:
 
     def get_scale(self, config: dict):
         return 1.0
+
+    def validate(self, value):
+        """
+        Provides an opportunity for custom validation for a given widget type
+        :param value:
+        :return:
+        """
+        return value
 
 
 class NumberType(WidgetType):

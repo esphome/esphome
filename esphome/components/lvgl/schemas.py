@@ -436,7 +436,8 @@ def any_widget_schema(extras=None):
                 container_validator = cv.All(
                     container_validator, requires_component(required)
                 )
-            value = value or {}
+            # Apply custom validation
+            value = widget_type.validate(value or {})
             result.append({key: container_validator(value)})
         return result
 

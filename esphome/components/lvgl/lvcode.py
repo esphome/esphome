@@ -328,7 +328,7 @@ def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
 
 
-def lv_Pvariable(type, name):
+def lv_Pvariable(type, name) -> MockObj:
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
@@ -344,7 +344,7 @@ def lv_Pvariable(type, name):
     return var
 
 
-def lv_variable(type, name):
+def lv_variable(type, name) -> MockObj:
     """
     Create but do not initialise a variable
     :param type: Type of the variable target

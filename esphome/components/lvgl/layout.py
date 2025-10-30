@@ -97,7 +97,7 @@ class Layout:
     def get_type(self):
         return TYPE_NONE
 
-    def get_layout_schemas(self, config: dict) -> tuple | None:
+    def get_layout_schemas(self, config: dict) -> tuple:
         """
         Get the layout and child schema for a given widget based on its layout type.
         """
@@ -176,7 +176,7 @@ class GridLayout(Layout):
     def get_type(self):
         return TYPE_GRID
 
-    def get_layout_schemas(self, config: dict) -> tuple | None:
+    def get_layout_schemas(self, config: dict) -> tuple:
         layout = config.get(CONF_LAYOUT)
         if isinstance(layout, str):
             if GridLayout._GRID_LAYOUT_REGEX.match(layout):
