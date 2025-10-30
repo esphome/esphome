@@ -1008,12 +1008,3 @@ async def to_code(config):
         await automation.build_automation(
             var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]
         )
-
-    # Collect custom preset names from preset map (non-standard preset names only)
-    custom_preset_names = [
-        preset_config[CONF_NAME]
-        for preset_config in config.get(CONF_PRESET, [])
-        if preset_config[CONF_NAME].upper() not in climate.CLIMATE_PRESETS
-    ]
-    if custom_preset_names:
-        cg.add(var.set_custom_presets(custom_preset_names))

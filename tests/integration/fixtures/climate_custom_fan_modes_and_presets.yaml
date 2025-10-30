@@ -27,10 +27,6 @@ climate:
       - name: Vacation Mode
         default_target_temperature_low: 15°C
         default_target_temperature_high: 18°C
-    custom_fan_modes:
-      - "Turbo"
-      - "Silent"
-      - "Sleep Mode"
     idle_action:
       - logger.log: idle_action
     cool_action:

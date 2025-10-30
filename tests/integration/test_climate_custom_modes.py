@@ -1,4 +1,4 @@
-"""Integration test for climate custom fan modes and presets."""
+"""Integration test for climate custom presets."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ async def test_climate_custom_fan_modes_and_presets(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test that custom fan modes and presets are properly exposed via API."""
+    """Test that custom presets are properly exposed via API."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Get entities and services
         entities, services = await client.list_entities_services()
@@ -22,17 +22,6 @@ async def test_climate_custom_fan_modes_and_presets(
         assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
 
         test_climate = climate_infos[0]
-
-        # Verify custom fan modes are exposed
-        custom_fan_modes = test_climate.supported_custom_fan_modes
-        assert len(custom_fan_modes) == 3, (
-            f"Expected 3 custom fan modes, got {len(custom_fan_modes)}"
-        )
-        assert "Turbo" in custom_fan_modes, "Expected 'Turbo' in custom fan modes"
-        assert "Silent" in custom_fan_modes, "Expected 'Silent' in custom fan modes"
-        assert "Sleep Mode" in custom_fan_modes, (
-            "Expected 'Sleep Mode' in custom fan modes"
-        )
 
         # Verify enum presets are exposed (from preset: config map)
         assert ClimatePreset.AWAY in test_climate.supported_presets, (

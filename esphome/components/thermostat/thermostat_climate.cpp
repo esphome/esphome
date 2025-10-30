@@ -322,9 +322,14 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_preset(it.first);
   }
 
-  // Custom presets are set directly from Python (includes all non-standard preset names from map)
-  if (!this->additional_custom_presets_.empty()) {
-    traits.set_supported_custom_presets(this->additional_custom_presets_);
+  // Extract custom preset names from the custom_preset_config_ map
+  if (!this->custom_preset_config_.empty()) {
+    std::vector<const char *> custom_preset_names;
+    custom_preset_names.reserve(this->custom_preset_config_.size());
+    for (const auto &it : this->custom_preset_config_) {
+      custom_preset_names.push_back(it.first.c_str());
+    }
+    traits.set_supported_custom_presets(custom_preset_names);
   }
 
   return traits;
@@ -1614,10 +1619,6 @@ void ThermostatClimate::dump_config() {
       this->dump_preset_config_(preset_name, it.second);
     }
   }
-}
-
-void ThermostatClimate::set_custom_presets(std::initializer_list<const char *> custom_presets) {
-  this->additional_custom_presets_ = custom_presets;
 }
 
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
