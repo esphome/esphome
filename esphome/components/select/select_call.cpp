@@ -7,15 +7,11 @@ namespace select {
 
 static const char *const TAG = "select";
 
-SelectCall &SelectCall::set_option(const std::string &option) {
-  return this->with_operation(SELECT_OP_SET).with_option(option);
-}
+SelectCall &SelectCall::set_option(const std::string &option) { return this->with_option(option); }
 
-SelectCall &SelectCall::set_option(const char *option) {
-  return this->with_operation(SELECT_OP_SET).with_option(option);
-}
+SelectCall &SelectCall::set_option(const char *option) { return this->with_option(option); }
 
-SelectCall &SelectCall::set_index(size_t index) { return this->with_operation(SELECT_OP_SET).with_index(index); }
+SelectCall &SelectCall::set_index(size_t index) { return this->with_index(index); }
 
 SelectCall &SelectCall::select_next(bool cycle) { return this->with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
 
@@ -40,12 +36,14 @@ SelectCall &SelectCall::with_cycle(bool cycle) {
 SelectCall &SelectCall::with_option(const std::string &option) { return this->with_option(option.c_str()); }
 
 SelectCall &SelectCall::with_option(const char *option) {
+  this->operation_ = SELECT_OP_SET;
   // Find the option index - this validates the option exists
   this->index_ = this->parent_->index_of(option);
   return *this;
 }
 
 SelectCall &SelectCall::with_index(size_t index) {
+  this->operation_ = SELECT_OP_SET;
   if (index >= this->parent_->size()) {
     ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", this->parent_->get_name().c_str(), index);
     this->index_ = {};  // Store nullopt for invalid index
