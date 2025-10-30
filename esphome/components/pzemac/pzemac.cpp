@@ -4,8 +4,13 @@
 namespace esphome {
 namespace pzemac {
 
-uint32_t last_update_time_;
-static float last_energy_sensor[10] = {};
+class pzemac_temp {
+public:
+    uint32_t last_update_time_;
+    float last_energy_sensor[10] = {};
+};
+
+pzemac_temp tmp;
 
 static const char *const TAG = "pzemac";
 
@@ -18,7 +23,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
   }
-  last_update_time_ = millis();
+  tmp.last_update_time_ = millis();
 
   // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
   //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
@@ -53,8 +58,8 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG,
            "PZEM AC: Addr 0x%02X, V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, E(pre)=%.1f Wh, E-E(pre)=%.1f Wh, F=%.1f "
            "Hz, PF=%.2f",
-           int(this->address_), voltage, current, active_power, active_energy, last_energy_sensor[this->address_ - 1],
-           active_energy - last_energy_sensor[this->address_ - 1], frequency, power_factor);
+           int(this->address_), voltage, current, active_power, active_energy, tmp.last_energy_sensor[this->address_ - 1],
+           active_energy - tmp.last_energy_sensor[this->address_ - 1], frequency, power_factor);
   if (this->voltage_sensor_ != nullptr) {
     if (voltage < 450) {
       this->voltage_sensor_->publish_state(voltage);
@@ -77,15 +82,15 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     }
   }
   if (this->energy_sensor_ != nullptr) {
-    if (last_energy_sensor[this->address_ - 1] == 0) {
+    if (tmp.last_energy_sensor[this->address_ - 1] == 0) {
       this->energy_sensor_->publish_state(active_energy);
-      last_energy_sensor[this->address_ - 1] = active_energy;
+      tmp.last_energy_sensor[this->address_ - 1] = active_energy;
     } else {
-      if (abs(active_energy - last_energy_sensor[this->address_ - 1]) < 1000) {
+      if (abs(active_energy - tmp.last_energy_sensor[this->address_ - 1]) < 1000) {
         this->energy_sensor_->publish_state(active_energy);
-        last_energy_sensor[this->address_ - 1] = active_energy;
+        tmp.last_energy_sensor[this->address_ - 1] = active_energy;
       } else {
-        this->energy_sensor_->publish_state(last_energy_sensor[this->address_ - 1]);
+        this->energy_sensor_->publish_state(tmp.last_energy_sensor[this->address_ - 1]);
       }
     }
   }
@@ -101,7 +106,7 @@ void PZEMAC::update() {
   this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT);
 
   if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
-      (millis() - last_update_time_) > this->get_update_interval() * 2) {
+      (millis() - tmp.last_update_time_) > this->get_update_interval() * 2) {
     ESP_LOGE(TAG, "PZEM AC Addr 0x%02X: Timeout!!!", int(this->address_));
     if (this->voltage_sensor_ != nullptr) {
       this->voltage_sensor_->publish_state(0.0f);
@@ -113,7 +118,7 @@ void PZEMAC::update() {
       this->power_sensor_->publish_state(0.0f);
     }
     if (this->energy_sensor_ != nullptr) {
-      this->energy_sensor_->publish_state(last_energy_sensor[this->address_ - 1]);
+      this->energy_sensor_->publish_state(tmp.last_energy_sensor[this->address_ - 1]);
     }
     if (this->frequency_sensor_ != nullptr) {
       this->frequency_sensor_->publish_state(0.0f);
