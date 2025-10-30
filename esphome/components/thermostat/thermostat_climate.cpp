@@ -322,12 +322,9 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_preset(it.first);
   }
 
-  // Custom presets and fan modes are set directly from Python (includes all non-standard preset names from map)
+  // Custom presets are set directly from Python (includes all non-standard preset names from map)
   if (!this->additional_custom_presets_.empty()) {
     traits.set_supported_custom_presets(this->additional_custom_presets_);
-  }
-  if (!this->additional_custom_fan_modes_.empty()) {
-    traits.set_supported_custom_fan_modes(this->additional_custom_fan_modes_);
   }
 
   return traits;
@@ -1617,10 +1614,6 @@ void ThermostatClimate::dump_config() {
       this->dump_preset_config_(preset_name, it.second);
     }
   }
-}
-
-void ThermostatClimate::set_custom_fan_modes(std::initializer_list<const char *> custom_fan_modes) {
-  this->additional_custom_fan_modes_ = custom_fan_modes;
 }
 
 void ThermostatClimate::set_custom_presets(std::initializer_list<const char *> custom_presets) {
