@@ -321,8 +321,12 @@ climate::ClimateTraits ThermostatClimate::traits() {
   for (auto &it : this->preset_config_) {
     traits.add_supported_preset(it.first);
   }
-  for (auto &it : this->custom_preset_config_) {
-    traits.add_supported_custom_preset(it.first);
+  // Custom presets and fan modes are set directly from Python (includes both map entries and additional lists)
+  if (!this->additional_custom_presets_.empty()) {
+    traits.set_supported_custom_presets(this->additional_custom_presets_);
+  }
+  if (!this->additional_custom_fan_modes_.empty()) {
+    traits.set_supported_custom_fan_modes(this->additional_custom_fan_modes_);
   }
   return traits;
 }
@@ -1246,6 +1250,14 @@ void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
 void ThermostatClimate::set_custom_preset_config(const std::string &name,
                                                  const ThermostatClimateTargetTempConfig &config) {
   this->custom_preset_config_[name] = config;
+}
+
+void ThermostatClimate::set_custom_fan_modes(std::initializer_list<const char *> custom_fan_modes) {
+  this->additional_custom_fan_modes_ = custom_fan_modes;
+}
+
+void ThermostatClimate::set_custom_presets(std::initializer_list<const char *> custom_presets) {
+  this->additional_custom_presets_ = custom_presets;
 }
 
 ThermostatClimate::ThermostatClimate()

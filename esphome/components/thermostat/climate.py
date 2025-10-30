@@ -9,6 +9,8 @@ from esphome.const import (
     CONF_COOL_DEADBAND,
     CONF_COOL_MODE,
     CONF_COOL_OVERRUN,
+    CONF_CUSTOM_FAN_MODES,
+    CONF_CUSTOM_PRESETS,
     CONF_DEFAULT_MODE,
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
@@ -658,6 +660,8 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_PRESET): cv.ensure_list(PRESET_CONFIG_SCHEMA),
+            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(cv.string_strict),
+            cv.Optional(CONF_CUSTOM_PRESETS): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_ON_BOOT_RESTORE_FROM): validate_on_boot_restore_from,
             cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
                 single=True
@@ -1008,3 +1012,24 @@ async def to_code(config):
         await automation.build_automation(
             var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]
         )
+
+    # Collect all custom preset names (from preset map + custom_presets list)
+    all_custom_preset_names = []
+    if CONF_PRESET in config:
+        for preset_config in config[CONF_PRESET]:
+            name = preset_config[CONF_NAME]
+            # Only include non-standard presets
+            if name.upper() not in climate.CLIMATE_PRESETS:
+                all_custom_preset_names.append(name)
+
+    # Add additional custom presets from custom_presets list
+    if CONF_CUSTOM_PRESETS in config:
+        all_custom_preset_names.extend(config[CONF_CUSTOM_PRESETS])
+
+    # Set all custom presets at once
+    if all_custom_preset_names:
+        cg.add(var.set_custom_presets(all_custom_preset_names))
+
+    # Set custom fan modes
+    if CONF_CUSTOM_FAN_MODES in config:
+        cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
