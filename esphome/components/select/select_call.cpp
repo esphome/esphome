@@ -63,7 +63,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
 
   if (this->operation_ == SELECT_OP_SET || this->operation_ == SELECT_OP_SET_INDEX) {
     if (!this->index_.has_value()) {
-      ESP_LOGW(TAG, "'%s' - No option value set for SelectCall", name);
+      ESP_LOGW(TAG, "'%s' - No option set", name);
       return {};
     }
     auto idx = this->index_.value();
