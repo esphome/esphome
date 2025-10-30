@@ -80,7 +80,7 @@ void SelectCall::perform() {
     target_index = 0;
   } else if (this->operation_ == SELECT_OP_LAST) {
     target_index = options.size() - 1;
-  } else if (this->operation_ == SELECT_OP_NEXT || this->operation_ == SELECT_OP_PREVIOUS) {
+  } else {  // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
     auto cycle = this->cycle_;
     ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
              cycle ? "" : "out");
