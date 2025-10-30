@@ -409,10 +409,8 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     add_idf_component(
-        name="hub75",
-        repo="https://github.com/stuartparmenter/hub75-esp32.git",
-        ref="main",
-        path="components/hub75",
+        name="stuartparmenter/esp-hub75",
+        ref="0.1.0",
     )
 
     # ========================================
