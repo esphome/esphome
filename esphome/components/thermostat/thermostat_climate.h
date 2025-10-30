@@ -133,7 +133,6 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
   void set_custom_preset_config(const std::string &name, const ThermostatClimateTargetTempConfig &config);
-  void set_custom_fan_modes(std::initializer_list<const char *> custom_fan_modes);
   void set_custom_presets(std::initializer_list<const char *> custom_presets);
 
   Trigger<> *get_cool_action_trigger() const;
@@ -539,8 +538,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
-  /// Custom fan mode names (from Python codegen)
-  std::vector<const char *> additional_custom_fan_modes_{};
   /// Custom preset names (from Python codegen)
   std::vector<const char *> additional_custom_presets_{};
 };
