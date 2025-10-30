@@ -844,25 +844,122 @@ template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
  *
+ * Uses a discriminated union to optimize storage:
+ * - Stateless lambdas are stored as function pointers (8 bytes)
+ * - Stateful lambdas are heap-allocated as std::function* (same as before)
+ *
+ * This saves ~200-400 bytes of flash per stateless callback by eliminating
+ * std::function template instantiation overhead.
+ *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
+ private:
+  struct Callback {
+    enum Type : uint8_t {
+      FUNCTION_POINTER,  // Stateless lambda - stored as function pointer (no heap)
+      STD_FUNCTION       // Stateful lambda - heap-allocated std::function*
+    } type;
+
+    union {
+      void (*func_ptr)(Ts...);
+      std::function<void(Ts...)> *std_func;
+    };
+
+    // Call operator
+    void operator()(Ts... args) const {
+      if (type == FUNCTION_POINTER)
+        func_ptr(args...);
+      else
+        (*std_func)(args...);
+    }
+
+    // Copy constructor
+    Callback(const Callback &other) : type(other.type) {
+      if (type == FUNCTION_POINTER) {
+        func_ptr = other.func_ptr;
+      } else {
+        std_func = new std::function<void(Ts...)>(*other.std_func);
+      }
+    }
+
+    // Move constructor
+    Callback(Callback &&other) noexcept : type(other.type) {
+      if (type == FUNCTION_POINTER) {
+        func_ptr = other.func_ptr;
+      } else {
+        std_func = other.std_func;
+        other.std_func = nullptr;
+      }
+    }
+
+    // Assignment operators
+    Callback &operator=(const Callback &other) {
+      if (this != &other) {
+        this->~Callback();
+        new (this) Callback(other);
+      }
+      return *this;
+    }
+
+    Callback &operator=(Callback &&other) noexcept {
+      if (this != &other) {
+        this->~Callback();
+        new (this) Callback(std::move(other));
+      }
+      return *this;
+    }
+
+    // Destructor
+    ~Callback() {
+      if (type == STD_FUNCTION && std_func != nullptr)
+        delete std_func;
+    }
+
+    // Default constructor (needed for vector)
+    Callback() : type(FUNCTION_POINTER), func_ptr(nullptr) {}
+  };
+
  public:
   /// Add a callback to the list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+  /// For stateless lambdas (convertible to function pointer): stores as function pointer
+  template<typename F> void add(F &&callback) requires std::convertible_to<F, void (*)(Ts...)> {
+    Callback cb;
+    cb.type = Callback::FUNCTION_POINTER;
+    cb.func_ptr = callback;  // Implicit conversion to function pointer
+    callbacks_.push_back(std::move(cb));
+  }
+
+  /// Add a callback to the list.
+  /// For stateful lambdas (not convertible to function pointer): heap-allocates std::function*
+  template<typename F> void add(F &&callback) requires(!std::convertible_to<F, void (*)(Ts...)>) {
+    Callback cb;
+    cb.type = Callback::STD_FUNCTION;
+    cb.std_func = new std::function<void(Ts...)>(std::forward<F>(callback));
+    callbacks_.push_back(std::move(cb));
+  }
+
+  /// Add a callback to the list (backward compatibility with std::function rvalue).
+  void add(std::function<void(Ts...)> &&callback) {
+    Callback cb;
+    cb.type = Callback::STD_FUNCTION;
+    cb.std_func = new std::function<void(Ts...)>(std::move(callback));
+    callbacks_.push_back(std::move(cb));
+  }
 
   /// Call all callbacks in this manager.
   void call(Ts... args) {
-    for (auto &cb : this->callbacks_)
+    for (auto &cb : callbacks_)
       cb(args...);
   }
-  size_t size() const { return this->callbacks_.size(); }
+
+  size_t size() const { return callbacks_.size(); }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { call(args...); }
 
  protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
+  std::vector<Callback> callbacks_;
 };
 
 /// Helper class to deduplicate items in a series of values.
