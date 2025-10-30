@@ -609,35 +609,26 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
-template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optional<T2> &alt, const T1 &src) {
-  bool is_changed = alt.has_value();
-  alt.reset();
-  if (is_changed || dst != src) {
-    dst = src;
-    is_changed = true;
-  }
-  return is_changed;
-}
+// Generic template to set one value while clearing its alternative (mutual exclusion)
+// Handles both optional<T> and const char* types automatically using compile-time type detection
+template<typename T1, typename T2, typename T3> bool set_alternative(T1 &dst, T2 &alt, T3 src) {
+  bool is_changed = false;
 
-// Overload for optional + const char* pointer
-template<typename T> bool set_alternative(optional<T> &dst, const char *&alt, const T &src) {
-  bool is_changed = (alt != nullptr);
-  alt = nullptr;
-  if (is_changed || dst != src) {
-    dst = src;
-    is_changed = true;
+  // Clear the alternative based on its type (pointer or optional)
+  if constexpr (std::is_pointer_v<std::remove_reference_t<T2>>) {
+    is_changed = (alt != nullptr);
+    alt = nullptr;
+  } else {
+    is_changed = alt.has_value();
+    alt.reset();
   }
-  return is_changed;
-}
 
-// Overload for const char* pointer + optional
-template<typename T> bool set_alternative(const char *&dst, optional<T> &alt, const char *src) {
-  bool is_changed = alt.has_value();
-  alt.reset();
+  // Set the destination value
   if (is_changed || dst != src) {
     dst = src;
     is_changed = true;
   }
+
   return is_changed;
 }
 
