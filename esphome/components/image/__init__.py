@@ -669,30 +669,33 @@ async def write_image(config, all_frames=False):
         raise core.EsphomeError(f"Could not load image file {path}")
 
     resize = config.get(CONF_RESIZE)
-    if is_svg_file(path):
-        # Local import so use of non-SVG files needn't require cairosvg installed
-        from cairosvg import svg2png
+    try:
+        if is_svg_file(path):
+            # Local import so use of non-SVG files needn't require cairosvg installed
+            from cairosvg import svg2png
 
-        if not resize:
-            resize = (None, None)
-        with open(path, "rb") as file:
-            image = svg2png(
-                file_obj=file,
-                output_width=resize[0],
-                output_height=resize[1],
-            )
-        image = Image.open(io.BytesIO(image))
-        width, height = image.size
-    else:
-        image = Image.open(path)
-        width, height = image.size
-        if resize:
-            # Preserve aspect ratio
-            new_width_max = min(width, resize[0])
-            new_height_max = min(height, resize[1])
-            ratio = min(new_width_max / width, new_height_max / height)
-            width, height = int(width * ratio), int(height * ratio)
+            if not resize:
+                resize = (None, None)
+            with open(path, "rb") as file:
+                image = svg2png(
+                    file_obj=file,
+                    output_width=resize[0],
+                    output_height=resize[1],
+                )
+            image = Image.open(io.BytesIO(image))
+            width, height = image.size
+        else:
+            image = Image.open(path)
+            width, height = image.size
+            if resize:
+                # Preserve aspect ratio
+                new_width_max = min(width, resize[0])
+                new_height_max = min(height, resize[1])
+                ratio = min(new_width_max / width, new_height_max / height)
+                width, height = int(width * ratio), int(height * ratio)
 
+    except Exception as e:
+        raise core.EsphomeError(f"Could not load SVG image {path}: {e}") from e
     if not resize and (width > 500 or height > 500):
         _LOGGER.warning(
             'The image "%s" you requested is very big. Please consider'
