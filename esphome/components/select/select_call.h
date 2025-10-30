@@ -38,6 +38,8 @@ class SelectCall {
   SelectCall &with_index(size_t index);
 
  protected:
+  optional<size_t> calculate_target_index_(const char *name);
+
   Select *const parent_;
   optional<size_t> index_;
   SelectOperation operation_{SELECT_OP_NONE};
