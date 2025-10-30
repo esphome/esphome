@@ -131,6 +131,9 @@ class ClimateTraits {
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
     this->supported_custom_fan_modes_ = modes;
   }
+  template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
+    this->supported_custom_fan_modes_.assign(modes, modes + N);
+  }
   const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
     for (const char *mode : this->supported_custom_fan_modes_) {
@@ -151,6 +154,9 @@ class ClimateTraits {
   }
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
     this->supported_custom_presets_ = presets;
+  }
+  template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
+    this->supported_custom_presets_.assign(presets, presets + N);
   }
   const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
   bool supports_custom_preset(const std::string &custom_preset) const {
