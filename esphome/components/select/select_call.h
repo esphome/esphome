@@ -10,7 +10,6 @@ class Select;
 enum SelectOperation {
   SELECT_OP_NONE,
   SELECT_OP_SET,
-  SELECT_OP_SET_INDEX,
   SELECT_OP_NEXT,
   SELECT_OP_PREVIOUS,
   SELECT_OP_FIRST,

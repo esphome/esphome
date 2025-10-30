@@ -13,7 +13,7 @@ SelectCall &SelectCall::set_option(const std::string &option) {
 
 SelectCall &SelectCall::set_option(const char *option) { return with_operation(SELECT_OP_SET).with_option(option); }
 
-SelectCall &SelectCall::set_index(size_t index) { return with_operation(SELECT_OP_SET_INDEX).with_index(index); }
+SelectCall &SelectCall::set_index(size_t index) { return with_operation(SELECT_OP_SET).with_index(index); }
 
 SelectCall &SelectCall::select_next(bool cycle) { return with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
 
@@ -61,7 +61,8 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
     return options.size() - 1;
   }
 
-  if (this->operation_ == SELECT_OP_SET || this->operation_ == SELECT_OP_SET_INDEX) {
+  if (this->operation_ == SELECT_OP_SET) {
+    ESP_LOGD(TAG, "'%s' - Setting", name);
     if (!this->index_.has_value()) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
       return {};
@@ -70,9 +71,6 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
     if (idx >= options.size()) {
       ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", name, idx);
       return {};
-    }
-    if (this->operation_ == SELECT_OP_SET) {
-      ESP_LOGD(TAG, "'%s' - Setting", name);
     }
     return idx;
   }
