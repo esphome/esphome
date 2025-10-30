@@ -19,6 +19,15 @@ inline bool vector_contains(const std::vector<const char *> &vec, const char *va
   return false;
 }
 
+// Find and return matching pointer from vector, or nullptr if not found
+inline const char *vector_find(const std::vector<const char *> &vec, const char *value) {
+  for (const char *item : vec) {
+    if (strcmp(item, value) == 0)
+      return item;
+  }
+  return nullptr;
+}
+
 // Type aliases for climate enum bitmasks
 // These replace std::set<EnumType> to eliminate red-black tree overhead
 // For contiguous enums starting at 0, DefaultBitPolicy provides 1:1 mapping (enum value = bit position)
@@ -153,11 +162,7 @@ class ClimateTraits {
   }
   /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
   const char *find_custom_fan_mode(const char *custom_fan_mode) const {
-    for (const char *mode : this->supported_custom_fan_modes_) {
-      if (strcmp(mode, custom_fan_mode) == 0)
-        return mode;
-    }
-    return nullptr;
+    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode);
   }
 
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
@@ -184,11 +189,7 @@ class ClimateTraits {
   }
   /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
   const char *find_custom_preset(const char *custom_preset) const {
-    for (const char *preset : this->supported_custom_presets_) {
-      if (strcmp(preset, custom_preset) == 0)
-        return preset;
-    }
-    return nullptr;
+    return vector_find(this->supported_custom_presets_, custom_preset);
   }
 
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
