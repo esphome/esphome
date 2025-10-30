@@ -9,6 +9,16 @@
 namespace esphome {
 namespace climate {
 
+// Lightweight linear search for small vectors (1-20 items) of const char* pointers
+// Avoids std::find template overhead
+inline bool vector_contains(const std::vector<const char *> &vec, const char *value) {
+  for (const char *item : vec) {
+    if (strcmp(item, value) == 0)
+      return true;
+  }
+  return false;
+}
+
 // Type aliases for climate enum bitmasks
 // These replace std::set<EnumType> to eliminate red-black tree overhead
 // For contiguous enums starting at 0, DefaultBitPolicy provides 1:1 mapping (enum value = bit position)
@@ -136,11 +146,7 @@ class ClimateTraits {
   }
   const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
-    for (const char *mode : this->supported_custom_fan_modes_) {
-      if (strcmp(mode, custom_fan_mode) == 0)
-        return true;
-    }
-    return false;
+    return vector_contains(this->supported_custom_fan_modes_, custom_fan_mode);
   }
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
     return this->supports_custom_fan_mode(custom_fan_mode.c_str());
@@ -163,11 +169,7 @@ class ClimateTraits {
   }
   const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
   bool supports_custom_preset(const char *custom_preset) const {
-    for (const char *preset : this->supported_custom_presets_) {
-      if (strcmp(preset, custom_preset) == 0)
-        return true;
-    }
-    return false;
+    return vector_contains(this->supported_custom_presets_, custom_preset);
   }
   bool supports_custom_preset(const std::string &custom_preset) const {
     return this->supports_custom_preset(custom_preset.c_str());
