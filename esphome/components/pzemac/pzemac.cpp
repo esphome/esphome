@@ -53,9 +53,8 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG,
            "PZEM AC: Addr 0x%02X, V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, E(pre)=%.1f Wh, E-E(pre)=%.1f Wh, F=%.1f "
            "Hz, PF=%.2f",
-           int(this->address_), voltage, current, active_power, active_energy,
-           last_energy_sensor[this->address_ - 1], active_energy - last_energy_sensor[this->address_ - 1],
-           frequency, power_factor);
+           int(this->address_), voltage, current, active_power, active_energy, last_energy_sensor[this->address_ - 1],
+           active_energy - last_energy_sensor[this->address_ - 1], frequency, power_factor);
   if (this->voltage_sensor_ != nullptr) {
     if (voltage < 450) {
       this->voltage_sensor_->publish_state(voltage);
