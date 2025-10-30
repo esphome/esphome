@@ -84,7 +84,13 @@ class Select : public EntityBase {
 
   /** Set the value of the select, this is a virtual method that each select integration must implement.
    *
-   * This method is called by the SelectCall.
+   * This method is called by control(size_t) when not overridden, or directly by external code.
+   * All existing integrations implement this method. New integrations can optionally override
+   * control(size_t) instead to work with indices directly and avoid string conversions.
+   *
+   * Delegation chain:
+   * - SelectCall::perform() → control(size_t) → [if not overridden] → control(string)
+   * - External code → control(string) → publish_state(string) → publish_state(size_t)
    *
    * @param value The value as validated by the SelectCall.
    */
