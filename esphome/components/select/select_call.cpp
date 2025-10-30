@@ -46,10 +46,10 @@ SelectCall &SelectCall::with_index(size_t index) {
   return *this;
 }
 
-optional<size_t> SelectCall::calculate_target_index_() {
+optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   const auto &options = this->parent_->traits.get_options();
   if (options.empty()) {
-    ESP_LOGW(TAG, "'%s' - Select has no options", this->parent_->get_name().c_str());
+    ESP_LOGW(TAG, "'%s' - Select has no options", name);
     return {};
   }
 
@@ -63,23 +63,23 @@ optional<size_t> SelectCall::calculate_target_index_() {
 
   if (this->operation_ == SELECT_OP_SET || this->operation_ == SELECT_OP_SET_INDEX) {
     if (!this->index_.has_value()) {
-      ESP_LOGW(TAG, "'%s' - No option set", this->parent_->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' - No option set", name);
       return {};
     }
     auto idx = this->index_.value();
     if (idx >= options.size()) {
-      ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", this->parent_->get_name().c_str(), idx);
+      ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", name, idx);
       return {};
     }
     if (this->operation_ == SELECT_OP_SET) {
-      ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+      ESP_LOGD(TAG, "'%s' - Setting", name);
     }
     return idx;
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
-  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", this->parent_->get_name().c_str(),
-           this->operation_ == SELECT_OP_NEXT ? "next" : "previous", this->cycle_ ? "" : "out");
+  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
+           this->cycle_ ? "" : "out");
 
   const auto size = options.size();
   if (!this->parent_->has_state()) {
@@ -105,20 +105,21 @@ optional<size_t> SelectCall::calculate_target_index_() {
 
 void SelectCall::perform() {
   auto *parent = this->parent_;
+  const auto *name = parent->get_name().c_str();
 
   if (this->operation_ == SELECT_OP_NONE) {
-    ESP_LOGW(TAG, "'%s' - SelectCall performed without selecting an operation", parent->get_name().c_str());
+    ESP_LOGW(TAG, "'%s' - SelectCall performed without selecting an operation", name);
     return;
   }
 
-  auto target_index = this->calculate_target_index_();
+  auto target_index = this->calculate_target_index_(name);
   if (!target_index.has_value()) {
     return;
   }
 
   auto idx = target_index.value();
   // All operations use indices, call control() by index to avoid string conversion
-  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", parent->get_name().c_str(), parent->option_at(idx));
+  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
   parent->control(idx);
 }
 
