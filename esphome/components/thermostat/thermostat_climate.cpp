@@ -321,9 +321,17 @@ climate::ClimateTraits ThermostatClimate::traits() {
   for (auto &it : this->preset_config_) {
     traits.add_supported_preset(it.first);
   }
-  for (auto &it : this->custom_preset_config_) {
-    traits.add_supported_custom_preset(it.first);
+
+  // Extract custom preset names from the custom_preset_config_ map
+  if (!this->custom_preset_config_.empty()) {
+    std::vector<const char *> custom_preset_names;
+    custom_preset_names.reserve(this->custom_preset_config_.size());
+    for (const auto &it : this->custom_preset_config_) {
+      custom_preset_names.push_back(it.first.c_str());
+    }
+    traits.set_supported_custom_presets(custom_preset_names);
   }
+
   return traits;
 }
 

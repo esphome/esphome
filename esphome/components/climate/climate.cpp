@@ -387,8 +387,8 @@ void Climate::save_state_() {
     const auto &supported = traits.get_supported_custom_fan_modes();
     // std::vector maintains insertion order
     size_t i = 0;
-    for (const auto &mode : supported) {
-      if (mode == custom_fan_mode) {
+    for (const char *mode : supported) {
+      if (strcmp(mode, custom_fan_mode.value().c_str()) == 0) {
         state.custom_fan_mode = i;
         break;
       }
@@ -404,8 +404,8 @@ void Climate::save_state_() {
     const auto &supported = traits.get_supported_custom_presets();
     // std::vector maintains insertion order
     size_t i = 0;
-    for (const auto &preset : supported) {
-      if (preset == custom_preset) {
+    for (const char *preset : supported) {
+      if (strcmp(preset, custom_preset.value().c_str()) == 0) {
         state.custom_preset = i;
         break;
       }
@@ -527,7 +527,7 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (this->uses_custom_fan_mode) {
     if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
       call.fan_mode_.reset();
-      call.custom_fan_mode_ = *std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
+      call.custom_fan_mode_ = std::string(traits.get_supported_custom_fan_modes()[this->custom_fan_mode]);
     }
   } else if (traits.supports_fan_mode(this->fan_mode)) {
     call.set_fan_mode(this->fan_mode);
@@ -535,7 +535,7 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
       call.preset_.reset();
-      call.custom_preset_ = *std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
+      call.custom_preset_ = std::string(traits.get_supported_custom_presets()[this->custom_preset]);
     }
   } else if (traits.supports_preset(this->preset)) {
     call.set_preset(this->preset);
@@ -562,7 +562,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (this->uses_custom_fan_mode) {
     if (this->custom_fan_mode < traits.get_supported_custom_fan_modes().size()) {
       climate->fan_mode.reset();
-      climate->custom_fan_mode = *std::next(traits.get_supported_custom_fan_modes().cbegin(), this->custom_fan_mode);
+      climate->custom_fan_mode = std::string(traits.get_supported_custom_fan_modes()[this->custom_fan_mode]);
     }
   } else if (traits.supports_fan_mode(this->fan_mode)) {
     climate->fan_mode = this->fan_mode;
@@ -571,7 +571,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (this->uses_custom_preset) {
     if (this->custom_preset < traits.get_supported_custom_presets().size()) {
       climate->preset.reset();
-      climate->custom_preset = *std::next(traits.get_supported_custom_presets().cbegin(), this->custom_preset);
+      climate->custom_preset = std::string(traits.get_supported_custom_presets()[this->custom_preset]);
     }
   } else if (traits.supports_preset(this->preset)) {
     climate->preset = this->preset;
@@ -656,8 +656,8 @@ void Climate::dump_traits_(const char *tag) {
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported custom fan modes:");
-    for (const std::string &s : traits.get_supported_custom_fan_modes())
-      ESP_LOGCONFIG(tag, "  - %s", s.c_str());
+    for (const char *s : traits.get_supported_custom_fan_modes())
+      ESP_LOGCONFIG(tag, "  - %s", s);
   }
   if (!traits.get_supported_presets().empty()) {
     ESP_LOGCONFIG(tag, "  Supported presets:");
@@ -666,8 +666,8 @@ void Climate::dump_traits_(const char *tag) {
   }
   if (!traits.get_supported_custom_presets().empty()) {
     ESP_LOGCONFIG(tag, "  Supported custom presets:");
-    for (const std::string &s : traits.get_supported_custom_presets())
-      ESP_LOGCONFIG(tag, "  - %s", s.c_str());
+    for (const char *s : traits.get_supported_custom_presets())
+      ESP_LOGCONFIG(tag, "  - %s", s);
   }
   if (!traits.get_supported_swing_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported swing modes:");
