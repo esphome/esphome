@@ -39,8 +39,8 @@ def test_deep_sleep_run_duration_dictionary(generate_main):
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep2.yaml")
 
     assert (
-        "esp32_esp32internalgpiopin = new esp32::ESP32InternalGPIOPin();\n"
-        "esp32_esp32internalgpiopin->set_pin(::GPIO_NUM_2);"
+        "esp32_esp32internalgpiopin_id = new esp32::ESP32InternalGPIOPin();\n"
+        "esp32_esp32internalgpiopin_id->set_pin(::GPIO_NUM_2);"
     ) in main_cpp
 
     assert (
@@ -59,13 +59,13 @@ def test_deep_sleep_single_perpin_definition(generate_main):
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep2.yaml")
 
     assert (
-        "esp32_esp32internalgpiopin = new esp32::ESP32InternalGPIOPin();\n"
-        "esp32_esp32internalgpiopin->set_pin(::GPIO_NUM_2);"
+        "esp32_esp32internalgpiopin_id = new esp32::ESP32InternalGPIOPin();\n"
+        "esp32_esp32internalgpiopin_id->set_pin(::GPIO_NUM_2);"
     ) in main_cpp
 
     assert (
         "deepsleep->add_wakeup_pin(deep_sleep::WakeupPinItem{\n"
-        "    .wakeup_pin = esp32_esp32internalgpiopin,\n"
+        "    .wakeup_pin = esp32_esp32internalgpiopin_id,\n"
         "    .wakeup_pin_mode = deep_sleep::WAKEUP_PIN_MODE_KEEP_AWAKE,\n"
         "});"
     ) in main_cpp
@@ -78,25 +78,25 @@ def test_deep_sleep_multi_perpin_definition(generate_main):
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
 
     assert (
-        "esp32_esp32internalgpiopin = new esp32::ESP32InternalGPIOPin();\n"
-        "esp32_esp32internalgpiopin->set_pin(::GPIO_NUM_2);"
+        "esp32_esp32internalgpiopin_id = new esp32::ESP32InternalGPIOPin();\n"
+        "esp32_esp32internalgpiopin_id->set_pin(::GPIO_NUM_2);"
     ) in main_cpp
 
     assert (
-        "deep_sleep_deepsleepcomponent->add_wakeup_pin(deep_sleep::WakeupPinItem{\n"
-        "    .wakeup_pin = esp32_esp32internalgpiopin,\n"
+        "deep_sleep_deepsleepcomponent_id->add_wakeup_pin(deep_sleep::WakeupPinItem{\n"
+        "    .wakeup_pin = esp32_esp32internalgpiopin_id,\n"
         "    .wakeup_pin_mode = deep_sleep::WAKEUP_PIN_MODE_INVERT_WAKEUP,\n"
         "});"
     ) in main_cpp
 
     assert (
-        "esp32_esp32internalgpiopin_2 = new esp32::ESP32InternalGPIOPin();\n"
-        "esp32_esp32internalgpiopin_2->set_pin(::GPIO_NUM_4);"
+        "esp32_esp32internalgpiopin_id_2 = new esp32::ESP32InternalGPIOPin();\n"
+        "esp32_esp32internalgpiopin_id_2->set_pin(::GPIO_NUM_4);"
     ) in main_cpp
 
     assert (
-        "deep_sleep_deepsleepcomponent->add_wakeup_pin(deep_sleep::WakeupPinItem{\n"
-        "    .wakeup_pin = esp32_esp32internalgpiopin_2,\n"
+        "deep_sleep_deepsleepcomponent_id->add_wakeup_pin(deep_sleep::WakeupPinItem{\n"
+        "    .wakeup_pin = esp32_esp32internalgpiopin_id_2,\n"
         "    .wakeup_pin_mode = deep_sleep::WAKEUP_PIN_MODE_KEEP_AWAKE,\n"
         "});"
     ) in main_cpp

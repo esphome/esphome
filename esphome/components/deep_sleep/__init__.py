@@ -134,38 +134,36 @@ def validate_config(config):
             raise cv.Invalid("Your device does not support wakeup from ext1")
         if get_esp32_variant() in MULTIPIN_DEVICES and CONF_TOUCH_WAKEUP in config:
             raise cv.Invalid("Your device does not support wakeup from touch.")
-        if CONF_WAKEUP_PIN in config and (
-            (not isinstance(config[CONF_WAKEUP_PIN], list))
-            or (
-                len(config[CONF_WAKEUP_PIN]) < 2
-                and CONF_PIN not in config[CONF_WAKEUP_PIN][0]
-            )
-        ):
-            # Automatically convert single wakeup_pin to 'multipin list'
-            config = config.copy()
-            pin = (
-                config.pop(CONF_WAKEUP_PIN)[0]
-                if isinstance(config[CONF_WAKEUP_PIN], list)
-                else config.pop(CONF_WAKEUP_PIN)
-            )
-            wakeup_pin = {CONF_PIN: pin}
-            if CONF_WAKEUP_PIN_MODE in config:
-                wakeup_pin[CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
-            config[CONF_WAKEUP_PIN] = [wakeup_pin]
 
-        if CONF_WAKEUP_PIN not in config:
-            config = config.copy()
-            config[CONF_WAKEUP_PIN] = []
+        if CONF_WAKEUP_PIN in config:
+            wakeup_pins = config[CONF_WAKEUP_PIN]
+            if not isinstance(wakeup_pins, list):
+                wakeup_pins = [{CONF_PIN: wakeup_pins}]
+
+            processed_pins = []
+            for pin_config in wakeup_pins:
+                if isinstance(pin_config, dict) and CONF_PIN in pin_config:
+                    processed_pins.append(pin_config)
+                else:
+                    processed_pins.append({CONF_PIN: pin_config})
+            config[CONF_WAKEUP_PIN] = processed_pins
+
+            if CONF_WAKEUP_PIN_MODE in config:
+                if len(config[CONF_WAKEUP_PIN]) > 1:
+                    raise cv.Invalid(
+                        "You need to remove the global wakeup_pin_mode and define it per pin"
+                    )
+                if config[CONF_WAKEUP_PIN]:
+                    config[CONF_WAKEUP_PIN][0][CONF_WAKEUP_PIN_MODE] = config.pop(
+                        CONF_WAKEUP_PIN_MODE
+                    )
 
         if (
-            len(config[CONF_WAKEUP_PIN]) > 1
+            CONF_WAKEUP_PIN in config and len(config[CONF_WAKEUP_PIN]) > 1
             and get_esp32_variant() not in MULTIPIN_DEVICES
         ):
             raise cv.Invalid("Your board only supports wake from a single pin")
-        if len(config[CONF_WAKEUP_PIN]) > 1 and CONF_WAKEUP_PIN_MODE in config:
-            raise cv.Invalid(
-                "You need to remove the global wakeup_pin_mode and define it per pin"
-            )
+
     return config
 
 
