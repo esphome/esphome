@@ -215,6 +215,7 @@ jobs:
           echo "memory-impact=$(echo "$output" | jq -c '.memory_impact')" >> $GITHUB_OUTPUT
           echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
           echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
+          echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
 
   integration-tests:
     name: Run integration tests
