@@ -695,7 +695,7 @@ async def write_image(config, all_frames=False):
                 width, height = int(width * ratio), int(height * ratio)
 
     except Exception as e:
-        raise core.EsphomeError(f"Could not load SVG image {path}: {e}") from e
+        raise core.EsphomeError(f"Could not load image {path}: {e}") from e
     if not resize and (width > 500 or height > 500):
         _LOGGER.warning(
             'The image "%s" you requested is very big. Please consider'
