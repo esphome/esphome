@@ -11,7 +11,7 @@ class LD2420Select : public Component, public select::Select, public Parented<LD
   LD2420Select() = default;
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
 }  // namespace ld2420

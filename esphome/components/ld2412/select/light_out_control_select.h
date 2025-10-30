@@ -11,7 +11,7 @@ class LightOutControlSelect : public select::Select, public Parented<LD2412Compo
   LightOutControlSelect() = default;
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
 }  // namespace ld2412
