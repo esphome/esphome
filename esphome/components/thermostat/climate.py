@@ -1,4 +1,4 @@
-from esphome import automation  # TODO
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, sensor
 import esphome.config_validation as cv
