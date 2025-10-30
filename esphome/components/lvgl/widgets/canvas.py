@@ -265,8 +265,9 @@ TEXT_PROPS = {
             **TEXT_SCHEMA,
             **DRAW_OPA_SCHEMA,
             cv.Required(CONF_MAX_WIDTH): cv.templatable(cv.int_),
+            **{cv.Optional(prop): STYLE_PROPS[f"text_{prop}"] for prop in TEXT_PROPS},
         },
-    ).extend({cv.Optional(prop): STYLE_PROPS[f"text_{prop}"] for prop in TEXT_PROPS}),
+    ),
 )
 async def canvas_draw_text(config, action_id, template_arg, args):
     text = await lv_text.process(config[CONF_TEXT])
@@ -337,8 +338,9 @@ LINE_PROPS = {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Optional(CONF_OPA): opacity,
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
-        },
-    ).extend({cv.Optional(prop): validator for prop, validator in LINE_PROPS.items()}),
+            **{cv.Optional(prop): validator for prop, validator in LINE_PROPS.items()},
+        }
+    ),
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
     points = [
@@ -364,8 +366,9 @@ async def canvas_draw_line(config, action_id, template_arg, args):
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
+            **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
         },
-    ).extend({cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS}),
+    ),
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
     points = [
@@ -402,6 +405,7 @@ ARC_PROPS = {
             cv.Required(CONF_RADIUS): pixels,
             cv.Required(CONF_START_ANGLE): lv_angle_degrees,
             cv.Required(CONF_END_ANGLE): lv_angle_degrees,
+            **{cv.Optional(prop): validator for prop, validator in ARC_PROPS.items()},
         }
     ),
 )
