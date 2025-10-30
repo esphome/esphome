@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING, Any
 
 import esphome.codegen as cg
