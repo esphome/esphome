@@ -379,7 +379,7 @@ void LD2420Component::report_gate_data() {
   ESP_LOGI(TAG, "Total samples: %d", this->total_sample_number_counter);
 }
 
-void LD2420Component::set_operating_mode(const std::string &state) {
+void LD2420Component::set_operating_mode(const char *state) {
   // If unsupported firmware ignore mode select
   if (ld2420::get_firmware_int(firmware_ver_) >= CALIBRATE_VERSION_MIN) {
     this->current_operating_mode = find_uint8(OP_MODE_BY_STR, state);

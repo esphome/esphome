@@ -790,7 +790,7 @@ void LD2450Component::set_bluetooth(bool enable) {
 }
 
 // Set Baud rate
-void LD2450Component::set_baud_rate(const std::string &state) {
+void LD2450Component::set_baud_rate(const char *state) {
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -798,8 +798,8 @@ void LD2450Component::set_baud_rate(const std::string &state) {
 }
 
 // Set Zone Type - one of: Disabled, Detection, Filter
-void LD2450Component::set_zone_type(const std::string &state) {
-  ESP_LOGV(TAG, "Set zone type: %s", state.c_str());
+void LD2450Component::set_zone_type(const char *state) {
+  ESP_LOGV(TAG, "Set zone type: %s", state);
   uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
   this->zone_type_ = zone_type;
   this->send_set_zone_command_();

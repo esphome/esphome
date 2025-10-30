@@ -14,11 +14,6 @@ void LoggerLevelSelect::setup() {
   this->publish_state(this->parent_->get_log_level());
 }
 
-void LoggerLevelSelect::control(const std::string &value) {
-  const auto index = this->index_of(value);
-  if (!index)
-    return;
-  this->parent_->set_log_level(index_to_level(index.value()));
-}
+void LoggerLevelSelect::control(size_t index) { this->parent_->set_log_level(index_to_level(index)); }
 
 }  // namespace esphome::logger

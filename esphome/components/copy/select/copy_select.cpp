@@ -17,9 +17,9 @@ void CopySelect::setup() {
 
 void CopySelect::dump_config() { LOG_SELECT("", "Copy Select", this); }
 
-void CopySelect::control(const std::string &value) {
+void CopySelect::control(size_t index) {
   auto call = source_->make_call();
-  call.set_option(value);
+  call.set_index(index);
   call.perform();
 }
 
