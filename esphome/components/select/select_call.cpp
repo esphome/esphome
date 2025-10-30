@@ -8,20 +8,24 @@ namespace select {
 static const char *const TAG = "select";
 
 SelectCall &SelectCall::set_option(const std::string &option) {
-  return with_operation(SELECT_OP_SET).with_option(option);
+  return this->with_operation(SELECT_OP_SET).with_option(option);
 }
 
-SelectCall &SelectCall::set_option(const char *option) { return with_operation(SELECT_OP_SET).with_option(option); }
+SelectCall &SelectCall::set_option(const char *option) {
+  return this->with_operation(SELECT_OP_SET).with_option(option);
+}
 
-SelectCall &SelectCall::set_index(size_t index) { return with_operation(SELECT_OP_SET).with_index(index); }
+SelectCall &SelectCall::set_index(size_t index) { return this->with_operation(SELECT_OP_SET).with_index(index); }
 
-SelectCall &SelectCall::select_next(bool cycle) { return with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
+SelectCall &SelectCall::select_next(bool cycle) { return this->with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
 
-SelectCall &SelectCall::select_previous(bool cycle) { return with_operation(SELECT_OP_PREVIOUS).with_cycle(cycle); }
+SelectCall &SelectCall::select_previous(bool cycle) {
+  return this->with_operation(SELECT_OP_PREVIOUS).with_cycle(cycle);
+}
 
-SelectCall &SelectCall::select_first() { return with_operation(SELECT_OP_FIRST); }
+SelectCall &SelectCall::select_first() { return this->with_operation(SELECT_OP_FIRST); }
 
-SelectCall &SelectCall::select_last() { return with_operation(SELECT_OP_LAST); }
+SelectCall &SelectCall::select_last() { return this->with_operation(SELECT_OP_LAST); }
 
 SelectCall &SelectCall::with_operation(SelectOperation operation) {
   this->operation_ = operation;
