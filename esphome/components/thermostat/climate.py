@@ -1013,27 +1013,21 @@ async def to_code(config):
             var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]
         )
 
-    # Collect all custom preset names (from preset map + custom_presets list)
-    all_custom_preset_names = [
+    # Collect custom preset names from preset map (non-standard) and custom_presets list
+    custom_preset_names = [
         preset_config[CONF_NAME]
         for preset_config in config.get(CONF_PRESET, [])
         if preset_config[CONF_NAME].upper() not in climate.CLIMATE_PRESETS
     ]
+    custom_preset_names.extend(config.get(CONF_CUSTOM_PRESETS, []))
+    if custom_preset_names:
+        cg.add(var.set_custom_presets(custom_preset_names))
 
-    # Add additional custom presets from custom_presets list
-    if CONF_CUSTOM_PRESETS in config:
-        all_custom_preset_names.extend(config[CONF_CUSTOM_PRESETS])
-
-    # Set all custom presets at once
-    if all_custom_preset_names:
-        cg.add(var.set_custom_presets(all_custom_preset_names))
-
-    # Set custom fan modes (filter out standard enum fan modes)
-    if CONF_CUSTOM_FAN_MODES in config:
-        custom_fan_modes = [
-            mode
-            for mode in config[CONF_CUSTOM_FAN_MODES]
-            if mode.upper() not in climate.CLIMATE_FAN_MODES
-        ]
-        if custom_fan_modes:
-            cg.add(var.set_custom_fan_modes(custom_fan_modes))
+    # Collect custom fan modes (filter out standard enum fan modes)
+    custom_fan_modes = [
+        mode
+        for mode in config.get(CONF_CUSTOM_FAN_MODES, [])
+        if mode.upper() not in climate.CLIMATE_FAN_MODES
+    ]
+    if custom_fan_modes:
+        cg.add(var.set_custom_fan_modes(custom_fan_modes))
