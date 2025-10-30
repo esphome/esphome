@@ -1179,14 +1179,14 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   for (const auto &it : *this->supported_swing_modes) {
     buffer.encode_uint32(14, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_fan_modes) {
-    buffer.encode_string(15, it, true);
+  for (const char *it : *this->supported_custom_fan_modes) {
+    buffer.encode_string(15, it, strlen(it), true);
   }
   for (const auto &it : *this->supported_presets) {
     buffer.encode_uint32(16, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_presets) {
-    buffer.encode_string(17, it, true);
+  for (const char *it : *this->supported_custom_presets) {
+    buffer.encode_string(17, it, strlen(it), true);
   }
   buffer.encode_bool(18, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -1229,8 +1229,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_fan_modes->empty()) {
-    for (const auto &it : *this->supported_custom_fan_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_custom_fan_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
   if (!this->supported_presets->empty()) {
@@ -1239,8 +1239,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_presets->empty()) {
-    for (const auto &it : *this->supported_custom_presets) {
-      size.add_length_force(2, it.size());
+    for (const char *it : *this->supported_custom_presets) {
+      size.add_length_force(2, strlen(it));
     }
   }
   size.add_bool(2, this->disabled_by_default);
