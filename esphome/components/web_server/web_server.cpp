@@ -1185,7 +1185,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->select_json(obj, obj->state, detail);
+      std::string data = this->select_json(obj, obj->current_option(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1205,10 +1205,12 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::select_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_STATE);
+  return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->current_option(),
+                                 DETAIL_STATE);
 }
 std::string WebServer::select_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->state, DETAIL_ALL);
+  return web_server->select_json((select::Select *) (source), ((select::Select *) (source))->current_option(),
+                                 DETAIL_ALL);
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
   json::JsonBuilder builder;
