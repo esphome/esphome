@@ -6,9 +6,8 @@ esp32:
 display:
   - platform: hub75
     id: hub75_display
-    width: 64
-    height: 32
-    chain_length: 1
+    panel_width: 64
+    panel_height: 32
     double_buffer: true
     brightness: 128
     r1_pin: GPIO25
