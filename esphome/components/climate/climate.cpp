@@ -197,13 +197,12 @@ ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode) {
     }
   }
   // Find the matching pointer from traits
-  const auto &supported = this->parent_->get_traits().get_supported_custom_fan_modes();
-  for (const char *mode : supported) {
-    if (strcmp(mode, custom_fan_mode) == 0) {
-      this->custom_fan_mode_ = mode;
-      this->fan_mode_.reset();
-      return *this;
-    }
+  auto traits = this->parent_->get_traits();
+  const char *mode_ptr = traits.find_custom_fan_mode(custom_fan_mode);
+  if (mode_ptr != nullptr) {
+    this->custom_fan_mode_ = mode_ptr;
+    this->fan_mode_.reset();
+    return *this;
   }
   ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %s", this->parent_->get_name().c_str(), custom_fan_mode);
   return *this;
