@@ -46,7 +46,12 @@ SelectCall &SelectCall::with_option(const char *option) {
 }
 
 SelectCall &SelectCall::with_index(size_t index) {
-  this->index_ = index;
+  if (index >= this->parent_->size()) {
+    ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", this->parent_->get_name().c_str(), index);
+    this->index_ = {};  // Store nullopt for invalid index
+  } else {
+    this->index_ = index;
+  }
   return *this;
 }
 
@@ -71,12 +76,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
       return {};
     }
-    auto idx = this->index_.value();
-    if (idx >= options.size()) {
-      ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", name, idx);
-      return {};
-    }
-    return idx;
+    return this->index_.value();
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
@@ -114,6 +114,7 @@ void SelectCall::perform() {
     return;
   }
 
+  // Calculate target index (with_index() and with_option() already validate bounds/existence)
   auto target_index = this->calculate_target_index_(name);
   if (!target_index.has_value()) {
     return;
