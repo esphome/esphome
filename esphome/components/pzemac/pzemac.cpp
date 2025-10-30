@@ -4,8 +4,8 @@
 namespace esphome {
 namespace pzemac {
 
-const uint32_t last_update_time_;
-static float last_energy_sensor[10] = {};
+uint32_t last_update_time_;
+static float last_energy_sensor [10] = {};
 
 static const char *const TAG = "pzemac";
 
@@ -76,8 +76,6 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
       this->power_sensor_->publish_state(101.0f);
     }
   }
-  //  if (this->energy_sensor_ != nullptr)
-  //    this->energy_sensor_->publish_state(active_energy);
   if (this->energy_sensor_ != nullptr) {
     if (last_energy_sensor[this->address_ - 1] == 0) {
       this->energy_sensor_->publish_state(active_energy);
@@ -88,7 +86,6 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
         last_energy_sensor[this->address_ - 1] = active_energy;
       } else {
         this->energy_sensor_->publish_state(last_energy_sensor[this->address_ - 1]);
-        //            active_energy = last_energy_sensor[this->address_ - 1];
       }
     }
   }
@@ -116,7 +113,6 @@ void PZEMAC::update() {
       this->power_sensor_->publish_state(0.0f);
     }
     if (this->energy_sensor_ != nullptr) {
-      //      this->energy_sensor_->publish_state(0.0f);   //
       this->energy_sensor_->publish_state(last_energy_sensor[this->address_ - 1]);
     }
     if (this->frequency_sensor_ != nullptr) {
