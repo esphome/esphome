@@ -308,6 +308,8 @@ def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""
     if value == SCHEMA_EXTRACT:
         return ["SIZE_CONTENT", "number of pixels", "percentage"]
+    if isinstance(value, str) and value.lower().endswith("px"):
+        value = cv.int_(value[:-2])
     if isinstance(value, str) and value.upper() == "SIZE_CONTENT":
         return "LV_SIZE_CONTENT"
     return pixels_or_percent_validator(value)
