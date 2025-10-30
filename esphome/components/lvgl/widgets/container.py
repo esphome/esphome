@@ -19,7 +19,6 @@ class ContainerType(WidgetType):
     """
     A simple container widget that can hold other widgets and which defaults to a 100% size.
     Made from an obj with all styles removed
-    added.
     """
 
     def __init__(self):
