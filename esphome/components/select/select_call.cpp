@@ -117,10 +117,10 @@ void SelectCall::perform() {
     return;
   }
 
+  auto idx = target_index.value();
   // All operations use indices, call control() by index to avoid string conversion
-  const auto &options = parent->traits.get_options();
-  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, options[target_index.value()]);
-  parent->control(target_index.value());
+  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
+  parent->control(idx);
 }
 
 }  // namespace select
