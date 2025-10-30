@@ -32,6 +32,9 @@ class Select : public EntityBase {
  public:
   SelectTraits traits;
 
+  /// @deprecated Use current_option() instead. This member will be removed in a future release.
+  __attribute__((deprecated("Use current_option() instead of .state"))) std::string state{};
+
   void publish_state(const std::string &state);
   void publish_state(const char *state);
   void publish_state(size_t index);
@@ -82,11 +85,14 @@ class Select : public EntityBase {
 
   size_t active_index_{0};
 
-  /** Set the value of the select, this is a virtual method that each select integration must implement.
+  /** Set the value of the select, this is a virtual method that each select integration can implement.
    *
    * This method is called by control(size_t) when not overridden, or directly by external code.
-   * All existing integrations implement this method. New integrations can optionally override
-   * control(size_t) instead to work with indices directly and avoid string conversions.
+   * Integrations can either:
+   * 1. Override this method to handle string-based control (traditional approach)
+   * 2. Override control(size_t) instead to work with indices directly (recommended)
+   *
+   * Default implementation converts to index and calls control(size_t).
    *
    * Delegation chain:
    * - SelectCall::perform() → control(size_t) → [if not overridden] → control(string)
@@ -94,7 +100,12 @@ class Select : public EntityBase {
    *
    * @param value The value as validated by the SelectCall.
    */
-  virtual void control(const std::string &value) = 0;
+  virtual void control(const std::string &value) {
+    auto index = this->index_of(value);
+    if (index.has_value()) {
+      this->control(index.value());
+    }
+  }
 
   CallbackManager<void(std::string, size_t)> state_callback_;
 };
