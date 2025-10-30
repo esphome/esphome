@@ -5,7 +5,7 @@ esp32:
 
 display:
   - platform: hub75
-    id: hub75_display
+    id: my_hub75
     panel_width: 64
     panel_height: 32
     double_buffer: true
