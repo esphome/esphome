@@ -132,9 +132,9 @@ constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
 };
 
 // Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
+template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
   for (const auto &entry : arr) {
-    if (str == entry.str) {
+    if (strcmp(str, entry.str) == 0) {
       return entry.value;
     }
   }
@@ -701,14 +701,14 @@ void LD2412Component::set_bluetooth(bool enable) {
 
 void LD2412Component::set_distance_resolution(const std::string &state) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[6] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state), 0x00, 0x00, 0x00, 0x00, 0x00};
+  const uint8_t cmd_value[6] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state.c_str()), 0x00, 0x00, 0x00, 0x00, 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 void LD2412Component::set_baud_rate(const std::string &state) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state.c_str()), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
