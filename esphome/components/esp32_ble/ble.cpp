@@ -355,48 +355,6 @@ bool ESP32BLE::ble_dismantle_() {
   return true;
 }
 
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-inline void ESP32BLE::dispatch_gap_event_(esp_gap_ble_cb_event_t gap_event, BLEEvent *ble_event) {
-  // Determine which union member to use based on event type.
-  // All event structures are properly laid out in memory per ESP-IDF.
-  // The reinterpret_cast operations are safe because:
-  // 1. Structure sizes match ESP-IDF expectations (verified by static_assert in ble_event.h)
-  // 2. Status fields are at offset 0 (verified by static_assert in ble_event.h)
-  // 3. The struct already contains our copy of the data (copied in BLEEvent constructor)
-  esp_ble_gap_cb_param_t *param;
-
-  switch (gap_event) {
-  // Scan complete events - all have same structure with just status
-  GAP_SCAN_COMPLETE_EVENTS:
-    param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete);
-    break;
-
-  // Advertising complete events - all have same structure with just status
-  GAP_ADV_COMPLETE_EVENTS:
-    param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete);
-    break;
-
-    // RSSI complete event
-    case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-      param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete);
-      break;
-
-    // Security events
-    GAP_SECURITY_EVENTS:
-      param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security);
-      break;
-
-    default:
-      return;  // Shouldn't happen - all cases covered by loop() switch
-  }
-
-  // Dispatch to all registered handlers
-  for (auto *gap_handler : this->gap_event_handlers_) {
-    gap_handler->gap_event_handler(gap_event, param);
-  }
-}
-#endif
-
 void ESP32BLE::loop() {
   switch (this->state_) {
     case BLE_COMPONENT_STATE_OFF:
@@ -485,7 +443,37 @@ void ESP32BLE::loop() {
           GAP_SECURITY_EVENTS:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            this->dispatch_gap_event_(gap_event, ble_event);
+            {
+              // Determine which union member to use based on event type.
+              // All event structures are properly laid out in memory per ESP-IDF.
+              // The reinterpret_cast operations are safe because:
+              // 1. Structure sizes match ESP-IDF expectations (verified by static_assert in ble_event.h)
+              // 2. Status fields are at offset 0 (verified by static_assert in ble_event.h)
+              // 3. The struct already contains our copy of the data (copied in BLEEvent constructor)
+              esp_ble_gap_cb_param_t *param;
+              // clang-format off
+              switch (gap_event) {
+                GAP_SCAN_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete);
+                  break;
+                GAP_ADV_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete);
+                  break;
+                case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete);
+                  break;
+                GAP_SECURITY_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security);
+                  break;
+                default:
+                  break;
+              }
+              // clang-format on
+              // Dispatch to all registered handlers
+              for (auto *gap_handler : this->gap_event_handlers_) {
+                gap_handler->gap_event_handler(gap_event, param);
+              }
+            }
 #endif
             break;
 

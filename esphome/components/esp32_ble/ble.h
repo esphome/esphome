@@ -161,9 +161,6 @@ class ESP32BLE : public Component {
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-  void dispatch_gap_event_(esp_gap_ble_cb_event_t gap_event, BLEEvent *ble_event);
-#endif
 
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
