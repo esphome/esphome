@@ -62,6 +62,10 @@ def create_intelligent_batches(
 ) -> tuple[list[list[str]], dict[tuple[str, str], list[str]]]:
     """Create batches optimized for component grouping.
 
+    IMPORTANT: This function is called from both split_components_for_ci.py (standalone script)
+    and determine-jobs.py (integrated into job determination). Be careful when refactoring
+    to ensure changes work in both contexts.
+
     Args:
         components: List of component names to batch
         tests_dir: Path to tests/components directory
