@@ -1184,7 +1184,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
 
   if (config != this->custom_preset_config_.end()) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset.c_str());
-    if (this->change_preset_internal_(config->second) || (this->custom_preset == nullptr) ||
+    if (this->change_preset_internal_(config->second) || !this->has_custom_preset() ||
         strcmp(this->custom_preset, custom_preset.c_str()) != 0) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;

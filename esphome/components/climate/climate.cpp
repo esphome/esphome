@@ -392,7 +392,7 @@ void Climate::save_state_() {
     state.uses_custom_fan_mode = false;
     state.fan_mode = this->fan_mode.value();
   }
-  if (!traits.get_supported_custom_fan_modes().empty() && custom_fan_mode != nullptr) {
+  if (!traits.get_supported_custom_fan_modes().empty() && this->has_custom_fan_mode()) {
     state.uses_custom_fan_mode = true;
     const auto &supported = traits.get_supported_custom_fan_modes();
     // std::vector maintains insertion order
@@ -409,7 +409,7 @@ void Climate::save_state_() {
     state.uses_custom_preset = false;
     state.preset = this->preset.value();
   }
-  if (!traits.get_supported_custom_presets().empty() && custom_preset != nullptr) {
+  if (!traits.get_supported_custom_presets().empty() && this->has_custom_preset()) {
     state.uses_custom_preset = true;
     const auto &supported = traits.get_supported_custom_presets();
     // std::vector maintains insertion order
@@ -440,13 +440,13 @@ void Climate::publish_state() {
   if (traits.get_supports_fan_modes() && this->fan_mode.has_value()) {
     ESP_LOGD(TAG, "  Fan Mode: %s", LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())));
   }
-  if (!traits.get_supported_custom_fan_modes().empty() && this->custom_fan_mode != nullptr) {
+  if (!traits.get_supported_custom_fan_modes().empty() && this->has_custom_fan_mode()) {
     ESP_LOGD(TAG, "  Custom Fan Mode: %s", this->custom_fan_mode);
   }
   if (traits.get_supports_presets() && this->preset.has_value()) {
     ESP_LOGD(TAG, "  Preset: %s", LOG_STR_ARG(climate_preset_to_string(this->preset.value())));
   }
-  if (!traits.get_supported_custom_presets().empty() && this->custom_preset != nullptr) {
+  if (!traits.get_supported_custom_presets().empty() && this->has_custom_preset()) {
     ESP_LOGD(TAG, "  Custom Preset: %s", this->custom_preset);
   }
   if (traits.get_supports_swing_modes()) {
