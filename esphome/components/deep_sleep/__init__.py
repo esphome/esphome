@@ -159,7 +159,8 @@ def validate_config(config):
                     )
 
         if (
-            CONF_WAKEUP_PIN in config and len(config[CONF_WAKEUP_PIN]) > 1
+            CONF_WAKEUP_PIN in config
+            and len(config[CONF_WAKEUP_PIN]) > 1
             and get_esp32_variant() not in MULTIPIN_DEVICES
         ):
             raise cv.Invalid("Your board only supports wake from a single pin")

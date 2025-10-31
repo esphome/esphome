@@ -46,7 +46,6 @@ float DeepSleepComponent::get_loop_priority() const {
 
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 
-
 void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
 
 void DeepSleepComponent::begin_sleep(bool manual) {

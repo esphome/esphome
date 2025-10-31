@@ -55,7 +55,7 @@ struct WakeupPinItem {
   WakeupPinMode wakeup_pin_mode;
 };
 
-#endif //USE_ESP32 && !USE_ESP32_VARIANT_ESP32C2 && !USE_ESP32_VARIANT_ESP32C3
+#endif  // USE_ESP32 && !USE_ESP32_VARIANT_ESP32C2 && !USE_ESP32_VARIANT_ESP32C3
 
 template<typename... Ts> class EnterDeepSleepAction;
 
@@ -127,7 +127,7 @@ class DeepSleepComponent : public Component {
   optional<bool> touch_wakeup_;
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
   bool prepare_pin_(esphome::InternalGPIOPin *pin, WakeupPinMode pin_mode);
-#endif // USE_ESP32
+#endif  // USE_ESP32
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};

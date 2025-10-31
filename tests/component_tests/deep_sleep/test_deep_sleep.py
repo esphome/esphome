@@ -1,6 +1,7 @@
 """Tests for the deep sleep component."""
 
 import pytest
+
 import esphome.config_validation as cv
 
 
