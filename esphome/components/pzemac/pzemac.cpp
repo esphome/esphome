@@ -4,8 +4,10 @@
 namespace esphome {
 namespace pzemac {
 
-uint32_t last_update_time_; // No errors were found during local compilation; everything works correctly on IDF and Arduino.
-float last_energy_sensor[10] = {}; // No errors were found during local compilation; everything works correctly on IDF and Arduino.
+uint32_t
+    last_update_time_;  // No errors were found during local compilation; everything works correctly on IDF and Arduino.
+float last_energy_sensor[10] =
+    {};  // No errors were found during local compilation; everything works correctly on IDF and Arduino.
 
 static const char *const TAG = "pzemac";
 
