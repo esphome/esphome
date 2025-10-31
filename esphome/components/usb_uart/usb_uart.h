@@ -137,9 +137,9 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   // Enum (likely 4 bytes)
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
   // Group atomics together (each 1 byte)
-  std::atomic<bool> input_started_{false};
-  std::atomic<bool> output_started_{false};
-  std::atomic<bool> initialised_{false};  // Set to true only after configuration complete and RX started
+  std::atomic<bool> input_started_{true};
+  std::atomic<bool> output_started_{true};
+  std::atomic<bool> initialised_{false};
   // Group regular bytes together to minimize padding
   const uint8_t index_;
   bool debug_{};
