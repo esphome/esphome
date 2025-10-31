@@ -1,6 +1,5 @@
 #pragma once
 #include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
 #include <cstdint>
 
 namespace esphome {
@@ -52,7 +51,7 @@ static const uint8_t CMD_ATA_GET_SN = 22;     // Get serial number
  * @brief  Storage device driver interface.  Contains IO operation.
  *         Most information about device are returned by ioctl call.
  */
-class Storage {
+class RawStorage {
  public:
   /**
    * @brief Init driver
@@ -94,12 +93,15 @@ class Storage {
   virtual uint8_t read_sectors(uint8_t *buffer, uint32_t sector, unsigned int count) = 0;
 
   /**
-   * @brief Used for special data requests for FAT lib
+   * @brief Used for retrive media parameters and states.
+   * Be careful. The size of the buffer for returning the result can vary.
+   * In most cases, 64 bytes will be sufficient.
+   * However, there are cases where 512 bytes are required. Always see in media implementation.
    *
-   * @param cmd ( See #define IO_...)
+   * @param cmd ( See #define IO_...)  Commands list may be extended depends of exact media type.
    *
    * @param buff buffer for store result
-   * @return uint8_t  operation status
+   * @return uint8_t  operation status. If cmd is not supported, RC_PARERR will be returned.
    */
   virtual uint8_t ioctl(uint8_t cmd, void *buff) = 0;
 
@@ -147,13 +149,6 @@ class Storage {
    * @return uint8_t
    */
   virtual uint8_t error() = 0;
-};
-
-//  Automation
-//
-template<typename... Ts> class StorageIsPresentCondition : public Condition<Ts...>, public Parented<Storage> {
- public:
-  bool check(Ts... x) override { return this->parent_->state_media(); }
 };
 
 }  // namespace storage
