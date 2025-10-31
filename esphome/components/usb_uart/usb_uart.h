@@ -40,9 +40,6 @@ static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::
 #endif
 #endif
 
-#define CH934_MAX_PACKET_SIZE USB_UART_MAX_PACKET_SIZE
-#define CH9344_TTY_MINORS 256
-
 struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
@@ -116,8 +113,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
-  friend class USBUartTypeCH934X;
-  friend class USBUartTypeFT23XX;
 
  public:
   USBUartChannel(uint8_t index, uint16_t buffer_size)
@@ -133,10 +128,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
-#ifdef USE_UART_DEBUGGER
-  void set_debug_prefix(const std::string &prefix) { this->debug_prefix_ = prefix; }
-  void set_debug_add_settings(bool add) { this->debug_add_settings_ = add; }
-#endif
 
  protected:
   // Larger structures first for better alignment
@@ -153,11 +144,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
-#ifdef USE_UART_DEBUGGER
-  std::string get_debug_prefix();
-  std::string debug_prefix_;
-  bool debug_add_settings_{true};
-#endif
 };
 
 class USBUartComponent : public usb_host::USBClient {

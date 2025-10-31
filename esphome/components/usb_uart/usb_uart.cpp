@@ -183,7 +183,7 @@ void USBUartComponent::loop() {
     std::string debug_prefix = channel->get_debug_prefix();
     if (channel->debug_) {
       uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
-                               ',', debug_prefix);  // NOLINT()
+                               ',');  // NOLINT()
     }
 #endif
 
@@ -200,25 +200,6 @@ void USBUartComponent::loop() {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
   }
 }
-
-#ifdef USE_UART_DEBUGGER
-std::string USBUartChannel::get_debug_prefix() {
-  std::string debug_prefix = "";
-  if (this->debug_add_settings_) {
-    debug_prefix += "|";
-    debug_prefix += std::to_string(this->baud_rate_);
-    debug_prefix += ":";
-    debug_prefix += std::to_string(this->data_bits_);
-    debug_prefix += ":";
-    debug_prefix += PARITY_NAMES[this->parity_];
-    debug_prefix += ":";
-    debug_prefix += STOP_BITS_NAMES[this->stop_bits_];
-    debug_prefix += "|";
-  }
-  debug_prefix += this->debug_prefix_;
-  return debug_prefix;
-}
-#endif
 
 void USBUartComponent::dump_config() {
   USBClient::dump_config();
@@ -323,8 +304,8 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
     std::string debug_prefix = channel->get_debug_prefix();
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(tx_data, tx_data + len), ',',
-                             debug_prefix);  // NOLINT()
+    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(tx_data,
+			     tx_data + len), ',');  // NOLINT()
   }
 #endif
   this->transfer_out(ep->bEndpointAddress, callback, tx_data, len);

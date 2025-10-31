@@ -46,9 +46,6 @@ UART_STOP_BITS_OPTIONS = {
 
 DEFAULT_BAUD_RATE = 9600
 # By default, log in hex format when no specific sequence is provided.
-CONF_DEBUG_PREFIX = "debug_prefix"
-CONF_DEBUG_ADD_SETTINGS = "debug_add_uart_settings"
-
 
 def get_target_variant():
     """Get the target ESP32 variant from CORE.data."""
@@ -168,10 +165,6 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
-                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
-                            cv.Optional(
-                                CONF_DEBUG_ADD_SETTINGS, default=False
-                            ): cv.boolean,
                         }
                     )
                 ),
