@@ -593,8 +593,25 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
-// Template helper for setting primary modes with mutual exclusion
-// Clears custom pointer and sets primary optional value
+/** Template helper for setting primary modes (fan_mode, preset) with mutual exclusion.
+ *
+ * Climate devices have mutually exclusive mode pairs:
+ *   - fan_mode (enum) vs custom_fan_mode_ (const char*)
+ *   - preset (enum) vs custom_preset_ (const char*)
+ *
+ * Only one mode in each pair can be active at a time. This helper ensures setting a primary
+ * mode automatically clears its corresponding custom mode.
+ *
+ * Example state transitions:
+ *   Before: custom_fan_mode_="Turbo", fan_mode=nullopt
+ *   Call:   set_fan_mode_(CLIMATE_FAN_HIGH)
+ *   After:  custom_fan_mode_=nullptr,   fan_mode=CLIMATE_FAN_HIGH
+ *
+ * @param primary The primary mode optional (fan_mode or preset)
+ * @param custom_ptr Reference to the custom mode pointer (custom_fan_mode_ or custom_preset_)
+ * @param value The new primary mode value to set
+ * @return true if state changed, false if already set to this value
+ */
 template<typename T> bool set_primary_mode(optional<T> &primary, const char *&custom_ptr, T value) {
   // Clear the custom mode (mutual exclusion)
   bool changed = custom_ptr != nullptr;
@@ -607,15 +624,34 @@ template<typename T> bool set_primary_mode(optional<T> &primary, const char *&cu
   return false;
 }
 
-// Template helper for setting custom modes with mutual exclusion
-// Takes pre-computed values: the found pointer from traits and whether custom mode is currently set
+/** Template helper for setting custom modes (custom_fan_mode_, custom_preset_) with mutual exclusion.
+ *
+ * This helper ensures setting a custom mode automatically clears its corresponding primary mode.
+ * It also validates that the custom mode exists in the device's supported modes (lifetime safety).
+ *
+ * Example state transitions:
+ *   Before: fan_mode=CLIMATE_FAN_HIGH, custom_fan_mode_=nullptr
+ *   Call:   set_custom_fan_mode_("Turbo")
+ *   After:  fan_mode=nullopt,          custom_fan_mode_="Turbo" (pointer from traits)
+ *
+ * Lifetime Safety:
+ *   - found_ptr must come from traits.find_custom_*_mode_()
+ *   - Only pointers found in traits are stored, ensuring they remain valid
+ *   - Prevents dangling pointers from temporary strings
+ *
+ * @param custom_ptr Reference to the custom mode pointer to set
+ * @param primary The primary mode optional to clear
+ * @param found_ptr The validated pointer from traits (nullptr if not found)
+ * @param has_custom Whether a custom mode is currently active
+ * @return true if state changed, false otherwise
+ */
 template<typename T>
 bool set_custom_mode(const char *&custom_ptr, optional<T> &primary, const char *found_ptr, bool has_custom) {
   if (found_ptr != nullptr) {
     // Clear the primary mode (mutual exclusion)
     bool changed = primary.has_value();
     primary.reset();
-    // Set the custom mode
+    // Set the custom mode (pointer is validated by caller from traits)
     if (changed || custom_ptr != found_ptr) {
       custom_ptr = found_ptr;
       return true;

@@ -325,10 +325,36 @@ class Climate : public EntityBase {
   optional<float> visual_min_humidity_override_{};
   optional<float> visual_max_humidity_override_{};
 
-  /// The active custom fan mode of the climate device (protected - use get_custom_fan_mode() or setters).
+  /** The active custom fan mode of the climate device.
+   *
+   * PROTECTED ACCESS: External components must use get_custom_fan_mode() for read access.
+   * Derived climate classes must use set_custom_fan_mode_() / clear_custom_fan_mode_() to modify.
+   *
+   * POINTER LIFETIME SAFETY:
+   * This pointer MUST always point to an entry in the traits.supported_custom_fan_modes_ vector,
+   * or be nullptr. The protected setter set_custom_fan_mode_() enforces this by calling
+   * traits.find_custom_fan_mode_() to validate and obtain the correct pointer.
+   *
+   * Never assign directly - always use setters:
+   *   this->set_custom_fan_mode_("Turbo");  // ✓ Safe - validates against traits
+   *   this->custom_fan_mode_ = "Turbo";     // ✗ UNSAFE - may create dangling pointer
+   */
   const char *custom_fan_mode_{nullptr};
 
-  /// The active custom preset mode of the climate device (protected - use get_custom_preset() or setters).
+  /** The active custom preset mode of the climate device.
+   *
+   * PROTECTED ACCESS: External components must use get_custom_preset() for read access.
+   * Derived climate classes must use set_custom_preset_() / clear_custom_preset_() to modify.
+   *
+   * POINTER LIFETIME SAFETY:
+   * This pointer MUST always point to an entry in the traits.supported_custom_presets_ vector,
+   * or be nullptr. The protected setter set_custom_preset_() enforces this by calling
+   * traits.find_custom_preset_() to validate and obtain the correct pointer.
+   *
+   * Never assign directly - always use setters:
+   *   this->set_custom_preset_("Eco");  // ✓ Safe - validates against traits
+   *   this->custom_preset_ = "Eco";     // ✗ UNSAFE - may create dangling pointer
+   */
   const char *custom_preset_{nullptr};
 };
 

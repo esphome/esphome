@@ -157,6 +157,11 @@ class ClimateTraits {
   template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
     this->supported_custom_fan_modes_.assign(modes, modes + N);
   }
+
+  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
+  void set_supported_custom_fan_modes(const std::vector<std::string> &modes) = delete;
+  void set_supported_custom_fan_modes(std::initializer_list<std::string> modes) = delete;
+
   const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return vector_contains(this->supported_custom_fan_modes_, custom_fan_mode);
@@ -180,6 +185,11 @@ class ClimateTraits {
   template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
     this->supported_custom_presets_.assign(presets, presets + N);
   }
+
+  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
+  void set_supported_custom_presets(const std::vector<std::string> &presets) = delete;
+  void set_supported_custom_presets(std::initializer_list<std::string> presets) = delete;
+
   const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
   bool supports_custom_preset(const char *custom_preset) const {
     return vector_contains(this->supported_custom_presets_, custom_preset);
@@ -269,9 +279,39 @@ class ClimateTraits {
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
-  // Store const char* pointers to avoid std::string overhead
-  // Pointers must remain valid for traits lifetime (typically string literals in rodata,
-  // or pointers to strings with sufficient lifetime like member variables)
+
+  /** Custom mode storage using const char* pointers to eliminate std::string overhead.
+   *
+   * POINTER LIFETIME SAFETY REQUIREMENTS:
+   * Pointers stored here MUST remain valid for the entire lifetime of the ClimateTraits object.
+   * This is guaranteed when pointers point to:
+   *
+   * 1. String literals (rodata section, valid for program lifetime):
+   *    traits.set_supported_custom_fan_modes({"Turbo", "Silent"});
+   *
+   * 2. Static const data (valid for program lifetime):
+   *    static const char* PRESET_ECO = "Eco";
+   *    traits.set_supported_custom_presets({PRESET_ECO});
+   *
+   * 3. Member variables with sufficient lifetime:
+   *    class MyClimate {
+   *      std::vector<const char*> custom_presets_;  // Lives as long as component
+   *      ClimateTraits traits() {
+   *        // Extract from map keys that live as long as the component
+   *        for (const auto& [name, config] : preset_map_) {
+   *          custom_presets_.push_back(name.c_str());
+   *        }
+   *        traits.set_supported_custom_presets(custom_presets_);
+   *      }
+   *    };
+   *
+   * UNSAFE PATTERNS TO AVOID:
+   *   std::string temp = "Mode";
+   *   traits.set_supported_custom_fan_modes({temp.c_str()});  // DANGLING POINTER!
+   *
+   * Protected setters in Climate class automatically validate pointers against these
+   * vectors, ensuring only safe pointers are stored in device state.
+   */
   std::vector<const char *> supported_custom_fan_modes_;
   std::vector<const char *> supported_custom_presets_;
 };
