@@ -617,14 +617,30 @@ template<typename T1, typename T2, typename T3> bool set_alternative(T1 &dst, T2
 }
 
 bool Climate::set_fan_mode_(ClimateFanMode mode) {
-  return set_alternative(this->fan_mode, this->custom_fan_mode_, mode);
+  // Clear the custom fan mode (mutual exclusion)
+  bool changed = this->custom_fan_mode_ != nullptr;
+  this->custom_fan_mode_ = nullptr;
+  // Set the primary fan mode
+  if (changed || !this->fan_mode.has_value() || this->fan_mode.value() != mode) {
+    this->fan_mode = mode;
+    return true;
+  }
+  return false;
 }
 
 bool Climate::set_custom_fan_mode_(const char *mode) {
   auto traits = this->get_traits();
   const char *mode_ptr = traits.find_custom_fan_mode_(mode);
   if (mode_ptr != nullptr) {
-    return set_alternative(this->custom_fan_mode_, this->fan_mode, mode_ptr);
+    // Clear the primary fan mode (mutual exclusion)
+    bool changed = this->fan_mode.has_value();
+    this->fan_mode.reset();
+    // Set the custom fan mode
+    if (changed || this->custom_fan_mode_ != mode_ptr) {
+      this->custom_fan_mode_ = mode_ptr;
+      return true;
+    }
+    return false;
   }
   // Mode not found in supported custom modes, clear it if currently set
   if (this->has_custom_fan_mode()) {
@@ -638,13 +654,31 @@ bool Climate::set_custom_fan_mode_(const std::string &mode) { return this->set_c
 
 void Climate::clear_custom_fan_mode_() { this->custom_fan_mode_ = nullptr; }
 
-bool Climate::set_preset_(ClimatePreset preset) { return set_alternative(this->preset, this->custom_preset_, preset); }
+bool Climate::set_preset_(ClimatePreset preset) {
+  // Clear the custom preset (mutual exclusion)
+  bool changed = this->custom_preset_ != nullptr;
+  this->custom_preset_ = nullptr;
+  // Set the primary preset
+  if (changed || !this->preset.has_value() || this->preset.value() != preset) {
+    this->preset = preset;
+    return true;
+  }
+  return false;
+}
 
 bool Climate::set_custom_preset_(const char *preset) {
   auto traits = this->get_traits();
   const char *preset_ptr = traits.find_custom_preset_(preset);
   if (preset_ptr != nullptr) {
-    return set_alternative(this->custom_preset_, this->preset, preset_ptr);
+    // Clear the primary preset (mutual exclusion)
+    bool changed = this->preset.has_value();
+    this->preset.reset();
+    // Set the custom preset
+    if (changed || this->custom_preset_ != preset_ptr) {
+      this->custom_preset_ = preset_ptr;
+      return true;
+    }
+    return false;
   }
   // Preset not found in supported custom presets, clear it if currently set
   if (this->has_custom_preset()) {
