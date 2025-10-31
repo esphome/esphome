@@ -1,5 +1,6 @@
 display:
   - platform: sdl
+    id: image_display
     auto_clear_enabled: false
     dimensions:
       width: 480
