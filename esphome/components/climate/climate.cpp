@@ -299,17 +299,11 @@ const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return t
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
 
 optional<std::string> ClimateCall::get_custom_fan_mode() const {
-  if (this->custom_fan_mode_ != nullptr) {
-    return std::string(this->custom_fan_mode_);
-  }
-  return {};
+  return this->custom_fan_mode_ != nullptr ? std::string(this->custom_fan_mode_) : optional<std::string>{};
 }
 
 optional<std::string> ClimateCall::get_custom_preset() const {
-  if (this->custom_preset_ != nullptr) {
-    return std::string(this->custom_preset_);
-  }
-  return {};
+  return this->custom_preset_ != nullptr ? std::string(this->custom_preset_) : optional<std::string>{};
 }
 
 ClimateCall &ClimateCall::set_target_temperature_high(optional<float> target_temperature_high) {
