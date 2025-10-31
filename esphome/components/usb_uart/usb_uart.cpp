@@ -134,13 +134,12 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     ESP_LOGV(TAG, "Channel not initialised - write ignored");
     return;
   }
-  ESP_LOGI(TAG, "write_array called: %d bytes, channel=%d", len, this->index_);
-  size_t written = 0;
-  while (this->output_buffer_.get_free_space() != 0 && written < len) {
-    this->output_buffer_.push(data[written++]);
+  while (this->output_buffer_.get_free_space() != 0 && len-- != 0) {
+    this->output_buffer_.push(*data++);
   }
-  if (written < len) {
-    ESP_LOGE(TAG, "Buffer full - failed to write %d bytes", len - written);
+  len++;
+  if (len > 0) {
+    ESP_LOGE(TAG, "Buffer full - failed to write %d bytes", len);
   }
   this->parent_->start_output(this);
 }
@@ -180,7 +179,6 @@ void USBUartComponent::loop() {
     auto *channel = chunk->channel;
 
 #ifdef USE_UART_DEBUGGER
-    std::string debug_prefix = channel->get_debug_prefix();
     if (channel->debug_) {
       uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
                                ',');  // NOLINT()
