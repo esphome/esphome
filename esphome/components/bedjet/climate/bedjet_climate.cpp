@@ -120,7 +120,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     if (button_result) {
       this->mode = mode;
       // We're using (custom) preset for Turbo, EXT HT, & M1-3 presets, so changing climate mode will clear those
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
     }
   }
@@ -145,7 +145,7 @@ void BedJetClimate::control(const ClimateCall &call) {
       if (result) {
         this->mode = CLIMATE_MODE_HEAT;
         this->preset = CLIMATE_PRESET_BOOST;
-        this->custom_preset.reset();
+        this->clear_custom_preset_();
       }
     } else if (preset == CLIMATE_PRESET_NONE && this->preset.has_value()) {
       if (this->mode == CLIMATE_MODE_HEAT && this->preset == CLIMATE_PRESET_BOOST) {
@@ -153,7 +153,7 @@ void BedJetClimate::control(const ClimateCall &call) {
         result = this->parent_->send_button(heat_button(this->heating_mode_));
         if (result) {
           this->preset.reset();
-          this->custom_preset.reset();
+          this->clear_custom_preset_();
         }
       } else {
         ESP_LOGD(TAG, "Ignoring preset '%s' call; with current mode '%s' and preset '%s'",
@@ -242,7 +242,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
 
   const auto *fan_mode_name = bedjet_fan_step_to_fan_mode(data->fan_step);
   if (fan_mode_name != nullptr) {
-    this->set_custom_fan_mode_(fan_mode_name);
+    this->set_custom_fan_mode_(fan_mode_name->c_str());
   }
 
   // TODO: Get biorhythm data to determine which preset (M1-3) is running, if any.

@@ -265,6 +265,7 @@ class Climate : public EntityBase {
 
  protected:
   friend ClimateCall;
+  friend struct ClimateDeviceRestoreState;
 
   /// Set fan mode. Reset custom fan mode. Return true if fan mode has been changed.
   bool set_fan_mode_(ClimateFanMode mode);
