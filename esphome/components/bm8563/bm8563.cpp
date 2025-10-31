@@ -23,15 +23,6 @@ void BM8563::dump_config() {
   ESP_LOGCONFIG(TAG, "BM8563:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
   ESP_LOGCONFIG(TAG, "  setup_complete: %s", this->setup_complete_ ? "true" : "false");
-  if (this->timer_value_.has_value()) {
-    uint32_t timer_value = *this->timer_value_;
-    ESP_LOGCONFIG(TAG, "  Timer Value: %u s", timer_value);
-  }
-}
-
-void BM8563::set_timer_value(uint32_t timer_s) {
-  ESP_LOGI(TAG, "Timer Value Setting to: %u s", timer_s);
-  this->timer_value_ = timer_s;
 }
 
 void BM8563::start_timer(uint32_t timer_s) {

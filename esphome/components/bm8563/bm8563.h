@@ -25,7 +25,6 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
   void update() override;
   void dump_config() override;
 
-  void set_timer_value(uint32_t timer_s);
   void write_time();
   void read_time();
   void start_timer(uint32_t timer_s);
@@ -49,7 +48,6 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
   uint8_t bcd2_to_byte(uint8_t value);
   uint8_t byte_to_bcd2(uint8_t value);
 
-  optional<uint32_t> timer_value_;
   bool setup_complete_;
 };
 
@@ -68,10 +66,8 @@ template<typename... Ts> class TimerAction : public Action<Ts...>, public Parent
   TEMPLATABLE_VALUE(uint32_t, duration)
 
   void play(Ts... x) override {
-    if (this->duration_.has_value()) {
-      auto duration = this->duration_.value(x...);
-      this->parent_->start_timer(duration);
-    }
+    auto duration = this->duration_.value(x...);
+    this->parent_->start_timer(duration);
   }
 };
 

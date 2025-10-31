@@ -21,7 +21,6 @@ CONFIG_SCHEMA = (
     time.TIME_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(BM8563),
-            cv.Optional(CONF_TIMER_VALUE): cv.positive_time_period_seconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -50,7 +49,7 @@ async def bm8563_write_time_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BM8563),
-            cv.Optional(CONF_TIMER_VALUE): cv.templatable(
+            cv.Required(CONF_TIMER_VALUE): cv.templatable(
                 cv.positive_time_period_seconds
             ),
         }
@@ -59,9 +58,8 @@ async def bm8563_write_time_to_code(config, action_id, template_arg, args):
 async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    if CONF_TIMER_VALUE in config:
-        template_ = await cg.templatable(config[CONF_TIMER_VALUE], args, cg.uint32)
-        cg.add(var.set_duration(template_))
+    template_ = await cg.templatable(config[CONF_TIMER_VALUE], args, cg.uint32)
+    cg.add(var.set_duration(template_))
     return var
 
 
@@ -85,5 +83,3 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     await time.register_time(var, config)
-    if CONF_TIMER_VALUE in config:
-        cg.add(var.set_timer_value(config[CONF_TIMER_VALUE]))
