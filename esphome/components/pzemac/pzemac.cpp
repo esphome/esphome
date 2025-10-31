@@ -4,8 +4,8 @@
 namespace esphome {
 namespace pzemac {
 
-static uint32_t last_update_time_;
-static float last_energy_sensor[10] = {};
+uint32_t last_update_time_;
+float last_energy_sensor[10] = {};
 
 static const char *const TAG = "pzemac";
 
