@@ -258,6 +258,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
     case MODE_HEAT:
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
+      this->preset.reset();
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
         this->set_custom_preset_("LTD HT");
       } else {
@@ -268,6 +269,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
     case MODE_EXTHT:
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
+      this->preset.reset();
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
         this->clear_custom_preset_();
       } else {
