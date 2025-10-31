@@ -144,8 +144,7 @@ void BedJetClimate::control(const ClimateCall &call) {
 
       if (result) {
         this->mode = CLIMATE_MODE_HEAT;
-        this->preset = CLIMATE_PRESET_BOOST;
-        this->clear_custom_preset_();
+        this->set_preset_(CLIMATE_PRESET_BOOST);
       }
     } else if (preset == CLIMATE_PRESET_NONE && this->preset.has_value()) {
       if (this->mode == CLIMATE_MODE_HEAT && this->preset == CLIMATE_PRESET_BOOST) {
@@ -259,7 +258,6 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
     case MODE_HEAT:
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
-      this->preset.reset();
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
         this->set_custom_preset_("LTD HT");
       } else {
@@ -270,7 +268,6 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
     case MODE_EXTHT:
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
-      this->preset.reset();
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
         this->clear_custom_preset_();
       } else {
@@ -293,8 +290,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       break;
 
     case MODE_TURBO:
-      this->preset = CLIMATE_PRESET_BOOST;
-      this->clear_custom_preset_();
+      this->set_preset_(CLIMATE_PRESET_BOOST);
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
       break;

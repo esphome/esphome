@@ -1162,7 +1162,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
         this->preset.value() != preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
-      this->preset = preset;
+      this->set_preset_(preset);
       if (trig != nullptr) {
         trig->trigger();
       }
@@ -1172,8 +1172,6 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
     } else {
       ESP_LOGI(TAG, "No changes required to apply preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     }
-    this->clear_custom_preset_();
-    this->preset = preset;
   } else {
     ESP_LOGW(TAG, "Preset %s not configured; ignoring", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
   }

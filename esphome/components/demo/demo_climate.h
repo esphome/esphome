@@ -37,7 +37,7 @@ class DemoClimate : public climate::Climate, public Component {
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         this->set_custom_fan_mode_("Auto Low");
         this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-        this->preset = climate::CLIMATE_PRESET_AWAY;
+        this->set_preset_(climate::CLIMATE_PRESET_AWAY);
         break;
     }
     this->publish_state();
