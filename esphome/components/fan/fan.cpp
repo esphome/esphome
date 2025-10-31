@@ -151,24 +151,12 @@ bool Fan::set_preset_mode_(const char *preset_mode) {
     return false;  // Preset mode not supported or no change
   }
   this->preset_mode_ = validated;
-  // Keep deprecated member in sync during deprecation period
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  this->preset_mode = validated;
-#pragma GCC diagnostic pop
   return true;
 }
 
 bool Fan::set_preset_mode_(const std::string &preset_mode) { return this->set_preset_mode_(preset_mode.c_str()); }
 
-void Fan::clear_preset_mode_() {
-  this->preset_mode_ = nullptr;
-  // Keep deprecated member in sync during deprecation period
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  this->preset_mode.clear();
-#pragma GCC diagnostic pop
-}
+void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
 void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 void Fan::publish_state() {

@@ -111,11 +111,6 @@ class Fan : public EntityBase {
   int speed{0};
   /// The current direction of the fan
   FanDirection direction{FanDirection::FORWARD};
-  // The current preset mode of the fan
-  // Deprecated: Use get_preset_mode() for reading and set_preset_mode_() for writing. Will be removed in 2026.5.0
-  __attribute__((deprecated("Use get_preset_mode() for reading and set_preset_mode_() for writing instead of "
-                            ".preset_mode. Will be removed in 2026.5.0")));
-  std::string preset_mode{};
 
   FanCall turn_on();
   FanCall turn_off();
@@ -134,6 +129,9 @@ class Fan : public EntityBase {
 
   /// Get the current preset mode (returns pointer to string stored in traits, or nullptr if not set)
   const char *get_preset_mode() const { return this->preset_mode_; }
+
+  /// Check if a preset mode is currently active
+  bool has_preset_mode() const { return this->preset_mode_ != nullptr; }
 
  protected:
   friend FanCall;
