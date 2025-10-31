@@ -1172,7 +1172,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
     } else {
       ESP_LOGI(TAG, "No changes required to apply preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     }
-    this->custom_preset = nullptr;
+    this->clear_custom_preset_();
     this->preset = preset;
   } else {
     ESP_LOGW(TAG, "Preset %s not configured; ignoring", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
@@ -1185,7 +1185,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
   if (config != this->custom_preset_config_.end()) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset.c_str());
     if (this->change_preset_internal_(config->second) || !this->has_custom_preset() ||
-        strcmp(this->custom_preset, custom_preset.c_str()) != 0) {
+        strcmp(this->get_custom_preset(), custom_preset.c_str()) != 0) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally

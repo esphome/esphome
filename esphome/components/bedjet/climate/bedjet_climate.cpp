@@ -79,7 +79,7 @@ void BedJetClimate::reset_state_() {
   this->target_temperature = NAN;
   this->current_temperature = NAN;
   this->preset.reset();
-  this->custom_preset.reset();
+  this->clear_custom_preset_();
   this->publish_state();
 }
 
@@ -184,8 +184,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
 
     if (result) {
-      this->custom_preset = preset;
-      this->preset.reset();
+      this->set_custom_preset_(preset.c_str());
     }
   }
 
@@ -207,8 +206,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
 
     if (result) {
-      this->fan_mode = fan_mode;
-      this->custom_fan_mode.reset();
+      this->set_fan_mode_(fan_mode);
     }
   } else if (call.get_custom_fan_mode().has_value()) {
     auto fan_mode = *call.get_custom_fan_mode();
@@ -218,8 +216,7 @@ void BedJetClimate::control(const ClimateCall &call) {
                fan_index);
       bool result = this->parent_->set_fan_index(fan_index);
       if (result) {
-        this->custom_fan_mode = fan_mode;
-        this->fan_mode.reset();
+        this->set_custom_fan_mode_(fan_mode.c_str());
       }
     }
   }
@@ -245,7 +242,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
 
   const auto *fan_mode_name = bedjet_fan_step_to_fan_mode(data->fan_step);
   if (fan_mode_name != nullptr) {
-    this->custom_fan_mode = *fan_mode_name;
+    this->set_custom_fan_mode_(fan_mode_name);
   }
 
   // TODO: Get biorhythm data to determine which preset (M1-3) is running, if any.
@@ -255,7 +252,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       this->mode = CLIMATE_MODE_OFF;
       this->action = CLIMATE_ACTION_IDLE;
       this->fan_mode = CLIMATE_FAN_OFF;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
       break;
 
@@ -266,7 +263,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
         this->set_custom_preset_("LTD HT");
       } else {
-        this->custom_preset.reset();
+        this->clear_custom_preset_();
       }
       break;
 
@@ -275,7 +272,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       this->action = CLIMATE_ACTION_HEATING;
       this->preset.reset();
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
-        this->custom_preset.reset();
+        this->clear_custom_preset_();
       } else {
         this->set_custom_preset_("EXT HT");
       }
@@ -284,20 +281,20 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
     case MODE_COOL:
       this->mode = CLIMATE_MODE_FAN_ONLY;
       this->action = CLIMATE_ACTION_COOLING;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
       break;
 
     case MODE_DRY:
       this->mode = CLIMATE_MODE_DRY;
       this->action = CLIMATE_ACTION_DRYING;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
       break;
 
     case MODE_TURBO:
       this->preset = CLIMATE_PRESET_BOOST;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
       break;
