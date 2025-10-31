@@ -139,11 +139,8 @@ const char *Fan::find_preset_mode_(const char *preset_mode) { return this->get_t
 
 bool Fan::set_preset_mode_(const char *preset_mode) {
   const char *validated = this->find_preset_mode_(preset_mode);
-  if (validated == nullptr) {
-    return false;  // Preset mode not supported
-  }
-  if (this->preset_mode_ == validated) {
-    return false;  // No change
+  if (validated == nullptr || this->preset_mode_ == validated) {
+    return false;  // Preset mode not supported or no change
   }
   this->preset_mode_ = validated;
   // Keep deprecated member in sync during deprecation period
@@ -235,16 +232,14 @@ void Fan::save_state_() {
   state.direction = this->direction;
 
   const char *preset = this->get_preset_mode();
-  if (traits.supports_preset_modes() && preset != nullptr) {
+  if (preset != nullptr) {
     const auto &preset_modes = traits.supported_preset_modes();
-    // Store index of current preset mode
-    size_t i = 0;
-    for (const auto &mode : preset_modes) {
-      if (strcmp(mode, preset) == 0) {
+    // Find index of current preset mode (pointer comparison is safe since preset is from traits)
+    for (size_t i = 0; i < preset_modes.size(); i++) {
+      if (preset_modes[i] == preset) {
         state.preset_mode = i;
         break;
       }
-      i++;
     }
   }
 
