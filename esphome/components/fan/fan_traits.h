@@ -38,6 +38,11 @@ class FanTraits {
   }
   /// Set the preset modes supported by the fan (from vector).
   void set_supported_preset_modes(const std::vector<const char *> &preset_modes) { this->preset_modes_ = preset_modes; }
+
+  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
+  void set_supported_preset_modes(const std::vector<std::string> &preset_modes) = delete;
+  void set_supported_preset_modes(std::initializer_list<std::string> preset_modes) = delete;
+
   /// Return if preset modes are supported
   bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
   /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
