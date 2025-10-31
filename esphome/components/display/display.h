@@ -268,6 +268,10 @@ template<typename T> class DisplayWriter {
   // Operator() for convenience
   void operator()(T &display) const { this->call(display); }
 
+  // Operator* for backwards compatibility with (*writer_)(*this) pattern
+  DisplayWriter &operator*() { return *this; }
+  const DisplayWriter &operator*() const { return *this; }
+
  protected:
   enum : uint8_t {
     NONE,
