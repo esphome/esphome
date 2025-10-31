@@ -2,13 +2,18 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/components/lcd_base/lcd_display.h"
+#include "esphome/components/display/display.h"
 
 namespace esphome {
 namespace lcd_gpio {
 
+class GPIOLCDDisplay;
+
+using gpio_lcd_writer_t = display::DisplayWriter<GPIOLCDDisplay>;
+
 class GPIOLCDDisplay : public lcd_base::LCDDisplay {
  public:
-  void set_writer(std::function<void(GPIOLCDDisplay &)> &&writer) { this->writer_ = std::move(writer); }
+  void set_writer(gpio_lcd_writer_t &&writer) { this->writer_ = std::move(writer); }
   void setup() override;
   void set_data_pins(GPIOPin *d0, GPIOPin *d1, GPIOPin *d2, GPIOPin *d3) {
     this->data_pins_[0] = d0;
@@ -43,7 +48,7 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
   GPIOPin *rw_pin_{nullptr};
   GPIOPin *enable_pin_{nullptr};
   GPIOPin *data_pins_[8]{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-  std::function<void(GPIOLCDDisplay &)> writer_;
+  gpio_lcd_writer_t writer_;
 };
 
 }  // namespace lcd_gpio

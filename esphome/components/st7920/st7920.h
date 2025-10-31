@@ -9,7 +9,7 @@ namespace st7920 {
 
 class ST7920;
 
-using st7920_writer_t = std::function<void(ST7920 &)>;
+using st7920_writer_t = display::DisplayWriter<ST7920>;
 
 class ST7920 : public display::DisplayBuffer,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,

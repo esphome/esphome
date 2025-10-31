@@ -4,13 +4,14 @@
 #include "esphome/core/time.h"
 
 #include "esphome/components/spi/spi.h"
+#include "esphome/components/display/display.h"
 
 namespace esphome {
 namespace max7219 {
 
 class MAX7219Component;
 
-using max7219_writer_t = std::function<void(MAX7219Component &)>;
+using max7219_writer_t = display::DisplayWriter<MAX7219Component>;
 
 class MAX7219Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,

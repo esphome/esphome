@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/time.h"
+#include "esphome/components/display/display.h"
 
 #include <vector>
 
@@ -19,7 +20,7 @@ class TM1637Display;
 class TM1637Key;
 #endif
 
-using tm1637_writer_t = std::function<void(TM1637Display &)>;
+using tm1637_writer_t = display::DisplayWriter<TM1637Display>;
 
 class TM1637Display : public PollingComponent {
  public:
