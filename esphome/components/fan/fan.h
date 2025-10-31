@@ -113,8 +113,8 @@ class Fan : public EntityBase {
   FanDirection direction{FanDirection::FORWARD};
   // The current preset mode of the fan
   // Deprecated: Use get_preset_mode() instead. Will be removed in 2026.5.0
-  std::string preset_mode {}
   __attribute__((deprecated("Use get_preset_mode() instead of .preset_mode. Will be removed in 2026.5.0")));
+  std::string preset_mode{};
 
   FanCall turn_on();
   FanCall turn_off();
