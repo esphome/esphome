@@ -659,13 +659,11 @@ bool Climate::set_custom_preset_(const std::string &preset) { return this->set_c
 void Climate::clear_custom_preset_() { this->custom_preset_ = nullptr; }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
-  auto traits = this->get_traits();
-  return traits.find_custom_fan_mode_(custom_fan_mode);
+  return this->get_traits().find_custom_fan_mode_(custom_fan_mode);
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
-  auto traits = this->get_traits();
-  return traits.find_custom_preset_(custom_preset);
+  return this->get_traits().find_custom_preset_(custom_preset);
 }
 
 void Climate::dump_traits_(const char *tag) {
