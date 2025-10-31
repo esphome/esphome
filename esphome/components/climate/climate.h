@@ -325,35 +325,40 @@ class Climate : public EntityBase {
   optional<float> visual_min_humidity_override_{};
   optional<float> visual_max_humidity_override_{};
 
+ private:
   /** The active custom fan mode of the climate device.
    *
-   * PROTECTED ACCESS: External components must use get_custom_fan_mode() for read access.
-   * Derived climate classes must use set_custom_fan_mode_() / clear_custom_fan_mode_() to modify.
+   * PRIVATE ACCESS (compile-time enforced safety):
+   *  - External components: Use get_custom_fan_mode() for read-only access
+   *  - Derived classes: Use set_custom_fan_mode_() / clear_custom_fan_mode_() to modify
+   *  - Direct assignment is prevented at compile time
    *
    * POINTER LIFETIME SAFETY:
    * This pointer MUST always point to an entry in the traits.supported_custom_fan_modes_ vector,
    * or be nullptr. The protected setter set_custom_fan_mode_() enforces this by calling
    * traits.find_custom_fan_mode_() to validate and obtain the correct pointer.
    *
-   * Never assign directly - always use setters:
+   * The private access level provides compile-time enforcement:
    *   this->set_custom_fan_mode_("Turbo");  // ✓ Safe - validates against traits
-   *   this->custom_fan_mode_ = "Turbo";     // ✗ UNSAFE - may create dangling pointer
+   *   this->custom_fan_mode_ = "Turbo";     // ✗ Compile error - private member
    */
   const char *custom_fan_mode_{nullptr};
 
   /** The active custom preset mode of the climate device.
    *
-   * PROTECTED ACCESS: External components must use get_custom_preset() for read access.
-   * Derived climate classes must use set_custom_preset_() / clear_custom_preset_() to modify.
+   * PRIVATE ACCESS (compile-time enforced safety):
+   *  - External components: Use get_custom_preset() for read-only access
+   *  - Derived classes: Use set_custom_preset_() / clear_custom_preset_() to modify
+   *  - Direct assignment is prevented at compile time
    *
    * POINTER LIFETIME SAFETY:
    * This pointer MUST always point to an entry in the traits.supported_custom_presets_ vector,
    * or be nullptr. The protected setter set_custom_preset_() enforces this by calling
    * traits.find_custom_preset_() to validate and obtain the correct pointer.
    *
-   * Never assign directly - always use setters:
+   * The private access level provides compile-time enforcement:
    *   this->set_custom_preset_("Eco");  // ✓ Safe - validates against traits
-   *   this->custom_preset_ = "Eco";     // ✗ UNSAFE - may create dangling pointer
+   *   this->custom_preset_ = "Eco";     // ✗ Compile error - private member
    */
   const char *custom_preset_{nullptr};
 };
