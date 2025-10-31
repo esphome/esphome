@@ -212,18 +212,18 @@ class FanPresetSetTrigger : public Trigger<std::string> {
  public:
   FanPresetSetTrigger(Fan *state) {
     state->add_on_state_callback([this, state]() {
-      auto preset_mode = state->preset_mode;
+      const auto *preset_mode = state->get_preset_mode();
       auto should_trigger = preset_mode != this->last_preset_mode_;
       this->last_preset_mode_ = preset_mode;
-      if (should_trigger) {
+      if (should_trigger && preset_mode != nullptr) {
         this->trigger(preset_mode);
       }
     });
-    this->last_preset_mode_ = state->preset_mode;
+    this->last_preset_mode_ = state->get_preset_mode();
   }
 
  protected:
-  std::string last_preset_mode_;
+  const char *last_preset_mode_{nullptr};
 };
 
 }  // namespace fan

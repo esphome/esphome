@@ -410,8 +410,8 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
   }
   if (traits.supports_direction())
     msg.direction = static_cast<enums::FanDirection>(fan->direction);
-  if (traits.supports_preset_modes())
-    msg.set_preset_mode(StringRef(fan->preset_mode));
+  if (traits.supports_preset_modes() && fan->has_preset_mode())
+    msg.set_preset_mode(StringRef(fan->get_preset_mode()));
   return fill_and_encode_entity_state(fan, msg, FanStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
