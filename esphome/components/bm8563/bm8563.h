@@ -6,13 +6,13 @@
 namespace esphome {
 namespace bm8563 {
 
-struct BM8563_TimeTypeDef {
+struct BM8563TimeTypeDef {
   int8_t hours;
   int8_t minutes;
   int8_t seconds;
 };
 
-struct BM8563_DateTypeDef {
+struct BM8563DateTypeDef {
   int8_t day;
   int8_t week;
   int8_t month;
@@ -30,23 +30,23 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
   void start_timer(uint32_t timer_s);
 
  private:
-  bool get_volt_low();
+  bool get_volt_low_();
 
-  void get_time(BM8563_TimeTypeDef *BM8563_TimeStruct);
-  void get_date(BM8563_DateTypeDef *BM8563_DateStruct);
+  void get_time_(BM8563TimeTypeDef *b_m8563_time_struct);
+  void get_date_(BM8563DateTypeDef *b_m8563_date_struct);
 
-  void set_time(BM8563_TimeTypeDef *BM8563_TimeStruct);
-  void set_date(BM8563_DateTypeDef *BM8563_DateStruct);
+  void set_time_(BM8563TimeTypeDef *b_m8563_time_struct);
+  void set_date_(BM8563DateTypeDef *b_m8563_date_struct);
 
-  int set_alarm_irq(int duration_s);
-  void clear_irq();
-  void disable_irq();
+  int set_alarm_irq_(int duration_s);
+  void clear_irq_();
+  void disable_irq_();
 
-  void write_reg(uint8_t reg, uint8_t data);
-  uint8_t read_reg(uint8_t reg);
+  void write_reg_(uint8_t reg, uint8_t data);
+  uint8_t read_reg_(uint8_t reg);
 
-  uint8_t bcd2_to_byte(uint8_t value);
-  uint8_t byte_to_bcd2(uint8_t value);
+  uint8_t bcd2_to_byte_(uint8_t value);
+  uint8_t byte_to_bcd2_(uint8_t value);
 
   bool setup_complete_;
 };
