@@ -9,6 +9,16 @@
 namespace esphome {
 namespace climate {
 
+// Type aliases for climate enum bitmasks
+// These replace std::set<EnumType> to eliminate red-black tree overhead
+// For contiguous enums starting at 0, DefaultBitPolicy provides 1:1 mapping (enum value = bit position)
+// Bitmask size is automatically calculated from the last enum value
+using ClimateModeMask = FiniteSetMask<ClimateMode, DefaultBitPolicy<ClimateMode, CLIMATE_MODE_AUTO + 1>>;
+using ClimateFanModeMask = FiniteSetMask<ClimateFanMode, DefaultBitPolicy<ClimateFanMode, CLIMATE_FAN_QUIET + 1>>;
+using ClimateSwingModeMask =
+    FiniteSetMask<ClimateSwingMode, DefaultBitPolicy<ClimateSwingMode, CLIMATE_SWING_HORIZONTAL + 1>>;
+using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimatePreset, CLIMATE_PRESET_ACTIVITY + 1>>;
+
 // Lightweight linear search for small vectors (1-20 items) of const char* pointers
 // Avoids std::find template overhead
 inline bool vector_contains(const std::vector<const char *> &vec, const char *value) {
@@ -27,16 +37,6 @@ inline const char *vector_find(const std::vector<const char *> &vec, const char 
   }
   return nullptr;
 }
-
-// Type aliases for climate enum bitmasks
-// These replace std::set<EnumType> to eliminate red-black tree overhead
-// For contiguous enums starting at 0, DefaultBitPolicy provides 1:1 mapping (enum value = bit position)
-// Bitmask size is automatically calculated from the last enum value
-using ClimateModeMask = FiniteSetMask<ClimateMode, DefaultBitPolicy<ClimateMode, CLIMATE_MODE_AUTO + 1>>;
-using ClimateFanModeMask = FiniteSetMask<ClimateFanMode, DefaultBitPolicy<ClimateFanMode, CLIMATE_FAN_QUIET + 1>>;
-using ClimateSwingModeMask =
-    FiniteSetMask<ClimateSwingMode, DefaultBitPolicy<ClimateSwingMode, CLIMATE_SWING_HORIZONTAL + 1>>;
-using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimatePreset, CLIMATE_PRESET_ACTIVITY + 1>>;
 
 /** This class contains all static data for climate devices.
  *
