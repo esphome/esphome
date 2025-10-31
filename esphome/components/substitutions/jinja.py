@@ -138,6 +138,7 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
             values = chain(head, values)
         raw = "".join([str(v) for v in values])
 
+    result = None
     try:
         # Attempt to parse the concatenated string into a Python literal.
         # This allows expressions like "1 + 2" to be evaluated to the integer 3.
@@ -145,6 +146,9 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
         # fall back to returning the raw string. This is consistent with
         #  Home Assistant's behavior when evaluating templates
         result = literal_eval(raw)
+    except (ValueError, SyntaxError, MemoryError, TypeError):
+        pass
+    else:
         if isinstance(result, set):
             # Sets are not supported, return raw string
             return raw
@@ -152,8 +156,6 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
         if not isinstance(result, str):
             return result
 
-    except (ValueError, SyntaxError, MemoryError, TypeError):
-        pass
     return raw
 
 
