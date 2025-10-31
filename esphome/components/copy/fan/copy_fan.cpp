@@ -12,7 +12,11 @@ void CopyFan::setup() {
     this->oscillating = source_->oscillating;
     this->speed = source_->speed;
     this->direction = source_->direction;
-    this->preset_mode = source_->preset_mode;
+    const char *preset = source_->get_preset_mode();
+    if (preset != nullptr)
+      this->set_preset_mode_(preset);
+    else
+      this->clear_preset_mode_();
     this->publish_state();
   });
 
@@ -20,7 +24,11 @@ void CopyFan::setup() {
   this->oscillating = source_->oscillating;
   this->speed = source_->speed;
   this->direction = source_->direction;
-  this->preset_mode = source_->preset_mode;
+  const char *preset = source_->get_preset_mode();
+  if (preset != nullptr)
+    this->set_preset_mode_(preset);
+  else
+    this->clear_preset_mode_();
   this->publish_state();
 }
 
@@ -49,7 +57,7 @@ void CopyFan::control(const fan::FanCall &call) {
     call2.set_speed(*call.get_speed());
   if (call.get_direction().has_value())
     call2.set_direction(*call.get_direction());
-  if (!call.get_preset_mode().empty())
+  if (call.has_preset_mode())
     call2.set_preset_mode(call.get_preset_mode());
   call2.perform();
 }

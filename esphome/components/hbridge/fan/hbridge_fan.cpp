@@ -51,13 +51,17 @@ void HBridgeFan::dump_config() {
 void HBridgeFan::control(const fan::FanCall &call) {
   if (call.get_state().has_value())
     this->state = *call.get_state();
-  if (call.get_speed().has_value())
+  if (call.get_speed().has_value()) {
     this->speed = *call.get_speed();
+    // Speed manually set, clear preset mode
+    this->clear_preset_mode_();
+  }
   if (call.get_oscillating().has_value())
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
-  this->preset_mode = call.get_preset_mode();
+  if (call.has_preset_mode())
+    this->set_preset_mode_(call.get_preset_mode());
 
   this->write_state_();
   this->publish_state();

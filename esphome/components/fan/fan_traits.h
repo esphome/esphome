@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <vector>
 #include <initializer_list>
 
@@ -39,6 +40,17 @@ class FanTraits {
   void set_supported_preset_modes(const std::vector<const char *> &preset_modes) { this->preset_modes_ = preset_modes; }
   /// Return if preset modes are supported
   bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
+  /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
+  const char *find_preset_mode(const char *preset_mode) const {
+    if (preset_mode == nullptr)
+      return nullptr;
+    for (const char *mode : this->preset_modes_) {
+      if (strcmp(mode, preset_mode) == 0) {
+        return mode;  // Return pointer from traits
+      }
+    }
+    return nullptr;
+  }
 
  protected:
   bool oscillation_{false};

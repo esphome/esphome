@@ -70,11 +70,10 @@ class FanCall {
     return *this;
   }
   optional<FanDirection> get_direction() const { return this->direction_; }
-  FanCall &set_preset_mode(const std::string &preset_mode) {
-    this->preset_mode_ = preset_mode;
-    return *this;
-  }
-  std::string get_preset_mode() const { return this->preset_mode_; }
+  FanCall &set_preset_mode(const std::string &preset_mode);
+  FanCall &set_preset_mode(const char *preset_mode);
+  const char *get_preset_mode() const { return this->preset_mode_; }
+  bool has_preset_mode() const { return this->preset_mode_ != nullptr; }
 
   void perform();
 
@@ -86,7 +85,7 @@ class FanCall {
   optional<bool> oscillating_;
   optional<int> speed_;
   optional<FanDirection> direction_{};
-  std::string preset_mode_{};
+  const char *preset_mode_{nullptr};  // Pointer to string in traits (after validation)
 };
 
 struct FanRestoreState {
@@ -113,7 +112,9 @@ class Fan : public EntityBase {
   /// The current direction of the fan
   FanDirection direction{FanDirection::FORWARD};
   // The current preset mode of the fan
-  std::string preset_mode{};
+  // Deprecated: Use get_preset_mode() instead. Will be removed in 2026.5.0
+  std::string preset_mode {}
+  __attribute__((deprecated("Use get_preset_mode() instead of .preset_mode. Will be removed in 2026.5.0")));
 
   FanCall turn_on();
   FanCall turn_off();
@@ -130,6 +131,9 @@ class Fan : public EntityBase {
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
+  /// Get the current preset mode (returns pointer to string stored in traits, or nullptr if not set)
+  const char *get_preset_mode() const { return this->preset_mode_; }
+
  protected:
   friend FanCall;
 
@@ -140,9 +144,19 @@ class Fan : public EntityBase {
 
   void dump_traits_(const char *tag, const char *prefix);
 
+  /// Set the preset mode (finds and stores pointer from traits). Returns true if changed.
+  bool set_preset_mode_(const char *preset_mode);
+  /// Set the preset mode (finds and stores pointer from traits). Returns true if changed.
+  bool set_preset_mode_(const std::string &preset_mode);
+  /// Clear the preset mode
+  void clear_preset_mode_();
+  /// Find and return the matching preset mode pointer from traits, or nullptr if not found.
+  const char *find_preset_mode_(const char *preset_mode);
+
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
+  const char *preset_mode_{nullptr};
 };
 
 }  // namespace fan
