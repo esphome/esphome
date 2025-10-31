@@ -186,7 +186,7 @@ void MipiRgb::update() {
   } else if (this->page_ != nullptr) {
     this->page_->get_writer()(*this);
   } else if (this->writer_.has_value()) {
-    (*this->writer_)(*this);
+    this->writer_(*this);
   } else {
     this->stop_poller();
   }

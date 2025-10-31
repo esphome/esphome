@@ -77,7 +77,7 @@ void TM1621Display::dump_config() {
 void TM1621Display::update() {
   // memset(this->row, 0, sizeof(this->row));
   if (this->writer_.has_value())
-    (*this->writer_)(*this);
+    this->writer_(*this);
   this->display();
 }
 

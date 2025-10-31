@@ -105,7 +105,7 @@ float ST7920::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void ST7920::update() {
   this->clear();
   if (this->writer_local_.has_value())  // call lambda function if available
-    (*this->writer_local_)(*this);
+    this->writer_local_(*this);
   this->write_display_data();
 }
 

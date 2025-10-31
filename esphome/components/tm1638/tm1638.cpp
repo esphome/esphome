@@ -85,7 +85,7 @@ uint8_t TM1638Component::get_keys() {
 
 void TM1638Component::update() {  // this is called at the interval specified in the config.yaml
   if (this->writer_.has_value()) {
-    (*this->writer_)(*this);
+    this->writer_(*this);
   }
 
   this->display();
