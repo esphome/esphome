@@ -1197,6 +1197,9 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
     } else {
       ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
     }
+    // Note: set_custom_preset_() above handles preset.reset() and custom_preset_ assignment internally.
+    // The old code had these lines here unconditionally, which was a bug (double assignment, state modification
+    // even when no changes were needed). Now properly handled by the protected setter with mutual exclusion.
   } else {
     ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
   }
