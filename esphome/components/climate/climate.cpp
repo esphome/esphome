@@ -640,8 +640,6 @@ bool Climate::set_custom_fan_mode_(const char *mode) {
                                          this->has_custom_fan_mode());
 }
 
-bool Climate::set_custom_fan_mode_(const std::string &mode) { return this->set_custom_fan_mode_(mode.c_str()); }
-
 void Climate::clear_custom_fan_mode_() { this->custom_fan_mode_ = nullptr; }
 
 bool Climate::set_preset_(ClimatePreset preset) { return set_primary_mode(this->preset, this->custom_preset_, preset); }
@@ -651,8 +649,6 @@ bool Climate::set_custom_preset_(const char *preset) {
   return set_custom_mode<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset),
                                         this->has_custom_preset());
 }
-
-bool Climate::set_custom_preset_(const std::string &preset) { return this->set_custom_preset_(preset.c_str()); }
 
 void Climate::clear_custom_preset_() { this->custom_preset_ = nullptr; }
 

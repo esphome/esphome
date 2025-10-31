@@ -224,7 +224,7 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
       this->change_custom_preset_(call.get_custom_preset().value());
     } else {
       // Use the base class method which handles pointer lookup internally
-      this->set_custom_preset_(call.get_custom_preset().value());
+      this->set_custom_preset_(call.get_custom_preset().value().c_str());
     }
   }
 
@@ -1189,7 +1189,7 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally
-      this->set_custom_preset_(custom_preset);
+      this->set_custom_preset_(custom_preset.c_str());
       if (trig != nullptr) {
         trig->trigger();
       }
