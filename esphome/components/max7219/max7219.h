@@ -58,7 +58,7 @@ class MAX7219Component : public PollingComponent,
   uint8_t num_chips_{1};
   uint8_t *buffer_;
   bool reverse_{false};
-  optional<max7219_writer_t> writer_{};
+  max7219_writer_t writer_{};
 };
 
 }  // namespace max7219
