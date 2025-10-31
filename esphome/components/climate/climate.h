@@ -264,13 +264,23 @@ class Climate : public EntityBase {
   bool set_fan_mode_(ClimateFanMode mode);
 
   /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
+  bool set_custom_fan_mode_(const char *mode);
+  /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
   bool set_custom_fan_mode_(const std::string &mode);
 
   /// Set preset. Reset custom preset. Return true if preset has been changed.
   bool set_preset_(ClimatePreset preset);
 
   /// Set custom preset. Reset primary preset. Return true if preset has been changed.
+  bool set_custom_preset_(const char *preset);
+  /// Set custom preset. Reset primary preset. Return true if preset has been changed.
   bool set_custom_preset_(const std::string &preset);
+
+  /// Find and return the matching custom fan mode pointer from traits, or nullptr if not found.
+  const char *find_custom_fan_mode_(const char *custom_fan_mode);
+
+  /// Find and return the matching custom preset pointer from traits, or nullptr if not found.
+  const char *find_custom_preset_(const char *custom_preset);
 
   /** Get the default traits of this climate device.
    *

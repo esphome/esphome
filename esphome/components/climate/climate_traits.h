@@ -65,12 +65,10 @@ using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimateP
  *  - temperature step - the step with which to increase/decrease target temperature.
  *     This also affects with how many decimal places the temperature is shown
  */
-class Climate;      // Forward declaration
-class ClimateCall;  // Forward declaration
+class Climate;  // Forward declaration
 
 class ClimateTraits {
-  friend class Climate;      // Allow Climate to access protected find methods
-  friend class ClimateCall;  // Allow ClimateCall to access protected find methods
+  friend class Climate;  // Allow Climate to access protected find methods
 
  public:
   /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
@@ -248,14 +246,14 @@ class ClimateTraits {
   }
 
   /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
-  /// This is protected as it's an implementation detail - use Climate::set_custom_fan_mode_() instead
-  const char *find_custom_fan_mode(const char *custom_fan_mode) const {
+  /// This is protected as it's an implementation detail - use Climate::find_custom_fan_mode_() instead
+  const char *find_custom_fan_mode_(const char *custom_fan_mode) const {
     return vector_find(this->supported_custom_fan_modes_, custom_fan_mode);
   }
 
   /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
-  /// This is protected as it's an implementation detail - use Climate::set_custom_preset_() instead
-  const char *find_custom_preset(const char *custom_preset) const {
+  /// This is protected as it's an implementation detail - use Climate::find_custom_preset_() instead
+  const char *find_custom_preset_(const char *custom_preset) const {
     return vector_find(this->supported_custom_presets_, custom_preset);
   }
 
