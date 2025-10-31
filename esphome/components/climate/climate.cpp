@@ -593,29 +593,6 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
-// Generic template to set one value while clearing its alternative (mutual exclusion)
-// Handles both optional<T> and const char* types automatically using compile-time type detection
-template<typename T1, typename T2, typename T3> bool set_alternative(T1 &dst, T2 &alt, T3 src) {
-  bool is_changed = false;
-
-  // Clear the alternative based on its type (pointer or optional)
-  if constexpr (std::is_pointer_v<std::remove_reference_t<T2>>) {
-    is_changed = (alt != nullptr);
-    alt = nullptr;
-  } else {
-    is_changed = alt.has_value();
-    alt.reset();
-  }
-
-  // Set the destination value
-  if (is_changed || dst != src) {
-    dst = src;
-    is_changed = true;
-  }
-
-  return is_changed;
-}
-
 bool Climate::set_fan_mode_(ClimateFanMode mode) {
   // Clear the custom fan mode (mutual exclusion)
   bool changed = this->custom_fan_mode_ != nullptr;
