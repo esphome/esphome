@@ -595,7 +595,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
 
 // Template helper for setting primary modes with mutual exclusion
 // Clears custom pointer and sets primary optional value
-template<typename T> bool set_primary_mode_(optional<T> &primary, const char *&custom_ptr, T value) {
+template<typename T> bool set_primary_mode(optional<T> &primary, const char *&custom_ptr, T value) {
   // Clear the custom mode (mutual exclusion)
   bool changed = custom_ptr != nullptr;
   custom_ptr = nullptr;
@@ -610,7 +610,7 @@ template<typename T> bool set_primary_mode_(optional<T> &primary, const char *&c
 // Template helper for setting custom modes with mutual exclusion
 // Takes pre-computed values: the found pointer from traits and whether custom mode is currently set
 template<typename T>
-bool set_custom_mode_(const char *&custom_ptr, optional<T> &primary, const char *found_ptr, bool has_custom) {
+bool set_custom_mode(const char *&custom_ptr, optional<T> &primary, const char *found_ptr, bool has_custom) {
   if (found_ptr != nullptr) {
     // Clear the primary mode (mutual exclusion)
     bool changed = primary.has_value();
@@ -631,27 +631,25 @@ bool set_custom_mode_(const char *&custom_ptr, optional<T> &primary, const char 
 }
 
 bool Climate::set_fan_mode_(ClimateFanMode mode) {
-  return set_primary_mode_(this->fan_mode, this->custom_fan_mode_, mode);
+  return set_primary_mode(this->fan_mode, this->custom_fan_mode_, mode);
 }
 
 bool Climate::set_custom_fan_mode_(const char *mode) {
   auto traits = this->get_traits();
-  return set_custom_mode_<ClimateFanMode>(this->custom_fan_mode_, this->fan_mode, traits.find_custom_fan_mode_(mode),
-                                          this->has_custom_fan_mode());
+  return set_custom_mode<ClimateFanMode>(this->custom_fan_mode_, this->fan_mode, traits.find_custom_fan_mode_(mode),
+                                         this->has_custom_fan_mode());
 }
 
 bool Climate::set_custom_fan_mode_(const std::string &mode) { return this->set_custom_fan_mode_(mode.c_str()); }
 
 void Climate::clear_custom_fan_mode_() { this->custom_fan_mode_ = nullptr; }
 
-bool Climate::set_preset_(ClimatePreset preset) {
-  return set_primary_mode_(this->preset, this->custom_preset_, preset);
-}
+bool Climate::set_preset_(ClimatePreset preset) { return set_primary_mode(this->preset, this->custom_preset_, preset); }
 
 bool Climate::set_custom_preset_(const char *preset) {
   auto traits = this->get_traits();
-  return set_custom_mode_<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset),
-                                         this->has_custom_preset());
+  return set_custom_mode<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset),
+                                        this->has_custom_preset());
 }
 
 bool Climate::set_custom_preset_(const std::string &preset) { return this->set_custom_preset_(preset.c_str()); }
