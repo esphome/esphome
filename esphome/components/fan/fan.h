@@ -136,6 +136,7 @@ class Fan : public EntityBase {
 
  protected:
   friend FanCall;
+  friend struct FanRestoreState;
 
   virtual void control(const FanCall &call) = 0;
 
