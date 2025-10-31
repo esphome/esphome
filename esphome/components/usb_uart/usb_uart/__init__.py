@@ -87,14 +87,17 @@ def get_buffer_size_default(num_channels=1, use_full_speed=None):
 def get_max_channels(device_type):
     """Calculate maximum number of channels based on device type and ESP32 variant.
 
-    CDC-ACM devices (CH34X, CP210X) are limited by available USB endpoints:
-    - P4 (8 IN/OUT + 7 IN endpoints): supports up to 7 channels,
-      4 are possible on currently supported device (changes with CH934X support)
-    - S2/S3 (5 IN/OUT + 1 IN endpoint): supports up to 3 channels - CH934X can do more
-      once support is included
-    """
+    CDC-ACM devices (FT23XX, CH34X, CP210X) are limited by available USB endpoints:
+    - P4 (8 IN/OUT + 7 IN endpoints): supports up to 4 channels
+    - S2/S3 (5 IN/OUT + 1 IN endpoint): supports up to 3 channels
 
-    if device_type in ("CH34X", "CP210X"):
+    CH934X uses multiplexing and requires fewer endpoints:
+    - No endpoint limitation, supports full 8 channels on all variants
+    """
+    if device_type == "CH934X":
+        return 8  # Multiplexing - no endpoint limitation
+
+    if device_type in ("FT23XX", "CH34X", "CP210X"):
         # CDC devices - limited by available endpoints
         if CORE.is_esp32 and "P4" in get_target_variant():
             return 4  # P4 has more endpoints available
@@ -115,6 +118,8 @@ class Type:
 
 
 uart_types = (
+    Type("FT23XX", 0x0403, 0x6010, "FT23XX", get_max_channels("FT23XX")),
+    Type("CH934X", 0x1A86, 0x55D9, "CH934X", get_max_channels("CH934X")),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", get_max_channels("CH34X")),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
