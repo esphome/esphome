@@ -192,14 +192,12 @@ ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode) {
   // Check if it's a standard enum mode first
   for (const auto &mode_entry : CLIMATE_FAN_MODES_BY_STR) {
     if (str_equals_case_insensitive(custom_fan_mode, mode_entry.str)) {
-      this->set_fan_mode(static_cast<ClimateFanMode>(mode_entry.value));
-      return *this;
+      return this->set_fan_mode(static_cast<ClimateFanMode>(mode_entry.value));
     }
   }
   // Find the matching pointer from traits
   auto traits = this->parent_->get_traits();
-  const char *mode_ptr = traits.find_custom_fan_mode(custom_fan_mode);
-  if (mode_ptr != nullptr) {
+  if (const char *mode_ptr = traits.find_custom_fan_mode(custom_fan_mode)) {
     this->custom_fan_mode_ = mode_ptr;
     this->fan_mode_.reset();
     return *this;
@@ -227,14 +225,12 @@ ClimateCall &ClimateCall::set_preset(const char *custom_preset) {
   // Check if it's a standard enum preset first
   for (const auto &preset_entry : CLIMATE_PRESETS_BY_STR) {
     if (str_equals_case_insensitive(custom_preset, preset_entry.str)) {
-      this->set_preset(static_cast<ClimatePreset>(preset_entry.value));
-      return *this;
+      return this->set_preset(static_cast<ClimatePreset>(preset_entry.value));
     }
   }
   // Find the matching pointer from traits
   auto traits = this->parent_->get_traits();
-  const char *preset_ptr = traits.find_custom_preset(custom_preset);
-  if (preset_ptr != nullptr) {
+  if (const char *preset_ptr = traits.find_custom_preset(custom_preset)) {
     this->custom_preset_ = preset_ptr;
     this->preset_.reset();
     return *this;
