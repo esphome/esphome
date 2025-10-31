@@ -7,13 +7,13 @@
 namespace esphome {
 namespace storage {
 
-enum class FileOpenMode : uint8_t {
-  READ = 0x01,
-  WRITE = 0x02,
-  APPEND = 0x04,
-  CREATE = 0x08,
-};
+/*  File open modes */
+static const uint8_t OPEN_READ = 0x01;
+static const uint8_t OPEN_WRITE = 0x02;
+static const uint8_t OPEN_APPEND = 0x04;
+static const uint8_t OPEN_CREATE = 0x08;
 
+/*  File or directory attributes */
 static const uint8_t ATTR_HIDDEN = 1;    /* 0: File hidden */
 static const uint8_t ATTR_SYSTEM = 2;    /* 0: file is system file */
 static const uint8_t ATTR_PROTECTED = 3; /* 0: File protected (readonly) */
@@ -136,7 +136,7 @@ class FileProvider {
    * @param mode Open mode
    * @return FileObj* Pointer to open file
    */
-  virtual FileObj *open_file(std::string path, FileOpenMode mode) = 0;
+  virtual FileObj *open_file(std::string path, uint8_t mode) = 0;
   /**
    * @brief Open directory for get directory content listing
    *
@@ -151,7 +151,7 @@ class FileProvider {
    *
    * @param from_path
    * @param to_path
-   * @return uint8_t
+   * @return uint8_tß
    */
   virtual uint8_t rename(std::string from_path, std::string to_path) = 0;
   virtual uint8_t del(std::string path) = 0;
