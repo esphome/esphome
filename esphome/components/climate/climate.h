@@ -217,10 +217,10 @@ class Climate : public EntityBase {
   void set_visual_max_humidity_override(float visual_max_humidity_override);
 
   /// Check if a custom fan mode is currently active.
-  bool has_custom_fan_mode() const { return this->custom_fan_mode != nullptr; }
+  bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
 
   /// Check if a custom preset is currently active.
-  bool has_custom_preset() const { return this->custom_preset != nullptr; }
+  bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
 
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
@@ -248,12 +248,6 @@ class Climate : public EntityBase {
   /// The active preset of the climate device.
   optional<ClimatePreset> preset;
 
-  /// The active custom fan mode of the climate device.
-  const char *custom_fan_mode{nullptr};
-
-  /// The active custom preset mode of the climate device.
-  const char *custom_preset{nullptr};
-
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
 
@@ -262,6 +256,12 @@ class Climate : public EntityBase {
 
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
+
+  /// Get the active custom fan mode (read-only access).
+  const char *get_custom_fan_mode() const { return this->custom_fan_mode_; }
+
+  /// Get the active custom preset (read-only access).
+  const char *get_custom_preset() const { return this->custom_preset_; }
 
  protected:
   friend ClimateCall;
@@ -323,6 +323,12 @@ class Climate : public EntityBase {
   optional<float> visual_current_temperature_step_override_{};
   optional<float> visual_min_humidity_override_{};
   optional<float> visual_max_humidity_override_{};
+
+  /// The active custom fan mode of the climate device (protected - use get_custom_fan_mode() or setters).
+  const char *custom_fan_mode_{nullptr};
+
+  /// The active custom preset mode of the climate device (protected - use get_custom_preset() or setters).
+  const char *custom_preset_{nullptr};
 };
 
 }  // namespace climate

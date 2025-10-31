@@ -1198,8 +1198,6 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
       ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
     } else {
       ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
-      // Still need to ensure preset is reset and custom_preset is set
-      this->set_custom_preset_(custom_preset);
     }
   } else {
     ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
