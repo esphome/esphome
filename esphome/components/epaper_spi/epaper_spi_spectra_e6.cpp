@@ -9,31 +9,24 @@ static constexpr const char *const TAG = "epaper_spi.6c";
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
 
 static uint8_t color_to_hex(Color color) {
+  if (!color.is_on())
+    return 0x0;  // black
   if (color.red > 127) {
     if (color.green > 170) {
-      if (color.blue > 127) {
+      if (color.blue > 127)
         return 0x1;  // White
-      } else {
-        return 0x2;  // Yellow
-      }
-    } else {
-      return 0x3;  // Red (or Magenta)
+      return 0x2;    // Yellow
     }
-  } else {
-    if (color.green > 127) {
-      if (color.blue > 127) {
-        return 0x5;  // Cyan -> Blue
-      } else {
-        return 0x6;  // Green
-      }
-    } else {
-      if (color.blue > 127) {
-        return 0x5;  // Blue
-      } else {
-        return 0x0;  // Black
-      }
-    }
+    return 0x3;  // Red (or Magenta)
   }
+  if (color.green > 127) {
+    if (color.blue > 127)
+      return 0x5;  // Cyan -> Blue
+    return 0x6;    // Green
+  }
+  if (color.blue > 127)
+    return 0x5;  // Blue
+  return 0x0;    // Black
 }
 
 void EPaperSpectraE6::power_on() {
@@ -63,22 +56,17 @@ void EPaperSpectraE6::deep_sleep() {
 }
 
 void EPaperSpectraE6::fill(Color color) {
-  uint8_t pixel_color;
-  if (color.is_on()) {
-    pixel_color = color_to_hex(color);
-  } else {
-    pixel_color = 0x1;
-  }
+  auto pixel_color = color_to_hex(color);
 
   // We store 2 pixels per byte
   this->buffer_.fill(pixel_color + (pixel_color << 4));
 }
 
 void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return;
 
-  uint8_t pixel_bits = color_to_hex(color);
+  auto pixel_bits = color_to_hex(color);
   uint32_t pixel_position = x + y * this->get_width_controller();
   uint32_t byte_position = pixel_position / 2;
   auto original = this->buffer_[byte_position];
