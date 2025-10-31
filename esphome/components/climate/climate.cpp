@@ -623,8 +623,15 @@ bool Climate::set_fan_mode_(ClimateFanMode mode) {
 bool Climate::set_custom_fan_mode_(const char *mode) {
   auto traits = this->get_traits();
   const char *mode_ptr = traits.find_custom_fan_mode_(mode);
-  return mode_ptr != nullptr ? set_alternative(this->custom_fan_mode, this->fan_mode, mode_ptr)
-                             : (this->custom_fan_mode != nullptr ? (this->custom_fan_mode = nullptr, true) : false);
+  if (mode_ptr != nullptr) {
+    return set_alternative(this->custom_fan_mode, this->fan_mode, mode_ptr);
+  }
+  // Mode not found in supported custom modes, clear it if currently set
+  if (this->has_custom_fan_mode()) {
+    this->custom_fan_mode = nullptr;
+    return true;
+  }
+  return false;
 }
 
 bool Climate::set_custom_fan_mode_(const std::string &mode) { return this->set_custom_fan_mode_(mode.c_str()); }
@@ -634,8 +641,15 @@ bool Climate::set_preset_(ClimatePreset preset) { return set_alternative(this->p
 bool Climate::set_custom_preset_(const char *preset) {
   auto traits = this->get_traits();
   const char *preset_ptr = traits.find_custom_preset_(preset);
-  return preset_ptr != nullptr ? set_alternative(this->custom_preset, this->preset, preset_ptr)
-                               : (this->custom_preset != nullptr ? (this->custom_preset = nullptr, true) : false);
+  if (preset_ptr != nullptr) {
+    return set_alternative(this->custom_preset, this->preset, preset_ptr);
+  }
+  // Preset not found in supported custom presets, clear it if currently set
+  if (this->has_custom_preset()) {
+    this->custom_preset = nullptr;
+    return true;
+  }
+  return false;
 }
 
 bool Climate::set_custom_preset_(const std::string &preset) { return this->set_custom_preset_(preset.c_str()); }
