@@ -57,7 +57,7 @@ void HBridgeFan::control(const fan::FanCall &call) {
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value())
     this->direction = *call.get_direction();
-  this->preset_mode = call.get_preset_mode();
+  this->set_preset_mode_(call.get_preset_mode());
 
   this->write_state_();
   this->publish_state();
