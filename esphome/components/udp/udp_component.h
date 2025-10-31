@@ -18,6 +18,7 @@ static const size_t MAX_PACKET_SIZE = 508;
 class UDPComponent : public Component {
  public:
   void add_address(const char *addr) { this->addresses_.emplace_back(addr); }
+  void add_address_parsed(const network::IPAddress &addr) { this->addresses2_.emplace_back(addr); }
   void set_listen_address(const char *listen_addr) { this->listen_address_ = network::IPAddress(listen_addr); }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
@@ -55,6 +56,7 @@ class UDPComponent : public Component {
   WiFiUDP udp_client_{};
 #endif
   std::vector<std::string> addresses_{};
+  std::vector<network::IPAddress> addresses2_{};
 
   optional<network::IPAddress> listen_address_{};
 };

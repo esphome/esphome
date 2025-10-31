@@ -1,6 +1,7 @@
 import abc
 from collections.abc import Callable
 import inspect
+import ipaddress
 import math
 import re
 from typing import Any
@@ -320,6 +321,16 @@ class UnaryOpExpression(Expression):
         return f"({self.op}{self.exp})"
 
 
+class IPAddress(Expression):
+    __slots__ = ("address",)
+
+    def __init__(self, address: ipaddress.ip_address):
+        self.address = address
+
+    def __str__(self):
+        return f"esphome::network::IPAddress((ip_addr_t){{{self.address.packed[0]}, {self.address.packed[1]}, {self.address.packed[2]}, {self.address.packed[3]}}})"
+
+
 def safe_exp(obj: SafeExpType) -> Expression:
     """Try to convert obj to an expression by automatically converting native python types to
     expressions/literals.
@@ -350,6 +361,8 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(int(obj.total_seconds))
     if isinstance(obj, TimePeriodMinutes):
         return IntLiteral(int(obj.total_minutes))
+    if isinstance(obj, IPAddress):
+        return obj
     if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     if obj is bool:
