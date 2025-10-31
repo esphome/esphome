@@ -46,7 +46,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(USBHost),
             cv.Optional(CONF_ENABLE_HUBS, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=32): cv.int_range(
+            cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
