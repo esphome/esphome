@@ -23,11 +23,8 @@ void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
 void SpeedFan::control(const fan::FanCall &call) {
   if (call.get_state().has_value())
     this->state = *call.get_state();
-  if (call.get_speed().has_value()) {
+  if (call.get_speed().has_value())
     this->speed = *call.get_speed();
-    // Speed manually set, clear preset mode
-    this->clear_preset_mode_();
-  }
   if (call.get_oscillating().has_value())
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value())
