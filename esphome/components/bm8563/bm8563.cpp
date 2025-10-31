@@ -1,11 +1,11 @@
+#include "bm8563.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c_bus.h"
-#include "bm8563.h"
 
 namespace esphome {
 namespace bm8563 {
 
-static const char *TAG = "bm8563.sensor";
+static const char *const TAG = "BM8563";
 
 void BM8563::setup() {
   this->write_byte_16(0, 0);
