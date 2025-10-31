@@ -138,6 +138,14 @@ FanCall Fan::make_call() { return FanCall(*this); }
 const char *Fan::find_preset_mode_(const char *preset_mode) { return this->get_traits().find_preset_mode(preset_mode); }
 
 bool Fan::set_preset_mode_(const char *preset_mode) {
+  if (preset_mode == nullptr) {
+    // Treat nullptr as clearing the preset mode
+    if (this->preset_mode_ == nullptr) {
+      return false;  // No change
+    }
+    this->clear_preset_mode_();
+    return true;
+  }
   const char *validated = this->find_preset_mode_(preset_mode);
   if (validated == nullptr || this->preset_mode_ == validated) {
     return false;  // Preset mode not supported or no change

@@ -12,11 +12,7 @@ void CopyFan::setup() {
     this->oscillating = source_->oscillating;
     this->speed = source_->speed;
     this->direction = source_->direction;
-    const char *preset = source_->get_preset_mode();
-    if (preset != nullptr)
-      this->set_preset_mode_(preset);
-    else
-      this->clear_preset_mode_();
+    this->set_preset_mode_(source_->get_preset_mode());
     this->publish_state();
   });
 
@@ -24,11 +20,7 @@ void CopyFan::setup() {
   this->oscillating = source_->oscillating;
   this->speed = source_->speed;
   this->direction = source_->direction;
-  const char *preset = source_->get_preset_mode();
-  if (preset != nullptr)
-    this->set_preset_mode_(preset);
-  else
-    this->clear_preset_mode_();
+  this->set_preset_mode_(source_->get_preset_mode());
   this->publish_state();
 }
 
