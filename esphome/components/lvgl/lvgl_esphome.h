@@ -214,12 +214,17 @@ class LvglComponent : public PollingComponent {
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
   void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
+  void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
+  void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
+
+  // these functions are never called unless the callbacks are non-null so no need to test
+  void draw_start() const { this->draw_start_callback_->trigger(); }
+  void draw_end() const { this->draw_end_callback_->trigger(); }
 
  protected:
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
-
   std::vector<display::Display *> displays_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
@@ -238,6 +243,8 @@ class LvglComponent : public PollingComponent {
   CallbackManager<void(uint32_t)> idle_callbacks_{};
   Trigger<> *pause_callback_{};
   Trigger<> *resume_callback_{};
+  Trigger<> *draw_start_callback_{};
+  Trigger<> *draw_end_callback_{};
   lv_color_t *rotate_buf_{};
 };
 

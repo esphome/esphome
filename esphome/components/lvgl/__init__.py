@@ -151,6 +151,13 @@ for w_type in WIDGET_TYPES.values():
         create_modify_schema(w_type),
     )(update_to_code)
 
+SIMPLE_TRIGGERS = (
+    df.CONF_ON_PAUSE,
+    df.CONF_ON_RESUME,
+    df.CONF_ON_DRAW_START,
+    df.CONF_ON_DRAW_END,
+)
+
 
 def as_macro(macro, value):
     if value is None:
@@ -244,9 +251,9 @@ def final_validation(configs):
         for w in refreshed_widgets:
             path = global_config.get_path_for_id(w)
             widget_conf = global_config.get_config_for_path(path[:-1])
-            if not any(isinstance(v, Lambda) for v in widget_conf.values()):
+            if not any(isinstance(v, Lambda | dict) for v in widget_conf.values()):
                 raise cv.Invalid(
-                    f"Widget '{w}' does not have any templated properties to refresh",
+                    f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
 
 
@@ -366,14 +373,15 @@ async def to_code(configs):
                     conf[CONF_TRIGGER_ID], lv_component, templ
                 )
                 await build_automation(idle_trigger, [], conf)
-            if conf := config.get(df.CONF_ON_PAUSE):
-                pause_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-                await build_automation(pause_trigger, [], conf)
-                cg.add(lv_component.set_pause_trigger(pause_trigger))
-            if conf := config.get(df.CONF_ON_RESUME):
-                resume_trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-                await build_automation(resume_trigger, [], conf)
-                cg.add(lv_component.set_resume_trigger(resume_trigger))
+            for trigger_name in SIMPLE_TRIGGERS:
+                if conf := config.get(trigger_name):
+                    trigger_var = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+                    await build_automation(trigger_var, [], conf)
+                    cg.add(
+                        lv_component.__getattr__(f"set_{trigger_name[3:]}_trigger")(
+                            trigger_var
+                        )
+                    )
             await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
@@ -441,11 +449,14 @@ LVGL_SCHEMA = cv.All(
                         ),
                     }
                 ),
-                cv.Optional(df.CONF_ON_PAUSE): single_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
-                    }
-                ),
+                **{
+                    cv.Optional(x): single_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
+                        }
+                    )
+                    for x in SIMPLE_TRIGGERS
+                },
                 cv.Optional(df.CONF_ON_RESUME): single_automation(
                     {
                         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
