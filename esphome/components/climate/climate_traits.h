@@ -65,7 +65,13 @@ using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimateP
  *  - temperature step - the step with which to increase/decrease target temperature.
  *     This also affects with how many decimal places the temperature is shown
  */
+class Climate;      // Forward declaration
+class ClimateCall;  // Forward declaration
+
 class ClimateTraits {
+  friend class Climate;      // Allow Climate to access protected find methods
+  friend class ClimateCall;  // Allow ClimateCall to access protected find methods
+
  public:
   /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
   uint32_t get_feature_flags() const { return this->feature_flags_; }
@@ -160,10 +166,6 @@ class ClimateTraits {
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
     return this->supports_custom_fan_mode(custom_fan_mode.c_str());
   }
-  /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
-  const char *find_custom_fan_mode(const char *custom_fan_mode) const {
-    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode);
-  }
 
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
   void add_supported_preset(ClimatePreset preset) { this->supported_presets_.insert(preset); }
@@ -186,10 +188,6 @@ class ClimateTraits {
   }
   bool supports_custom_preset(const std::string &custom_preset) const {
     return this->supports_custom_preset(custom_preset.c_str());
-  }
-  /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
-  const char *find_custom_preset(const char *custom_preset) const {
-    return vector_find(this->supported_custom_presets_, custom_preset);
   }
 
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
@@ -247,6 +245,18 @@ class ClimateTraits {
     } else {
       this->supported_swing_modes_.erase(mode);
     }
+  }
+
+  /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
+  /// This is protected as it's an implementation detail - use Climate::set_custom_fan_mode_() instead
+  const char *find_custom_fan_mode(const char *custom_fan_mode) const {
+    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode);
+  }
+
+  /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
+  /// This is protected as it's an implementation detail - use Climate::set_custom_preset_() instead
+  const char *find_custom_preset(const char *custom_preset) const {
+    return vector_find(this->supported_custom_presets_, custom_preset);
   }
 
   uint32_t feature_flags_{0};

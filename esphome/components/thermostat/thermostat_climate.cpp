@@ -223,7 +223,8 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     if (this->setup_complete_) {
       this->change_custom_preset_(call.get_custom_preset().value());
     } else {
-      this->custom_preset = call.get_custom_preset().value();
+      // Use the base class method which handles pointer lookup internally
+      this->set_custom_preset_(call.get_custom_preset().value());
     }
   }
 
@@ -1171,7 +1172,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
     } else {
       ESP_LOGI(TAG, "No changes required to apply preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     }
-    this->custom_preset.reset();
+    this->custom_preset = nullptr;
     this->preset = preset;
   } else {
     ESP_LOGW(TAG, "Preset %s not configured; ignoring", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
@@ -1183,11 +1184,12 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
 
   if (config != this->custom_preset_config_.end()) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset.c_str());
-    if (this->change_preset_internal_(config->second) || (!this->custom_preset.has_value()) ||
-        this->custom_preset.value() != custom_preset) {
+    if (this->change_preset_internal_(config->second) || (this->custom_preset == nullptr) ||
+        strcmp(this->custom_preset, custom_preset.c_str()) != 0) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
-      this->custom_preset = custom_preset;
+      // Use the base class method which handles pointer lookup and preset reset internally
+      this->set_custom_preset_(custom_preset);
       if (trig != nullptr) {
         trig->trigger();
       }
@@ -1196,9 +1198,9 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
       ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
     } else {
       ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
+      // Still need to ensure preset is reset and custom_preset is set
+      this->set_custom_preset_(custom_preset);
     }
-    this->preset.reset();
-    this->custom_preset = custom_preset;
   } else {
     ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
   }
