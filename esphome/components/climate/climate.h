@@ -74,11 +74,9 @@ class ClimateCall {
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(optional<ClimateFanMode> fan_mode);
   /// Set the fan mode of the climate device based on a string.
-  __attribute__((deprecated("Use set_fan_mode(const char*) instead"))) ClimateCall &set_fan_mode(
-      const std::string &fan_mode);
+  ClimateCall &set_fan_mode(const std::string &fan_mode);
   /// Set the fan mode of the climate device based on a string.
-  __attribute__((deprecated("Use set_fan_mode(const char*) instead"))) ClimateCall &set_fan_mode(
-      optional<std::string> fan_mode);
+  ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the custom fan mode of the climate device.
   ClimateCall &set_fan_mode(const char *custom_fan_mode);
   /// Set the swing mode of the climate device.
