@@ -284,8 +284,7 @@ class ClimateTraits {
    *
    * Pointers must remain valid for the ClimateTraits lifetime. Safe patterns:
    *  - String literals: set_supported_custom_fan_modes({"Turbo", "Silent"})
-   *  - Static data: static const char* MODE = "Eco";
-   *  - Component members: Extract from long-lived std::map keys or member vectors
+   *  - Static const data: static const char* MODE = "Eco";
    *
    * Climate class setters validate pointers are from these vectors before storing.
    */
