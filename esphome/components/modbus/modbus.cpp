@@ -39,7 +39,12 @@ void Modbus::loop() {
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   if (millis() - this->last_modbus_byte_ > timeout) {
-    clear_rx_buffer_("timeout after partial response", true);
+    if (this->rx_buffer_.size() > 0 && this->expecting_peer_response_ != 0) {
+      ESP_LOGV(TAG, "Stop waiting for peer response from %d", this->expecting_peer_response_);
+      this->expecting_peer_response_ = 0;
+      this->parse_modbus_byte_(std::nullopt);  // try re-parse
+    } else
+      clear_rx_buffer_("timeout after partial response", true);
   }
 
   // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
@@ -88,15 +93,26 @@ void Modbus::receive_and_parse_modbus_bytes_() {
 
     // If the bytes in the rx buffer do not parse, clear out the buffer
     if (!this->parse_modbus_byte_(byte)) {
-      this->clear_rx_buffer_("parse failed", true);
+      if (this->expecting_peer_response_ != 0) {
+        ESP_LOGV(TAG, "Stop expecting peer response from %d due to parse failure, and retry parse",
+                 this->expecting_peer_response_);
+        this->expecting_peer_response_ = 0;
+        if (!this->parse_modbus_byte_(std::nullopt)) {
+          this->clear_rx_buffer_("parse failed", true);
+        }
+      } else
+        this->clear_rx_buffer_("parse failed", true);
     }
     this->last_modbus_byte_ = millis();
   }
 }
 
-bool Modbus::parse_modbus_byte_(uint8_t byte) {
+bool Modbus::parse_modbus_byte_(std::optional<uint8_t> byte) {
   size_t at = this->rx_buffer_.size();
-  this->rx_buffer_.push_back(byte);
+  if (byte.has_value())
+    this->rx_buffer_.push_back(byte.value());
+  else
+    at--;  // we're being called to re-parse existing buffer
   const uint8_t *raw = &this->rx_buffer_[0];
 
   // Byte 0: modbus address (match all)
@@ -108,6 +124,12 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   // See also https://en.wikipedia.org/wiki/Modbus
   if (at == 2)
     return true;
+
+  if (this->expecting_peer_response_ != 0 && address != this->expecting_peer_response_) {
+    ESP_LOGVV(TAG, "Received frame with address %d while expecting response from %d. Assume new client command.",
+              address, this->expecting_peer_response_);
+    this->expecting_peer_response_ = 0;
+  }
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
@@ -140,7 +162,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   } else {
     // data starts at 2 and length is 4 for read registers commands
-    if (this->role == ModbusRole::SERVER) {
+    if (this->role == ModbusRole::SERVER & this->expecting_peer_response_ == 0) {
       if (function_code == ModbusFunctionCode::READ_COILS ||
           function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
           function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
@@ -156,7 +178,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
         // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
         data_len = 2 + 2 + 1 + raw[6];
       }
-    } else {
+    } else {  // We're a client or a server expecting to see a response from a peer
       // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
       if (function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
           function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
@@ -190,8 +212,11 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
         ESP_LOGD(TAG, "CRC check failed %dms after last send; ignoring", millis() - this->last_send_);
         ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
       } else {
-        ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
-        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
+        if (this->expecting_peer_response_ == 0) {
+          // Don't log CRC errors for expected responses from peers - we'll try again first
+          ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
+          ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
+        }
         return false;
       }
     }
@@ -237,6 +262,16 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   if (!found && this->role == ModbusRole::CLIENT) {
     ESP_LOGW(TAG, "Got frame from unknown address %d, %dms after last send", address, millis() - this->last_send_);
+  }
+
+  if (!found && this->role == ModbusRole::SERVER) {
+    if (this->expecting_peer_response_ == address) {
+      ESP_LOGV(TAG, "Expected response from peer %d received", address);
+      this->expecting_peer_response_ = 0;
+    } else {
+      this->expecting_peer_response_ = address;
+      ESP_LOGV(TAG, "Request to peer %d received", address);
+    }
   }
 
   this->clear_rx_buffer_("parse succeeded");

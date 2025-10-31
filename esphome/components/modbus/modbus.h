@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <queue>
+#include <optional>
 
 namespace esphome {
 namespace modbus {
@@ -48,7 +49,7 @@ class Modbus : public uart::UARTDevice, public Component {
   ModbusRole role;
 
  protected:
-  bool parse_modbus_byte_(uint8_t byte);
+  bool parse_modbus_byte_(std::optional<uint8_t> byte);
   void receive_and_parse_modbus_bytes_();
   void clear_rx_buffer_(const std::string &reason, bool warn = false);
   void send_next_frame_();
@@ -61,6 +62,7 @@ class Modbus : public uart::UARTDevice, public Component {
   uint16_t send_wait_time_{250};
   uint16_t turnaround_delay_ms_{100};
   uint8_t waiting_for_response_{0};
+  uint8_t expecting_peer_response_{0};
   bool disable_crc_;
 
   GPIOPin *flow_control_pin_{nullptr};
