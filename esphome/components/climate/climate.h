@@ -216,6 +216,12 @@ class Climate : public EntityBase {
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
 
+  /// Check if a custom fan mode is currently active.
+  bool has_custom_fan_mode() const { return this->custom_fan_mode != nullptr; }
+
+  /// Check if a custom preset is currently active.
+  bool has_custom_preset() const { return this->custom_preset != nullptr; }
+
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
 
