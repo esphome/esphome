@@ -178,7 +178,7 @@ void TM1637Display::update() {
   for (uint8_t &i : this->buffer_)
     i = 0;
   if (this->writer_.has_value())
-    this->writer_(*this);
+    (*this->writer_)(*this);
   this->display();
 }
 

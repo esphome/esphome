@@ -193,7 +193,7 @@ void MAX7219Component::update() {
     this->max_displaybuffer_[chip_line].resize(get_width_internal(), this->bckgrnd_);
   }
   if (this->writer_local_.has_value())  // insert Labda function if available
-    this->writer_local_(*this);
+    (*this->writer_local_)(*this);
 }
 
 void MAX7219Component::invert_on_off(bool on_off) { this->invert_ = on_off; };

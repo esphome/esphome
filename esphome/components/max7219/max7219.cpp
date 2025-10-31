@@ -172,7 +172,7 @@ void MAX7219Component::update() {
   for (uint8_t i = 0; i < this->num_chips_ * 8; i++)
     this->buffer_[i] = 0;
   if (this->writer_.has_value())
-    this->writer_(*this);
+    (*this->writer_)(*this);
   this->display();
 }
 uint8_t MAX7219Component::print(uint8_t start_pos, const char *str) {

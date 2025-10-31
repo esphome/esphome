@@ -502,7 +502,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
       if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
       } else if (this->writer_.has_value()) {
-        this->writer_(*this);
+        (*this->writer_)(*this);
       } else {
         this->test_card();
       }

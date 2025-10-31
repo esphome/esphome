@@ -83,7 +83,7 @@ void PVVXDisplay::update() {
   if (this->auto_clear_enabled_)
     this->clear();
   if (this->writer_.has_value())
-    this->writer_(*this);
+    (*this->writer_)(*this);
   this->display();
 }
 

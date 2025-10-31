@@ -656,7 +656,7 @@ void Display::do_update_() {
   } else if (this->page_ != nullptr) {
     this->page_->get_writer()(*this);
   } else if (this->writer_.has_value()) {
-    this->writer_(*this);
+    (*this->writer_)(*this);
   }
   this->clear_clipping_();
 }

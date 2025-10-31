@@ -197,7 +197,7 @@ void Nextion::update() {
     return;
   }
   if (this->writer_.has_value()) {
-    this->writer_(*this);
+    (*this->writer_)(*this);
   }
 }
 
