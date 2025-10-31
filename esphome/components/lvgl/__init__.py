@@ -378,7 +378,7 @@ async def to_code(configs):
                     trigger_var = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                     await build_automation(trigger_var, [], conf)
                     cg.add(
-                        lv_component.__getattr__(f"set_{trigger_name[3:]}_trigger")(
+                        getattr(lv_component, f"set_{trigger_name[3:]}_trigger")(
                             trigger_var
                         )
                     )
