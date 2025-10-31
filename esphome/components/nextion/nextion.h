@@ -1472,7 +1472,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
 
-  optional<nextion_writer_t> writer_;
+  nextion_writer_t writer_;
   optional<float> brightness_;
 
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO

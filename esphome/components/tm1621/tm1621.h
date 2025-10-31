@@ -60,7 +60,7 @@ class TM1621Display : public PollingComponent {
   GPIOPin *cs_pin_;
   GPIOPin *read_pin_;
   GPIOPin *write_pin_;
-  optional<tm1621_writer_t> writer_{};
+  tm1621_writer_t writer_{};
   char row_[2][12];
   uint8_t state_;
   uint8_t device_;

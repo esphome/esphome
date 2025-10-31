@@ -127,7 +127,7 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   esp32_ble_tracker::ESPBTUUID char_uuid_ =
       esp32_ble_tracker::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
 
-  optional<pvvx_writer_t> writer_{};
+  pvvx_writer_t writer_{};
 };
 
 }  // namespace pvvx_mithermometer

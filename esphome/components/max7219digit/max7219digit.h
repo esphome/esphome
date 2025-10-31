@@ -117,7 +117,7 @@ class MAX7219Component : public display::DisplayBuffer,
   uint32_t last_scroll_ = 0;
   uint16_t stepsleft_;
   size_t get_buffer_length_();
-  optional<max7219_writer_t> writer_local_{};
+  max7219_writer_t writer_local_{};
 };
 
 }  // namespace max7219digit

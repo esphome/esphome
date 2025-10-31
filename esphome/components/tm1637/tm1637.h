@@ -79,7 +79,7 @@ class TM1637Display : public PollingComponent {
   uint8_t length_;
   bool inverted_;
   bool on_{true};
-  optional<tm1637_writer_t> writer_{};
+  tm1637_writer_t writer_{};
   uint8_t buffer_[6] = {0};
 #ifdef USE_BINARY_SENSOR
   std::vector<TM1637Key *> tm1637_keys_{};

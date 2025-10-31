@@ -44,7 +44,7 @@ class ST7920 : public display::DisplayBuffer,
   void end_transaction_();
 
   int16_t width_ = 128, height_ = 64;
-  optional<st7920_writer_t> writer_local_{};
+  st7920_writer_t writer_local_{};
 };
 
 }  // namespace st7920

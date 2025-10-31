@@ -784,7 +784,7 @@ class Display : public PollingComponent {
   void sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3);
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
-  optional<display_writer_t> writer_{};
+  display_writer_t writer_{};
   DisplayPage *page_{nullptr};
   DisplayPage *previous_page_{nullptr};
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
