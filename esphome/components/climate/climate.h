@@ -90,10 +90,9 @@ class ClimateCall {
   /// Set the preset of the climate device.
   ClimateCall &set_preset(optional<ClimatePreset> preset);
   /// Set the preset of the climate device based on a string.
-  __attribute__((deprecated("Use set_preset(const char*) instead"))) ClimateCall &set_preset(const std::string &preset);
+  ClimateCall &set_preset(const std::string &preset);
   /// Set the preset of the climate device based on a string.
-  __attribute__((deprecated("Use set_preset(const char*) instead"))) ClimateCall &set_preset(
-      optional<std::string> preset);
+  ClimateCall &set_preset(optional<std::string> preset);
   /// Set the custom preset of the climate device.
   ClimateCall &set_preset(const char *custom_preset);
 
