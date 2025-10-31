@@ -297,8 +297,6 @@ const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_;
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
-const char *ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
-const char *ClimateCall::get_custom_preset() const { return this->custom_preset_; }
 
 optional<std::string> ClimateCall::get_custom_fan_mode() const {
   if (this->custom_fan_mode_ != nullptr) {
