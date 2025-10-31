@@ -300,14 +300,14 @@ const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->pr
 const char *ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
 const char *ClimateCall::get_custom_preset() const { return this->custom_preset_; }
 
-optional<std::string> ClimateCall::get_custom_fan_mode_optional() const {
+optional<std::string> ClimateCall::get_custom_fan_mode() const {
   if (this->custom_fan_mode_ != nullptr) {
     return std::string(this->custom_fan_mode_);
   }
   return {};
 }
 
-optional<std::string> ClimateCall::get_custom_preset_optional() const {
+optional<std::string> ClimateCall::get_custom_preset() const {
   if (this->custom_preset_ != nullptr) {
     return std::string(this->custom_preset_);
   }
