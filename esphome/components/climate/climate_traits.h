@@ -282,35 +282,12 @@ class ClimateTraits {
 
   /** Custom mode storage using const char* pointers to eliminate std::string overhead.
    *
-   * POINTER LIFETIME SAFETY REQUIREMENTS:
-   * Pointers stored here MUST remain valid for the entire lifetime of the ClimateTraits object.
-   * This is guaranteed when pointers point to:
+   * Pointers must remain valid for the ClimateTraits lifetime. Safe patterns:
+   *  - String literals: set_supported_custom_fan_modes({"Turbo", "Silent"})
+   *  - Static data: static const char* MODE = "Eco";
+   *  - Component members: Extract from long-lived std::map keys or member vectors
    *
-   * 1. String literals (rodata section, valid for program lifetime):
-   *    traits.set_supported_custom_fan_modes({"Turbo", "Silent"});
-   *
-   * 2. Static const data (valid for program lifetime):
-   *    static const char* PRESET_ECO = "Eco";
-   *    traits.set_supported_custom_presets({PRESET_ECO});
-   *
-   * 3. Member variables with sufficient lifetime:
-   *    class MyClimate {
-   *      std::vector<const char*> custom_presets_;  // Lives as long as component
-   *      ClimateTraits traits() {
-   *        // Extract from map keys that live as long as the component
-   *        for (const auto& [name, config] : preset_map_) {
-   *          custom_presets_.push_back(name.c_str());
-   *        }
-   *        traits.set_supported_custom_presets(custom_presets_);
-   *      }
-   *    };
-   *
-   * UNSAFE PATTERNS TO AVOID:
-   *   std::string temp = "Mode";
-   *   traits.set_supported_custom_fan_modes({temp.c_str()});  // DANGLING POINTER!
-   *
-   * Protected setters in Climate class automatically validate pointers against these
-   * vectors, ensuring only safe pointers are stored in device state.
+   * Climate class setters validate pointers are from these vectors before storing.
    */
   std::vector<const char *> supported_custom_fan_modes_;
   std::vector<const char *> supported_custom_presets_;
