@@ -628,7 +628,7 @@ bool Climate::set_custom_fan_mode_(const char *mode) {
   }
   // Mode not found in supported custom modes, clear it if currently set
   if (this->has_custom_fan_mode()) {
-    this->custom_fan_mode_ = nullptr;
+    this->clear_custom_fan_mode_();
     return true;
   }
   return false;
@@ -648,7 +648,7 @@ bool Climate::set_custom_preset_(const char *preset) {
   }
   // Preset not found in supported custom presets, clear it if currently set
   if (this->has_custom_preset()) {
-    this->custom_preset_ = nullptr;
+    this->clear_custom_preset_();
     return true;
   }
   return false;

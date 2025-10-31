@@ -28,14 +28,14 @@ class DemoClimate : public climate::Climate, public Component {
         this->mode = climate::CLIMATE_MODE_AUTO;
         this->action = climate::CLIMATE_ACTION_COOLING;
         this->fan_mode = climate::CLIMATE_FAN_HIGH;
-        this->custom_preset = {"My Preset"};
+        this->set_custom_preset_("My Preset");
         break;
       case DemoClimateType::TYPE_3:
         this->current_temperature = 21.5;
         this->target_temperature_low = 21.0;
         this->target_temperature_high = 22.5;
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        this->custom_fan_mode = {"Auto Low"};
+        this->set_custom_fan_mode_("Auto Low");
         this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
         this->preset = climate::CLIMATE_PRESET_AWAY;
         break;
@@ -58,23 +58,19 @@ class DemoClimate : public climate::Climate, public Component {
       this->target_temperature_high = *call.get_target_temperature_high();
     }
     if (call.get_fan_mode().has_value()) {
-      this->fan_mode = *call.get_fan_mode();
-      this->custom_fan_mode.reset();
+      this->set_fan_mode_(*call.get_fan_mode());
     }
     if (call.get_swing_mode().has_value()) {
       this->swing_mode = *call.get_swing_mode();
     }
     if (call.get_custom_fan_mode().has_value()) {
-      this->custom_fan_mode = *call.get_custom_fan_mode();
-      this->fan_mode.reset();
+      this->set_custom_fan_mode_(call.get_custom_fan_mode()->c_str());
     }
     if (call.get_preset().has_value()) {
-      this->preset = *call.get_preset();
-      this->custom_preset.reset();
+      this->set_preset_(*call.get_preset());
     }
     if (call.get_custom_preset().has_value()) {
-      this->custom_preset = *call.get_custom_preset();
-      this->preset.reset();
+      this->set_custom_preset_(call.get_custom_preset()->c_str());
     }
     this->publish_state();
   }
