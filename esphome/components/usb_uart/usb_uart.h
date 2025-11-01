@@ -28,6 +28,12 @@ static constexpr uint8_t USB_DEVICE_PROTOCOL_IAD = 0x01;
 static constexpr uint8_t USB_VENDOR_IFC = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_INTERFACE;
 static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_DEVICE;
 
+#if defined(USE_ESP32_VARIANT_ESP32P4)
+static constexpr uint8_t USB_MAX_PACKET_SIZE = 512;
+#else
+static constexpr uint8_t USB_MAX_PACKET_SIZE = 512;
+#endif
+
 struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
