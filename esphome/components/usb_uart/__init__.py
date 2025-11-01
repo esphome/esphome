@@ -84,8 +84,7 @@ uart_types = (
 def validate_use_full_speed(config):
     """Validate use_full_speed option - only allowed on ESP32-P4."""
     if config.get(CONF_USE_FULL_SPEED, False):
-        variant = get_target_variant()
-        if "P4" not in variant:
+        if "P4" not in get_target_variant():
             raise cv.Invalid(
                 f"'use_full_speed' option is only supported on ESP32-P4. "
                 f"Current variant: {variant or 'ESP32-S2/S3'}"
@@ -126,11 +125,9 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                variant = get_target_variant()
-                if "P4" not in variant:
-                    cv.Lenth(max=3),
-                else:
-                    cv.Length(max=channels),
+                cv.Lenth(max=3)
+                if "P4" not in get_target_variant()
+                else cv.Length(max=channels)
             )
         }
     )
