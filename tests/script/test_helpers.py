@@ -1100,6 +1100,8 @@ def test_get_component_from_path(
     file_path: str, expected_component: str | None
 ) -> None:
     """Test extraction of component names from file paths."""
+    result = helpers.get_component_from_path(file_path)
+    assert result == expected_component
 
 
 # Components graph cache tests
