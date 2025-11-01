@@ -162,6 +162,13 @@ class ESP32BLE : public Component {
   void advertising_init_();
 #endif
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  void setup_event_notification_();    // Create notification socket
+  void cleanup_event_notification_();  // Close and unregister socket
+  void notify_main_loop_();            // Wake up select() from BLE thread
+  void drain_event_notifications_();   // Read pending notifications in main loop
+#endif
+
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
 
@@ -195,6 +202,13 @@ class ESP32BLE : public Component {
 #endif
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
   uint32_t advertising_cycle_time_{};         // 4 bytes
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  // Event notification socket for waking up main loop from BLE thread
+  // Uses UDP loopback to wake lwip_select() with ~12μs latency vs 0-16ms timeout
+  struct sockaddr_in notify_addr_ {};  // 16 bytes (sockaddr_in structure)
+  int notify_fd_{-1};                  // 4 bytes (file descriptor)
+#endif
 
   // 2-byte aligned members
   uint16_t appearance_{0};  // 2 bytes

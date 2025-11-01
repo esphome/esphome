@@ -27,6 +27,10 @@ extern "C" {
 #include <esp32-hal-bt.h>
 #endif
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <lwip/sockets.h>
+#endif
+
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
@@ -273,10 +277,21 @@ bool ESP32BLE::ble_setup_() {
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
 
+  // Set up notification socket to wake main loop for BLE events
+  // This enables low-latency (~12μs) event processing instead of waiting for select() timeout
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  this->setup_event_notification_();
+#endif
+
   return true;
 }
 
 bool ESP32BLE::ble_dismantle_() {
+  // Clean up notification socket first before dismantling BLE stack
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  this->cleanup_event_notification_();
+#endif
+
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
@@ -373,6 +388,12 @@ void ESP32BLE::loop() {
     case BLE_COMPONENT_STATE_ACTIVE:
       break;
   }
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  // Drain any notification socket events first
+  // This clears the socket so it doesn't stay "ready" in subsequent select() calls
+  this->drain_event_notifications_();
+#endif
 
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
@@ -531,6 +552,12 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
   // Push the event to the queue
   global_ble->ble_events_.push(event);
   // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
+
+  // Wake up main loop to process event immediately
+  // This is thread-safe - notify_main_loop_() uses lwip_sendto which is thread-safe
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  global_ble->notify_main_loop_();
+#endif
 }
 
 // Explicit template instantiations for the friend function
@@ -629,6 +656,94 @@ void ESP32BLE::dump_config() {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
 }
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+void ESP32BLE::setup_event_notification_() {
+  // Guard against multiple calls (reentrant safety for ble.enable automation)
+  if (this->notify_fd_ >= 0) {
+    return;  // Already set up
+  }
+
+  // Create UDP socket for event notifications
+  this->notify_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (this->notify_fd_ < 0) {
+    ESP_LOGW(TAG, "Event socket create failed: %d", errno);
+    return;
+  }
+
+  // Bind to loopback with auto-assigned port
+  struct sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;  // Auto-assign port
+
+  if (lwip_bind(this->notify_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    ESP_LOGW(TAG, "Event socket bind failed: %d", errno);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  // Get the assigned port for sendto()
+  socklen_t len = sizeof(this->notify_addr_);
+  if (lwip_getsockname(this->notify_fd_, (struct sockaddr *) &this->notify_addr_, &len) < 0) {
+    ESP_LOGW(TAG, "Event socket address failed: %d", errno);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  // Set non-blocking mode
+  int flags = lwip_fcntl(this->notify_fd_, F_GETFL, 0);
+  lwip_fcntl(this->notify_fd_, F_SETFL, flags | O_NONBLOCK);
+
+  // Register with application's select() loop
+  if (!App.register_socket_fd(this->notify_fd_)) {
+    ESP_LOGW(TAG, "Event socket register failed");
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  ESP_LOGD(TAG, "Event socket ready");
+}
+
+void ESP32BLE::cleanup_event_notification_() {
+  // Guard against multiple calls (reentrant safety for ble.disable automation)
+  if (this->notify_fd_ < 0) {
+    return;  // Already cleaned up
+  }
+
+  App.unregister_socket_fd(this->notify_fd_);
+  lwip_close(this->notify_fd_);
+  this->notify_fd_ = -1;
+  ESP_LOGD(TAG, "Event socket closed");
+}
+
+void ESP32BLE::notify_main_loop_() {
+  // Called from BLE thread context when events are queued
+  // Wakes up lwip_select() in main loop by writing to loopback socket
+  if (this->notify_fd_ >= 0) {
+    const char dummy = 1;
+    // Non-blocking sendto - if it fails (unlikely), select() will wake on timeout anyway
+    // This is safe to call from BLE thread - sendto() is thread-safe in lwip
+    lwip_sendto(this->notify_fd_, &dummy, 1, 0, (struct sockaddr *) &this->notify_addr_, sizeof(this->notify_addr_));
+  }
+}
+
+void ESP32BLE::drain_event_notifications_() {
+  // Called from main loop to drain any pending notifications
+  // Must check is_socket_ready() to avoid blocking on empty socket
+  if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
+    char buffer[64];
+    // Drain all pending notifications with non-blocking reads
+    // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
+    while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+      // Just draining, no action needed
+    }
+  }
+}
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
