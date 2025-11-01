@@ -319,10 +319,10 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > USB_UART_MAX_PACKET_SIZE) {
+    if (ep->wMaxPacketSize > USB_MAX_PACKET_SIZE) {
       ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize, USB_UART_MAX_PACKET_SIZE);
-      ep_mutable->wMaxPacketSize = USB_UART_MAX_PACKET_SIZE;
+               ep->wMaxPacketSize, USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = USB_MAX_PACKET_SIZE;
     }
   }
 }
@@ -348,7 +348,14 @@ void USBUartTypeCdcAcm::on_connected() {
     // - P4: 64 (if use_full_speed) or 512 (High-Speed default)
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
-
+    // Allocate transferbuffers as soon as soon as endpoints mps is fix
+    ESP_LOGD(TAG, "Allocating transfer buffers for device %d", this->device_addr_);
+    for (size_t i = 0; i < MAX_REQUESTS; i++) {
+      // as we dont deal with interrupt and isosynchronous eps, we can set to max usb packet size
+      usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &this->requests_[i].transfer);
+      this->requests_[i].client = this;  // Set once, never changes
+    }
+    
     channel->initialised_.store(true);
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
