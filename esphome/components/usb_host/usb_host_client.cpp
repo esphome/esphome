@@ -236,11 +236,6 @@ void USBClient::loop() {
   switch (this->state_) {
     case USB_CLIENT_OPEN: {
       int err;
-      ESP_LOGD(TAG, "Allocating transfer buffers for device %d", this->device_addr_);
-      for (size_t i = 0; i < MAX_REQUESTS; i++) {
-        usb_host_transfer_alloc(transfer_buffer_size, 0, &this->requests_[i].transfer);
-        this->requests_[i].client = this;  // Set once, never changes
-      }
       ESP_LOGD(TAG, "Open device %d", this->device_addr_);
       err = usb_host_device_open(this->handle_, this->device_addr_, &this->device_handle_);
       if (err != ESP_OK) {
