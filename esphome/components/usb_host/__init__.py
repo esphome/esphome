@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -7,6 +6,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     only_on_variant,
 )
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.core import CORE
@@ -102,7 +102,7 @@ async def to_code(config: ConfigType) -> None:
     use_high_speed = device.get(CONF_USE_HIGH_SPEED, True)
     mps = get_mps(use_high_speed)
     cg.add_define("USB_MAX_PACKET_SIZE", mps)
-    
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
