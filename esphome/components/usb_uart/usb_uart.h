@@ -29,9 +29,9 @@ static constexpr uint8_t USB_VENDOR_IFC = usb_host::USB_TYPE_VENDOR | usb_host::
 static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_DEVICE;
 
 #if defined(USE_ESP32_VARIANT_ESP32P4)
-static constexpr uint8_t USB_MAX_PACKET_SIZE = 512;
+static constexpr uint16_t USB_MAX_PACKET_SIZE = 512;
 #else
-static constexpr uint8_t USB_MAX_PACKET_SIZE = 512;
+static constexpr uint8_t USB_MAX_PACKET_SIZE = 64;
 #endif
 
 struct CdcEps {
