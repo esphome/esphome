@@ -84,4 +84,10 @@ async def test_action_concurrent_reentry(
         assert set(after_script_wait_args) == expected, after_script_wait_args
         assert set(after_repeat_args) == expected, after_repeat_args
         assert set(after_while_args) == expected, after_while_args
-        assert dict(collections.Counter(in_while_args)) == {0: 5, 1: 4, 2: 3, 3: 2, 4: 1}, in_while_args
+        assert dict(collections.Counter(in_while_args)) == {
+            0: 5,
+            1: 4,
+            2: 3,
+            3: 2,
+            4: 1,
+        }, in_while_args
