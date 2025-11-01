@@ -273,15 +273,11 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   // IMPORTANT: This function must only be called from the main loop!
   // The output_buffer_ is not thread-safe and can only be accessed from main loop.
   // USB callbacks use defer() to ensure this function runs in the correct context.
-  if (channel->output_started_.load()) {
-    ESP_LOGD(TAG, "start_output: already started, channel=%d", channel->index_);
+  if (channel->output_started_.load())
     return;
-  }
-  if (channel->output_buffer_.is_empty()) {
-    ESP_LOGD(TAG, "start_output: buffer empty, channel=%d", channel->index_);
+  if (channel->output_buffer_.is_empty())
     return;
-  }
-  ESP_LOGI(TAG, "start_output: starting TX transfer, channel=%d", channel->index_);
+  
   const auto *ep = channel->cdc_dev_.out_ep;
 
   // Allocate buffer for TX data on heap - must persist until transfer completes
@@ -289,22 +285,21 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   auto len = channel->output_buffer_.pop(tx_data, ep->wMaxPacketSize);
 
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
-  auto callback = [this, channel, tx_data](const usb_host::TransferStatus &status) {
-    // Clean up the heap-allocated buffer after transfer completes
-    delete[] tx_data;
+  auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
     channel->output_started_.store(false);
     // Defer restart to main loop (defer is thread-safe)
     this->defer([this, channel] { this->start_output(channel); });
   };
-
   channel->output_started_.store(true);
+  uint8_t data[ep->wMaxPacketSize];
+  auto len = channel->output_buffer_.pop(data, ep->wMaxPacketSize);
+  this->transfer_out(ep->bEndpointAddress, callback, data, len);
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(tx_data, tx_data + len), ',');  // NOLINT()
+    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
   }
 #endif
-  this->transfer_out(ep->bEndpointAddress, callback, tx_data, len);
   ESP_LOGV(TAG, "Output %d bytes started", len);
 }
 
