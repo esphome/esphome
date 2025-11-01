@@ -167,10 +167,10 @@ class ESP32BLE : public Component {
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
-  void setup_event_notification_();          // Create notification socket
-  void cleanup_event_notification_();        // Close and unregister socket
-  inline void notify_main_loop_();           // Wake up select() from BLE thread (hot path - inlined)
-  inline void drain_event_notifications_();  // Read pending notifications in main loop (hot path - inlined)
+  void setup_event_notification_();    // Create notification socket
+  void cleanup_event_notification_();  // Close and unregister socket
+  inline void notify_main_loop_();     // Wake up select() from BLE thread (hot path - inlined)
+  void drain_event_notifications_();   // Read pending notifications in main loop
 #endif
 
  private:
@@ -248,9 +248,7 @@ inline void ESP32BLE::notify_main_loop_() {
 inline void ESP32BLE::drain_event_notifications_() {
   // Called from main loop to drain any pending notifications
   // Must check is_socket_ready() to avoid blocking on empty socket
-  // Requires App to be defined - include esphome/core/application.h in .cpp files that use this
-  extern esphome::Application App;
-  if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
+  if (this->notify_fd_ >= 0 && esphome::App.is_socket_ready(this->notify_fd_)) {
     char buffer[BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK

@@ -723,6 +723,19 @@ void ESP32BLE::cleanup_event_notification_() {
   }
 }
 
+void ESP32BLE::drain_event_notifications_() {
+  // Called from main loop to drain any pending notifications
+  // Must check is_socket_ready() to avoid blocking on empty socket
+  if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
+    char buffer[BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE];
+    // Drain all pending notifications with non-blocking reads
+    // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
+    while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+      // Just draining, no action needed
+    }
+  }
+}
+
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
