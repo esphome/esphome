@@ -277,7 +277,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     return;
   if (channel->output_buffer_.is_empty())
     return;
-  
+
   const auto *ep = channel->cdc_dev_.out_ep;
 
   // Allocate buffer for TX data on heap - must persist until transfer completes
