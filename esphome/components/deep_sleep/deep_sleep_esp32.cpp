@@ -102,8 +102,10 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
+#if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6)
   uint64_t pin_mask = 0;
   esp_deepsleep_gpio_wake_up_mode_t wakeup_mode = ESP_DEEP_SLEEP_GPIO_WAKEUP_DISABLE;
+#endif
 
   for (const auto &pin_item : this->wakeup_pins_) {
     InternalGPIOPin *pin = pin_item.wakeup_pin;
