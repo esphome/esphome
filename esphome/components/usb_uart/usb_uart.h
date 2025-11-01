@@ -8,9 +8,6 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
 
 namespace esphome {
 namespace usb_uart {
@@ -90,10 +87,11 @@ class RingBuffer {
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
   uint8_t data[USB_MAX_PACKET_SIZE];
-  if (USB_MAX_PACKET_SIZE > 255)
-    uint16_t length;
-  else
-    uint8_t length;
+#if defined(ESP32_USE_VARIANT_ESP32P4)
+  uint16_t length;
+#else
+  uint8_t length;
+#endif
   USBUartChannel *channel;
 
   // Required for EventPool - no cleanup needed for POD types
