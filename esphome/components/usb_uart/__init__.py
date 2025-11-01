@@ -104,9 +104,7 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Lenth(max=3)
-                if variant != VARIANT_ESP32P4
-                else cv.Length(max=channels),
+                cv.Lenth(max=3) if variant != VARIANT_ESP32P4 else cv.Length(max=channels),
             )
         }
     )
@@ -134,15 +132,9 @@ async def to_code(config):
         num_channels = len(device[CONF_CHANNELS])
 
         for index, channel in enumerate(device[CONF_CHANNELS]):
-            # Calculate default buffer size if not specified by user
-            if CONF_BUFFER_SIZE in channel:
-                buffer_size = channel[CONF_BUFFER_SIZE]
-            else:
-                buffer_size = mps * 4
-
             chvar = cg.new_Pvariable(channel[CONF_ID], index, buffer_size)
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(buffer_size))
+            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
