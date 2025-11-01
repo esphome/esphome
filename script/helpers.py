@@ -90,16 +90,18 @@ def get_component_from_path(file_path: str) -> str | None:
     """Extract component name from a file path.
 
     Args:
-        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp")
+        file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp"
+                                or "tests/components/uart/test.esp32-idf.yaml")
 
     Returns:
-        Component name if path is in components directory, None otherwise
+        Component name if path is in components or tests directory, None otherwise
     """
-    if not file_path.startswith(ESPHOME_COMPONENTS_PATH):
-        return None
-    parts = file_path.split("/")
-    if len(parts) >= 3:
-        return parts[2]
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
+        ESPHOME_TESTS_COMPONENTS_PATH
+    ):
+        parts = file_path.split("/")
+        if len(parts) >= 3 and parts[2]:
+            return parts[2]
     return None
 
 
