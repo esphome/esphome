@@ -19,7 +19,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.cpp_types import Component
 
-CONF_USE_FULL_SPEED = "use_full_speed"
+CONF_USE_HIGH_SPEED = "use_high_speed"
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -53,10 +53,10 @@ def get_target_variant():
     return CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT, "")
 
 
-def get_mps(use_full_speed=None):
+def get_mps(use_high_speed=None):
     variant = get_target_variant()
     if "P4" in variant:
-        return 64 if use_full_speed else 512
+        return 512 if use_high_speed else 64
     return 64
 
 
@@ -81,13 +81,13 @@ uart_types = (
 )
 
 
-def validate_use_full_speed(config):
-    """Validate use_full_speed option - only allowed on ESP32-P4."""
-    if config.get(CONF_USE_FULL_SPEED, False):
+def validate_use_high_speed(config):
+    """Validate use_high_speed option - only allowed on ESP32-P4."""
+    if config.get(CONF_USE_HIGH_SPEED, False):
         variant = get_target_variant()
         if "P4" not in variant:
             raise cv.Invalid(
-                f"'use_full_speed' option is only supported on ESP32-P4. "
+                f"'use_high_speed' option is only supported on ESP32-P4. "
                 f"Current variant: {variant or 'ESP32-S2/S3'}"
             )
     return config
@@ -139,7 +139,7 @@ def device_schema_with_validation(it):
         .extend(channel_schema(it.max_channels, it.baud_rate_required))
         .extend(
             {
-                cv.Optional(CONF_USE_FULL_SPEED, default=False): cv.boolean,
+                cv.Optional(CONF_USE_HIGH_SPEED, default=True): cv.boolean,
             }
         ),
         validate_use_full_speed,
@@ -159,11 +159,11 @@ async def to_code(config):
         var = await register_usb_client(device)
 
         # Get use_full_speed option (only valid for P4, ignored on S2/S3)
-        use_full_speed = device.get(CONF_USE_FULL_SPEED, False)
+        use_high_speed = device.get(CONF_USE_HIGH_SPEED, True)
         num_channels = len(device[CONF_CHANNELS])
 
         # Calculate MPS and add compile-time define
-        mps = get_mps(use_full_speed)
+        mps = get_mps(use_high_speed)
         cg.add_define("USB_MAX_PACKET_SIZE", mps)
 
         for index, channel in enumerate(device[CONF_CHANNELS]):
