@@ -220,50 +220,51 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
   this->push_back(es);
 
-  es->onConnect([this, ws, es](AsyncEventSourceClient *client) {
-    ws->defer([this, ws, es]() { this->on_client_connect_(ws, es); });
-  });
+  es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
 
-  es->onDisconnect([this, ws, es](AsyncEventSourceClient *client) {
-    ws->defer([this, es]() { this->on_client_disconnect_((DeferredUpdateEventSource *) es); });
-  });
+  es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
 
   es->handleRequest(request);
 }
 
-void DeferredUpdateEventSourceList::on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source) {
-  // Configure reconnect timeout and send config
-  // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-  std::string message = ws->get_config_json();
-  source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
+void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
+  WebServer *ws = source->web_server_;
+  ws->defer([this, ws, source]() {
+    // Configure reconnect timeout and send config
+    // this should always go through since the AsyncEventSourceClient event queue is empty on connect
+    std::string message = ws->get_config_json();
+    source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
-  for (auto &group : ws->sorting_groups_) {
-    json::JsonBuilder builder;
-    JsonObject root = builder.root();
-    root["name"] = group.second.name;
-    root["sorting_weight"] = group.second.weight;
-    message = builder.serialize();
+    for (auto &group : ws->sorting_groups_) {
+      json::JsonBuilder builder;
+      JsonObject root = builder.root();
+      root["name"] = group.second.name;
+      root["sorting_weight"] = group.second.weight;
+      message = builder.serialize();
 
-    // up to 31 groups should be able to be queued initially without defer
-    source->try_send_nodefer(message.c_str(), "sorting_group");
-  }
+      // up to 31 groups should be able to be queued initially without defer
+      source->try_send_nodefer(message.c_str(), "sorting_group");
+    }
 #endif
 
-  source->entities_iterator_.begin(ws->include_internal_);
+    source->entities_iterator_.begin(ws->include_internal_);
 
-  // just dump them all up-front and take advantage of the deferred queue
-  //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!source->entities_iterator_.completed()) {
-  //  source->entities_iterator_.advance();
-  //}
+    // just dump them all up-front and take advantage of the deferred queue
+    //     on second thought that takes too long, but leaving the commented code here for debug purposes
+    // while(!source->entities_iterator_.completed()) {
+    //  source->entities_iterator_.advance();
+    //}
+  });
 }
 
 void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
-  // This method was called via WebServer->defer() and is no longer executing in the
-  // context of the network callback. The object is now dead and can be safely deleted.
-  this->remove(source);
-  delete source;  // NOLINT
+  source->web_server_->defer([this, source]() {
+    // This method was called via WebServer->defer() and is no longer executing in the
+    // context of the network callback. The object is now dead and can be safely deleted.
+    this->remove(source);
+    delete source;  // NOLINT
+  });
 }
 #endif
 
