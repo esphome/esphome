@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import cache
+import hashlib
 import json
 import os
 import os.path
@@ -767,7 +768,6 @@ def get_components_graph_cache_key() -> str:
     Returns:
         SHA256 hex string uniquely identifying the current component state
     """
-    import hashlib
 
     # Use git ls-files -s to get sha1 hashes of all component __init__.py files
     # Format: <mode> <sha1> <stage> <path>
