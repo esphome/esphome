@@ -326,6 +326,21 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #endif
   }
 #endif
+  auto uicr = [](volatile uint32_t *data, uint8_t size) {
+    std::string res;
+    char buf[sizeof(uint32_t) * 2 + 1];
+    for (size_t i = 0; i < size; i++) {
+      if (i > 0) {
+        res += ' ';
+      }
+      sprintf(buf, "%08X", data[i]);
+      res += buf;
+    }
+    return res;
+  };
+  ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
+  ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+  // ESP_LOGD(TAG, "CUSTOMER %s", uicr(NRF_UICR->CUSTOMER, 32).c_str());
 }
 
 void DebugComponent::update_platform_() {}
