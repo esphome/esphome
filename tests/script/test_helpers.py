@@ -1125,7 +1125,7 @@ def test_cache_key_generation(mock_git_output: str) -> None:
     mock_result.stdout = mock_git_output
 
     with patch("subprocess.run", return_value=mock_result):
-        key = helpers._get_components_graph_cache_key()
+        key = helpers.get_components_graph_cache_key()
 
         # Should be a 64-character hex string (SHA256)
         assert len(key) == 64
@@ -1138,8 +1138,8 @@ def test_cache_key_consistent_for_same_files(mock_git_output: str) -> None:
     mock_result.stdout = mock_git_output
 
     with patch("subprocess.run", return_value=mock_result):
-        key1 = helpers._get_components_graph_cache_key()
-        key2 = helpers._get_components_graph_cache_key()
+        key1 = helpers.get_components_graph_cache_key()
+        key2 = helpers.get_components_graph_cache_key()
 
         assert key1 == key2
 
@@ -1153,10 +1153,10 @@ def test_cache_key_different_for_changed_files() -> None:
     mock_result2.stdout = "100644 xyz789... 0 esphome/components/wifi/__init__.py\n"
 
     with patch("subprocess.run", return_value=mock_result1):
-        key1 = helpers._get_components_graph_cache_key()
+        key1 = helpers.get_components_graph_cache_key()
 
     with patch("subprocess.run", return_value=mock_result2):
-        key2 = helpers._get_components_graph_cache_key()
+        key2 = helpers.get_components_graph_cache_key()
 
     assert key1 != key2
 
@@ -1167,7 +1167,7 @@ def test_cache_key_uses_git_ls_files(mock_git_output: str) -> None:
     mock_result.stdout = mock_git_output
 
     with patch("subprocess.run", return_value=mock_result) as mock_run:
-        helpers._get_components_graph_cache_key()
+        helpers.get_components_graph_cache_key()
 
         # Verify git ls-files was called with correct arguments
         mock_run.assert_called_once()
@@ -1203,7 +1203,7 @@ def test_cache_hit_returns_cached_graph(tmp_path: Path, mock_git_output: str) ->
 
     with (
         patch("subprocess.run", return_value=mock_result),
-        patch("helpers._get_components_graph_cache_key", return_value=cache_key),
+        patch("helpers.get_components_graph_cache_key", return_value=cache_key),
         patch("helpers.temp_folder", str(tmp_path)),
     ):
         result = helpers.create_components_graph()
@@ -1246,7 +1246,7 @@ def test_cache_key_mismatch_ignored(tmp_path: Path, mock_git_output: str) -> Non
 
     with (
         patch("subprocess.run", return_value=mock_result),
-        patch("helpers._get_components_graph_cache_key", return_value=new_key),
+        patch("helpers.get_components_graph_cache_key", return_value=new_key),
         patch("helpers.temp_folder", str(tmp_path)),
     ):
         # Cache key mismatch should cause cache to be ignored

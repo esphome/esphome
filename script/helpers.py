@@ -756,7 +756,8 @@ def resolve_auto_load(
     return auto_load()
 
 
-def _get_components_graph_cache_key() -> str:
+@cache
+def get_components_graph_cache_key() -> str:
     """Generate cache key based on all component __init__.py file hashes.
 
     Uses git ls-files with sha1 hashes to generate a stable cache key that works
@@ -807,7 +808,7 @@ def create_components_graph() -> dict[str, list[str]]:
             # Verify cache version matches
             if cached_data.get("_version") == COMPONENTS_GRAPH_CACHE_VERSION:
                 # Verify cache is for current component state
-                cache_key = _get_components_graph_cache_key()
+                cache_key = get_components_graph_cache_key()
                 if cached_data.get("_cache_key") == cache_key:
                     return cached_data.get("graph", {})
                 # Cache key mismatch - stale cache, rebuild
@@ -898,7 +899,7 @@ def create_components_graph() -> dict[str, list[str]]:
     # Save to cache with version and cache key for validation
     cache_data = {
         "_version": COMPONENTS_GRAPH_CACHE_VERSION,
-        "_cache_key": _get_components_graph_cache_key(),
+        "_cache_key": get_components_graph_cache_key(),
         "graph": components_graph,
     }
     cache_file.parent.mkdir(exist_ok=True)
