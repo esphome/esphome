@@ -222,7 +222,7 @@ jobs:
           echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
           echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
       - name: Save components graph cache
-        if: github.ref == 'refs/heads/dev'
+#        if: github.ref == 'refs/heads/dev'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .temp/components_graph.json
