@@ -171,7 +171,9 @@ class LvglComponent : public PollingComponent {
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
-  void add_on_pause_callback(std::function<void(bool)> &&callback) { this->pause_callbacks_.add(std::move(callback)); }
+
+  static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px);
+  static void render_start_cb(lv_disp_drv_t *disp_drv);
   void dump_config() override;
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   lv_disp_t *get_disp() { return this->disp_; }
@@ -213,12 +215,20 @@ class LvglComponent : public PollingComponent {
   size_t draw_rounding{2};
 
   display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
+  void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
+  void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
+  void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
+  void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
 
  protected:
+  // these functions are never called unless the callbacks are non-null since the
+  // LVGL callbacks that call them are not set unless the start/end callbacks are non-null
+  void draw_start_() const { this->draw_start_callback_->trigger(); }
+  void draw_end_() const { this->draw_end_callback_->trigger(); }
+
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
-
   std::vector<display::Display *> displays_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
@@ -235,7 +245,10 @@ class LvglComponent : public PollingComponent {
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};
-  CallbackManager<void(bool)> pause_callbacks_{};
+  Trigger<> *pause_callback_{};
+  Trigger<> *resume_callback_{};
+  Trigger<> *draw_start_callback_{};
+  Trigger<> *draw_end_callback_{};
   lv_color_t *rotate_buf_{};
 };
 
@@ -246,14 +259,6 @@ class IdleTrigger : public Trigger<> {
  protected:
   TemplatableValue<uint32_t> timeout_;
   bool is_idle_{};
-};
-
-class PauseTrigger : public Trigger<> {
- public:
-  explicit PauseTrigger(LvglComponent *parent, TemplatableValue<bool> paused);
-
- protected:
-  TemplatableValue<bool> paused_;
 };
 
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
