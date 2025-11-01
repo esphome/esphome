@@ -111,7 +111,7 @@ def channel_schema(max_channels, baud_rate_required):
                     )
                 ),
                 cv.Length(max=max_channels)
-                if max_channels <= available_channels
+                if available_channels >= max_channels
                 else cv.Length(max=available_channels),
             )
         }
