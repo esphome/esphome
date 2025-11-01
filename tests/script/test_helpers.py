@@ -1229,3 +1229,115 @@ def test_cache_hit_returns_cached_graph(
     ):
         result = helpers.create_components_graph()
         assert result == mock_graph
+
+
+def test_cache_miss_no_cache_file(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when no cache file exists."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should return empty graph for empty components directory
+        assert result == {}
+
+
+def test_cache_miss_version_mismatch(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when version doesn't match."""
+    cache_data = {
+        "_version": 999,  # Wrong version
+        "_cache_key": "test_key",
+        "graph": {"old": ["data"]},
+    }
+
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should rebuild and return empty graph, not use cached data
+        assert result == {}
+
+
+def test_cache_miss_key_mismatch(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when cache key doesn't match."""
+    cache_data = {
+        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": "old_key",
+        "graph": {"old": ["data"]},
+    }
+
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="new_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should rebuild and return empty graph, not use cached data with old key
+        assert result == {}
+
+
+def test_cache_miss_corrupted_json(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when cache file has invalid JSON."""
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text("{invalid json")
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should handle corruption gracefully and rebuild
+        assert result == {}
