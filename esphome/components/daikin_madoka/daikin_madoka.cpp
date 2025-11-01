@@ -1,4 +1,4 @@
-#include "madoka.h"
+#include "daikin_madoka.h"
 
 #include "esphome/core/log.h"
 #include <utility>
@@ -6,7 +6,7 @@
 #ifdef USE_ESP32
 
 namespace esphome {
-namespace madoka {
+namespace daikin_madoka {
 
 using namespace esphome::climate;
 
@@ -20,11 +20,11 @@ static const uint16_t CMD_GET_FAN_SPEED = 0x0050;
 static const uint16_t CMD_SET_FAN_SPEED = 0x4050;
 static const uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
 
-void Madoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
+void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-void Madoka::setup() { this->receive_semaphore_ = xSemaphoreCreateMutex(); }
+void DaikinMadoka::setup() { this->receive_semaphore_ = xSemaphoreCreateMutex(); }
 
-void Madoka::loop() {
+void DaikinMadoka::loop() {
   std::vector<uint8_t> chk = {};
   if (xSemaphoreTake(this->receive_semaphore_, 0L)) {
     if (!this->received_chunks_.empty()) {
@@ -42,7 +42,7 @@ void Madoka::loop() {
   }
 }
 
-void Madoka::control(const ClimateCall &call) {
+void DaikinMadoka::control(const ClimateCall &call) {
   if (this->node_state != espbt::ClientState::ESTABLISHED)
     return;
   if (call.get_mode().has_value()) {
@@ -118,7 +118,7 @@ void Madoka::control(const ClimateCall &call) {
   this->should_update_ = true;
 }
 
-void Madoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
@@ -153,7 +153,8 @@ void Madoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_para
   }
 }
 
-void Madoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                       esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
       this->node_state = espbt::ClientState::IDLE;  // ??
@@ -196,7 +197,7 @@ void Madoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
   }
 }
 
-void Madoka::update() {
+void DaikinMadoka::update() {
   ESP_LOGD(TAG, "Got update request...");
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGD(TAG, "...but device is disconnected");
@@ -212,7 +213,7 @@ void Madoka::update() {
 
 bool validate_buffer(std::vector<uint8_t> buffer) { return buffer[0] == buffer.size(); }
 
-void Madoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
+void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
   if (chk.size() < 2) {
     ESP_LOGI(TAG, "Chunk discarded: invalid length.");
     return;
@@ -246,7 +247,7 @@ void Madoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
   }
 }
 
-std::vector<std::vector<uint8_t>> Madoka::split_payload_(std::vector<uint8_t> msg) {
+std::vector<std::vector<uint8_t>> DaikinMadoka::split_payload_(std::vector<uint8_t> msg) {
   std::vector<std::vector<uint8_t>> result;
   size_t len = msg.size();
 
@@ -265,13 +266,13 @@ std::vector<std::vector<uint8_t>> Madoka::split_payload_(std::vector<uint8_t> ms
   return result;
 }
 
-std::vector<uint8_t> Madoka::prepare_message_(uint16_t cmd, std::vector<uint8_t> args) {
+std::vector<uint8_t> DaikinMadoka::prepare_message_(uint16_t cmd, std::vector<uint8_t> args) {
   std::vector<uint8_t> result({0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)});
   result.insert(result.end(), args.begin(), args.end());
   return result;
 }
 
-void Madoka::query_(uint16_t cmd, std::vector<uint8_t> args, int t_d) {
+void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args, int t_d) {
   std::vector<uint8_t> payload = this->prepare_message_(cmd, std::move(args));
 
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
@@ -298,7 +299,7 @@ void Madoka::query_(uint16_t cmd, std::vector<uint8_t> args, int t_d) {
   delay(t_d);
 }
 
-void Madoka::parse_cb_(std::vector<uint8_t> msg) {
+void DaikinMadoka::parse_cb_(std::vector<uint8_t> msg) {
   uint16_t function_id = msg[2] << 8 | msg[3];
   uint8_t i = 4;
   uint8_t message_size = msg.size();
@@ -424,7 +425,7 @@ void Madoka::parse_cb_(std::vector<uint8_t> msg) {
   this->publish_state();
 }
 
-}  // namespace madoka
+}  // namespace daikin_madoka
 }  // namespace esphome
 
 #endif

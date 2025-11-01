@@ -17,9 +17,9 @@ static const uint8_t MAX_CHUNK_SIZE = 20;
 static const uint8_t BLE_SEND_MAX_RETRIES = 5;
 
 namespace esphome {
-namespace madoka {
+namespace daikin_madoka {
 
-static const char *const TAG = "madoka";
+static const char *const TAG = "daikin_madoka";
 
 struct Setpoint {
   uint16_t cooling;
@@ -49,7 +49,7 @@ static const espbt::ESPBTUUID NOTIFY_CHARACTERISTIC_UUID =
 static const espbt::ESPBTUUID WWR_CHARACTERISTIC_UUID =
     espbt::ESPBTUUID::from_raw("2141e112-213a-11e6-b67b-9e71128cae77");
 
-class Madoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
+class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  protected:
   bool should_update_ = false;
   std::queue<std::vector<uint8_t>> received_chunks_ = {};
@@ -101,7 +101,7 @@ class Madoka : public climate::Climate, public esphome::ble_client::BLEClientNod
   }
 };
 
-}  // namespace madoka
+}  // namespace daikin_madoka
 }  // namespace esphome
 
 #endif

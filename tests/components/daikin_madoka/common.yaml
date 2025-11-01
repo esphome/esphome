@@ -8,7 +8,7 @@ ble_client:
     id: madoka_climate
 
 climate:
-  - platform: madoka
+  - platform: daikin_madoka
     name: "Madoka Climate"
     ble_client_id: madoka_climate
     update_interval: 15s

@@ -6,13 +6,13 @@ from esphome.const import CONF_ID
 CODEOWNERS = ["@Petapton"]
 DEPENDENCIES = ["ble_client"]
 
-madoka_ns = cg.esphome_ns.namespace("madoka")
-Madoka = madoka_ns.class_(
-    "Madoka", climate.Climate, ble_client.BLEClientNode, cg.PollingComponent
+daikin_madoka_ns = cg.esphome_ns.namespace("daikin_madoka")
+DaikinMadoka = daikin_madoka_ns.class_(
+    "DaikinMadoka", climate.Climate, ble_client.BLEClientNode, cg.PollingComponent
 )
 
 CONFIG_SCHEMA = (
-    climate.climate_schema(Madoka)
+    climate.climate_schema(DaikinMadoka)
     .extend(ble_client.BLE_CLIENT_SCHEMA)
     .extend(cv.polling_component_schema("10s"))
 )
