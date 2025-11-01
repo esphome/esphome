@@ -75,7 +75,7 @@ def channel_schema(channels, baud_rate_required):
     if variant == "P4":
         max_channels = 7
     else:
-        max_channels = 3    
+        max_channels = 3
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -107,7 +107,9 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Length(max=channels) if channels <= max_channels else cv.Length(max=max_channels)
+                cv.Length(max=channels)
+                if channels <= max_channels
+                else cv.Length(max=max_channels),
             )
         }
     )
