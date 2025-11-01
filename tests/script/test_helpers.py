@@ -1,5 +1,6 @@
 """Unit tests for script/helpers.py module."""
 
+from collections.abc import Generator
 import json
 import os
 from pathlib import Path
@@ -1119,32 +1120,47 @@ def mock_cache_file(tmp_path: Path) -> Path:
     return tmp_path / "components_graph.json"
 
 
-def test_cache_key_generation(mock_git_output: str) -> None:
+@pytest.fixture(autouse=True)
+def clear_cache_key_cache() -> None:
+    """Clear the components graph cache key cache before each test."""
+    helpers.get_components_graph_cache_key.cache_clear()
+
+
+@pytest.fixture
+def mock_subprocess_run() -> Generator[Mock, None, None]:
+    """Fixture to mock subprocess.run for git commands."""
+    with patch("subprocess.run") as mock_run:
+        yield mock_run
+
+
+def test_cache_key_generation(mock_git_output: str, mock_subprocess_run: Mock) -> None:
     """Test that cache key is generated based on git file hashes."""
     mock_result = Mock()
     mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
 
-    with patch("subprocess.run", return_value=mock_result):
-        key = helpers.get_components_graph_cache_key()
+    key = helpers.get_components_graph_cache_key()
 
-        # Should be a 64-character hex string (SHA256)
-        assert len(key) == 64
-        assert all(c in "0123456789abcdef" for c in key)
+    # Should be a 64-character hex string (SHA256)
+    assert len(key) == 64
+    assert all(c in "0123456789abcdef" for c in key)
 
 
-def test_cache_key_consistent_for_same_files(mock_git_output: str) -> None:
+def test_cache_key_consistent_for_same_files(
+    mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
     """Test that same git output produces same cache key."""
     mock_result = Mock()
     mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
 
-    with patch("subprocess.run", return_value=mock_result):
-        key1 = helpers.get_components_graph_cache_key()
-        key2 = helpers.get_components_graph_cache_key()
+    key1 = helpers.get_components_graph_cache_key()
+    key2 = helpers.get_components_graph_cache_key()
 
-        assert key1 == key2
+    assert key1 == key2
 
 
-def test_cache_key_different_for_changed_files() -> None:
+def test_cache_key_different_for_changed_files(mock_subprocess_run: Mock) -> None:
     """Test that different git output produces different cache key."""
     mock_result1 = Mock()
     mock_result1.stdout = "100644 abc123... 0 esphome/components/wifi/__init__.py\n"
@@ -1152,39 +1168,44 @@ def test_cache_key_different_for_changed_files() -> None:
     mock_result2 = Mock()
     mock_result2.stdout = "100644 xyz789... 0 esphome/components/wifi/__init__.py\n"
 
-    with patch("subprocess.run", return_value=mock_result1):
-        key1 = helpers.get_components_graph_cache_key()
+    mock_subprocess_run.return_value = mock_result1
+    key1 = helpers.get_components_graph_cache_key()
 
-    with patch("subprocess.run", return_value=mock_result2):
-        key2 = helpers.get_components_graph_cache_key()
+    helpers.get_components_graph_cache_key.cache_clear()
+    mock_subprocess_run.return_value = mock_result2
+    key2 = helpers.get_components_graph_cache_key()
 
     assert key1 != key2
 
 
-def test_cache_key_uses_git_ls_files(mock_git_output: str) -> None:
+def test_cache_key_uses_git_ls_files(
+    mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
     """Test that git ls-files command is called correctly."""
     mock_result = Mock()
     mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
 
-    with patch("subprocess.run", return_value=mock_result) as mock_run:
-        helpers.get_components_graph_cache_key()
+    helpers.get_components_graph_cache_key()
 
-        # Verify git ls-files was called with correct arguments
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args
-        assert call_args[0][0] == [
-            "git",
-            "ls-files",
-            "-s",
-            "esphome/components/**/__init__.py",
-        ]
-        assert call_args[1]["capture_output"] is True
-        assert call_args[1]["text"] is True
-        assert call_args[1]["check"] is True
-        assert call_args[1]["close_fds"] is False
+    # Verify git ls-files was called with correct arguments
+    mock_subprocess_run.assert_called_once()
+    call_args = mock_subprocess_run.call_args
+    assert call_args[0][0] == [
+        "git",
+        "ls-files",
+        "-s",
+        "esphome/components/**/__init__.py",
+    ]
+    assert call_args[1]["capture_output"] is True
+    assert call_args[1]["text"] is True
+    assert call_args[1]["check"] is True
+    assert call_args[1]["close_fds"] is False
 
 
-def test_cache_hit_returns_cached_graph(tmp_path: Path, mock_git_output: str) -> None:
+def test_cache_hit_returns_cached_graph(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
     """Test that cache hit returns cached data without rebuilding."""
     mock_graph = {"wifi": ["network"], "api": ["socket"]}
     cache_key = "a" * 64
@@ -1200,89 +1221,11 @@ def test_cache_hit_returns_cached_graph(tmp_path: Path, mock_git_output: str) ->
 
     mock_result = Mock()
     mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
 
     with (
-        patch("subprocess.run", return_value=mock_result),
         patch("helpers.get_components_graph_cache_key", return_value=cache_key),
         patch("helpers.temp_folder", str(tmp_path)),
     ):
         result = helpers.create_components_graph()
         assert result == mock_graph
-
-
-def test_cache_version_mismatch_rebuilds(tmp_path: Path) -> None:
-    """Test that cache version mismatch is detected and ignored."""
-    cache_data = {
-        "_version": 999,  # Wrong version
-        "_cache_key": "a" * 64,
-        "graph": {"old": ["data"]},
-    }
-
-    cache_file = tmp_path / "components_graph.json"
-    cache_file.write_text(json.dumps(cache_data))
-
-    # Verify cache file exists but would be ignored due to version mismatch
-    with patch("helpers.temp_folder", str(tmp_path)):
-        assert cache_file.exists()
-        cached = json.loads(cache_file.read_text())
-        assert cached["_version"] != helpers.COMPONENTS_GRAPH_CACHE_VERSION
-
-
-def test_cache_key_mismatch_ignored(tmp_path: Path, mock_git_output: str) -> None:
-    """Test that cache key mismatch causes cache to be ignored."""
-    old_key = "old_key_" + "a" * 56
-    new_key = "new_key_" + "b" * 56
-    cache_data = {
-        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
-        "_cache_key": old_key,
-        "graph": {"old": ["data"]},
-    }
-
-    cache_file = tmp_path / "components_graph.json"
-    cache_file.write_text(json.dumps(cache_data))
-
-    mock_result = Mock()
-    mock_result.stdout = mock_git_output
-
-    with (
-        patch("subprocess.run", return_value=mock_result),
-        patch("helpers.get_components_graph_cache_key", return_value=new_key),
-        patch("helpers.temp_folder", str(tmp_path)),
-    ):
-        # Cache key mismatch should cause cache to be ignored
-        cached = json.loads(cache_file.read_text())
-        assert cached["_cache_key"] != new_key
-
-
-def test_corrupted_cache_handled_gracefully(
-    tmp_path: Path, mock_git_output: str
-) -> None:
-    """Test that corrupted cache file is handled gracefully."""
-    cache_file = tmp_path / "components_graph.json"
-    cache_file.write_text("{invalid json")
-
-    mock_result = Mock()
-    mock_result.stdout = mock_git_output
-
-    with (
-        patch("subprocess.run", return_value=mock_result),
-        patch("helpers.temp_folder", str(tmp_path)),
-    ):
-        # Should not crash when encountering corrupted cache
-        assert cache_file.exists()
-
-
-def test_empty_cache_file_handled(tmp_path: Path, mock_git_output: str) -> None:
-    """Test that empty cache file is handled gracefully."""
-    cache_file = tmp_path / "components_graph.json"
-    cache_file.write_text("")
-
-    mock_result = Mock()
-    mock_result.stdout = mock_git_output
-
-    with (
-        patch("subprocess.run", return_value=mock_result),
-        patch("helpers.temp_folder", str(tmp_path)),
-    ):
-        # Should not crash with empty cache file
-        assert cache_file.exists()
