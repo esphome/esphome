@@ -142,7 +142,7 @@ def device_schema_with_validation(it):
                 cv.Optional(CONF_USE_HIGH_SPEED, default=True): cv.boolean,
             }
         ),
-        validate_use_full_speed,
+        validate_use_high_speed,
     )
 
 
