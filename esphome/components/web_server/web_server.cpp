@@ -229,7 +229,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
 
 void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
   WebServer *ws = source->web_server_;
-  ws->defer([this, ws, source]() {
+  ws->defer([ws, source]() {
     // Configure reconnect timeout and send config
     // this should always go through since the AsyncEventSourceClient event queue is empty on connect
     std::string message = ws->get_config_json();
