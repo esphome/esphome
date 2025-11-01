@@ -773,7 +773,7 @@ def _get_components_graph_cache_key() -> str:
     # This is fast and works consistently across CI and local dev
     cmd = ["git", "ls-files", "-s", "esphome/components/**/__init__.py"]
     result = subprocess.run(
-        cmd, capture_output=True, text=True, check=True, cwd=root_path
+        cmd, capture_output=True, text=True, check=True, cwd=root_path, close_fds=False
     )
 
     # Hash the git output (includes file paths and their sha1 hashes)
