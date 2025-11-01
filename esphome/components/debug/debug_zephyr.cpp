@@ -281,14 +281,18 @@ void DebugComponent::get_device_info_(std::string &device_info) {
            NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE));
   ESP_LOGD(TAG, "RAM: %ukB, Flash: %ukB, production test: %sdone", NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
            (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+  bool nRESET_enabled = NRF_UICR->PSELRESET[0] == NRF_UICR->PSELRESET[1] &&
+                        (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
+                                                                                     << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
       TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
-      YESNO(((NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos)) ||
-            ((NRF_UICR->PSELRESET[1] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos))));
-
+      YESNO(nRESET_enabled));
+  if (NRF_FICR) {
+    uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
+    uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
+    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+  }
 #ifdef USE_BOOTLOADER_MCUBOOT
   ESP_LOGD(TAG, "bootloader: mcuboot");
 #else
