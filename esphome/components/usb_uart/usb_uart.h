@@ -28,18 +28,6 @@ static constexpr uint8_t USB_DEVICE_PROTOCOL_IAD = 0x01;
 static constexpr uint8_t USB_VENDOR_IFC = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_INTERFACE;
 static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::USB_RECIP_DEVICE;
 
-// USB_MAX_PACKET_SIZE is set dynamically from Python based on:
-// - ESP32-S2/S3: Always 64 (Full-Speed)
-// - ESP32-P4: 512 (High-Speed) or 64 (Full-Speed with use_full_speed option)
-#ifndef USB_MAX_PACKET_SIZE
-// Fallback for static analysis tools - actual value comes from codegen
-#ifdef USE_ESP32_VARIANT_ESP32P4
-static const uint8_t USB_MAX_PACKET_SIZE = 512;
-#else
-static const uint8_t USB_MAX_PACKET_SIZE = 64;
-#endif
-#endif
-
 struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
