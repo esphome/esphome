@@ -40,6 +40,10 @@ enum OnBootRestoreFrom : uint8_t {
 };
 
 struct ThermostatClimateTimer {
+  ThermostatClimateTimer() = default;
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started, std::function<void()> func)
+      : active(active), time(time), started(started), func(std::move(func)) {}
+
   bool active;
   uint32_t time;
   uint32_t started;

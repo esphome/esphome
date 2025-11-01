@@ -7,6 +7,7 @@ namespace esphome {
 namespace climate {
 
 /// Enum for all modes a climate device can be in.
+/// NOTE: If adding values, update ClimateModeMask in climate_traits.h to use the new last value
 enum ClimateMode : uint8_t {
   /// The climate device is off
   CLIMATE_MODE_OFF = 0,
@@ -24,7 +25,7 @@ enum ClimateMode : uint8_t {
    * For example, the target temperature can be adjusted based on a schedule, or learned behavior.
    * The target temperature can't be adjusted when in this mode.
    */
-  CLIMATE_MODE_AUTO = 6
+  CLIMATE_MODE_AUTO = 6  // Update ClimateModeMask in climate_traits.h if adding values after this
 };
 
 /// Enum for the current action of the climate device. Values match those of ClimateMode.
@@ -43,6 +44,7 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_FAN = 6,
 };
 
+/// NOTE: If adding values, update ClimateFanModeMask in climate_traits.h to use the new last value
 enum ClimateFanMode : uint8_t {
   /// The fan mode is set to On
   CLIMATE_FAN_ON = 0,
@@ -63,10 +65,11 @@ enum ClimateFanMode : uint8_t {
   /// The fan mode is set to Diffuse
   CLIMATE_FAN_DIFFUSE = 8,
   /// The fan mode is set to Quiet
-  CLIMATE_FAN_QUIET = 9,
+  CLIMATE_FAN_QUIET = 9,  // Update ClimateFanModeMask in climate_traits.h if adding values after this
 };
 
 /// Enum for all modes a climate swing can be in
+/// NOTE: If adding values, update ClimateSwingModeMask in climate_traits.h to use the new last value
 enum ClimateSwingMode : uint8_t {
   /// The swing mode is set to Off
   CLIMATE_SWING_OFF = 0,
@@ -75,10 +78,11 @@ enum ClimateSwingMode : uint8_t {
   /// The fan mode is set to Vertical
   CLIMATE_SWING_VERTICAL = 2,
   /// The fan mode is set to Horizontal
-  CLIMATE_SWING_HORIZONTAL = 3,
+  CLIMATE_SWING_HORIZONTAL = 3,  // Update ClimateSwingModeMask in climate_traits.h if adding values after this
 };
 
 /// Enum for all preset modes
+/// NOTE: If adding values, update ClimatePresetMask in climate_traits.h to use the new last value
 enum ClimatePreset : uint8_t {
   /// No preset is active
   CLIMATE_PRESET_NONE = 0,
@@ -95,7 +99,7 @@ enum ClimatePreset : uint8_t {
   /// Device is prepared for sleep
   CLIMATE_PRESET_SLEEP = 6,
   /// Device is reacting to activity (e.g., movement sensors)
-  CLIMATE_PRESET_ACTIVITY = 7,
+  CLIMATE_PRESET_ACTIVITY = 7,  // Update ClimatePresetMask in climate_traits.h if adding values after this
 };
 
 enum ClimateFeature : uint32_t {

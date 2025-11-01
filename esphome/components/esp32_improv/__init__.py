@@ -112,7 +112,7 @@ async def to_code(config):
 
     cg.add_define("USE_IMPROV")
 
-    await improv_base.setup_improv_core(var, config)
+    await improv_base.setup_improv_core(var, config, "esp32_improv")
 
     cg.add(var.set_identify_duration(config[CONF_IDENTIFY_DURATION]))
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))

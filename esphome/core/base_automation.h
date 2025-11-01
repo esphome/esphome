@@ -79,6 +79,18 @@ template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
   std::function<bool(Ts...)> f_;
 };
 
+/// Optimized lambda condition for stateless lambdas (no capture).
+/// Uses function pointer instead of std::function to reduce memory overhead.
+/// Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+template<typename... Ts> class StatelessLambdaCondition : public Condition<Ts...> {
+ public:
+  explicit StatelessLambdaCondition(bool (*f)(Ts...)) : f_(f) {}
+  bool check(Ts... x) override { return this->f_(x...); }
+
+ protected:
+  bool (*f_)(Ts...);
+};
+
 template<typename... Ts> class ForCondition : public Condition<Ts...>, public Component {
  public:
   explicit ForCondition(Condition<> *condition) : condition_(condition) {}
@@ -190,16 +202,29 @@ template<typename... Ts> class LambdaAction : public Action<Ts...> {
   std::function<void(Ts...)> f_;
 };
 
+/// Optimized lambda action for stateless lambdas (no capture).
+/// Uses function pointer instead of std::function to reduce memory overhead.
+/// Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
+ public:
+  explicit StatelessLambdaAction(void (*f)(Ts...)) : f_(f) {}
+
+  void play(Ts... x) override { this->f_(x...); }
+
+ protected:
+  void (*f_)(Ts...);
+};
+
 template<typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  void add_then(const std::vector<Action<Ts...> *> &actions) {
+  void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
   }
 
-  void add_else(const std::vector<Action<Ts...> *> &actions) {
+  void add_else(const std::initializer_list<Action<Ts...> *> &actions) {
     this->else_.add_actions(actions);
     this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
   }
@@ -240,7 +265,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  void add_then(const std::vector<Action<Ts...> *> &actions) {
+  void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
       if (this->num_running_ > 0 && this->condition_->check_tuple(this->var_)) {
@@ -287,7 +312,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
-  void add_then(const std::vector<Action<uint32_t, Ts...> *> &actions) {
+  void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
       iteration++;

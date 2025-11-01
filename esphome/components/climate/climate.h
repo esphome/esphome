@@ -33,6 +33,7 @@ class Climate;
 class ClimateCall {
  public:
   explicit ClimateCall(Climate *parent) : parent_(parent) {}
+  friend struct ClimateDeviceRestoreState;
 
   /// Set the mode of the climate device.
   ClimateCall &set_mode(ClimateMode mode);
