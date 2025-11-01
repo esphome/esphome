@@ -552,12 +552,6 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
   // Push the event to the queue
   global_ble->ble_events_.push(event);
   // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
-
-  // Wake up main loop to process event immediately
-  // This is thread-safe - notify_main_loop_() uses lwip_sendto which is thread-safe
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  global_ble->notify_main_loop_();
-#endif
 }
 
 // Explicit template instantiations for the friend function
@@ -611,6 +605,10 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
+  // Wake up main loop to process GATT event immediately
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  global_ble->notify_main_loop_();
+#endif
 }
 #endif
 
@@ -618,6 +616,10 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
+  // Wake up main loop to process GATT event immediately
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  global_ble->notify_main_loop_();
+#endif
 }
 #endif
 
