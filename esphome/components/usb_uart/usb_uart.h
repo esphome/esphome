@@ -83,9 +83,6 @@ class RingBuffer {
   size_t pop(uint8_t *data, size_t len);
   void clear() {
     this->read_pos_ = this->insert_pos_ = 0;
-    // CRITICAL: Clear actual buffer data to prevent old data from being read after clear()
-    // If buffer contains stale data from previous session and pointers are reset,
-    // pop() will read garbage from old positions.
     std::memset(this->buffer_, 0, this->buffer_size_);
   }
 
