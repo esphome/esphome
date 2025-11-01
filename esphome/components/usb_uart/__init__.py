@@ -126,6 +126,7 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
+                variant = get_target_variant()
                 if "P4" not in variant:
                     cv.Lenth(max=3),
                 else:
