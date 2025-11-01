@@ -2,6 +2,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_ENABLED
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
@@ -36,6 +37,7 @@ from esphome.const import (
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
+    CONF_PORT,
     CONF_RESET_PIN,
     CONF_SPI,
     CONF_STATIC_IP,
@@ -95,6 +97,13 @@ CONF_PHY_REGISTERS = "phy_registers"
 
 CONF_CLOCK_SPEED = "clock_speed"
 
+CONF_LLDP = "lldp"
+CONF_SYSTEM_NAME = "system_name"
+CONF_SYSTEM_DESCRIPTION = "system_description"
+CONF_TX_FAST_COUNT = "tx_fast_count"
+CONF_TX_INTERVAL = "tx_interval"
+CONF_TX_HOLD = "tx_hold"
+
 EthernetType = ethernet_ns.enum("EthernetType")
 ETHERNET_TYPES = {
     "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
@@ -142,6 +151,18 @@ MANUAL_IP_SCHEMA = cv.Schema(
         cv.Required(CONF_SUBNET): cv.ipv4address,
         cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
         cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+    }
+)
+
+LLDP_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
+        cv.Optional(CONF_PORT): cv.string_strict,
+        cv.Optional(CONF_SYSTEM_NAME): cv.string_strict,
+        cv.Optional(CONF_SYSTEM_DESCRIPTION): cv.string_strict,
+        cv.Optional(CONF_TX_FAST_COUNT, default=4): cv.int_range(min=1, max=8),
+        cv.Optional(CONF_TX_INTERVAL, default=30): cv.int_range(min=1, max=3600),
+        cv.Optional(CONF_TX_HOLD, default=4): cv.int_range(min=1, max=100),
     }
 )
 
@@ -224,6 +245,7 @@ BASE_SCHEMA = cv.Schema(
             "new mdns component instead."
         ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_LLDP): LLDP_SCHEMA,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -402,6 +424,27 @@ async def to_code(config):
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
+
+    if CONF_LLDP in config and config[CONF_LLDP][CONF_ENABLED]:
+        # Include L2TAP for sending raw packets
+        add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP", True)
+
+        # Minimise L2TAP memory usage by reducing the number of file
+        # descriptors that can be opened, and since we don't receive packets,
+        # drop the receive queue down to a single packet.
+        add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP_MAX_FDS", 1)
+        add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP_RX_QUEUE_SIZE", 1)
+
+        cg.add_define("USE_ETHERNET_LLDP")
+        cg.add(var.set_lldp_tx_fast_count(config[CONF_LLDP][CONF_TX_FAST_COUNT]))
+        cg.add(var.set_lldp_tx_interval(config[CONF_LLDP][CONF_TX_INTERVAL]))
+        cg.add(var.set_lldp_tx_hold(config[CONF_LLDP][CONF_TX_HOLD]))
+        if port := config[CONF_LLDP].get(CONF_PORT):
+            cg.add(var.set_lldp_port(port))
+        if system_name := config[CONF_LLDP].get(CONF_SYSTEM_NAME):
+            cg.add(var.set_lldp_system_name(system_name))
+        if system_description := config[CONF_LLDP].get(CONF_SYSTEM_DESCRIPTION):
+            cg.add(var.set_lldp_system_description(system_description))
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
