@@ -186,23 +186,6 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  // Pre-allocate USB transfer buffers for all slots at startup
-  // This avoids any dynamic allocation during runtime
-  // Buffer size calculation: 0.25 * MAX_REQUESTS * MPS
-  // - Ensures sufficient space for burst transfers
-  // - Scales with the number of concurrent transfer slots
-  // - Adapts to USB speed (FS=64 bytes, HS=512 bytes)
-#ifdef USB_UART_MAX_PACKET_SIZE
-  constexpr size_t transfer_buffer_size = (MAX_REQUESTS / 4) * USB_UART_MAX_PACKET_SIZE;
-#else
-  // Fallback for non-USB-UART clients or when USB_UART_MAX_PACKET_SIZE not defined
-  constexpr size_t transfer_buffer_size = 1024;
-#endif
-
-  for (size_t i = 0; i < MAX_REQUESTS; i++) {
-    usb_host_transfer_alloc(transfer_buffer_size, 0, &this->requests_[i].transfer);
-    this->requests_[i].client = this;  // Set once, never changes
-  }
 
   // Create and start USB task
   xTaskCreate(usb_task_fn, "usb_task",
@@ -254,6 +237,10 @@ void USBClient::loop() {
     case USB_CLIENT_OPEN: {
       int err;
       ESP_LOGD(TAG, "Open device %d", this->device_addr_);
+      for (size_t i = 0; i < MAX_REQUESTS; i++) {
+        usb_host_transfer_alloc(transfer_buffer_size, 0, &this->requests_[i].transfer);
+        this->requests_[i].client = this;  // Set once, never changes
+      }
       err = usb_host_device_open(this->handle_, this->device_addr_, &this->device_handle_);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "Device open failed: %s", esp_err_to_name(err));
