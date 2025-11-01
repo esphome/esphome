@@ -71,11 +71,10 @@ uart_types = (
 
 
 def channel_schema(channels, baud_rate_required):
-    variant = get_target_variant()
     if "P4" in get_target_variant():
-        max_channels = 7
+        available_channels = 7
     else:
-        max_channels = 3
+        available_channels = 3
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -83,7 +82,7 @@ def channel_schema(channels, baud_rate_required):
                     cv.Schema(
                         {
                             cv.GenerateID(): cv.declare_id(USBUartChannel),
-                            cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
+                            cv.Optional(CONF_BUFFER_SIZE): cv.int_range(
                                 min=64, max=8192
                             ),
                             (
@@ -104,12 +103,16 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                            cv.Optional(
+                                CONF_DEBUG_ADD_SETTINGS, default=False
+                            ): cv.boolean,
                         }
                     )
                 ),
-                cv.Length(max=channels)
-                if channels <= max_channels
-                else cv.Length(max=max_channels),
+                cv.Length(max=max_channels)
+                if max_channels <= available_channels
+                else cv.Length(max=available_channels),
             )
         }
     )
