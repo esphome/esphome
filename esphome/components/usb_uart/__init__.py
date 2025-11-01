@@ -47,6 +47,7 @@ UART_STOP_BITS_OPTIONS = {
 DEFAULT_BAUD_RATE = 9600
 # By default, log in hex format when no specific sequence is provided.
 
+
 def get_target_variant():
     """Get the target ESP32 variant from CORE.data."""
     return CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT, "")
