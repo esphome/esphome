@@ -180,8 +180,8 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
-                               std::vector<uint8_t>(chunk->data, chunk->data + chunk->length), ',');  // NOLINT()
+      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
+                               ',');  // NOLINT()
     }
 #endif
 
