@@ -704,9 +704,8 @@ void ESP32BLE::setup_event_notification_() {
 }
 
 void ESP32BLE::cleanup_event_notification_() {
-  // Guard against multiple calls (reentrant safety for ble.disable automation)
   if (this->notify_fd_ < 0) {
-    return;  // Already cleaned up
+    return;
   }
 
   App.unregister_socket_fd(this->notify_fd_);
