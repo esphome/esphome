@@ -230,10 +230,13 @@ WAKEUP_CAUSES_SCHEMA = cv.Schema(
 )
 
 WakeupPinItem = deep_sleep_ns.struct("WakeupPinItem")
-WAKEUP_SINGLEPIN_SCHEMA = pins.internal_gpio_input_pin_schema
-WAKEUP_MULTIPIN_SCHEMA = cv.Schema(
+WAKEUP_SINGLEPIN_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_PIN): WAKEUP_SINGLEPIN_SCHEMA,
+        cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+    }
+)
+WAKEUP_MULTIPIN_SCHEMA = WAKEUP_SINGLEPIN_SCHEMA.extend(
+    {
         cv.Optional(CONF_WAKEUP_PIN_MODE): (cv.enum(WAKEUP_PIN_MODES, upper=True)),
     }
 )
