@@ -7,7 +7,7 @@ namespace bm8563 {
 
 static const char *const TAG = "BM8563";
 
-#define CONTROL_STATUS_2_REG 0x01
+static const uint8_t CONTROL_STATUS_2_REG = 0x01;
 
 void BM8563::setup() {
   this->write_byte_16(0, 0);
