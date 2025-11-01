@@ -704,39 +704,14 @@ void ESP32BLE::setup_event_notification_() {
 }
 
 void ESP32BLE::cleanup_event_notification_() {
-  if (this->notify_fd_ < 0) {
-    return;
-  }
-
-  App.unregister_socket_fd(this->notify_fd_);
-  lwip_close(this->notify_fd_);
-  this->notify_fd_ = -1;
-  ESP_LOGD(TAG, "Event socket closed");
-}
-
-void ESP32BLE::notify_main_loop_() {
-  // Called from BLE thread context when events are queued
-  // Wakes up lwip_select() in main loop by writing to loopback socket
   if (this->notify_fd_ >= 0) {
-    const char dummy = 1;
-    // Non-blocking sendto - if it fails (unlikely), select() will wake on timeout anyway
-    // This is safe to call from BLE thread - sendto() is thread-safe in lwip
-    lwip_sendto(this->notify_fd_, &dummy, 1, 0, (struct sockaddr *) &this->notify_addr_, sizeof(this->notify_addr_));
+    App.unregister_socket_fd(this->notify_fd_);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    ESP_LOGD(TAG, "Event socket closed");
   }
 }
 
-void ESP32BLE::drain_event_notifications_() {
-  // Called from main loop to drain any pending notifications
-  // Must check is_socket_ready() to avoid blocking on empty socket
-  if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
-    char buffer[64];
-    // Drain all pending notifications with non-blocking reads
-    // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
-    while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
-      // Just draining, no action needed
-    }
-  }
-}
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {

@@ -25,6 +25,10 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <lwip/sockets.h>
+#endif
+
 namespace esphome::esp32_ble {
 
 // Maximum size of the BLE event queue
@@ -163,10 +167,10 @@ class ESP32BLE : public Component {
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
-  void setup_event_notification_();    // Create notification socket
-  void cleanup_event_notification_();  // Close and unregister socket
-  void notify_main_loop_();            // Wake up select() from BLE thread
-  void drain_event_notifications_();   // Read pending notifications in main loop
+  void setup_event_notification_();          // Create notification socket
+  void cleanup_event_notification_();        // Close and unregister socket
+  inline void notify_main_loop_();           // Wake up select() from BLE thread (hot path - inlined)
+  inline void drain_event_notifications_();  // Read pending notifications in main loop (hot path - inlined)
 #endif
 
  private:
@@ -220,6 +224,37 @@ class ESP32BLE : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+// Inline implementations for hot-path functions
+// These are called from BLE thread (notify) and main loop (drain) on every event
+
+inline void ESP32BLE::notify_main_loop_() {
+  // Called from BLE thread context when events are queued
+  // Wakes up lwip_select() in main loop by writing to loopback socket
+  if (this->notify_fd_ >= 0) {
+    const char dummy = 1;
+    // Non-blocking sendto - if it fails (unlikely), select() will wake on timeout anyway
+    // This is safe to call from BLE thread - sendto() is thread-safe in lwip
+    lwip_sendto(this->notify_fd_, &dummy, 1, 0, (struct sockaddr *) &this->notify_addr_, sizeof(this->notify_addr_));
+  }
+}
+
+inline void ESP32BLE::drain_event_notifications_() {
+  // Called from main loop to drain any pending notifications
+  // Must check is_socket_ready() to avoid blocking on empty socket
+  // Requires App to be defined - include esphome/core/application.h in .cpp files that use this
+  extern esphome::Application App;
+  if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
+    char buffer[16];
+    // Drain all pending notifications with non-blocking reads
+    // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
+    while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+      // Just draining, no action needed
+    }
+  }
+}
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
  public:
