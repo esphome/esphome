@@ -16,7 +16,10 @@ embedded graphics library to create beautiful UIs for any MCU, MPU and display t
 
 To use LVGL with a [display](#display-hw) in ESPHome, you'll need an ESP32 or RP2040. PSRAM is not a strict requirement but it is generally recommended, especially for large color displays.
 
-The graphic display should be configured with `auto_clear_enabled: false` and should not have any `lambda` set. The LVGL component will take care of the display rendering. For most displays, the `update_interval` should be set to `never`, but note that some displays such as OLED and ePaper will need the update interval set to a suitable value.
+The graphic display should be configured with `auto_clear_enabled: false` and should not have any `lambda` set.
+The LVGL component will take care of the display rendering. For most displays, the `update_interval` should be
+set to `never`, but note that some displays such as OLED and e-paper will need the update interval set to a suitable
+interval, or make use of the [`on_draw_end`](#on_draw_end) trigger to manually update the display.
 
 For interactivity, a {{< docref "/components/touchscreen/index" "Touchscreen" >}} (capacitive highly preferred), a {{< docref "/components/sensor/rotary_encoder" >}} or a custom keypad made up from discrete {{< docref "/components/binary_sensor/index" "Binary Sensors" >}} can be used.
 
@@ -982,6 +985,22 @@ This [trigger](#lvgl-automation-triggers) is triggered when LVGL is resumed. Thi
 ### `on_boot`
 
 This [trigger](#lvgl-automation-triggers) is triggered after LVGL has been setup. It is also available on any widget, but the timing is the same.
+
+### `on_draw_start`
+
+This [trigger](#lvgl-automation-triggers) is executed before each LVGL drawing operation.
+
+### `on_draw_end`
+
+This [trigger](#lvgl-automation-triggers) is executed after LVGL has completed drawing all updated screen elements. It
+may be used for example to trigger an update of a display component like an e-paper screen that requires the buffer
+to be sent to the display for it to be updated.
+
+```yaml
+lvgl:
+  on_draw_end:
+    component.update: my_display_id
+```
 
 ## See Also
 
