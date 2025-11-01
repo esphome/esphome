@@ -576,9 +576,16 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // Update fd_set if socket list has changed
     if (this->socket_fds_changed_) {
       FD_ZERO(&this->base_read_fds_);
-      // fd bounds are already validated in register_socket_fd()
       for (int fd : this->socket_fds_) {
+#ifdef USE_ESP32
+        // On ESP32, register_socket_fd() relies on LwIP design guarantees and doesn't validate FD_SETSIZE
+        if (fd >= 0 && fd < FD_SETSIZE) {
+          FD_SET(fd, &this->base_read_fds_);
+        }
+#else
+        // Non-ESP32: fd bounds already validated in register_socket_fd()
         FD_SET(fd, &this->base_read_fds_);
+#endif
       }
       this->socket_fds_changed_ = false;
     }
