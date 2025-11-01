@@ -251,7 +251,7 @@ def final_validation(configs):
         for w in refreshed_widgets:
             path = global_config.get_path_for_id(w)
             widget_conf = global_config.get_config_for_path(path[:-1])
-            if not any(isinstance(v, Lambda | dict) for v in widget_conf.values()):
+            if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
                 raise cv.Invalid(
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
