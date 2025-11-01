@@ -70,6 +70,7 @@ async def to_code(config: ConfigType) -> None:
 
     max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
     cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for device in config.get(CONF_DEVICES) or ():
