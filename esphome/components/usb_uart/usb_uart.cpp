@@ -280,10 +280,6 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 
   const auto *ep = channel->cdc_dev_.out_ep;
 
-  // Allocate buffer for TX data on heap - must persist until transfer completes
-  auto *tx_data = new uint8_t[ep->wMaxPacketSize];
-  auto len = channel->output_buffer_.pop(tx_data, ep->wMaxPacketSize);
-
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
