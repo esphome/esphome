@@ -55,7 +55,7 @@ void HUB75Display::dump_config() {
   ESP_LOGCONFIG(TAG, "  Latch Blanking: %i", config_.latch_blanking);
   ESP_LOGCONFIG(TAG, "  Clock Phase: %s", TRUEFALSE(config_.clk_phase_inverted));
   ESP_LOGCONFIG(TAG, "  Min Refresh Rate: %i Hz", config_.min_refresh_rate);
-  ESP_LOGCONFIG(TAG, "  Bit Depth: %i", config_.bit_depth);
+  ESP_LOGCONFIG(TAG, "  Bit Depth: %i", HUB75_BIT_DEPTH);
   ESP_LOGCONFIG(TAG, "  Double Buffer: %s", YESNO(config_.double_buffer));
 }
 
