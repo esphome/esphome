@@ -198,6 +198,7 @@ class Component {
   bool is_failed() const;
 
   bool is_ready() const;
+  bool is_idle() const;
 
   virtual bool can_proceed();
 
