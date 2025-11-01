@@ -279,7 +279,6 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     return;
 
   const auto *ep = channel->cdc_dev_.out_ep;
-
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
