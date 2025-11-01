@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstring>
 #include <cctype>
+#include <cinttypes>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -348,7 +349,14 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
-void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
+void AsyncResponseStream::print(float value) {
+  // Use stack buffer to avoid temporary string allocation
+  // Size: sign (1) + digits (10) + decimal (1) + precision (6) + exponent (5) + null (1) = 24, use 32 for safety
+  constexpr size_t FLOAT_BUF_SIZE = 32;
+  char buf[FLOAT_BUF_SIZE];
+  int len = snprintf(buf, FLOAT_BUF_SIZE, "%f", value);
+  this->content_.append(buf, len);
+}
 
 void AsyncResponseStream::printf(const char *fmt, ...) {
   va_list args;
@@ -594,16 +602,19 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
   event_buffer_.append(chunk_len_header);
 
+  // Use stack buffer for formatting numeric fields to avoid temporary string allocations
+  // Size: "retry: " (7) + max uint32 (10 digits) + CRLF (2) + null (1) = 20 bytes, use 32 for safety
+  constexpr size_t NUM_BUF_SIZE = 32;
+  char num_buf[NUM_BUF_SIZE];
+
   if (reconnect) {
-    event_buffer_.append("retry: ", sizeof("retry: ") - 1);
-    event_buffer_.append(to_string(reconnect));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, NUM_BUF_SIZE, "retry: %" PRIu32 CRLF_STR, reconnect);
+    event_buffer_.append(num_buf, len);
   }
 
   if (id) {
-    event_buffer_.append("id: ", sizeof("id: ") - 1);
-    event_buffer_.append(to_string(id));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, NUM_BUF_SIZE, "id: %" PRIu32 CRLF_STR, id);
+    event_buffer_.append(num_buf, len);
   }
 
   if (event && *event) {

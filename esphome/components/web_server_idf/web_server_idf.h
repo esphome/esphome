@@ -77,7 +77,7 @@ class AsyncResponseStream : public AsyncWebServerResponse {
   size_t get_content_size() const override { return this->content_.size(); };
 
   void print(const char *str) { this->content_.append(str); }
-  void print(const std::string &str) { this->content_.append(str); }
+  void print(const std::string &str) { this->content_.append(str.c_str(), str.size()); }
   void print(float value);
   void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
