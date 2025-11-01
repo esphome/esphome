@@ -301,7 +301,6 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
   channel->output_started_.store(true);
 #ifdef USE_UART_DEBUGGER
   if (channel->debug_) {
-    std::string debug_prefix = channel->get_debug_prefix();
     uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(tx_data, tx_data + len), ',');  // NOLINT()
   }
 #endif
