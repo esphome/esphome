@@ -104,7 +104,7 @@ void DeepSleepComponent::deep_sleep_() {
 
 #if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6)
   uint64_t pin_mask = 0;
-  esp_deepsleep_gpio_wake_up_mode_t wakeup_mode = ESP_DEEP_SLEEP_GPIO_WAKEUP_DISABLE;
+  esp_deepsleep_gpio_wake_up_mode_t wakeup_mode = ESP_GPIO_WAKEUP_GPIO_LOW;
 #endif
 
   for (const auto &pin_item : this->wakeup_pins_) {
