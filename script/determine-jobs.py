@@ -43,12 +43,14 @@ from enum import StrEnum
 from functools import cache
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
 
 from helpers import (
     CPP_FILE_EXTENSIONS,
+    ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
     core_changed,
@@ -65,11 +67,16 @@ from helpers import (
     parse_test_filename,
     root_path,
 )
+from split_components_for_ci import create_intelligent_batches
 
 # Threshold for splitting clang-tidy jobs
 # For small PRs (< 65 files), use nosplit for faster CI
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
+
+# Component test batch size (weighted)
+# Isolated components count as 10x, groupable components count as 1x
+COMPONENT_TEST_BATCH_SIZE = 40
 
 
 class Platform(StrEnum):
@@ -686,6 +693,22 @@ def main() -> None:
     # Determine which C++ unit tests to run
     cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
 
+    # Split components into batches for CI testing
+    # This intelligently groups components with similar bus configurations
+    component_test_batches: list[str]
+    if changed_components_with_tests:
+        tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+        batches, _ = create_intelligent_batches(
+            components=changed_components_with_tests,
+            tests_dir=tests_dir,
+            batch_size=COMPONENT_TEST_BATCH_SIZE,
+            directly_changed=directly_changed_with_tests,
+        )
+        # Convert batches to space-separated strings for CI matrix
+        component_test_batches = [" ".join(batch) for batch in batches]
+    else:
+        component_test_batches = []
+
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
@@ -703,6 +726,7 @@ def main() -> None:
         "memory_impact": memory_impact,
         "cpp_unit_tests_run_all": cpp_run_all,
         "cpp_unit_tests_components": cpp_components,
+        "component_test_batches": component_test_batches,
     }
 
     # Output as JSON
