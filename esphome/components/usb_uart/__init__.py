@@ -132,7 +132,7 @@ async def to_code(config):
         num_channels = len(device[CONF_CHANNELS])
 
         for index, channel in enumerate(device[CONF_CHANNELS]):
-            chvar = cg.new_Pvariable(channel[CONF_ID], index, buffer_size)
+            chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
             cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
