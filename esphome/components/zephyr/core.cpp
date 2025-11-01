@@ -3,7 +3,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
-#include <zephyr/random/rand32.h>
+#include <zephyr/random/random.h>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
