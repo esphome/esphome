@@ -27,7 +27,7 @@ from esphome.helpers import write_file_if_changed
 
 from . import defines as df, helpers, lv_validation as lvalid
 from .automation import disp_update, focused_widgets, refreshed_widgets, update_to_code
-from .defines import add_define, single_automation
+from .defines import add_define
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -450,18 +450,14 @@ LVGL_SCHEMA = cv.All(
                     }
                 ),
                 **{
-                    cv.Optional(x): single_automation(
+                    cv.Optional(x): validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
-                        }
+                        },
+                        single=True,
                     )
                     for x in SIMPLE_TRIGGERS
                 },
-                cv.Optional(df.CONF_ON_RESUME): single_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
-                    }
-                ),
                 cv.Exclusive(df.CONF_WIDGETS, CONF_PAGES): cv.ensure_list(
                     WIDGET_SCHEMA
                 ),
