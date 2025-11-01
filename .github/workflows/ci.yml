@@ -192,11 +192,12 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Restore components graph cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - name: Components graph cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/__init__.py') }}
+          save-always: ${{ github.ref == 'refs/heads/dev' }}
       - name: Determine which tests to run
         id: determine
         env:
@@ -221,12 +222,6 @@ jobs:
           echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
           echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
           echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
-      - name: Save components graph cache
-        # temp disabled for testing - if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: .temp/components_graph.json
-          key: components-graph-${{ hashFiles('esphome/components/**/__init__.py') }}
 
   integration-tests:
     name: Run integration tests
