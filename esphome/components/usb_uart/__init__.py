@@ -1,5 +1,10 @@
 import esphome.codegen as cg
 from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 from esphome.components.uart import (
     CONF_DATA_BITS,
     CONF_PARITY,
@@ -18,8 +23,6 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
-
-CONF_USE_HIGH_SPEED = "use_high_speed"
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -45,19 +48,9 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-# By default, log in hex format when no specific sequence is provided.
-
 
 def get_target_variant():
-    """Get the target ESP32 variant from CORE.data."""
     return CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT, "")
-
-
-def get_mps(use_high_speed=None):
-    variant = get_target_variant()
-    if "P4" in variant:
-        return 512 if use_high_speed else 64
-    return 64
 
 
 class Type:
@@ -79,18 +72,6 @@ uart_types = (
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 4),
 )
-
-
-def validate_use_high_speed(config):
-    """Validate use_high_speed option - only allowed on ESP32-P4."""
-    if config.get(CONF_USE_HIGH_SPEED, False):
-        variant = get_target_variant()
-        if "P4" not in variant:
-            raise cv.Invalid(
-                f"'use_high_speed' option is only supported on ESP32-P4. "
-                f"Current variant: {variant or 'ESP32-S2/S3'}"
-            )
-    return config
 
 
 def channel_schema(channels, baud_rate_required):
@@ -126,23 +107,16 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Lenth(max=3) if "P4" not in variant else cv.Length(max=channels),
+                cv.Lenth(max=3) if variant != VARIANT_ESP32P4 else cv.Length(max=channels),
             )
         }
     )
 
 
 def device_schema_with_validation(it):
-    """Create device schema with use_full_speed validation."""
     return cv.All(
         usb_device_schema(it.cls, it.vid, it.pid)
         .extend(channel_schema(it.max_channels, it.baud_rate_required))
-        .extend(
-            {
-                cv.Optional(CONF_USE_HIGH_SPEED, default=True): cv.boolean,
-            }
-        ),
-        validate_use_high_speed,
     )
 
 
@@ -157,14 +131,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 async def to_code(config):
     for device in config:
         var = await register_usb_client(device)
-
-        # Get use_full_speed option (only valid for P4, ignored on S2/S3)
-        use_high_speed = device.get(CONF_USE_HIGH_SPEED, True)
         num_channels = len(device[CONF_CHANNELS])
-
-        # Calculate MPS and add compile-time define
-        mps = get_mps(use_high_speed)
-        cg.add_define("USB_MAX_PACKET_SIZE", mps)
 
         for index, channel in enumerate(device[CONF_CHANNELS]):
             # Calculate default buffer size if not specified by user
