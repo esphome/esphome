@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <tuple>
+#include <forward_list>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -275,7 +276,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
       this->play_next_(x...);
       return;
     }
-    this->play_queue_.push([this, x...]() { this->play_next_(x...); });
+    this->play_queue_.emplace_front([this, x...]() { this->play_next_(x...); });
     this->loop();
   }
 
@@ -289,7 +290,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     while (!this->play_queue_.empty()) {
       auto play_next = this->play_queue_.front();
       play_next();
-      this->play_queue_.pop();
+      this->play_queue_.pop_front();
     }
   }
 
@@ -298,7 +299,7 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
 
  protected:
   C *script_;
-  std::queue<std::function<void()>> play_queue_;
+  std::forward_list<std::function<void()>> play_queue_;
 };
 
 }  // namespace script

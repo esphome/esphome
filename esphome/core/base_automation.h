@@ -10,7 +10,7 @@
 #include "esphome/core/helpers.h"
 
 #include <vector>
-#include <list>
+#include <forward_list>
 
 namespace esphome {
 
@@ -395,7 +395,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
  protected:
   Condition<Ts...> *condition_;
-  std::list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
+  std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
 
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
