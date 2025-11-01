@@ -98,7 +98,6 @@ class RingBuffer {
 
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
-  // MAX_CHUNK_SIZE uses the dynamically configured USB_UART_MAX_PACKET_SIZE
   uint8_t data[USB_UART_MAX_PACKET_SIZE];
   if (USB_UART_MAX_PACKET_SIZE > 255)
     uint16_t length;
