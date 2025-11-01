@@ -288,7 +288,7 @@ void DebugComponent::get_device_info_(std::string &device_info) {
       TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
       YESNO(nRESET_enabled));
-  if (NRF_FICR) {
+  if (nRESET_enabled) {
     uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
     uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
     ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
