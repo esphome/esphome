@@ -55,7 +55,7 @@ def get_target_variant():
 
 def get_mps(use_full_speed=None):
     variant = get_target_variant()
-    if CORE.is_esp32 and "P4" in variant:
+    if "P4" in variant:
         return 64 if use_full_speed else 512
     return 64
 
