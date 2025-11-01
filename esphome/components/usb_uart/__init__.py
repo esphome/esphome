@@ -54,51 +54,10 @@ def get_target_variant():
 
 
 def get_mps(use_full_speed=None):
-    """Get MaxPacketSize based on variant and use_full_speed option.
-
-    Returns:
-        64: Full-Speed (S2/S3 always, P4 if use_full_speed=True)
-        512: High-Speed (P4 only, if use_full_speed=False or None)
-    """
     variant = get_target_variant()
     if CORE.is_esp32 and "P4" in variant:
-        # P4: Default HS (512), optional FS (64) via use_full_speed
         return 64 if use_full_speed else 512
-    # S2/S3: Always FS (64)
     return 64
-
-
-def get_buffer_size_default(num_channels=1, use_full_speed=None):
-    """Calculate default buffer size: MPS * (num_channels + 1).
-
-    Args:
-        num_channels: Number of UART channels configured
-        use_full_speed: Force Full-Speed mode (P4 only)
-
-    Returns:
-        Buffer size in bytes
-    """
-    mps = get_mps(use_full_speed)
-    return mps * (num_channels + 1)
-
-
-def get_max_channels(device_type):
-    """Calculate maximum number of channels based on device type and ESP32 variant.
-
-    CDC-ACM devices (CH34X, CP210X) are limited by available USB endpoints:
-    - P4 (8 IN/OUT + 7 IN endpoints): supports up to 7 channels,
-      4 are possible on currently supported device (changes with CH934X support)
-    - S2/S3 (5 IN/OUT + 1 IN endpoint): supports up to 3 channels - CH934X can do more
-      once support is included
-    """
-
-    if device_type in ("CH34X", "CP210X"):
-        # CDC devices - limited by available endpoints
-        if CORE.is_esp32 and "P4" in get_target_variant():
-            return 4  # P4 has more endpoints available
-        return 3  # S2/S3 default: 3 channels max
-
-    return 1  # Default for other device types
 
 
 class Type:
@@ -113,19 +72,17 @@ class Type:
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", get_max_channels("CH34X")),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", get_max_channels("CP210X")),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 4),
 )
 
 
 def validate_use_full_speed(config):
     """Validate use_full_speed option - only allowed on ESP32-P4."""
-    # Only validate if user explicitly set use_full_speed to True
-    # (default False is always allowed)
     if config.get(CONF_USE_FULL_SPEED, False):
         variant = get_target_variant()
         if "P4" not in variant:
@@ -169,7 +126,10 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Length(max=channels),
+                if "P4" not in variant:
+                    cv.Lenth(max=3),
+                else:
+                    cv.Length(max=channels),
             )
         }
     )
@@ -211,10 +171,10 @@ async def to_code(config):
 
         for index, channel in enumerate(device[CONF_CHANNELS]):
             # Calculate default buffer size if not specified by user
-            if CONF_BUFFER_SIZE not in channel:
-                buffer_size = get_buffer_size_default(num_channels, use_full_speed)
-            else:
+            if CONF_BUFFER_SIZE in channel:
                 buffer_size = channel[CONF_BUFFER_SIZE]
+            else:
+                buffer_size = mps * 4
 
             chvar = cg.new_Pvariable(channel[CONF_ID], index, buffer_size)
             await cg.register_parented(chvar, var)
