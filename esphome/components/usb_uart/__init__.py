@@ -80,7 +80,7 @@ def channel_schema(channels, baud_rate_required):
                     cv.Schema(
                         {
                             cv.GenerateID(): cv.declare_id(USBUartChannel),
-                            cv.Optional(CONF_BUFFER_SIZE): cv.int_range(
+                            cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
                             (
