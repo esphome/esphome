@@ -34,3 +34,4 @@ test_list:
     {{{ "x", "${ position.x }"}, { "y", "${ position.y }"}}}
   - ${ '{{{"AA"}}}' }
   - ${ '"HELLO"' }
+  - '{ ${position.x}, ${position.y} }'
