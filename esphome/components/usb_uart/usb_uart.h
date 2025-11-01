@@ -81,7 +81,7 @@ class RingBuffer {
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
   uint8_t data[USB_MAX_PACKET_SIZE];
-#if defined(ESP32_USE_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4)
   uint16_t length;
 #else
   uint8_t length;
