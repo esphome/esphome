@@ -144,10 +144,11 @@ class Component {
   /** Check if this component is idle.
    * Being idle means being in LOOP_DONE state.
    * This means the component has completed setup, is not failed, but its loop is currently disabled.
+   * The method is virtual so may be overridden by components that are not idle when in LOOP_DONE state.
    *
    * @return True if the component is idle
    */
-  bool is_idle() const;
+  virtual bool is_idle() const;
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
