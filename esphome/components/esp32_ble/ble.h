@@ -229,6 +229,10 @@ extern ESP32BLE *global_ble;
 // Inline implementations for hot-path functions
 // These are called from BLE thread (notify) and main loop (drain) on every event
 
+// Small buffer for draining notification bytes (1 byte sent per BLE event)
+// Size allows draining multiple notifications per recvfrom() without wasting stack
+static constexpr size_t BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE = 16;
+
 inline void ESP32BLE::notify_main_loop_() {
   // Called from BLE thread context when events are queued
   // Wakes up lwip_select() in main loop by writing to loopback socket
@@ -246,7 +250,7 @@ inline void ESP32BLE::drain_event_notifications_() {
   // Requires App to be defined - include esphome/core/application.h in .cpp files that use this
   extern esphome::Application App;
   if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
-    char buffer[16];
+    char buffer[BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
     while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
