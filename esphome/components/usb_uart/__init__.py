@@ -1,10 +1,6 @@
 import esphome.codegen as cg
+from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
-from esphome.components.esp32 import (
-    VARIANT_ESP32P4,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-)
 from esphome.components.uart import (
     CONF_DATA_BITS,
     CONF_PARITY,
@@ -48,6 +44,7 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
+
 
 def get_target_variant():
     return CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT, "")
@@ -107,7 +104,9 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Lenth(max=3) if variant != VARIANT_ESP32P4 else cv.Length(max=channels),
+                cv.Lenth(max=3)
+                if variant != VARIANT_ESP32P4
+                else cv.Length(max=channels),
             )
         }
     )
@@ -115,8 +114,9 @@ def channel_schema(channels, baud_rate_required):
 
 def device_schema_with_validation(it):
     return cv.All(
-        usb_device_schema(it.cls, it.vid, it.pid)
-        .extend(channel_schema(it.max_channels, it.baud_rate_required))
+        usb_device_schema(it.cls, it.vid, it.pid).extend(
+            channel_schema(it.max_channels, it.baud_rate_required)
+        )
     )
 
 
