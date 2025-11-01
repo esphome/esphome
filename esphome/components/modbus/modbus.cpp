@@ -208,17 +208,12 @@ bool Modbus::parse_modbus_byte_(std::optional<uint8_t> byte) {
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
     uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
     if (computed_crc != remote_crc) {
-      if (this->disable_crc_) {
-        ESP_LOGD(TAG, "CRC check failed %dms after last send; ignoring", millis() - this->last_send_);
-        ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
-      } else {
-        if (this->expecting_peer_response_ == 0) {
-          // Don't log CRC errors for expected responses from peers - we'll try again first
-          ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
-          ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
-        }
-        return false;
+      if (this->expecting_peer_response_ == 0) {
+        // Don't log CRC errors for expected responses from peers - we'll try again first
+        ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
+        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
       }
+      return false;
     }
   }
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
@@ -323,10 +318,9 @@ void Modbus::dump_config() {
                 "  Send Wait Time: %d ms\n"
                 "  Turnaround Time: %d ms\n"
                 "  Frame Delay: %d ms\n"
-                "  Long Rx Buffer Delay: %d ms\n"
-                "  CRC Disabled: %s",
+                "  Long Rx Buffer Delay: %d ms",
                 this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
-                this->long_rx_buffer_delay_ms_, YESNO(this->disable_crc_));
+                this->long_rx_buffer_delay_ms_);
 }
 float Modbus::get_setup_priority() const {
   // After UART bus
