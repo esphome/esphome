@@ -26,7 +26,7 @@ class ZephyrI2CBus : public InternalI2CBus, public Component {
   int get_port() const override { return 0; }
 
  protected:
-  const device *i2c_dev;
+  const device *i2c_dev_;
   int recovery_result_ = 0;
   uint8_t sda_pin_{};
   uint8_t scl_pin_{};
