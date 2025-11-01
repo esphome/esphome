@@ -7,6 +7,8 @@ namespace bm8563 {
 
 static const char *const TAG = "BM8563";
 
+#define CONTROL_STATUS_2_REG 0x01
+
 void BM8563::setup() {
   this->write_byte_16(0, 0);
   this->setup_complete_ = true;
@@ -28,7 +30,7 @@ void BM8563::dump_config() {
 void BM8563::start_timer(uint32_t timer_s) {
   if (this->setup_complete_) {
     this->clear_irq_();
-    this->set_alarm_irq_(timer_s);
+    this->set_timer_irq_(timer_s);
   }
 }
 
@@ -167,47 +169,34 @@ uint8_t BM8563::read_reg_(uint8_t reg) {
   return data;
 }
 
-int BM8563::set_alarm_irq_(int duration_s) {
+void BM8563::set_timer_irq_(uint32_t duration_s) {
   ESP_LOGI(TAG, "Timer Duration: %u s", duration_s);
-  uint8_t reg_value = 0;
-  reg_value = this->read_reg_(0x01);
-
-  if (duration_s < 0) {
-    reg_value &= ~(1 << 0);
-    this->write_reg_(0x01, reg_value);
-    reg_value = 0x03;
-    this->write_reg_(0x0E, reg_value);
-    return -1;
-  }
-
-  uint8_t type_value = 2;
-  uint8_t div = 1;
   if (duration_s > 255) {
-    div = 60;
-    type_value = 0x83;
+    duration_s = (duration_s / 60) & 0xFF;
+    this->write_reg_(0x0F, duration_s);
+    const uint8_t clock_1_60_hz = 0x83;
+    this->write_reg_(0x0E, clock_1_60_hz);
   } else {
-    type_value = 0x82;
+    this->write_reg_(0x0F, duration_s);
+    const uint8_t clock_1_hz = 0x82;
+    this->write_reg_(0x0E, clock_1_hz);
   }
 
-  duration_s = (duration_s / div) & 0xFF;
-  this->write_reg_(0x0F, duration_s);
-  this->write_reg_(0x0E, type_value);
-
-  reg_value |= (1 << 0);
-  reg_value &= ~(1 << 7);
-  this->write_reg_(0x01, reg_value);
-  return duration_s * div;
+  uint8_t ctrl_status_2_reg_value = this->read_reg_(CONTROL_STATUS_2_REG);
+  ctrl_status_2_reg_value |= (1 << 0);
+  ctrl_status_2_reg_value &= ~(1 << 7);
+  this->write_reg_(CONTROL_STATUS_2_REG, ctrl_status_2_reg_value);
 }
 
 void BM8563::clear_irq_() {
-  uint8_t data = this->read_reg_(0x01);
-  this->write_reg_(0x01, data & 0xf3);
+  uint8_t data = this->read_reg_(CONTROL_STATUS_2_REG);
+  this->write_reg_(CONTROL_STATUS_2_REG, data & 0xf3);
 }
 
 void BM8563::disable_irq_() {
   this->clear_irq_();
-  uint8_t data = this->read_reg_(0x01);
-  this->write_reg_(0x01, data & 0xfC);
+  uint8_t data = this->read_reg_(CONTROL_STATUS_2_REG);
+  this->write_reg_(CONTROL_STATUS_2_REG, data & 0xfc);
 }
 
 }  // namespace bm8563

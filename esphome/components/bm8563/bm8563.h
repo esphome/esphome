@@ -38,7 +38,7 @@ class BM8563 : public time::RealTimeClock, public i2c::I2CDevice {
   void set_time_(BM8563TimeTypeDef *b_m8563_time_struct);
   void set_date_(BM8563DateTypeDef *b_m8563_date_struct);
 
-  int set_alarm_irq_(int duration_s);
+  void set_timer_irq_(uint32_t duration_s);
   void clear_irq_();
   void disable_irq_();
 
