@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
+from esphome.components.esp32 import VARIANT_ESP32P4
 from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.components.uart import (
     CONF_DATA_BITS,
