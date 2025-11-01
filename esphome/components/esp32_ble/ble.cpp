@@ -659,11 +659,6 @@ void ESP32BLE::dump_config() {
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 void ESP32BLE::setup_event_notification_() {
-  // Guard against multiple calls (reentrant safety for ble.enable automation)
-  if (this->notify_fd_ >= 0) {
-    return;  // Already set up
-  }
-
   // Create UDP socket for event notifications
   this->notify_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (this->notify_fd_ < 0) {
