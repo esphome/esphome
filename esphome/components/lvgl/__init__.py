@@ -378,9 +378,10 @@ async def to_code(configs):
                     trigger_var = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                     await build_automation(trigger_var, [], conf)
                     cg.add(
-                        getattr(lv_component, f"set_{trigger_name[3:]}_trigger")(
-                            trigger_var
-                        )
+                        getattr(
+                            lv_component,
+                            f"set_{trigger_name.removeprefix('on_')}_trigger",
+                        )(trigger_var)
                     )
             await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
