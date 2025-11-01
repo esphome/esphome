@@ -494,8 +494,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
   // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
   for (auto &event : this->deferred_queue_) {
     if (event == item) {
-      event = item;
-      return;
+      return;  // Already in queue, no need to update since items are equal
     }
   }
   this->deferred_queue_.push_back(item);
