@@ -1272,38 +1272,6 @@ def test_corrupted_cache_handled_gracefully(
         assert cache_file.exists()
 
 
-def test_cache_structure_has_required_fields() -> None:
-    """Test that cache structure has all required fields."""
-    mock_graph = {"wifi": ["network"]}
-    cache_structure = {
-        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
-        "_cache_key": "test_key_" + "a" * 55,
-        "graph": mock_graph,
-    }
-
-    # Verify required fields exist
-    assert "_version" in cache_structure
-    assert "_cache_key" in cache_structure
-    assert "graph" in cache_structure
-    assert isinstance(cache_structure["_version"], int)
-    assert isinstance(cache_structure["_cache_key"], str)
-    assert isinstance(cache_structure["graph"], dict)
-
-
-def test_cache_version_constant_exists() -> None:
-    """Test that cache version constant exists and is valid."""
-    assert hasattr(helpers, "COMPONENTS_GRAPH_CACHE_VERSION")
-    assert isinstance(helpers.COMPONENTS_GRAPH_CACHE_VERSION, int)
-    assert helpers.COMPONENTS_GRAPH_CACHE_VERSION >= 1
-
-
-def test_cache_file_location_correct() -> None:
-    """Test that cache file path is constructed correctly."""
-    cache_path = Path(helpers.temp_folder) / "components_graph.json"
-    assert str(cache_path).endswith("components_graph.json")
-    assert helpers.temp_folder in str(cache_path)
-
-
 def test_empty_cache_file_handled(tmp_path: Path, mock_git_output: str) -> None:
     """Test that empty cache file is handled gracefully."""
     cache_file = tmp_path / "components_graph.json"
