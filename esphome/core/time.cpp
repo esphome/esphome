@@ -46,23 +46,17 @@ struct tm ESPTime::to_c_tm() {
   return c_tm;
 }
 
-std::string ESPTime::strftime(const std::string &format) {
-  std::string timestr;
-  timestr.resize(format.size() * 4);
+std::string ESPTime::strftime(const char *format) {
   struct tm c_tm = this->to_c_tm();
-  size_t len = ::strftime(&timestr[0], timestr.size(), format.c_str(), &c_tm);
-  while (len == 0) {
-    if (timestr.size() >= 128) {
-      // strftime has failed for reasons unrelated to the size of the buffer
-      // so return a formatting error
-      return "ERROR";
-    }
-    timestr.resize(timestr.size() * 2);
-    len = ::strftime(&timestr[0], timestr.size(), format.c_str(), &c_tm);
+  char buf[128];
+  size_t len = ::strftime(buf, sizeof(buf), format, &c_tm);
+  if (len > 0) {
+    return std::string(buf, len);
   }
-  timestr.resize(len);
-  return timestr;
+  return "ERROR";
 }
+
+std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   uint16_t year;

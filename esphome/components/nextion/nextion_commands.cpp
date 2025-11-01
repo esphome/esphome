@@ -201,13 +201,13 @@ void Nextion::set_component_font(const char *component, uint8_t font_id) {
   this->add_no_result_to_queue_with_printf_("set_component_font", "%s.font=%" PRIu8, component, font_id);
 }
 
-void Nextion::hide_component(const char *component) {
-  this->add_no_result_to_queue_with_printf_("hide_component", "vis %s,0", component);
+void Nextion::set_component_visibility(const char *component, bool show) {
+  this->add_no_result_to_queue_with_printf_("set_component_visibility", "vis %s,%d", component, show ? 1 : 0);
 }
 
-void Nextion::show_component(const char *component) {
-  this->add_no_result_to_queue_with_printf_("show_component", "vis %s,1", component);
-}
+void Nextion::hide_component(const char *component) { this->set_component_visibility(component, false); }
+
+void Nextion::show_component(const char *component) { this->set_component_visibility(component, true); }
 
 void Nextion::enable_component_touch(const char *component) {
   this->add_no_result_to_queue_with_printf_("enable_component_touch", "tsw %s,1", component);

@@ -77,6 +77,7 @@ ISOLATED_COMPONENTS = {
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
+    "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
     "openthread": "Conflicts with wifi: used by most components",
