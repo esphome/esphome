@@ -41,8 +41,8 @@ class HDC302XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_power_mode(HDC302XPowerMode power_mode) { this->power_mode_ = power_mode; }
 
  protected:
-  sensor::Sensor *temp_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temp_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 
   HDC302XPowerMode power_mode_{HDC302XPowerMode::HIGH_ACCURACY};
 
