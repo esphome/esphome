@@ -58,10 +58,7 @@ static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
 class RingBuffer {
  public:
-  RingBuffer(uint16_t buffer_size) : buffer_size_(buffer_size), buffer_(new uint8_t[buffer_size]) {
-    // Initialize buffer to zero to avoid garbage data from previous allocations
-    std::memset(this->buffer_, 0, buffer_size);
-  }
+  RingBuffer(uint16_t buffer_size) : buffer_size_(buffer_size), buffer_(new uint8_t[buffer_size]) {}
   bool is_empty() const { return this->read_pos_ == this->insert_pos_; }
   size_t get_available() const {
     return (this->insert_pos_ + this->buffer_size_ - this->read_pos_) % this->buffer_size_;
@@ -72,10 +69,7 @@ class RingBuffer {
   void push(const uint8_t *data, size_t len);
   uint8_t pop();
   size_t pop(uint8_t *data, size_t len);
-  void clear() {
-    this->read_pos_ = this->insert_pos_ = 0;
-    std::memset(this->buffer_, 0, this->buffer_size_);
-  }
+  void clear() { this->read_pos_ = this->insert_pos_ = 0; }
 
  protected:
   uint16_t insert_pos_ = 0;
