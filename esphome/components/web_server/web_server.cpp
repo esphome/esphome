@@ -435,9 +435,10 @@ void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    // Note: request->method() is always HTTP_GET here (canHandle ensures this)
+    if (match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->sensor_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -477,9 +478,10 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    // Note: request->method() is always HTTP_GET here (canHandle ensures this)
+    if (match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->text_sensor_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -516,7 +518,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -585,7 +587,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
 #ifdef USE_BUTTON
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
@@ -627,9 +629,10 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    // Note: request->method() is always HTTP_GET here (canHandle ensures this)
+    if (match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->binary_sensor_json(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -665,7 +668,7 @@ void WebServer::on_fan_update(fan::Fan *obj) {
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -739,7 +742,7 @@ void WebServer::on_light_update(light::LightState *obj) {
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -812,7 +815,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -897,7 +900,7 @@ void WebServer::on_number_update(number::Number *obj, float state) {
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -962,7 +965,7 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
@@ -1017,7 +1020,7 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
@@ -1071,7 +1074,7 @@ void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
@@ -1126,7 +1129,7 @@ void WebServer::on_text_update(text::Text *obj, const std::string &state) {
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -1180,7 +1183,7 @@ void WebServer::on_select_update(select::Select *obj, const std::string &state, 
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -1236,7 +1239,7 @@ void WebServer::on_climate_update(climate::Climate *obj) {
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -1377,7 +1380,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -1448,7 +1451,7 @@ void WebServer::on_valve_update(valve::Valve *obj) {
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -1529,7 +1532,7 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
@@ -1608,10 +1611,11 @@ void WebServer::on_event(event::Event *obj, const std::string &event_type) {
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (event::Event *obj : App.get_events()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    // Note: request->method() is always HTTP_GET here (canHandle ensures this)
+    if (match.method_empty()) {
       auto detail = get_request_detail(request);
       std::string data = this->event_json(obj, "", detail);
       request->send(200, "application/json", data.c_str());
@@ -1673,7 +1677,7 @@ void WebServer::on_update(update::UpdateEntity *obj) {
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
-    if (!match.id_equals(obj->get_object_id()))
+    if (!match.id_equals_entity(obj))
       continue;
 
     if (request->method() == HTTP_GET && match.method_empty()) {
