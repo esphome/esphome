@@ -61,12 +61,13 @@ async def test_register_component__with_setup_priority(monkeypatch):
         var,
         {
             const.CONF_SETUP_PRIORITY: "123",
+            const.CONF_SUPPRESSED: True,
             const.CONF_UPDATE_INTERVAL: "456",
         },
     )
 
     assert actual is var
     add_mock.assert_called()
-    assert add_mock.call_count == 4
+    assert add_mock.call_count == 5
     app_mock.register_component.assert_called_with(var)
     assert core_mock.component_ids == []
