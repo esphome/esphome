@@ -355,7 +355,7 @@ void USBUartTypeCdcAcm::on_connected() {
       usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &this->requests_[i].transfer);
       this->requests_[i].client = this;  // Set once, never changes
     }
-    
+
     channel->initialised_.store(true);
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
