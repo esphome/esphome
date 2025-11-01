@@ -679,10 +679,21 @@ void ESP32BLE::setup_event_notification_() {
     return;
   }
 
-  // Get the assigned port for sendto()
-  socklen_t len = sizeof(this->notify_addr_);
-  if (lwip_getsockname(this->notify_fd_, (struct sockaddr *) &this->notify_addr_, &len) < 0) {
+  // Get the assigned address and connect to it
+  // Connecting a UDP socket allows using send() instead of sendto() for better performance
+  struct sockaddr_in notify_addr;
+  socklen_t len = sizeof(notify_addr);
+  if (lwip_getsockname(this->notify_fd_, (struct sockaddr *) &notify_addr, &len) < 0) {
     ESP_LOGW(TAG, "Event socket address failed: %d", errno);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  // Connect to self (loopback) - allows using send() instead of sendto()
+  // After connect(), no need to store notify_addr - the socket remembers it
+  if (lwip_connect(this->notify_fd_, (struct sockaddr *) &notify_addr, sizeof(notify_addr)) < 0) {
+    ESP_LOGW(TAG, "Event socket connect failed: %d", errno);
     lwip_close(this->notify_fd_);
     this->notify_fd_ = -1;
     return;

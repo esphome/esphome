@@ -209,9 +209,9 @@ class ESP32BLE : public Component {
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   // Event notification socket for waking up main loop from BLE thread
-  // Uses UDP loopback to wake lwip_select() with ~12μs latency vs 0-16ms timeout
-  struct sockaddr_in notify_addr_ {};  // 16 bytes (sockaddr_in structure)
-  int notify_fd_{-1};                  // 4 bytes (file descriptor)
+  // Uses connected UDP loopback socket to wake lwip_select() with ~12μs latency vs 0-16ms timeout
+  // Socket is connected during setup, allowing use of send() instead of sendto() for efficiency
+  int notify_fd_{-1};  // 4 bytes (file descriptor)
 #endif
 
   // 2-byte aligned members
@@ -235,12 +235,13 @@ static constexpr size_t BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE = 16;
 
 inline void ESP32BLE::notify_main_loop_() {
   // Called from BLE thread context when events are queued
-  // Wakes up lwip_select() in main loop by writing to loopback socket
+  // Wakes up lwip_select() in main loop by writing to connected loopback socket
   if (this->notify_fd_ >= 0) {
     const char dummy = 1;
-    // Non-blocking sendto - if it fails (unlikely), select() will wake on timeout anyway
-    // This is safe to call from BLE thread - sendto() is thread-safe in lwip
-    lwip_sendto(this->notify_fd_, &dummy, 1, 0, (struct sockaddr *) &this->notify_addr_, sizeof(this->notify_addr_));
+    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
+    // This is safe to call from BLE thread - send() is thread-safe in lwip
+    // Socket is already connected to loopback address, so send() is faster than sendto()
+    lwip_send(this->notify_fd_, &dummy, 1, 0);
   }
 }
 
