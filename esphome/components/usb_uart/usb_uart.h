@@ -34,9 +34,9 @@ static constexpr uint8_t USB_VENDOR_DEV = usb_host::USB_TYPE_VENDOR | usb_host::
 #ifndef USB_UART_MAX_PACKET_SIZE
 // Fallback for static analysis tools - actual value comes from codegen
 #ifdef USE_ESP32_VARIANT_ESP32P4
-#define USB_UART_MAX_PACKET_SIZE 512
+static const uint8_t USB_UART_MAX_PACKET_SIZE = 512;
 #else
-#define USB_UART_MAX_PACKET_SIZE 64
+static const uint8_t USB_UART_MAX_PACKET_SIZE = 64;
 #endif
 #endif
 
