@@ -104,7 +104,9 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Lenth(max=3) if variant != VARIANT_ESP32P4 else cv.Length(max=channels),
+                cv.Lenth(max=3)
+                if variant != VARIANT_ESP32P4
+                else cv.Length(max=channels),
             )
         }
     )
