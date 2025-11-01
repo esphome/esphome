@@ -244,19 +244,6 @@ inline void ESP32BLE::notify_main_loop_() {
     lwip_send(this->notify_fd_, &dummy, 1, 0);
   }
 }
-
-inline void ESP32BLE::drain_event_notifications_() {
-  // Called from main loop to drain any pending notifications
-  // Must check is_socket_ready() to avoid blocking on empty socket
-  if (this->notify_fd_ >= 0 && esphome::App.is_socket_ready(this->notify_fd_)) {
-    char buffer[BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE];
-    // Drain all pending notifications with non-blocking reads
-    // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
-    while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
-      // Just draining, no action needed
-    }
-  }
-}
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
