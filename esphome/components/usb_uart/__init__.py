@@ -103,10 +103,6 @@ def channel_schema(max_channels, baud_rate_required):
                             ),
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
-                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
-                            cv.Optional(
-                                CONF_DEBUG_ADD_SETTINGS, default=False
-                            ): cv.boolean,
                         }
                     )
                 ),
