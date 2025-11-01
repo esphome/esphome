@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import VARIANT_ESP32P4
 from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.components.uart import (
     CONF_DATA_BITS,
@@ -105,7 +104,7 @@ def channel_schema(channels, baud_rate_required):
                     )
                 ),
                 cv.Length(max=3)
-                if variant != VARIANT_ESP32P4
+                if variant != "P4" and channels > 3
                 else cv.Length(max=channels),
             )
         }
