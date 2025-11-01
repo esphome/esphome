@@ -400,7 +400,8 @@ async def obj_refresh_to_code(config, action_id, template_arg, args):
         # must pass all widget-specific options here, even if not templated, but only do so if at least one is
         # templated. First filter out common style properties.
         config = {k: v for k, v in widget.config.items() if k not in ALL_STYLES}
-        if any(isinstance(v, Lambda) for v in config.values()):
+        # Check if v is a Lambda or a dict, implying it is dynamic
+        if any(isinstance(v, (Lambda, dict)) for v in config.values()):
             await widget.type.to_code(widget, config)
             if (
                 widget.type.w_type.value_property is not None

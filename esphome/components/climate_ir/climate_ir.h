@@ -24,16 +24,18 @@ class ClimateIR : public Component,
                   public remote_base::RemoteTransmittable {
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f,
-            bool supports_dry = false, bool supports_fan_only = false, std::set<climate::ClimateFanMode> fan_modes = {},
-            std::set<climate::ClimateSwingMode> swing_modes = {}, std::set<climate::ClimatePreset> presets = {}) {
+            bool supports_dry = false, bool supports_fan_only = false,
+            climate::ClimateFanModeMask fan_modes = climate::ClimateFanModeMask(),
+            climate::ClimateSwingModeMask swing_modes = climate::ClimateSwingModeMask(),
+            climate::ClimatePresetMask presets = climate::ClimatePresetMask()) {
     this->minimum_temperature_ = minimum_temperature;
     this->maximum_temperature_ = maximum_temperature;
     this->temperature_step_ = temperature_step;
     this->supports_dry_ = supports_dry;
     this->supports_fan_only_ = supports_fan_only;
-    this->fan_modes_ = std::move(fan_modes);
-    this->swing_modes_ = std::move(swing_modes);
-    this->presets_ = std::move(presets);
+    this->fan_modes_ = fan_modes;
+    this->swing_modes_ = swing_modes;
+    this->presets_ = presets;
   }
 
   void setup() override;
@@ -60,9 +62,9 @@ class ClimateIR : public Component,
   bool supports_heat_{true};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
-  std::set<climate::ClimateFanMode> fan_modes_ = {};
-  std::set<climate::ClimateSwingMode> swing_modes_ = {};
-  std::set<climate::ClimatePreset> presets_ = {};
+  climate::ClimateFanModeMask fan_modes_{};
+  climate::ClimateSwingModeMask swing_modes_{};
+  climate::ClimatePresetMask presets_{};
 
   sensor::Sensor *sensor_{nullptr};
 };

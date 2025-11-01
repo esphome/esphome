@@ -1,5 +1,6 @@
 #include "select.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome {
 namespace select {
@@ -35,7 +36,7 @@ size_t Select::size() const {
 optional<size_t> Select::index_of(const std::string &option) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
-    if (options[i] == option) {
+    if (strcmp(options[i], option.c_str()) == 0) {
       return i;
     }
   }
@@ -53,11 +54,13 @@ optional<size_t> Select::active_index() const {
 optional<std::string> Select::at(size_t index) const {
   if (this->has_index(index)) {
     const auto &options = traits.get_options();
-    return options.at(index);
+    return std::string(options.at(index));
   } else {
     return {};
   }
 }
+
+const char *Select::option_at(size_t index) const { return traits.get_options().at(index); }
 
 }  // namespace select
 }  // namespace esphome

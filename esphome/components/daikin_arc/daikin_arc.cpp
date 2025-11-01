@@ -241,9 +241,7 @@ uint8_t DaikinArcClimate::humidity_() {
 
 climate::ClimateTraits DaikinArcClimate::traits() {
   climate::ClimateTraits traits = climate_ir::ClimateIR::traits();
-  traits.set_supports_current_temperature(true);
-  traits.set_supports_current_humidity(false);
-  traits.set_supports_target_humidity(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
   traits.set_visual_min_humidity(38);
   traits.set_visual_max_humidity(52);
   return traits;
