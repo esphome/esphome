@@ -83,7 +83,7 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
 }
 
 static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px) {
-  ESP_LOGVV(TAG, "Draw end: %" PRIu32 " pixels in %" PRIu32 " ms", time, px);
+  ESP_LOGVV(TAG, "Draw end: %" PRIu32 " pixels in %" PRIu32 " ms", px, time);
   auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
   comp->draw_end();
 }
