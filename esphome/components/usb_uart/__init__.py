@@ -225,11 +225,6 @@ async def to_code(config):
             cg.add(chvar.set_baud_rate(channel[CONF_BAUD_RATE]))
             cg.add(chvar.set_dummy_receiver(channel[CONF_DUMMY_RECEIVER]))
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
-            if CONF_DEBUG_PREFIX in channel:
-                cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
-            if channel[CONF_DEBUG_ADD_SETTINGS]:
-                cg.add(chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_SETTINGS]))
-                cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")
