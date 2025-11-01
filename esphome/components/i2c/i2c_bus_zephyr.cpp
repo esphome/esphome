@@ -9,12 +9,11 @@ namespace esphome::i2c {
 static const char *const TAG = "i2c.zephyr";
 
 void ZephyrI2CBus::setup() {
-  const device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
-  if (!device_is_ready(i2c_dev)) {
+  if (!device_is_ready(this->i2c_dev_)) {
     ESP_LOGE(TAG, "I2C dev is not ready.");
+    mark_failed();
     return;
   }
-  this->i2c_dev_ = i2c_dev;
 
   int ret = i2c_configure(this->i2c_dev_, this->dev_config_);
   if (ret < 0) {
@@ -35,10 +34,7 @@ void ZephyrI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
-  if (!this->i2c_dev_) {
-    ESP_LOGCONFIG(TAG, "  Not initialized");
-    return;
-  }
+  ESP_LOGCONFIG(TAG, "  Name: %s", this->i2c_dev_->name);
   auto get_speed = [](uint32_t dev_config) {
     switch (I2C_SPEED_GET(dev_config)) {
       case I2C_SPEED_STANDARD:
@@ -79,7 +75,7 @@ void ZephyrI2CBus::dump_config() {
 
 ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                     uint8_t *read_buffer, size_t read_count) {
-  if (!this->i2c_dev_) {
+  if (!device_is_ready(this->i2c_dev_)) {
     return ERROR_NOT_INITIALIZED;
   }
 

@@ -1,0 +1,4 @@
+i2c:
+  - scan: True
+    sda: P0.04
+    scl: P0.05

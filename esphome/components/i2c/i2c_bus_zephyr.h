@@ -11,6 +11,7 @@ namespace esphome::i2c {
 
 class ZephyrI2CBus : public InternalI2CBus, public Component {
  public:
+  explicit ZephyrI2CBus(const device *i2c_dev) : i2c_dev_(i2c_dev) {}
   void setup() override;
   void dump_config() override;
   ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
@@ -25,7 +26,7 @@ class ZephyrI2CBus : public InternalI2CBus, public Component {
   int get_port() const override { return 0; }
 
  protected:
-  const struct device *i2c_dev_ = nullptr;
+  const device *i2c_dev;
   int recovery_result_ = 0;
   uint8_t sda_pin_{};
   uint8_t scl_pin_{};

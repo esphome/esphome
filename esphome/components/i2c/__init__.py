@@ -2,8 +2,12 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
-from esphome.components.zephyr.const import KEY_ZEPHYR
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+    zephyr_data,
+)
+from esphome.components.zephyr.const import KEY_BOARD, KEY_ZEPHYR
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -22,6 +26,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 
 LOGGER = logging.getLogger(__name__)
@@ -94,21 +99,21 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_global(i2c_ns.using)
     cg.add_define("USE_I2C")
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
-    if CORE.target_framework == KEY_ZEPHYR:
+    if CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
+        i2c = "i2c0"
+        if zephyr_data()[KEY_BOARD] in ["xiao_ble"]:
+            i2c = "i2c1"
         zephyr_add_overlay(
             f"""
 &pinctrl {{
-    i2c0_default: i2c0_default {{
+    {i2c}_default: {i2c}_default {{
         group1 {{
             psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
                 <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
         }};
     }};
-    i2c0_sleep: i2c0_sleep {{
+    {i2c}_sleep: {i2c}_sleep {{
         group1 {{
             psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
                 <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
@@ -118,6 +123,12 @@ async def to_code(config):
 }};
 """
         )
+        var = cg.new_Pvariable(
+            config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")
+        )
+    else:
+        var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
 
     cg.add(var.set_sda_pin(config[CONF_SDA]))
     if CONF_SDA_PULLUP_ENABLED in config:
