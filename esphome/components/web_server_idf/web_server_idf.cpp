@@ -353,9 +353,9 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
 void AsyncResponseStream::print(float value) {
   // Use stack buffer to avoid temporary string allocation
   // Size: sign (1) + digits (10) + decimal (1) + precision (6) + exponent (5) + null (1) = 24, use 32 for safety
-  constexpr size_t FLOAT_BUF_SIZE = 32;
-  char buf[FLOAT_BUF_SIZE];
-  int len = snprintf(buf, FLOAT_BUF_SIZE, "%f", value);
+  constexpr size_t float_buf_size = 32;
+  char buf[float_buf_size];
+  int len = snprintf(buf, float_buf_size, "%f", value);
   this->content_.append(buf, len);
 }
 
@@ -605,16 +605,16 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
   // Use stack buffer for formatting numeric fields to avoid temporary string allocations
   // Size: "retry: " (7) + max uint32 (10 digits) + CRLF (2) + null (1) = 20 bytes, use 32 for safety
-  constexpr size_t NUM_BUF_SIZE = 32;
-  char num_buf[NUM_BUF_SIZE];
+  constexpr size_t num_buf_size = 32;
+  char num_buf[num_buf_size];
 
   if (reconnect) {
-    int len = snprintf(num_buf, NUM_BUF_SIZE, "retry: %" PRIu32 CRLF_STR, reconnect);
+    int len = snprintf(num_buf, num_buf_size, "retry: %" PRIu32 CRLF_STR, reconnect);
     event_buffer_.append(num_buf, len);
   }
 
   if (id) {
-    int len = snprintf(num_buf, NUM_BUF_SIZE, "id: %" PRIu32 CRLF_STR, id);
+    int len = snprintf(num_buf, num_buf_size, "id: %" PRIu32 CRLF_STR, id);
     event_buffer_.append(num_buf, len);
   }
 
