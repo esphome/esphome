@@ -486,6 +486,8 @@ async def to_code(config):
     # This enables low-latency (~12μs) BLE event processing instead of waiting for
     # select() timeout (0-16ms). The socket is created in ble_setup_() and used to
     # wake lwip_select() when BLE events arrive from the BLE thread.
+    # Note: Called during config generation, socket is created at runtime. In practice,
+    # always used since esp32_ble only runs on ESP32 which always has USE_SOCKET_SELECT_SUPPORT.
     socket.consume_sockets(1, "esp32_ble")(config)
 
     # Define max connections for use in C++ code (e.g., ble_server.h)

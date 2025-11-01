@@ -239,6 +239,8 @@ inline void ESP32BLE::notify_main_loop_() {
   if (this->notify_fd_ >= 0) {
     const char dummy = 1;
     // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
+    // No error checking needed: we control both ends of this loopback socket, and the
+    // BLE event is already queued. Notification is best-effort to reduce latency.
     // This is safe to call from BLE thread - send() is thread-safe in lwip
     // Socket is already connected to loopback address, so send() is faster than sendto()
     lwip_send(this->notify_fd_, &dummy, 1, 0);

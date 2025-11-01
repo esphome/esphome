@@ -732,8 +732,10 @@ void ESP32BLE::drain_event_notifications_() {
     char buffer[BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
+    // We control both ends of this loopback socket (always write 1 byte per event),
+    // so no error checking needed - any errors indicate catastrophic system failure
     while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
-      // Just draining, no action needed
+      // Just draining, no action needed - actual BLE events are already queued
     }
   }
 }
