@@ -112,17 +112,14 @@ def channel_schema(channels, baud_rate_required):
     )
 
 
-def device_schema_with_validation(it):
-    return cv.All(
-        usb_device_schema(it.cls, it.vid, it.pid).extend(
-            channel_schema(it.max_channels, it.baud_rate_required)
-        )
-    )
-
-
 CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
-        {it.name: device_schema_with_validation(it) for it in uart_types},
+        {
+            it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
+                channel_schema(it.max_channels, it.baud_rate_required)
+            )
+            for it in uart_types
+        },
         upper=True,
     )
 )
