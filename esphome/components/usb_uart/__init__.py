@@ -167,7 +167,7 @@ async def to_code(config):
 
         # Calculate MPS and add compile-time define
         mps = get_mps(use_full_speed)
-        cg.add_define("USB_UART_MAX_PACKET_SIZE", mps)
+        cg.add_define("USB_MAX_PACKET_SIZE", mps)
 
         for index, channel in enumerate(device[CONF_CHANNELS]):
             # Calculate default buffer size if not specified by user
