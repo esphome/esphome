@@ -171,8 +171,21 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   TEMPLATABLE_VALUE(uint32_t, delay)
 
   void play_complex(Ts... x) override {
-    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
+
+    // Store parameters in shared_ptr for this timer instance
+    // This avoids std::bind bloat while supporting parallel script mode
+    // shared_ptr is used (vs unique_ptr) because std::function requires copyability
+    auto params = std::make_shared<std::tuple<Ts...>>(x...);
+
+    // Lambda captures only 'this' and the shared_ptr (8-16 bytes total)
+    // vs std::bind which captures 'this' + copies of all x... + bind overhead
+    // This eliminates ~200-300 bytes of std::bind template instantiation code
+    auto f = [this, params]() {
+      if (this->num_running_ > 0) {
+        std::apply([this](auto &&...args) { this->play_next_(args...); }, *params);
+      }
+    };
 
     // If num_running_ > 1, we have multiple instances running in parallel
     // In single/restart/queued modes, only one instance runs at a time
@@ -215,18 +228,46 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
   void (*f_)(Ts...);
 };
 
+/// Simple continuation action that calls play_next_ on a parent action.
+/// Used internally by IfAction, WhileAction, RepeatAction, etc. to chain actions.
+/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+template<typename... Ts> class ContinuationAction : public Action<Ts...> {
+ public:
+  explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
+
+  void play(Ts... x) override { this->parent_->play_next_(x...); }
+
+ protected:
+  Action<Ts...> *parent_;
+};
+
+// Forward declaration for WhileLoopContinuation
+template<typename... Ts> class WhileAction;
+
+/// Loop continuation for WhileAction that checks condition and repeats or continues.
+/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
+ public:
+  explicit WhileLoopContinuation(WhileAction<Ts...> *parent) : parent_(parent) {}
+
+  void play(Ts... x) override;
+
+ protected:
+  WhileAction<Ts...> *parent_;
+};
+
 template<typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
+    this->then_.add_action(new ContinuationAction<Ts...>(this));
   }
 
   void add_else(const std::initializer_list<Action<Ts...> *> &actions) {
     this->else_.add_actions(actions);
-    this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
+    this->else_.add_action(new ContinuationAction<Ts...>(this));
   }
 
   void play_complex(Ts... x) override {
@@ -267,18 +308,10 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
-      if (this->num_running_ > 0 && this->condition_->check_tuple(this->var_)) {
-        // play again
-        if (this->num_running_ > 0) {
-          this->then_.play_tuple(this->var_);
-        }
-      } else {
-        // condition false, play next
-        this->play_next_tuple_(this->var_);
-      }
-    }));
+    this->then_.add_action(new WhileLoopContinuation<Ts...>(this));
   }
+
+  friend class WhileLoopContinuation<Ts...>;
 
   void play_complex(Ts... x) override {
     this->num_running_++;
@@ -308,21 +341,44 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   std::tuple<Ts...> var_{};
 };
 
+// Implementation of WhileLoopContinuation::play
+template<typename... Ts> void WhileLoopContinuation<Ts...>::play(Ts... x) {
+  if (this->parent_->num_running_ > 0 && this->parent_->condition_->check_tuple(this->parent_->var_)) {
+    // play again
+    if (this->parent_->num_running_ > 0) {
+      this->parent_->then_.play_tuple(this->parent_->var_);
+    }
+  } else {
+    // condition false, play next
+    this->parent_->play_next_tuple_(this->parent_->var_);
+  }
+}
+
+// Forward declaration for RepeatLoopContinuation
+template<typename... Ts> class RepeatAction;
+
+/// Loop continuation for RepeatAction that increments iteration and repeats or continues.
+/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, Ts...> {
+ public:
+  explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
+
+  void play(uint32_t iteration, Ts... x) override;
+
+ protected:
+  RepeatAction<Ts...> *parent_;
+};
+
 template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<uint32_t, Ts...>([this](uint32_t iteration, Ts... x) {
-      iteration++;
-      if (iteration >= this->count_.value(x...)) {
-        this->play_next_tuple_(this->var_);
-      } else {
-        this->then_.play(iteration, x...);
-      }
-    }));
+    this->then_.add_action(new RepeatLoopContinuation<Ts...>(this));
   }
+
+  friend class RepeatLoopContinuation<Ts...>;
 
   void play_complex(Ts... x) override {
     this->num_running_++;
@@ -344,6 +400,16 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
   std::tuple<Ts...> var_;
 };
 
+// Implementation of RepeatLoopContinuation::play
+template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(uint32_t iteration, Ts... x) {
+  iteration++;
+  if (iteration >= this->parent_->count_.value(x...)) {
+    this->parent_->play_next_tuple_(this->parent_->var_);
+  } else {
+    this->parent_->then_.play(iteration, x...);
+  }
+}
+
 template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
@@ -362,7 +428,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     this->var_ = std::make_tuple(x...);
 
     if (this->timeout_value_.has_value()) {
-      auto f = std::bind(&WaitUntilAction<Ts...>::play_next_, this, x...);
+      // Lambda captures only 'this' to reference stored var_
+      // vs std::bind which duplicates storage of x... (already in var_)
+      // This eliminates ~100-200 bytes of std::bind template instantiation code
+      auto f = [this]() { this->play_next_tuple_(this->var_); };
       this->set_timeout("timeout", this->timeout_value_.value(x...), f);
     }
 
