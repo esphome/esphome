@@ -171,6 +171,9 @@ class LvglComponent : public PollingComponent {
   void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
     this->idle_callbacks_.add(std::move(callback));
   }
+
+  static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px);
+  static void render_start_cb(lv_disp_drv_t *disp_drv);
   void dump_config() override;
   bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   lv_disp_t *get_disp() { return this->disp_; }
@@ -217,11 +220,12 @@ class LvglComponent : public PollingComponent {
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
 
-  // these functions are never called unless the callbacks are non-null so no need to test
-  void draw_start() const { this->draw_start_callback_->trigger(); }
-  void draw_end() const { this->draw_end_callback_->trigger(); }
-
  protected:
+  // these functions are never called unless the callbacks are non-null since the
+  // LVGL callbacks that call them are not set unless the start/end callbacks are non-null
+  void draw_start_() const { this->draw_start_callback_->trigger(); }
+  void draw_end_() const { this->draw_end_callback_->trigger(); }
+
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_t *ptr);
   void flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);

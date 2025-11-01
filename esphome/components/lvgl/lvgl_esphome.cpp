@@ -82,16 +82,16 @@ static void rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area) {
   area->y2 = (area->y2 + draw_rounding) / draw_rounding * draw_rounding - 1;
 }
 
-static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px) {
+void LvglComponent::monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px) {
   ESP_LOGVV(TAG, "Draw end: %" PRIu32 " pixels in %" PRIu32 " ms", px, time);
   auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
-  comp->draw_end();
+  comp->draw_end_();
 }
 
-static void render_start_cb(lv_disp_drv_t *disp_drv) {
+void LvglComponent::render_start_cb(lv_disp_drv_t *disp_drv) {
   ESP_LOGVV(TAG, "Draw start");
   auto *comp = static_cast<LvglComponent *>(disp_drv->user_data);
-  comp->draw_start();
+  comp->draw_start_();
 }
 
 lv_event_code_t lv_api_event;     // NOLINT
