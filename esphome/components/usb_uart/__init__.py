@@ -70,7 +70,7 @@ uart_types = (
 )
 
 
-def channel_schema(channels, baud_rate_required):
+def channel_schema(max_channels, baud_rate_required):
     if "P4" in get_target_variant():
         available_channels = 7
     else:
