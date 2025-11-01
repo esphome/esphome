@@ -342,7 +342,7 @@ void USBUartTypeCdcAcm::on_connected() {
     ESP_LOGD(TAG, "Allocating transfer buffers for device %d", this->device_addr_);
     for (size_t i = 0; i < esphome::usb_host::MAX_REQUESTS; i++) {
       // as we dont deal with interrupt and isosynchronous eps, we can set to max usb packet size
-      usb_host_transfer_alloc(CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE, 0, &this->requests_[i].transfer);
+      usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &this->requests_[i].transfer);
       this->requests_[i].client = this;  // Set once, never changes
     }
 
