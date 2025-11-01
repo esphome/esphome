@@ -127,7 +127,7 @@ def channel_schema(channels, baud_rate_required):
                 ),
                 cv.Lenth(max=3)
                 if "P4" not in get_target_variant()
-                else cv.Length(max=channels)
+                else cv.Length(max=channels),
             )
         }
     )
