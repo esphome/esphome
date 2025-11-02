@@ -137,7 +137,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     lvgl = config[CONF_LVGL_ID]
     timeout = await lv_milliseconds.process(config[CONF_TIMEOUT])
     async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
-        lv_add(ReturnStatement(lvgl_comp.is_idle(timeout)))
+        lv_add(ReturnStatement(lvgl_comp.lvgl_is_idle(timeout)))
     var = cg.new_Pvariable(
         condition_id,
         TemplateArguments(LvglComponent, *template_arg),
