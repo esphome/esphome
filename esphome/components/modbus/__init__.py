@@ -13,8 +13,9 @@ import esphome.final_validate as fv
 DEPENDENCIES = ["uart"]
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
-ModbusServer = modbus_ns.class_("ModbusServer", cg.Component, uart.UARTDevice)
-ModbusClient = modbus_ns.class_("ModbusClient", cg.Component, uart.UARTDevice)
+Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
+ModbusServer = modbus_ns.class_("ModbusServer", Modbus)
+ModbusClient = modbus_ns.class_("ModbusClient", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 MULTI_CONF = True
 
@@ -88,7 +89,7 @@ def modbus_server_device_schema(default_address):
 
 def modbus_device_schema(default_address):
     schema = {
-        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusClient),
+        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(Modbus),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t

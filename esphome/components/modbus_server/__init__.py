@@ -33,6 +33,7 @@ ServerRegister = modbus_server_ns.struct("ServerRegister")
 
 ModbusFunctionCode_ns = modbus_ns.namespace("FunctionCode")
 ModbusFunctionCode = ModbusFunctionCode_ns.enum("FunctionCode")
+# TODO: Share this with controller
 MODBUS_FUNCTION_CODE = {
     "read_coils": ModbusFunctionCode.READ_COILS,
     "read_discrete_inputs": ModbusFunctionCode.READ_DISCRETE_INPUTS,
@@ -124,8 +125,15 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
         }
-    ).extend(modbus.modbus_server_device_schema(0x01)),
+    ).extend(modbus.modbus_device_schema(0x01)),
 )
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("modbus_server", role="server")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
