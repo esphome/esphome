@@ -32,6 +32,8 @@ inline const char *to_string(CameraRequester requester) {
       return "API";
     case WEB_REQUESTER:
       return "WEB";
+    case REQUESTER_COUNT:
+      return "REQUESTER_INVALID";
   }
   return "REQUESTER_UNKNOWN";
 }

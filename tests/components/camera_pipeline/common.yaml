@@ -2,20 +2,17 @@ camera_encoder:
   id: jpeg_encoder
 
 camera_sensor:
-  id: camera_sensor_id
   width: 256
   height: 256
   format: GRAYSCALE
 
 camera:
-  id: test_camera
   name: Test Camera
 
 camera_pipeline:
   - id: stage1
     next: stage2
     type: input
-    sensor_id: camera_sensor_id
 
   - id: stage2
     next: stage3

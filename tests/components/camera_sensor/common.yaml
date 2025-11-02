@@ -1,5 +1,5 @@
 camera_sensor:
-  id: camera_sensor_id
+  camera_sensor_id: camera_sensor_id
   type: software
   buffers: 2
   clear: False
