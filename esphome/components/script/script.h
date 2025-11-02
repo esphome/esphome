@@ -290,8 +290,8 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
       return;
     }
 
-    // Store callback for later execution
-    this->play_queue_.emplace_front([this, x...]() { this->play_next_(x...); });
+    // Store parameters for later execution
+    this->param_queue_.emplace_front(x...);
     // Enable loop now that we have work to do
     this->enable_loop();
     this->loop();
@@ -304,10 +304,10 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     if (this->script_->is_running())
       return;
 
-    while (!this->play_queue_.empty()) {
-      auto fn = this->play_queue_.front();
-      fn();
-      this->play_queue_.pop_front();
+    while (!this->param_queue_.empty()) {
+      auto &params = this->param_queue_.front();
+      this->play_next_tuple_(params, typename gens<sizeof...(Ts)>::type());
+      this->param_queue_.pop_front();
     }
     // Queue is now empty - disable loop until next play_complex
     this->disable_loop();
@@ -316,9 +316,18 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
+  void stop() override {
+    this->param_queue_.clear();
+    this->disable_loop();
+  }
+
  protected:
+  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+    this->play_next_(std::get<S>(tuple)...);
+  }
+
   C *script_;
-  std::forward_list<std::function<void()>> play_queue_;
+  std::forward_list<std::tuple<Ts...>> param_queue_;
 };
 
 }  // namespace script
