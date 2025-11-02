@@ -59,6 +59,7 @@ async def to_code(config):
         zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    cg.add_define("USE_DEBUG")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
