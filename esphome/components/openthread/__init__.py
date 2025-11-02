@@ -7,6 +7,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
 from esphome.core import CORE
@@ -34,7 +35,8 @@ AUTO_LOAD = ["network"]
 # Wi-fi / Bluetooth / Thread coexistence isn't implemented at this time
 # TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
 CONFLICTS_WITH = ["wifi"]
-DEPENDENCIES = ["esp32"]
+DEPENDENCIES = ["esp32"]  # Removed - will be platform-specific
+
 
 CONF_DEVICE_TYPES = [
     "FTD",
@@ -42,7 +44,7 @@ CONF_DEVICE_TYPES = [
 ]
 
 
-def set_sdkconfig_options(config):
+def set_esp32_sdkconfig_options(config):
     # and expose options for using SPI/UART RCPs
     add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", True)
@@ -93,6 +95,49 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
 
+def set_zephyr_config_options(config):
+    # Enable OpenThread in Zephyr
+    zephyr_add_prj_conf("CONFIG_OPENTHREAD", "y")
+    zephyr_add_prj_conf("CONFIG_NET_L2_OPENTHREAD", "y")
+
+    # Enable IEEE 802.15.4 radio
+    zephyr_add_prj_conf("CONFIG_IEEE802154", "y")
+    zephyr_add_prj_conf("CONFIG_IEEE802154_RAW_MODE", "y")
+
+    # Network configuration
+    zephyr_add_prj_conf("CONFIG_NET_IPV6", "y")
+    zephyr_add_prj_conf("CONFIG_NET_UDP", "y")
+    zephyr_add_prj_conf("CONFIG_NET_SOCKETS", "y")
+
+    # OpenThread features
+    zephyr_add_prj_conf("CONFIG_OPENTHREAD_DNS_CLIENT", "y")
+    zephyr_add_prj_conf("CONFIG_OPENTHREAD_SRP_CLIENT", "y")
+
+    # Device type configuration
+    device_type = config.get(CONF_DEVICE_TYPE)
+    if device_type == "FTD":
+        zephyr_add_prj_conf("CONFIG_OPENTHREAD_FTD", "y")
+    elif device_type == "MTD":
+        zephyr_add_prj_conf("CONFIG_OPENTHREAD_MTD", "y")
+
+    # Network credentials - if using TLV, we'll set it in C++ code
+    if tlv := config.get(CONF_TLV):
+        cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+    else:
+        # Set individual parameters
+        if pan_id := config.get(CONF_PAN_ID):
+            zephyr_add_prj_conf("CONFIG_OPENTHREAD_PANID", str(pan_id))
+
+        if channel := config.get(CONF_CHANNEL):
+            zephyr_add_prj_conf("CONFIG_OPENTHREAD_CHANNEL", str(channel))
+
+        if network_name := config.get(CONF_NETWORK_NAME):
+            zephyr_add_prj_conf("CONFIG_OPENTHREAD_NETWORK_NAME", f'"{network_name}"')
+
+    if config.get(CONF_FORCE_DATASET):
+        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+
+
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
@@ -117,9 +162,24 @@ def _validate(config: ConfigType) -> ConfigType:
 
 
 def _require_vfs_select(config):
-    """Register VFS select requirement during config validation."""
+    """Register VFS select requirement during config validation (ESP32 only)."""
     # OpenThread uses esp_vfs_eventfd which requires VFS select support
-    require_vfs_select()
+    if CORE.is_esp32:
+        require_vfs_select()
+    return config
+
+
+def _platform_specific_validation(config):
+    """Apply platform-specific validation."""
+    if CORE.is_esp32:
+        # ESP32 specific validation
+        only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2])(config)
+        cv.only_with_esp_idf(config)
+    elif CORE.is_nrf52:
+        # nRF52 uses Zephyr
+        pass  # Add any Zephyr-specific validation here if needed
+    else:
+        raise cv.Invalid("OpenThread is only supported on ESP32 and nRF52 platforms")
     return config
 
 
@@ -138,8 +198,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
-    cv.only_with_esp_idf,
-    only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    _platform_specific_validation,
     _validate,
     _require_vfs_select,
 )
@@ -173,4 +232,8 @@ async def to_code(config):
     cg.add(srp.set_mdns(mdns_component))
     await cg.register_component(srp, config)
 
-    set_sdkconfig_options(config)
+    # Apply platform-specific configuration
+    if CORE.is_esp32:
+        set_esp32_sdkconfig_options(config)
+    elif CORE.is_nrf52:
+        set_zephyr_config_options(config)
