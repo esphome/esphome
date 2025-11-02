@@ -1,11 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button
-from ..climate import (
-    CONF_HAIER_ID,
-    HonClimate,
-    haier_ns,
-)
+import esphome.config_validation as cv
+
+from ..climate import CONF_HAIER_ID, HonClimate, haier_ns
 
 CODEOWNERS = ["@paveldn"]
 SelfCleaningButton = haier_ns.class_("SelfCleaningButton", button.Button)
@@ -21,7 +18,7 @@ ICON_SPRAY_BOTTLE = "mdi:spray-bottle"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_HAIER_ID): cv.use_id(HonClimate),
+        cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
         cv.Optional(CONF_SELF_CLEANING): button.button_schema(
             SelfCleaningButton,
             icon=ICON_SPRAY_BOTTLE,

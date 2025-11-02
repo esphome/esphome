@@ -1,11 +1,5 @@
-binary_sensor:
-  - platform: matrix_keypad
-    id: key4
-    row: 1
-    col: 1
-  - platform: matrix_keypad
-    id: key1
-    key: 1
+packages:
+  common: !include common.yaml
 
 matrix_keypad:
   id: keypad
@@ -17,3 +11,5 @@ matrix_keypad:
     - pin: 15
   keys: "1234"
   has_pulldowns: true
+  on_key:
+    - lambda: ESP_LOGI("KEY", "key %d pressed", x);

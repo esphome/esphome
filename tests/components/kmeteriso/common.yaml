@@ -1,0 +1,8 @@
+sensor:
+  - platform: kmeteriso
+    i2c_id: i2c_bus
+    temperature:
+      name: Outside Temperature
+    internal_temperature:
+      name: Internal Temperature
+    update_interval: 15s

@@ -1,0 +1,23 @@
+output:
+  - platform: ${pwm_platform}
+    id: fan_output_1
+    pin: ${pin}
+
+fan:
+  - platform: speed
+    id: fan_speed
+    output: fan_output_1
+  - platform: copy
+    source_id: fan_speed
+    name: Fan Speed Copy
+
+select:
+  - platform: template
+    id: test_select
+    options:
+      - one
+      - two
+    optimistic: true
+  - platform: copy
+    source_id: test_select
+    name: Test Select Copy

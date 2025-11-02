@@ -1,42 +1,41 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
+import logging
+
 from esphome import core, pins
-from esphome.components import display, spi, font
+import esphome.codegen as cg
+from esphome.components import display, spi
 from esphome.components.display import validate_rotation
-from esphome.core import CORE, HexInt
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
+    CONF_COLOR_ORDER,
     CONF_COLOR_PALETTE,
     CONF_DC_PIN,
-    CONF_ID,
-    CONF_LAMBDA,
-    CONF_MODEL,
-    CONF_RAW_DATA_ID,
-    CONF_PAGES,
-    CONF_RESET_PIN,
     CONF_DIMENSIONS,
-    CONF_WIDTH,
     CONF_HEIGHT,
-    CONF_ROTATION,
+    CONF_ID,
+    CONF_INIT_SEQUENCE,
+    CONF_INVERT_COLORS,
+    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
-    CONF_SWAP_XY,
-    CONF_COLOR_ORDER,
+    CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
+    CONF_PAGES,
+    CONF_RAW_DATA_ID,
+    CONF_RESET_PIN,
+    CONF_ROTATION,
+    CONF_SWAP_XY,
     CONF_TRANSFORM,
-    CONF_INVERT_COLORS,
+    CONF_WIDTH,
 )
+from esphome.core import CORE, HexInt
+from esphome.final_validate import full_config
 
 DEPENDENCIES = ["spi"]
 
-
-def AUTO_LOAD():
-    if CORE.is_esp32:
-        return ["psram"]
-    return []
-
-
 CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
+LOGGER = logging.getLogger(__name__)
 
 ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
 ILI9XXXDisplay = ili9xxx_ns.class_(
@@ -58,6 +57,7 @@ ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
     "GC9A01A": ili9xxx_ns.class_("ILI9XXXGC9A01A", ILI9XXXDisplay),
+    "GC9D01N": ili9xxx_ns.class_("ILI9XXXGC9D01N", ILI9XXXDisplay),
     "M5STACK": ili9xxx_ns.class_("ILI9XXXM5Stack", ILI9XXXDisplay),
     "M5CORE": ili9xxx_ns.class_("ILI9XXXM5CORE", ILI9XXXDisplay),
     "TFT_2.4": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
@@ -83,13 +83,12 @@ COLOR_ORDERS = {
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 
-COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
+COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE", "8BIT", upper=True)
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
 CONF_INVERT_DISPLAY = "invert_display"
 CONF_PIXEL_MODE = "pixel_mode"
-CONF_INIT_SEQUENCE = "init_sequence"
 
 
 def cmd(c, *args):
@@ -139,15 +138,15 @@ def _validate(config):
     ]:
         raise cv.Invalid("Selected model can't run on ESP8266.")
 
-    if model == "CUSTOM":
-        if CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config:
-            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
+    if model == "CUSTOM" and (
+        CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config
+    ):
+        raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
 
     return config
 
 
 CONFIG_SCHEMA = cv.All(
-    font.validate_pillow_installed,
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ILI9XXXDisplay),
@@ -177,7 +176,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INVERT_DISPLAY): cv.invalid(
                 "'invert_display' has been replaced by 'invert_colors'"
             ),
-            cv.Optional(CONF_INVERT_COLORS): cv.boolean,
+            cv.Required(CONF_INVERT_COLORS): cv.boolean,
             cv.Optional(CONF_COLOR_ORDER): cv.one_of(*COLOR_ORDERS.keys(), upper=True),
             cv.Exclusive(CONF_ROTATION, CONF_ROTATION): validate_rotation,
             cv.Exclusive(CONF_TRANSFORM, CONF_ROTATION): cv.Schema(
@@ -195,6 +194,28 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
+
+
+def final_validate(config):
+    global_config = full_config.get()
+    # Ideally would calculate buffer size here, but that info is not available on the Python side
+    needs_buffer = (
+        CONF_LAMBDA in config or CONF_PAGES in config or config[CONF_AUTO_CLEAR_ENABLED]
+    )
+    if (
+        CORE.is_esp32
+        and config[CONF_COLOR_PALETTE] == "NONE"
+        and "psram" not in global_config
+        and needs_buffer
+    ):
+        LOGGER.info("Consider enabling PSRAM if available for the display buffer")
+
+    return spi.final_validate_device_schema(
+        "ili9xxx", require_miso=False, require_mosi=True
+    )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):
@@ -280,6 +301,8 @@ async def to_code(config):
         palette = converted.getpalette()
         assert len(palette) == 256 * 3
         rhs = palette
+    elif config[CONF_COLOR_PALETTE] == "8BIT":
+        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8))
     else:
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_16))
 
@@ -287,5 +310,4 @@ async def to_code(config):
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
 
-    if CONF_INVERT_COLORS in config:
-        cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))
+    cg.add(var.invert_colors(config[CONF_INVERT_COLORS]))

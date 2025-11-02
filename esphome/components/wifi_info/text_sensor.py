@@ -1,13 +1,13 @@
 import esphome.codegen as cg
+from esphome.components import text_sensor, wifi
 import esphome.config_validation as cv
-from esphome.components import text_sensor
 from esphome.const import (
     CONF_BSSID,
+    CONF_DNS_ADDRESS,
     CONF_IP_ADDRESS,
+    CONF_MAC_ADDRESS,
     CONF_SCAN_RESULTS,
     CONF_SSID,
-    CONF_MAC_ADDRESS,
-    CONF_DNS_ADDRESS,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
@@ -77,7 +77,9 @@ async def to_code(config):
     await setup_conf(config, CONF_SSID)
     await setup_conf(config, CONF_BSSID)
     await setup_conf(config, CONF_MAC_ADDRESS)
-    await setup_conf(config, CONF_SCAN_RESULTS)
+    if CONF_SCAN_RESULTS in config:
+        await setup_conf(config, CONF_SCAN_RESULTS)
+        wifi.request_wifi_scan_results()
     await setup_conf(config, CONF_DNS_ADDRESS)
     if conf := config.get(CONF_IP_ADDRESS):
         wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])

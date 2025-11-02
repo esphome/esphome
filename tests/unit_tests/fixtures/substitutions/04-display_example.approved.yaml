@@ -1,0 +1,5 @@
+display:
+  - platform: ili9xxx
+    dimensions:
+      width: 960
+      height: 544

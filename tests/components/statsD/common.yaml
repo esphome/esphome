@@ -1,0 +1,29 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+statsd:
+  host: "192.168.1.1"
+  port: 8125
+  prefix: esphome
+  update_interval: 60s
+  sensors:
+    id: s
+    name: sensors
+  binary_sensors:
+    id: bs
+    name: binary_sensors
+
+sensor:
+  - platform: template
+    id: s
+    name: "42.1"
+    lambda: |-
+        return 42.1f;
+
+binary_sensor:
+  - platform: template
+    id: bs
+    name: "On"
+    lambda: |-
+        return true;

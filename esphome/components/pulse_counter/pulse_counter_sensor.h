@@ -9,7 +9,7 @@
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 #include <driver/pcnt.h>
 #define HAS_PCNT
-#endif
+#endif  // defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 
 namespace esphome {
 namespace pulse_counter {
@@ -22,9 +22,9 @@ enum PulseCounterCountMode {
 
 #ifdef HAS_PCNT
 using pulse_counter_t = int16_t;
-#else
+#else   // HAS_PCNT
 using pulse_counter_t = int32_t;
-#endif
+#endif  // HAS_PCNT
 
 struct PulseCounterStorageBase {
   virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
@@ -55,8 +55,9 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
   pulse_counter_t read_raw_value() override;
 
   pcnt_unit_t pcnt_unit;
+  pcnt_channel_t pcnt_channel;
 };
-#endif
+#endif  // HAS_PCNT
 
 PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
 
@@ -75,7 +76,6 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   /// Unit of measurement is "pulses/min".
   void setup() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
  protected:

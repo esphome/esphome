@@ -25,7 +25,6 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   //
   // EspHome framework functions
   //
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;

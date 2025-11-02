@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
-import re
 from dataclasses import dataclass
+import re
 import sys
 
 
@@ -53,6 +53,12 @@ def write_version(version: Version):
         "esphome/const.py",
         r"^__version__ = .*$",
         f'__version__ = "{version}"',
+    )
+    # PROJECT_NUMBER         = 2025.5.0
+    sub(
+        "Doxyfile",
+        r"PROJECT_NUMBER         = .*",
+        f"PROJECT_NUMBER         = {version}",
     )
 
 

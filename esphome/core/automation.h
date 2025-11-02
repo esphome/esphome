@@ -1,10 +1,13 @@
 #pragma once
 
-#include <vector>
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <concepts>
+#include <functional>
+#include <utility>
+#include <vector>
 
 namespace esphome {
 
@@ -26,20 +29,87 @@ template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() : type_(NONE) {}
 
-  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
-  TemplatableValue(F value) : type_(VALUE), value_(value) {}
+  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
+    new (&this->value_) T(std::move(value));
+  }
 
-  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
-  TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
+  // For stateless lambdas (convertible to function pointer): use function pointer
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
+      : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas (not convertible to function pointer): use std::function
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
+    this->f_ = new std::function<T(X...)>(std::move(f));
+  }
+
+  // Copy constructor
+  TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
+    if (type_ == VALUE) {
+      new (&this->value_) T(other.value_);
+    } else if (type_ == LAMBDA) {
+      this->f_ = new std::function<T(X...)>(*other.f_);
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    }
+  }
+
+  // Move constructor
+  TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
+    if (type_ == VALUE) {
+      new (&this->value_) T(std::move(other.value_));
+    } else if (type_ == LAMBDA) {
+      this->f_ = other.f_;
+      other.f_ = nullptr;
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    }
+    other.type_ = NONE;
+  }
+
+  // Assignment operators
+  TemplatableValue &operator=(const TemplatableValue &other) {
+    if (this != &other) {
+      this->~TemplatableValue();
+      new (this) TemplatableValue(other);
+    }
+    return *this;
+  }
+
+  TemplatableValue &operator=(TemplatableValue &&other) noexcept {
+    if (this != &other) {
+      this->~TemplatableValue();
+      new (this) TemplatableValue(std::move(other));
+    }
+    return *this;
+  }
+
+  ~TemplatableValue() {
+    if (type_ == VALUE) {
+      this->value_.~T();
+    } else if (type_ == LAMBDA) {
+      delete this->f_;
+    }
+    // STATELESS_LAMBDA/NONE: no cleanup needed (function pointer or empty, not heap-allocated)
+  }
 
   bool has_value() { return this->type_ != NONE; }
 
   T value(X... x) {
-    if (this->type_ == LAMBDA) {
-      return this->f_(x...);
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        return this->stateless_f_(x...);  // Direct function pointer call
+      case LAMBDA:
+        return (*this->f_)(x...);  // std::function call
+      case VALUE:
+        return this->value_;
+      case NONE:
+      default:
+        return T{};
     }
-    // return value also when none
-    return this->value_;
   }
 
   optional<T> optional_value(X... x) {
@@ -57,14 +127,18 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
  protected:
-  enum {
+  enum : uint8_t {
     NONE,
     VALUE,
     LAMBDA,
+    STATELESS_LAMBDA,
   } type_;
 
-  T value_{};
-  std::function<T(X...)> f_{};
+  union {
+    T value_;
+    std::function<T(X...)> *f_;
+    T (*stateless_f_)(X...);
+  };
 };
 
 /** Base class for all automation conditions.
@@ -82,7 +156,7 @@ template<typename... Ts> class Condition {
   }
 
  protected:
-  template<int... S> bool check_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
+  template<int... S> bool check_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     return this->check(std::get<S>(tuple)...);
   }
 };
@@ -156,7 +230,7 @@ template<typename... Ts> class Action {
       }
     }
   }
-  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
+  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
     this->play_next_(std::get<S>(tuple)...);
   }
   void play_next_tuple_(const std::tuple<Ts...> &tuple) {
@@ -193,7 +267,7 @@ template<typename... Ts> class ActionList {
     }
     this->actions_end_ = action;
   }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) {
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     for (auto *action : actions) {
       this->add_action(action);
     }
@@ -223,7 +297,9 @@ template<typename... Ts> class ActionList {
   }
 
  protected:
-  template<int... S> void play_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) { this->play(std::get<S>(tuple)...); }
+  template<int... S> void play_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+    this->play(std::get<S>(tuple)...);
+  }
 
   Action<Ts...> *actions_begin_{nullptr};
   Action<Ts...> *actions_end_{nullptr};
@@ -234,7 +310,7 @@ template<typename... Ts> class Automation {
   explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 

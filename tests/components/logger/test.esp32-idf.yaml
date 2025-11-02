@@ -1,1 +1,1 @@
-<<: !include common.yaml
+<<: !include common-default_uart.yaml

@@ -1,25 +1,6 @@
-sensor:
-  - platform: rotary_encoder
-    name: Rotary Encoder
-    id: rotary_encoder1
-    pin_a: 13
-    pin_b: 14
-    pin_reset: 15
-    filters:
-      - or:
-          - debounce: 0.1s
-          - delta: 10
-    resolution: 4
-    min_value: -10
-    max_value: 30
-    on_value:
-      - sensor.rotary_encoder.set_value:
-          id: rotary_encoder1
-          value: 10
-      - sensor.rotary_encoder.set_value:
-          id: rotary_encoder1
-          value: !lambda "return -1;"
-    on_clockwise:
-      - logger.log: Clockwise
-    on_anticlockwise:
-      - logger.log: Anticlockwise
+substitutions:
+  pin_a: GPIO2
+  pin_b: GPIO3
+  pin_reset: GPIO4
+
+<<: !include common.yaml

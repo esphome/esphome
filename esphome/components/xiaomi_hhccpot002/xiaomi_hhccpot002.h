@@ -17,7 +17,6 @@ class XiaomiHHCCPOT002 : public Component, public esp32_ble_tracker::ESPBTDevice
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_moisture(sensor::Sensor *moisture) { moisture_ = moisture; }
   void set_conductivity(sensor::Sensor *conductivity) { conductivity_ = conductivity; }
 

@@ -1,9 +1,10 @@
 import re
 
-import esphome.config_validation as cv
 import esphome.codegen as cg
-
+import esphome.config_validation as cv
 from esphome.const import __version__
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -36,7 +37,9 @@ def _process_next_url(url: str):
     return url
 
 
-async def setup_improv_core(var, config):
-    if CONF_NEXT_URL in config:
-        cg.add(var.set_next_url(_process_next_url(config[CONF_NEXT_URL])))
-    cg.add_library("esphome/Improv", "1.2.3")
+async def setup_improv_core(var: MockObj, config: ConfigType, component: str):
+    if next_url := config.get(CONF_NEXT_URL):
+        cg.add(var.set_next_url(_process_next_url(next_url)))
+        cg.add_define(f"USE_{component.upper()}_NEXT_URL")
+
+    cg.add_library("improv/Improv", "1.2.4")

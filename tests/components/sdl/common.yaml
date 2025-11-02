@@ -10,3 +10,14 @@ display:
     dimensions:
       width: 450
       height: 600
+
+binary_sensor:
+  - platform: sdl
+    id: key_up
+    key: SDLK_UP
+  - platform: sdl
+    id: key_down
+    key: SDLK_DOWN
+  - platform: sdl
+    id: key_enter
+    key: SDLK_RETURN

@@ -1,11 +1,19 @@
 """Tests for the packages component."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-
+from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass
+from esphome.config import resolve_extend_remove
+from esphome.config_helpers import Extend, Remove
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEFAULTS,
     CONF_DOMAIN,
     CONF_ESPHOME,
+    CONF_FILES,
     CONF_FILTERS,
     CONF_ID,
     CONF_MULTIPLY,
@@ -13,15 +21,18 @@ from esphome.const import (
     CONF_OFFSET,
     CONF_PACKAGES,
     CONF_PASSWORD,
+    CONF_PATH,
     CONF_PLATFORM,
+    CONF_REF,
+    CONF_REFRESH,
     CONF_SENSOR,
     CONF_SSID,
     CONF_UPDATE_INTERVAL,
+    CONF_URL,
+    CONF_VARS,
     CONF_WIFI,
 )
-from esphome.components.packages import do_packages_pass
-from esphome.config_helpers import Extend, Remove
-import esphome.config_validation as cv
+from esphome.util import OrderedDict
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -34,9 +45,11 @@ TEST_SENSOR_PLATFORM_1 = "test_sensor_platform_1"
 TEST_SENSOR_PLATFORM_2 = "test_sensor_platform_2"
 TEST_SENSOR_NAME_1 = "test_sensor_name_1"
 TEST_SENSOR_NAME_2 = "test_sensor_name_2"
+TEST_SENSOR_NAME_3 = "test_sensor_name_3"
 TEST_SENSOR_ID_1 = "test_sensor_id_1"
 TEST_SENSOR_ID_2 = "test_sensor_id_2"
 TEST_SENSOR_UPDATE_INTERVAL = "test_sensor_update_interval"
+TEST_YAML_FILENAME = "sensor1.yaml"
 
 
 @pytest.fixture(name="basic_wifi")
@@ -52,25 +65,77 @@ def fixture_basic_esphome():
     return {CONF_NAME: TEST_DEVICE_NAME, CONF_PLATFORM: TEST_PLATFORM}
 
 
+def packages_pass(config):
+    """Wrapper around packages_pass that also resolves Extend and Remove."""
+    config = do_packages_pass(config)
+    resolve_extend_remove(config)
+    return config
+
+
 def test_package_unused(basic_esphome, basic_wifi):
     """
     Ensures do_package_pass does not change a config if packages aren't used.
     """
     config = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == config
 
 
 def test_package_invalid_dict(basic_esphome, basic_wifi):
     """
-    Ensures an error is raised if packages is not valid.
+    If a url: key is present, it's expected to be well-formed remote package spec. Ensure an error is raised if not.
+    Any other simple dict passed as a package will be merged as usual but may fail later validation.
 
     """
-    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: basic_wifi}
+    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: basic_wifi | {CONF_URL: ""}}
 
     with pytest.raises(cv.Invalid):
-        do_packages_pass(config)
+        packages_pass(config)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        {"package1": "github://esphome/non-existant-repo/file1.yml@main"},
+        {"package2": "github://esphome/non-existant-repo/file1.yml"},
+        {"package3": "github://esphome/non-existant-repo/other-folder/file1.yml"},
+        [
+            "github://esphome/non-existant-repo/file1.yml@main",
+            "github://esphome/non-existant-repo/file1.yml",
+            "github://esphome/non-existant-repo/other-folder/file1.yml",
+        ],
+    ],
+)
+def test_package_shorthand(package):
+    CONFIG_SCHEMA(package)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        # not github
+        {"package1": "someplace://esphome/non-existant-repo/file1.yml@main"},
+        # missing repo
+        {"package2": "github://esphome/file1.yml"},
+        # missing file
+        {"package3": "github://esphome/non-existant-repo/@main"},
+        {"a": "invalid string, not shorthand"},
+        "some string",
+        3,
+        False,
+        {"a": 8},
+        ["someplace://esphome/non-existant-repo/file1.yml@main"],
+        ["github://esphome/file1.yml"],
+        ["github://esphome/non-existant-repo/@main"],
+        ["some string"],
+        [True],
+        [3],
+    ],
+)
+def test_package_invalid(package):
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA(package)
 
 
 def test_package_include(basic_wifi, basic_esphome):
@@ -86,7 +151,7 @@ def test_package_include(basic_wifi, basic_esphome):
 
     expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -111,7 +176,7 @@ def test_package_append(basic_wifi, basic_esphome):
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -135,7 +200,7 @@ def test_package_override(basic_wifi, basic_esphome):
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -164,7 +229,7 @@ def test_multiple_package_order():
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -188,21 +253,39 @@ def test_package_list_merge():
             }
         },
         CONF_SENSOR: [
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ],
     }
 
     expected = {
         CONF_SENSOR: [
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: TEST_SENSOR_NAME_2},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -252,7 +335,10 @@ def test_package_list_merge_by_id():
                 CONF_UPDATE_INTERVAL: TEST_SENSOR_UPDATE_INTERVAL,
             },
             {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_NAME: TEST_SENSOR_NAME_1},
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ],
     }
 
@@ -270,11 +356,14 @@ def test_package_list_merge_by_id():
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
                 CONF_NAME: TEST_SENSOR_NAME_1,
             },
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_2,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -289,12 +378,18 @@ def test_package_merge_by_id_with_list():
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]}
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+                    }
                 ]
             }
         },
         CONF_SENSOR: [
-            {CONF_ID: Extend(TEST_SENSOR_ID_1), CONF_FILTERS: [{CONF_OFFSET: 146.0}]}
+            {
+                CONF_ID: Extend(TEST_SENSOR_ID_1),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            }
         ],
     }
 
@@ -307,48 +402,44 @@ def test_package_merge_by_id_with_list():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
 def test_package_merge_by_missing_id():
     """
-    Ensures that components with missing IDs are not merged.
+    Ensures that a validation error is thrown when trying to extend a missing ID.
     """
 
     config = {
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+                    },
                 ]
             }
         },
         CONF_SENSOR: [
             {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
-            {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
-        ],
-    }
-
-    expected = {
-        CONF_SENSOR: [
-            {
-                CONF_ID: TEST_SENSOR_ID_1,
-                CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
-            },
-            {
-                CONF_ID: TEST_SENSOR_ID_1,
-                CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
-            },
             {
                 CONF_ID: Extend(TEST_SENSOR_ID_2),
                 CONF_FILTERS: [{CONF_OFFSET: 146.0}],
             },
-        ]
+        ],
     }
 
-    actual = do_packages_pass(config)
-    assert actual == expected
+    error_raised = False
+    try:
+        packages_pass(config)
+        assert False, "Expected validation error for missing ID"
+    except cv.Invalid as err:
+        error_raised = True
+        assert err.path == [CONF_SENSOR, 2]
+
+    assert error_raised
 
 
 def test_package_list_remove_by_id():
@@ -398,7 +489,7 @@ def test_package_list_remove_by_id():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -444,15 +535,13 @@ def test_multiple_package_list_remove_by_id():
         ]
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
 def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
     """
     Ensures that components with missing IDs are removed from dict.
-    """
-    """
     Ensures that the top-level configuration takes precedence over duplicate keys defined in a package.
 
     In this test, CONF_SSID should be overwritten by that defined in the top-level config.
@@ -467,7 +556,7 @@ def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
         CONF_ESPHOME: basic_esphome,
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
     assert actual == expected
 
 
@@ -480,19 +569,24 @@ def test_package_remove_by_missing_id():
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
+                    {
+                        CONF_ID: TEST_SENSOR_ID_1,
+                        CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+                    },
                 ]
             }
         },
         "missing_key": Remove(),
         CONF_SENSOR: [
             {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
-            {CONF_ID: Remove(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
+            {
+                CONF_ID: Remove(TEST_SENSOR_ID_2),
+                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
+            },
         ],
     }
 
     expected = {
-        "missing_key": Remove(),
         CONF_SENSOR: [
             {
                 CONF_ID: TEST_SENSOR_ID_1,
@@ -502,12 +596,176 @@ def test_package_remove_by_missing_id():
                 CONF_ID: TEST_SENSOR_ID_1,
                 CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
             },
-            {
-                CONF_ID: Remove(TEST_SENSOR_ID_2),
-                CONF_FILTERS: [{CONF_OFFSET: 146.0}],
-            },
         ],
     }
 
-    actual = do_packages_pass(config)
+    actual = packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_list(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+):
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    }
+                ]
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    }
+                ]
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_REF: "main",
+                CONF_FILES: [
+                    {CONF_PATH: TEST_YAML_FILENAME},
+                    "sensor2.yaml",
+                ],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_and_vars(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+):
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings with vars
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_DEFAULTS: {CONF_NAME: TEST_SENSOR_NAME_1},
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: "${name}",
+                    }
+                ],
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_DEFAULTS: {CONF_NAME: TEST_SENSOR_NAME_1},
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: "${name}",
+                    }
+                ],
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_DEFAULTS: {CONF_NAME: TEST_SENSOR_NAME_1},
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: "${name}",
+                    }
+                ],
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_REF: "main",
+                CONF_FILES: [
+                    {
+                        CONF_PATH: TEST_YAML_FILENAME,
+                        CONF_VARS: {CONF_NAME: TEST_SENSOR_NAME_2},
+                    },
+                    {
+                        CONF_PATH: TEST_YAML_FILENAME,
+                        CONF_VARS: {CONF_NAME: TEST_SENSOR_NAME_3},
+                    },
+                    {CONF_PATH: TEST_YAML_FILENAME},
+                ],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_3,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+        ]
+    }
+
+    actual = packages_pass(config)
     assert actual == expected

@@ -16,7 +16,6 @@ TemplateValve::TemplateValve()
       position_trigger_(new Trigger<float>()) {}
 
 void TemplateValve::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up template valve '%s'...", this->name_.c_str());
   switch (this->restore_mode_) {
     case VALVE_NO_RESTORE:
       break;
@@ -34,19 +33,19 @@ void TemplateValve::setup() {
       break;
     }
   }
+  if (!this->state_f_.has_value())
+    this->disable_loop();
 }
 
 void TemplateValve::loop() {
   bool changed = false;
 
-  if (this->state_f_.has_value()) {
-    auto s = (*this->state_f_)();
-    if (s.has_value()) {
-      auto pos = clamp(*s, 0.0f, 1.0f);
-      if (pos != this->position) {
-        this->position = pos;
-        changed = true;
-      }
+  auto s = this->state_f_();
+  if (s.has_value()) {
+    auto pos = clamp(*s, 0.0f, 1.0f);
+    if (pos != this->position) {
+      this->position = pos;
+      changed = true;
     }
   }
 
@@ -56,7 +55,6 @@ void TemplateValve::loop() {
 
 void TemplateValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
-void TemplateValve::set_state_lambda(std::function<optional<float>()> &&f) { this->state_f_ = f; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 Trigger<> *TemplateValve::get_open_trigger() const { return this->open_trigger_; }
@@ -66,8 +64,10 @@ Trigger<> *TemplateValve::get_toggle_trigger() const { return this->toggle_trigg
 
 void TemplateValve::dump_config() {
   LOG_VALVE("", "Template Valve", this);
-  ESP_LOGCONFIG(TAG, "  Has position: %s", YESNO(this->has_position_));
-  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+  ESP_LOGCONFIG(TAG,
+                "  Has position: %s\n"
+                "  Optimistic: %s",
+                YESNO(this->has_position_), YESNO(this->optimistic_));
 }
 
 void TemplateValve::control(const ValveCall &call) {

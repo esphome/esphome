@@ -1,0 +1,22 @@
+bp1658cj:
+  clock_pin: ${clock_pin}
+  data_pin: ${data_pin}
+  max_power_color_channels: 4
+  max_power_white_channels: 6
+
+output:
+  - platform: bp1658cj
+    id: bp1658cj_red
+    channel: 1
+  - platform: bp1658cj
+    id: bp1658cj_green
+    channel: 2
+  - platform: bp1658cj
+    id: bp1658cj_blue
+    channel: 0
+  - platform: bp1658cj
+    id: bp1658cj_coldwhite
+    channel: 3
+  - platform: bp1658cj
+    id: bp1658cj_warmwhite
+    channel: 4

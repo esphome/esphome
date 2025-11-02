@@ -1,13 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
+
 from .. import (
-    mpr121_ns,
-    MPR121Component,
     CONF_MPR121_ID,
-    CONF_TOUCH_THRESHOLD,
     CONF_RELEASE_THRESHOLD,
+    CONF_TOUCH_THRESHOLD,
+    MPR121Component,
+    mpr121_ns,
 )
 
 DEPENDENCIES = ["mpr121"]
@@ -27,7 +28,7 @@ async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_MPR121_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.register_parented(var, hub)
+    await cg.register_parented(var, hub)
 
     if CONF_TOUCH_THRESHOLD in config:
         cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))

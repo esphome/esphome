@@ -1,0 +1,11 @@
+sensor:
+  - platform: bmp085
+    i2c_id: i2c_bus
+    temperature:
+      name: Outside Temperature
+    pressure:
+      name: Outside Pressure
+      filters:
+        - lambda: >-
+            return x / powf(1.0 - (x / 44330.0), 5.255);
+    update_interval: 15s

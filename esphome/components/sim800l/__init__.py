@@ -1,12 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import (
-    CONF_ID,
-    CONF_MESSAGE,
-    CONF_TRIGGER_ID,
-)
+import esphome.codegen as cg
 from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MESSAGE, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
@@ -175,8 +171,7 @@ async def sim800l_dial_to_code(config, action_id, template_arg, args):
 )
 async def sim800l_connect_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 SIM800L_SEND_USSD_SCHEMA = cv.Schema(
@@ -205,5 +200,4 @@ async def sim800l_send_ussd_to_code(config, action_id, template_arg, args):
 )
 async def sim800l_disconnect_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, paren)

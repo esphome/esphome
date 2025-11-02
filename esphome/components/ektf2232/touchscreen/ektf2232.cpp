@@ -16,13 +16,12 @@ static const uint8_t GET_Y_RES[4] = {0x53, 0x63, 0x00, 0x00};
 static const uint8_t GET_POWER_STATE_CMD[4] = {0x53, 0x50, 0x00, 0x01};
 
 void EKTF2232Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up EKT2232 Touchscreen...");
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 
   this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
-  this->rts_pin_->setup();
+  this->reset_pin_->setup();
 
   this->hard_reset_();
   if (!this->soft_reset_()) {
@@ -34,26 +33,29 @@ void EKTF2232Touchscreen::setup() {
 
   // Get touch resolution
   uint8_t received[4];
-  if (this->x_raw_max_ == this->x_raw_min_) {
-    this->write(GET_X_RES, 4);
-    if (this->read(received, 4)) {
-      ESP_LOGE(TAG, "Failed to read X resolution!");
+  if (this->x_raw_max_ == 0 || this->y_raw_max_ == 0) {
+    auto err = this->write(GET_X_RES, 4);
+    if (err == i2c::ERROR_OK) {
+      err = this->read(received, 4);
+      if (err == i2c::ERROR_OK) {
+        this->x_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
+        err = this->write(GET_Y_RES, 4);
+        if (err == i2c::ERROR_OK) {
+          err = this->read(received, 4);
+          if (err == i2c::ERROR_OK) {
+            this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
+          }
+        }
+      }
+    }
+    if (err != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Failed to read calibration values!");
       this->interrupt_pin_->detach_interrupt();
       this->mark_failed();
       return;
     }
-    this->x_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
-  }
-
-  if (this->y_raw_max_ == this->y_raw_min_) {
-    this->write(GET_Y_RES, 4);
-    if (this->read(received, 4)) {
-      ESP_LOGE(TAG, "Failed to read Y resolution!");
-      this->interrupt_pin_->detach_interrupt();
-      this->mark_failed();
-      return;
-    }
-    this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
+    if (this->swap_x_y_)
+      std::swap(this->x_raw_max_, this->y_raw_max_);
   }
   this->set_power_state(true);
 }
@@ -96,9 +98,9 @@ bool EKTF2232Touchscreen::get_power_state() {
 }
 
 void EKTF2232Touchscreen::hard_reset_() {
-  this->rts_pin_->digital_write(false);
+  this->reset_pin_->digital_write(false);
   delay(15);
-  this->rts_pin_->digital_write(true);
+  this->reset_pin_->digital_write(true);
   delay(15);
 }
 
@@ -125,7 +127,7 @@ void EKTF2232Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "EKT2232 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  LOG_PIN("  RTS Pin: ", this->rts_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
 }  // namespace ektf2232

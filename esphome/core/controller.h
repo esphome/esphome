@@ -5,7 +5,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_FAN
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #endif
 #ifdef USE_LIGHT
 #include "esphome/components/light/light_state.h"
@@ -71,7 +71,7 @@ class Controller {
  public:
   void setup_controller(bool include_internal = false);
 #ifdef USE_BINARY_SENSOR
-  virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
+  virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj){};
 #endif
 #ifdef USE_FAN
   virtual void on_fan_update(fan::Fan *obj){};

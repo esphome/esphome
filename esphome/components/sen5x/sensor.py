@@ -1,19 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
 from esphome import automation
 from esphome.automation import maybe_simple_id
-
+import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_GAIN_FACTOR,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_OFFSET,
     CONF_PM_1_0,
-    CONF_PM_10_0,
     CONF_PM_2_5,
     CONF_PM_4_0,
+    CONF_PM_10_0,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
@@ -43,7 +44,6 @@ RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
-CONF_GAIN_FACTOR = "gain_factor"
 CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
 CONF_INDEX_OFFSET = "index_offset"
 CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
@@ -51,7 +51,6 @@ CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
 CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"
 CONF_NOX = "nox"
 CONF_STD_INITIAL = "std_initial"
-CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
 CONF_TIME_CONSTANT = "time_constant"
 CONF_VOC = "voc"
 CONF_VOC_BASELINE = "voc_baseline"
@@ -66,26 +65,47 @@ ACCELERATION_MODES = {
     "high": RhtAccelerationMode.HIGH_ACCELERATION,
 }
 
-GAS_SENSOR = cv.Schema(
-    {
-        cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
-            {
-                cv.Optional(CONF_INDEX_OFFSET, default=100): cv.int_range(1, 250),
-                cv.Optional(CONF_LEARNING_TIME_OFFSET_HOURS, default=12): cv.int_range(
-                    1, 1000
-                ),
-                cv.Optional(CONF_LEARNING_TIME_GAIN_HOURS, default=12): cv.int_range(
-                    1, 1000
-                ),
-                cv.Optional(
-                    CONF_GATING_MAX_DURATION_MINUTES, default=720
-                ): cv.int_range(0, 3000),
-                cv.Optional(CONF_STD_INITIAL, default=50): cv.int_,
-                cv.Optional(CONF_GAIN_FACTOR, default=230): cv.int_range(1, 1000),
-            }
-        )
-    }
-)
+
+def _gas_sensor(
+    *,
+    index_offset: int,
+    learning_time_offset: int,
+    learning_time_gain: int,
+    gating_max_duration: int,
+    std_initial: int,
+    gain_factor: int,
+) -> cv.Schema:
+    return sensor.sensor_schema(
+        icon=ICON_RADIATOR,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_AQI,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ).extend(
+        {
+            cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
+                {
+                    cv.Optional(CONF_INDEX_OFFSET, default=index_offset): cv.int_range(
+                        1, 250
+                    ),
+                    cv.Optional(
+                        CONF_LEARNING_TIME_OFFSET_HOURS, default=learning_time_offset
+                    ): cv.int_range(1, 1000),
+                    cv.Optional(
+                        CONF_LEARNING_TIME_GAIN_HOURS, default=learning_time_gain
+                    ): cv.int_range(1, 1000),
+                    cv.Optional(
+                        CONF_GATING_MAX_DURATION_MINUTES, default=gating_max_duration
+                    ): cv.int_range(0, 3000),
+                    cv.Optional(CONF_STD_INITIAL, default=std_initial): cv.int_range(
+                        10, 5000
+                    ),
+                    cv.Optional(CONF_GAIN_FACTOR, default=gain_factor): cv.int_range(
+                        1, 1000
+                    ),
+                }
+            )
+        }
+    )
 
 
 def float_previously_pct(value):
@@ -128,18 +148,22 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
-            cv.Optional(CONF_VOC): sensor.sensor_schema(
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(GAS_SENSOR),
-            cv.Optional(CONF_NOX): sensor.sensor_schema(
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(GAS_SENSOR),
+            cv.Optional(CONF_VOC): _gas_sensor(
+                index_offset=100,
+                learning_time_offset=12,
+                learning_time_gain=12,
+                gating_max_duration=180,
+                std_initial=50,
+                gain_factor=230,
+            ),
+            cv.Optional(CONF_NOX): _gas_sensor(
+                index_offset=1,
+                learning_time_offset=12,
+                learning_time_gain=12,
+                gating_max_duration=720,
+                std_initial=50,
+                gain_factor=230,
+            ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -195,16 +219,15 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     for key, funcName in SETTING_MAP.items():
-        if key in config:
-            cg.add(getattr(var, funcName)(config[key]))
+        if cfg := config.get(key):
+            cg.add(getattr(var, funcName)(cfg))
 
     for key, funcName in SENSOR_MAP.items():
-        if key in config:
-            sens = await sensor.new_sensor(config[key])
+        if cfg := config.get(key):
+            sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, funcName)(sens))
 
-    if CONF_VOC in config and CONF_ALGORITHM_TUNING in config[CONF_VOC]:
-        cfg = config[CONF_VOC][CONF_ALGORITHM_TUNING]
+    if cfg := config.get(CONF_VOC, {}).get(CONF_ALGORITHM_TUNING):
         cg.add(
             var.set_voc_algorithm_tuning(
                 cfg[CONF_INDEX_OFFSET],
@@ -215,8 +238,7 @@ async def to_code(config):
                 cfg[CONF_GAIN_FACTOR],
             )
         )
-    if CONF_NOX in config and CONF_ALGORITHM_TUNING in config[CONF_NOX]:
-        cfg = config[CONF_NOX][CONF_ALGORITHM_TUNING]
+    if cfg := config.get(CONF_NOX, {}).get(CONF_ALGORITHM_TUNING):
         cg.add(
             var.set_nox_algorithm_tuning(
                 cfg[CONF_INDEX_OFFSET],
@@ -226,12 +248,12 @@ async def to_code(config):
                 cfg[CONF_GAIN_FACTOR],
             )
         )
-    if CONF_TEMPERATURE_COMPENSATION in config:
+    if cfg := config.get(CONF_TEMPERATURE_COMPENSATION):
         cg.add(
             var.set_temperature_compensation(
-                config[CONF_TEMPERATURE_COMPENSATION][CONF_OFFSET],
-                config[CONF_TEMPERATURE_COMPENSATION][CONF_NORMALIZED_OFFSET_SLOPE],
-                config[CONF_TEMPERATURE_COMPENSATION][CONF_TIME_CONSTANT],
+                cfg[CONF_OFFSET],
+                cfg[CONF_NORMALIZED_OFFSET_SLOPE],
+                cfg[CONF_TIME_CONSTANT],
             )
         )
 

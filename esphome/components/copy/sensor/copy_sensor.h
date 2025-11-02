@@ -11,7 +11,6 @@ class CopySensor : public sensor::Sensor, public Component {
   void set_source(sensor::Sensor *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   sensor::Sensor *source_;
