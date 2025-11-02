@@ -1,5 +1,3 @@
-import voluptuous
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -63,9 +61,7 @@ def register_action(name: str, action_type: MockObjClass, schema: cv.Schema):
     return ACTION_REGISTRY.register(name, action_type, schema)
 
 
-def register_condition(
-    name: str, condition_type: MockObjClass, schema: voluptuous.Schema
-):
+def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schema):
     return CONDITION_REGISTRY.register(name, condition_type, schema)
 
 
