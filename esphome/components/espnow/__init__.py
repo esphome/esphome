@@ -65,15 +65,6 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
-def _validate_unknown_peer(config):
-    if config[CONF_AUTO_ADD_PEER] and config.get(CONF_ON_UNKNOWN_PEER):
-        raise cv.Invalid(
-            f"'{CONF_ON_UNKNOWN_PEER}' cannot be used when '{CONF_AUTO_ADD_PEER}' is enabled.",
-            path=[CONF_ON_UNKNOWN_PEER],
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -103,7 +94,6 @@ CONFIG_SCHEMA = cv.All(
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
-    _validate_unknown_peer,
 )
 
 
@@ -124,7 +114,6 @@ async def _trigger_to_code(config):
 
 
 async def to_code(config):
-    print(config)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

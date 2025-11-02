@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_ESP_IDF) && defined(USE_WEBSERVER_OTA)
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)
 #include "multipart.h"
 #include "utils.h"
 #include "esphome/core/log.h"
@@ -251,4 +251,4 @@ std::string str_trim(const std::string &str) {
 
 }  // namespace web_server_idf
 }  // namespace esphome
-#endif  // defined(USE_ESP_IDF) && defined(USE_WEBSERVER_OTA)
+#endif  // defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)

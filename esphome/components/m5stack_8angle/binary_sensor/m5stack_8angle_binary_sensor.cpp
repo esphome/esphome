@@ -6,7 +6,7 @@ namespace m5stack_8angle {
 void M5Stack8AngleSwitchBinarySensor::update() {
   int8_t out = this->parent_->read_switch();
   if (out == -1) {
-    this->status_set_warning("Could not read binary sensor state from M5Stack 8Angle.");
+    this->status_set_warning(LOG_STR("Could not read binary sensor state from M5Stack 8Angle."));
     return;
   }
   this->publish_state(out != 0);

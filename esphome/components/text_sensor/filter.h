@@ -2,10 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include <queue>
-#include <utility>
-#include <map>
-#include <vector>
 
 namespace esphome {
 namespace text_sensor {
@@ -66,6 +62,21 @@ class LambdaFilter : public Filter {
   lambda_filter_t lambda_filter_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  explicit StatelessLambdaFilter(optional<std::string> (*lambda_filter)(std::string)) : lambda_filter_(lambda_filter) {}
+
+  optional<std::string> new_value(std::string value) override { return this->lambda_filter_(value); }
+
+ protected:
+  optional<std::string> (*lambda_filter_)(std::string);
+};
+
 /// A simple filter that converts all text to uppercase
 class ToUpperFilter : public Filter {
  public:
@@ -98,26 +109,52 @@ class PrependFilter : public Filter {
   std::string prefix_;
 };
 
+struct Substitution {
+  std::string from;
+  std::string to;
+};
+
 /// A simple filter that replaces a substring with another substring
 class SubstituteFilter : public Filter {
  public:
-  SubstituteFilter(std::vector<std::string> from_strings, std::vector<std::string> to_strings)
-      : from_strings_(std::move(from_strings)), to_strings_(std::move(to_strings)) {}
+  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions);
   optional<std::string> new_value(std::string value) override;
 
  protected:
-  std::vector<std::string> from_strings_;
-  std::vector<std::string> to_strings_;
+  FixedVector<Substitution> substitutions_;
 };
 
-/// A filter that maps values from one set to another
+/** A filter that maps values from one set to another
+ *
+ * Uses linear search instead of std::map for typical small datasets (2-20 mappings).
+ * Linear search on contiguous memory is faster than red-black tree lookups when:
+ * - Dataset is small (< ~30 items)
+ * - Memory is contiguous (cache-friendly, better CPU cache utilization)
+ * - No pointer chasing overhead (tree node traversal)
+ * - String comparison cost dominates lookup time
+ *
+ * Benchmark results (see benchmark_map_filter.cpp):
+ * - 2 mappings:  Linear 1.26x faster than std::map
+ * - 5 mappings:  Linear 2.25x faster than std::map
+ * - 10 mappings: Linear 1.83x faster than std::map
+ * - 20 mappings: Linear 1.59x faster than std::map
+ * - 30 mappings: Linear 1.09x faster than std::map
+ * - 40 mappings: std::map 1.27x faster than Linear (break-even)
+ *
+ * Benefits over std::map:
+ * - ~2KB smaller flash (no red-black tree code)
+ * - ~24-32 bytes less RAM per mapping (no tree node overhead)
+ * - Faster for typical ESPHome usage (2-10 mappings common, 20+ rare)
+ *
+ * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
+ */
 class MapFilter : public Filter {
  public:
-  MapFilter(std::map<std::string, std::string> mappings) : mappings_(std::move(mappings)) {}
+  explicit MapFilter(const std::initializer_list<Substitution> &mappings);
   optional<std::string> new_value(std::string value) override;
 
  protected:
-  std::map<std::string, std::string> mappings_;
+  FixedVector<Substitution> mappings_;
 };
 
 }  // namespace text_sensor

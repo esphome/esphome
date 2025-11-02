@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_WHITE,
     CONF_WIDTH,
 )
+from esphome.cpp_generator import MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
@@ -88,8 +89,15 @@ ADDRESSABLE_EFFECTS = []
 EFFECTS_REGISTRY = Registry()
 
 
-def register_effect(name, effect_type, default_name, schema, *extra_validators):
-    schema = cv.Schema(schema).extend(
+def register_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
+    schema = schema if isinstance(schema, cv.Schema) else cv.Schema(schema)
+    schema = schema.extend(
         {
             cv.Optional(CONF_NAME, default=default_name): cv.string_strict,
         }
@@ -98,7 +106,13 @@ def register_effect(name, effect_type, default_name, schema, *extra_validators):
     return EFFECTS_REGISTRY.register(name, effect_type, validator)
 
 
-def register_binary_effect(name, effect_type, default_name, schema, *extra_validators):
+def register_binary_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
     # binary effect can be used for all lights
     BINARY_EFFECTS.append(name)
     MONOCHROMATIC_EFFECTS.append(name)
@@ -109,7 +123,11 @@ def register_binary_effect(name, effect_type, default_name, schema, *extra_valid
 
 
 def register_monochromatic_effect(
-    name, effect_type, default_name, schema, *extra_validators
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
 ):
     # monochromatic effect can be used for all lights expect binary
     MONOCHROMATIC_EFFECTS.append(name)
@@ -119,7 +137,13 @@ def register_monochromatic_effect(
     return register_effect(name, effect_type, default_name, schema, *extra_validators)
 
 
-def register_rgb_effect(name, effect_type, default_name, schema, *extra_validators):
+def register_rgb_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
     # RGB effect can be used for RGB and addressable lights
     RGB_EFFECTS.append(name)
     ADDRESSABLE_EFFECTS.append(name)
@@ -128,7 +152,11 @@ def register_rgb_effect(name, effect_type, default_name, schema, *extra_validato
 
 
 def register_addressable_effect(
-    name, effect_type, default_name, schema, *extra_validators
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
 ):
     # addressable effect can be used only in addressable
     ADDRESSABLE_EFFECTS.append(name)

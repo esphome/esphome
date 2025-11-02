@@ -77,7 +77,7 @@ bool Nextion::check_connect_() {
   this->recv_ret_string_(response, 0, false);
   if (!response.empty() && response[0] == 0x1A) {
     // Swallow invalid variable name responses that may be caused by the above commands
-    ESP_LOGD(TAG, "0x1A error ignored (setup)");
+    ESP_LOGV(TAG, "0x1A error ignored (setup)");
     return false;
   }
   if (response.empty() || response.find("comok") == std::string::npos) {
@@ -323,6 +323,8 @@ void Nextion::loop() {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
     }
 
+    this->set_auto_wake_on_touch(this->connection_state_.auto_wake_on_touch_);
+
     this->connection_state_.ignore_is_setup_ = false;
   }
 
@@ -334,7 +336,7 @@ void Nextion::loop() {
       this->started_ms_ = App.get_loop_component_start_time();
 
     if (this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
-      ESP_LOGD(TAG, "Manual ready set");
+      ESP_LOGV(TAG, "Manual ready set");
       this->connection_state_.nextion_reports_is_setup_ = true;
     }
   }
@@ -544,7 +546,7 @@ void Nextion::process_nextion_commands_() {
         uint8_t page_id = to_process[0];
         uint8_t component_id = to_process[1];
         uint8_t touch_event = to_process[2];  // 0 -> release, 1 -> press
-        ESP_LOGD(TAG, "Touch %s: page %u comp %u", touch_event ? "PRESS" : "RELEASE", page_id, component_id);
+        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? "PRESS" : "RELEASE", page_id, component_id);
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
@@ -559,7 +561,7 @@ void Nextion::process_nextion_commands_() {
         }
 
         uint8_t page_id = to_process[0];
-        ESP_LOGD(TAG, "New page: %u", page_id);
+        ESP_LOGV(TAG, "New page: %u", page_id);
         this->page_callback_.call(page_id);
         break;
       }
@@ -577,7 +579,7 @@ void Nextion::process_nextion_commands_() {
         const uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
         const uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
         const uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
-        ESP_LOGD(TAG, "Touch %s at %u,%u", touch_event ? "PRESS" : "RELEASE", x, y);
+        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? "PRESS" : "RELEASE", x, y);
         break;
       }
 
@@ -676,7 +678,7 @@ void Nextion::process_nextion_commands_() {
       }
       case 0x88:  // system successful start up
       {
-        ESP_LOGD(TAG, "System start: %zu", to_process_length);
+        ESP_LOGV(TAG, "System start: %zu", to_process_length);
         this->connection_state_.nextion_reports_is_setup_ = true;
         break;
       }
@@ -764,7 +766,8 @@ void Nextion::process_nextion_commands_() {
         variable_name = to_process.substr(0, index);
         ++index;
 
-        text_value = to_process.substr(index);
+        // Get variable value without terminating NUL byte.  Length check above ensures substr len >= 0.
+        text_value = to_process.substr(index, to_process_length - index - 1);
 
         ESP_LOGN(TAG, "Text sensor: %s='%s'", variable_name.c_str(), text_value.c_str());
 
@@ -921,7 +924,7 @@ void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::s
 }
 
 void Nextion::set_nextion_text_state(const std::string &name, const std::string &state) {
-  ESP_LOGD(TAG, "State: %s='%s'", name.c_str(), state.c_str());
+  ESP_LOGV(TAG, "State: %s='%s'", name.c_str(), state.c_str());
 
   for (auto *sensor : this->textsensortype_) {
     if (name == sensor->get_variable_name()) {
@@ -932,7 +935,7 @@ void Nextion::set_nextion_text_state(const std::string &name, const std::string 
 }
 
 void Nextion::all_components_send_state_(bool force_update) {
-  ESP_LOGD(TAG, "Send states");
+  ESP_LOGV(TAG, "Send states");
   for (auto *binarysensortype : this->binarysensortype_) {
     if (force_update || binarysensortype->get_needs_to_send_update())
       binarysensortype->send_state_to_nextion();
@@ -1289,9 +1292,6 @@ void Nextion::check_pending_waveform_() {
 }
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
-
-ESPDEPRECATED("set_wait_for_ack(bool) deprecated, no effect", "v1.20")
-void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "Deprecated"); }
 
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 
