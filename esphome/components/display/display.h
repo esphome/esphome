@@ -210,7 +210,7 @@ class Display : public PollingComponent {
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
-  void clear();
+  virtual void clear();
 
   /// Get the calculated width of the display in pixels with rotation applied.
   virtual int get_width() { return this->get_width_internal(); }

@@ -59,6 +59,11 @@ void EPaperSpectraE6::fill(Color color) {
   this->buffer_.fill(pixel_color + (pixel_color << 4));
 }
 
+void EPaperSpectraE6::clear() {
+  // clear buffer to white, just like real paper.
+  this->fill(COLOR_ON);
+}
+
 void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return;
