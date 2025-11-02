@@ -361,6 +361,11 @@ template<typename... Ts> class WaitUntilActionBase : public Action<Ts...>, publi
 
   TEMPLATABLE_VALUE(uint32_t, timeout_value)
 
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    this->disable_loop();
+  }
+
   void play_complex(Ts... x) override {
     this->num_running_++;
     // Check if we can continue immediately.
@@ -376,6 +381,8 @@ template<typename... Ts> class WaitUntilActionBase : public Action<Ts...>, publi
     auto timeout = this->timeout_value_.optional_value(x...);
     this->store_item(now, timeout, x...);
 
+    // Enable loop now that we have work to do
+    this->enable_loop();
     this->loop();
   }
 
@@ -410,7 +417,10 @@ template<typename... Ts> class WaitUntilAction : public WaitUntilActionBase<Ts..
  public:
   using WaitUntilActionBase<Ts...>::WaitUntilActionBase;
 
-  void stop() override { this->start_time_ = 0; }
+  void stop() override {
+    this->start_time_ = 0;
+    this->disable_loop();
+  }
 
  protected:
   void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) override {
@@ -430,6 +440,8 @@ template<typename... Ts> class WaitUntilAction : public WaitUntilActionBase<Ts..
     if (expired || this->condition_->check_tuple(this->args_)) {
       this->play_next_tuple_(this->args_);
       this->start_time_ = 0;
+      // No more work - disable loop until next play_complex
+      this->disable_loop();
     }
   }
 
@@ -447,7 +459,10 @@ template<typename... Ts> class ParallelWaitUntilAction : public WaitUntilActionB
  public:
   using WaitUntilActionBase<Ts...>::WaitUntilActionBase;
 
-  void stop() override { this->var_queue_.clear(); }
+  void stop() override {
+    this->var_queue_.clear();
+    this->disable_loop();
+  }
 
  protected:
   void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) override {
@@ -471,6 +486,11 @@ template<typename... Ts> class ParallelWaitUntilAction : public WaitUntilActionB
       this->play_next_tuple_(var);
       return true;
     });
+
+    // If queue is now empty, disable loop until next play_complex
+    if (this->var_queue_.empty()) {
+      this->disable_loop();
+    }
   }
 
   std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};

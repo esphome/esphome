@@ -275,6 +275,11 @@ template<class C, typename... Ts> class ScriptWaitActionBase : public Action<Ts.
  public:
   ScriptWaitActionBase(C *script) : script_(script) {}
 
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    this->disable_loop();
+  }
+
   void play_complex(Ts... x) override {
     this->num_running_++;
     // Check if we can continue immediately.
@@ -285,6 +290,8 @@ template<class C, typename... Ts> class ScriptWaitActionBase : public Action<Ts.
 
     // Store callback for later execution
     this->store_callback([this, x...]() { this->play_next_(x...); });
+    // Enable loop now that we have work to do
+    this->enable_loop();
     this->loop();
   }
 
@@ -327,6 +334,8 @@ template<class C, typename... Ts> class ScriptWaitAction : public ScriptWaitActi
     if (this->callback_) {
       this->callback_();
       this->callback_ = nullptr;
+      // No more work - disable loop until next play_complex
+      this->disable_loop();
     }
   }
 
@@ -352,6 +361,10 @@ template<class C, typename... Ts> class ParallelScriptWaitAction : public Script
       auto fn = this->play_queue_.front();
       fn();
       this->play_queue_.pop_front();
+    }
+    // If queue is now empty, disable loop until next play_complex
+    if (this->play_queue_.empty()) {
+      this->disable_loop();
     }
   }
 
