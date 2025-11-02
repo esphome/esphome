@@ -68,6 +68,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     TYPE_GIT,
     TYPE_LOCAL,
@@ -692,6 +693,7 @@ def only_with_framework(
 
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
