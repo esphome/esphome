@@ -87,7 +87,8 @@ void OTAComponent::loop() {
 }
 
 void OTAComponent::start_udp_transport() {
-  if (!this->use_udp_transport_) return;
+  if (!this->use_udp_transport_)
+    return;
   if (this->udp_transport_started_) {
     ESP_LOGD(TAG, "MCUmgr UDP transport already started.");
     return;
@@ -104,7 +105,8 @@ void OTAComponent::start_udp_transport() {
 }
 
 void OTAComponent::stop_udp_transport() {
-  if (!this->use_udp_transport_) return;
+  if (!this->use_udp_transport_)
+    return;
   if (!this->udp_transport_started_) {
     ESP_LOGD(TAG, "MCUmgr UDP transport already stopped.");
     return;
@@ -142,7 +144,8 @@ void OTAComponent::on_network_update(bool connected, bool ip_address_changed) {
 }
 
 void OTAComponent::on_shutdown() {
-  if (!this->use_udp_transport_) return;
+  if (!this->use_udp_transport_)
+    return;
   ESP_LOGI(TAG, "MCUmgr shutting down. Stopping UDP transport...");
   this->stop_udp_transport();
 }
