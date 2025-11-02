@@ -16,7 +16,7 @@ class ProcessorBase : public camera::Processor {
   /// Assign the processing task.
   void set_task(camera::Task *task) { this->task_ = task; }
   /// Set processor ID used for identification and logging.
-  void set_id(const std::string &id) { this->id_ = std::move(id); }
+  void set_id(const std::string &id) { this->id_ = id; }
   /// Enable or disable performance statistics logging.
   void set_statistics(bool statistics) { this->statistics_ = statistics; }
   /// Run processor in a separate job to avoid blocking.
