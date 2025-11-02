@@ -290,6 +290,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
             address = ble_device.address
         else:
             return True
+
     if is_mac_address(address):
         asyncio.run(logger_connect(address))
         return True
