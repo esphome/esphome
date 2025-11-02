@@ -1,12 +1,6 @@
-uart:
-  - id: uart_gcja5
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-    parity: EVEN
-
 sensor:
   - platform: gcja5
+    uart_id: uart_bus
     pm_1_0:
       name: "Particulate Matter <1.0µm Concentration"
     pm_2_5:

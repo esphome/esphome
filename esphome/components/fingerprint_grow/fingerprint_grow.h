@@ -6,6 +6,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 
+#include <limits>
 #include <vector>
 
 namespace esphome {
@@ -177,7 +178,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   uint8_t address_[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   uint16_t capacity_ = 64;
   uint32_t password_ = 0x0;
-  uint32_t new_password_ = -1;
+  uint32_t new_password_ = std::numeric_limits<uint32_t>::max();
   GPIOPin *sensing_pin_{nullptr};
   GPIOPin *sensor_power_pin_{nullptr};
   uint8_t enrollment_image_ = 0;

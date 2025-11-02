@@ -347,7 +347,7 @@ def final_validate_device_schema(
 
     def validate_pin(opt, device):
         def validator(value):
-            if opt in device:
+            if opt in device and not CORE.testing_mode:
                 raise cv.Invalid(
                     f"The uart {opt} is used both by {name} and {device[opt]}, "
                     f"but can only be used by one. Please create a new uart bus for {name}."
@@ -446,7 +446,7 @@ async def uart_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        cg.add(var.set_data_static(cg.ArrayInitializer(*data)))
     return var
 
 

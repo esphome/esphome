@@ -257,7 +257,30 @@ lvgl:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
             align: bottom_mid
+        - label:
+            id: setup_lambda_label
+            # Test lambda in widget property during setup (LvContext)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              char buf[32];
+              snprintf(buf, sizeof(buf), "Setup: %d", 42);
+              return std::string(buf);
+            align: top_mid
             text_font: space16
+        - label:
+            id: chip_info_label
+            # Test complex setup lambda (real-world pattern)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              // Test conditional compilation and string formatting
+              char buf[64];
+              #ifdef USE_ESP_IDF
+              snprintf(buf, sizeof(buf), "IDF: v%d.%d", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR);
+              #else
+              snprintf(buf, sizeof(buf), "Arduino");
+              #endif
+              return std::string(buf);
+            align: top_left
         - obj:
             align: center
             arc_opa: COVER
