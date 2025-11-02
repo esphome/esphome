@@ -14,11 +14,6 @@ namespace modbus {
 
 static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
 
-enum ModbusRole {
-  CLIENT,
-  SERVER,
-};
-
 class ModbusDevice;
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -27,50 +22,83 @@ class Modbus : public uart::UARTDevice, public Component {
 
   void setup() override;
 
-  void loop() override;
-
-  void dump_config() override;
-
+  // TODO: Move this to server only.
   void register_device(ModbusDevice *device) { this->devices_.push_back(device); }
 
   float get_setup_priority() const override;
-  bool tx_buffer_empty();
-  bool tx_blocked();
+  virtual bool tx_blocked();
+  virtual bool tx_buffer_empty() { return false; }  // TODO Remove this function from Modbus base class
 
-  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr);
-  void send_raw(const std::vector<uint8_t> &payload);
-  void set_role(ModbusRole role) { this->role = role; }
+  virtual void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+                    uint8_t payload_len = 0, const uint8_t *payload = nullptr) = 0;
+  virtual void send_raw(const std::vector<uint8_t> &payload) = 0;
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
-  void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
-  void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
-
-  ModbusRole role;
 
  protected:
-  bool parse_modbus_byte_(std::optional<uint8_t> byte);
   void receive_and_parse_modbus_bytes_();
+  virtual void parse_modbus_byte_(uint8_t byte) = 0;
+  bool parse_modbus_server_byte_(uint8_t byte);
+  virtual void process_modbus_server_frame_(uint8_t address, uint8_t function_code,
+                                            const std::vector<uint8_t> &data) = 0;
   void clear_rx_buffer_(const std::string &reason, bool warn = false);
-  void send_next_frame_();
+  void send_frame_(const std::vector<uint8_t> &payload);
+  static const std::vector<uint8_t> add_crc_to_payload_(const std::vector<uint8_t> &payload);
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
-  uint16_t send_wait_time_{250};
-  uint16_t turnaround_delay_ms_{100};
-  uint8_t waiting_for_response_{0};
-  uint8_t expecting_peer_response_{0};
+  uint16_t turnaround_delay_ms_{0};  // This is only used by ModbusClient. Servers respond immediately.
 
   GPIOPin *flow_control_pin_{nullptr};
 
   std::vector<uint8_t> rx_buffer_;
   std::vector<ModbusDevice *> devices_;
+};
+
+class ModbusClient : public Modbus {
+ public:
+  ModbusClient() = default;
+  void dump_config() override;
+  void loop() override;
+  void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
+  void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
+  bool tx_buffer_empty() override;
+  bool tx_blocked() override;
+  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+            uint8_t payload_len = 0, const uint8_t *payload = nullptr) override;
+  void send_raw(const std::vector<uint8_t> &payload) override;
+
+ protected:
+  void parse_modbus_byte_(uint8_t byte) override;
+  void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
+  void send_next_frame_();
+
+  uint16_t send_wait_time_{250};
+  uint8_t waiting_for_response_{0};
+
   // std::queue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::queue<std::vector<uint8_t>> tx_buffer_;
+};
+
+class ModbusServer : public Modbus {
+ public:
+  ModbusServer() = default;
+  void dump_config() override;
+  void loop() override;
+  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+            uint8_t payload_len = 0, const uint8_t *payload = nullptr) override;
+  void send_raw(const std::vector<uint8_t> &payload) override;
+
+ protected:
+  void parse_modbus_byte_(uint8_t byte) override;
+  bool parse_modbus_client_byte_(std::optional<uint8_t> byte);
+  void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);
+  uint8_t expecting_peer_response_{0};
 };
 
 class ModbusDevice {
@@ -95,10 +123,13 @@ class ModbusDevice {
     this->send_raw(error_response);
   }
   // If more than one device is connected block sending a new command before a response is received
+  // TODO: tx_buffer_empty is not implemented for ModbusServer
   bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:
-  friend Modbus;
+  // TODO: Double check friends.
+  friend ModbusClient;
+  friend ModbusServer;
 
   Modbus *parent_;
   uint8_t address_;

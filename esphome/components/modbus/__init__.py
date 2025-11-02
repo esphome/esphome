@@ -13,7 +13,8 @@ import esphome.final_validate as fv
 DEPENDENCIES = ["uart"]
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
-Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
+ModbusServer = modbus_ns.class_("ModbusServer", cg.Component, uart.UARTDevice)
+ModbusClient = modbus_ns.class_("ModbusClient", cg.Component, uart.UARTDevice)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 MULTI_CONF = True
 
@@ -28,22 +29,33 @@ MODBUS_ROLES = {
     "server": ModbusRole.SERVER,
 }
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(Modbus),
-            cv.Optional(CONF_ROLE, default="client"): cv.enum(MODBUS_ROLES),
-            cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(
-                CONF_SEND_WAIT_TIME, default="250ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_TURNAROUND_TIME, default="100ms"
-            ): cv.positive_time_period_milliseconds,
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = cv.typed_schema(
+    {
+        "client": cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(ModbusClient),
+                cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(
+                    CONF_SEND_WAIT_TIME, default="250ms"
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_TURNAROUND_TIME, default="100ms"
+                ): cv.positive_time_period_milliseconds,
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(uart.UART_DEVICE_SCHEMA),
+        "server": cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(ModbusServer),
+                cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(uart.UART_DEVICE_SCHEMA),
+    },
+    key=CONF_ROLE,
+    default_type="client",
 )
 
 
@@ -54,18 +66,29 @@ async def to_code(config):
 
     await uart.register_uart_device(var, config)
 
-    cg.add(var.set_role(config[CONF_ROLE]))
     if CONF_FLOW_CONTROL_PIN in config:
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))
 
-    cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
-    cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
+    if config[CONF_ROLE] == "client":
+        cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
+        cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
+
+
+def modbus_server_device_schema(default_address):
+    schema = {
+        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusServer),
+    }
+    if default_address is None:
+        schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
+    else:
+        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
+    return cv.Schema(schema)
 
 
 def modbus_device_schema(default_address):
     schema = {
-        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(Modbus),
+        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusClient),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t

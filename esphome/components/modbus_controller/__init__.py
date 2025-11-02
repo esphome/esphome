@@ -49,6 +49,7 @@ MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 modbus_ns = cg.esphome_ns.namespace("modbus")
+ModbusRole = modbus_ns.enum("ModbusRole")
 ModbusController = modbus_controller_ns.class_(
     "ModbusController", cg.PollingComponent, modbus.ModbusDevice
 )
@@ -202,7 +203,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(modbus.modbus_device_schema(0x01))
+    .extend(modbus.modbus_device_schema(0x01)),
 )
 
 ModbusItemBaseSchema = cv.Schema(
