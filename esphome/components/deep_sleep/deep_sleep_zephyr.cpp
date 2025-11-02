@@ -55,7 +55,7 @@ void DeepSleepComponent::dump_config_platform_() {
                 YESNO((NRF_PWM3->ENABLE & PWM_ENABLE_ENABLE_Msk) == PWM_ENABLE_ENABLE_Enabled));
   ESP_LOGCONFIG(TAG, "  AAR:   %-3s| QSPI deep power-down:%-3s| CRYPTOCELL: %-3s",
                 YESNO((NRF_AAR->ENABLE & AAR_ENABLE_ENABLE_Msk) == AAR_ENABLE_ENABLE_Enabled),
-                YESNO((NRF_QSPI->IFCONFIG0 & QSPI_IFCONFIG0_DPMENABLE_Msk) == QSPI_IFCONFIG0_DPMENABLE_Enable),
+                YESNO((NRF_QSPI->IFCONFIG0 & QSPI_IFCONFIG0_DPMENABLE_Msk) != 0),
                 YESNO((NRF_CRYPTOCELL->ENABLE & CRYPTOCELL_ENABLE_ENABLE_Msk) == CRYPTOCELL_ENABLE_ENABLE_Enabled));
 }
 
