@@ -183,3 +183,19 @@ using socklen_t = uint32_t;
 #endif
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS
+
+#ifdef USE_SOCKET_IMPL_ZEPHYR_SOCKETS
+
+#include <cstdint>
+#include <zephyr/net/socket.h>
+#include <zephyr/net/net_ip.h>
+
+// Define ESPHome specific address constants
+#define ESPHOME_INADDR_ANY INADDR_ANY
+#define ESPHOME_INADDR_NONE INADDR_NONE
+
+// Note: We don't define socket function macros here to avoid conflicts
+// with method names in the implementation. The implementation will use
+// the zsock_ prefixed functions directly.
+
+#endif  // USE_SOCKET_IMPL_ZEPHYR_SOCKETS
