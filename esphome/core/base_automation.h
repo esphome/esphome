@@ -10,6 +10,7 @@
 #include "esphome/core/helpers.h"
 
 #include <vector>
+#include <forward_list>
 
 namespace esphome {
 
@@ -315,18 +316,16 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void play_complex(Ts... x) override {
     this->num_running_++;
-    // Store loop parameters
-    this->var_ = std::make_tuple(x...);
     // Initial condition check
-    if (!this->condition_->check_tuple(this->var_)) {
+    if (!this->condition_->check(x...)) {
       // If new condition check failed, stop loop if running
       this->then_.stop();
-      this->play_next_tuple_(this->var_);
+      this->play_next_(x...);
       return;
     }
 
     if (this->num_running_ > 0) {
-      this->then_.play_tuple(this->var_);
+      this->then_.play(x...);
     }
   }
 
@@ -338,19 +337,18 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  std::tuple<Ts...> var_{};
 };
 
 // Implementation of WhileLoopContinuation::play
 template<typename... Ts> void WhileLoopContinuation<Ts...>::play(Ts... x) {
-  if (this->parent_->num_running_ > 0 && this->parent_->condition_->check_tuple(this->parent_->var_)) {
+  if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
     // play again
     if (this->parent_->num_running_ > 0) {
-      this->parent_->then_.play_tuple(this->parent_->var_);
+      this->parent_->then_.play(x...);
     }
   } else {
     // condition false, play next
-    this->parent_->play_next_tuple_(this->parent_->var_);
+    this->parent_->play_next_(x...);
   }
 }
 
@@ -382,11 +380,10 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
   void play_complex(Ts... x) override {
     this->num_running_++;
-    this->var_ = std::make_tuple(x...);
     if (this->count_.value(x...) > 0) {
       this->then_.play(0, x...);
     } else {
-      this->play_next_tuple_(this->var_);
+      this->play_next_(x...);
     }
   }
 
@@ -397,14 +394,13 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
  protected:
   ActionList<uint32_t, Ts...> then_;
-  std::tuple<Ts...> var_;
 };
 
 // Implementation of RepeatLoopContinuation::play
 template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(uint32_t iteration, Ts... x) {
   iteration++;
   if (iteration >= this->parent_->count_.value(x...)) {
-    this->parent_->play_next_tuple_(this->parent_->var_);
+    this->parent_->play_next_(x...);
   } else {
     this->parent_->then_.play(iteration, x...);
   }
