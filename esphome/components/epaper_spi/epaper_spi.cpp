@@ -119,8 +119,6 @@ void EPaperBase::wait_for_idle_(bool should_wait) {
   this->waiting_for_idle_ = should_wait;
 }
 
-void EPaperBase::delay_ms_(uint32_t duration) { this->delay_until_ = millis() + duration; }
-
 /**
  * Called during the loop task.
  * First defer for any pending delays, then check if we are waiting for the display to become idle.

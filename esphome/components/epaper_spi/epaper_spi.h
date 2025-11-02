@@ -71,7 +71,6 @@ class EPaperBase : public DisplayBuffer,
   bool reset_() const;
   void initialise_();
   void wait_for_idle_(bool should_wait);
-  void delay_ms_(uint32_t duration);
   bool init_buffer_(size_t buffer_length);
 
   virtual int get_width_controller() { return this->get_width_internal(); };
