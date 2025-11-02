@@ -180,10 +180,12 @@ def _platform_specific_validation(config):
         only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2])(config)
         cv.only_with_esp_idf(config)
     elif CORE.is_nrf52:
-        # nRF52 uses Zephyr
-        cv.only_on_nrf52(config)
+        # nRF52 uses Zephyr; no dedicated cv helper exists
+        pass
     else:
-        raise cv.Invalid("OpenThread is only supported on ESP32 and nRF52 platforms")
+        raise cv.Invalid(
+            "OpenThread is only supported on ESP32 (ESP-IDF) and nRF52 (Zephyr) platforms"
+        )
     return config
 
 
