@@ -22,26 +22,27 @@ camera_pipeline:
         - lambda: |-
             static int counter = 0;
             static bool use_context = true;
+            static int state = 0;
 
-            if (context.state == 0) {
-              ++context.state;
-              it.filled_circle(32 + counter, 128, 15, Color(255, 0, 0));
+            if (state == 0) {
+              ++state;
+              processor.filled_circle(32 + counter, 128, 15, Color(255, 0, 0));
               if (use_context) {
-                context.done = false;
+                reentry.set_not_done();
                 return;
               }
             }
-            if (context.state == 1) {
-              ++context.state;
-              it.filled_circle(96 + counter, 256, 15, Color(0, 255, 0));
+            if (state == 1) {
+              ++state;
+              processor.filled_circle(96 + counter, 256, 15, Color(0, 255, 0));
               if (use_context) {
-                context.done = false;
+                reentry.set_not_done();
                 return;
               }
             }
-            if (context.state == 2) {
-              ++context.state;
-              it.filled_circle(160 + counter, 384, 15, Color(0, 0, 255));
+            if (state == 2) {
+              state = 0;
+              processor.filled_circle(160 + counter, 384, 15, Color(0, 0, 255));
             }
 
             ++counter;

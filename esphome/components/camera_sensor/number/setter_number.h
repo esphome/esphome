@@ -8,7 +8,7 @@ class SetterNumber : public number::Number {
  public:
   using SetterCallback = std::function<void(float)>;
   SetterNumber() = default;
-  void set_setter(const SetterCallback &setter) { this->setter_ = std::move(setter); }
+  void set_setter(const SetterCallback &setter) { this->setter_ = setter; }
 
  protected:
   void control(float value) override {

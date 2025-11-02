@@ -65,10 +65,11 @@ camera::ProcessorError ProcessorBase::run_state_machine_(camera::ImageFormat inp
 
   if (this->state_ == STATE_START_JOB_TASK) {
     bool started = task_->start([this, input_spec, input_format, input]() {
-      if (input_format == camera::ImageFormat::IMAGE_FORMAT_RAW)
+      if (input_format == camera::ImageFormat::IMAGE_FORMAT_RAW) {
         this->error_ = this->process_pixels_base(input_spec, input);
-      else
+      } else {
         this->error_ = this->process_compressed_image_base(input_format, input);
+      }
     });
 
     // No recover from this.
