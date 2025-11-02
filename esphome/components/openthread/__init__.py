@@ -1,16 +1,20 @@
 import esphome.codegen as cg
+from esphome.core import CORE
+
+# Only import require_vfs_select for ESP32 platform
+if CORE.is_esp32:
+    from esphome.components.esp32 import require_vfs_select
+
 from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
     only_on_variant,
-    require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
-from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
