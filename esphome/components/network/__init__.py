@@ -55,6 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
             esp32=False,
             rp2040=False,
             bk72xx=False,
+            nrf52=False,
         ): cv.All(
             cv.boolean,
             cv.Any(
@@ -64,6 +65,7 @@ CONFIG_SCHEMA = cv.Schema(
                     esp8266_arduino=cv.Version(0, 0, 0),
                     rp2040_arduino=cv.Version(0, 0, 0),
                     bk72xx_arduino=cv.Version(1, 7, 0),
+                    nrf52_arduino=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
             ),
@@ -91,7 +93,8 @@ async def to_code(config):
             else:
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", True)
-        elif enable_ipv6:
+        elif enable_ipv6 and CORE.target_platform != "nrf52":
+            # Do not add LwIP flags on nRF52 (Zephyr/OpenThread provides IPv6)
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
             if CORE.is_rp2040:
