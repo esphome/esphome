@@ -158,7 +158,8 @@ def set_zephyr_config_options(config):
         )
 
     # Stack sizes
-    zephyr_add_prj_conf("MAIN_STACK_SIZE", 10240)
+    # CONFIG_MAIN_STACK_SIZE already set with value '2048', cannot set again to '10240'
+    # zephyr_add_prj_conf("MAIN_STACK_SIZE", 10240)
 
     # OpenThread features
     # zephyr_add_prj_conf("CONFIG_OPENTHREAD_DNS_CLIENT", "y")
