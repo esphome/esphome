@@ -5,7 +5,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     only_on_variant,
 )
-from esphome.components.mdns import MDNSComponent, enable_mdns_storage
+from esphome.components.mdns import MDNSComponent
 from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
@@ -27,9 +27,13 @@ from .const import (
     CONF_TLV,
 )
 
-# Only import require_vfs_select for ESP32 platform
 if CORE.is_esp32:
+    # Only import require_vfs_select for ESP32 platform
     from esphome.components.esp32 import require_vfs_select
+
+    # Import enable_mdns_storage for ESP32 platform
+    from esphome.components.mdns import enable_mdns_storage
+
 
 CODEOWNERS = ["@mrene"]
 
@@ -285,9 +289,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add_define("USE_OPENTHREAD")
-
-    # OpenThread SRP needs access to mDNS services after setup
-    enable_mdns_storage()
+    # Apply platform-specific configuration
+    if CORE.is_esp32:
+        # ESP32 specific configuration
+        enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
