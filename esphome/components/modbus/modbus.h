@@ -105,7 +105,7 @@ class ModbusDevice {
  public:
   void set_parent(Modbus *parent) { parent_ = parent; }
   void set_address(uint8_t address) { address_ = address; }
-  virtual void on_modbus_data(const std::vector<uint8_t> &data) = 0;
+  virtual void on_modbus_data(const std::vector<uint8_t> &data){};
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
   virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
