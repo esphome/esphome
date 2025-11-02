@@ -86,7 +86,7 @@ bool EPaperBase::is_idle_() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
-  return this->busy_pin_->digital_read();
+  return !this->busy_pin_->digital_read();
 }
 
 bool EPaperBase::reset() const {

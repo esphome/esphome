@@ -40,5 +40,12 @@ spectra_e6.extend(
     cs_pin=10,
     dc_pin=11,
     reset_pin=12,
-    busy_pin=13,
+    busy_pin={
+        "number": 13,
+        "inverted": True,
+        "mode": {
+            "input": True,
+            "pullup": True,
+        },
+    },
 )
