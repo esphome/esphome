@@ -32,8 +32,8 @@ class OTAComponent : public ota::OTAComponent {
   void update_pending();
 
  private:
-  void start_udp_transport();
-  void stop_udp_transport();
+  void start_udp_transport_();
+  void stop_udp_transport_();
   bool udp_transport_started_{false};
   bool use_udp_transport_{false};
   bool use_cdc_transport_{false};
