@@ -63,7 +63,7 @@ class EPaperBase : public DisplayBuffer,
  protected:
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
-  void process_state();
+  void process_state_();
 
   const char *epaper_state_to_string_();
   bool is_idle_() const;

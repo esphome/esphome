@@ -151,7 +151,7 @@ void EPaperBase::loop() {
       return;
     }
   }
-  this->process_state();
+  this->process_state_();
 }
 
 /**
@@ -162,7 +162,7 @@ void EPaperBase::loop() {
  *
  * Should a subclassed class need to override this, the method will need to be made virtual.
  */
-void EPaperBase::process_state() {
+void EPaperBase::process_state_() {
   ESP_LOGV(TAG, "Process state entered in state %s", epaper_state_to_string_());
   switch (this->state_) {
     default:
