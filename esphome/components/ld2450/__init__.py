@@ -17,9 +17,8 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2450Component),
-            cv.Optional(CONF_THROTTLE, default="1000ms"): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(min=cv.TimePeriod(milliseconds=1)),
+            cv.Optional(CONF_THROTTLE): cv.invalid(
+                f"{CONF_THROTTLE} has been removed; use per-sensor filters, instead"
             ),
         }
     )
@@ -46,4 +45,3 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_throttle(config[CONF_THROTTLE]))

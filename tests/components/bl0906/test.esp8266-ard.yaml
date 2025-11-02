@@ -2,4 +2,7 @@ substitutions:
   tx_pin: GPIO1
   rx_pin: GPIO3
 
+packages:
+  uart_19200: !include ../../test_build_components/common/uart_19200/esp8266-ard.yaml
+
 <<: !include common.yaml

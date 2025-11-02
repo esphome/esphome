@@ -31,7 +31,11 @@ def run_format(executable, args, queue, lock, failed_files):
         invocation.append(path)
 
         proc = subprocess.run(
-            invocation, capture_output=True, encoding="utf-8", check=False
+            invocation,
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+            close_fds=False,
         )
         if proc.returncode != 0:
             with lock:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
-import os
 from pathlib import Path
 
 import requests
@@ -23,11 +22,11 @@ CONTENT_DISPOSITION = "content-disposition"
 TEMP_DIR = "temp"
 
 
-def has_remote_file_changed(url, local_file_path):
-    if os.path.exists(local_file_path):
+def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
+    if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
-            local_modification_time = os.path.getmtime(local_file_path)
+            local_modification_time = local_file_path.stat().st_mtime
             local_modification_time_str = datetime.utcfromtimestamp(
                 local_modification_time
             ).strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -65,9 +64,9 @@ def has_remote_file_changed(url, local_file_path):
     return True
 
 
-def is_file_recent(file_path: str, refresh: TimePeriodSeconds) -> bool:
-    if os.path.exists(file_path):
-        creation_time = os.path.getctime(file_path)
+def is_file_recent(file_path: Path, refresh: TimePeriodSeconds) -> bool:
+    if file_path.exists():
+        creation_time = file_path.stat().st_ctime
         current_time = datetime.now().timestamp()
         return current_time - creation_time <= refresh.total_seconds
     return False
