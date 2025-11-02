@@ -6,10 +6,10 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ENABLE_IPV6, CONF_ID, CONF_USE_ADDRESS
-from esphome.core import CORE
+from esphome.core import _LOGGER, CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -100,45 +100,106 @@ def set_esp32_sdkconfig_options(config):
 
 def set_zephyr_config_options(config):
     # Enable OpenThread in Zephyr
-    zephyr_add_prj_conf("CONFIG_OPENTHREAD", "y")
-    zephyr_add_prj_conf("CONFIG_NET_L2_OPENTHREAD", "y")
-
-    # Enable IEEE 802.15.4 radio
-    zephyr_add_prj_conf("CONFIG_IEEE802154", "y")
-    zephyr_add_prj_conf("CONFIG_IEEE802154_RAW_MODE", "y")
-
-    # Network configuration
-    zephyr_add_prj_conf("CONFIG_NET_IPV6", "y")
-    zephyr_add_prj_conf("CONFIG_NET_UDP", "y")
-    zephyr_add_prj_conf("CONFIG_NET_SOCKETS", "y")
-
-    # OpenThread features
-    zephyr_add_prj_conf("CONFIG_OPENTHREAD_DNS_CLIENT", "y")
-    zephyr_add_prj_conf("CONFIG_OPENTHREAD_SRP_CLIENT", "y")
+    zephyr_add_prj_conf("INIT_STACKS", True)
+    zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
+    # zephyr_add_prj_conf("CONFIG_OPENTHREAD", "y")
+    # zephyr_add_prj_conf("CONFIG_NET_L2_OPENTHREAD", "y")
 
     # Device type configuration
     device_type = config.get(CONF_DEVICE_TYPE)
     if device_type == "FTD":
-        zephyr_add_prj_conf("CONFIG_OPENTHREAD_FTD", "y")
+        zephyr_add_prj_conf("OPENTHREAD_FTD", "y")
     elif device_type == "MTD":
-        zephyr_add_prj_conf("CONFIG_OPENTHREAD_MTD", "y")
+        zephyr_add_prj_conf("OPENTHREAD_MTD", "y")
 
+    # Enable IEEE 802.15.4 radio
+    # zephyr_add_prj_conf("CONFIG_IEEE802154", "y")
+    # zephyr_add_prj_conf("CONFIG_IEEE802154_RAW_MODE", "y")
+
+    # Network stack with IPv6 support
+    zephyr_add_prj_conf("NETWORKING", True)
+    zephyr_add_prj_conf("NET_IPV6", True)
+    zephyr_add_prj_conf("NET_IPV4", True)
+    zephyr_add_prj_conf("NET_TCP", True)
+    zephyr_add_prj_conf("NET_UDP", True)
+
+    zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
+    zephyr_add_prj_conf("NET_IF_UNICAST_IPV6_ADDR_COUNT", 6)
+    zephyr_add_prj_conf("NET_SOCKETS", True)
+    zephyr_add_prj_conf("NET_SOCKETS_POLL_MAX", 4)
+    zephyr_add_prj_conf("NET_SOCKETS_POSIX_NAMES", True)
+
+    # TCP configuration - disable RFC6528 ISN generation to avoid mbedtls_md5 dependency
+    zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
+
+    # Enable hostname
+    zephyr_add_prj_conf("NET_HOSTNAME_ENABLE", True)
+
+    # Configure DNS resolver settings for Zephyr
+    zephyr_add_prj_conf("DNS_RESOLVER", True)
+    zephyr_add_prj_conf("DNS_SD", True)
+    zephyr_add_prj_conf("DNS_SERVER_IP_ADDRESSES", False)
+    zephyr_add_prj_conf("DNS_RESOLVER_MAX_SERVERS", 2)
+    zephyr_add_prj_conf("DNS_RESOLVER_ADDITIONAL_BUF_CTR", 2)
+    zephyr_add_prj_conf("DNS_RESOLVER_ADDITIONAL_QUERIES", 2)
+
+    # Setup SRP services if mDNS is enabled
+    if "mdns" in CORE.config:
+        zephyr_add_prj_conf("CONFIG_OPENTHREAD_SRP_CLIENT", True)
+        zephyr_add_prj_conf("CONFIG_OPENTHREAD_DNS_CLIENT", True)
+        _LOGGER.debug("mDNS component found, enabling OpenThread SRP client features.")
+    else:
+        _LOGGER.debug(
+            "mDNS component not found, OpenThread SRP client features disabled."
+        )
+
+    # Stack sizes
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 10240)
+
+    # OpenThread features
+    # zephyr_add_prj_conf("CONFIG_OPENTHREAD_DNS_CLIENT", "y")
+    # zephyr_add_prj_conf("CONFIG_OPENTHREAD_SRP_CLIENT", "y")
+
+    # OpenThread settings
+    zephyr_add_prj_conf("OPENTHREAD_MANUAL_START", True)
     # Network credentials - if using TLV, we'll set it in C++ code
     if tlv := config.get(CONF_TLV):
         cg.add_define("USE_OPENTHREAD_TLVS", tlv)
     else:
         # Set individual parameters
         if pan_id := config.get(CONF_PAN_ID):
-            zephyr_add_prj_conf("CONFIG_OPENTHREAD_PANID", str(pan_id))
+            zephyr_add_prj_conf("OPENTHREAD_PANID", str(pan_id))
 
         if channel := config.get(CONF_CHANNEL):
-            zephyr_add_prj_conf("CONFIG_OPENTHREAD_CHANNEL", str(channel))
+            zephyr_add_prj_conf("OPENTHREAD_CHANNEL", str(channel))
 
         if network_name := config.get(CONF_NETWORK_NAME):
-            zephyr_add_prj_conf("CONFIG_OPENTHREAD_NETWORK_NAME", f'"{network_name}"')
+            zephyr_add_prj_conf("OPENTHREAD_NETWORK_NAME", f'"{network_name}"')
+
+        # NETWORKKEY
+        if network_key := config.get(CONF_NETWORK_KEY):
+            zephyr_add_prj_conf("OPENTHREAD_NETWORK_MASTERKEY", f'"{network_key:032x}"')
+
+        # OPENTHREAD_XPANID expects a 16-character hex string
+        if (ext_pan_id := config.get(CONF_EXT_PAN_ID)) is not None:
+            zephyr_add_prj_conf("OPENTHREAD_XPANID", f'"{ext_pan_id:016x}"')
 
     if config.get(CONF_FORCE_DATASET):
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+
+    # Add build flags - ensure proper spacing between flags
+    cg.add_build_flag("-DUSE_OPENTHREAD")
+    cg.add_build_flag("-DUSE_ZEPHYR_OPENTHREAD")
+    cg.add_build_flag("-DUSE_IPV6")
+    cg.add_build_flag("-DUSE_ZEPHYR")
+    cg.add_build_flag("-DUSE_ZEPHYR_NETWORKING")
+
+    # Add device tree overlay for OpenThread
+    zephyr_add_overlay("""
+&ieee802154 {
+    status = "okay";
+};
+    """)
 
 
 openthread_ns = cg.esphome_ns.namespace("openthread")
