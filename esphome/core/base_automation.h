@@ -350,14 +350,16 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
   ActionList<uint32_t, Ts...> then_;
 };
 
-/** Base class for WaitUntilAction variants.
+/** Wait until a condition is true to continue execution.
  *
- * Provides common logic for checking conditions and handling immediate continuation.
- * Derived classes implement storage strategy (direct or queue-based).
+ * Uses queue-based storage to safely handle concurrent executions.
+ * While concurrent execution from the same trigger is uncommon, it's possible
+ * (e.g., rapid button presses, high-frequency sensor updates), so we use
+ * queue-based storage for correctness.
  */
-template<typename... Ts> class WaitUntilActionBase : public Action<Ts...>, public Component {
+template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
  public:
-  WaitUntilActionBase(Condition<Ts...> *condition) : condition_(condition) {}
+  WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
 
   TEMPLATABLE_VALUE(uint32_t, timeout_value)
 
@@ -379,7 +381,7 @@ template<typename... Ts> class WaitUntilActionBase : public Action<Ts...>, publi
     // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-    this->store_item(now, timeout, x...);
+    this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
 
     // Enable loop now that we have work to do
     this->enable_loop();
@@ -390,86 +392,6 @@ template<typename... Ts> class WaitUntilActionBase : public Action<Ts...>, publi
     if (this->num_running_ == 0)
       return;
 
-    this->process_items();
-  }
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
- protected:
-  /// Store an item for later processing (implemented by derived class)
-  virtual void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) = 0;
-
-  /// Process stored items, checking conditions and timeouts (implemented by derived class)
-  virtual void process_items() = 0;
-
-  Condition<Ts...> *condition_;
-};
-
-/** Wait until a condition is true to continue execution.
- *
- * Optimized for non-parallel scenarios (single, restart, queued modes).
- * Uses direct member storage with zero queue overhead.
- */
-template<typename... Ts> class WaitUntilAction : public WaitUntilActionBase<Ts...> {
- public:
-  using WaitUntilActionBase<Ts...>::WaitUntilActionBase;
-
-  void stop() override {
-    this->start_time_ = 0;
-    this->disable_loop();
-  }
-
- protected:
-  void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) override {
-    this->start_time_ = start_time;
-    this->timeout_ = timeout;
-    this->args_ = std::make_tuple(args...);
-  }
-
-  void process_items() override {
-    // Only process if we have pending work
-    if (this->start_time_ == 0)
-      return;
-
-    auto now = millis();
-    auto expired = this->timeout_ && (now - this->start_time_) >= *this->timeout_;
-
-    if (expired || this->condition_->check_tuple(this->args_)) {
-      this->play_next_tuple_(this->args_);
-      this->start_time_ = 0;
-      // No more work - disable loop until next play_complex
-      this->disable_loop();
-    }
-  }
-
-  uint32_t start_time_{0};
-  optional<uint32_t> timeout_{};
-  std::tuple<Ts...> args_{};
-};
-
-/** Parallel-safe variant of WaitUntilAction.
- *
- * Used inside parallel scripts to safely handle concurrent executions.
- * Uses queue-based storage to prevent argument corruption.
- */
-template<typename... Ts> class ParallelWaitUntilAction : public WaitUntilActionBase<Ts...> {
- public:
-  using WaitUntilActionBase<Ts...>::WaitUntilActionBase;
-
-  void stop() override {
-    this->var_queue_.clear();
-    this->disable_loop();
-  }
-
- protected:
-  void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) override {
-    this->var_queue_.emplace_front(start_time, timeout, std::make_tuple(args...));
-  }
-
-  void process_items() override {
     auto now = millis();
 
     this->var_queue_.remove_if([&](auto &queued) {
@@ -493,6 +415,18 @@ template<typename... Ts> class ParallelWaitUntilAction : public WaitUntilActionB
     }
   }
 
+  void stop() override {
+    this->var_queue_.clear();
+    this->disable_loop();
+  }
+
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
+
+ protected:
+  Condition<Ts...> *condition_;
   std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
 

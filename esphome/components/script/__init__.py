@@ -148,15 +148,7 @@ async def to_code(config):
         triggers.append((trigger, func_args, conf))
 
     for trigger, func_args, conf in triggers:
-        # Get script mode from config and map to enum
-        # conf[CONF_MODE] is "single", "restart", "queued", or "parallel"
-        mode_str = conf[CONF_MODE].upper()  # "SINGLE", "RESTART", etc.
-        # ScriptMode.SCRIPT_MODE_SINGLE, etc.
-        mode_enum = automation.SCRIPT_MODES_ENUM[mode_str]
-
-        # Set context before building automation
-        with automation.script_mode_context(mode_enum):
-            await automation.build_automation(trigger, func_args, conf)
+        await automation.build_automation(trigger, func_args, conf)
 
 
 @automation.register_action(
@@ -229,14 +221,6 @@ async def script_stop_action_to_code(config, action_id, template_arg, args):
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
-    # Choose class based on parallel context
-    # Inside parallel script → use ParallelScriptWaitAction (queue-based storage)
-    # Otherwise → use ScriptWaitAction (optimized direct storage)
-    if automation._is_parallel_context():
-        # Modify action_id to use ParallelScriptWaitAction
-        action_id = action_id.copy()
-        action_id.type = script_ns.class_("ParallelScriptWaitAction")
-
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)

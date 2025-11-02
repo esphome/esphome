@@ -266,14 +266,16 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
   C *parent_;
 };
 
-/** Base class for ScriptWaitAction variants.
+/** Wait for a script to finish before continuing.
  *
- * Provides common logic for checking script state and handling immediate continuation.
- * Derived classes implement storage strategy (single callback or queue-based).
+ * Uses queue-based storage to safely handle concurrent executions.
+ * While concurrent execution from the same trigger is uncommon, it's possible
+ * (e.g., rapid button presses, high-frequency sensor updates), so we use
+ * queue-based storage for correctness.
  */
-template<class C, typename... Ts> class ScriptWaitActionBase : public Action<Ts...>, public Component {
+template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
  public:
-  ScriptWaitActionBase(C *script) : script_(script) {}
+  ScriptWaitAction(C *script) : script_(script) {}
 
   void setup() override {
     // Start with loop disabled - only enable when there's work to do
@@ -289,7 +291,7 @@ template<class C, typename... Ts> class ScriptWaitActionBase : public Action<Ts.
     }
 
     // Store callback for later execution
-    this->store_callback([this, x...]() { this->play_next_(x...); });
+    this->play_queue_.emplace_front([this, x...]() { this->play_next_(x...); });
     // Enable loop now that we have work to do
     this->enable_loop();
     this->loop();
@@ -302,61 +304,6 @@ template<class C, typename... Ts> class ScriptWaitActionBase : public Action<Ts.
     if (this->script_->is_running())
       return;
 
-    this->process_callbacks();
-  }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
- protected:
-  /// Store a callback for later execution (implemented by derived class)
-  virtual void store_callback(std::function<void()> &&callback) = 0;
-
-  /// Process stored callbacks (implemented by derived class)
-  virtual void process_callbacks() = 0;
-
-  C *script_;
-};
-
-/** Wait for a script to finish before continuing.
- *
- * Optimized for non-parallel scenarios (single, restart, queued modes).
- * Uses single callback storage with zero queue overhead.
- */
-template<class C, typename... Ts> class ScriptWaitAction : public ScriptWaitActionBase<C, Ts...> {
- public:
-  using ScriptWaitActionBase<C, Ts...>::ScriptWaitActionBase;
-
- protected:
-  void store_callback(std::function<void()> &&callback) override { this->callback_ = std::move(callback); }
-
-  void process_callbacks() override {
-    if (this->callback_) {
-      this->callback_();
-      this->callback_ = nullptr;
-      // No more work - disable loop until next play_complex
-      this->disable_loop();
-    }
-  }
-
-  std::function<void()> callback_;
-};
-
-/** Parallel-safe variant of ScriptWaitAction.
- *
- * Used inside parallel scripts to safely handle concurrent executions.
- * Uses queue-based storage to prevent callback corruption.
- */
-template<class C, typename... Ts> class ParallelScriptWaitAction : public ScriptWaitActionBase<C, Ts...> {
- public:
-  using ScriptWaitActionBase<C, Ts...>::ScriptWaitActionBase;
-
- protected:
-  void store_callback(std::function<void()> &&callback) override {
-    this->play_queue_.emplace_front(std::move(callback));
-  }
-
-  void process_callbacks() override {
     while (!this->play_queue_.empty()) {
       auto fn = this->play_queue_.front();
       fn();
@@ -366,6 +313,11 @@ template<class C, typename... Ts> class ParallelScriptWaitAction : public Script
     this->disable_loop();
   }
 
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
+
+ protected:
+  C *script_;
   std::forward_list<std::function<void()>> play_queue_;
 };
 
