@@ -102,7 +102,7 @@ bool EPaperBase::reset_() const {
 
 void EPaperBase::update() {
   if (this->state_ != EPaperState::IDLE) {
-    ESP_LOGE(TAG, "Display already in in state %s", epaper_state_to_string_());
+    ESP_LOGE(TAG, "Display already in state %s", epaper_state_to_string_());
     return;
   }
   this->set_state_(EPaperState::RESET);
