@@ -18,9 +18,9 @@ network:
 openthread:
   channel: 25
   panid: 0xe064
-  network_name: "MyHome5"
-  xpanid: "1db74a0a3797454b"
-  network_key: "00112233445566778899AABBCCDDEEFF"
-  pskc: "00112233445566778899AABBCCDDEEFF"
+  network_name: OpenThread-8f28
+  ext_pan_id: 0x1db74a0a3797454b
+  network_key: 0x00112233445566778899AABBCCDDEEFF
+  pskc: 0x00112233445566778899AABBCCDDEEFF
   force_dataset: true
-  shell: false
+  # shell: false
