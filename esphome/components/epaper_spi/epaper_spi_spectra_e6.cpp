@@ -30,27 +30,24 @@ static uint8_t color_to_hex(Color color) {
 }
 
 void EPaperSpectraE6::power_on() {
-  ESP_LOGI(TAG, "Power on");
+  ESP_LOGD(TAG, "Power on");
   this->command(0x04);
-  this->waiting_for_idle_ = true;
 }
 
 void EPaperSpectraE6::power_off() {
-  ESP_LOGI(TAG, "Power off");
+  ESP_LOGD(TAG, "Power off");
   this->command(0x02);
   this->data(0x00);
-  this->waiting_for_idle_ = true;
 }
 
 void EPaperSpectraE6::refresh_screen() {
-  ESP_LOGI(TAG, "Refresh");
+  ESP_LOGD(TAG, "Refresh");
   this->command(0x12);
   this->data(0x00);
-  this->waiting_for_idle_ = true;
 }
 
 void EPaperSpectraE6::deep_sleep() {
-  ESP_LOGI(TAG, "Deep sleep");
+  ESP_LOGD(TAG, "Deep sleep");
   this->command(0x07);
   this->data(0xA5);
 }
@@ -115,18 +112,5 @@ bool HOT EPaperSpectraE6::transfer_data() {
   this->current_data_index_ = 0;
   ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - this->transfer_start_time_);
   return true;
-}
-
-void EPaperSpectraE6::reset() {
-  if (this->reset_pin_ != nullptr) {
-    this->disable_loop();
-    this->reset_pin_->digital_write(true);
-    this->set_timeout(20, [this] {
-      this->reset_pin_->digital_write(false);
-      delay(2);
-      this->reset_pin_->digital_write(true);
-      this->set_timeout(20, [this] { this->enable_loop(); });
-    });
-  }
 }
 }  // namespace esphome::epaper_spi

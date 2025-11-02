@@ -22,7 +22,6 @@ class EPaperSpectraE6 : public EPaperBase {
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   bool transfer_data() override;
-  void reset() override;
 };
 
 }  // namespace esphome::epaper_spi

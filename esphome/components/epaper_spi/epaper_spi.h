@@ -11,15 +11,18 @@ namespace esphome::epaper_spi {
 using namespace display;
 
 enum class EPaperState : uint8_t {
-  IDLE,
-  UPDATE,
-  RESET,
-  INITIALISE,
-  TRANSFER_DATA,
-  POWER_ON,
-  REFRESH_SCREEN,
-  POWER_OFF,
-  DEEP_SLEEP,
+  IDLE,       // not doing anything
+  UPDATE,     // update the buffer
+  RESET,      // drive reset low (active)
+  RESET_END,  // drive reset high (inactive)
+
+  SHOULD_WAIT,     // states higher than this should wait for the display to be not busy
+  INITIALISE,      // send the init sequence
+  TRANSFER_DATA,   // transfer data to the display
+  POWER_ON,        // power on the display
+  REFRESH_SCREEN,  // send refresh command
+  POWER_OFF,       // power off the display
+  DEEP_SLEEP,      // deep sleep the display
 };
 
 static constexpr uint8_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
@@ -60,24 +63,47 @@ class EPaperBase : public DisplayBuffer,
  protected:
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
+  void process_state();
 
+  const char *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
-  virtual void reset();
+  bool reset() const;
   void initialise_();
+  void wait_for_idle_(bool should_wait);
+  void delay_ms_(uint32_t duration);
   bool init_buffer_(size_t buffer_length);
 
   virtual int get_width_controller() { return this->get_width_internal(); };
-  virtual void deep_sleep() = 0;
+
+  /**
+   * Methods that must be implemented by concrete classes to control the display
+   */
   /**
    * Send data to the device via SPI
    * @return true if done, false if it should be called next loop
    */
   virtual bool transfer_data() = 0;
+  /**
+   * Refresh the screen after data transfer
+   */
   virtual void refresh_screen() = 0;
 
+  /**
+   * Power the display on
+   */
   virtual void power_on() = 0;
+  /**
+   * Power the display off
+   */
   virtual void power_off() = 0;
+
+  /**
+   * Place the display into deep sleep
+   */
+  virtual void deep_sleep() = 0;
+
+  void set_state_(EPaperState state, uint16_t delay = 0);
 
   void start_command_();
   void end_command_();
@@ -93,22 +119,24 @@ class EPaperBase : public DisplayBuffer,
   DisplayType display_type_;
 
   size_t buffer_length_{};
-  size_t current_data_index_{0};
+  size_t current_data_index_{0};  // used by data transfer to track progress
+  uint32_t reset_duration_{200};
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t transfer_start_time_{};
-#endif
-  uint32_t reset_duration_{200};
   uint32_t waiting_for_idle_last_print_{0};
+  uint32_t waiting_for_idle_start_{0};
+#endif
 
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
 
   bool waiting_for_idle_{false};
+  uint32_t delay_until_{0};
 
   split_buffer::SplitBuffer buffer_;
 
-  std::queue<EPaperState> state_queue_{{EPaperState::IDLE}};
+  EPaperState state_{EPaperState::IDLE};
 };
 
 }  // namespace esphome::epaper_spi

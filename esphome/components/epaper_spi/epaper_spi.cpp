@@ -9,11 +9,13 @@ namespace esphome::epaper_spi {
 static const char *const TAG = "epaper_spi";
 
 static constexpr const char *const EPAPER_STATE_STRINGS[] = {
-    "IDLE", "UPDATE", "RESET", "INITIALISE", "TRANSFER_DATA", "POWER_ON", "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP",
+    "IDLE",        "UPDATE",     "RESET",         "RESET_END",
+
+    "SHOULD_WAIT", "INITIALISE", "TRANSFER_DATA", "POWER_ON",  "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP",
 };
 
-static const char *epaper_state_to_string(EPaperState state) {
-  if (auto idx = static_cast<unsigned>(state); idx < std::size(EPAPER_STATE_STRINGS))
+const char *EPaperBase::epaper_state_to_string_() {
+  if (auto idx = static_cast<unsigned>(this->state_); idx < std::size(EPAPER_STATE_STRINGS))
     return EPAPER_STATE_STRINGS[idx];
   return "Unknown";
 }
@@ -84,85 +86,144 @@ bool EPaperBase::is_idle_() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
-  return !this->busy_pin_->digital_read();
+  return this->busy_pin_->digital_read();
 }
 
-void EPaperBase::reset() {
+bool EPaperBase::reset() const {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    this->disable_loop();
-    this->set_timeout(this->reset_duration_, [this] {
-      this->reset_pin_->digital_write(true);
-      this->set_timeout(20, [this] { this->enable_loop(); });
-    });
+    if (this->state_ == EPaperState::RESET) {
+      this->reset_pin_->digital_write(false);
+      return false;
+    }
+    this->reset_pin_->digital_write(true);
   }
+  return true;
 }
 
 void EPaperBase::update() {
-  if (!this->state_queue_.empty()) {
-    ESP_LOGE(TAG, "Display update already in progress - %s", epaper_state_to_string(this->state_queue_.front()));
+  if (this->state_ != EPaperState::IDLE) {
+    ESP_LOGE(TAG, "Display already in in state %s", epaper_state_to_string_());
     return;
   }
-
-  this->state_queue_.push(EPaperState::UPDATE);
-  this->state_queue_.push(EPaperState::RESET);
-  this->state_queue_.push(EPaperState::INITIALISE);
-  this->state_queue_.push(EPaperState::TRANSFER_DATA);
-  this->state_queue_.push(EPaperState::POWER_ON);
-  this->state_queue_.push(EPaperState::REFRESH_SCREEN);
-  this->state_queue_.push(EPaperState::POWER_OFF);
-  this->state_queue_.push(EPaperState::DEEP_SLEEP);
-  this->state_queue_.push(EPaperState::IDLE);
-
+  this->set_state_(EPaperState::RESET);
   this->enable_loop();
 }
 
+void EPaperBase::wait_for_idle_(bool should_wait) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  if (should_wait) {
+    this->waiting_for_idle_start_ = millis();
+    this->waiting_for_idle_last_print_ = this->waiting_for_idle_start_;
+  }
+#endif
+  this->waiting_for_idle_ = should_wait;
+}
+
+void EPaperBase::delay_ms_(uint32_t duration) { this->delay_until_ = millis() + duration; }
+
+/**
+ * Called during the loop task.
+ * First defer for any pending delays, then check if we are waiting for the display to become idle.
+ * If not waiting for idle, process the state machine.
+ */
+
 void EPaperBase::loop() {
+  auto now = millis();
+  if (this->delay_until_ != 0) {
+    // using modulus arithmetic to handle wrap-around
+    int diff = now - this->delay_until_;
+    if (diff < 0) {
+      return;
+    }
+    this->delay_until_ = 0;
+  }
   if (this->waiting_for_idle_) {
     if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
+      ESP_LOGV(TAG, "Screen now idle after %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
     } else {
-      if (App.get_loop_component_start_time() - this->waiting_for_idle_last_print_ >= 1000) {
-        ESP_LOGV(TAG, "Waiting for idle");
-        this->waiting_for_idle_last_print_ = App.get_loop_component_start_time();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      if (now - this->waiting_for_idle_last_print_ >= 1000) {
+        ESP_LOGV(TAG, "Waiting for idle in state %s", this->epaper_state_to_string_());
+        this->waiting_for_idle_last_print_ = millis();
       }
+#endif
       return;
     }
   }
+  this->process_state();
+}
 
-  switch (this->state_queue_.front()) {
+/**
+ * Process the state machine.
+ * Typical state sequence:
+ * IDLE -> RESET -> RESET_END -> UPDATE -> INITIALISE -> TRANSFER_DATA -> POWER_ON -> REFRESH_SCREEN -> POWER_OFF ->
+ * DEEP_SLEEP -> IDLE
+ *
+ * Should a subclassed class need to override this, the method will need to be made virtual.
+ */
+void EPaperBase::process_state() {
+  ESP_LOGV(TAG, "Process state entered in state %s", epaper_state_to_string_());
+  switch (this->state_) {
+    default:
+      ESP_LOGD(TAG, "Display is in unhandled state %s", epaper_state_to_string_());
+      this->disable_loop();
+      break;
     case EPaperState::IDLE:
       this->disable_loop();
       break;
+    case EPaperState::RESET:
+    case EPaperState::RESET_END:
+      if (this->reset()) {
+        this->set_state_(EPaperState::UPDATE);
+      } else {
+        this->set_state_(EPaperState::RESET_END);
+      }
+      break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
-      break;
-    case EPaperState::RESET:
-      this->reset();
+      this->set_state_(EPaperState::INITIALISE);
       break;
     case EPaperState::INITIALISE:
       this->initialise_();
+      this->set_state_(EPaperState::TRANSFER_DATA);
       break;
     case EPaperState::TRANSFER_DATA:
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
+      this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
       this->power_on();
+      this->set_state_(EPaperState::REFRESH_SCREEN);
       break;
     case EPaperState::REFRESH_SCREEN:
       this->refresh_screen();
+      this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:
       this->power_off();
+      this->set_state_(EPaperState::DEEP_SLEEP);
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->set_state_(EPaperState::IDLE);
       break;
   }
-  ESP_LOGV(TAG, "Exiting state %s", epaper_state_to_string(this->state_queue_.front()));
-  this->state_queue_.pop();
+}
+
+void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
+  ESP_LOGV(TAG, "Exit state %s", this->epaper_state_to_string_());
+  this->state_ = state;
+  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
+  if (delay != 0) {
+    this->delay_until_ = millis() + delay;
+  } else {
+    this->delay_until_ = 0;
+  }
+  ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
+           TRUEFALSE(this->waiting_for_idle_));
 }
 
 void EPaperBase::start_command_() {
@@ -206,7 +267,6 @@ void EPaperBase::initialise_() {
       index += num_args;
     }
   }
-  this->power_on();
 }
 
 void EPaperBase::dump_config() {
