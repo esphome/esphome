@@ -4,7 +4,6 @@
 #include <tuple>
 #include <forward_list>
 #include "esphome/core/automation.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
