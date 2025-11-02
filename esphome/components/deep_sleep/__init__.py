@@ -11,6 +11,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -28,8 +29,10 @@ from esphome.const import (
     CONF_WAKEUP_PIN,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PlatformFramework,
 )
+from esphome.core import CORE
 
 WAKEUP_PINS = {
     VARIANT_ESP32: [
@@ -227,7 +230,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52]),
 )
 
 
@@ -278,6 +281,8 @@ async def to_code(config):
 
     if CONF_TOUCH_WAKEUP in config:
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
+    if CORE.using_zephyr:
+        zephyr_add_prj_conf("POWEROFF", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 
