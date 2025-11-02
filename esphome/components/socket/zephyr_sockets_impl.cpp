@@ -43,16 +43,9 @@ namespace openthread = esphome::zephyr_openthread;
 #undef inet_ntop
 #undef inet_pton
 
-// Define missing constants if not provided by Zephyr
-#ifndef F_GETFL
-#define F_GETFL 3
-#endif
-#ifndef F_SETFL
-#define F_SETFL 4
-#endif
-#ifndef O_NONBLOCK
-#define O_NONBLOCK 0x4000
-#endif
+static const int F_GETFL = 3;
+static const int F_SETFL = 4;
+static const int O_NONBLOCK = 0x4000;
 
 namespace esphome {
 namespace socket {
