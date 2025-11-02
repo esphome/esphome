@@ -384,6 +384,18 @@ class DriverChip:
             transform[CONF_TRANSFORM] = True
         return transform
 
+    def swap_xy_schema(self):
+        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+
+        def validator(value):
+            if value:
+                raise cv.Invalid("Axis swapping not supported by this model")
+            return cv.boolean(value)
+
+        if uses_swap:
+            return {cv.Required(CONF_SWAP_XY): cv.boolean}
+        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
+
     def add_madctl(self, sequence: list, config: dict):
         # Add the MADCTL command to the sequence based on the configuration.
         use_flip = config.get(CONF_USE_AXIS_FLIPS)

@@ -744,7 +744,7 @@ def test_choose_upload_log_host_ota_local_all_options() -> None:
         check_default=None,
         purpose=Purpose.UPLOADING,
     )
-    assert result == ["MQTTIP", "test.local"]
+    assert result == ["MQTTIP"]
 
 
 @pytest.mark.usefixtures("mock_serial_ports")
@@ -794,7 +794,7 @@ def test_choose_upload_log_host_ota_local_all_options_logging() -> None:
         check_default=None,
         purpose=Purpose.LOGGING,
     )
-    assert result == ["MQTTIP", "MQTT", "test.local"]
+    assert result == ["MQTTIP", "MQTT"]
 
 
 @pytest.mark.usefixtures("mock_no_mqtt_logging")
@@ -1564,7 +1564,7 @@ def test_has_resolvable_address() -> None:
     setup_core(
         config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
     )
-    assert has_resolvable_address() is True
+    assert has_resolvable_address() is False
 
     # Test with mDNS disabled and regular DNS hostname (resolvable)
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address="device.example.com")

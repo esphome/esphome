@@ -49,22 +49,34 @@ import sys
 from typing import Any
 
 from helpers import (
-    BASE_BUS_COMPONENTS,
     CPP_FILE_EXTENSIONS,
+    ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
+    core_changed,
+    filter_component_and_test_cpp_files,
+    filter_component_and_test_files,
     get_all_dependencies,
+    get_changed_components,
     get_component_from_path,
     get_component_test_files,
     get_components_from_integration_fixtures,
+    get_components_with_dependencies,
+    get_cpp_changed_components,
+    git_ls_files,
     parse_test_filename,
     root_path,
 )
+from split_components_for_ci import create_intelligent_batches
 
 # Threshold for splitting clang-tidy jobs
 # For small PRs (< 65 files), use nosplit for faster CI
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
+
+# Component test batch size (weighted)
+# Isolated components count as 10x, groupable components count as 1x
+COMPONENT_TEST_BATCH_SIZE = 40
 
 
 class Platform(StrEnum):
@@ -140,10 +152,9 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
 
-    # Check if any core files changed (esphome/core/*)
-    for file in files:
-        if file.startswith("esphome/core/"):
-            return True
+    if core_changed(files):
+        # If any core files changed, run integration tests
+        return True
 
     # Check if any integration test files changed
     if any("tests/integration" in file for file in files):
@@ -160,6 +171,26 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
             return True
 
     return False
+
+
+@cache
+def _is_clang_tidy_full_scan() -> bool:
+    """Check if clang-tidy configuration changed (requires full scan).
+
+    Returns:
+        True if full scan is needed (hash changed), False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
+            capture_output=True,
+            check=False,
+        )
+        # Exit 0 means hash changed (full scan needed)
+        return result.returncode == 0
+    except Exception:
+        # If hash check fails, run full scan to be safe
+        return True
 
 
 def should_run_clang_tidy(branch: str | None = None) -> bool:
@@ -198,17 +229,7 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
         True if clang-tidy should run, False otherwise.
     """
     # First check if clang-tidy configuration changed (full scan needed)
-    try:
-        result = subprocess.run(
-            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
-            capture_output=True,
-            check=False,
-        )
-        # Exit 0 means hash changed (full scan needed)
-        if result.returncode == 0:
-            return True
-    except Exception:
-        # If hash check fails, run clang-tidy to be safe
+    if _is_clang_tidy_full_scan():
         return True
 
     # Check if .clang-tidy.hash file itself was changed
@@ -270,6 +291,40 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
+def determine_cpp_unit_tests(
+    branch: str | None = None,
+) -> tuple[bool, list[str]]:
+    """Determine if C++ unit tests should run based on changed files.
+
+    This function is used by the CI workflow to skip C++ unit tests when
+    no relevant files have changed, saving CI time and resources.
+
+    C++ unit tests will run when any of the following conditions are met:
+
+    1. Any C++ core source files changed (esphome/core/*), in which case
+       all cpp unit tests run.
+    2. A test file for a component changed, which triggers tests for that
+       component.
+    3. The code for a component changed, which triggers tests for that
+       component and all components that depend on it.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Tuple of (run_all, components) where:
+        - run_all: True if all tests should run, False otherwise
+        - components: List of specific components to test (empty if run_all)
+    """
+    files = changed_files(branch)
+    if core_changed(files):
+        return (True, [])
+
+    # Filter to only C++ files
+    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
+    return (False, get_cpp_changed_components(cpp_files))
+
+
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
     """Check if a changed file ends with any of the specified extensions."""
     return any(file.endswith(extensions) for file in changed_files(branch))
@@ -287,7 +342,7 @@ def _component_has_tests(component: str) -> bool:
     Returns:
         True if the component has test YAML files
     """
-    return bool(get_component_test_files(component))
+    return bool(get_component_test_files(component, all_variants=True))
 
 
 def _select_platform_by_preference(
@@ -404,7 +459,7 @@ def detect_memory_impact_config(
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
 
-    # Find all changed components (excluding core and base bus components)
+    # Find all changed components (excluding core)
     # Also collect platform hints from platform-specific filenames
     changed_component_set: set[str] = set()
     has_core_cpp_changes = False
@@ -413,13 +468,13 @@ def detect_memory_impact_config(
     for file in files:
         component = get_component_from_path(file)
         if component:
-            # Skip base bus components as they're used across many builds
-            if component not in BASE_BUS_COMPONENTS:
-                changed_component_set.add(component)
-                # Check if this is a platform-specific file
-                platform_hint = _detect_platform_hint_from_filename(file)
-                if platform_hint:
-                    platform_hints.append(platform_hint)
+            # Add all changed components, including base bus components
+            # Base bus components (uart, i2c, spi, etc.) should still be analyzed
+            # when directly changed, even though they're also used as dependencies
+            changed_component_set.add(component)
+            # Check if this is a platform-specific file
+            if platform_hint := _detect_platform_hint_from_filename(file):
+                platform_hints.append(platform_hint)
         elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
             # Core ESPHome C++ files changed (not component-specific)
             # Only C++ files affect memory usage
@@ -447,7 +502,7 @@ def detect_memory_impact_config(
 
     for component in sorted(changed_component_set):
         # Look for test files on preferred platforms
-        test_files = get_component_test_files(component)
+        test_files = get_component_test_files(component, all_variants=True)
         if not test_files:
             continue
 
@@ -550,16 +605,31 @@ def main() -> None:
     run_python_linters = should_run_python_linters(args.branch)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
-    # Get both directly changed and all changed components (with dependencies) in one call
-    script_path = Path(__file__).parent / "list-components.py"
-    cmd = [sys.executable, str(script_path), "--changed-with-deps"]
-    if args.branch:
-        cmd.extend(["-b", args.branch])
+    # Get changed components
+    # get_changed_components() returns:
+    #   None: Core files changed (need full scan)
+    #   []: No components changed
+    #   [list]: Changed components (already includes dependencies)
+    changed_components_result = get_changed_components()
 
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    component_data = json.loads(result.stdout)
-    directly_changed_components = component_data["directly_changed"]
-    changed_components = component_data["all_changed"]
+    # Always analyze component files, even if core files changed
+    # This is needed for component testing and memory impact analysis
+    changed = changed_files(args.branch)
+    component_files = [f for f in changed if filter_component_and_test_files(f)]
+
+    directly_changed_components = get_components_with_dependencies(
+        component_files, False
+    )
+
+    if changed_components_result is None:
+        # Core files changed - will trigger full clang-tidy scan
+        # But we still need to track changed components for testing and memory analysis
+        changed_components = get_components_with_dependencies(component_files, True)
+        is_core_change = True
+    else:
+        # Use the result from get_changed_components() which includes dependencies
+        changed_components = changed_components_result
+        is_core_change = False
 
     # Filter to only components that have test files
     # Components without tests shouldn't generate CI test jobs
@@ -570,11 +640,11 @@ def main() -> None:
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
     # (pin conflicts, etc.) since they contain the actual changes being reviewed
-    directly_changed_with_tests = [
+    directly_changed_with_tests = {
         component
         for component in directly_changed_components
         if _component_has_tests(component)
-    ]
+    }
 
     # Get dependency-only components (for grouped testing)
     dependency_only_components = [
@@ -586,15 +656,59 @@ def main() -> None:
     # Detect components for memory impact analysis (merged config)
     memory_impact = detect_memory_impact_config(args.branch)
 
+    # Determine clang-tidy mode based on actual files that will be checked
     if run_clang_tidy:
-        if changed_cpp_file_count < CLANG_TIDY_SPLIT_THRESHOLD:
-            clang_tidy_mode = "nosplit"
-        else:
+        # Full scan needed if: hash changed OR core files changed
+        is_full_scan = _is_clang_tidy_full_scan() or is_core_change
+
+        if is_full_scan:
+            # Full scan checks all files - always use split mode for efficiency
             clang_tidy_mode = "split"
+            files_to_check_count = -1  # Sentinel value for "all files"
+        else:
+            # Targeted scan - calculate actual files that will be checked
+            # This accounts for component dependencies, not just directly changed files
+            if changed_components:
+                # Count C++ files in all changed components (including dependencies)
+                all_cpp_files = list(git_ls_files(["*.cpp"]).keys())
+                component_set = set(changed_components)
+                files_to_check_count = sum(
+                    1
+                    for f in all_cpp_files
+                    if get_component_from_path(f) in component_set
+                )
+            else:
+                # If no components changed, use the simple count of changed C++ files
+                files_to_check_count = changed_cpp_file_count
+
+            if files_to_check_count < CLANG_TIDY_SPLIT_THRESHOLD:
+                clang_tidy_mode = "nosplit"
+            else:
+                clang_tidy_mode = "split"
     else:
         clang_tidy_mode = "disabled"
+        files_to_check_count = 0
 
     # Build output
+    # Determine which C++ unit tests to run
+    cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
+
+    # Split components into batches for CI testing
+    # This intelligently groups components with similar bus configurations
+    component_test_batches: list[str]
+    if changed_components_with_tests:
+        tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+        batches, _ = create_intelligent_batches(
+            components=changed_components_with_tests,
+            tests_dir=tests_dir,
+            batch_size=COMPONENT_TEST_BATCH_SIZE,
+            directly_changed=directly_changed_with_tests,
+        )
+        # Convert batches to space-separated strings for CI matrix
+        component_test_batches = [" ".join(batch) for batch in batches]
+    else:
+        component_test_batches = []
+
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
@@ -603,13 +717,16 @@ def main() -> None:
         "python_linters": run_python_linters,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
-        "directly_changed_components_with_tests": directly_changed_with_tests,
+        "directly_changed_components_with_tests": list(directly_changed_with_tests),
         "dependency_only_components_with_tests": dependency_only_components,
         "component_test_count": len(changed_components_with_tests),
         "directly_changed_count": len(directly_changed_with_tests),
         "dependency_only_count": len(dependency_only_components),
         "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
+        "cpp_unit_tests_run_all": cpp_run_all,
+        "cpp_unit_tests_components": cpp_components,
+        "component_test_batches": component_test_batches,
     }
 
     # Output as JSON

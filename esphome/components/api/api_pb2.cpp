@@ -1475,8 +1475,8 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon_ref_);
 #endif
-  for (const auto &it : *this->options) {
-    buffer.encode_string(6, it, true);
+  for (const char *it : *this->options) {
+    buffer.encode_string(6, it, strlen(it), true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
   buffer.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
@@ -1492,8 +1492,8 @@ void ListEntitiesSelectResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   if (!this->options->empty()) {
-    for (const auto &it : *this->options) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->options) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);

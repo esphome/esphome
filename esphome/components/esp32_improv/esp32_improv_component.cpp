@@ -270,8 +270,8 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
-  this->rpc_response_->set_value(ByteBuffer::wrap(response));
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &&response) {
+  this->rpc_response_->set_value(std::move(response));
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }
@@ -389,11 +389,13 @@ void ESP32ImprovComponent::check_wifi_connection_() {
     std::string url_strings[3];
     size_t url_count = 0;
 
+#ifdef USE_ESP32_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
     std::string next_url = this->get_formatted_next_url_();
     if (!next_url.empty()) {
       url_strings[url_count++] = std::move(next_url);
     }
+#endif
 
     // Add default URLs for backward compatibility
     url_strings[url_count++] = ESPHOME_MY_LINK;
@@ -407,10 +409,8 @@ void ESP32ImprovComponent::check_wifi_connection_() {
       }
     }
 #endif
-    // Pass to build_rpc_response using vector constructor from iterators to avoid extra copies
-    std::vector<uint8_t> data = improv::build_rpc_response(
-        improv::WIFI_SETTINGS, std::vector<std::string>(url_strings, url_strings + url_count));
-    this->send_response_(data);
+    this->send_response_(improv::build_rpc_response(improv::WIFI_SETTINGS,
+                                                    std::vector<std::string>(url_strings, url_strings + url_count)));
   } else if (this->is_active() && this->state_ != improv::STATE_PROVISIONED) {
     ESP_LOGD(TAG, "WiFi provisioned externally");
   }
