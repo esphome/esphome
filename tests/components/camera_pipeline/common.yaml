@@ -1,0 +1,57 @@
+camera_encoder:
+  id: jpeg_encoder
+
+camera_sensor:
+  id: camera_sensor_id
+  width: 256
+  height: 256
+  format: GRAYSCALE
+
+camera:
+  id: test_camera
+  name: Test Camera
+
+camera_pipeline:
+  - id: stage1
+    next: stage2
+    type: input
+    sensor_id: camera_sensor_id
+
+  - id: stage2
+    next: stage3
+    type: overlay
+    on_post_process:
+      then:
+        - lambda: |-
+            static int counter = 0;
+            static bool use_context = true;
+
+            if (context.state == 0) {
+              ++context.state;
+              it.filled_circle(32 + counter, 128, 15, Color(255, 0, 0));
+              if (use_context) {
+                context.done = false;
+                return;
+              }
+            }
+            if (context.state == 1) {
+              ++context.state;
+              it.filled_circle(96 + counter, 256, 15, Color(0, 255, 0));
+              if (use_context) {
+                context.done = false;
+                return;
+              }
+            }
+            if (context.state == 2) {
+              ++context.state;
+              it.filled_circle(160 + counter, 384, 15, Color(0, 0, 255));
+            }
+
+            ++counter;
+            if (counter > 32)
+              counter = 0;
+
+  - id: stage3
+    type: output
+    run_as_job: True
+    camera_encoder_id: jpeg_encoder

@@ -40,15 +40,14 @@ class Bitbank2JPEGEncoder : public camera::Encoder {
   /// @param quality Sets the quality of the encoded image.
   /// @param subsampling Reduces color information to save memory at the cost of image quality.
   /// @param mcu_count Number of MCUs to encode per call. Zero encodes the full image at once.
-  /// @param output Pointer to preallocated output buffer.
-  Bitbank2JPEGEncoder(Bitbank2Quality quality, camera::EncoderSubsampling subsampling, size_t mcu_count,
-                      camera::EncoderBuffer *output);
+  Bitbank2JPEGEncoder(Bitbank2Quality quality, camera::EncoderSubsampling subsampling, size_t mcu_count);
   /// Sets the number of bytes to expand the output buffer on underflow during encoding.
   /// @param buffer_expand_size Number of bytes to expand the buffer.
   void set_buffer_expand_size(size_t buffer_expand_size) { this->buffer_expand_size_ = buffer_expand_size; }
   // -------- Encoder --------
+  void set_output_buffer(camera::DynamicBuffer *output) override { this->output_ = output; }
   camera::EncoderError encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) override;
-  camera::EncoderBuffer *get_output_buffer() override { return output_; }
+  camera::Buffer *get_output_buffer() override { return output_; }
   void dump_config() override;
   // -------------------------
  protected:
@@ -63,7 +62,7 @@ class Bitbank2JPEGEncoder : public camera::Encoder {
   bool incremental_{};
   ssize_t mcu_count_{};
   size_t buffer_expand_size_{};
-  camera::EncoderBuffer *output_{};
+  camera::DynamicBuffer *output_{};
 };
 
 }  // namespace camera_encoder

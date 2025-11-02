@@ -1,6 +1,7 @@
 #pragma once
 
-#ifdef USE_CSI_CAMERA_SENSOR
+#ifdef USE_ESP32_VARIANT_ESP32P4
+
 #include "esphome/components/i2c/i2c.h"
 
 #include "esp_sccb_io_interface.h"

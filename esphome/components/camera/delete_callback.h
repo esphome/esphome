@@ -5,7 +5,7 @@
 
 namespace esphome::camera {
 
-/// @brief Class for registering cleanup callbacks.
+/// Class for registering cleanup callbacks.
 /// DeleteCallback is inherited by other classes to register
 /// actions that run just before the base object is deleted.
 /// Callbacks must not access members of other derived classes.

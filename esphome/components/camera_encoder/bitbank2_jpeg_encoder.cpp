@@ -8,11 +8,10 @@ namespace camera_encoder {
 static const char *const TAG = "camera_encoder";
 
 Bitbank2JPEGEncoder::Bitbank2JPEGEncoder(Bitbank2Quality quality, camera::EncoderSubsampling subsampling,
-                                         size_t mcu_count, camera::EncoderBuffer *output) {
+                                         size_t mcu_count) {
   this->quality_ = quality;
   this->subsampling_ = subsampling;
   this->mcu_count_ = mcu_count;
-  this->output_ = output;
 }
 
 camera::EncoderError Bitbank2JPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {

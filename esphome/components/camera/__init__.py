@@ -1,32 +1,32 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import camera_encoder, camera_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_DELAY, CONF_PRIORITY, CONF_TRIGGER_ID
 from esphome.core import coroutine_with_priority
 from esphome.core.entity_helpers import setup_entity
-from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@DT-art1", "@bdraco"]
 
+CONF_CAMERA_ID = "camera_id"
+CONF_CORE = "core"
 CONF_IDLE_UPDATE_INTERVAL = "idle_update_interval"
+CONF_TASK_ID = "task_id"
 CONF_MAX_UPDATE_INTERVAL = "max_update_interval"
-CONF_CAMERA_ENCODER_ID = "camera_encoder_id"
-CONF_CAMERA_SENSOR_ID = "camera_sensor_id"
+CONF_PIPELINE_ID = "pipeline_id"
+CONF_STACK_SIZE = "stack_size"
+CONF_STATISTICS = "statistics"
 
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
 CONF_ON_IMAGE = "on_image"
-CONF_ON_CAPTURE_IMAGE = "on_capture_image"
-CONF_ON_OVERLAY = "on_overlay"
 
 camera_ns = cg.esphome_ns.namespace("camera")
 Camera = camera_ns.class_("CameraImpl", cg.Component, cg.EntityBase)
+Task = camera_ns.class_("Task")
+Pipeline = camera_ns.class_("Pipeline")
 
 CameraImageData = camera_ns.struct("CameraImageData")
 CameraImageSpec = camera_ns.struct("CameraImageSpec")
-CameraIncrementalContext = camera_ns.struct("CameraIncrementalContext")
-CameraIncrementalContextRef = CameraIncrementalContext.operator("ref")
 
 CameraImageTrigger = camera_ns.class_(
     "CameraImageTrigger", automation.Trigger.template()
@@ -39,14 +39,7 @@ CameraStreamStopTrigger = camera_ns.class_(
     "CameraStreamStopTrigger",
     automation.Trigger.template(),
 )
-CameraCaptureImageTrigger = camera_ns.class_(
-    "CameraCaptureImageTrigger", automation.Trigger.template()
-)
-CameraOverlayTrigger = camera_ns.class_(
-    "CameraOverlayTrigger", automation.Trigger.template()
-)
 
-IS_PLATFORM_COMPONENT = True
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
@@ -67,29 +60,22 @@ CAMERA_AUTOMATION_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CameraImageTrigger),
             }
         ),
-        cv.Optional(CONF_ON_CAPTURE_IMAGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    CameraCaptureImageTrigger
-                ),
-            }
-        ),
-        cv.Optional(CONF_ON_OVERLAY): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CameraOverlayTrigger),
-            }
-        ),
     }
 )
 
-_CAMERA_SCHEMA = (
+CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Camera),
-            cv.Required(CONF_CAMERA_SENSOR_ID): cv.use_id(camera_sensor.Sensor),
-            cv.Optional(CONF_CAMERA_ENCODER_ID): cv.use_id(camera_encoder.Encoder),
+            cv.GenerateID(CONF_CAMERA_ID): cv.declare_id(Camera),
             cv.Optional(CONF_IDLE_UPDATE_INTERVAL, default=0): cv.int_range(0),
             cv.Optional(CONF_MAX_UPDATE_INTERVAL, default=100): cv.int_range(0),
+            cv.Optional(CONF_CORE, default=1): cv.int_range(0, 1),
+            cv.Optional(CONF_STACK_SIZE, default=4096): cv.int_range(512, 32768),
+            cv.Optional(CONF_PRIORITY, default=1): cv.int_range(0, 10),
+            cv.Optional(CONF_DELAY, default=5): cv.int_range(1, 2000),
+            cv.Optional(CONF_STATISTICS, default=False): cv.boolean,
+            cv.GenerateID(CONF_PIPELINE_ID): cv.declare_id(Pipeline),
+            cv.GenerateID(CONF_TASK_ID): cv.declare_id(Task),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -98,31 +84,23 @@ _CAMERA_SCHEMA = (
 )
 
 
-def camera_schema(
-    class_: MockObjClass = cv.UNDEFINED,
-) -> cv.Schema:
-    schema = {}
-
-    if class_ is not cv.UNDEFINED:
-        # Not optional.
-        schema[cv.GenerateID()] = cv.declare_id(class_)
-
-    return _CAMERA_SCHEMA.extend(schema)
-
-
 async def setup_camera(var, config):
     cg.add(var.set_idle_update_interval(config[CONF_IDLE_UPDATE_INTERVAL]))
     cg.add(var.set_max_update_interval(config[CONF_MAX_UPDATE_INTERVAL]))
-
+    cg.add(var.set_statistics(config[CONF_STATISTICS]))
+    task = cg.new_Pvariable(
+        config[CONF_TASK_ID],
+        config[CONF_CORE],
+        config[CONF_STACK_SIZE],
+        config[CONF_PRIORITY],
+        config[CONF_DELAY],
+    )
+    cg.add(var.set_task(task))
+    pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
+    cg.add(var.set_pipeline(pipeline))
     await setup_entity(var, config, "camera")
     await setup_camera_automation(var, config)
     await cg.register_component(var, config)
-    if CONF_CAMERA_SENSOR_ID in config:
-        sensor = await cg.get_variable(config[CONF_CAMERA_SENSOR_ID])
-        cg.add(var.set_sensor(sensor))
-    if CONF_CAMERA_ENCODER_ID in config:
-        encoder = await cg.get_variable(config[CONF_CAMERA_ENCODER_ID])
-        cg.add(var.set_encoder(encoder))
 
 
 async def setup_camera_automation(var, config):
@@ -138,39 +116,10 @@ async def setup_camera_automation(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(CameraImageData, "image")], conf)
 
-    for conf in config.get(CONF_ON_CAPTURE_IMAGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
-            [
-                (CameraImageData, "image"),
-                (CameraImageSpec, "spec"),
-                (CameraIncrementalContextRef, "context"),
-            ],
-            conf,
-        )
-
-    for conf in config.get(CONF_ON_OVERLAY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
-            [
-                (CameraImageData, "image"),
-                (CameraImageSpec, "spec"),
-                (CameraIncrementalContextRef, "context"),
-            ],
-            conf,
-        )
-
-
-async def new_camera(config, *args):
-    cg.add_define("USE_CAMERA")
-    var = cg.new_Pvariable(config[CONF_ID], *args)
-    await setup_camera(var, config)
-    return var
-
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(camera_ns.using)
     cg.add_define("USE_CAMERA")
+    var = cg.new_Pvariable(config[CONF_CAMERA_ID])
+    await setup_camera(var, config)

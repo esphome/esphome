@@ -5,9 +5,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-#include "buffer.h"
-#include "camera_incremental_context.h"
-
 namespace esphome {
 namespace camera {
 
@@ -18,12 +15,26 @@ namespace camera {
  public: \
   void set_##name##_camera(camera::Camera *camera) { this->name##_camera_ = camera; }
 
-/** Different sources for filtering.
- *  IDLE: Camera requests to send an image to the API.
- *  API_REQUESTER: API requests a new image.
- *  WEB_REQUESTER: ESP32 web server request an image. Ignored by API.
- */
-enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER };
+/// Enumeration of different sources for frame requests.
+enum CameraRequester : uint8_t {
+  IDLE = 0,        ///< Keeps camera active when no viewer is connected (for automation tasks).
+  API_REQUESTER,   ///< API requests a new image.
+  WEB_REQUESTER,   ///< ESP32 Camera Web Server request an image.
+  REQUESTER_COUNT  ///< Number of requester types.
+};
+
+/// Returns string name for a given CameraRequester.
+inline const char *to_string(CameraRequester requester) {
+  switch (requester) {
+    case IDLE:
+      return "IDLE";
+    case API_REQUESTER:
+      return "API";
+    case WEB_REQUESTER:
+      return "WEB";
+  }
+  return "REQUESTER_UNKNOWN";
+}
 
 /// Enumeration of different pixel formats.
 enum PixelFormat : uint8_t {
@@ -140,12 +151,6 @@ struct CameraImageSpec {
 class Camera : public EntityBase, public Component {
  public:
   Camera();
-  // Camera implementation invokes callback to capture a new image.
-  virtual void add_capture_callback(
-      std::function<void(Buffer &, CameraImageSpec, CameraIncrementalContext &)> &&callback);
-  // Camera implementation invokes callback to render overlays on the captured image.
-  virtual void add_overlay_callback(
-      std::function<void(Buffer &, CameraImageSpec, CameraIncrementalContext &)> &&callback);
   // Camera implementation invokes callback to publish a new image.
   virtual void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback);
   // Camera implementation invokes callback when start_stream is called.
@@ -165,44 +170,11 @@ class Camera : public EntityBase, public Component {
   static Camera *instance();
 
  protected:
-  CallbackManager<void(camera::Buffer &, CameraImageSpec, CameraIncrementalContext &)> image_capture_callback_{};
-  CallbackManager<void(camera::Buffer &, CameraImageSpec, CameraIncrementalContext &)> overlay_callback_{};
   CallbackManager<void(std::shared_ptr<camera::CameraImage>)> new_image_callback_{};
   CallbackManager<void()> stream_start_callback_{};
   CallbackManager<void()> stream_stop_callback_{};
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static Camera *global_camera;
-};
-
-/** Class that installs a camera callback which is triggered
- *  every time a new image can be captured.
- */
-class CameraCaptureImageTrigger : public Trigger<CameraImageData, CameraImageSpec, CameraIncrementalContext &> {
- public:
-  explicit CameraCaptureImageTrigger(Camera *camera) {
-    camera->add_capture_callback([this](Buffer &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
-      CameraImageData camera_image_data{};
-      camera_image_data.length = image.get_size();
-      camera_image_data.data = image.get_data();
-      this->trigger(camera_image_data, spec, context);
-    });
-  }
-};
-
-/** Class that installs a overlay callback which is triggered
- *  every time to overlay graphics on the captured image.
- */
-class CameraOverlayTrigger : public Trigger<CameraImageData, CameraImageSpec, CameraIncrementalContext &> {
- public:
-  explicit CameraOverlayTrigger(Camera *camera) {
-    camera->add_overlay_callback(
-        [this](camera::Buffer &image, const CameraImageSpec &spec, CameraIncrementalContext &context) {
-          CameraImageData camera_image_data{};
-          camera_image_data.length = image.get_size();
-          camera_image_data.data = image.get_data();
-          this->trigger(camera_image_data, spec, context);
-        });
-  }
 };
 
 /** Class that installs a camera callback which is triggered

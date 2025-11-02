@@ -1,7 +1,7 @@
 #pragma once
 
-#include "buffer.h"
 #include "camera.h"
+#include "dynamic_buffer.h"
 
 namespace esphome::camera {
 
@@ -49,21 +49,12 @@ inline const char *to_string(EncoderError error) {
   return "ENCODER_ERROR_INVALID";
 }
 
-/// Interface for an encoder buffer supporting resizing and variable-length data.
-class EncoderBuffer : public Buffer {
- public:
-  ///  Sets logical buffer size, reallocates if needed.
-  ///  @param size Required size in bytes.
-  ///  @return true on success, false on allocation failure.
-  virtual bool set_buffer_size(size_t size) = 0;
-
-  ///  Returns total allocated buffer size.
-  virtual size_t get_max_size() const = 0;
-};
-
 /// Interface for image encoders used in a camera pipeline.
 class Encoder {
  public:
+  /// Sets the encoder's output buffer.
+  virtual void set_output_buffer(DynamicBuffer *buffer) = 0;
+
   /// Encodes pixel data from a previous camera pipeline stage.
   /// @param spec Specification of the input pixel data.
   /// @param pixels Image pixels in RGB or grayscale format, as specified in @p spec.
@@ -71,8 +62,8 @@ class Encoder {
   virtual EncoderError encode_pixels(CameraImageSpec *spec, Buffer *pixels) = 0;
 
   /// Returns the encoder's output buffer.
-  /// @return Pointer to an EncoderBuffer containing encoded data.
-  virtual EncoderBuffer *get_output_buffer() = 0;
+  /// @return Pointer to a Buffer containing encoded data.
+  virtual Buffer *get_output_buffer() = 0;
 
   ///  Prints the encoder's configuration to the log.
   virtual void dump_config() = 0;

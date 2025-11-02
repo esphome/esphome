@@ -1,7 +1,9 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+
 #include <functional>
-#include <queue>
 
 namespace esphome::camera {
 
@@ -17,30 +19,35 @@ template<typename T> class BufferPool {
   /// @param factory Factory function to create a new buffer of type T.
   /// @return True if all buffers were allocated successfully, false otherwise.
   bool init(size_t count, Factory factory) {
+    if (this->initialized_)
+      return false;
+
+    this->initialized_ = true;
+    this->handle_ = xQueueCreate(count, sizeof(T *));
+
     for (size_t i = 0; i < count; ++i) {
       T *buffer = factory();
       if (!buffer)
         return false;
 
-      this->free_buffers_.push(buffer);
+      if (xQueueSend(handle_, &buffer, 0) != pdPASS)
+        return false;
     }
 
     return true;
   }
   /// @return a buffer from the pool.
   T *acquire() {
-    if (this->free_buffers_.empty())
-      return nullptr;
-
-    T *buffer = this->free_buffers_.front();
-    this->free_buffers_.pop();
+    T *buffer = nullptr;
+    xQueueReceive(handle_, &buffer, 0);
     return buffer;
   }
   /// Return a buffer to the pool.
-  void release(T *buffer) { this->free_buffers_.push(buffer); }
+  void release(T *buffer) { xQueueSend(handle_, &buffer, 0); }
 
  protected:
-  std::queue<T *> free_buffers_;
+  bool initialized_{};
+  QueueHandle_t handle_;
 };
 
 }  // namespace esphome::camera

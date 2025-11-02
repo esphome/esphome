@@ -8,10 +8,7 @@ namespace esphome::camera_encoder {
 
 static const char *const TAG = "camera_encoder";
 
-ESP32CameraJPEGEncoder::ESP32CameraJPEGEncoder(uint8_t quality, camera::EncoderBuffer *output) {
-  this->quality_ = quality;
-  this->output_ = output;
-}
+ESP32CameraJPEGEncoder::ESP32CameraJPEGEncoder(uint8_t quality) { this->quality_ = quality; }
 
 camera::EncoderError ESP32CameraJPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
   this->bytes_written_ = 0;
@@ -47,7 +44,7 @@ void ESP32CameraJPEGEncoder::dump_config() {
                 "ESP32 Camera JPEG Encoder:\n"
                 "  Size: %zu\n"
                 "  Quality: %d\n"
-                "  Expand: %d\n",
+                "  Expand: %zu\n",
                 this->output_->get_max_size(), this->quality_, this->buffer_expand_size_);
 }
 

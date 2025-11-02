@@ -1,97 +1,75 @@
 #pragma once
 
+#include "esphome/core/helpers.h"
+
 #include "camera.h"
 #include "camera_image_impl.h"
-#include "encoder.h"
+#include "camera_image_reader_impl.h"
+#include "task.h"
 #include "processor.h"
-#include "sensor.h"
+#include "pipeline.h"
 
 #include <queue>
-#include <vector>
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
-/** Camera pipeline implemenation.
- */
+/// Camera pipeline implemenation.
 class CameraImpl : public Camera {
  public:
+  /// Sets the update interval in milliseconds for images without requests
+  void set_idle_update_interval(uint32_t idle_update_interval) { this->idle_update_interval_ = idle_update_interval; }
+  /// Sets the number of milliseconds between two consecutive images
+  void set_max_update_interval(uint32_t max_update_interval) { this->max_update_interval_ = max_update_interval; }
+  /// Prints framerate and per-frame processing timings
+  void set_statistics(bool statistics) { this->statistics_ = statistics; }
+  /// Set the task that is used by the pipeline.
+  void set_task(Task *task) { this->task_ = task; }
+  /// Set the pipeline instance.
+  void set_pipeline(Pipeline *pipeline) { this->pipeline_ = pipeline; }
+  // ---- Camera interface ----
+  CameraImageReader *create_image_reader() override { return new CameraImageReaderImpl; }
+  void request_image(CameraRequester requester) override;
+  void start_stream(CameraRequester requester) override;
+  void stop_stream(CameraRequester requester) override;
+  // -------- Component -------
+  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+  // --------------------------
+
+ protected:
   enum CameraState : uint8_t {
-    CAMERA_STATE_INIT = 0,
-    CAMERA_STATE_WAIT_FOR_REQUEST,
-    CAMERA_STATE_CAPTURE_BEGIN,
-    CAMERA_STATE_CAPTURING,
+    CAMERA_STATE_WAIT_FOR_REQUEST = 0,
     CAMERA_STATE_PROCESSING,
-    CAMERA_STATE_OVERLAY_BEGIN,
-    CAMERA_STATE_OVERLAYING,
-    CAMERA_STATE_ENCODE_BEGIN,
-    CAMERA_STATE_ENCODING,
-    CAMERA_STATE_RATE_LIMIT_BEGIN,
     CAMERA_STATE_RATE_LIMITING,
     CAMERA_STATE_PUBLISHING,
     CAMERA_STATE_CLEAR_REQUEST,
   };
 
-  // Sets the update interval in milliseconds for images without requests
-  void set_idle_update_interval(uint32_t idle_update_interval) { this->idle_update_interval_ = idle_update_interval; }
-  // Sets the number of milliseconds between two consecutive images
-  void set_max_update_interval(uint32_t max_update_interval) { this->max_update_interval_ = max_update_interval; }
-  // Sets sensor implementation
-  void set_sensor(Sensor *sensor) { this->sensor_ = sensor; }
-  // Sets encoder implementation
-  void set_encoder(Encoder *encoder) { this->encoder_ = encoder; }
-  // Performs camera processing tasks such as image capture and JPEG encoding spread
-  // over multiple loop cycles to avoid blocking and ensure real-time responsiveness.
-  // This method is intended to be called repeatedly from the loop.
-  // It performs a portion of the image capture or encoding process each time it runs.
-  // Returns true if additional processing is needed and the loop should continue running.
-  // Returns false if all camera-related tasks are complete.
-  bool camera_loop();
-  // ---- Camera interface ----
-  CameraImageReader *create_image_reader() override;
-  void request_image(CameraRequester requester) override;
-  void start_stream(CameraRequester requester) override;
-  void stop_stream(CameraRequester requester) override;
-  // -------- Component -------
-  void setup() override;
-  void loop() override;
-  void dump_config() override;
-  // --------------------------
-  // Appends a processor that will run after image capture, or after any previously
-  // appended processors, but always before any overlays are applied.
-  // This allows chaining multiple processors, such as scalers or colorizers,
-  // in a specific order of execution,
-  void append_processor(Processor *processor) { this->processors_.push_back(processor); }
-
- protected:
+  CameraState state_{CAMERA_STATE_WAIT_FOR_REQUEST};
+  RequesterFlags next_requesters_{};
+  RequesterFlags current_requesters_{};
+  RequesterFlags stream_requesters_{};
   bool is_publishing_{};
-  std::queue<std::shared_ptr<CameraImageImpl> > send_queue_{};
-  Buffer *frame_buffer_{};
-  Buffer *input_image_{};
-  CameraImageSpec input_image_spec_;
-  CameraIncrementalContext camera_incremental_context_;
-  CameraState state_{CAMERA_STATE_INIT};
-  std::vector<Processor *> processors_;
-  Sensor *sensor_{};
-  Encoder *encoder_{};
-  uint8_t image_requesters_{};
-  uint8_t stream_requesters_{};
+  bool statistics_{};
+  bool stream_started_{};
+  bool stream_stoped_{};
   uint32_t last_idle_request_{};
   uint32_t idle_update_interval_{};
   uint32_t last_update_{};
+  uint32_t next_update_{};
   uint32_t max_update_interval_{};
-  uint32_t skip_frame_counter_{};
-  uint32_t retry_frame_counter_{};
-
   uint32_t timing_fps_{};
-  uint32_t timing_capture_{};
-  uint32_t timing_capture_callback_{};
-  uint32_t timing_processing_{};
-  uint32_t timing_overlay_{};
-  uint32_t timing_limiter_{};
-  uint32_t timing_encoding_{};
-  uint32_t timing_wait_{};
+  uint32_t processing_time_{};
+  uint32_t limiter_time_{};
+  uint32_t entries_{};
+  Task *task_{};
+  Pipeline *pipeline_{};
+  std::unordered_set<Output *> outputs_;
+  std::unordered_set<Output *>::iterator current_output_;
+  std::queue<std::shared_ptr<CameraImageImpl> > send_queue_{};
+  Mutex lock_{};
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

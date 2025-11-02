@@ -16,16 +16,6 @@ Camera::Camera() {
   global_camera = this;
 }
 
-void Camera::add_capture_callback(
-    std::function<void(Buffer &, CameraImageSpec, CameraIncrementalContext &)> &&callback) {
-  this->image_capture_callback_.add(std::move(callback));
-}
-
-void Camera::add_overlay_callback(
-    std::function<void(Buffer &, CameraImageSpec, CameraIncrementalContext &)> &&callback) {
-  this->overlay_callback_.add(std::move(callback));
-}
-
 void Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback) {
   this->new_image_callback_.add(std::move(callback));
 }

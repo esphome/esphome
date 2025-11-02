@@ -1,42 +1,36 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_CONTRAST, CONF_FILTER, CONF_TYPE
+from esphome.const import (
+    CONF_BLUE,
+    CONF_BRIGHTNESS,
+    CONF_CONTRAST,
+    CONF_FILTER,
+    CONF_GREEN,
+    CONF_RED,
+    CONF_TYPE,
+)
 from esphome.cpp_generator import LambdaExpression
 
-from .. import (
-    CONF_EXPOSURE,
-    CONF_HUE,
-    CONF_MIPI_CSI_ID,
-    CONF_SATURATION,
-    MIPI_CSI,
-    CSICameraSensor,
-    camera_sensor_ns,
-)
+from .. import CONF_HUE, CONF_ISP_ID, CONF_SATURATION, ISP, MIPI_CSI, camera_sensor_ns
 
 SetterNumber = camera_sensor_ns.class_("SetterNumber", number.Number)
 
+NUMBER_CONFIGS = {
+    CONF_BRIGHTNESS: (-128, 127, 1),
+    CONF_CONTRAST: (0, 128, 1),
+    CONF_FILTER: (2, 20, 1),
+    CONF_HUE: (0, 359, 1),
+    CONF_SATURATION: (0, 128, 1),
+    CONF_RED: (-4.0, 4.0, 0.1),
+    CONF_GREEN: (-4.0, 4.0, 0.1),
+    CONF_BLUE: (-4.0, 4.0, 0.1),
+}
+
 MIPI_CSI_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_MIPI_CSI_ID): cv.use_id(CSICameraSensor),
-        cv.Optional(CONF_BRIGHTNESS): number.number_schema(
-            SetterNumber,
-        ),
-        cv.Optional(CONF_CONTRAST): number.number_schema(
-            SetterNumber,
-        ),
-        cv.Optional(CONF_EXPOSURE): number.number_schema(
-            SetterNumber,
-        ),
-        cv.Optional(CONF_FILTER): number.number_schema(
-            SetterNumber,
-        ),
-        cv.Optional(CONF_HUE): number.number_schema(
-            SetterNumber,
-        ),
-        cv.Optional(CONF_SATURATION): number.number_schema(
-            SetterNumber,
-        ),
+        cv.GenerateID(CONF_ISP_ID): cv.use_id(ISP),
+        **{cv.Optional(k): number.number_schema(SetterNumber) for k in NUMBER_CONFIGS},
     }
 )
 
@@ -49,100 +43,20 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config):
     if config[CONF_TYPE] == MIPI_CSI:
-        sensor_component = await cg.get_variable(config[CONF_MIPI_CSI_ID])
-        if number_config := config.get(CONF_BRIGHTNESS):
+        sensor_component = await cg.get_variable(config[CONF_ISP_ID])
+        for number_config, (min_v, max_v, step_v) in NUMBER_CONFIGS.items():
+            if (conf := config.get(number_config)) is None:
+                continue
+
+            name = number_config.replace("CONF_", "").lower()
             n = await number.new_number(
-                number_config,
-                min_value=-128,
-                max_value=127,
-                step=1,
+                conf, min_value=min_v, max_value=max_v, step=step_v
             )
-            cg.add(sensor_component.set_brightness_number(n))
+            cg.add(getattr(sensor_component, f"set_{name}_number")(n))
             cg.add(
                 n.set_setter(
                     LambdaExpression(
-                        f"{sensor_component}->number_brightness(value);",
-                        [(float, "value")],
-                    )
-                )
-            )
-        if number_config := config.get(CONF_CONTRAST):
-            n = await number.new_number(
-                number_config,
-                min_value=0,
-                max_value=128,
-                step=1,
-            )
-            cg.add(sensor_component.set_contrast_number(n))
-            cg.add(
-                n.set_setter(
-                    LambdaExpression(
-                        f"{sensor_component}->number_contrast(value);",
-                        [(float, "value")],
-                    )
-                )
-            )
-        if number_config := config.get(CONF_EXPOSURE):
-            n = await number.new_number(
-                number_config,
-                min_value=2,
-                max_value=235,
-                step=1,
-            )
-            cg.add(sensor_component.set_exposure_number(n))
-            cg.add(
-                n.set_setter(
-                    LambdaExpression(
-                        f"{sensor_component}->number_exposure(value);",
-                        [(float, "value")],
-                    )
-                )
-            )
-        if number_config := config.get(CONF_FILTER):
-            n = await number.new_number(
-                number_config,
-                min_value=2,
-                max_value=20,
-                step=1,
-            )
-            cg.add(sensor_component.set_filter_number(n))
-            cg.add(
-                n.set_setter(
-                    LambdaExpression(
-                        f"{sensor_component}->number_filter(value);",
-                        [(float, "value")],
-                    )
-                )
-            )
-        if number_config := config.get(CONF_HUE):
-            n = await number.new_number(
-                number_config,
-                min_value=0,
-                max_value=359,
-                step=1,
-            )
-            cg.add(sensor_component.set_hue_number(n))
-            cg.add(
-                n.set_setter(
-                    LambdaExpression(
-                        f"{sensor_component}->number_hue(value);",
-                        [(float, "value")],
-                    )
-                )
-            )
-        if number_config := config.get(CONF_SATURATION):
-            n = await number.new_number(
-                number_config,
-                min_value=0,
-                max_value=128,
-                step=1,
-            )
-            cg.add(sensor_component.set_saturation_number(n))
-            cg.add(
-                n.set_setter(
-                    LambdaExpression(
-                        f"{sensor_component}->number_saturation(value);",
-                        [(float, "value")],
-                    )
+                        f"{sensor_component}->number_{name}(value);", [(float, "value")]
+                    ),
                 )
             )

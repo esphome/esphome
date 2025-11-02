@@ -1076,6 +1076,8 @@ template<class T> class RAMAllocator {
   }
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
+  void set_caps(uint32_t caps) { this->caps_ = caps; }
+
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }
 
   T *allocate(size_t n, size_t manual_size) {
@@ -1083,10 +1085,10 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     if (this->flags_ & Flags::ALLOC_EXTERNAL) {
-      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | this->caps_));
     }
     if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
-      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_INTERNAL | this->caps_));
     }
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
@@ -1102,10 +1104,10 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     if (this->flags_ & Flags::ALLOC_EXTERNAL) {
-      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_SPIRAM | this->caps_));
     }
     if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
-      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_INTERNAL | this->caps_));
     }
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
@@ -1125,10 +1127,8 @@ template<class T> class RAMAllocator {
 #ifdef USE_ESP8266
     return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
-    auto max_internal =
-        this->flags_ & ALLOC_INTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL) : 0;
-    auto max_external =
-        this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
+    auto max_internal = this->flags_ & ALLOC_INTERNAL ? heap_caps_get_free_size(MALLOC_CAP_INTERNAL | this->caps_) : 0;
+    auto max_external = this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_SPIRAM | this->caps_) : 0;
     return max_internal + max_external;
 #elif defined(USE_RP2040)
     return ::rp2040.getFreeHeap();
@@ -1147,9 +1147,9 @@ template<class T> class RAMAllocator {
     return ESP.getMaxFreeBlockSize();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
     auto max_internal =
-        this->flags_ & ALLOC_INTERNAL ? heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL) : 0;
+        this->flags_ & ALLOC_INTERNAL ? heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | this->caps_) : 0;
     auto max_external =
-        this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
+        this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | this->caps_) : 0;
     return std::max(max_internal, max_external);
 #else
     return this->get_free_heap_size();
@@ -1158,6 +1158,7 @@ template<class T> class RAMAllocator {
 
  private:
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
+  uint32_t caps_{MALLOC_CAP_8BIT};
 };
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;

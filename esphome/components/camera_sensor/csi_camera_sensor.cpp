@@ -1,74 +1,17 @@
-#ifdef USE_CSI_CAMERA_SENSOR
-
+#ifdef USE_ESP32_VARIANT_ESP32P4
 #include "csi_camera_sensor.h"
 
-#include "driver/isp.h"
 #include "esp_cache.h"
-#include "esp_cam_sensor.h"
 #include "esp_cam_sensor_detect.h"
 
 namespace esphome::camera_sensor {
 
 static const char *const TAG = "camera_sensor";
 
-bool IRAM_ATTR CSICameraSensor::get_new_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans,
-                                              void *user_data) {
-  return reinterpret_cast<CSICameraSensor *>(user_data)->init_transaction(trans);
-}
-
-bool IRAM_ATTR CSICameraSensor::trans_finished(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans,
-                                               void *user_data) {
-  return reinterpret_cast<CSICameraSensor *>(user_data)->finished_transaction(trans);
-}
-
-bool IRAM_ATTR CSICameraSensor::init_transaction(esp_cam_ctlr_trans_t *trans) {
-  if (xQueueReceiveFromISR(this->consumed_, &trans->buffer, NULL) != pdPASS)
-    return false;
-
-  trans->buflen = this->frame_buffer_size_;
-  return true;
-}
-
-bool IRAM_ATTR CSICameraSensor::finished_transaction(esp_cam_ctlr_trans_t *trans) {
-  if (xQueueSendFromISR(this->produced_, &trans->buffer, NULL) != pdPASS)
-    xQueueSendFromISR(this->consumed_, &trans->buffer, NULL);
-
-  return true;
-}
-
-CSICameraSensor::CSICameraSensor(uint16_t width, uint16_t height, camera::PixelFormat pixel_format)
-    : i2c_adapter_(this), image_spec_(width, height, pixel_format) {
+CSICameraSensor::CSICameraSensor(std::string mode, camera::PixelFormat pixel_format) : i2c_adapter_(this) {
+  this->image_spec_.format = pixel_format;
+  this->mode_ = mode;
   this->format_ = NULL;
-}
-
-void CSICameraSensor::number_brightness(float value) {
-  this->brightness_ = static_cast<int8_t>(value);
-  this->color_configure_(true);
-}
-
-void CSICameraSensor::number_contrast(float value) {
-  this->contrast_ = static_cast<uint8_t>(value);
-  this->color_configure_(true);
-}
-
-void CSICameraSensor::number_exposure(float value) {
-  this->exposure_ = static_cast<uint8_t>(value);
-  this->exposure_configure();
-}
-
-void CSICameraSensor::number_filter(float value) {
-  this->filter_ = static_cast<uint8_t>(value);
-  this->filter_configure_(true);
-}
-
-void CSICameraSensor::number_hue(float value) {
-  this->hue_ = static_cast<uint16_t>(value);
-  this->color_configure_(true);
-}
-
-void CSICameraSensor::number_saturation(float value) {
-  this->saturation_ = static_cast<uint8_t>(value);
-  this->color_configure_(true);
 }
 
 void CSICameraSensor::set_pins(int xclk, int pwdn, int reset) {
@@ -81,21 +24,33 @@ bool CSICameraSensor::configure() {
   this->produced_ = xQueueCreate(this->buffers_, sizeof(void *));
   this->consumed_ = xQueueCreate(this->buffers_, sizeof(void *));
 
-  esp_ldo_channel_config_t ldo_channel_config = {
-      .chan_id = 3,
-      .voltage_mv = 2500,
-  };
+  if (this->xclk_pin_ > 0) {
+    esp_cam_sensor_xclk_config_t xclk_config = {.esp_clock_router_cfg = {
+                                                    .xclk_pin = gpio_num_t(this->xclk_pin_),
+                                                    .xclk_freq_hz = this->frequency_,
+                                                }};
+    if (esp_cam_sensor_xclk_allocate(ESP_CAM_SENSOR_XCLK_ESP_CLOCK_ROUTER, &this->xclk_handle_) != ESP_OK) {
+      ESP_LOGE(TAG, "External clock pin or frequency invalid.");
+      return false;
+    }
 
-  if (esp_ldo_acquire_channel(&ldo_channel_config, &this->ldo_mipi_phy_) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ldo_acquire_channel failed.");
-    return false;
+    if (esp_cam_sensor_xclk_start(this->xclk_handle_, &xclk_config) != ESP_OK) {
+      ESP_LOGE(TAG, "External clock pin does not supported to output clock signal.");
+      return false;
+    }
   }
 
   bool probe = get_i2c_address() == 0x00;
+  bool found_sensor = false;
+  bool found_mipi_sensor = false;
+
   for (esp_cam_sensor_detect_fn_t *p = &__esp_cam_sensor_detect_fn_array_start;
        p < &__esp_cam_sensor_detect_fn_array_end; ++p) {
+    found_sensor = true;
     if (p->port != ESP_CAM_SENSOR_MIPI_CSI)
       continue;
+
+    found_mipi_sensor = true;
     if (!probe && p->sccb_addr != get_i2c_address())
       continue;
 
@@ -111,160 +66,131 @@ bool CSICameraSensor::configure() {
       break;
   }
 
-  if (this->sensor_ == NULL) {
-    ESP_LOGE(TAG, "No CSI camera sensor found (missing CONFIC_CAMERA_* option?).");
+  if (!this->sensor_) {
+    if (!found_sensor)
+      ESP_LOGE(TAG, "No driver compiled (missing CONFIC_CAMERA_* option)!");
+    else if (!found_mipi_sensor)
+      ESP_LOGE(TAG, "No MIPI driver found! Compile different driver (CONFIC_CAMERA_* option).");
+    else
+      ESP_LOGE(TAG, "No MIPI camera detected on I2C bus! Verify GPIO settings.");
+
     return false;
   }
 
-  // Set sensor format
+  // Configure camera sensor
   esp_cam_sensor_format_array_t sensor_format_array = {0};
   esp_cam_sensor_query_format(this->sensor_, &sensor_format_array);
   const esp_cam_sensor_format_t *sensor_format = sensor_format_array.format_array;
   for (int i = 0; i < sensor_format_array.count; i++) {
-    if (this->image_spec_.width == sensor_format[i].width && this->image_spec_.height == sensor_format[i].height) {
+    if (this->mode_ == sensor_format[i].name) {
       this->format_ = (esp_cam_sensor_format_t *) &sensor_format[i];
       break;
     }
   }
 
-  if (this->format_ == NULL) {
-    ESP_LOGE(TAG, "Invalid resolution. Options:");
+  if (!this->format_) {
+    ESP_LOGE(TAG, "Invalid mode %s! Valid modes:", this->mode_.c_str());
     for (int i = 0; i < sensor_format_array.count; i++) {
       ESP_LOGE(TAG, "  %s", sensor_format[i].name);
     }
+
     return false;
   }
 
-  if (esp_cam_sensor_set_format(this->sensor_, this->format_) != ESP_OK) {
-    ESP_LOGE(TAG, "Format set fail");
+  if (!this->format_->isp_info) {
+    ESP_LOGE(TAG, "ISP passthrough not implemented yet.");
     return false;
   }
 
+  this->image_spec_.width = this->format_->width;
+  this->image_spec_.height = this->format_->height;
+  this->frame_buffer_size_ = this->image_spec_.bytes_per_image();
+
+  if (esp_cam_sensor_set_format(this->sensor_, this->format_) != ESP_OK)
+    return false;
+
+  // OV2710 has a bug when writing the x-flip register. Only apply camera settings when explicitly configured.
   int flip_y = this->flip_y_ ? 1 : 0;
-  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_VFLIP, &flip_y, sizeof(flip_y)) != ESP_OK)
-    ESP_LOGE(TAG, "ESP_CAM_SENSOR_VFLIP failed.");
+  if (this->set_flip_y_ &&
+      esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_VFLIP, &flip_y, sizeof(flip_y)) != ESP_OK)
+    ESP_LOGE(TAG, "%s has no flip Y support.", this->sensor_->name);
 
-  int flip_x = this->flip_x_ ? 1 : 0;
-  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_HMIRROR, &flip_x, sizeof(flip_x)) != ESP_OK)
-    ESP_LOGE(TAG, "ESP_CAM_SENSOR_HMIRROR failed.");
+  // Most sensors are factory x-flipped. The user flip flag must therefore be inverted (factory_flip_x_).
+  int flip_x = this->flip_x_ ? (this->factory_flip_x_ ? 0 : 1) : (this->factory_flip_x_ ? 1 : 0);
+  if (this->set_flip_x_ &&
+      esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_HMIRROR, &flip_x, sizeof(flip_x)) != ESP_OK)
+    ESP_LOGE(TAG, "%s has no flip x support.", this->sensor_->name);
 
-  // CSI setup
+  int test_pattern = this->test_pattern_ ? 1 : 0;
+  if (this->set_test_pattern_ &&
+      esp_cam_sensor_ioctl(this->sensor_, ESP_CAM_SENSOR_IOC_S_TEST_PATTERN, &test_pattern_) != ESP_OK)
+    ESP_LOGE(TAG, "%s has no test pattern support.", this->sensor_->name);
+
+  if (this->set_gain_ &&
+      esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_GAIN, &this->gain_, sizeof(this->gain_)) != ESP_OK)
+    ESP_LOGE(TAG, "%s has no sensor gain support.", this->sensor_->name);
+
+  if (this->set_exposure_ && esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_EXPOSURE_VAL, &this->exposure_,
+                                                           sizeof(this->exposure_)) != ESP_OK)
+    ESP_LOGE(TAG, "%s has no exposure support.", this->sensor_->name);
+
+  // Configure CSI
   esp_cam_ctlr_csi_config_t csi_config = {};
   csi_config.ctlr_id = 0;
   csi_config.clk_src = MIPI_CSI_PHY_CLK_SRC_DEFAULT;
-  csi_config.h_res = this->format_->height;
-  csi_config.v_res = this->format_->width;
+  csi_config.h_res = this->format_->width;
+  csi_config.v_res = this->format_->height;
   csi_config.data_lane_num = this->format_->mipi_info.lane_num;
   csi_config.lane_bit_rate_mbps = this->format_->mipi_info.mipi_clk / 1000000;
-  if (this->format_->isp_info) {
-    csi_config.input_data_color_type = CAM_CTLR_COLOR_RAW8;
-    csi_config.output_data_color_type = CAM_CTLR_COLOR_RGB565;
-  } else {
-    csi_config.input_data_color_type = CAM_CTLR_COLOR_RAW8;
-    csi_config.output_data_color_type = CAM_CTLR_COLOR_RGB565;
-  }
+  csi_config.input_data_color_type = this->to_internal_(this->format_->format);
+  csi_config.output_data_color_type = this->to_internal_(this->image_spec_.format);
   csi_config.queue_items = 1;
   csi_config.byte_swap_en = this->byte_swap_;
   csi_config.bk_buffer_dis = false;
 
-  if (esp_cam_new_csi_ctlr(&csi_config, &this->cam_ctrl_handle_) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_cam_new_csi_ctlr failed");
-    return false;
-  }
+  esp_err_t err = esp_cam_new_csi_ctlr(&csi_config, &this->cam_ctrl_handle_);
+  if (err == ESP_ERR_NO_MEM)
+    ESP_LOGE(TAG, "Not enough memory. Is PSRAM enabled ?");
 
-  this->cam_ctlr_evt_cbs_.on_get_new_trans = get_new_trans;
-  this->cam_ctlr_evt_cbs_.on_trans_finished = trans_finished;
-  if (esp_cam_ctlr_register_event_callbacks(this->cam_ctrl_handle_, &this->cam_ctlr_evt_cbs_, this) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_cam_ctlr_register_event_callbacks failed.");
+  if (err != ESP_OK)
     return false;
-  }
+
+  // Setup DMA callbacks
+  this->cam_ctlr_evt_cbs_.on_get_new_trans = dma_start_callback;
+  this->cam_ctlr_evt_cbs_.on_trans_finished = dma_complete_callback;
+  if (esp_cam_ctlr_register_event_callbacks(this->cam_ctrl_handle_, &this->cam_ctlr_evt_cbs_, this) != ESP_OK)
+    return false;
 
   // Init framebuffers
-  this->pool_.init(this->buffers_, [] { return new CSICameraSensorBuffer(); });
-  this->frame_buffer_size_ = this->image_spec_.bytes_per_image();
-  size_t frame_buffer_alignment = 64;
+  this->pool_.init(this->buffers_, [] { return new InternalBuffer(); });
+  this->allocator_.set_caps(MALLOC_CAP_CACHE_ALIGNED | MALLOC_CAP_8BIT);
   for (int i = 0; i < this->buffers_; ++i) {
-    void *frame_buffer = heap_caps_aligned_calloc(frame_buffer_alignment, 1, this->frame_buffer_size_,
-                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_CACHE_ALIGNED);
-    if (!frame_buffer)
-      return false;
-
-    if (xQueueSendToBack(this->consumed_, &frame_buffer, 0) != pdPASS) {
-      ESP_LOGE(TAG, "Buffer allocation failed. %i", i);
+    void *frame_buffer = this->allocator_.allocate(this->frame_buffer_size_);
+    if (!frame_buffer) {
+      ESP_LOGE(TAG, "Not enough memory to allocate frame buffers.");
       return false;
     }
+
+    if (xQueueSendToBack(this->consumed_, &frame_buffer, 0) != pdPASS)
+      return false;
   }
 
-  if (esp_cam_ctlr_enable(this->cam_ctrl_handle_) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_cam_ctlr_enable failed.");
+  if (esp_cam_ctlr_enable(this->cam_ctrl_handle_) != ESP_OK)
+    return false;
+
+  if (esp_cam_ctlr_start(this->cam_ctrl_handle_) != ESP_OK)
+    return false;
+
+  if (!this->isp_->configure_isp(this->format_, this->image_spec_.format, this->flip_x_, this->flip_y_)) {
+    ESP_LOGE(TAG, "ISP configuration failed.");
     return false;
   }
 
-  if (esp_cam_ctlr_start(this->cam_ctrl_handle_) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_cam_ctlr_start FAILED");
+  int enable = 1;
+  if (esp_cam_sensor_ioctl(this->sensor_, ESP_CAM_SENSOR_IOC_S_STREAM, &enable) != ESP_OK) {
+    ESP_LOGE(TAG, "ESP_CAM_SENSOR_IOC_S_STREAM start failed.");
     return false;
   }
-
-  // Start Image Signal Processor
-  if (this->format_->isp_info) {
-    esp_isp_processor_cfg_t isp_config = {};
-    isp_config.clk_src = ISP_CLK_SRC_DEFAULT;
-    isp_config.clk_hz = 80000000;
-    isp_config.input_data_source = ISP_INPUT_DATA_SOURCE_CSI;
-    isp_config.input_data_color_type = ISP_COLOR_RAW8;
-    isp_config.output_data_color_type = ISP_COLOR_RGB565;
-    isp_config.yuv_range = ISP_COLOR_RANGE_LIMIT;
-    isp_config.yuv_std = ISP_YUV_CONV_STD_BT601;
-    isp_config.has_line_start_packet = this->format_->mipi_info.line_sync_en;
-    isp_config.has_line_end_packet = this->format_->mipi_info.line_sync_en;
-    isp_config.h_res = this->format_->width;
-    isp_config.v_res = this->format_->height;
-    isp_config.bayer_order = bayer_to_raw_(this->format_->isp_info->isp_v1_info.bayer_type);
-    isp_config.intr_priority = 1;
-    // isp_config.flags.bypass_isp = 0;
-
-    if (esp_isp_new_processor(&isp_config, &this->isp_proc_handle_) != ESP_OK) {
-      ESP_LOGE(TAG, "esp_isp_new_processor failed.");
-      return false;
-    }
-
-    this->filter_configure_(true);
-    this->color_configure_(true);
-
-    if (esp_isp_enable(this->isp_proc_handle_) != ESP_OK) {
-      ESP_LOGE(TAG, "esp_isp_enable failed.");
-      return false;
-    }
-  }
-
-  this->exposure_configure();
-
-  int flip = this->flip_y_ ? 1 : 0;
-  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_VFLIP, &flip, sizeof(flip)) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_cam_sensor_set_para_value  ESP_CAM_SENSOR_VFLIP failed.");
-  }
-
-  int mirror = this->flip_x_ ? 1 : 0;
-  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_HMIRROR, &mirror, sizeof(mirror)) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_cam_sensor_set_para_value  ESP_CAM_SENSOR_HMIRROR failed.");
-  }
-
-  start_stream_();
-
-#ifdef USE_NUMBER
-  if (this->brightness_number_)
-    this->brightness_number_->publish_state(this->brightness_);
-  if (this->contrast_number_)
-    this->contrast_number_->publish_state(this->contrast_);
-  if (this->exposure_number_)
-    this->exposure_number_->publish_state(this->exposure_);
-  if (this->filter_number_)
-    this->filter_number_->publish_state(this->filter_);
-  if (this->hue_number_)
-    this->hue_number_->publish_state(this->hue_);
-  if (this->saturation_number_)
-    this->saturation_number_->publish_state(this->saturation_);
-#endif
 
   return true;
 }
@@ -273,11 +199,14 @@ camera::Buffer *CSICameraSensor::acquire_frame_buffer() {
   if (uxQueueMessagesWaiting(this->produced_) <= 0)
     return nullptr;
 
-  CSICameraSensorBuffer *buffer = this->pool_.acquire();
+  InternalBuffer *buffer = this->pool_.acquire();
   if (!buffer)
     return nullptr;
 
-  assert(xQueueReceive(this->produced_, &buffer->data_buffer_, 0) == pdPASS);
+  if (xQueueReceive(this->produced_, &buffer->data_buffer_, 0) != pdPASS)
+    ESP_LOGE(TAG, "xQueueReceive failed.");
+
+  // Cache needs to be invalidated to avoid overlay and other artifacts.
   if (esp_cache_msync(buffer->data_buffer_, this->frame_buffer_size_, ESP_CACHE_MSYNC_FLAG_DIR_M2C) != ESP_OK)
     ESP_LOGW(TAG, "ESP_CACHE_MSYNC_FLAG_DIR_M2C failed.");
 
@@ -286,8 +215,10 @@ camera::Buffer *CSICameraSensor::acquire_frame_buffer() {
 }
 
 void CSICameraSensor::return_frame_buffer(camera::Buffer *buffer) {
-  CSICameraSensorBuffer *b = reinterpret_cast<CSICameraSensorBuffer *>(buffer);
-  assert(xQueueSendToBack(this->consumed_, &b->data_buffer_, 0) == pdPASS);
+  InternalBuffer *b = reinterpret_cast<InternalBuffer *>(buffer);
+  if (xQueueSendToBack(this->consumed_, &b->data_buffer_, 0) != pdPASS)
+    ESP_LOGE(TAG, "xQueueSendToBack failed.");
+
   this->pool_.release(b);
 }
 
@@ -295,97 +226,75 @@ void CSICameraSensor::log_config() {
   ESP_LOGCONFIG(TAG,
                 "Camera Sensor: %s\n"
                 "  %s\n"
-                "  Flip X: %s, Y: %s\n"
+                "  %s\n"
+                "  Flip X: %s, Y: %s, Factory X: %s\n"
                 "  Buffers: %u\n"
+                "  Test Pattern: %s\n"
                 "  MIPI-CSI:\n"
                 "    Clock: %d MHz\n"
                 "    Lanes: %d\n"
-                "    Line Sync: %s\n"
-                "  ISP: %s\n",
-                this->sensor_->name, this->format_->name, YESNO(this->flip_x_), YESNO(this->flip_y_), this->buffers_,
+                "    Line Sync: %s\n",
+                this->sensor_->name, this->format_->name, to_string(this->image_spec_.format), YESNO(this->flip_x_),
+                YESNO(this->flip_y_), YESNO(this->factory_flip_x_), this->buffers_, YESNO(this->test_pattern_),
                 this->format_->mipi_info.mipi_clk / 1000000, this->format_->mipi_info.lane_num,
-                YESNO(this->format_->mipi_info.line_sync_en), YESNO(this->format_->isp_info));
+                YESNO(this->format_->mipi_info.line_sync_en));
   LOG_I2C_DEVICE(this);
+  this->isp_->log_config();
 }
 
-void CSICameraSensor::start_stream_() {
-  int enable = 1;
-  if (esp_cam_sensor_ioctl(this->sensor_, ESP_CAM_SENSOR_IOC_S_STREAM, &enable) != ESP_OK)
-    ESP_LOGE(TAG, "ESP_CAM_SENSOR_IOC_S_STREAM start failed.");
+bool IRAM_ATTR CSICameraSensor::dma_start_callback(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans,
+                                                   void *user_data) {
+  return reinterpret_cast<CSICameraSensor *>(user_data)->dma_start_(trans);
 }
 
-void CSICameraSensor::stop_stream_() {
-  int disable = 0;
-  if (esp_cam_sensor_ioctl(this->sensor_, ESP_CAM_SENSOR_IOC_S_STREAM, &disable) != ESP_OK)
-    ESP_LOGE(TAG, "ESP_CAM_SENSOR_IOC_S_STREAM stop failed.");
+bool IRAM_ATTR CSICameraSensor::dma_complete_callback(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans,
+                                                      void *user_data) {
+  return reinterpret_cast<CSICameraSensor *>(user_data)->dma_complete_(trans);
 }
 
-color_raw_element_order_t CSICameraSensor::bayer_to_raw_(esp_cam_sensor_bayer_pattern_t pattern) {
-  static const color_raw_element_order_t table[4][4] = {
-      {COLOR_RAW_ELEMENT_ORDER_RGGB, COLOR_RAW_ELEMENT_ORDER_GRBG, COLOR_RAW_ELEMENT_ORDER_GBRG,
-       COLOR_RAW_ELEMENT_ORDER_BGGR},
-      {COLOR_RAW_ELEMENT_ORDER_GRBG, COLOR_RAW_ELEMENT_ORDER_RGGB, COLOR_RAW_ELEMENT_ORDER_BGGR,
-       COLOR_RAW_ELEMENT_ORDER_GBRG},
-      {COLOR_RAW_ELEMENT_ORDER_GBRG, COLOR_RAW_ELEMENT_ORDER_BGGR, COLOR_RAW_ELEMENT_ORDER_RGGB,
-       COLOR_RAW_ELEMENT_ORDER_GRBG},
-      {COLOR_RAW_ELEMENT_ORDER_BGGR, COLOR_RAW_ELEMENT_ORDER_GBRG, COLOR_RAW_ELEMENT_ORDER_GRBG,
-       COLOR_RAW_ELEMENT_ORDER_RGGB},
-  };
-
-  if (pattern > 4) {
-    ESP_LOGE(TAG, "Bayer mapping is not up to date.");
-    return COLOR_RAW_ELEMENT_ORDER_BGGR;
+bool IRAM_ATTR CSICameraSensor::dma_start_(esp_cam_ctlr_trans_t *trans) {
+  if (xQueueReceiveFromISR(this->consumed_, &trans->buffer, NULL) != pdPASS) {
+    // Replace the oldest image for multi buffer mode.
+    if (uxQueueMessagesWaiting(this->produced_) <= 1 ||
+        xQueueReceiveFromISR(this->produced_, &trans->buffer, NULL) != pdPASS)
+      return false;
   }
 
-  int variation = (this->flip_x_ ? 0 : 1) | (this->flip_y_ ? 2 : 0);
-  return table[pattern][variation];
+  trans->buflen = this->frame_buffer_size_;
+  return true;
 }
 
-void CSICameraSensor::color_configure_(bool enable) {
-  esp_isp_color_config_t config = {
-      .color_contrast =
-          {
-              .decimal = this->contrast_ < 128 ? this->contrast_ : static_cast<uint32_t>(0),
-              .integer = this->contrast_ >= 128 ? 1 : static_cast<uint32_t>(0),
-          },
-      .color_saturation =
-          {
-              .decimal = this->saturation_ < 128 ? this->saturation_ : static_cast<uint32_t>(0),
-              .integer = this->saturation_ >= 128 ? 1 : static_cast<uint32_t>(0),
-          },
-      .color_hue = this->hue_,
-      .color_brightness = this->brightness_,
-  };
+bool IRAM_ATTR CSICameraSensor::dma_complete_(esp_cam_ctlr_trans_t *trans) {
+  if (xQueueSendFromISR(this->produced_, &trans->buffer, NULL) != pdPASS)
+    xQueueSendFromISR(this->consumed_, &trans->buffer, NULL);
 
-  if (esp_isp_color_configure(this->isp_proc_handle_, &config) != ESP_OK)
-    ESP_LOGE(TAG, "esp_isp_color_configure failed.");
-
-  esp_isp_color_enable(this->isp_proc_handle_);
+  return true;
 }
 
-void CSICameraSensor::exposure_configure() {
-  int exposure = this->exposure_;
-  if (esp_cam_sensor_set_para_value(this->sensor_, ESP_CAM_SENSOR_EXPOSURE_VAL, &exposure, sizeof(exposure)) != ESP_OK)
-    ESP_LOGE(TAG, "ESP_CAM_SENSOR_EXPOSURE_VAL failed.");
+cam_ctlr_color_t CSICameraSensor::to_internal_(camera::PixelFormat format) {
+  switch (format) {
+    case camera::PIXEL_FORMAT_GRAYSCALE:
+      return CAM_CTLR_COLOR_GRAY8;
+    case camera::PIXEL_FORMAT_RGB565:
+      return CAM_CTLR_COLOR_RGB565;
+    case camera::PIXEL_FORMAT_BGR888:
+      return CAM_CTLR_COLOR_RGB888;
+  }
+
+  return CAM_CTLR_COLOR_GRAY8;
 }
 
-void CSICameraSensor::filter_configure_(bool enable) {
-  esp_isp_bf_config_t config = {
-      .bf_template =
-          {
-              {1, 2, 1},
-              {2, 4, 2},
-              {1, 2, 1},
-          },
-      .denoising_level = this->filter_,
-  };
+cam_ctlr_color_t CSICameraSensor::to_internal_(esp_cam_sensor_output_format_t format) {
+  switch (format) {
+    case ESP_CAM_SENSOR_PIXFORMAT_RAW8:
+      return CAM_CTLR_COLOR_RAW8;
+    case ESP_CAM_SENSOR_PIXFORMAT_RAW10:
+      return CAM_CTLR_COLOR_RAW10;
+    case ESP_CAM_SENSOR_PIXFORMAT_RAW12:
+      return CAM_CTLR_COLOR_RAW12;
+  }
 
-  esp_isp_bf_disable(this->isp_proc_handle_);
-  if (esp_isp_bf_configure(this->isp_proc_handle_, &config) != ESP_OK)
-    ESP_LOGE(TAG, "esp_isp_bf_configure failed.");
-
-  if (esp_isp_bf_enable(this->isp_proc_handle_) != ESP_OK)
-    ESP_LOGE(TAG, "esp_isp_bf_enable failed.");
+  return CAM_CTLR_COLOR_RAW8;
 }
 
 }  // namespace esphome::camera_sensor

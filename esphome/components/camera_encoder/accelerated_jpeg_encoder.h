@@ -1,23 +1,26 @@
 #pragma once
 
-#ifdef USE_P4_CAMERA_JPEG_ENCODER
-
-#include "driver/jpeg_encode.h"
+#ifdef USE_ESP32_VARIANT_ESP32P4
 
 #include "esphome/components/camera/encoder.h"
+
+#include "driver/jpeg_encode.h"
 
 namespace esphome {
 namespace camera_encoder {
 
 /// Encoder that uses the hardware-accelerated JPEG engine on ESP32-P4.
-class ESP32P4JPEGEncoder : public camera::Encoder {
+class AcceleratedJPEGEncoder : public camera::Encoder {
  public:
-  ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling, uint16_t timeout,
-                     camera::EncoderBuffer *output);
-  void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+  /// Constructs an encoder instance.
+  /// @param quality Sets the quality of the encoded image (1-100).
+  /// @param subsampling Reduces color information to save memory at the cost of image quality.
+  /// @param timeout Timeout in milliseconds before encoding abort.
+  AcceleratedJPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling, uint16_t timeout);
   // -------- Encoder --------
+  void set_output_buffer(camera::DynamicBuffer *output) override { this->output_ = output; }
   camera::EncoderError encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) override;
-  camera::EncoderBuffer *get_output_buffer() override { return output_; }
+  camera::Buffer *get_output_buffer() override { return output_; }
   void dump_config() override;
   // -------------------------
  protected:
@@ -29,7 +32,7 @@ class ESP32P4JPEGEncoder : public camera::Encoder {
   uint16_t timeout_{};
   bool encoded_first_frame_{};
   camera::EncoderSubsampling subsampling_{};
-  camera::EncoderBuffer *output_{};
+  camera::DynamicBuffer *output_{};
 };
 
 }  // namespace camera_encoder

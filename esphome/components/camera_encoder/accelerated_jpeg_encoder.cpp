@@ -1,21 +1,17 @@
-#ifdef USE_P4_CAMERA_JPEG_ENCODER
+#ifdef USE_ESP32_VARIANT_ESP32P4
 
-#include "esp32_p4_jpeg_encoder.h"
+#include "accelerated_jpeg_encoder.h"
 
 namespace esphome {
 namespace camera_encoder {
 
-#ifdef USE_ESP32_VARIANT_ESP32P4
-#endif
-
 static const char *const TAG = "camera_encoder";
 
-ESP32P4JPEGEncoder::ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling, uint16_t timeout,
-                                       camera::EncoderBuffer *output) {
+AcceleratedJPEGEncoder::AcceleratedJPEGEncoder(uint8_t quality, camera::EncoderSubsampling subsampling,
+                                               uint16_t timeout) {
   this->quality_ = quality;
   this->subsampling_ = subsampling;
   this->timeout_ = timeout;
-  this->output_ = output;
 
   jpeg_encode_engine_cfg_t encode_eng_cfg = {
       .intr_priority = 0,
@@ -25,7 +21,7 @@ ESP32P4JPEGEncoder::ESP32P4JPEGEncoder(uint8_t quality, camera::EncoderSubsampli
   ESP_ERROR_CHECK(jpeg_new_encoder_engine(&encode_eng_cfg, &this->encoder_engine_));
 }
 
-camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
+camera::EncoderError AcceleratedJPEGEncoder::encode_pixels(camera::CameraImageSpec *spec, camera::Buffer *pixels) {
   uint8_t *buffer = this->output_->get_data();
   size_t buffer_length = this->output_->get_max_size();
   uint32_t bytes_written = 0;
@@ -43,12 +39,19 @@ camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *
   this->output_->set_buffer_size(bytes_written);
   if (error == ESP_ERR_TIMEOUT) {
     ESP_LOGE(TAG, "JPEG encoder timed out. Try increasing the timeout setting.", error);
-    return camera::ENCODER_ERROR_SKIP_FRAME;
+    return this->encoded_first_frame_ ? camera::ENCODER_ERROR_SKIP_FRAME : camera::ENCODER_ERROR_CONFIGURATION;
   }
 
-  if (error == ESP_ERR_INVALID_STATE && this->encoded_first_frame_) {
-    ESP_LOGE(TAG, "JPEG encoder ran out of memory. Consider increasing the buffer size.", error);
-    return camera::ENCODER_ERROR_SKIP_FRAME;
+  if (error == ESP_ERR_INVALID_STATE) {
+    size_t recommended = spec->height * spec->width / 10;
+    if (buffer_length < recommended)
+      ESP_LOGE(TAG, "JPEG encoder ran out of memory. Buffer size is %zu but should be at least %zu bytes.",
+               buffer_length, recommended);
+    else
+      ESP_LOGE(TAG, "JPEG encoder ran out of memory. Buffer size is %zu. Consider increasing the buffer size.",
+               buffer_length);
+
+    return this->encoded_first_frame_ ? camera::ENCODER_ERROR_SKIP_FRAME : camera::ENCODER_ERROR_CONFIGURATION;
   }
 
   if (error != ESP_OK) {
@@ -60,9 +63,9 @@ camera::EncoderError ESP32P4JPEGEncoder::encode_pixels(camera::CameraImageSpec *
   return camera::ENCODER_ERROR_SUCCESS;
 }
 
-void ESP32P4JPEGEncoder::dump_config() {
+void AcceleratedJPEGEncoder::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "ESP32-P4 JPEG Encoder:\n"
+                "Accelerated JPEG Encoder:\n"
                 "  Size: %zu\n"
                 "  Quality: %u\n"
                 "  Timeout: %u\n"
@@ -70,7 +73,7 @@ void ESP32P4JPEGEncoder::dump_config() {
                 this->output_->get_max_size(), this->quality_, this->timeout_, to_string(this->subsampling_));
 }
 
-jpeg_enc_input_format_t ESP32P4JPEGEncoder::to_internal_(camera::PixelFormat format) {
+jpeg_enc_input_format_t AcceleratedJPEGEncoder::to_internal_(camera::PixelFormat format) {
   switch (format) {
     case camera::PIXEL_FORMAT_GRAYSCALE:
       return JPEG_ENCODE_IN_FORMAT_GRAY;
@@ -84,7 +87,7 @@ jpeg_enc_input_format_t ESP32P4JPEGEncoder::to_internal_(camera::PixelFormat for
   return JPEG_ENCODE_IN_FORMAT_GRAY;
 }
 
-jpeg_down_sampling_type_t ESP32P4JPEGEncoder::to_internal_(camera::EncoderSubsampling sampling) {
+jpeg_down_sampling_type_t AcceleratedJPEGEncoder::to_internal_(camera::EncoderSubsampling sampling) {
   switch (sampling) {
     case camera::SUBSAMPLING_444:
       return JPEG_DOWN_SAMPLING_YUV444;
