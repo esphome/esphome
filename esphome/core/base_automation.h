@@ -406,11 +406,23 @@ template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(uint32_t itera
   }
 }
 
+/** Wait until a condition is true to continue execution.
+ *
+ * Uses queue-based storage to safely handle concurrent executions.
+ * While concurrent execution from the same trigger is uncommon, it's possible
+ * (e.g., rapid button presses, high-frequency sensor updates), so we use
+ * queue-based storage for correctness.
+ */
 template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
 
   TEMPLATABLE_VALUE(uint32_t, timeout_value)
+
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    this->disable_loop();
+  }
 
   void play_complex(Ts... x) override {
     this->num_running_++;
@@ -421,16 +433,14 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       }
       return;
     }
-    this->var_ = std::make_tuple(x...);
 
-    if (this->timeout_value_.has_value()) {
-      // Lambda captures only 'this' to reference stored var_
-      // vs std::bind which duplicates storage of x... (already in var_)
-      // This eliminates ~100-200 bytes of std::bind template instantiation code
-      auto f = [this]() { this->play_next_tuple_(this->var_); };
-      this->set_timeout("timeout", this->timeout_value_.value(x...), f);
-    }
+    // Store for later processing
+    auto now = millis();
+    auto timeout = this->timeout_value_.optional_value(x...);
+    this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
 
+    // Enable loop now that we have work to do
+    this->enable_loop();
     this->loop();
   }
 
@@ -438,13 +448,32 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     if (this->num_running_ == 0)
       return;
 
-    if (!this->condition_->check_tuple(this->var_)) {
-      return;
+    auto now = millis();
+
+    this->var_queue_.remove_if([&](auto &queued) {
+      auto start = std::get<uint32_t>(queued);
+      auto timeout = std::get<optional<uint32_t>>(queued);
+      auto &var = std::get<std::tuple<Ts...>>(queued);
+
+      auto expired = timeout && (now - start) >= *timeout;
+
+      if (!expired && !this->condition_->check_tuple(var)) {
+        return false;
+      }
+
+      this->play_next_tuple_(var);
+      return true;
+    });
+
+    // If queue is now empty, disable loop until next play_complex
+    if (this->var_queue_.empty()) {
+      this->disable_loop();
     }
+  }
 
-    this->cancel_timeout("timeout");
-
-    this->play_next_tuple_(this->var_);
+  void stop() override {
+    this->var_queue_.clear();
+    this->disable_loop();
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -452,11 +481,9 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout("timeout"); }
-
  protected:
   Condition<Ts...> *condition_;
-  std::tuple<Ts...> var_{};
+  std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
 
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
