@@ -330,9 +330,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 template<typename... Ts> void WhileLoopContinuation<Ts...>::play(Ts... x) {
   if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
     // play again
-    if (this->parent_->num_running_ > 0) {
-      this->parent_->then_.play(x...);
-    }
+    this->parent_->then_.play(x...);
   } else {
     // condition false, play next
     this->parent_->play_next_(x...);
