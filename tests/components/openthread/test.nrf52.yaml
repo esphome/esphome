@@ -5,6 +5,7 @@ esphome:
   name: nrf52-ot
 
 api:
+  max_send_queue: 10 # Maximum queued messages per connection before disconnect
 
 logger:
   level: DEBUG
@@ -14,7 +15,6 @@ network:
   enable_ipv6: true
 
 # Enable OpenThread
-# zephyr_openthread:
 openthread:
   channel: 25
   pan_id: 0xe064
