@@ -21,10 +21,12 @@ http_request:
 
 ota:
   - platform: http_request
+    id: update_http_request_ota
 
 update:
   - platform: http_request
     name: Firmware Update
+    ota_id: update_http_request_ota
     source: http://example.com/manifest.json
     on_update_available:
       - logger.log: "A new update is available"

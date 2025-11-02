@@ -67,8 +67,16 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
 }
 
 bool ESP32Can::setup_internal() {
+  static int next_twai_ctrl_num = 0;
+  if (static_cast<unsigned>(next_twai_ctrl_num) >= SOC_TWAI_CONTROLLER_NUM) {
+    ESP_LOGW(TAG, "Maximum number of esp32_can components created already");
+    this->mark_failed();
+    return false;
+  }
+
   twai_general_config_t g_config =
       TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, TWAI_MODE_NORMAL);
+  g_config.controller_id = next_twai_ctrl_num++;
   if (this->tx_queue_len_.has_value()) {
     g_config.tx_queue_len = this->tx_queue_len_.value();
   }
@@ -86,14 +94,14 @@ bool ESP32Can::setup_internal() {
   }
 
   // Install TWAI driver
-  if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
+  if (twai_driver_install_v2(&g_config, &t_config, &f_config, &(this->twai_handle_)) != ESP_OK) {
     // Failed to install driver
     this->mark_failed();
     return false;
   }
 
   // Start TWAI driver
-  if (twai_start() != ESP_OK) {
+  if (twai_start_v2(this->twai_handle_) != ESP_OK) {
     // Failed to start driver
     this->mark_failed();
     return false;
@@ -102,6 +110,11 @@ bool ESP32Can::setup_internal() {
 }
 
 canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
+  if (this->twai_handle_ == nullptr) {
+    // not setup yet or setup failed
+    return canbus::ERROR_FAIL;
+  }
+
   if (frame->can_data_length_code > canbus::CAN_MAX_DATA_LENGTH) {
     return canbus::ERROR_FAILTX;
   }
@@ -124,7 +137,7 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
     memcpy(message.data, frame->data, frame->can_data_length_code);
   }
 
-  if (twai_transmit(&message, this->tx_enqueue_timeout_ticks_) == ESP_OK) {
+  if (twai_transmit_v2(this->twai_handle_, &message, this->tx_enqueue_timeout_ticks_) == ESP_OK) {
     return canbus::ERROR_OK;
   } else {
     return canbus::ERROR_ALLTXBUSY;
@@ -132,9 +145,14 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
 }
 
 canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
+  if (this->twai_handle_ == nullptr) {
+    // not setup yet or setup failed
+    return canbus::ERROR_FAIL;
+  }
+
   twai_message_t message;
 
-  if (twai_receive(&message, 0) != ESP_OK) {
+  if (twai_receive_v2(this->twai_handle_, &message, 0) != ESP_OK) {
     return canbus::ERROR_NOMSG;
   }
 

@@ -17,7 +17,7 @@ from esphome.const import (
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -84,11 +84,6 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-BUTTON_SCHEMA = button_schema(Button)
-BUTTON_SCHEMA.add_extra(cv.deprecated_schema_constant("button"))
-
-
 async def setup_button_core_(var, config):
     await setup_entity(var, config, "button")
 
@@ -134,6 +129,6 @@ async def button_press_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(button_ns.using)

@@ -46,15 +46,17 @@ void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   this->state_ = CREATING;
 }
 
-void BLEDescriptor::set_value(std::vector<uint8_t> buffer) {
-  size_t length = buffer.size();
+void BLEDescriptor::set_value(std::vector<uint8_t> &&buffer) { this->set_value_impl_(buffer.data(), buffer.size()); }
 
+void BLEDescriptor::set_value(std::initializer_list<uint8_t> data) { this->set_value_impl_(data.begin(), data.size()); }
+
+void BLEDescriptor::set_value_impl_(const uint8_t *data, size_t length) {
   if (length > this->value_.attr_max_len) {
     ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", length, this->value_.attr_max_len);
     return;
   }
   this->value_.attr_len = length;
-  memcpy(this->value_.attr_value, buffer.data(), length);
+  memcpy(this->value_.attr_value, data, length);
 }
 
 void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -74,9 +76,10 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
         break;
       this->value_.attr_len = param->write.len;
       memcpy(this->value_.attr_value, param->write.value, param->write.len);
-      this->emit_(BLEDescriptorEvt::VectorEvt::ON_WRITE,
-                  std::vector<uint8_t>(param->write.value, param->write.value + param->write.len),
-                  param->write.conn_id);
+      if (this->on_write_callback_) {
+        (*this->on_write_callback_)(std::span<const uint8_t>(param->write.value, param->write.len),
+                                    param->write.conn_id);
+      }
       break;
     }
     default:

@@ -1,9 +1,3 @@
-uart:
-  - id: uart_rdm6300
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 115200
-
 rdm6300:
 
 binary_sensor:

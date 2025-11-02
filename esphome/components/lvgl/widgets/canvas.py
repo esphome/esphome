@@ -24,7 +24,7 @@ from ..defines import (
     literal,
 )
 from ..lv_validation import (
-    lv_angle,
+    lv_angle_degrees,
     lv_bool,
     lv_color,
     lv_image,
@@ -33,7 +33,7 @@ from ..lv_validation import (
     pixels,
     size,
 )
-from ..lvcode import LocalVariable, lv, lv_assign
+from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, STYLE_REMAP, TEXT_SCHEMA, point_schema
 from ..types import LvType, ObjUpdateAction, WidgetType
 from . import Widget, get_widgets
@@ -70,15 +70,18 @@ class CanvasType(WidgetType):
         width = config[CONF_WIDTH]
         height = config[CONF_HEIGHT]
         use_alpha = "_ALPHA" if config[CONF_TRANSPARENT] else ""
-        lv.canvas_set_buffer(
-            w.obj,
-            lv.custom_mem_alloc(
-                literal(f"LV_CANVAS_BUF_SIZE_TRUE_COLOR{use_alpha}({width}, {height})")
-            ),
-            width,
-            height,
-            literal(f"LV_IMG_CF_TRUE_COLOR{use_alpha}"),
+        buf_size = literal(
+            f"LV_CANVAS_BUF_SIZE_TRUE_COLOR{use_alpha}({width}, {height})"
         )
+        with LocalVariable("buf", cg.void, lv_expr.custom_mem_alloc(buf_size)) as buf:
+            cg.add(cg.RawExpression(f"memset({buf}, 0, {buf_size});"))
+            lv.canvas_set_buffer(
+                w.obj,
+                buf,
+                width,
+                height,
+                literal(f"LV_IMG_CF_TRUE_COLOR{use_alpha}"),
+            )
 
 
 canvas_spec = CanvasType()
@@ -395,15 +398,15 @@ ARC_PROPS = {
     DRAW_OPA_SCHEMA.extend(
         {
             cv.Required(CONF_RADIUS): pixels,
-            cv.Required(CONF_START_ANGLE): lv_angle,
-            cv.Required(CONF_END_ANGLE): lv_angle,
+            cv.Required(CONF_START_ANGLE): lv_angle_degrees,
+            cv.Required(CONF_END_ANGLE): lv_angle_degrees,
         }
     ).extend({cv.Optional(prop): validator for prop, validator in ARC_PROPS.items()}),
 )
 async def canvas_draw_arc(config, action_id, template_arg, args):
     radius = await size.process(config[CONF_RADIUS])
-    start_angle = await lv_angle.process(config[CONF_START_ANGLE])
-    end_angle = await lv_angle.process(config[CONF_END_ANGLE])
+    start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+    end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
 
     async def do_draw_arc(w: Widget, x, y, dsc_addr):
         lv.canvas_draw_arc(w.obj, x, y, radius, start_angle, end_angle, dsc_addr)

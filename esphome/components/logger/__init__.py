@@ -1,7 +1,7 @@
 import re
 
 from esphome import automation
-from esphome.automation import LambdaAction
+from esphome.automation import LambdaAction, StatelessLambdaAction
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.components.esp32.const import (
@@ -51,7 +51,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -95,6 +95,7 @@ DEFAULT = "DEFAULT"
 
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
+CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 
 UART_SELECTION_ESP32 = {
@@ -116,8 +117,6 @@ UART_SELECTION_LIBRETINY = {
     COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
     COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
 }
-
-ESP_ARDUINO_UNSUPPORTED_USB_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -153,13 +152,7 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if CORE.using_arduino and value.upper() in ESP_ARDUINO_UNSUPPORTED_USB_UARTS:
-            raise cv.Invalid(f"Arduino framework does not support {value}.")
         variant = get_esp32_variant()
-        if CORE.using_esp_idf and variant == VARIANT_ESP32C3 and value == USB_CDC:
-            raise cv.Invalid(
-                f"{value} is not supported for variant {variant} when using ESP-IDF."
-            )
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
@@ -180,14 +173,34 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(value):
-    global_level = LOG_LEVEL_SEVERITY.index(value[CONF_LEVEL])
-    for tag, level in value.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level:
-            raise cv.Invalid(
-                f"The configured log level for {tag} ({level}) must be no more severe than the global log level {value[CONF_LEVEL]}."
+def validate_local_no_higher_than_global(config):
+    global_level = config[CONF_LEVEL]
+    global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
+    errs = []
+    for tag, level in config.get(CONF_LOGS, {}).items():
+        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+            errs.append(
+                cv.Invalid(
+                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                    [CONF_LOGS, tag],
+                )
             )
-    return value
+    if errs:
+        raise cv.MultipleInvalid(errs)
+    return config
+
+
+def validate_initial_no_higher_than_global(config):
+    if initial_level := config.get(CONF_INITIAL_LEVEL):
+        global_level = config[CONF_LEVEL]
+        if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
+            global_level
+        ):
+            raise cv.Invalid(
+                f"The initial log level ({initial_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_INITIAL_LEVEL],
+            )
+    return config
 
 
 Logger = logger_ns.class_("Logger", cg.Component)
@@ -226,14 +239,11 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 esp32_s2=USB_CDC,
-                esp32_s3_arduino=USB_CDC,
-                esp32_s3_idf=USB_SERIAL_JTAG,
-                esp32_c3_arduino=USB_CDC,
-                esp32_c3_idf=USB_SERIAL_JTAG,
-                esp32_c5_idf=USB_SERIAL_JTAG,
-                esp32_c6_arduino=USB_CDC,
-                esp32_c6_idf=USB_SERIAL_JTAG,
-                esp32_p4_idf=USB_SERIAL_JTAG,
+                esp32_s3=USB_SERIAL_JTAG,
+                esp32_c3=USB_SERIAL_JTAG,
+                esp32_c5=USB_SERIAL_JTAG,
+                esp32_c6=USB_SERIAL_JTAG,
+                esp32_p4=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
@@ -260,6 +270,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_INITIAL_LEVEL): is_log_level,
+            cv.Optional(CONF_RUNTIME_TAG_LEVELS, default=False): cv.boolean,
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoggerMessageTrigger),
@@ -272,10 +283,11 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
+    validate_initial_no_higher_than_global,
 )
 
 
-@coroutine_with_priority(90.0)
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
@@ -302,8 +314,12 @@ async def to_code(config):
         )
     cg.add(log.pre_setup())
 
-    for tag, log_level in config[CONF_LOGS].items():
-        cg.add(log.set_log_level(tag, LOG_LEVELS[log_level]))
+    # Enable runtime tag levels if logs are configured or explicitly enabled
+    logs_config = config[CONF_LOGS]
+    if logs_config or config[CONF_RUNTIME_TAG_LEVELS]:
+        cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+        for tag, log_level in logs_config.items():
+            cg.add(log.set_log_level(tag, LOG_LEVELS[log_level]))
 
     cg.add_define("USE_LOGGER")
     this_severity = LOG_LEVEL_SEVERITY.index(level)
@@ -346,15 +362,7 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
-    if CORE.using_arduino and config[CONF_HARDWARE_UART] == USB_CDC:
-        cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=1")
-        if CORE.is_esp32 and get_esp32_variant() in (
-            VARIANT_ESP32C3,
-            VARIANT_ESP32C6,
-        ):
-            cg.add_build_flag("-DARDUINO_USB_MODE=1")
-
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
@@ -443,7 +451,9 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 @automation.register_action(
@@ -462,12 +472,15 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
     level = LOG_LEVELS[config[CONF_LEVEL]]
     logger = await cg.get_variable(config[CONF_LOGGER_ID])
     if tag := config.get(CONF_TAG):
+        cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
         text = str(cg.statement(logger.set_log_level(tag, level)))
     else:
         text = str(cg.statement(logger.set_log_level(level)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

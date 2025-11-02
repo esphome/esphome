@@ -188,9 +188,8 @@ void LD2410Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2410:\n"
                 "  Firmware version: %s\n"
-                "  MAC address: %s\n"
-                "  Throttle: %u ms",
-                version.c_str(), mac_str.c_str(), this->throttle_);
+                "  MAC address: %s",
+                version.c_str(), mac_str.c_str());
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
@@ -306,11 +305,6 @@ void LD2410Component::send_command_(uint8_t command, const uint8_t *command_valu
 }
 
 void LD2410Component::handle_periodic_data_() {
-  // Reduce data update rate to reduce home assistant database growth
-  // Check this first to prevent unnecessary processing done in later checks/parsing
-  if (App.get_loop_component_start_time() - this->last_periodic_millis_ < this->throttle_) {
-    return;
-  }
   // 4 frame header bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame footer bytes
   // data header=0xAA, data footer=0x55, crc=0x00
   if (this->buffer_pos_ < 12 || !ld2410::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_) ||
@@ -318,9 +312,6 @@ void LD2410Component::handle_periodic_data_() {
       this->buffer_data_[this->buffer_pos_ - 5] != CHECK) {
     return;
   }
-  // Save the timestamp after validating the frame so, if invalid, we'll take the next frame immediately
-  this->last_periodic_millis_ = App.get_loop_component_start_time();
-
   /*
     Data Type: 7th
     0x01: Engineering mode
