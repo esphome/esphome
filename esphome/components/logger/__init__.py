@@ -97,6 +97,8 @@ CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
+CONF_WAIT_FOR_CDC = "wait_for_cdc"
+CONF_EARLY_MESSAGE = "early_message"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -280,6 +282,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
+            cv.Optional(CONF_WAIT_FOR_CDC, default=False): cv.All(
+                cv.only_on_nrf52, cv.boolean
+            ),
+            cv.Optional(CONF_EARLY_MESSAGE, default=False): cv.All(
+                cv.only_on_nrf52, cv.boolean
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
@@ -377,6 +385,11 @@ async def to_code(config):
         cg.add_define("USE_LOGGER_USB_CDC")
     except cv.Invalid:
         pass
+
+    if config[CONF_WAIT_FOR_CDC]:
+        cg.add_define("USE_LOGGER_WAIT_FOR_CDC")
+    if config[CONF_EARLY_MESSAGE]:
+        cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.using_zephyr:
         if config[CONF_HARDWARE_UART] == UART0:
