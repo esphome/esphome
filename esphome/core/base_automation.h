@@ -271,9 +271,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
       if (this->num_running_ > 0 && this->condition_->check(x...)) {
         // play again
-        if (this->num_running_ > 0) {
-          this->then_.play(x...);
-        }
+        this->then_.play(x...);
       } else {
         // condition false, play next
         this->play_next_(x...);
