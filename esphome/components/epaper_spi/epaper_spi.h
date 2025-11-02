@@ -68,7 +68,7 @@ class EPaperBase : public DisplayBuffer,
   const char *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
-  bool reset() const;
+  bool reset_() const;
   void initialise_();
   void wait_for_idle_(bool should_wait);
   void delay_ms_(uint32_t duration);

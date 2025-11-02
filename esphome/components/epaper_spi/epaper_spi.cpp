@@ -89,7 +89,7 @@ bool EPaperBase::is_idle_() const {
   return !this->busy_pin_->digital_read();
 }
 
-bool EPaperBase::reset() const {
+bool EPaperBase::reset_() const {
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
       this->reset_pin_->digital_write(false);
@@ -174,7 +174,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::RESET:
     case EPaperState::RESET_END:
-      if (this->reset()) {
+      if (this->reset_()) {
         this->set_state_(EPaperState::UPDATE);
       } else {
         this->set_state_(EPaperState::RESET_END);
