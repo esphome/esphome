@@ -387,6 +387,42 @@ def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
     assert result == "/usr/bin/addr2line"
 
 
+def test_idedata_objdump_path_windows(setup_core: Path) -> None:
+    """Test IDEData.objdump_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.objdump_path
+    assert result == "C:\\tools\\objdump.exe"
+
+
+def test_idedata_objdump_path_unix(setup_core: Path) -> None:
+    """Test IDEData.objdump_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.objdump_path
+    assert result == "/usr/bin/objdump"
+
+
+def test_idedata_readelf_path_windows(setup_core: Path) -> None:
+    """Test IDEData.readelf_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.readelf_path
+    assert result == "C:\\tools\\readelf.exe"
+
+
+def test_idedata_readelf_path_unix(setup_core: Path) -> None:
+    """Test IDEData.readelf_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.readelf_path
+    assert result == "/usr/bin/readelf"
+
+
 def test_patch_structhash(setup_core: Path) -> None:
     """Test patch_structhash monkey patches platformio functions."""
     # Create simple namespace objects to act as modules

@@ -38,8 +38,14 @@ async def to_code(config):
         condition = await automation.build_condition(
             condition, cg.TemplateArguments(), []
         )
+        # Generate a stateless lambda that calls condition.check()
+        # capture="" is safe because condition is a global variable in generated C++ code
+        # and doesn't need to be captured. This allows implicit conversion to function pointer.
         template_ = LambdaExpression(
-            f"return {condition.check()};", [], return_type=cg.optional.template(bool)
+            f"return {condition.check()};",
+            [],
+            return_type=cg.optional.template(bool),
+            capture="",
         )
         cg.add(var.set_template(template_))
 

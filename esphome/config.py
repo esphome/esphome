@@ -12,7 +12,7 @@ from typing import Any
 import voluptuous as vol
 
 from esphome import core, loader, pins, yaml_util
-from esphome.config_helpers import Extend, Remove, merge_dicts_ordered
+from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -319,18 +319,15 @@ def iter_ids(config, path=None):
             yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
+            if len(path) == 0 and key == CONF_SUBSTITUTIONS:
+                # Ignore IDs in substitution definitions.
+                continue
             if isinstance(key, core.ID):
                 yield key, path
             yield from iter_ids(value, path + [key])
 
 
-def recursive_check_replaceme(value):
-    if isinstance(value, list):
-        return cv.Schema([recursive_check_replaceme])(value)
-    if isinstance(value, dict):
-        return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    if isinstance(value, ESPLiteralValue):
-        pass
+def check_replaceme(value):
     if isinstance(value, str) and value == "REPLACEME":
         raise cv.Invalid(
             "Found 'REPLACEME' in configuration, this is most likely an error. "
@@ -339,7 +336,86 @@ def recursive_check_replaceme(value):
             "If you want to use the literal REPLACEME string, "
             'please use "!literal REPLACEME"'
         )
-    return value
+
+
+def _build_list_index(lst):
+    index = OrderedDict()
+    extensions, removals = [], set()
+    for item in lst:
+        if item is None:
+            removals.add(None)
+            continue
+        item_id = None
+        if isinstance(item, dict) and (item_id := item.get(CONF_ID)):
+            if isinstance(item_id, Extend):
+                extensions.append(item)
+                continue
+            if isinstance(item_id, Remove):
+                removals.add(item_id.value)
+                continue
+        if not item_id or item_id in index:
+            # no id or duplicate -> pass through with identity-based key
+            item_id = id(item)
+        index[item_id] = item
+    return index, extensions, removals
+
+
+def resolve_extend_remove(value, is_key=None):
+    if isinstance(value, ESPLiteralValue):
+        return  # do not check inside literal blocks
+    if isinstance(value, list):
+        index, extensions, removals = _build_list_index(value)
+        if extensions or removals:
+            # Rebuild the original list after
+            # processing all extensions and removals
+            for item in extensions:
+                item_id = item[CONF_ID].value
+                if item_id in removals:
+                    continue
+                old = index.get(item_id)
+                if old is None:
+                    # Failed to find source for extension
+                    # Find index of item to show error at correct position
+                    i = next(
+                        (
+                            i
+                            for i, d in enumerate(value)
+                            if d.get(CONF_ID) == item[CONF_ID]
+                        )
+                    )
+                    with cv.prepend_path(i):
+                        raise cv.Invalid(
+                            f"Source for extension of ID '{item_id}' was not found."
+                        )
+                item[CONF_ID] = item_id
+                index[item_id] = merge_config(old, item)
+            for item_id in removals:
+                index.pop(item_id, None)
+
+            value[:] = index.values()
+
+        for i, item in enumerate(value):
+            with cv.prepend_path(i):
+                resolve_extend_remove(item, False)
+        return
+    if isinstance(value, dict):
+        removals = []
+        for k, v in value.items():
+            with cv.prepend_path(k):
+                if isinstance(v, Remove):
+                    removals.append(k)
+                    continue
+                resolve_extend_remove(k, True)
+                resolve_extend_remove(v, False)
+        for k in removals:
+            value.pop(k, None)
+        return
+    if is_key:
+        return  # do not check keys (yet)
+
+    check_replaceme(value)
+
+    return
 
 
 class ConfigValidationStep(abc.ABC):
@@ -437,19 +513,6 @@ class LoadValidationStep(ConfigValidationStep):
                 continue
             p_name = p_config.get("platform")
             if p_name is None:
-                p_id = p_config.get(CONF_ID)
-                if isinstance(p_id, Extend):
-                    result.add_str_error(
-                        f"Source for extension of ID '{p_id.value}' was not found.",
-                        path + [CONF_ID],
-                    )
-                    continue
-                if isinstance(p_id, Remove):
-                    result.add_str_error(
-                        f"Source for removal of ID '{p_id.value}' was not found.",
-                        path + [CONF_ID],
-                    )
-                    continue
                 result.add_str_error(
                     f"'{self.domain}' requires a 'platform' key but it was not specified.",
                     path,
@@ -934,9 +997,10 @@ def validate_config(
 
     CORE.raw_config = config
 
-    # 1.1. Check for REPLACEME special value
+    # 1.1. Resolve !extend and !remove and check for REPLACEME
+    # After this step, there will not be any Extend or Remove values in the config anymore
     try:
-        recursive_check_replaceme(config)
+        resolve_extend_remove(config)
     except vol.Invalid as err:
         result.add_error(err)
 

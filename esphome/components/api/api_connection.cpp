@@ -453,7 +453,6 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto traits = light->get_traits();
   auto values = light->remote_values;
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
@@ -477,7 +476,8 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   auto *light = static_cast<light::LightState *>(entity);
   ListEntitiesLightResponse msg;
   auto traits = light->get_traits();
-  msg.supported_color_modes = &traits.get_supported_color_modes_for_api_();
+  // Pass pointer to ColorModeMask so the iterator can encode actual ColorMode enum values
+  msg.supported_color_modes = &traits.get_supported_color_modes();
   if (traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
       traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE)) {
     msg.min_mireds = traits.get_min_mireds();
@@ -486,7 +486,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
   if (light->supports_effects()) {
     msg.effects.emplace_back("None");
     for (auto *effect : light->get_effects()) {
-      msg.effects.push_back(effect->get_name());
+      msg.effects.emplace_back(effect->get_name());
     }
   }
   return fill_and_encode_entity_info(light, msg, ListEntitiesLightResponse::MESSAGE_TYPE, conn, remaining_size,
@@ -669,18 +669,18 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
-  msg.supported_modes = &traits.get_supported_modes_for_api_();
+  msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
   msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
   msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
-  msg.supported_fan_modes = &traits.get_supported_fan_modes_for_api_();
-  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes_for_api_();
-  msg.supported_presets = &traits.get_supported_presets_for_api_();
-  msg.supported_custom_presets = &traits.get_supported_custom_presets_for_api_();
-  msg.supported_swing_modes = &traits.get_supported_swing_modes_for_api_();
+  msg.supported_fan_modes = &traits.get_supported_fan_modes();
+  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes();
+  msg.supported_presets = &traits.get_supported_presets();
+  msg.supported_custom_presets = &traits.get_supported_custom_presets();
+  msg.supported_swing_modes = &traits.get_supported_swing_modes();
   return fill_and_encode_entity_info(climate, msg, ListEntitiesClimateResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -1082,13 +1082,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
     if (value.timezone_len > 0) {
-      const std::string &current_tz = homeassistant::global_homeassistant_time->get_timezone();
-      // Compare without allocating a string
-      if (current_tz.length() != value.timezone_len ||
-          memcmp(current_tz.c_str(), value.timezone, value.timezone_len) != 0) {
-        homeassistant::global_homeassistant_time->set_timezone(
-            std::string(reinterpret_cast<const char *>(value.timezone), value.timezone_len));
-      }
+      homeassistant::global_homeassistant_time->set_timezone(reinterpret_cast<const char *>(value.timezone),
+                                                             value.timezone_len);
     }
 #endif
   }
@@ -1577,7 +1572,13 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
   resp.success = false;
 
   psk_t psk{};
-  if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
+  if (msg.key.empty()) {
+    if (this->parent_->clear_noise_psk(true)) {
+      resp.success = true;
+    } else {
+      ESP_LOGW(TAG, "Failed to clear encryption key");
+    }
+  } else if (base64_decode(msg.key, psk.data(), msg.key.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");

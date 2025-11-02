@@ -9,13 +9,10 @@ static const char *const TAG = "template.switch";
 TemplateSwitch::TemplateSwitch() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
 
 void TemplateSwitch::loop() {
-  if (!this->f_.has_value())
-    return;
-  auto s = (*this->f_)();
-  if (!s.has_value())
-    return;
-
-  this->publish_state(*s);
+  auto s = this->f_();
+  if (s.has_value()) {
+    this->publish_state(*s);
+  }
 }
 void TemplateSwitch::write_state(bool state) {
   if (this->prev_trigger_ != nullptr) {
@@ -35,11 +32,13 @@ void TemplateSwitch::write_state(bool state) {
 }
 void TemplateSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 bool TemplateSwitch::assumed_state() { return this->assumed_state_; }
-void TemplateSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
 float TemplateSwitch::get_setup_priority() const { return setup_priority::HARDWARE - 2.0f; }
 Trigger<> *TemplateSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
 Trigger<> *TemplateSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 void TemplateSwitch::setup() {
+  if (!this->f_.has_value())
+    this->disable_loop();
+
   optional<bool> initial_state = this->get_initial_state_with_restore_mode();
 
   if (initial_state.has_value()) {
