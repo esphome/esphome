@@ -14,16 +14,6 @@
 
 namespace esphome {
 
-/// Enum for script execution modes - used as template parameter for optimizing action storage
-/// Matches the modes defined in script component: single, restart, queued, parallel
-/// Only SCRIPT_MODE_PARALLEL requires queue-based storage for concurrent execution safety
-enum ScriptMode : uint8_t {
-  SCRIPT_MODE_SINGLE = 0,    ///< Only one execution allowed at a time
-  SCRIPT_MODE_RESTART = 1,   ///< Restart execution when triggered while running
-  SCRIPT_MODE_QUEUED = 2,    ///< Queue executions to run serially
-  SCRIPT_MODE_PARALLEL = 3,  ///< Allow multiple concurrent executions
-};
-
 template<typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
   explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
