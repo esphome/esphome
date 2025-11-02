@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +19,7 @@ import logging
 from pathlib import Path
 import re
 from string import ascii_letters, digits
+import typing
 import uuid as uuid_
 
 import voluptuous as vol
@@ -1789,7 +1791,7 @@ class OnlyWith(Optional):
         self._default = vol.default_factory(default)
 
     @property
-    def default(self):
+    def default(self) -> Callable[[], typing.Any] | vol.Undefined:
         if isinstance(self._component, list):
             if all(c in CORE.loaded_integrations for c in self._component):
                 return self._default
