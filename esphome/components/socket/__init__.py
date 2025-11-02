@@ -10,6 +10,7 @@ CONF_IMPLEMENTATION = "implementation"
 IMPLEMENTATION_LWIP_TCP = "lwip_tcp"
 IMPLEMENTATION_LWIP_SOCKETS = "lwip_sockets"
 IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
+IMPLEMENTATION_ZEPHYR_SOCKETS = "zephyr_sockets"
 
 # Socket tracking infrastructure
 # Components register their socket needs and platforms read this to configure appropriately
@@ -43,6 +44,7 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_IMPLEMENTATION,
             esp8266=IMPLEMENTATION_LWIP_TCP,
             esp32=IMPLEMENTATION_BSD_SOCKETS,
+            nrf52=IMPLEMENTATION_ZEPHYR_SOCKETS,
             rp2040=IMPLEMENTATION_LWIP_TCP,
             bk72xx=IMPLEMENTATION_LWIP_SOCKETS,
             ln882x=IMPLEMENTATION_LWIP_SOCKETS,
@@ -52,6 +54,7 @@ CONFIG_SCHEMA = cv.Schema(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,
             IMPLEMENTATION_BSD_SOCKETS,
+            IMPLEMENTATION_ZEPHYR_SOCKETS,
             lower=True,
             space="_",
         ),
@@ -83,4 +86,6 @@ def FILTER_SOURCE_FILES() -> list[str]:
         excluded.append("bsd_sockets_impl.cpp")
     if impl != IMPLEMENTATION_LWIP_SOCKETS:
         excluded.append("lwip_sockets_impl.cpp")
+    if impl != IMPLEMENTATION_ZEPHYR_SOCKETS:
+        excluded.append("zephyr_sockets_impl.cpp")
     return excluded
