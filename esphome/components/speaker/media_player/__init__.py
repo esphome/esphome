@@ -219,7 +219,7 @@ def _validate_repeated_speaker(config):
 
 def _final_validate(config):
     # Default to using codec if psram is enabled
-    if (use_codec := config[CONF_CODEC_SUPPORT_ENABLED]) is None:
+    if (use_codec := config.get(CONF_CODEC_SUPPORT_ENABLED)) is None:
         use_codec = psram.DOMAIN in full_config.get()
     conf_id = config[CONF_ID].id
     core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
@@ -229,7 +229,7 @@ def _final_validate(config):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-        if not config[CONF_CODEC_SUPPORT_ENABLED] and str(media_file_type) != str(
+        if not use_codec and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):
             # Only wav files are supported
