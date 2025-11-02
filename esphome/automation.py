@@ -1,3 +1,6 @@
+from collections.abc import Generator
+from contextlib import contextmanager
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -15,7 +18,7 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
@@ -25,6 +28,47 @@ from esphome.cpp_generator import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
+
+# Reference to C++ ScriptMode enum (defined in base_automation.h)
+# This follows the same pattern as ClimateSwingMode, ClimateFanMode, etc.
+ScriptMode = cg.esphome_ns.enum("ScriptMode")
+
+# Map config strings to C++ enum values
+# Follows same pattern as CLIMATE_SWING_MODES, CLIMATE_FAN_MODES, etc.
+SCRIPT_MODES_ENUM = {
+    "SINGLE": ScriptMode.SCRIPT_MODE_SINGLE,
+    "RESTART": ScriptMode.SCRIPT_MODE_RESTART,
+    "QUEUED": ScriptMode.SCRIPT_MODE_QUEUED,
+    "PARALLEL": ScriptMode.SCRIPT_MODE_PARALLEL,
+}
+
+# Context tracking - stores ScriptMode enum value (or None for top-level)
+SCRIPT_MODE_KEY = "automation_script_mode"
+
+
+def _get_script_mode() -> MockObj:
+    """Get the current script mode from context, defaulting to SINGLE."""
+    return CORE.data.get(SCRIPT_MODE_KEY, ScriptMode.SCRIPT_MODE_SINGLE)
+
+
+def _is_parallel_context() -> bool:
+    """Check if we're generating code inside a parallel script context."""
+    mode = CORE.data.get(SCRIPT_MODE_KEY)
+    return mode is not None and mode == ScriptMode.SCRIPT_MODE_PARALLEL
+
+
+@contextmanager
+def script_mode_context(mode: MockObj) -> Generator[None, None, None]:
+    """Context manager to track script execution mode during codegen."""
+    old_value = CORE.data.get(SCRIPT_MODE_KEY)
+    CORE.data[SCRIPT_MODE_KEY] = mode
+    try:
+        yield
+    finally:
+        if old_value is None:
+            CORE.data.pop(SCRIPT_MODE_KEY, None)
+        else:
+            CORE.data[SCRIPT_MODE_KEY] = old_value
 
 
 def maybe_simple_id(*validators):
@@ -428,6 +472,14 @@ async def wait_until_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    # Choose class based on parallel context
+    # Inside parallel script → use ParallelWaitUntilAction (queue-based storage)
+    # Otherwise → use WaitUntilAction (optimized direct storage)
+    if _is_parallel_context():
+        # Modify action_id to use ParallelWaitUntilAction
+        action_id = action_id.copy()
+        action_id.type = cg.global_ns.class_("ParallelWaitUntilAction")
+
     condition = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, condition)
     if CONF_TIMEOUT in config:

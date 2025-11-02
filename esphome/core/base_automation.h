@@ -14,6 +14,16 @@
 
 namespace esphome {
 
+/// Enum for script execution modes - used as template parameter for optimizing action storage
+/// Matches the modes defined in script component: single, restart, queued, parallel
+/// Only SCRIPT_MODE_PARALLEL requires queue-based storage for concurrent execution safety
+enum ScriptMode : uint8_t {
+  SCRIPT_MODE_SINGLE = 0,    ///< Only one execution allowed at a time
+  SCRIPT_MODE_RESTART = 1,   ///< Restart execution when triggered while running
+  SCRIPT_MODE_QUEUED = 2,    ///< Queue executions to run serially
+  SCRIPT_MODE_PARALLEL = 3,  ///< Allow multiple concurrent executions
+};
+
 template<typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
   explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
@@ -340,9 +350,14 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
   ActionList<uint32_t, Ts...> then_;
 };
 
-template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
+/** Base class for WaitUntilAction variants.
+ *
+ * Provides common logic for checking conditions and handling immediate continuation.
+ * Derived classes implement storage strategy (direct or queue-based).
+ */
+template<typename... Ts> class WaitUntilActionBase : public Action<Ts...>, public Component {
  public:
-  WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
+  WaitUntilActionBase(Condition<Ts...> *condition) : condition_(condition) {}
 
   TEMPLATABLE_VALUE(uint32_t, timeout_value)
 
@@ -356,10 +371,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       return;
     }
 
+    // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-
-    this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
+    this->store_item(now, timeout, x...);
 
     this->loop();
   }
@@ -368,14 +383,86 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     if (this->num_running_ == 0)
       return;
 
+    this->process_items();
+  }
+
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
+
+ protected:
+  /// Store an item for later processing (implemented by derived class)
+  virtual void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) = 0;
+
+  /// Process stored items, checking conditions and timeouts (implemented by derived class)
+  virtual void process_items() = 0;
+
+  Condition<Ts...> *condition_;
+};
+
+/** Wait until a condition is true to continue execution.
+ *
+ * Optimized for non-parallel scenarios (single, restart, queued modes).
+ * Uses direct member storage with zero queue overhead.
+ */
+template<typename... Ts> class WaitUntilAction : public WaitUntilActionBase<Ts...> {
+ public:
+  using WaitUntilActionBase<Ts...>::WaitUntilActionBase;
+
+  void stop() override { this->start_time_ = 0; }
+
+ protected:
+  void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) override {
+    this->start_time_ = start_time;
+    this->timeout_ = timeout;
+    this->args_ = std::make_tuple(args...);
+  }
+
+  void process_items() override {
+    // Only process if we have pending work
+    if (this->start_time_ == 0)
+      return;
+
+    auto now = millis();
+    auto expired = this->timeout_ && (now - this->start_time_) >= *this->timeout_;
+
+    if (expired || this->condition_->check_tuple(this->args_)) {
+      this->play_next_tuple_(this->args_);
+      this->start_time_ = 0;
+    }
+  }
+
+  uint32_t start_time_{0};
+  optional<uint32_t> timeout_{};
+  std::tuple<Ts...> args_{};
+};
+
+/** Parallel-safe variant of WaitUntilAction.
+ *
+ * Used inside parallel scripts to safely handle concurrent executions.
+ * Uses queue-based storage to prevent argument corruption.
+ */
+template<typename... Ts> class ParallelWaitUntilAction : public WaitUntilActionBase<Ts...> {
+ public:
+  using WaitUntilActionBase<Ts...>::WaitUntilActionBase;
+
+  void stop() override { this->var_queue_.clear(); }
+
+ protected:
+  void store_item(uint32_t start_time, optional<uint32_t> timeout, Ts... args) override {
+    this->var_queue_.emplace_front(start_time, timeout, std::make_tuple(args...));
+  }
+
+  void process_items() override {
     auto now = millis();
 
-    this->var_queue_.remove_if([&](decltype(*this->var_queue_.cbegin()) &queued) {
+    this->var_queue_.remove_if([&](auto &queued) {
       auto start = std::get<uint32_t>(queued);
       auto timeout = std::get<optional<uint32_t>>(queued);
-      auto var = std::get<std::tuple<Ts...>>(queued);
+      auto &var = std::get<std::tuple<Ts...>>(queued);
 
-      auto expired = timeout && (now - start) >= timeout;
+      auto expired = timeout && (now - start) >= *timeout;
 
       if (!expired && !this->condition_->check_tuple(var)) {
         return false;
@@ -386,15 +473,6 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     });
   }
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
-  void stop() override { this->var_queue_.clear(); }
-
- protected:
-  Condition<Ts...> *condition_;
   std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
 

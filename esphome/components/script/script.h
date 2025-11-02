@@ -4,6 +4,7 @@
 #include <tuple>
 #include <forward_list>
 #include "esphome/core/automation.h"
+#include "esphome/core/base_automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -265,9 +266,14 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
   C *parent_;
 };
 
-template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
+/** Base class for ScriptWaitAction variants.
+ *
+ * Provides common logic for checking script state and handling immediate continuation.
+ * Derived classes implement storage strategy (single callback or queue-based).
+ */
+template<class C, typename... Ts> class ScriptWaitActionBase : public Action<Ts...>, public Component {
  public:
-  ScriptWaitAction(C *script) : script_(script) {}
+  ScriptWaitActionBase(C *script) : script_(script) {}
 
   void play_complex(Ts... x) override {
     this->num_running_++;
@@ -276,7 +282,9 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
       this->play_next_(x...);
       return;
     }
-    this->play_queue_.emplace_front([this, x...]() { this->play_next_(x...); });
+
+    // Store callback for later execution
+    this->store_callback([this, x...]() { this->play_next_(x...); });
     this->loop();
   }
 
@@ -287,18 +295,66 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
     if (this->script_->is_running())
       return;
 
-    while (!this->play_queue_.empty()) {
-      auto play_next = this->play_queue_.front();
-      play_next();
-      this->play_queue_.pop_front();
-    }
+    this->process_callbacks();
   }
 
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
  protected:
+  /// Store a callback for later execution (implemented by derived class)
+  virtual void store_callback(std::function<void()> &&callback) = 0;
+
+  /// Process stored callbacks (implemented by derived class)
+  virtual void process_callbacks() = 0;
+
   C *script_;
+};
+
+/** Wait for a script to finish before continuing.
+ *
+ * Optimized for non-parallel scenarios (single, restart, queued modes).
+ * Uses single callback storage with zero queue overhead.
+ */
+template<class C, typename... Ts> class ScriptWaitAction : public ScriptWaitActionBase<C, Ts...> {
+ public:
+  using ScriptWaitActionBase<C, Ts...>::ScriptWaitActionBase;
+
+ protected:
+  void store_callback(std::function<void()> &&callback) override { this->callback_ = std::move(callback); }
+
+  void process_callbacks() override {
+    if (this->callback_) {
+      this->callback_();
+      this->callback_ = nullptr;
+    }
+  }
+
+  std::function<void()> callback_;
+};
+
+/** Parallel-safe variant of ScriptWaitAction.
+ *
+ * Used inside parallel scripts to safely handle concurrent executions.
+ * Uses queue-based storage to prevent callback corruption.
+ */
+template<class C, typename... Ts> class ParallelScriptWaitAction : public ScriptWaitActionBase<C, Ts...> {
+ public:
+  using ScriptWaitActionBase<C, Ts...>::ScriptWaitActionBase;
+
+ protected:
+  void store_callback(std::function<void()> &&callback) override {
+    this->play_queue_.emplace_front(std::move(callback));
+  }
+
+  void process_callbacks() override {
+    while (!this->play_queue_.empty()) {
+      auto fn = this->play_queue_.front();
+      fn();
+      this->play_queue_.pop_front();
+    }
+  }
+
   std::forward_list<std::function<void()>> play_queue_;
 };
 
