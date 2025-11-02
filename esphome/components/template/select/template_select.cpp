@@ -31,16 +31,14 @@ void TemplateSelect::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  if (!this->has_option(*val)) {
-    ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
-    return;
+  auto val = this->f_();
+  if (val.has_value()) {
+    if (!this->has_option(*val)) {
+      ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
+      return;
+    }
+    this->publish_state(*val);
   }
-
-  this->publish_state(*val);
 }
 
 void TemplateSelect::control(const std::string &value) {

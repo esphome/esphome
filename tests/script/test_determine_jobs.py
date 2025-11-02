@@ -152,6 +152,14 @@ def test_main_all_tests_should_run(
     assert output["memory_impact"]["should_run"] == "false"
     assert output["cpp_unit_tests_run_all"] is False
     assert output["cpp_unit_tests_components"] == ["wifi", "api", "sensor"]
+    # component_test_batches should be present and be a list of space-separated strings
+    assert "component_test_batches" in output
+    assert isinstance(output["component_test_batches"], list)
+    # Each batch should be a space-separated string of component names
+    for batch in output["component_test_batches"]:
+        assert isinstance(batch, str)
+        # Should contain at least one component (no empty batches)
+        assert len(batch) > 0
 
 
 def test_main_no_tests_should_run(
@@ -209,6 +217,9 @@ def test_main_no_tests_should_run(
     assert output["memory_impact"]["should_run"] == "false"
     assert output["cpp_unit_tests_run_all"] is False
     assert output["cpp_unit_tests_components"] == []
+    # component_test_batches should be empty list
+    assert "component_test_batches" in output
+    assert output["component_test_batches"] == []
 
 
 def test_main_with_branch_argument(
