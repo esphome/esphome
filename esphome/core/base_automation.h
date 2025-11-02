@@ -172,21 +172,8 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   TEMPLATABLE_VALUE(uint32_t, delay)
 
   void play_complex(Ts... x) override {
+    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-
-    // Store parameters in shared_ptr for this timer instance
-    // This avoids std::bind bloat while supporting parallel script mode
-    // shared_ptr is used (vs unique_ptr) because std::function requires copyability
-    auto params = std::make_shared<std::tuple<Ts...>>(x...);
-
-    // Lambda captures only 'this' and the shared_ptr (8-16 bytes total)
-    // vs std::bind which captures 'this' + copies of all x... + bind overhead
-    // This eliminates ~200-300 bytes of std::bind template instantiation code
-    auto f = [this, params]() {
-      if (this->num_running_ > 0) {
-        std::apply([this](auto &&...args) { this->play_next_(args...); }, *params);
-      }
-    };
 
     // If num_running_ > 1, we have multiple instances running in parallel
     // In single/restart/queued modes, only one instance runs at a time
