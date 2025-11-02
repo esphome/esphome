@@ -2,11 +2,12 @@
 #include "esphome/core/log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <utility>
 
 namespace esphome::camera {
 
 Task::Task(uint8_t core, uint32_t stack_size, UBaseType_t priority, uint8_t delay)
-    : core_(core), stack_size_(stack_size), priority_(priority), delay_(delay) {}
+    : core_(core), delay_(delay), priority_(priority), stack_size_(stack_size) {}
 
 bool Task::init() {
   if (task_handle_)
@@ -22,12 +23,12 @@ bool Task::start(JobFunction job) {
   if (has_job_.load())
     return false;
 
-  job_ = job;
+  job_ = std::move(job);
   has_job_.store(true);
   return true;
 }
 
-void Task::task_entry_point(void *param) { static_cast<Task *>(param)->task_loop(); }
+void Task::task_entry_point(void *param) { static_cast<Task *>(param)->task_loop_(); }
 
 void Task::log_config(const char *tag) {
   ESP_LOGCONFIG(tag,
@@ -38,7 +39,7 @@ void Task::log_config(const char *tag) {
                 "    Delay: %u\n",
                 this->core_, this->stack_size_, this->priority_, this->delay_);
 }
-void Task::task_loop() {
+void Task::task_loop_() {
   for (;;) {
     if (has_job_.load()) {
       job_();

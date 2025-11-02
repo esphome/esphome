@@ -9,7 +9,7 @@ void Pipeline::add_link(Processor *parent, Processor *child) {
   this->parents_[child] = parent;
 }
 
-std::unordered_set<Output *> Pipeline::filter_outputs(RequesterFlags flags) {
+std::unordered_set<Output *> Pipeline::filter_outputs(const RequesterFlags &flags) {
   std::unordered_set<Output *> result;
   for (CameraRequester requester : flags) {
     auto it = this->outputs_.find(requester);
@@ -23,7 +23,7 @@ std::unordered_set<Output *> Pipeline::filter_outputs(RequesterFlags flags) {
   return result;
 }
 
-RequesterFlags Pipeline::filter_requesters(Output *output, RequesterFlags flags) {
+RequesterFlags Pipeline::filter_requesters(Output *output, const RequesterFlags &flags) {
   RequesterFlags result;
   if (output == this->default_output_) {
     for (CameraRequester requester : flags) {
@@ -99,10 +99,11 @@ PipelineError Pipeline::process() {
 
   ProcessorError error = PROCESSOR_ERROR_SUCCESS;
   while (this->current_ && this->reenter_) {
-    if (this->input_image_format_ == IMAGE_FORMAT_RAW)
+    if (this->input_image_format_ == IMAGE_FORMAT_RAW) {
       error = this->current_->process_pixels(&this->input_image_spec_, this->input_image_);
-    else
+    } else {
       error = this->current_->process_compressed_image(this->input_image_format_, this->input_image_);
+    }
     switch (error) {
       case PROCESSOR_ERROR_SUCCESS: {
         this->traversed_.insert(this->current_);

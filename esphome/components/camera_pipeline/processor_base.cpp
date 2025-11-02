@@ -41,21 +41,22 @@ camera::ProcessorError ProcessorBase::run_state_machine_(camera::ImageFormat inp
       this->processing_time_ = millis();
     }
 
-    if (this->run_as_job_)
+    if (this->run_as_job_) {
       this->state_ = STATE_START_JOB_TASK;
-    else
+    } else {
       this->state_ = STATE_MAIN_TASK_PROCESSING;
+    }
   }
 
   if (this->state_ == STATE_MAIN_TASK_PROCESSING) {
     if (this->statistics_)
       ++this->entries_;
 
-    if (input_format == camera::ImageFormat::IMAGE_FORMAT_RAW)
+    if (input_format == camera::ImageFormat::IMAGE_FORMAT_RAW) {
       this->error_ = this->process_pixels_base(input_spec, input);
-    else
+    } else {
       this->error_ = this->process_compressed_image_base(input_format, input);
-
+    }
     if (this->error_ == camera::PROCESSOR_ERROR_RETRY_FRAME)
       return camera::PROCESSOR_ERROR_RETRY_FRAME;
 

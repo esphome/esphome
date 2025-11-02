@@ -37,7 +37,7 @@ class Task {
 
  private:
   static void task_entry_point(void *param);
-  void task_loop();
+  void task_loop_();
 
   uint8_t core_{};
   uint8_t delay_{};

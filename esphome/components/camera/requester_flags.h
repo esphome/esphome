@@ -54,13 +54,13 @@ class RequesterFlags {
 
   class Iterator {
    public:
-    explicit Iterator(uint8_t flags, uint8_t pos = 0) : flags_(flags), pos_(pos) { advance_to_next(); }
+    explicit Iterator(uint8_t flags, uint8_t pos = 0) : flags_(flags), pos_(pos) { advance_to_next_(); }
 
     CameraRequester operator*() const { return static_cast<CameraRequester>(pos_); }
 
     Iterator &operator++() {
       ++pos_;
-      advance_to_next();
+      advance_to_next_();
       return *this;
     }
 
@@ -69,7 +69,7 @@ class RequesterFlags {
    protected:
     uint8_t flags_;
     uint8_t pos_;
-    void advance_to_next() {
+    void advance_to_next_() {
       while (pos_ < REQUESTER_COUNT && !(flags_ & (1 << pos_)))
         ++pos_;
     }

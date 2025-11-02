@@ -34,9 +34,9 @@ class Pipeline {
   /// Add a processor, mainly to detect unlinked processors.
   void add_processor(Processor *processor) { this->all_processors_.insert(processor); }
   /// Get all output processors matching the given requester flags.
-  std::unordered_set<Output *> filter_outputs(RequesterFlags flags);
+  std::unordered_set<Output *> filter_outputs(const RequesterFlags &flags);
   /// Filter requester flags based on which output they map to.
-  RequesterFlags filter_requesters(Output *output, RequesterFlags flags);
+  RequesterFlags filter_requesters(Output *output, const RequesterFlags &flags);
   /// Validate pipeline configuration and detect cycles.
   bool configure();
   /// Process one frame through the pipeline.
