@@ -151,9 +151,8 @@ async def to_code(config):
         # Get script mode from config and map to enum
         # conf[CONF_MODE] is "single", "restart", "queued", or "parallel"
         mode_str = conf[CONF_MODE].upper()  # "SINGLE", "RESTART", etc.
-        mode_enum = automation.SCRIPT_MODES_ENUM[
-            mode_str
-        ]  # ScriptMode.SCRIPT_MODE_SINGLE, etc.
+        # ScriptMode.SCRIPT_MODE_SINGLE, etc.
+        mode_enum = automation.SCRIPT_MODES_ENUM[mode_str]
 
         # Set context before building automation
         with automation.script_mode_context(mode_enum):
