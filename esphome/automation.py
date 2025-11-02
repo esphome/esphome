@@ -182,7 +182,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
-                raise cv.Invalid("Cannot have more than 1 automation for templates")
+                raise cv.Invalid("This trigger allows only a single automation")
             return value[0]
         return value
 
