@@ -362,10 +362,8 @@ template<class C, typename... Ts> class ParallelScriptWaitAction : public Script
       fn();
       this->play_queue_.pop_front();
     }
-    // If queue is now empty, disable loop until next play_complex
-    if (this->play_queue_.empty()) {
-      this->disable_loop();
-    }
+    // Queue is now empty - disable loop until next play_complex
+    this->disable_loop();
   }
 
   std::forward_list<std::function<void()>> play_queue_;
