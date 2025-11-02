@@ -1,0 +1,26 @@
+nrf52:
+  board: xiao_ble
+
+esphome:
+  name: nrf52-ot
+
+api:
+
+logger:
+  level: DEBUG
+
+# Enable IPv6 networking
+network:
+  enable_ipv6: true
+
+# Enable OpenThread
+# zephyr_openthread:
+openthread:
+  channel: 25
+  panid: 0xe064
+  network_name: "MyHome5"
+  xpanid: "1db74a0a3797454b"
+  network_key: "00112233445566778899AABBCCDDEEFF"
+  pskc: "00112233445566778899AABBCCDDEEFF"
+  force_dataset: true
+  shell: false
