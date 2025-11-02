@@ -270,11 +270,6 @@ def climate_schema(
     return _CLIMATE_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-CLIMATE_SCHEMA = climate_schema(Climate)
-CLIMATE_SCHEMA.add_extra(cv.deprecated_schema_constant("climate"))
-
-
 async def setup_climate_core_(var, config):
     await setup_entity(var, config, "climate")
 
