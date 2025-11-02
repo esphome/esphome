@@ -8,12 +8,12 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/usb/usb_device.h>
 
-struct img_mgmt_upload_action {
+struct ImgMgmtUploadAction {
   /** The total size of the image. */
   unsigned long long size;
 };
 
-struct img_mgmt_upload_req {
+struct ImgMgmtUploadReq {
   uint32_t image; /* 0 by default */
   size_t off;     /* SIZE_MAX if unspecified */
 };
