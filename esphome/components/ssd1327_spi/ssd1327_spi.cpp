@@ -8,7 +8,6 @@ namespace ssd1327_spi {
 static const char *const TAG = "ssd1327_spi";
 
 void SPISSD1327::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
   if (this->cs_)

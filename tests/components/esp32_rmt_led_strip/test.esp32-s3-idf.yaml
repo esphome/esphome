@@ -2,11 +2,22 @@ substitutions:
   pin1: GPIO3
   pin2: GPIO4
 
-packages:
-  common: !include common.yaml
-
+# WARNING: Using !extend or !remove prevents automatic component grouping in CI, making builds slower.
 light:
-  - id: !extend led_strip1
+  - platform: esp32_rmt_led_strip
+    id: led_strip1
+    pin: ${pin1}
+    num_leds: 60
+    rgb_order: GRB
+    chipset: ws2812
     use_dma: "true"
-  - id: !extend led_strip2
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin: ${pin2}
+    num_leds: 60
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us
     use_dma: "false"

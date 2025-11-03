@@ -18,7 +18,6 @@ static const uint8_t PI4IOE5V6408_REGISTER_INTERRUPT_STATUS = 0x13;
 static const char *const TAG = "pi4ioe5v6408";
 
 void PI4IOE5V6408Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_) {
     this->reg(PI4IOE5V6408_REGISTER_DEVICE_ID) |= 0b00000001;
     this->reg(PI4IOE5V6408_REGISTER_OUT_HIGH_IMPEDENCE) = 0b00000000;
@@ -69,7 +68,7 @@ bool PI4IOE5V6408Component::read_gpio_outputs_() {
 
   uint8_t data;
   if (!this->read_byte(PI4IOE5V6408_REGISTER_OUT_SET, &data)) {
-    this->status_set_warning("Failed to read output register");
+    this->status_set_warning(LOG_STR("Failed to read output register"));
     return false;
   }
   this->output_mask_ = data;
@@ -83,7 +82,7 @@ bool PI4IOE5V6408Component::read_gpio_modes_() {
 
   uint8_t data;
   if (!this->read_byte(PI4IOE5V6408_REGISTER_IO_DIR, &data)) {
-    this->status_set_warning("Failed to read GPIO modes");
+    this->status_set_warning(LOG_STR("Failed to read GPIO modes"));
     return false;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -100,7 +99,7 @@ bool PI4IOE5V6408Component::digital_read_hw(uint8_t pin) {
 
   uint8_t data;
   if (!this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &data)) {
-    this->status_set_warning("Failed to read GPIO state");
+    this->status_set_warning(LOG_STR("Failed to read GPIO state"));
     return false;
   }
   this->input_mask_ = data;
@@ -118,7 +117,7 @@ void PI4IOE5V6408Component::digital_write_hw(uint8_t pin, bool value) {
     this->output_mask_ &= ~(1 << pin);
   }
   if (!this->write_byte(PI4IOE5V6408_REGISTER_OUT_SET, this->output_mask_)) {
-    this->status_set_warning("Failed to write output register");
+    this->status_set_warning(LOG_STR("Failed to write output register"));
     return;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -132,15 +131,15 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
     return false;
 
   if (!this->write_byte(PI4IOE5V6408_REGISTER_IO_DIR, this->mode_mask_)) {
-    this->status_set_warning("Failed to write GPIO modes");
+    this->status_set_warning(LOG_STR("Failed to write GPIO modes"));
     return false;
   }
   if (!this->write_byte(PI4IOE5V6408_REGISTER_PULL_SELECT, this->pull_up_down_mask_)) {
-    this->status_set_warning("Failed to write GPIO pullup/pulldown");
+    this->status_set_warning(LOG_STR("Failed to write GPIO pullup/pulldown"));
     return false;
   }
   if (!this->write_byte(PI4IOE5V6408_REGISTER_PULL_ENABLE, this->pull_enable_mask_)) {
-    this->status_set_warning("Failed to write GPIO pull enable");
+    this->status_set_warning(LOG_STR("Failed to write GPIO pull enable"));
     return false;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE

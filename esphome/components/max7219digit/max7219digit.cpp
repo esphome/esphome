@@ -26,7 +26,6 @@ constexpr uint8_t MAX7219_DISPLAY_TEST = 0x01;
 float MAX7219Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void MAX7219Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
   this->stepsleft_ = 0;
   for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
@@ -91,7 +90,7 @@ void MAX7219Component::loop() {
   }
 
   if (this->scroll_mode_ == ScrollMode::STOP) {
-    if (this->stepsleft_ + get_width_internal() == first_line_size + 1) {
+    if (static_cast<size_t>(this->stepsleft_ + get_width_internal()) == first_line_size + 1) {
       if (millis_since_last_scroll < this->scroll_dwell_) {
         ESP_LOGVV(TAG, "Dwell time at end of string in case of stop at end. Step %d, since last scroll %d, dwell %d.",
                   this->stepsleft_, millis_since_last_scroll, this->scroll_dwell_);

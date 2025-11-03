@@ -47,7 +47,7 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -268,11 +268,6 @@ def climate_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _CLIMATE_SCHEMA.extend(schema)
-
-
-# Remove before 2025.11.0
-CLIMATE_SCHEMA = climate_schema(Climate)
-CLIMATE_SCHEMA.add_extra(cv.deprecated_schema_constant("climate"))
 
 
 async def setup_climate_core_(var, config):
@@ -517,7 +512,6 @@ async def climate_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_CLIMATE")
     cg.add_global(climate_ns.using)

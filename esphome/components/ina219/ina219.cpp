@@ -34,7 +34,6 @@ static const uint8_t INA219_REGISTER_CURRENT = 0x04;
 static const uint8_t INA219_REGISTER_CALIBRATION = 0x05;
 
 void INA219Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Config Register
   // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
   if (!this->write_byte_16(INA219_REGISTER_CONFIG, 0x8000)) {

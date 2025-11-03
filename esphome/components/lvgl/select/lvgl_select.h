@@ -20,7 +20,7 @@ class LVGLSelect : public select::Select, public Component {
     this->set_options_();
     if (this->restore_) {
       size_t index;
-      this->pref_ = global_preferences->make_preference<size_t>(this->get_object_id_hash());
+      this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
       if (this->pref_.load(&index))
         this->widget_->set_selected_index(index, LV_ANIM_OFF);
     }
@@ -53,7 +53,17 @@ class LVGLSelect : public select::Select, public Component {
     this->widget_->set_selected_text(value, this->anim_);
     this->publish();
   }
-  void set_options_() { this->traits.set_options(this->widget_->get_options()); }
+  void set_options_() {
+    // Widget uses std::vector<std::string>, SelectTraits uses FixedVector<const char*>
+    // Convert by extracting c_str() pointers
+    const auto &opts = this->widget_->get_options();
+    FixedVector<const char *> opt_ptrs;
+    opt_ptrs.init(opts.size());
+    for (size_t i = 0; i < opts.size(); i++) {
+      opt_ptrs[i] = opts[i].c_str();
+    }
+    this->traits.set_options(opt_ptrs);
+  }
 
   LvSelectable *widget_;
   lv_anim_enable_t anim_;

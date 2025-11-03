@@ -10,8 +10,8 @@ constexpr uint32_t BIT_MARK_US = 580;  // 70us seems like a safe time delta for 
 constexpr uint32_t BIT_ONE_SPACE_US = 1640;
 constexpr uint32_t BIT_ZERO_SPACE_US = 545;
 constexpr uint64_t HEADER = 0b011001001100010uL;  // 15 bits
-constexpr uint64_t HEADER_SIZE = 15;
-constexpr uint64_t CODE_SIZE = 17;
+constexpr size_t HEADER_SIZE = 15;
+constexpr size_t CODE_SIZE = 17;
 
 void GoboxProtocol::dump_timings_(const RawTimings &timings) const {
   ESP_LOGD(TAG, "Gobox: size=%u", timings.size());
@@ -39,7 +39,7 @@ void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
 }
 
 optional<GoboxData> GoboxProtocol::decode(RemoteReceiveData src) {
-  if (src.size() < ((HEADER_SIZE + CODE_SIZE) * 2 + 1)) {
+  if (static_cast<size_t>(src.size()) < ((HEADER_SIZE + CODE_SIZE) * 2 + 1)) {
     return {};
   }
 

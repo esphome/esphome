@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/controller.h"
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 class APIConnection;
 
@@ -89,6 +88,5 @@ class InitialStateIterator : public ComponentIterator {
   APIConnection *client_;
 };
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif
