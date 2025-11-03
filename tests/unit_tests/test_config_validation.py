@@ -3,6 +3,7 @@ import string
 from hypothesis import example, given
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
+import voluptuous as vol
 
 from esphome import config_validation
 from esphome.components.esp32.const import (
@@ -301,8 +302,6 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
     ],
 )
 def test_require_framework_version(framework, platform, message):
-    import voluptuous as vol
-
     from esphome.const import (
         KEY_CORE,
         KEY_FRAMEWORK_VERSION,
@@ -377,3 +376,129 @@ def test_require_framework_version(framework, platform, message):
         config_validation.require_framework_version(
             extra_message="test 5",
         )("test")
+
+
+def test_only_with_single_component_loaded() -> None:
+    """Test OnlyWith with single component when component is loaded."""
+    CORE.loaded_integrations = {"mqtt"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("mqtt_id", "mqtt", default="test_mqtt"): str,
+        }
+    )
+
+    result = schema({})
+    assert result.get("mqtt_id") == "test_mqtt"
+
+
+def test_only_with_single_component_not_loaded() -> None:
+    """Test OnlyWith with single component when component is not loaded."""
+    CORE.loaded_integrations = set()
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("mqtt_id", "mqtt", default="test_mqtt"): str,
+        }
+    )
+
+    result = schema({})
+    assert "mqtt_id" not in result
+
+
+def test_only_with_list_all_components_loaded() -> None:
+    """Test OnlyWith with list when all components are loaded."""
+    CORE.loaded_integrations = {"zigbee", "nrf52"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "zigbee_id", ["zigbee", "nrf52"], default="test_zigbee"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert result.get("zigbee_id") == "test_zigbee"
+
+
+def test_only_with_list_partial_components_loaded() -> None:
+    """Test OnlyWith with list when only some components are loaded."""
+    CORE.loaded_integrations = {"zigbee"}  # Only zigbee, not nrf52
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "zigbee_id", ["zigbee", "nrf52"], default="test_zigbee"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert "zigbee_id" not in result
+
+
+def test_only_with_list_no_components_loaded() -> None:
+    """Test OnlyWith with list when no components are loaded."""
+    CORE.loaded_integrations = set()
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "zigbee_id", ["zigbee", "nrf52"], default="test_zigbee"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert "zigbee_id" not in result
+
+
+def test_only_with_list_multiple_components() -> None:
+    """Test OnlyWith with list requiring three components."""
+    CORE.loaded_integrations = {"comp1", "comp2", "comp3"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "test_id", ["comp1", "comp2", "comp3"], default="test_value"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert result.get("test_id") == "test_value"
+
+    # Test with one missing
+    CORE.loaded_integrations = {"comp1", "comp2"}
+    result = schema({})
+    assert "test_id" not in result
+
+
+def test_only_with_empty_list() -> None:
+    """Test OnlyWith with empty list (edge case)."""
+    CORE.loaded_integrations = set()
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("test_id", [], default="test_value"): str,
+        }
+    )
+
+    # all([]) returns True, so default should be applied
+    result = schema({})
+    assert result.get("test_id") == "test_value"
+
+
+def test_only_with_user_value_overrides_default() -> None:
+    """Test OnlyWith respects user-provided values over defaults."""
+    CORE.loaded_integrations = {"mqtt"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("mqtt_id", "mqtt", default="default_id"): str,
+        }
+    )
+
+    result = schema({"mqtt_id": "custom_id"})
+    assert result.get("mqtt_id") == "custom_id"

@@ -199,7 +199,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
   void change_preset_(climate::ClimatePreset preset);
   /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
-  void change_custom_preset_(const std::string &custom_preset);
+  void change_custom_preset_(const char *custom_preset);
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset
