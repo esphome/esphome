@@ -51,6 +51,7 @@ from esphome.cpp_helpers import (  # noqa: F401
     past_safe_mode,
     register_component,
     register_parented,
+    require_wake_loop_threadsafe,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,
