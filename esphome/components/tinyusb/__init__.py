@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@kbx81"]
+CONFLICTS_WITH = ["usb_host"]
 
 CONF_USB_LANG_ID = "usb_lang_id"
 CONF_USB_MANUFACTURER_STR = "usb_manufacturer_str"
