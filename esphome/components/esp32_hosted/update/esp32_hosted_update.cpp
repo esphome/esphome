@@ -12,8 +12,7 @@ extern "C" {
 #include <esp_hosted_ota.h>
 }
 
-namespace esphome {
-namespace esp32_hosted {
+namespace esphome::esp32_hosted {
 
 static const char *const TAG = "esp32_hosted.update";
 
@@ -161,6 +160,5 @@ void Esp32HostedUpdate::perform(bool force) {
   this->set_timeout(1000, []() { App.safe_reboot(); });
 }
 
-}  // namespace esp32_hosted
-}  // namespace esphome
+}  // namespace esphome::esp32_hosted
 #endif
