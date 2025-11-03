@@ -112,9 +112,9 @@ def set_zephyr_config_options(config):
     # Device type configuration
     device_type = config.get(CONF_DEVICE_TYPE)
     if device_type == "FTD":
-        zephyr_add_prj_conf("OPENTHREAD_FTD", "y")
+        zephyr_add_prj_conf("OPENTHREAD_FTD", True)
     elif device_type == "MTD":
-        zephyr_add_prj_conf("OPENTHREAD_MTD", "y")
+        zephyr_add_prj_conf("OPENTHREAD_MTD", True)
 
     # Enable IEEE 802.15.4 radio
     # zephyr_add_prj_conf("CONFIG_IEEE802154", "y")
