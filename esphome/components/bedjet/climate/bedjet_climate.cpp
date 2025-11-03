@@ -8,15 +8,15 @@ namespace bedjet {
 
 using namespace esphome::climate;
 
-static const std::string *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
+static const char *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
   if (fan_step < BEDJET_FAN_SPEED_COUNT)
-    return &BEDJET_FAN_STEP_NAME_STRINGS[fan_step];
+    return BEDJET_FAN_STEP_NAMES[fan_step];
   return nullptr;
 }
 
-static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
+static uint8_t bedjet_fan_speed_to_step(const char *fan_step_percent) {
   for (int i = 0; i < BEDJET_FAN_SPEED_COUNT; i++) {
-    if (fan_step_percent == BEDJET_FAN_STEP_NAME_STRINGS[i]) {
+    if (strcmp(BEDJET_FAN_STEP_NAMES[i], fan_step_percent) == 0) {
       return i;
     }
   }
@@ -48,7 +48,7 @@ void BedJetClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_fan_mode_to_string(mode)));
   }
   for (const auto &mode : traits.get_supported_custom_fan_modes()) {
-    ESP_LOGCONFIG(TAG, "   - %s (c)", mode.c_str());
+    ESP_LOGCONFIG(TAG, "   - %s (c)", mode);
   }
 
   ESP_LOGCONFIG(TAG, "  Supported presets:");
@@ -56,7 +56,7 @@ void BedJetClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_preset_to_string(preset)));
   }
   for (const auto &preset : traits.get_supported_custom_presets()) {
-    ESP_LOGCONFIG(TAG, "   - %s (c)", preset.c_str());
+    ESP_LOGCONFIG(TAG, "   - %s (c)", preset);
   }
 }
 
@@ -79,7 +79,7 @@ void BedJetClimate::reset_state_() {
   this->target_temperature = NAN;
   this->current_temperature = NAN;
   this->preset.reset();
-  this->custom_preset.reset();
+  this->clear_custom_preset_();
   this->publish_state();
 }
 
@@ -120,7 +120,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     if (button_result) {
       this->mode = mode;
       // We're using (custom) preset for Turbo, EXT HT, & M1-3 presets, so changing climate mode will clear those
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
     }
   }
@@ -144,8 +144,7 @@ void BedJetClimate::control(const ClimateCall &call) {
 
       if (result) {
         this->mode = CLIMATE_MODE_HEAT;
-        this->preset = CLIMATE_PRESET_BOOST;
-        this->custom_preset.reset();
+        this->set_preset_(CLIMATE_PRESET_BOOST);
       }
     } else if (preset == CLIMATE_PRESET_NONE && this->preset.has_value()) {
       if (this->mode == CLIMATE_MODE_HEAT && this->preset == CLIMATE_PRESET_BOOST) {
@@ -153,7 +152,7 @@ void BedJetClimate::control(const ClimateCall &call) {
         result = this->parent_->send_button(heat_button(this->heating_mode_));
         if (result) {
           this->preset.reset();
-          this->custom_preset.reset();
+          this->clear_custom_preset_();
         }
       } else {
         ESP_LOGD(TAG, "Ignoring preset '%s' call; with current mode '%s' and preset '%s'",
@@ -164,28 +163,27 @@ void BedJetClimate::control(const ClimateCall &call) {
       ESP_LOGW(TAG, "Unsupported preset: %d", preset);
       return;
     }
-  } else if (call.get_custom_preset().has_value()) {
-    std::string preset = *call.get_custom_preset();
+  } else if (call.has_custom_preset()) {
+    const char *preset = call.get_custom_preset();
     bool result;
 
-    if (preset == "M1") {
+    if (strcmp(preset, "M1") == 0) {
       result = this->parent_->button_memory1();
-    } else if (preset == "M2") {
+    } else if (strcmp(preset, "M2") == 0) {
       result = this->parent_->button_memory2();
-    } else if (preset == "M3") {
+    } else if (strcmp(preset, "M3") == 0) {
       result = this->parent_->button_memory3();
-    } else if (preset == "LTD HT") {
+    } else if (strcmp(preset, "LTD HT") == 0) {
       result = this->parent_->button_heat();
-    } else if (preset == "EXT HT") {
+    } else if (strcmp(preset, "EXT HT") == 0) {
       result = this->parent_->button_ext_heat();
     } else {
-      ESP_LOGW(TAG, "Unsupported preset: %s", preset.c_str());
+      ESP_LOGW(TAG, "Unsupported preset: %s", preset);
       return;
     }
 
     if (result) {
-      this->custom_preset = preset;
-      this->preset.reset();
+      this->set_custom_preset_(preset);
     }
   }
 
@@ -207,19 +205,16 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
 
     if (result) {
-      this->fan_mode = fan_mode;
-      this->custom_fan_mode.reset();
+      this->set_fan_mode_(fan_mode);
     }
-  } else if (call.get_custom_fan_mode().has_value()) {
-    auto fan_mode = *call.get_custom_fan_mode();
+  } else if (call.has_custom_fan_mode()) {
+    const char *fan_mode = call.get_custom_fan_mode();
     auto fan_index = bedjet_fan_speed_to_step(fan_mode);
     if (fan_index <= 19) {
-      ESP_LOGV(TAG, "[%s] Converted fan mode %s to bedjet fan step %d", this->get_name().c_str(), fan_mode.c_str(),
-               fan_index);
+      ESP_LOGV(TAG, "[%s] Converted fan mode %s to bedjet fan step %d", this->get_name().c_str(), fan_mode, fan_index);
       bool result = this->parent_->set_fan_index(fan_index);
       if (result) {
-        this->custom_fan_mode = fan_mode;
-        this->fan_mode.reset();
+        this->set_custom_fan_mode_(fan_mode);
       }
     }
   }
@@ -245,7 +240,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
 
   const auto *fan_mode_name = bedjet_fan_step_to_fan_mode(data->fan_step);
   if (fan_mode_name != nullptr) {
-    this->custom_fan_mode = *fan_mode_name;
+    this->set_custom_fan_mode_(fan_mode_name);
   }
 
   // TODO: Get biorhythm data to determine which preset (M1-3) is running, if any.
@@ -255,7 +250,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       this->mode = CLIMATE_MODE_OFF;
       this->action = CLIMATE_ACTION_IDLE;
       this->fan_mode = CLIMATE_FAN_OFF;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
       break;
 
@@ -266,7 +261,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
         this->set_custom_preset_("LTD HT");
       } else {
-        this->custom_preset.reset();
+        this->clear_custom_preset_();
       }
       break;
 
@@ -275,7 +270,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       this->action = CLIMATE_ACTION_HEATING;
       this->preset.reset();
       if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
-        this->custom_preset.reset();
+        this->clear_custom_preset_();
       } else {
         this->set_custom_preset_("EXT HT");
       }
@@ -284,20 +279,19 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
     case MODE_COOL:
       this->mode = CLIMATE_MODE_FAN_ONLY;
       this->action = CLIMATE_ACTION_COOLING;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
       break;
 
     case MODE_DRY:
       this->mode = CLIMATE_MODE_DRY;
       this->action = CLIMATE_ACTION_DRYING;
-      this->custom_preset.reset();
+      this->clear_custom_preset_();
       this->preset.reset();
       break;
 
     case MODE_TURBO:
-      this->preset = CLIMATE_PRESET_BOOST;
-      this->custom_preset.reset();
+      this->set_preset_(CLIMATE_PRESET_BOOST);
       this->mode = CLIMATE_MODE_HEAT;
       this->action = CLIMATE_ACTION_HEATING;
       break;
