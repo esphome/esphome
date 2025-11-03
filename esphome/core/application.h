@@ -21,7 +21,10 @@
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
+#ifdef USE_WAKE_LOOP_THREADSAFE
+#include <lwip/sockets.h>
 #endif
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -429,6 +432,13 @@ class Application {
   /// Check if there's data available on a socket without blocking
   /// This function is thread-safe for reading, but should be called after select() has run
   bool is_socket_ready(int fd) const;
+
+#ifdef USE_WAKE_LOOP_THREADSAFE
+  /// Wake the main event loop from a FreeRTOS task
+  /// Thread-safe, can be called from task context to immediately wake select()
+  /// IMPORTANT: NOT safe to call from ISR context (socket operations not ISR-safe)
+  void wake_loop_threadsafe();
+#endif
 #endif
 
  protected:
@@ -453,6 +463,11 @@ class Application {
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  void setup_wake_loop_threadsafe_();       // Create wake notification socket
+  inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
+#endif
 
   // === Member variables ordered by size to minimize padding ===
 
@@ -481,6 +496,9 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_SOCKET_SELECT_SUPPORT
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
+#ifdef USE_WAKE_LOOP_THREADSAFE
+  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
+#endif
 #endif
 
   // std::string members (typically 24-32 bytes each)
@@ -596,5 +614,29 @@ class Application {
 
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+// Inline implementations for hot-path functions
+// drain_wake_notifications_() is called on every loop iteration
+
+// Small buffer for draining wake notification bytes (1 byte sent per wake)
+// Size allows draining multiple notifications per recvfrom() without wasting stack
+static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
+
+inline void Application::drain_wake_notifications_() {
+  // Called from main loop to drain any pending wake notifications
+  // Must check is_socket_ready() to avoid blocking on empty socket
+  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready(this->wake_socket_fd_)) {
+    char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
+    // Drain all pending notifications with non-blocking reads
+    // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
+    // We control both ends of this loopback socket (always write 1 byte per wake),
+    // so no error checking needed - any errors indicate catastrophic system failure
+    while (lwip_recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+      // Just draining, no action needed - wake has already occurred
+    }
+  }
+}
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
 }  // namespace esphome
