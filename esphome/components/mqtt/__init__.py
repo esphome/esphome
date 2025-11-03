@@ -216,8 +216,6 @@ def validate_fingerprint(value):
 
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
-    from esphome.components import socket
-
     # MQTT needs 1 socket for the broker connection
     socket.consume_sockets(1, "mqtt")(config)
     return config
