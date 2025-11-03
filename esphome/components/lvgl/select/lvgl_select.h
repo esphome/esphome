@@ -41,16 +41,16 @@ class LVGLSelect : public select::Select, public Component {
   }
 
   void publish() {
-    this->publish_state(this->widget_->get_selected_text());
+    auto index = this->widget_->get_selected_index();
+    this->publish_state(index);
     if (this->restore_) {
-      auto index = this->widget_->get_selected_index();
       this->pref_.save(&index);
     }
   }
 
  protected:
-  void control(const std::string &value) override {
-    this->widget_->set_selected_text(value, this->anim_);
+  void control(size_t index) override {
+    this->widget_->set_selected_index(index, this->anim_);
     this->publish();
   }
   void set_options_() {
