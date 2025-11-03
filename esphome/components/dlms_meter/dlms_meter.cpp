@@ -34,17 +34,15 @@ void DlmsMeterComponent::dump_config() {
 }
 
 void DlmsMeterComponent::loop() {
-  uint32_t current_time = millis();
-
   while (this->available()) {  // Read while data is available
     uint8_t c;
     this->read_byte(&c);
     this->receive_buffer_.push_back(c);
 
-    this->last_read_ = current_time;
+    this->last_read_ = millis();
   }
 
-  if (!this->receive_buffer_.empty() && current_time - this->last_read_ > this->read_timeout_) {
+  if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {
     this->log_packet_(this->receive_buffer_);
 
     // Verify and parse M-Bus frames
