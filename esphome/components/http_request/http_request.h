@@ -266,14 +266,13 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
             captured_args);
       }
 
-    } else 
+    } else
 #endif
     {
       std::apply([this, &container](
                      Ts... captured_args_inner) { this->success_trigger_->trigger(container, captured_args_inner...); },
                  captured_args);
     }
-
   }
 
   bool is_running() override { return !this->active_requests_.empty() || Action<Ts...>::is_running(); }
@@ -347,7 +346,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
   }
 
  protected:
-  std::forward_list<std::tuple<std::shared_ptr<HttpContainer>, uint8_t *, size_t, std::tuple<Ts...>>> active_requests_{};
+  std::forward_list<std::tuple<std::shared_ptr<HttpContainer>, uint8_t *, size_t, std::tuple<Ts...>>>
+      active_requests_{};
   void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
