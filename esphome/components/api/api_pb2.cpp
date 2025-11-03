@@ -355,8 +355,8 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(10, this->icon_ref_);
 #endif
   buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
-  for (const auto &it : *this->supported_preset_modes) {
-    buffer.encode_string(12, it, true);
+  for (const char *it : *this->supported_preset_modes) {
+    buffer.encode_string(12, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(13, this->device_id);
@@ -376,8 +376,8 @@ void ListEntitiesFanResponse::calculate_size(ProtoSize &size) const {
 #endif
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
   if (!this->supported_preset_modes->empty()) {
-    for (const auto &it : *this->supported_preset_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_preset_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES

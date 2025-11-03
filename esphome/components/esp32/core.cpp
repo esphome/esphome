@@ -96,7 +96,11 @@ void loop_task(void *pv_params) {
 
 extern "C" void app_main() {
   esp32::setup_preferences();
+#if CONFIG_FREERTOS_UNICORE
   xTaskCreate(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle);
+#else
+  xTaskCreatePinnedToCore(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle, 1);
+#endif
 }
 #endif  // USE_ESP_IDF
 
