@@ -177,7 +177,7 @@ void Fan::publish_state() {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
   const char *preset = this->get_preset_mode();
-  if (traits.supports_preset_modes() && preset != nullptr) {
+  if (preset != nullptr) {
     ESP_LOGD(TAG, "  Preset Mode: %s", preset);
   }
   this->state_callback_.call();
