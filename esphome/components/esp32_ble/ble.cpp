@@ -27,6 +27,10 @@ extern "C" {
 #include <esp32-hal-bt.h>
 #endif
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <lwip/sockets.h>
+#endif
+
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
@@ -560,9 +564,17 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     GAP_ADV_COMPLETE_EVENTS:
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+      enqueue_ble_event(event, param);
+      return;
+
     // Security events - used by ble_client and bluetooth_proxy
+    // These are rare but interactive (pairing/bonding), so notify immediately
     GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
+      // Wake up main loop to process security event immediately
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      App.wake_loop_threadsafe();
+#endif
       return;
 
     // Ignore these GAP events as they are not relevant for our use case
@@ -582,6 +594,10 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
+  // Wake up main loop to process GATT event immediately
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 #endif
 
@@ -589,6 +605,10 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
+  // Wake up main loop to process GATT event immediately
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 #endif
 
