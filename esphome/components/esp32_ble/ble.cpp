@@ -304,8 +304,6 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
-  // No socket cleanup needed - wake socket is managed by core Application
-
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
@@ -577,7 +575,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
       // Wake up main loop to process security event immediately
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
       App.wake_loop_threadsafe();
 #endif
       return;
@@ -600,7 +598,7 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
   // Wake up main loop to process GATT event immediately
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
 #endif
 }
@@ -611,7 +609,7 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
   // Wake up main loop to process GATT event immediately
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
 #endif
 }
