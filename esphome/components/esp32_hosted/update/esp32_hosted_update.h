@@ -6,8 +6,7 @@
 #include "esphome/components/update/update_entity.h"
 #include <array>
 
-namespace esphome {
-namespace esp32_hosted {
+namespace esphome::esp32_hosted {
 
 class Esp32HostedUpdate : public update::UpdateEntity, public Component {
  public:
@@ -28,7 +27,6 @@ class Esp32HostedUpdate : public update::UpdateEntity, public Component {
   std::array<uint8_t, 32> firmware_sha256_;
 };
 
-}  // namespace esp32_hosted
-}  // namespace esphome
+}  // namespace esphome::esp32_hosted
 
 #endif
