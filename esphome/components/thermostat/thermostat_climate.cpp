@@ -54,7 +54,7 @@ void ThermostatClimate::setup() {
     if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
       this->change_preset_(this->default_preset_);
     } else if (!this->default_custom_preset_.empty()) {
-      this->change_custom_preset_(this->default_custom_preset_);
+      this->change_custom_preset_(this->default_custom_preset_.c_str());
     }
   }
 
@@ -218,13 +218,13 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
       this->preset = call.get_preset().value();
     }
   }
-  if (call.get_custom_preset().has_value()) {
+  if (call.has_custom_preset()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_custom_preset_(call.get_custom_preset().value());
+      this->change_custom_preset_(call.get_custom_preset());
     } else {
       // Use the base class method which handles pointer lookup internally
-      this->set_custom_preset_(call.get_custom_preset().value().c_str());
+      this->set_custom_preset_(call.get_custom_preset());
     }
   }
 
@@ -1177,31 +1177,31 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) {
+void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
   auto config = this->custom_preset_config_.find(custom_preset);
 
   if (config != this->custom_preset_config_.end()) {
-    ESP_LOGV(TAG, "Custom preset %s requested", custom_preset.c_str());
+    ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(config->second) || !this->has_custom_preset() ||
-        strcmp(this->get_custom_preset(), custom_preset.c_str()) != 0) {
+        strcmp(this->get_custom_preset(), custom_preset) != 0) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally
-      this->set_custom_preset_(custom_preset.c_str());
+      this->set_custom_preset_(custom_preset);
       if (trig != nullptr) {
         trig->trigger();
       }
 
       this->refresh();
-      ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
+      ESP_LOGI(TAG, "Custom preset %s applied", custom_preset);
     } else {
-      ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
+      ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset);
+      // Note: set_custom_preset_() above handles preset.reset() and custom_preset_ assignment internally.
+      // The old code had these lines here unconditionally, which was a bug (double assignment, state modification
+      // even when no changes were needed). Now properly handled by the protected setter with mutual exclusion.
     }
-    // Note: set_custom_preset_() above handles preset.reset() and custom_preset_ assignment internally.
-    // The old code had these lines here unconditionally, which was a bug (double assignment, state modification
-    // even when no changes were needed). Now properly handled by the protected setter with mutual exclusion.
   } else {
-    ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
+    ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset);
   }
 }
 
