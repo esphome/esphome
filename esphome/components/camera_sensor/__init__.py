@@ -190,50 +190,51 @@ CONF_RESTRICTED_PIXEL_FORMAT_SELECTS = {
     "BGR888": PixelFormat.PIXEL_FORMAT_BGR888,
 }
 
-MIPI_CSI_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(CONF_CAMERA_SENSOR_ID): cv.declare_id(CSICameraSensor),
-            cv.Required(CONF_MODE): cv.string,
-            cv.Optional(CONF_FORMAT, default="RGB565"): cv.enum(
-                CONF_RESTRICTED_PIXEL_FORMAT_SELECTS, upper=True
-            ),
-            cv.Optional(CONF_BAYER_PATTERN, default="AUTO"): cv.enum(
-                CONF_BAYER_PATTERN_SELECTS, upper=True
-            ),
-            cv.Optional(CONF_PWDN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_RESET): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_XCLK): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_FREQUENCY, default="24MHz"): cv.All(
-                cv.frequency, cv.Range(min=6e6, max=48e6)
-            ),
-            cv.Optional(CONF_BUFFERS, default=2): cv.int_range(1, 10),
-            cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
-            cv.Optional(CONF_FACTORY_FLIP_X, default=True): cv.boolean,
-            cv.Optional(CONF_FLIP_X): cv.boolean,
-            cv.Optional(CONF_FLIP_Y): cv.boolean,
-            cv.Optional(CONF_BRIGHTNESS, default=0): cv.int_range(-127, 128),
-            cv.Optional(CONF_CONTRAST, default=128): cv.int_range(0, 128),
-            cv.Optional(CONF_FILTER, default=10): cv.int_range(2, 20),
-            cv.Optional(CONF_HUE, default=0): cv.int_range(0, 359),
-            cv.Optional(CONF_SATURATION, default=128): cv.int_range(0, 128),
-            cv.Optional(CONF_RED, default=1.0): cv.float_range(-4.0, 4.0),
-            cv.Optional(CONF_GREEN, default=1.0): cv.float_range(-4.0, 4.0),
-            cv.Optional(CONF_BLUE, default=1.0): cv.float_range(-4.0, 4.0),
-            cv.Optional(CONF_GAIN): cv.int_range(0),
-            cv.Optional(CONF_EXPOSURE): cv.int_range(0),
-            cv.Optional(CONF_TEST_PATTERN): cv.boolean,
-            cv.GenerateID(CONF_ISP_ID): cv.declare_id(ISP),
-        }
-    ).extend(i2c.i2c_device_schema(0x00)),
-    only_on_variant(supported=[VARIANT_ESP32P4]),
+MIPI_CSI_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CAMERA_SENSOR_ID): cv.declare_id(CSICameraSensor),
+        cv.Required(CONF_MODE): cv.string,
+        cv.Optional(CONF_FORMAT, default="RGB565"): cv.enum(
+            CONF_RESTRICTED_PIXEL_FORMAT_SELECTS, upper=True
+        ),
+        cv.Optional(CONF_BAYER_PATTERN, default="AUTO"): cv.enum(
+            CONF_BAYER_PATTERN_SELECTS, upper=True
+        ),
+        cv.Optional(CONF_PWDN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_RESET): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_XCLK): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_FREQUENCY, default="24MHz"): cv.All(
+            cv.frequency, cv.Range(min=6e6, max=48e6)
+        ),
+        cv.Optional(CONF_BUFFERS, default=2): cv.int_range(1, 10),
+        cv.Optional(CONF_BYTE_SWAP, default=False): cv.boolean,
+        cv.Optional(CONF_FACTORY_FLIP_X, default=True): cv.boolean,
+        cv.Optional(CONF_FLIP_X): cv.boolean,
+        cv.Optional(CONF_FLIP_Y): cv.boolean,
+        cv.Optional(CONF_BRIGHTNESS, default=0): cv.int_range(-127, 128),
+        cv.Optional(CONF_CONTRAST, default=128): cv.int_range(0, 128),
+        cv.Optional(CONF_FILTER, default=10): cv.int_range(2, 20),
+        cv.Optional(CONF_HUE, default=0): cv.int_range(0, 359),
+        cv.Optional(CONF_SATURATION, default=128): cv.int_range(0, 128),
+        cv.Optional(CONF_RED, default=1.0): cv.float_range(-4.0, 4.0),
+        cv.Optional(CONF_GREEN, default=1.0): cv.float_range(-4.0, 4.0),
+        cv.Optional(CONF_BLUE, default=1.0): cv.float_range(-4.0, 4.0),
+        cv.Optional(CONF_GAIN): cv.int_range(0),
+        cv.Optional(CONF_EXPOSURE): cv.int_range(0),
+        cv.Optional(CONF_TEST_PATTERN): cv.boolean,
+        cv.GenerateID(CONF_ISP_ID): cv.declare_id(ISP),
+    }
 )
+
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
         SOFTWARE_SENSOR: SOFTWARE_SCHEMA,
         ESP32_CAMERA_SENSOR: ESP32_CAMERA_SCHEMA,
-        MIPI_CSI: MIPI_CSI_SCHEMA,
+        MIPI_CSI: cv.All(
+            MIPI_CSI_SCHEMA.extend(i2c.i2c_device_schema(0x00)),
+            only_on_variant(supported=[VARIANT_ESP32P4]),
+        ),
     },
     default_type=SOFTWARE_SENSOR,
 )
