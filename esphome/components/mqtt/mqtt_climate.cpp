@@ -357,8 +357,8 @@ bool MQTTClimateComponent::publish_state_() {
           payload = "unknown";
       }
     }
-    if (this->device_->custom_preset.has_value())
-      payload = this->device_->custom_preset.value();
+    if (this->device_->has_custom_preset())
+      payload = this->device_->get_custom_preset();
     if (!this->publish(this->get_preset_state_topic(), payload))
       success = false;
   }
@@ -429,8 +429,8 @@ bool MQTTClimateComponent::publish_state_() {
           payload = "unknown";
       }
     }
-    if (this->device_->custom_fan_mode.has_value())
-      payload = this->device_->custom_fan_mode.value();
+    if (this->device_->has_custom_fan_mode())
+      payload = this->device_->get_custom_fan_mode();
     if (!this->publish(this->get_fan_mode_state_topic(), payload))
       success = false;
   }
