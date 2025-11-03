@@ -148,6 +148,10 @@ esp32:
 - **enable_idf_experimental_features** (*Optional*, boolean): Can be set to `true` to enable experimental features. Use of
   experimental features may cause instability or other issues.
 
+- **loop_task_stack_size** (*Optional*, int): Loop task stack size in bytes. Increase if experiencing stack overflow
+  errors (e.g., with complex code or deep recursion). Higher values reduce heap availability. Valid range is 8192-32768
+  bytes. Defaults to 8192 bytes.
+
 **LWIP Optimization Options (ESP-IDF only):**
 
 The following options are available under the `advanced` section when using the ESP-IDF framework to optimize
