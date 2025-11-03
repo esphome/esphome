@@ -171,6 +171,7 @@ bool LvPageType::is_showing() const { return this->parent_->get_current_page() =
 void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
+  auto height_rounded = (height + this->draw_rounding - 1) / this->draw_rounding * this->draw_rounding;
   auto x1 = area->x1;
   auto y1 = area->y1;
   lv_color_t *dst = this->rotate_buf_;
@@ -178,13 +179,13 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
     case display::DISPLAY_ROTATION_90_DEGREES:
       for (lv_coord_t x = height; x-- != 0;) {
         for (lv_coord_t y = 0; y != width; y++) {
-          dst[y * height + x] = *ptr++;
+          dst[y * height_rounded + x] = *ptr++;
         }
       }
       y1 = x1;
       x1 = this->disp_drv_.ver_res - area->y1 - height;
-      width = height;
-      height = lv_area_get_width(area);
+      height = width;
+      width = height_rounded;
       break;
 
     case display::DISPLAY_ROTATION_180_DEGREES:
@@ -200,13 +201,13 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
     case display::DISPLAY_ROTATION_270_DEGREES:
       for (lv_coord_t x = 0; x != height; x++) {
         for (lv_coord_t y = width; y-- != 0;) {
-          dst[y * height + x] = *ptr++;
+          dst[y * height_rounded + x] = *ptr++;
         }
       }
       x1 = y1;
       y1 = this->disp_drv_.hor_res - area->x1 - width;
-      width = height;
-      height = lv_area_get_width(area);
+      height = width;
+      width = height_rounded;
       break;
 
     default:
@@ -443,8 +444,10 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
 
 void LvglComponent::setup() {
   auto *display = this->displays_[0];
-  auto width = display->get_width();
-  auto height = display->get_height();
+  auto rounding = this->draw_rounding;
+  // cater for displays with dimensions that don't divide by the required rounding
+  auto width = (display->get_width() + rounding - 1) / rounding * rounding;
+  auto height = (display->get_height() + rounding - 1) / rounding * rounding;
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
@@ -469,9 +472,8 @@ void LvglComponent::setup() {
   }
   this->buffer_frac_ = frac;
   lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
-  this->disp_drv_.hor_res = width;
-  this->disp_drv_.ver_res = height;
-  // this->setup_driver_(display->get_width(), display->get_height());
+  this->disp_drv_.hor_res = display->get_width();
+  this->disp_drv_.ver_res = display->get_height();
   lv_disp_drv_update(this->disp_, &this->disp_drv_);
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
