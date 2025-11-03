@@ -12,8 +12,7 @@ void TinyUSB::setup() {
   // Use the device's MAC address as its serial number if no serial number is defined
   if (this->string_descriptor_[SERIAL_NUMBER] == nullptr) {
     static char mac_addr_buf[13];
-    auto mac_addr_str = get_mac_address();
-    memccpy(mac_addr_buf, mac_addr_str.c_str(), 0, sizeof(mac_addr_buf));
+    get_mac_address_into_buffer(mac_addr_buf);
     this->string_descriptor_[SERIAL_NUMBER] = mac_addr_buf;
   }
 
