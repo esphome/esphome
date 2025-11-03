@@ -64,12 +64,13 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.boolean,
                 cv.Any(
                     cv.require_framework_version(
+                        bk72xx_arduino=cv.Version(1, 7, 0),
                         esp_idf=cv.Version(0, 0, 0),
                         esp32_arduino=cv.Version(0, 0, 0),
                         esp8266_arduino=cv.Version(0, 0, 0),
-                        rp2040_arduino=cv.Version(0, 0, 0),
-                        bk72xx_arduino=cv.Version(1, 7, 0),
+                        host=cv.Version(0, 0, 0),
                         nrf52_arduino=cv.Version(0, 0, 0),
+                        rp2040_arduino=cv.Version(0, 0, 0),
                     ),
                     cv.boolean_false,
                 ),
