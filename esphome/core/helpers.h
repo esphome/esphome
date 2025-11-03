@@ -8,6 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -1029,7 +1030,7 @@ std::string get_mac_address_pretty();
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
 /// Assumes buffer length is 13 (12 digits for hexadecimal representation followed by null terminator).
-void get_mac_address_into_buffer(char *buf);
+void get_mac_address_into_buffer(std::span<char, 13> buf);
 
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).

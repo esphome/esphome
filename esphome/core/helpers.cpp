@@ -643,10 +643,10 @@ std::string get_mac_address_pretty() {
   return format_mac_address_pretty(mac);
 }
 
-void get_mac_address_into_buffer(char *buf) {
+void get_mac_address_into_buffer(std::span<char, 13> buf) {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  format_mac_addr_lower_no_sep(mac, buf);
+  format_mac_addr_lower_no_sep(mac, buf.data());
 }
 
 #ifndef USE_ESP32
