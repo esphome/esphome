@@ -1,0 +1,105 @@
+esphome:
+  name: action-concurrent-reentry
+  on_boot:
+    - priority: -100
+      then:
+        - repeat:
+            count: 5
+            then:
+              - lambda: id(handler_wait_until)->execute(id(global_counter));
+              - lambda: id(handler_repeat)->execute(id(global_counter));
+              - lambda: id(handler_while)->execute(id(global_counter));
+              - lambda: id(handler_script_wait)->execute(id(global_counter));
+              - delay: 50ms
+              - lambda: id(global_counter)++;
+              - delay: 50ms
+
+host:
+
+api:
+
+globals:
+  - id: global_counter
+    type: int
+
+script:
+  - id: handler_wait_until
+
+    mode: parallel
+
+    parameters:
+      arg: int
+
+    then:
+      - wait_until:
+          condition:
+            lambda: return id(global_counter) == 5;
+
+      - logger.log:
+          format: "AFTER wait_until ARG %d"
+          args:
+            - arg
+
+  - id: handler_script_wait
+
+    mode: parallel
+
+    parameters:
+      arg: int
+
+    then:
+      - script.wait: handler_wait_until
+
+      - logger.log:
+          format: "AFTER script.wait ARG %d"
+          args:
+            - arg
+
+  - id: handler_repeat
+
+    mode: parallel
+
+    parameters:
+      arg: int
+
+    then:
+      - repeat:
+          count: 3
+          then:
+            - logger.log:
+                format: "IN repeat %d ARG %d"
+                args:
+                  - iteration
+                  - arg
+            - delay: 100ms
+
+      - logger.log:
+          format: "AFTER repeat ARG %d"
+          args:
+            - arg
+
+  - id: handler_while
+
+    mode: parallel
+
+    parameters:
+      arg: int
+
+    then:
+      - while:
+          condition:
+            lambda: return id(global_counter) != 5;
+          then:
+            - logger.log:
+                format: "IN while ARG %d"
+                args:
+                  - arg
+            - delay: 100ms
+
+      - logger.log:
+          format: "AFTER while ARG %d"
+          args:
+            - arg
+
+logger:
+  level: DEBUG
