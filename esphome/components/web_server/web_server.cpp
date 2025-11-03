@@ -1315,7 +1315,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       for (climate::ClimatePreset m : traits.get_supported_presets())
         opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
     }
-    if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
+    if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
       JsonArray opt = root["custom_presets"].to<JsonArray>();
       for (auto const &custom_preset : traits.get_supported_custom_presets())
         opt.add(custom_preset);
@@ -1336,14 +1336,14 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
     root["fan_mode"] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
-  if (!traits.get_supported_custom_fan_modes().empty() && obj->custom_fan_mode.has_value()) {
-    root["custom_fan_mode"] = obj->custom_fan_mode.value().c_str();
+  if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
+    root["custom_fan_mode"] = obj->get_custom_fan_mode();
   }
   if (traits.get_supports_presets() && obj->preset.has_value()) {
     root["preset"] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
   }
-  if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
-    root["custom_preset"] = obj->custom_preset.value().c_str();
+  if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
+    root["custom_preset"] = obj->get_custom_preset();
   }
   if (traits.get_supports_swing_modes()) {
     root["swing_mode"] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
