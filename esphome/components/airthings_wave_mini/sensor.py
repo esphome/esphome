@@ -1,3 +1,4 @@
+# dummy
 import esphome.codegen as cg
 from esphome.components import airthings_wave_base
 import esphome.config_validation as cv
