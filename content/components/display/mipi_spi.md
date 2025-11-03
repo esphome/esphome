@@ -29,7 +29,7 @@ boards and chips, but the driver is also designed to be customisable in YAML for
 ## Supported boards and driver chips
 
 The driver supports a number of display driver chips, and can be configured for custom displays. As well as support for
-driver chips, there are also specific configurations for several ESP32 boards with integrated displays. For tbose boards
+driver chips, there are also specific configurations for several ESP32 boards with integrated displays. For those boards
 the predefined configuration will set the correct pins and dimensions for the display.
 
 For custom displays, the driver can be configured with the correct pins and dimensions, and the driver chip can be
