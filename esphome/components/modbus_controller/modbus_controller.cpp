@@ -195,11 +195,10 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
   this->register_ranges_.clear();
-  // TODO: This is only for ModbusClient
-  // if (this->parent_->role == modbus::ModbusRole::CLIENT && this->sensorset_.empty()) {
-  //   ESP_LOGW(TAG, "No sensors registered");
-  //   return 0;
-  // }
+  if (this->sensorset_.empty()) {
+    ESP_LOGW(TAG, "No sensors registered");
+    return 0;
+  }
 
   // iterator is sorted see SensorItemsComparator for details
   auto ix = this->sensorset_.begin();

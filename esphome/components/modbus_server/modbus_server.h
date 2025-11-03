@@ -273,7 +273,7 @@ class ServerRegister {
   WriteLambda write_lambda;
 };
 
-class ModbusServer : public Component, public modbus::ModbusDevice {
+class ModbusServer : public Component, public modbus::ModbusServerDevice {
  public:
   void dump_config() override;
 

@@ -14,24 +14,15 @@ namespace modbus {
 
 static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
 
-class ModbusDevice;
-
 class Modbus : public uart::UARTDevice, public Component {
  public:
   Modbus() = default;
 
   void setup() override;
 
-  // TODO: Move this to server only.
-  void register_device(ModbusDevice *device) { this->devices_.push_back(device); }
-
   float get_setup_priority() const override;
   virtual bool tx_blocked();
-  virtual bool tx_buffer_empty() { return false; }  // TODO Remove this function from Modbus base class
 
-  virtual void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                    uint8_t payload_len = 0, const uint8_t *payload = nullptr) = 0;
-  virtual void send_raw(const std::vector<uint8_t> &payload) = 0;
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 
  protected:
@@ -54,7 +45,14 @@ class Modbus : public uart::UARTDevice, public Component {
   GPIOPin *flow_control_pin_{nullptr};
 
   std::vector<uint8_t> rx_buffer_;
-  std::vector<ModbusDevice *> devices_;
+};
+
+class ModbusClientDevice;
+class ModbusServerDevice;
+
+struct ModbusDeviceCommand {
+  ModbusClientDevice *device;
+  std::vector<uint8_t> frame;
 };
 
 class ModbusClient : public Modbus {
@@ -64,11 +62,11 @@ class ModbusClient : public Modbus {
   void loop() override;
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
   void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
-  bool tx_buffer_empty() override;
+  bool tx_buffer_empty();
   bool tx_blocked() override;
-  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr) override;
-  void send_raw(const std::vector<uint8_t> &payload) override;
+  void send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
+            uint16_t number_of_entities, uint8_t payload_len = 0, const uint8_t *payload = nullptr);
+  void send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload);
 
  protected:
   void parse_modbus_byte_(uint8_t byte) override;
@@ -76,12 +74,12 @@ class ModbusClient : public Modbus {
   void send_next_frame_();
 
   uint16_t send_wait_time_{250};
-  uint8_t waiting_for_response_{0};
+  std::optional<ModbusDeviceCommand> waiting_for_response_;
 
   // std::queue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
-  std::queue<std::vector<uint8_t>> tx_buffer_;
+  std::queue<ModbusDeviceCommand> tx_buffer_;
 };
 
 class ModbusServer : public Modbus {
@@ -90,8 +88,9 @@ class ModbusServer : public Modbus {
   void dump_config() override;
   void loop() override;
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr) override;
-  void send_raw(const std::vector<uint8_t> &payload) override;
+            uint8_t payload_len = 0, const uint8_t *payload = nullptr);
+  void send_raw(const std::vector<uint8_t> &payload);
+  void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
   void parse_modbus_byte_(uint8_t byte) override;
@@ -99,14 +98,37 @@ class ModbusServer : public Modbus {
   void process_modbus_server_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);
   uint8_t expecting_peer_response_{0};
+  std::vector<ModbusServerDevice *> devices_;
 };
 
-class ModbusDevice {
+class ModbusClientDevice {
  public:
-  void set_parent(Modbus *parent) { parent_ = parent; }
+  void set_parent(ModbusClient *parent) { parent_ = parent; }
   void set_address(uint8_t address) { address_ = address; }
-  virtual void on_modbus_data(const std::vector<uint8_t> &data){};
+  virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
+  void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
+            const uint8_t *payload = nullptr) {
+    this->parent_->send(this, this->address_, function, start_address, number_of_entities, payload_len, payload);
+  }
+  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(this, payload); }
+  // If more than one device is connected block sending a new command before a response is received
+  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
+
+ protected:
+  // friend ModbusClient;
+
+  ModbusClient *parent_;
+  uint8_t address_;
+};
+
+// This is for compatibility with external components using the former class name
+class ModbusDevice : public ModbusClientDevice {};
+
+class ModbusServerDevice {
+ public:
+  void set_parent(ModbusServer *parent) { parent_ = parent; }
+  void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
   virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
@@ -122,16 +144,11 @@ class ModbusDevice {
     error_response.push_back(static_cast<uint8_t>(exception_code));
     this->send_raw(error_response);
   }
-  // If more than one device is connected block sending a new command before a response is received
-  // TODO: tx_buffer_empty is not implemented for ModbusServer
-  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:
-  // TODO: Double check friends.
-  friend ModbusClient;
   friend ModbusServer;
 
-  Modbus *parent_;
+  ModbusServer *parent_;
   uint8_t address_;
 };
 

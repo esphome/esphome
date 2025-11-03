@@ -43,12 +43,12 @@ void ModbusClient::loop() {
   }
 
   //  If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
-  if (this->waiting_for_response_ != 0 &&
+  if (this->waiting_for_response_.has_value() &&
       millis() - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
-      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_)) {
-    ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send", this->waiting_for_response_,
-             millis() - this->last_send_);
-    this->waiting_for_response_ = 0;
+      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_.value().frame[0])) {
+    ESP_LOGW(TAG, "Stop waiting for response from %d %dms after last send",
+             this->waiting_for_response_.value().frame[0], millis() - this->last_send_);
+    this->waiting_for_response_.reset();
   }
 
   //  If there's no response pending and there's commands in the buffer
@@ -100,7 +100,7 @@ bool ModbusClient::tx_blocked() {
   // We block transmission in any of these case:
   // 1. We're waiting for a response
   // 2. Any of the base class tx_blocked conditions
-  return (this->waiting_for_response_ != 0) || this->Modbus::tx_blocked();
+  return (this->waiting_for_response_.has_value()) || this->Modbus::tx_blocked();
 }
 
 bool ModbusClient::tx_buffer_empty() { return this->tx_buffer_.empty(); }
@@ -336,43 +336,45 @@ bool ModbusServer::parse_modbus_client_byte_(std::optional<uint8_t> byte) {
 
 void ModbusClient::process_modbus_server_frame_(uint8_t address, uint8_t function_code,
                                                 const std::vector<uint8_t> &data) {
-  bool found = false;
+  if (!this->waiting_for_response_.has_value()) {
+    ESP_LOGW(TAG, "Received unexpected frame from address %d, function code 0x%X, %dms after last send", address,
+             function_code, millis() - this->last_send_);
+    return;
+  } else {  // We are waiting for a response
+    // Check if the response matches the expected address and function code
 
-  for (auto *device : this->devices_) {
-    if (device->address_ == address) {
-      found = true;
+    uint8_t expected_address = this->waiting_for_response_.value().frame[0];
+    uint8_t expected_function_code = this->waiting_for_response_.value().frame[1];
+    if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
+      ESP_LOGW(TAG, "Received incorrect frame address %d <> %d or function code 0x%X <> 0x%X, %dms after last send",
+               address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
+               millis() - this->last_send_);
+      // Invalidate the waiting device so it won't process this response.
+      this->waiting_for_response_.value().device = nullptr;
+      return;
+    }
+    ModbusClientDevice *device = this->waiting_for_response_.value().device;
+    if (device == nullptr) {
+      ESP_LOGW(
+          TAG,
+          "Ignoring response from %d - transmission interrupted by previous unexpected response, %dms after last send",
+          address, millis() - this->last_send_);
+      return;
+    } else {  // We have a valid device waiting for this response
 
       // Is it an error response?
       if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
         uint8_t exception = data[0];
         ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                  exception, address, millis() - this->last_send_);
-        if (waiting_for_response_ == address) {
-          device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
-        } else {
-          // Ignore modbus exception not related to a pending command
-          ESP_LOGD(TAG, "Ignoring error - not expecting a response from %d", address);
-        }
+        device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+
       } else {  // Not an error response
-        if (waiting_for_response_ == address) {
-          device->on_modbus_data(data);
-        } else {
-          // Ignore modbus response not related to a pending command
-          ESP_LOGW(TAG, "Ignoring response - not expecting a response from %d, %dms after last send", address,
-                   millis() - this->last_send_);
-        }
+        device->on_modbus_data(data);
       }
+      this->waiting_for_response_.reset();
     }
   }
-
-  if (!found) {
-    ESP_LOGW(TAG, "Got frame from unknown address %d, %dms after last send", address, millis() - this->last_send_);
-  }
-
-  if (this->waiting_for_response_ == address)
-    this->waiting_for_response_ = 0;
-  else {
-  }  // TODO: Continue the timeout, but don't allow a response to be processed.
 }
 
 void ModbusServer::process_modbus_server_frame_(uint8_t address, uint8_t function_code,
@@ -433,7 +435,8 @@ void Modbus::send_frame_(const std::vector<uint8_t> &data) {
     this->last_send_tx_offset_ = data.size() * 11 * 1000 / this->parent_->get_baud_rate() + 1;
   }
 
-  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty(data).c_str(), millis() - this->last_send_);
+  ESP_LOGV(TAG, "Write: %s %dms after last send, %dms after last receive", format_hex_pretty(data).c_str(),
+           millis() - this->last_send_, millis() - this->last_modbus_byte_);
   this->last_send_ = millis();
 }
 
@@ -448,11 +451,11 @@ void ModbusClient::send_next_frame_() {
     return;
   }
 
-  std::vector<uint8_t> data = this->tx_buffer_.front();
+  ModbusDeviceCommand command = this->tx_buffer_.front();
 
-  this->send_frame_(data);
+  this->send_frame_(command.frame);
 
-  this->waiting_for_response_ = data[0];
+  this->waiting_for_response_ = command;
 
   this->tx_buffer_.pop();
 
@@ -486,8 +489,8 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusClient::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                        uint8_t payload_len, const uint8_t *payload) {
+void ModbusClient::send(ModbusClientDevice *device, uint8_t address, uint8_t function_code, uint16_t start_address,
+                        uint16_t number_of_entities, uint8_t payload_len, const uint8_t *payload) {
   static const size_t MAX_VALUES = 128;
   ESP_LOGVV(TAG,
             "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d "
@@ -527,7 +530,7 @@ void ModbusClient::send(uint8_t address, uint8_t function_code, uint16_t start_a
     }
   }
 
-  this->send_raw(data);
+  this->send_raw(device, data);
 }
 
 void ModbusServer::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
@@ -557,7 +560,7 @@ void ModbusServer::send(uint8_t address, uint8_t function_code, uint16_t start_a
 
 // Helper function for lambdas
 // Send raw command for client pushes to queue. Except CRC everything must be contained in payload
-void ModbusClient::send_raw(const std::vector<uint8_t> &payload) {
+void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
     return;
   }
@@ -565,7 +568,7 @@ void ModbusClient::send_raw(const std::vector<uint8_t> &payload) {
 
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty(frame).c_str());
-    this->tx_buffer_.push(frame);
+    this->tx_buffer_.push({device, frame});
   } else {
     ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(frame).c_str());
   }
@@ -579,6 +582,7 @@ void ModbusServer::send_raw(const std::vector<uint8_t> &payload) {
   std::vector<uint8_t> frame = this->add_crc_to_payload_(payload);
 
   // TODO: Make sure this is delayed until tx is unblocked
+  delay(5);
   this->send_frame_(frame);
 }
 
