@@ -1,3 +1,4 @@
-i2c:
-  sda: P1.04
-  scl: P1.06
+packages:
+  i2c: !include ../../test_build_components/common/i2c/nrf52.yaml
+
+<<: !include common.yaml
