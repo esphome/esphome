@@ -930,6 +930,10 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+        add_idf_sdkconfig_option(
+            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
+            conf[CONF_ADVANCED][CONF_MAIN_LOOP_STACK_SIZE],
+        )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
