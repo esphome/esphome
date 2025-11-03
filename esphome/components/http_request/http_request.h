@@ -111,13 +111,6 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   std::map<std::string, std::list<std::string>> response_headers_{};
 };
 
-class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
- public:
-  void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
-    this->trigger(container, response_body);
-  }
-};
-
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
@@ -198,7 +191,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
 
 #ifdef USE_HTTP_REQUEST_RESPONSE
-  Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> *get_success_trigger_with_response() const {
+  Trigger<std::shared_ptr<HttpContainer>, std::string, Ts...> *get_success_trigger_with_response() const {
     return this->success_trigger_with_response_;
   }
 #endif
@@ -259,7 +252,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
           yield();
           read_index += read;
         }
-        response_body.reserve(read_index);
         response_body.assign((char *) buf, read_index);
         allocator.deallocate(buf, max_length);
       }
@@ -292,8 +284,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
 #ifdef USE_HTTP_REQUEST_RESPONSE
-  Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> *success_trigger_with_response_ =
-      new Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...>();
+  Trigger<std::shared_ptr<HttpContainer>, std::string, Ts...> *success_trigger_with_response_ =
+      new Trigger<std::shared_ptr<HttpContainer>, std::string, Ts...>();
 #endif
   Trigger<std::shared_ptr<HttpContainer>, Ts...> *success_trigger_ =
       new Trigger<std::shared_ptr<HttpContainer>, Ts...>();

@@ -35,12 +35,6 @@ HttpContainer = http_request_ns.class_("HttpContainer")
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
 )
-HttpRequestResponseTrigger = http_request_ns.class_(
-    "HttpRequestResponseTrigger",
-    automation.Trigger.template(
-        cg.std_shared_ptr.template(HttpContainer), cg.std_string
-    ),
-)
 
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
@@ -305,7 +299,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
                 var.get_success_trigger_with_response(),
                 [
                     (cg.std_shared_ptr.template(HttpContainer), "response"),
-                    (cg.std_string_ref, "body"),
+                    (cg.std_string, "body"),
                     *args,
                 ],
                 response_conf,
