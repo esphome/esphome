@@ -210,7 +210,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->max_response_buffer_size_ = max_response_buffer_size;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     std::string body;
     if (this->body_.has_value()) {
       body = this->body_.value(x...);

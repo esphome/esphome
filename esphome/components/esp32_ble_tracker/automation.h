@@ -96,7 +96,7 @@ template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
  public:
   ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(bool, continuous)
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->set_scan_continuous(this->continuous_.value(x...));
     this->parent_->start_scan();
   }
@@ -107,7 +107,7 @@ template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
 
 template<typename... Ts> class ESP32BLEStopScanAction : public Action<Ts...>, public Parented<ESP32BLETracker> {
  public:
-  void play(Ts... x) override { this->parent_->stop_scan(); }
+  void play(const Ts &...x) override { this->parent_->stop_scan(); }
 };
 
 }  // namespace esphome::esp32_ble_tracker
