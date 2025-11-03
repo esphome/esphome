@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import LogStringLiteral, add, add_define, get_variable
+from esphome.cpp_generator import LogStringLiteral, add, get_variable
 from esphome.cpp_types import App
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
@@ -124,34 +124,3 @@ async def past_safe_mode():
             yield
 
     return await FakeAwaitable(_safe_mode_generator())
-
-
-# Wake loop threadsafe support tracking
-# Components that need to wake the main event loop from FreeRTOS tasks can call require_wake_loop_threadsafe()
-KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
-
-
-def require_wake_loop_threadsafe() -> None:
-    """Mark that wake_loop_threadsafe support is required by a component.
-
-    Call this from components that need to wake the main event loop from FreeRTOS tasks.
-    This enables the shared UDP loopback socket mechanism (~208 bytes RAM).
-    The socket is shared across all components that use this feature.
-
-    IMPORTANT: This is for FreeRTOS task context only, NOT ISR context.
-    Socket operations are not safe to call from ISR handlers.
-
-    Example:
-        import esphome.codegen as cg
-
-        async def to_code(config):
-            cg.require_wake_loop_threadsafe()
-    """
-    # Only set up once (idempotent - multiple components can call this)
-    if not CORE.data.get(KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False):
-        from esphome.components import socket
-
-        CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
-        add_define("USE_WAKE_LOOP_THREADSAFE")
-        # Consume 1 socket for the shared wake notification socket
-        socket.consume_sockets(1, "core.wake_loop_threadsafe")({})
