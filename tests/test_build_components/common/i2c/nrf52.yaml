@@ -1,4 +1,4 @@
-# Common I2C configuration for RP2040 Arduino tests
+# Common I2C configuration for NRF52 tests
 
 substitutions:
   scl_pin: P0.04
