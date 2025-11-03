@@ -1,5 +1,5 @@
 #pragma once
-
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/component.h"
 
 #include "tinyusb.h"
@@ -71,3 +71,4 @@ class TinyUSB : public Component {
 
 }  // namespace tinyusb
 }  // namespace esphome
+#endif

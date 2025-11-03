@@ -1,3 +1,4 @@
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "tinyusb_component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -40,3 +41,4 @@ void TinyUSB::dump_config() {
 
 }  // namespace tinyusb
 }  // namespace esphome
+#endif
