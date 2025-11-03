@@ -1,5 +1,6 @@
 #ifdef USE_ESP32
 
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -85,9 +86,6 @@ uint32_t arch_get_cpu_freq_hz() {
 }
 
 #ifdef USE_ESP_IDF
-#ifndef ESPHOME_APP_MAIN_TASK_STACK_SIZE
-#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
-#endif
 TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void loop_task(void *pv_params) {
