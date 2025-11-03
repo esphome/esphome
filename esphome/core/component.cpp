@@ -284,6 +284,7 @@ bool Component::is_ready() const {
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
+bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
