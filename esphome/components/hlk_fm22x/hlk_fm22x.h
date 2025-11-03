@@ -10,8 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace hlk_fm22x {
+namespace esphome::hlk_fm22x {
 
 static const uint16_t START_CODE = 0xEFAA;
 enum HlkFm22xCommand {
@@ -222,5 +221,4 @@ template<typename... Ts> class ResetAction : public Action<Ts...>, public Parent
   void play(Ts... x) override { this->parent_->reset(); }
 };
 
-}  // namespace hlk_fm22x
-}  // namespace esphome
+}  // namespace esphome::hlk_fm22x

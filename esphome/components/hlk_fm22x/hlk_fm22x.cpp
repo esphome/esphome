@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace hlk_fm22x {
+namespace esphome::hlk_fm22x {
 
 static const char *const TAG = "hlk_fm22x";
 
@@ -323,5 +322,4 @@ void HlkFm22xComponent::dump_config() {
   }
 }
 
-}  // namespace hlk_fm22x
-}  // namespace esphome
+}  // namespace esphome::hlk_fm22x
