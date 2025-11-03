@@ -54,7 +54,7 @@ void ThermostatClimate::setup() {
     if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
       this->change_preset_(this->default_preset_);
     } else if (!this->default_custom_preset_.empty()) {
-      this->change_custom_preset_(this->default_custom_preset_);
+      this->change_custom_preset_(this->default_custom_preset_.c_str());
     }
   }
 
