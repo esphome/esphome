@@ -106,22 +106,22 @@ async def to_code(config):
             i2c = "i2c1"
         zephyr_add_overlay(
             f"""
-&pinctrl {{
-    {i2c}_default: {i2c}_default {{
-        group1 {{
-            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
-                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
-        }};
-    }};
-    {i2c}_sleep: {i2c}_sleep {{
-        group1 {{
-            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
-                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
-            low-power-enable;
-        }};
-    }};
-}};
-"""
+                &pinctrl {{
+                    {i2c}_default: {i2c}_default {{
+                        group1 {{
+                            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
+                                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
+                        }};
+                    }};
+                    {i2c}_sleep: {i2c}_sleep {{
+                        group1 {{
+                            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
+                                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
+                            low-power-enable;
+                        }};
+                    }};
+                }};
+            """
         )
         var = cg.new_Pvariable(
             config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")

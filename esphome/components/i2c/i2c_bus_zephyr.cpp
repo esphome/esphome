@@ -84,7 +84,7 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
     return ERROR_NOT_INITIALIZED;
   }
 
-  i2c_msg msgs[8]{};
+  i2c_msg msgs[2]{};
   size_t cnt = 0;
   uint8_t dst = 0x00;  // dummy data to not use random value
 
@@ -94,7 +94,8 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
     msgs[cnt++].flags = I2C_MSG_WRITE;
   } else {
     if (write_count) {
-      msgs[cnt].buf = const_cast<uint8_t *>(write_buffer);
+      msgs[cnt].buf =
+          const_cast<uint8_t *>(write_buffer);  // Same struct for read/write — const cast is fine; data isn't modified.
       msgs[cnt].len = write_count;
       msgs[cnt++].flags = I2C_MSG_WRITE;
     }
