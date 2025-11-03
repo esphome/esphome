@@ -173,8 +173,10 @@ Processor *Pipeline::find_next_(Processor *current) {
 
     auto &children = this->links_[parent];
     auto pos = std::find(children.begin(), children.end(), current);
-    if (pos != children.end() && ++pos != children.end())
-      return *pos;
+    auto next = pos;
+    ++next;
+    if (pos != children.end() && next != children.end())
+      return *next;
 
     current = parent;
   }
