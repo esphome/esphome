@@ -26,13 +26,13 @@ static const char *const TAG = "tsl2591.sensor";
 void TSL2591Component::enable() {
   // Enable the device by setting the control bit to 0x01. Also turn on ADCs.
   if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWERON | TSL2591_ENABLE_AEN)) {
-    ESP_LOGE(TAG, "Failed I2C write during enable()");
+    ESP_LOGE(TAG, "I2C write failed");
   }
 }
 
 void TSL2591Component::disable() {
   if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF)) {
-    ESP_LOGE(TAG, "Failed I2C write during disable()");
+    ESP_LOGE(TAG, "I2C write failed");
   }
 }
 
@@ -61,21 +61,15 @@ void TSL2591Component::setup() {
       break;
   }
 
-  uint8_t address = this->address_;
-  ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
-
   uint8_t id;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
-    ESP_LOGE(TAG, "Failed I2C read during setup()");
+    ESP_LOGE(TAG, "I2C read failed");
     this->mark_failed();
     return;
   }
 
   if (id != 0x50) {
-    ESP_LOGE(TAG,
-             "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
-             "instead of 0x50.",
-             address, id);
+    ESP_LOGE(TAG, "Unknown chip ID");
     this->mark_failed();
     return;
   }
@@ -89,7 +83,7 @@ void TSL2591Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TSL2591 failed earlier, during setup");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
@@ -119,13 +113,16 @@ void TSL2591Component::dump_config() {
       gain_word = "auto";
       break;
   }
-  ESP_LOGCONFIG(TAG, "  Gain: %dx (%s)", gain, gain_word.c_str());
   TSL2591IntegrationTime raw_timing = this->integration_time_;
   int timing_ms = (1 + raw_timing) * 100;
-  ESP_LOGCONFIG(TAG, "  Integration Time: %d ms", timing_ms);
-  ESP_LOGCONFIG(TAG, "  Power save mode enabled: %s", ONOFF(this->power_save_mode_enabled_));
-  ESP_LOGCONFIG(TAG, "  Device factor: %f", this->device_factor_);
-  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %dx (%s)"
+                "  Integration Time: %d ms\n"
+                "  Power save mode enabled: %s\n"
+                "  Device factor: %f\n"
+                "  Glass attenuation factor: %f",
+                gain, gain_word.c_str(), timing_ms, ONOFF(this->power_save_mode_enabled_), this->device_factor_,
+                this->glass_attenuation_factor_);
   LOG_SENSOR("  ", "Full spectrum:", this->full_spectrum_sensor_);
   LOG_SENSOR("  ", "Infrared:", this->infrared_sensor_);
   LOG_SENSOR("  ", "Visible:", this->visible_sensor_);
@@ -174,7 +171,7 @@ void TSL2591Component::interval_function_for_update_() {
     uint64_t now = millis();
     ESP_LOGD(TAG, "Elapsed %3llu ms; still waiting for valid ADC", (now - this->interval_start_));
     if (now > this->interval_timeout_) {
-      ESP_LOGW(TAG, "Interval timeout for TSL2591 '%s' expired before ADCs became valid.", this->name_);
+      ESP_LOGW(TAG, "Interval timeout for '%s' expired before ADCs became valid", this->name_);
       this->cancel_interval(interval_name);
     }
     return;
@@ -234,8 +231,8 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
   this->integration_time_ = integration_time;
   this->gain_ = gain;
   if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL,
-                        this->integration_time_ | this->gain_)) {  // NOLINT
-    ESP_LOGE(TAG, "Failed I2C write during set_integration_time_and_gain()");
+                        static_cast<uint8_t>(this->integration_time_) | static_cast<uint8_t>(this->gain_))) {
+    ESP_LOGE(TAG, "I2C write failed");
   }
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
   // So, we unconditionally disable the device to turn the ADCs off. When re-enabling, the ADCs
@@ -255,7 +252,7 @@ float TSL2591Component::get_setup_priority() const { return setup_priority::DATA
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_STATUS, &status)) {
-    ESP_LOGE(TAG, "Failed I2C read during is_adc_valid()");
+    ESP_LOGE(TAG, "I2C read failed");
     return false;
   }
   return status & 0x01;
@@ -281,7 +278,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   if (!avalid) {
     // still not valid after a sutiable delay
     // we don't mark the device as failed since it might come around in the future (probably not :-()
-    ESP_LOGE(TAG, "tsl2591 device '%s' did not return valid readings.", this->name_);
+    ESP_LOGE(TAG, "Device '%s' returned invalid readings", this->name_);
     this->disable_if_power_saving_();
     return 0;
   }
@@ -295,20 +292,20 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   uint16_t ch0_16;
   uint16_t ch1_16;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_LOW, &ch0low)) {
-    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_HIGH, &ch0high)) {
-    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
   ch0_16 = (ch0high << 8) | ch0low;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low)) {
-    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_HIGH, &ch1high)) {
-    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
   ch1_16 = (ch1high << 8) | ch1low;
@@ -335,7 +332,7 @@ uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel, uint32_
     return ((combined_illuminance & 0xFFFF) - (combined_illuminance >> 16));
   }
   // unknown channel!
-  ESP_LOGE(TAG, "TSL2591Component::get_illuminance() caller requested an unknown channel: %d", channel);
+  ESP_LOGE(TAG, "get_illuminance() caller requested an unknown channel: %d", channel);
   return 0;
 }
 
@@ -358,13 +355,13 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
   uint16_t max_count = (this->integration_time_ == TSL2591_INTEGRATION_TIME_100MS ? 36863 : 65535);
   if ((full_spectrum == max_count) || (infrared == max_count)) {
     // Signal an overflow
-    ESP_LOGW(TAG, "Apparent saturation on TSL2591 (%s). You could reduce the gain or integration time.", this->name_);
+    ESP_LOGW(TAG, "Apparent saturation on '%s'; try reducing the gain or integration time", this->name_);
     return NAN;
   }
 
   if ((full_spectrum == 0) && (infrared == 0)) {
     // trivial conversion; avoids divide by 0
-    ESP_LOGW(TAG, "Zero reading on both TSL2591 (%s) sensors. Is the device having a problem?", this->name_);
+    ESP_LOGW(TAG, "Zero reading on both '%s' sensors", this->name_);
     return 0.0F;
   }
 

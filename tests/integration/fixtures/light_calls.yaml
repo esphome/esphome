@@ -1,0 +1,110 @@
+esphome:
+  name: light-calls-test
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+# Test outputs for RGBCW light
+output:
+  - platform: template
+    id: test_red
+    type: float
+    write_action:
+      - logger.log:
+          format: "Red output: %.2f"
+          args: [state]
+  - platform: template
+    id: test_green
+    type: float
+    write_action:
+      - logger.log:
+          format: "Green output: %.2f"
+          args: [state]
+  - platform: template
+    id: test_blue
+    type: float
+    write_action:
+      - logger.log:
+          format: "Blue output: %.2f"
+          args: [state]
+  - platform: template
+    id: test_cold_white
+    type: float
+    write_action:
+      - logger.log:
+          format: "Cold white output: %.2f"
+          args: [state]
+  - platform: template
+    id: test_warm_white
+    type: float
+    write_action:
+      - logger.log:
+          format: "Warm white output: %.2f"
+          args: [state]
+
+light:
+  - platform: rgbww
+    name: "Test RGBCW Light"
+    id: test_light
+    red: test_red
+    green: test_green
+    blue: test_blue
+    cold_white: test_cold_white
+    warm_white: test_warm_white
+    cold_white_color_temperature: 6536 K
+    warm_white_color_temperature: 2000 K
+    constant_brightness: true
+    effects:
+      # Use default parameters:
+      - random:
+      # Customize parameters - use longer names to potentially trigger buffer issues
+      - random:
+          name: "My Very Slow Random Effect With Long Name"
+          transition_length: 30ms
+          update_interval: 30ms
+      - random:
+          name: "My Fast Random Effect That Changes Quickly"
+          transition_length: 4ms
+          update_interval: 5ms
+      - random:
+          name: "Random Effect With Medium Length Name Here"
+          transition_length: 100ms
+          update_interval: 200ms
+      - random:
+          name: "Another Random Effect With Different Parameters"
+          transition_length: 2ms
+          update_interval: 3ms
+      - random:
+          name: "Yet Another Random Effect To Test Memory"
+          transition_length: 15ms
+          update_interval: 20ms
+      - strobe:
+          name: "Strobe Effect"
+      - pulse:
+          name: "Pulse Effect"
+          transition_length: 100ms
+
+  # Additional lights to test memory with multiple instances
+  - platform: rgb
+    name: "Test RGB Light"
+    id: test_rgb_light
+    red: test_red
+    green: test_green
+    blue: test_blue
+    effects:
+      # Same random effects to test for cross-contamination
+      - random:
+      - random:
+          name: "RGB Slow Random"
+          transition_length: 20ms
+          update_interval: 25ms
+      - random:
+          name: "RGB Fast Random"
+          transition_length: 2ms
+          update_interval: 3ms
+
+  - platform: binary
+    name: "Test Binary Light"
+    id: test_binary_light
+    output: test_red

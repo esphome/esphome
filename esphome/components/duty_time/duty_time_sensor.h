@@ -19,7 +19,6 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   void update() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void start();
   void stop();

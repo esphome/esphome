@@ -55,6 +55,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   // Percentage to increase or decrease the volume for volume up or volume down commands
   void set_volume_increment(float volume_increment) { this->volume_increment_ = volume_increment; }
 
+  // Volume used initially on first boot when no volume had been previously saved
+  void set_volume_initial(float volume_initial) { this->volume_initial_ = volume_initial; }
+
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
@@ -72,10 +75,6 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   Trigger<float> *get_volume_trigger() const { return this->volume_trigger_; }
 
   void play_file(audio::AudioFile *media_file, bool announcement, bool enqueue);
-
-  uint32_t get_playback_ms() const { return this->playback_ms_; }
-  uint32_t get_playback_us() const { return this->playback_us_; }
-  uint32_t get_decoded_playback_ms() const { return this->decoded_playback_ms_; }
 
   void set_playlist_delay_ms(AudioPipelineType pipeline_type, uint32_t delay_ms);
 
@@ -132,6 +131,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   // The amount to change the volume on volume up/down commands
   float volume_increment_;
 
+  // The initial volume used by Setup when no previous volume was saved
+  float volume_initial_;
+
   float volume_max_;
   float volume_min_;
 
@@ -141,13 +143,6 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   Trigger<> *mute_trigger_ = new Trigger<>();
   Trigger<> *unmute_trigger_ = new Trigger<>();
   Trigger<float> *volume_trigger_ = new Trigger<float>();
-
-  uint32_t decoded_playback_ms_{0};
-  uint32_t playback_us_{0};
-  uint32_t playback_ms_{0};
-  uint32_t remainder_us_{0};
-  uint32_t pending_ms_{0};
-  uint32_t last_audio_write_timestamp_{0};
 };
 
 }  // namespace speaker

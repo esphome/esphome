@@ -31,7 +31,6 @@ static const uint8_t MMC56X3_CTRL2_REG = 0x1D;
 static const uint8_t MMC5603_ODR_REG = 0x1A;
 
 void MMC5603Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MMC5603...");
   uint8_t id = 0;
   if (!this->read_byte(MMC56X3_PRODUCT_ID, &id)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -39,7 +38,7 @@ void MMC5603Component::setup() {
     return;
   }
 
-  if (id != MMC56X3_CHIP_ID) {
+  if (id != 0 && id != MMC56X3_CHIP_ID) {  // ID is not reported correctly by all chips, 0 on some chips
     ESP_LOGCONFIG(TAG, "Chip Wrong");
     this->error_code_ = ID_REGISTERS;
     this->mark_failed();
@@ -79,7 +78,7 @@ void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with MMC5603 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   } else if (this->error_code_ == ID_REGISTERS) {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }
@@ -129,21 +128,21 @@ void MMC5603Component::update() {
   raw_x |= buffer[1] << 4;
   raw_x |= buffer[2] << 0;
 
-  const float x = 0.0625 * (raw_x - 524288);
+  const float x = 0.00625 * (raw_x - 524288);
 
   int32_t raw_y = 0;
   raw_y |= buffer[3] << 12;
   raw_y |= buffer[4] << 4;
   raw_y |= buffer[5] << 0;
 
-  const float y = 0.0625 * (raw_y - 524288);
+  const float y = 0.00625 * (raw_y - 524288);
 
   int32_t raw_z = 0;
   raw_z |= buffer[6] << 12;
   raw_z |= buffer[7] << 4;
   raw_z |= buffer[8] << 0;
 
-  const float z = 0.0625 * (raw_z - 524288);
+  const float z = 0.00625 * (raw_z - 524288);
 
   const float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);

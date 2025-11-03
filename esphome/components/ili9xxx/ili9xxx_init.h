@@ -388,7 +388,7 @@ static const uint8_t PROGMEM INITCMD_GC9D01N[] = {
   0x8D, 1, 0xFF,
   0x8E, 1, 0xFF,
   0x8F, 1, 0xFF,
-  0X3A, 1, 0x05,    // COLMOD: Pixel Format Set (3Ah) MCU interface, 16 bits / pixel
+  0x3A, 1, 0x05,    // COLMOD: Pixel Format Set (3Ah) MCU interface, 16 bits / pixel
   0xEC, 1, 0x01,    // Inversion (ECh) DINV=1+2H1V column for Dual Gate (BFh=0)
                     // According to datasheet Inversion (ECh) value 0x01 isn't valid, but Lilygo uses it everywhere
   0x74, 7, 0x02, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00,

@@ -25,9 +25,11 @@ static const size_t MCLK_DIV_FRE = 256;
   }
 
 void ES7210::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES7210 audio ADC:");
-  ESP_LOGCONFIG(TAG, "  Bits Per Sample: %" PRIu8, this->bits_per_sample_);
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %" PRIu32, this->sample_rate_);
+  ESP_LOGCONFIG(TAG,
+                "ES7210 audio ADC:\n"
+                "  Bits Per Sample: %" PRIu8 "\n"
+                "  Sample Rate: %" PRIu32,
+                this->bits_per_sample_, this->sample_rate_);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Failed to initialize");
@@ -36,8 +38,6 @@ void ES7210::dump_config() {
 }
 
 void ES7210::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ES7210...");
-
   // Software reset
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0xff));
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x32));
@@ -97,12 +97,12 @@ bool ES7210::set_mic_gain(float mic_gain) {
 }
 
 bool ES7210::configure_sample_rate_() {
-  int mclk_fre = this->sample_rate_ * MCLK_DIV_FRE;
+  uint32_t mclk_fre = this->sample_rate_ * MCLK_DIV_FRE;
   int coeff = -1;
 
-  for (int i = 0; i < (sizeof(ES7210_COEFFICIENTS) / sizeof(ES7210_COEFFICIENTS[0])); ++i) {
+  for (size_t i = 0; i < (sizeof(ES7210_COEFFICIENTS) / sizeof(ES7210_COEFFICIENTS[0])); ++i) {
     if (ES7210_COEFFICIENTS[i].lrclk == this->sample_rate_ && ES7210_COEFFICIENTS[i].mclk == mclk_fre)
-      coeff = i;
+      coeff = static_cast<int>(i);
   }
 
   if (coeff >= 0) {

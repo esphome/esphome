@@ -29,7 +29,7 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *form
   if (log == nullptr)
     return;
 
-  log->log_vprintf_(level, tag, line, format, args);
+  log->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
 
@@ -41,7 +41,7 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStr
   if (log == nullptr)
     return;
 
-  log->log_vprintf_(level, tag, line, format, args);
+  log->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
 #endif

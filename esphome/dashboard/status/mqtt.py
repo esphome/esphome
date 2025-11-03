@@ -32,8 +32,6 @@ class MqttStatusThread(threading.Thread):
         topic = "esphome/discover/#"
 
         def on_message(client, userdata, msg):
-            nonlocal current_entries
-
             payload = msg.payload.decode(errors="backslashreplace")
             if len(payload) > 0:
                 data = json.loads(payload)

@@ -41,38 +41,54 @@ void FanCall::perform() {
 void FanCall::validate_() {
   auto traits = this->parent_.get_traits();
 
-  if (this->speed_.has_value())
+  if (this->speed_.has_value()) {
     this->speed_ = clamp(*this->speed_, 1, traits.supported_speed_count());
 
-  if (this->binary_state_.has_value() && *this->binary_state_) {
-    // when turning on, if neither current nor new speed available, set speed to 100%
-    if (traits.supports_speed() && !this->parent_.state && this->parent_.speed == 0 && !this->speed_.has_value()) {
-      this->speed_ = traits.supported_speed_count();
-    }
-  }
-
-  if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
-    ESP_LOGW(TAG, "'%s' - This fan does not support oscillation!", this->parent_.get_name().c_str());
-    this->oscillating_.reset();
-  }
-
-  if (this->speed_.has_value() && !traits.supports_speed()) {
-    ESP_LOGW(TAG, "'%s' - This fan does not support speeds!", this->parent_.get_name().c_str());
-    this->speed_.reset();
-  }
-
-  if (this->direction_.has_value() && !traits.supports_direction()) {
-    ESP_LOGW(TAG, "'%s' - This fan does not support directions!", this->parent_.get_name().c_str());
-    this->direction_.reset();
+    // https://developers.home-assistant.io/docs/core/entity/fan/#preset-modes
+    // "Manually setting a speed must disable any set preset mode"
+    this->preset_mode_.clear();
   }
 
   if (!this->preset_mode_.empty()) {
     const auto &preset_modes = traits.supported_preset_modes();
-    if (preset_modes.find(this->preset_mode_) == preset_modes.end()) {
-      ESP_LOGW(TAG, "'%s' - This fan does not support preset mode '%s'!", this->parent_.get_name().c_str(),
-               this->preset_mode_.c_str());
+    bool found = false;
+    for (const auto &mode : preset_modes) {
+      if (strcmp(mode, this->preset_mode_.c_str()) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), this->preset_mode_.c_str());
       this->preset_mode_.clear();
     }
+  }
+
+  // when turning on...
+  if (!this->parent_.state && this->binary_state_.has_value() &&
+      *this->binary_state_
+      // ..,and no preset mode will be active...
+      && this->preset_mode_.empty() &&
+      this->parent_.preset_mode.empty()
+      // ...and neither current nor new speed is available...
+      && traits.supports_speed() && this->parent_.speed == 0 && !this->speed_.has_value()) {
+    // ...set speed to 100%
+    this->speed_ = traits.supported_speed_count();
+  }
+
+  if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
+    ESP_LOGW(TAG, "%s: Oscillation not supported", this->parent_.get_name().c_str());
+    this->oscillating_.reset();
+  }
+
+  if (this->speed_.has_value() && !traits.supports_speed()) {
+    ESP_LOGW(TAG, "%s: Speed control not supported", this->parent_.get_name().c_str());
+    this->speed_.reset();
+  }
+
+  if (this->direction_.has_value() && !traits.supports_direction()) {
+    ESP_LOGW(TAG, "%s: Direction control not supported", this->parent_.get_name().c_str());
+    this->direction_.reset();
   }
 }
 
@@ -83,11 +99,12 @@ FanCall FanRestoreState::to_call(Fan &fan) {
   call.set_speed(this->speed);
   call.set_direction(this->direction);
 
-  if (fan.get_traits().supports_preset_modes()) {
+  auto traits = fan.get_traits();
+  if (traits.supports_preset_modes()) {
     // Use stored preset index to get preset name
-    const auto &preset_modes = fan.get_traits().supported_preset_modes();
+    const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      call.set_preset_mode(*std::next(preset_modes.begin(), this->preset_mode));
+      call.set_preset_mode(preset_modes[this->preset_mode]);
     }
   }
   return call;
@@ -98,11 +115,12 @@ void FanRestoreState::apply(Fan &fan) {
   fan.speed = this->speed;
   fan.direction = this->direction;
 
-  if (fan.get_traits().supports_preset_modes()) {
+  auto traits = fan.get_traits();
+  if (traits.supports_preset_modes()) {
     // Use stored preset index to get preset name
-    const auto &preset_modes = fan.get_traits().supported_preset_modes();
+    const auto &preset_modes = traits.supported_preset_modes();
     if (this->preset_mode < preset_modes.size()) {
-      fan.preset_mode = *std::next(preset_modes.begin(), this->preset_mode);
+      fan.preset_mode = preset_modes[this->preset_mode];
     }
   }
   fan.publish_state();
@@ -139,7 +157,8 @@ void Fan::publish_state() {
 constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
 optional<FanRestoreState> Fan::restore_state_() {
   FanRestoreState recovered{};
-  this->rtc_ = global_preferences->make_preference<FanRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
+  this->rtc_ =
+      global_preferences->make_preference<FanRestoreState>(this->get_preference_hash() ^ RESTORE_STATE_VERSION);
   bool restored = this->rtc_.load(&recovered);
 
   switch (this->restore_mode_) {
@@ -168,18 +187,29 @@ optional<FanRestoreState> Fan::restore_state_() {
   return {};
 }
 void Fan::save_state_() {
+  if (this->restore_mode_ == FanRestoreMode::NO_RESTORE) {
+    return;
+  }
+
+  auto traits = this->get_traits();
+
   FanRestoreState state{};
   state.state = this->state;
   state.oscillating = this->oscillating;
   state.speed = this->speed;
   state.direction = this->direction;
 
-  if (this->get_traits().supports_preset_modes() && !this->preset_mode.empty()) {
-    const auto &preset_modes = this->get_traits().supported_preset_modes();
+  if (traits.supports_preset_modes() && !this->preset_mode.empty()) {
+    const auto &preset_modes = traits.supported_preset_modes();
     // Store index of current preset mode
-    auto preset_iterator = preset_modes.find(this->preset_mode);
-    if (preset_iterator != preset_modes.end())
-      state.preset_mode = std::distance(preset_modes.begin(), preset_iterator);
+    size_t i = 0;
+    for (const auto &mode : preset_modes) {
+      if (strcmp(mode, this->preset_mode.c_str()) == 0) {
+        state.preset_mode = i;
+        break;
+      }
+      i++;
+    }
   }
 
   this->rtc_.save(&state);
@@ -189,8 +219,10 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   auto traits = this->get_traits();
 
   if (traits.supports_speed()) {
-    ESP_LOGCONFIG(tag, "%s  Speed: YES", prefix);
-    ESP_LOGCONFIG(tag, "%s  Speed count: %d", prefix, traits.supported_speed_count());
+    ESP_LOGCONFIG(tag,
+                  "%s  Speed: YES\n"
+                  "%s  Speed count: %d",
+                  prefix, prefix, traits.supported_speed_count());
   }
   if (traits.supports_oscillation()) {
     ESP_LOGCONFIG(tag, "%s  Oscillation: YES", prefix);
@@ -200,8 +232,8 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (traits.supports_preset_modes()) {
     ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
-    for (const std::string &s : traits.supported_preset_modes())
-      ESP_LOGCONFIG(tag, "%s    - %s", prefix, s.c_str());
+    for (const char *s : traits.supported_preset_modes())
+      ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
   }
 }
 

@@ -1,8 +1,9 @@
 substitutions:
-  scl_pin: GPIO16
-  sda_pin: GPIO17
-  reset_pin: GPIO13
+  display_reset_pin: GPIO13
   interrupt_pin: GPIO14
-  rts_pin: GPIO15
+  touch_reset_pin: GPIO15
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 <<: !include common.yaml

@@ -1,5 +1,6 @@
 #include "cse7766.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace cse7766 {
@@ -7,7 +8,7 @@ namespace cse7766 {
 static const char *const TAG = "cse7766";
 
 void CSE7766Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
     // last transmission too long ago. Reset RX index.
     this->raw_data_index_ = 0;
@@ -220,11 +221,6 @@ void CSE7766Component::parse_data_() {
     ESP_LOGVV(TAG, "%s", buf.c_str());
   }
 #endif
-}
-
-uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
-  return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
-         uint32_t(this->raw_data_[start_index + 2]);
 }
 
 void CSE7766Component::dump_config() {

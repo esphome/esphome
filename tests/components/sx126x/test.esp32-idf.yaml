@@ -1,0 +1,10 @@
+substitutions:
+  cs_pin: GPIO12
+  rst_pin: GPIO13
+  busy_pin: GPIO25
+  dio1_pin: GPIO26
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml

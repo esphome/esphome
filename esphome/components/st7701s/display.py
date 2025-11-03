@@ -2,9 +2,17 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.esp32 import const, only_on_variant
-from esphome.components.rpi_dpi_rgb.display import (
+from esphome.components.mipi import (
+    CONF_DE_PIN,
+    CONF_HSYNC_BACK_PORCH,
+    CONF_HSYNC_FRONT_PORCH,
+    CONF_HSYNC_PULSE_WIDTH,
     CONF_PCLK_FREQUENCY,
     CONF_PCLK_INVERTED,
+    CONF_PCLK_PIN,
+    CONF_VSYNC_BACK_PORCH,
+    CONF_VSYNC_FRONT_PORCH,
+    CONF_VSYNC_PULSE_WIDTH,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -35,16 +43,6 @@ from esphome.const import (
 from esphome.core import TimePeriod
 
 from .init_sequences import ST7701S_INITS, cmd
-
-CONF_DE_PIN = "de_pin"
-CONF_PCLK_PIN = "pclk_pin"
-
-CONF_HSYNC_PULSE_WIDTH = "hsync_pulse_width"
-CONF_HSYNC_BACK_PORCH = "hsync_back_porch"
-CONF_HSYNC_FRONT_PORCH = "hsync_front_porch"
-CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
-CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
-CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 
 DEPENDENCIES = ["spi", "esp32"]
 
@@ -191,7 +189,6 @@ async def to_code(config):
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
-    index = 0
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:
         red_pins = config[CONF_DATA_PINS][CONF_RED]
@@ -209,10 +206,9 @@ async def to_code(config):
         dpins = dpins[8:16] + dpins[0:8]
     else:
         dpins = config[CONF_DATA_PINS]
-    for pin in dpins:
+    for index, pin in enumerate(dpins):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
-        index += 1
 
     if dc_pin := config.get(CONF_DC_PIN):
         dc = await cg.gpio_pin_expression(dc_pin)

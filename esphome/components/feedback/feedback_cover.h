@@ -16,7 +16,6 @@ class FeedbackCover : public cover::Cover, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   Trigger<> *get_open_trigger() const { return this->open_trigger_; }
   Trigger<> *get_close_trigger() const { return this->close_trigger_; }

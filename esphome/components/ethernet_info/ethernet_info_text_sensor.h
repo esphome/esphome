@@ -29,7 +29,6 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
   }
 
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
-  std::string unique_id() override { return get_mac_address() + "-ethernetinfo"; }
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
@@ -52,7 +51,6 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
     }
   }
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
-  std::string unique_id() override { return get_mac_address() + "-ethernetinfo-dns"; }
   void dump_config() override;
 
  protected:
@@ -62,7 +60,7 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
 class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor {
  public:
   void setup() override { this->publish_state(ethernet::global_eth_component->get_eth_mac_address_pretty()); }
-  std::string unique_id() override { return get_mac_address() + "-ethernetinfo-mac"; }
+  float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void dump_config() override;
 };
 

@@ -46,9 +46,9 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    text.TEXT_SCHEMA.extend(
+    text.text_schema(TemplateText)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateText),
             cv.Optional(CONF_MIN_LENGTH, default=0): cv.int_range(min=0, max=255),
             cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=255),
             cv.Optional(CONF_PATTERN): cv.string,
@@ -58,7 +58,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
         }
-    ).extend(cv.polling_component_schema("60s")),
+    )
+    .extend(cv.polling_component_schema("60s")),
     validate,
 )
 

@@ -3,8 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/as3935/as3935.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
 namespace as3935_spi {

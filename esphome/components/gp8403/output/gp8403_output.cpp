@@ -10,8 +10,10 @@ static const char *const TAG = "gp8403.output";
 static const uint8_t OUTPUT_REGISTER = 0x02;
 
 void GP8403Output::dump_config() {
-  ESP_LOGCONFIG(TAG, "GP8403 Output:");
-  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
+  ESP_LOGCONFIG(TAG,
+                "GP8403 Output:\n"
+                "  Channel: %u",
+                this->channel_);
 }
 
 void GP8403Output::write_state(float state) {

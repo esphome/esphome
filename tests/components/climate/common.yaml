@@ -1,0 +1,31 @@
+switch:
+  - platform: template
+    id: climate_heater_switch
+    optimistic: true
+  - platform: template
+    id: climate_cooler_switch
+    optimistic: true
+
+sensor:
+  - platform: template
+    id: climate_temperature_sensor
+    lambda: |-
+      return 21.5;
+    update_interval: 60s
+
+climate:
+  - platform: bang_bang
+    id: climate_test_climate
+    name: Test Climate
+    sensor: climate_temperature_sensor
+    default_target_temperature_low: 18°C
+    default_target_temperature_high: 24°C
+    idle_action:
+      - switch.turn_off: climate_heater_switch
+      - switch.turn_off: climate_cooler_switch
+    cool_action:
+      - switch.turn_on: climate_cooler_switch
+      - switch.turn_off: climate_heater_switch
+    heat_action:
+      - switch.turn_on: climate_heater_switch
+      - switch.turn_off: climate_cooler_switch

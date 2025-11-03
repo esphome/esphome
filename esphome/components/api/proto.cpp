@@ -1,81 +1,140 @@
 #include "proto.h"
 #include <cinttypes>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
-void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
-  uint32_t i = 0;
-  bool error = false;
-  while (i < length) {
+uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id) {
+  uint32_t count = 0;
+  const uint8_t *ptr = buffer;
+  const uint8_t *end = buffer + length;
+
+  while (ptr < end) {
     uint32_t consumed;
-    auto res = ProtoVarInt::parse(&buffer[i], length - i, &consumed);
+
+    // Parse field header (tag)
+    auto res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
     if (!res.has_value()) {
-      ESP_LOGV(TAG, "Invalid field start at %" PRIu32, i);
-      break;
+      break;  // Invalid data, stop counting
     }
 
-    uint32_t field_type = (res->as_uint32()) & 0b111;
-    uint32_t field_id = (res->as_uint32()) >> 3;
-    i += consumed;
+    uint32_t tag = res->as_uint32();
+    uint32_t field_type = tag & WIRE_TYPE_MASK;
+    uint32_t field_id = tag >> 3;
+    ptr += consumed;
+
+    // Count if this is the target field
+    if (field_id == target_field_id) {
+      count++;
+    }
+
+    // Skip field data based on wire type
+    switch (field_type) {
+      case WIRE_TYPE_VARINT: {  // VarInt - parse and skip
+        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        if (!res.has_value()) {
+          return count;  // Invalid data, return what we have
+        }
+        ptr += consumed;
+        break;
+      }
+      case WIRE_TYPE_LENGTH_DELIMITED: {  // Length-delimited - parse length and skip data
+        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        if (!res.has_value()) {
+          return count;
+        }
+        uint32_t field_length = res->as_uint32();
+        ptr += consumed;
+        if (ptr + field_length > end) {
+          return count;  // Out of bounds
+        }
+        ptr += field_length;
+        break;
+      }
+      case WIRE_TYPE_FIXED32: {  // 32-bit - skip 4 bytes
+        if (ptr + 4 > end) {
+          return count;
+        }
+        ptr += 4;
+        break;
+      }
+      default:
+        // Unknown wire type, can't continue
+        return count;
+    }
+  }
+
+  return count;
+}
+
+void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
+  const uint8_t *ptr = buffer;
+  const uint8_t *end = buffer + length;
+
+  while (ptr < end) {
+    uint32_t consumed;
+
+    // Parse field header
+    auto res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+    if (!res.has_value()) {
+      ESP_LOGV(TAG, "Invalid field start at offset %ld", (long) (ptr - buffer));
+      return;
+    }
+
+    uint32_t tag = res->as_uint32();
+    uint32_t field_type = tag & WIRE_TYPE_MASK;
+    uint32_t field_id = tag >> 3;
+    ptr += consumed;
 
     switch (field_type) {
-      case 0: {  // VarInt
-        res = ProtoVarInt::parse(&buffer[i], length - i, &consumed);
+      case WIRE_TYPE_VARINT: {  // VarInt
+        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
         if (!res.has_value()) {
-          ESP_LOGV(TAG, "Invalid VarInt at %" PRIu32, i);
-          error = true;
-          break;
+          ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
+          return;
         }
         if (!this->decode_varint(field_id, *res)) {
           ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu32 "!", field_id, res->as_uint32());
         }
-        i += consumed;
+        ptr += consumed;
         break;
       }
-      case 2: {  // Length-delimited
-        res = ProtoVarInt::parse(&buffer[i], length - i, &consumed);
+      case WIRE_TYPE_LENGTH_DELIMITED: {  // Length-delimited
+        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
         if (!res.has_value()) {
-          ESP_LOGV(TAG, "Invalid Length Delimited at %" PRIu32, i);
-          error = true;
-          break;
+          ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
+          return;
         }
         uint32_t field_length = res->as_uint32();
-        i += consumed;
-        if (field_length > length - i) {
-          ESP_LOGV(TAG, "Out-of-bounds Length Delimited at %" PRIu32, i);
-          error = true;
-          break;
+        ptr += consumed;
+        if (ptr + field_length > end) {
+          ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
+          return;
         }
-        if (!this->decode_length(field_id, ProtoLengthDelimited(&buffer[i], field_length))) {
+        if (!this->decode_length(field_id, ProtoLengthDelimited(ptr, field_length))) {
           ESP_LOGV(TAG, "Cannot decode Length Delimited field %" PRIu32 "!", field_id);
         }
-        i += field_length;
+        ptr += field_length;
         break;
       }
-      case 5: {  // 32-bit
-        if (length - i < 4) {
-          ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at %" PRIu32, i);
-          error = true;
-          break;
+      case WIRE_TYPE_FIXED32: {  // 32-bit
+        if (ptr + 4 > end) {
+          ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
+          return;
         }
-        uint32_t val = encode_uint32(buffer[i + 3], buffer[i + 2], buffer[i + 1], buffer[i]);
+        uint32_t val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
         if (!this->decode_32bit(field_id, Proto32Bit(val))) {
           ESP_LOGV(TAG, "Cannot decode 32-bit field %" PRIu32 " with value %" PRIu32 "!", field_id, val);
         }
-        i += 4;
+        ptr += 4;
         break;
       }
       default:
-        ESP_LOGV(TAG, "Invalid field type at %" PRIu32, i);
-        error = true;
-        break;
-    }
-    if (error) {
-      break;
+        ESP_LOGV(TAG, "Invalid field type %u at offset %ld", field_type, (long) (ptr - buffer));
+        return;
     }
   }
 }
@@ -88,5 +147,4 @@ std::string ProtoMessage::dump() const {
 }
 #endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api

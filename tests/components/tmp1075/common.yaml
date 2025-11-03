@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_tmp1075
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: tmp1075
+    i2c_id: i2c_bus
     name: Temperature TMP1075
     conversion_rate: 27.5ms
     alert:

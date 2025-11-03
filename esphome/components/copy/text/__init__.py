@@ -9,12 +9,15 @@ from .. import copy_ns
 CopyText = copy_ns.class_("CopyText", text.Text, cg.Component)
 
 
-CONFIG_SCHEMA = text.TEXT_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(CopyText),
-        cv.Required(CONF_SOURCE_ID): cv.use_id(text.Text),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    text.text_schema(CopyText)
+    .extend(
+        {
+            cv.Required(CONF_SOURCE_ID): cv.use_id(text.Text),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     inherit_property_from(CONF_ICON, CONF_SOURCE_ID),

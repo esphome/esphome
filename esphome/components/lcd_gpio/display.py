@@ -41,9 +41,7 @@ CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await lcd_base.setup_lcd_display(var, config)
-    pins_ = []
-    for conf in config[CONF_DATA_PINS]:
-        pins_.append(await cg.gpio_pin_expression(conf))
+    pins_ = [await cg.gpio_pin_expression(conf) for conf in config[CONF_DATA_PINS]]
     cg.add(var.set_data_pins(*pins_))
     enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
     cg.add(var.set_enable_pin(enable))

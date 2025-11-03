@@ -11,8 +11,6 @@ const std::string &OneWireDevice::get_address_name() {
   return this->address_name_;
 }
 
-std::string OneWireDevice::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
-
 bool OneWireDevice::send_command_(uint8_t cmd) {
   if (!this->bus_->select(this->address_))
     return false;
