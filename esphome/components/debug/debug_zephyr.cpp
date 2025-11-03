@@ -333,8 +333,7 @@ void DebugComponent::get_device_info_(std::string &device_info) {
       if (i > 0) {
         res += ' ';
       }
-      sprintf(buf, "%08X", data[i]);
-      res += buf;
+      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
     }
     return res;
   };
