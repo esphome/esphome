@@ -175,7 +175,6 @@ class LvglComponent : public PollingComponent {
   static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px);
   static void render_start_cb(lv_disp_drv_t *disp_drv);
   void dump_config() override;
-  bool is_idle(uint32_t idle_ms) { return lv_disp_get_inactive_time(this->disp_) > idle_ms; }
   lv_disp_t *get_disp() { return this->disp_; }
   lv_obj_t *get_scr_act() { return lv_disp_get_scr_act(this->disp_); }
   // Pause or resume the display.
