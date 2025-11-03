@@ -17,6 +17,7 @@ namespace esp32_hosted {
 
 static const char *const TAG = "esp32_hosted.update";
 
+// older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
 void Esp32HostedUpdate::setup() {
@@ -156,7 +157,7 @@ void Esp32HostedUpdate::perform(bool force) {
   this->publish_state();
 
   // schedule a restart to ensure everything is in sync
-  ESP_LOGI(TAG, "Restarting in 1 second...");
+  ESP_LOGI(TAG, "Restarting in 1 second");
   this->set_timeout(1000, []() { App.safe_reboot(); });
 }
 

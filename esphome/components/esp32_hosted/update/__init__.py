@@ -1,4 +1,5 @@
 import hashlib
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, update
@@ -18,7 +19,7 @@ Esp32HostedUpdate = esp32_hosted_ns.class_(
 )
 
 
-def _validate_sha256(value):
+def _validate_sha256(value: Any) -> str:
     value = cv.string_strict(value)
     if len(value) != 64:
         raise cv.Invalid("SHA256 must be 64 hexadecimal characters")
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_firmware(config):
+def _validate_firmware(config: dict[str, Any]) -> None:
     path = CORE.relative_config_path(config[CONF_PATH])
     with open(path, "rb") as f:
         firmware_data = f.read()
@@ -61,7 +62,7 @@ def _validate_firmware(config):
 FINAL_VALIDATE_SCHEMA = _validate_firmware
 
 
-async def to_code(config):
+async def to_code(config: dict[str, Any]) -> None:
     var = await update.new_update(config)
 
     path = config[CONF_PATH]
