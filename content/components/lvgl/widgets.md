@@ -789,6 +789,35 @@ on_...:
 
 The `checkbox` can be also integrated as a {{< docref "/components/switch/lvgl" "Switch" >}} component.
 
+{{< anchor "lvgl-widget-container" >}}
+
+## `container`
+
+A `container` is an unstyled widget that is, as the name suggests, intended to act as a container for other widgets.
+It is functionally identical to an [`obj`](#obj) but has no styles applied to it, so without any styling or widgets
+it is invisible. It has a default width and height of 100%.
+
+**Configuration variables:**
+
+- Style options from [Style properties](#lvgl-styling).
+
+**Triggers:**
+
+- [interaction](#lvgl-automation-triggers) LVGL event triggers.
+
+**Example:**
+
+```yaml
+# Example widget:
+- container:
+    x: 10
+    y: 10
+    width: 220
+    height: 300
+    widgets:
+      - ...
+```
+
 {{< anchor "lvgl-widget-dropdown" >}}
 
 ## `dropdown`
@@ -1334,7 +1363,9 @@ The base object is just a simple, empty widget. By default, it's nothing more th
 
 {{< img src="lvgl_baseobj.png" alt="Image" class="align-center" >}}
 
-You can use it as a parent container for other widgets. By default, it catches touches.
+You can use it as a parent container for other widgets. By default, it catches touches. Since `obj` has default
+styling applied, you may choose to use [`container`](#container) instead if the role is simply to group other
+widgets.
 
 **Configuration variables:**
 
