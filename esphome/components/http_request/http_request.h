@@ -255,7 +255,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
       buf = allocator.allocate(max_length);
 
       if (buf != nullptr) {
-        this->active_requests_.push_back(std::make_tuple(container, buf, max_length, captured_args));
+        this->active_requests_.push_front(std::make_tuple(container, buf, max_length, captured_args));
+        this->enable_loop();
       } else {
         std::apply(
             [this, &container](Ts... captured_args_inner) {
@@ -339,10 +340,14 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...>, pub
       // request done, can be removed from active list
       return true;
     });
+
+    if (this->active_requests_.empty()) {
+      this->disable_loop();
+    }
   }
 
  protected:
-  std::list<std::tuple<std::shared_ptr<HttpContainer>, uint8_t *, size_t, std::tuple<Ts...>>> active_requests_{};
+  std::forward_list<std::tuple<std::shared_ptr<HttpContainer>, uint8_t *, size_t, std::tuple<Ts...>>> active_requests_{};
   void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
