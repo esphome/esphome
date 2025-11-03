@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tinyusb {
+namespace esphome::tinyusb {
 
 static const char *TAG = "tinyusb";
 
@@ -19,7 +18,7 @@ void TinyUSB::setup() {
   this->tusb_cfg_ = {
       .descriptor = &this->usb_descriptor_,
       .string_descriptor = this->string_descriptor_,
-      .string_descriptor_count = 6,
+      .string_descriptor_count = SIZE,
       .external_phy = false,
   };
 
@@ -38,6 +37,5 @@ void TinyUSB::dump_config() {
                 this->string_descriptor_[PRODUCT], this->string_descriptor_[SERIAL_NUMBER]);
 }
 
-}  // namespace tinyusb
-}  // namespace esphome
+}  // namespace esphome::tinyusb
 #endif

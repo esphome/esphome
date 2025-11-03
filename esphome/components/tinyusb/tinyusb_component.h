@@ -5,8 +5,7 @@
 #include "tinyusb.h"
 #include "tusb.h"
 
-namespace esphome {
-namespace tinyusb {
+namespace esphome::tinyusb {
 
 enum USBDStringDescriptor : uint8_t {
   LANGUAGE_ID = 0,
@@ -69,6 +68,5 @@ class TinyUSB : public Component {
   };
 };
 
-}  // namespace tinyusb
-}  // namespace esphome
+}  // namespace esphome::tinyusb
 #endif
