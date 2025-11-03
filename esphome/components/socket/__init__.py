@@ -3,7 +3,6 @@ from collections.abc import Callable, MutableMapping
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
-from esphome.cpp_generator import add_define
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -60,7 +59,7 @@ def require_wake_loop_threadsafe() -> None:
     # Only set up once (idempotent - multiple components can call this)
     if not CORE.data.get(KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False):
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
-        add_define("USE_WAKE_LOOP_THREADSAFE")
+        cg.add_define("USE_WAKE_LOOP_THREADSAFE")
         # Consume 1 socket for the shared wake notification socket
         consume_sockets(1, "socket.wake_loop_threadsafe")({})
 
