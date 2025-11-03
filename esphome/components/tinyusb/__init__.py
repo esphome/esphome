@@ -5,6 +5,8 @@ from esphome.components.esp32.const import VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
+CODEOWNERS = ["@kbx81"]
+
 CONF_USB_LANG_ID = "usb_lang_id"
 CONF_USB_MANUFACTURER_STR = "usb_manufacturer_str"
 CONF_USB_PRODUCT_ID = "usb_product_id"
