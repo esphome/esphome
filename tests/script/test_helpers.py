@@ -1109,10 +1109,18 @@ def test_get_component_from_path(
 
 @pytest.fixture
 def mock_git_output() -> str:
-    """Fixture for mock git ls-files output."""
+    """Fixture for mock git ls-files output with realistic component files.
+
+    Includes examples of AUTO_LOAD in sensor.py and binary_sensor.py files,
+    which is why we need to hash all .py files, not just __init__.py.
+    """
     return (
         "100644 abc123... 0 esphome/components/wifi/__init__.py\n"
         "100644 def456... 0 esphome/components/api/__init__.py\n"
+        "100644 ghi789... 0 esphome/components/xiaomi_lywsd03mmc/__init__.py\n"
+        "100644 jkl012... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+        "100644 mno345... 0 esphome/components/xiaomi_cgpr1/__init__.py\n"
+        "100644 pqr678... 0 esphome/components/xiaomi_cgpr1/binary_sensor.py\n"
     )
 
 
@@ -1163,12 +1171,22 @@ def test_cache_key_consistent_for_same_files(
 
 
 def test_cache_key_different_for_changed_files(mock_subprocess_run: Mock) -> None:
-    """Test that different git output produces different cache key."""
+    """Test that different git output produces different cache key.
+
+    This test demonstrates that changes to any .py file (not just __init__.py)
+    will invalidate the cache, which is important because AUTO_LOAD can be
+    defined in sensor.py, binary_sensor.py, etc.
+    """
     mock_result1 = Mock()
-    mock_result1.stdout = "100644 abc123... 0 esphome/components/wifi/__init__.py\n"
+    mock_result1.stdout = (
+        "100644 abc123... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+    )
 
     mock_result2 = Mock()
-    mock_result2.stdout = "100644 xyz789... 0 esphome/components/wifi/__init__.py\n"
+    # Same file, different hash - simulates a change to AUTO_LOAD
+    mock_result2.stdout = (
+        "100644 xyz789... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+    )
 
     mock_subprocess_run.return_value = mock_result1
     key1 = helpers.get_components_graph_cache_key()
@@ -1197,7 +1215,7 @@ def test_cache_key_uses_git_ls_files(
         "git",
         "ls-files",
         "-s",
-        "esphome/components/**/__init__.py",
+        "esphome/components/**/*.py",
     ]
     assert call_args[1]["capture_output"] is True
     assert call_args[1]["text"] is True

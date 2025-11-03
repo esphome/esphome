@@ -759,7 +759,7 @@ def resolve_auto_load(
 
 @cache
 def get_components_graph_cache_key() -> str:
-    """Generate cache key based on all component __init__.py file hashes.
+    """Generate cache key based on all component Python file hashes.
 
     Uses git ls-files with sha1 hashes to generate a stable cache key that works
     across different machines and CI runs. This is faster and more reliable than
@@ -769,16 +769,18 @@ def get_components_graph_cache_key() -> str:
         SHA256 hex string uniquely identifying the current component state
     """
 
-    # Use git ls-files -s to get sha1 hashes of all component __init__.py files
+    # Use git ls-files -s to get sha1 hashes of all component Python files
     # Format: <mode> <sha1> <stage> <path>
     # This is fast and works consistently across CI and local dev
-    cmd = ["git", "ls-files", "-s", "esphome/components/**/__init__.py"]
+    # We hash all .py files because AUTO_LOAD, DEPENDENCIES, etc. can be defined
+    # in any Python file, not just __init__.py
+    cmd = ["git", "ls-files", "-s", "esphome/components/**/*.py"]
     result = subprocess.run(
         cmd, capture_output=True, text=True, check=True, cwd=root_path, close_fds=False
     )
 
     # Hash the git output (includes file paths and their sha1 hashes)
-    # This changes only when component __init__.py files actually change
+    # This changes only when component Python files actually change
     hasher = hashlib.sha256()
     hasher.update(result.stdout.encode())
 
