@@ -136,7 +136,9 @@ void SplitBuffer::fill(uint8_t value) const {
   }
   // clear the last, potentially short, buffer.
   // `i` is guaranteed to equal the last index since the loop terminates at that value.
-  memset(this->buffers_[i], value, this->total_length_ % this->buffer_size_);
+  // where all buffers are the same size, the modulus must return the size, not 0.
+  auto size_last = ((this->total_length_ - 1) % this->buffer_size_) + 1;
+  memset(this->buffers_[i], value, size_last);
 }
 
 }  // namespace esphome::split_buffer

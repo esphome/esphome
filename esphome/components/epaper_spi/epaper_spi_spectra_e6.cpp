@@ -8,25 +8,70 @@ namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.6c";
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
 
+enum E6Color {
+  BLACK,
+  WHITE,
+  YELLOW,
+  RED,
+  SKIP_1,
+  BLUE,
+  GREEN,
+  CYAN,
+  SKIP_2,
+};
+
 static uint8_t color_to_hex(Color color) {
-  if (!color.is_on())
-    return 0x0;  // black
-  if (color.red > 127) {
-    if (color.green > 170) {
-      if (color.blue > 127)
-        return 0x1;  // White
-      return 0x2;    // Yellow
+  // --- Step 1: Check for Grayscale (Black or White) ---
+  // We define "grayscale" as a color where the min and max components
+  // are close to each other.
+  const unsigned char GRAY_THRESHOLD = 50;
+  unsigned char max_rgb = std::max({color.r, color.g, color.b});
+  unsigned char min_rgb = std::min({color.r, color.g, color.b});
+
+  if ((max_rgb - min_rgb) < GRAY_THRESHOLD) {
+    // It's a shade of gray. Map to BLACK or WHITE.
+    // We split the luminance at the halfway point (382 = (255*3)/2)
+    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
+      return WHITE;
     }
-    return 0x3;  // Red (or Magenta)
+    return BLACK;
   }
-  if (color.green > 127) {
-    if (color.blue > 127)
-      return 0x5;  // Cyan -> Blue
-    return 0x6;    // Green
+  // --- Step 2: Check for Primary/Secondary Colors ---
+  // If it's not gray, it's a color. We check which components are
+  // "on" (over 128) vs "off". This divides the RGB cube into 8 corners.
+  bool r_on = (color.r > 128);
+  bool g_on = (color.g > 128);
+  bool b_on = (color.b > 128);
+
+  if (r_on && g_on && !b_on) {
+    return YELLOW;
   }
-  if (color.blue > 127)
-    return 0x5;  // Blue
-  return 0x0;    // Black
+  if (r_on && !g_on && !b_on) {
+    return RED;
+  }
+  if (!r_on && g_on && !b_on) {
+    return GREEN;
+  }
+  if (!r_on && !g_on && b_on) {
+    return BLUE;
+  }
+  // Handle "impure" colors (Cyan, Magenta)
+  if (!r_on && g_on && b_on) {
+    // Cyan (G+B) -> Closest is Green or Blue. Pick Green.
+    return GREEN;
+  }
+  if (r_on && !g_on) {
+    // Magenta (R+B) -> Closest is Red or Blue. Pick Red.
+    return RED;
+  }
+  // Handle the remaining corners (White-ish, Black-ish)
+  if (r_on) {
+    // All high (but not gray) -> White
+    return WHITE;
+  }
+  // !r_on && !g_on && !b_on
+  // All low (but not gray) -> Black
+  return BLACK;
 }
 
 void EPaperSpectraE6::power_on() {
