@@ -124,6 +124,8 @@ class ClimateCall {
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<ClimatePreset> preset_;
+
+ private:
   const char *custom_fan_mode_{nullptr};
   const char *custom_preset_{nullptr};
 };

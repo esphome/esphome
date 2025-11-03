@@ -1200,443 +1200,436 @@ void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
       // The old code had these lines here unconditionally, which was a bug (double assignment, state modification
       // even when no changes were needed). Now properly handled by the protected setter with mutual exclusion.
     }
-    else {
-      ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset.c_str());
-    }
+  } else {
+    ESP_LOGW(TAG, "Custom preset %s not configured; ignoring", custom_preset);
   }
+}
 
-  bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTempConfig &config) {
-    bool something_changed = false;
+bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTempConfig &config) {
+  bool something_changed = false;
 
-    if (this->supports_two_points_) {
-      if (this->target_temperature_low != config.default_temperature_low) {
-        this->target_temperature_low = config.default_temperature_low;
-        something_changed = true;
-      }
-      if (this->target_temperature_high != config.default_temperature_high) {
-        this->target_temperature_high = config.default_temperature_high;
-        something_changed = true;
-      }
-    } else {
-      if (this->target_temperature != config.default_temperature) {
-        this->target_temperature = config.default_temperature;
-        something_changed = true;
-      }
-    }
-
-    // Note: The mode, fan_mode and swing_mode can all be defined in the preset but if the climate.control call
-    //  also specifies them then the climate.control call's values will override the preset's values for that call
-    if (config.mode_.has_value() && (this->mode != config.mode_.value())) {
-      ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config.mode_)));
-      this->mode = *config.mode_;
+  if (this->supports_two_points_) {
+    if (this->target_temperature_low != config.default_temperature_low) {
+      this->target_temperature_low = config.default_temperature_low;
       something_changed = true;
     }
-
-    if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_.value())) {
-      ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
-      this->fan_mode = *config.fan_mode_;
+    if (this->target_temperature_high != config.default_temperature_high) {
+      this->target_temperature_high = config.default_temperature_high;
       something_changed = true;
     }
-
-    if (config.swing_mode_.has_value() && (this->swing_mode != config.swing_mode_.value())) {
-      ESP_LOGV(TAG, "Setting swing mode to %s",
-               LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
-      this->swing_mode = *config.swing_mode_;
+  } else {
+    if (this->target_temperature != config.default_temperature) {
+      this->target_temperature = config.default_temperature;
       something_changed = true;
     }
-
-    return something_changed;
   }
 
-  void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
-                                            const ThermostatClimateTargetTempConfig &config) {
-    this->preset_config_[preset] = config;
+  // Note: The mode, fan_mode and swing_mode can all be defined in the preset but if the climate.control call
+  //  also specifies them then the climate.control call's values will override the preset's values for that call
+  if (config.mode_.has_value() && (this->mode != config.mode_.value())) {
+    ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config.mode_)));
+    this->mode = *config.mode_;
+    something_changed = true;
   }
 
-  void ThermostatClimate::set_custom_preset_config(const std::string &name,
-                                                   const ThermostatClimateTargetTempConfig &config) {
-    this->custom_preset_config_[name] = config;
+  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_.value())) {
+    ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
+    this->fan_mode = *config.fan_mode_;
+    something_changed = true;
   }
 
-  ThermostatClimate::ThermostatClimate()
-      : cool_action_trigger_(new Trigger<>()),
-        supplemental_cool_action_trigger_(new Trigger<>()),
-        cool_mode_trigger_(new Trigger<>()),
-        dry_action_trigger_(new Trigger<>()),
-        dry_mode_trigger_(new Trigger<>()),
-        heat_action_trigger_(new Trigger<>()),
-        supplemental_heat_action_trigger_(new Trigger<>()),
-        heat_mode_trigger_(new Trigger<>()),
-        heat_cool_mode_trigger_(new Trigger<>()),
-        auto_mode_trigger_(new Trigger<>()),
-        idle_action_trigger_(new Trigger<>()),
-        off_mode_trigger_(new Trigger<>()),
-        fan_only_action_trigger_(new Trigger<>()),
-        fan_only_mode_trigger_(new Trigger<>()),
-        fan_mode_on_trigger_(new Trigger<>()),
-        fan_mode_off_trigger_(new Trigger<>()),
-        fan_mode_auto_trigger_(new Trigger<>()),
-        fan_mode_low_trigger_(new Trigger<>()),
-        fan_mode_medium_trigger_(new Trigger<>()),
-        fan_mode_high_trigger_(new Trigger<>()),
-        fan_mode_middle_trigger_(new Trigger<>()),
-        fan_mode_focus_trigger_(new Trigger<>()),
-        fan_mode_diffuse_trigger_(new Trigger<>()),
-        fan_mode_quiet_trigger_(new Trigger<>()),
-        swing_mode_both_trigger_(new Trigger<>()),
-        swing_mode_off_trigger_(new Trigger<>()),
-        swing_mode_horizontal_trigger_(new Trigger<>()),
-        swing_mode_vertical_trigger_(new Trigger<>()),
-        humidity_change_trigger_(new Trigger<>()),
-        temperature_change_trigger_(new Trigger<>()),
-        preset_change_trigger_(new Trigger<>()),
-        humidity_control_dehumidify_action_trigger_(new Trigger<>()),
-        humidity_control_humidify_action_trigger_(new Trigger<>()),
-        humidity_control_off_action_trigger_(new Trigger<>()) {}
-
-  void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
-    this->default_custom_preset_ = custom_preset;
+  if (config.swing_mode_.has_value() && (this->swing_mode != config.swing_mode_.value())) {
+    ESP_LOGV(TAG, "Setting swing mode to %s", LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
+    this->swing_mode = *config.swing_mode_;
+    something_changed = true;
   }
 
-  void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
+  return something_changed;
+}
 
-  void ThermostatClimate::set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from) {
-    this->on_boot_restore_from_ = on_boot_restore_from;
-  }
-  void ThermostatClimate::set_set_point_minimum_differential(float differential) {
-    this->set_point_minimum_differential_ = differential;
-  }
-  void ThermostatClimate::set_cool_deadband(float deadband) { this->cooling_deadband_ = deadband; }
-  void ThermostatClimate::set_cool_overrun(float overrun) { this->cooling_overrun_ = overrun; }
-  void ThermostatClimate::set_heat_deadband(float deadband) { this->heating_deadband_ = deadband; }
-  void ThermostatClimate::set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
-  void ThermostatClimate::set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
-  void ThermostatClimate::set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
-  void ThermostatClimate::set_cooling_maximum_run_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_cooling_minimum_off_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_OFF].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_cooling_minimum_run_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_ON].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_fan_mode_minimum_switching_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_FAN_MODE].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_fanning_minimum_off_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_OFF].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_fanning_minimum_run_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_ON].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_heating_maximum_run_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_heating_minimum_off_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_OFF].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_heating_minimum_run_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_ON].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
-    this->timer_[thermostat::THERMOSTAT_TIMER_IDLE_ON].time =
-        1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
-  }
-  void ThermostatClimate::set_sensor(sensor::Sensor * sensor) { this->sensor_ = sensor; }
-  void ThermostatClimate::set_humidity_sensor(sensor::Sensor * humidity_sensor) {
-    this->humidity_sensor_ = humidity_sensor;
-  }
-  void ThermostatClimate::set_humidity_hysteresis(float humidity_hysteresis) {
-    this->humidity_hysteresis_ = std::clamp<float>(humidity_hysteresis, 0.0f, 100.0f);
-  }
-  void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) {
-    this->use_startup_delay_ = use_startup_delay;
-  }
-  void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
-    this->supports_heat_cool_ = supports_heat_cool;
-  }
-  void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
-  void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-  void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
-  void ThermostatClimate::set_supports_fan_only(bool supports_fan_only) {
-    this->supports_fan_only_ = supports_fan_only;
-  }
-  void ThermostatClimate::set_supports_fan_only_action_uses_fan_mode_timer(
-      bool supports_fan_only_action_uses_fan_mode_timer) {
-    this->supports_fan_only_action_uses_fan_mode_timer_ = supports_fan_only_action_uses_fan_mode_timer;
-  }
-  void ThermostatClimate::set_supports_fan_only_cooling(bool supports_fan_only_cooling) {
-    this->supports_fan_only_cooling_ = supports_fan_only_cooling;
-  }
-  void ThermostatClimate::set_supports_fan_with_cooling(bool supports_fan_with_cooling) {
-    this->supports_fan_with_cooling_ = supports_fan_with_cooling;
-  }
-  void ThermostatClimate::set_supports_fan_with_heating(bool supports_fan_with_heating) {
-    this->supports_fan_with_heating_ = supports_fan_with_heating;
-  }
-  void ThermostatClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void ThermostatClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) {
-    this->supports_fan_mode_on_ = supports_fan_mode_on;
-  }
-  void ThermostatClimate::set_supports_fan_mode_off(bool supports_fan_mode_off) {
-    this->supports_fan_mode_off_ = supports_fan_mode_off;
-  }
-  void ThermostatClimate::set_supports_fan_mode_auto(bool supports_fan_mode_auto) {
-    this->supports_fan_mode_auto_ = supports_fan_mode_auto;
-  }
-  void ThermostatClimate::set_supports_fan_mode_low(bool supports_fan_mode_low) {
-    this->supports_fan_mode_low_ = supports_fan_mode_low;
-  }
-  void ThermostatClimate::set_supports_fan_mode_medium(bool supports_fan_mode_medium) {
-    this->supports_fan_mode_medium_ = supports_fan_mode_medium;
-  }
-  void ThermostatClimate::set_supports_fan_mode_high(bool supports_fan_mode_high) {
-    this->supports_fan_mode_high_ = supports_fan_mode_high;
-  }
-  void ThermostatClimate::set_supports_fan_mode_middle(bool supports_fan_mode_middle) {
-    this->supports_fan_mode_middle_ = supports_fan_mode_middle;
-  }
-  void ThermostatClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus) {
-    this->supports_fan_mode_focus_ = supports_fan_mode_focus;
-  }
-  void ThermostatClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
-    this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
-  }
-  void ThermostatClimate::set_supports_fan_mode_quiet(bool supports_fan_mode_quiet) {
-    this->supports_fan_mode_quiet_ = supports_fan_mode_quiet;
-  }
-  void ThermostatClimate::set_supports_swing_mode_both(bool supports_swing_mode_both) {
-    this->supports_swing_mode_both_ = supports_swing_mode_both;
-  }
-  void ThermostatClimate::set_supports_swing_mode_off(bool supports_swing_mode_off) {
-    this->supports_swing_mode_off_ = supports_swing_mode_off;
-  }
-  void ThermostatClimate::set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal) {
-    this->supports_swing_mode_horizontal_ = supports_swing_mode_horizontal;
-  }
-  void ThermostatClimate::set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
-    this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
-  }
-  void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
-    this->supports_two_points_ = supports_two_points;
-  }
-  void ThermostatClimate::set_supports_dehumidification(bool supports_dehumidification) {
-    this->supports_dehumidification_ = supports_dehumidification;
-    if (supports_dehumidification) {
-      this->supports_humidification_ = false;
-    }
-  }
-  void ThermostatClimate::set_supports_humidification(bool supports_humidification) {
-    this->supports_humidification_ = supports_humidification;
-    if (supports_humidification) {
-      this->supports_dehumidification_ = false;
-    }
-  }
+void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
+                                          const ThermostatClimateTargetTempConfig &config) {
+  this->preset_config_[preset] = config;
+}
 
-  Trigger<> *ThermostatClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
-  Trigger<> *ThermostatClimate::get_supplemental_cool_action_trigger() const {
-    return this->supplemental_cool_action_trigger_;
-  }
-  Trigger<> *ThermostatClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
-  Trigger<> *ThermostatClimate::get_heat_action_trigger() const { return this->heat_action_trigger_; }
-  Trigger<> *ThermostatClimate::get_supplemental_heat_action_trigger() const {
-    return this->supplemental_heat_action_trigger_;
-  }
-  Trigger<> *ThermostatClimate::get_idle_action_trigger() const { return this->idle_action_trigger_; }
-  Trigger<> *ThermostatClimate::get_auto_mode_trigger() const { return this->auto_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_cool_mode_trigger() const { return this->cool_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_dry_mode_trigger() const { return this->dry_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_only_mode_trigger() const { return this->fan_only_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_heat_mode_trigger() const { return this->heat_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_heat_cool_mode_trigger() const { return this->heat_cool_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_off_mode_trigger() const { return this->off_mode_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_on_trigger() const { return this->fan_mode_on_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_off_trigger() const { return this->fan_mode_off_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_auto_trigger() const { return this->fan_mode_auto_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_low_trigger() const { return this->fan_mode_low_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_medium_trigger() const { return this->fan_mode_medium_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_high_trigger() const { return this->fan_mode_high_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_middle_trigger() const { return this->fan_mode_middle_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_focus_trigger() const { return this->fan_mode_focus_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_diffuse_trigger() const { return this->fan_mode_diffuse_trigger_; }
-  Trigger<> *ThermostatClimate::get_fan_mode_quiet_trigger() const { return this->fan_mode_quiet_trigger_; }
-  Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this->swing_mode_both_trigger_; }
-  Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
-  Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const {
-    return this->swing_mode_horizontal_trigger_;
-  }
-  Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
-  Trigger<> *ThermostatClimate::get_humidity_change_trigger() const { return this->humidity_change_trigger_; }
-  Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
-  Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->preset_change_trigger_; }
-  Trigger<> *ThermostatClimate::get_humidity_control_dehumidify_action_trigger() const {
-    return this->humidity_control_dehumidify_action_trigger_;
-  }
-  Trigger<> *ThermostatClimate::get_humidity_control_humidify_action_trigger() const {
-    return this->humidity_control_humidify_action_trigger_;
-  }
-  Trigger<> *ThermostatClimate::get_humidity_control_off_action_trigger() const {
-    return this->humidity_control_off_action_trigger_;
-  }
+void ThermostatClimate::set_custom_preset_config(const std::string &name,
+                                                 const ThermostatClimateTargetTempConfig &config) {
+  this->custom_preset_config_[name] = config;
+}
 
-  void ThermostatClimate::dump_config() {
-    LOG_CLIMATE("", "Thermostat", this);
+ThermostatClimate::ThermostatClimate()
+    : cool_action_trigger_(new Trigger<>()),
+      supplemental_cool_action_trigger_(new Trigger<>()),
+      cool_mode_trigger_(new Trigger<>()),
+      dry_action_trigger_(new Trigger<>()),
+      dry_mode_trigger_(new Trigger<>()),
+      heat_action_trigger_(new Trigger<>()),
+      supplemental_heat_action_trigger_(new Trigger<>()),
+      heat_mode_trigger_(new Trigger<>()),
+      heat_cool_mode_trigger_(new Trigger<>()),
+      auto_mode_trigger_(new Trigger<>()),
+      idle_action_trigger_(new Trigger<>()),
+      off_mode_trigger_(new Trigger<>()),
+      fan_only_action_trigger_(new Trigger<>()),
+      fan_only_mode_trigger_(new Trigger<>()),
+      fan_mode_on_trigger_(new Trigger<>()),
+      fan_mode_off_trigger_(new Trigger<>()),
+      fan_mode_auto_trigger_(new Trigger<>()),
+      fan_mode_low_trigger_(new Trigger<>()),
+      fan_mode_medium_trigger_(new Trigger<>()),
+      fan_mode_high_trigger_(new Trigger<>()),
+      fan_mode_middle_trigger_(new Trigger<>()),
+      fan_mode_focus_trigger_(new Trigger<>()),
+      fan_mode_diffuse_trigger_(new Trigger<>()),
+      fan_mode_quiet_trigger_(new Trigger<>()),
+      swing_mode_both_trigger_(new Trigger<>()),
+      swing_mode_off_trigger_(new Trigger<>()),
+      swing_mode_horizontal_trigger_(new Trigger<>()),
+      swing_mode_vertical_trigger_(new Trigger<>()),
+      humidity_change_trigger_(new Trigger<>()),
+      temperature_change_trigger_(new Trigger<>()),
+      preset_change_trigger_(new Trigger<>()),
+      humidity_control_dehumidify_action_trigger_(new Trigger<>()),
+      humidity_control_humidify_action_trigger_(new Trigger<>()),
+      humidity_control_off_action_trigger_(new Trigger<>()) {}
 
+void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
+  this->default_custom_preset_ = custom_preset;
+}
+
+void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
+
+void ThermostatClimate::set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from) {
+  this->on_boot_restore_from_ = on_boot_restore_from;
+}
+void ThermostatClimate::set_set_point_minimum_differential(float differential) {
+  this->set_point_minimum_differential_ = differential;
+}
+void ThermostatClimate::set_cool_deadband(float deadband) { this->cooling_deadband_ = deadband; }
+void ThermostatClimate::set_cool_overrun(float overrun) { this->cooling_overrun_ = overrun; }
+void ThermostatClimate::set_heat_deadband(float deadband) { this->heating_deadband_ = deadband; }
+void ThermostatClimate::set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
+void ThermostatClimate::set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
+void ThermostatClimate::set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
+void ThermostatClimate::set_cooling_maximum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_cooling_minimum_off_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_OFF].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_cooling_minimum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_fan_mode_minimum_switching_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_FAN_MODE].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_fanning_minimum_off_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_OFF].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_fanning_minimum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_heating_maximum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_heating_minimum_off_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_OFF].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_heating_minimum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::THERMOSTAT_TIMER_IDLE_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
+  this->humidity_sensor_ = humidity_sensor;
+}
+void ThermostatClimate::set_humidity_hysteresis(float humidity_hysteresis) {
+  this->humidity_hysteresis_ = std::clamp<float>(humidity_hysteresis, 0.0f, 100.0f);
+}
+void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
+void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
+  this->supports_heat_cool_ = supports_heat_cool;
+}
+void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
+void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
+void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
+void ThermostatClimate::set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
+void ThermostatClimate::set_supports_fan_only_action_uses_fan_mode_timer(
+    bool supports_fan_only_action_uses_fan_mode_timer) {
+  this->supports_fan_only_action_uses_fan_mode_timer_ = supports_fan_only_action_uses_fan_mode_timer;
+}
+void ThermostatClimate::set_supports_fan_only_cooling(bool supports_fan_only_cooling) {
+  this->supports_fan_only_cooling_ = supports_fan_only_cooling;
+}
+void ThermostatClimate::set_supports_fan_with_cooling(bool supports_fan_with_cooling) {
+  this->supports_fan_with_cooling_ = supports_fan_with_cooling;
+}
+void ThermostatClimate::set_supports_fan_with_heating(bool supports_fan_with_heating) {
+  this->supports_fan_with_heating_ = supports_fan_with_heating;
+}
+void ThermostatClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+void ThermostatClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) {
+  this->supports_fan_mode_on_ = supports_fan_mode_on;
+}
+void ThermostatClimate::set_supports_fan_mode_off(bool supports_fan_mode_off) {
+  this->supports_fan_mode_off_ = supports_fan_mode_off;
+}
+void ThermostatClimate::set_supports_fan_mode_auto(bool supports_fan_mode_auto) {
+  this->supports_fan_mode_auto_ = supports_fan_mode_auto;
+}
+void ThermostatClimate::set_supports_fan_mode_low(bool supports_fan_mode_low) {
+  this->supports_fan_mode_low_ = supports_fan_mode_low;
+}
+void ThermostatClimate::set_supports_fan_mode_medium(bool supports_fan_mode_medium) {
+  this->supports_fan_mode_medium_ = supports_fan_mode_medium;
+}
+void ThermostatClimate::set_supports_fan_mode_high(bool supports_fan_mode_high) {
+  this->supports_fan_mode_high_ = supports_fan_mode_high;
+}
+void ThermostatClimate::set_supports_fan_mode_middle(bool supports_fan_mode_middle) {
+  this->supports_fan_mode_middle_ = supports_fan_mode_middle;
+}
+void ThermostatClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus) {
+  this->supports_fan_mode_focus_ = supports_fan_mode_focus;
+}
+void ThermostatClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
+  this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
+}
+void ThermostatClimate::set_supports_fan_mode_quiet(bool supports_fan_mode_quiet) {
+  this->supports_fan_mode_quiet_ = supports_fan_mode_quiet;
+}
+void ThermostatClimate::set_supports_swing_mode_both(bool supports_swing_mode_both) {
+  this->supports_swing_mode_both_ = supports_swing_mode_both;
+}
+void ThermostatClimate::set_supports_swing_mode_off(bool supports_swing_mode_off) {
+  this->supports_swing_mode_off_ = supports_swing_mode_off;
+}
+void ThermostatClimate::set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal) {
+  this->supports_swing_mode_horizontal_ = supports_swing_mode_horizontal;
+}
+void ThermostatClimate::set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
+  this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
+}
+void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
+  this->supports_two_points_ = supports_two_points;
+}
+void ThermostatClimate::set_supports_dehumidification(bool supports_dehumidification) {
+  this->supports_dehumidification_ = supports_dehumidification;
+  if (supports_dehumidification) {
+    this->supports_humidification_ = false;
+  }
+}
+void ThermostatClimate::set_supports_humidification(bool supports_humidification) {
+  this->supports_humidification_ = supports_humidification;
+  if (supports_humidification) {
+    this->supports_dehumidification_ = false;
+  }
+}
+
+Trigger<> *ThermostatClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
+Trigger<> *ThermostatClimate::get_supplemental_cool_action_trigger() const {
+  return this->supplemental_cool_action_trigger_;
+}
+Trigger<> *ThermostatClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
+Trigger<> *ThermostatClimate::get_heat_action_trigger() const { return this->heat_action_trigger_; }
+Trigger<> *ThermostatClimate::get_supplemental_heat_action_trigger() const {
+  return this->supplemental_heat_action_trigger_;
+}
+Trigger<> *ThermostatClimate::get_idle_action_trigger() const { return this->idle_action_trigger_; }
+Trigger<> *ThermostatClimate::get_auto_mode_trigger() const { return this->auto_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_cool_mode_trigger() const { return this->cool_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_dry_mode_trigger() const { return this->dry_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_only_mode_trigger() const { return this->fan_only_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_heat_mode_trigger() const { return this->heat_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_heat_cool_mode_trigger() const { return this->heat_cool_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_off_mode_trigger() const { return this->off_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_on_trigger() const { return this->fan_mode_on_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_off_trigger() const { return this->fan_mode_off_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_auto_trigger() const { return this->fan_mode_auto_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_low_trigger() const { return this->fan_mode_low_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_medium_trigger() const { return this->fan_mode_medium_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_high_trigger() const { return this->fan_mode_high_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_middle_trigger() const { return this->fan_mode_middle_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_focus_trigger() const { return this->fan_mode_focus_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_diffuse_trigger() const { return this->fan_mode_diffuse_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_quiet_trigger() const { return this->fan_mode_quiet_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this->swing_mode_both_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
+Trigger<> *ThermostatClimate::get_humidity_change_trigger() const { return this->humidity_change_trigger_; }
+Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
+Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->preset_change_trigger_; }
+Trigger<> *ThermostatClimate::get_humidity_control_dehumidify_action_trigger() const {
+  return this->humidity_control_dehumidify_action_trigger_;
+}
+Trigger<> *ThermostatClimate::get_humidity_control_humidify_action_trigger() const {
+  return this->humidity_control_humidify_action_trigger_;
+}
+Trigger<> *ThermostatClimate::get_humidity_control_off_action_trigger() const {
+  return this->humidity_control_off_action_trigger_;
+}
+
+void ThermostatClimate::dump_config() {
+  LOG_CLIMATE("", "Thermostat", this);
+
+  ESP_LOGCONFIG(TAG,
+                "  On boot, restore from: %s\n"
+                "  Use Start-up Delay: %s",
+                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY",
+                YESNO(this->use_startup_delay_));
+  if (this->supports_two_points_) {
+    ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
+  }
+  if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG,
-                  "  On boot, restore from: %s\n"
-                  "  Use Start-up Delay: %s",
-                  this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY",
-                  YESNO(this->use_startup_delay_));
-    if (this->supports_two_points_) {
-      ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
-    }
-    if (this->supports_cool_) {
+                  "  Cooling Parameters:\n"
+                  "    Deadband: %.1f°C\n"
+                  "    Overrun: %.1f°C\n"
+                  "    Minimum Off Time: %" PRIu32 "s\n"
+                  "    Minimum Run Time: %" PRIu32 "s",
+                  this->cooling_deadband_, this->cooling_overrun_,
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_OFF) / 1000,
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_ON) / 1000);
+    if ((this->supplemental_cool_delta_ > 0) ||
+        (this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG,
-                    "  Cooling Parameters:\n"
-                    "    Deadband: %.1f°C\n"
-                    "    Overrun: %.1f°C\n"
-                    "    Minimum Off Time: %" PRIu32 "s\n"
-                    "    Minimum Run Time: %" PRIu32 "s",
-                    this->cooling_deadband_, this->cooling_overrun_,
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_OFF) / 1000,
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_ON) / 1000);
-      if ((this->supplemental_cool_delta_ > 0) ||
-          (this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME) > 0)) {
-        ESP_LOGCONFIG(TAG,
-                      "    Maximum Run Time: %" PRIu32 "s\n"
-                      "    Supplemental Delta: %.1f°C",
-                      this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME) / 1000,
-                      this->supplemental_cool_delta_);
-      }
+                    "    Maximum Run Time: %" PRIu32 "s\n"
+                    "    Supplemental Delta: %.1f°C",
+                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME) / 1000,
+                    this->supplemental_cool_delta_);
     }
-    if (this->supports_heat_) {
-      ESP_LOGCONFIG(TAG,
-                    "  Heating Parameters:\n"
-                    "    Deadband: %.1f°C\n"
-                    "    Overrun: %.1f°C\n"
-                    "    Minimum Off Time: %" PRIu32 "s\n"
-                    "    Minimum Run Time: %" PRIu32 "s",
-                    this->heating_deadband_, this->heating_overrun_,
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_OFF) / 1000,
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_ON) / 1000);
-      if ((this->supplemental_heat_delta_ > 0) ||
-          (this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME) > 0)) {
-        ESP_LOGCONFIG(TAG,
-                      "    Maximum Run Time: %" PRIu32 "s\n"
-                      "    Supplemental Delta: %.1f°C",
-                      this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME) / 1000,
-                      this->supplemental_heat_delta_);
-      }
-    }
-    if (this->supports_fan_only_) {
-      ESP_LOGCONFIG(TAG,
-                    "  Fan Parameters:\n"
-                    "    Minimum Off Time: %" PRIu32 "s\n"
-                    "    Minimum Run Time: %" PRIu32 "s",
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_FANNING_OFF) / 1000,
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_FANNING_ON) / 1000);
-    }
-    if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
-        this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
-        this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_ ||
-        this->supports_fan_mode_quiet_) {
-      ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %" PRIu32 "s",
-                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_FAN_MODE) / 1000);
-    }
+  }
+  if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG,
-                  "  Minimum Idle Time: %" PRIu32 "s\n"
-                  "  Supported MODES:\n"
-                  "    AUTO: %s\n"
-                  "    HEAT/COOL: %s\n"
-                  "    HEAT: %s\n"
-                  "    COOL: %s\n"
-                  "    DRY: %s\n"
-                  "    FAN_ONLY: %s\n"
-                  "    FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s\n"
-                  "    FAN_ONLY_COOLING: %s",
-                  this->timer_[thermostat::THERMOSTAT_TIMER_IDLE_ON].time / 1000, YESNO(this->supports_auto_),
-                  YESNO(this->supports_heat_cool_), YESNO(this->supports_heat_), YESNO(this->supports_cool_),
-                  YESNO(this->supports_dry_), YESNO(this->supports_fan_only_),
-                  YESNO(this->supports_fan_only_action_uses_fan_mode_timer_), YESNO(this->supports_fan_only_cooling_));
-    if (this->supports_cool_) {
-      ESP_LOGCONFIG(TAG, "    FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
+                  "  Heating Parameters:\n"
+                  "    Deadband: %.1f°C\n"
+                  "    Overrun: %.1f°C\n"
+                  "    Minimum Off Time: %" PRIu32 "s\n"
+                  "    Minimum Run Time: %" PRIu32 "s",
+                  this->heating_deadband_, this->heating_overrun_,
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_OFF) / 1000,
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_ON) / 1000);
+    if ((this->supplemental_heat_delta_ > 0) ||
+        (this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME) > 0)) {
+      ESP_LOGCONFIG(TAG,
+                    "    Maximum Run Time: %" PRIu32 "s\n"
+                    "    Supplemental Delta: %.1f°C",
+                    this->timer_duration_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME) / 1000,
+                    this->supplemental_heat_delta_);
     }
-    if (this->supports_heat_) {
-      ESP_LOGCONFIG(TAG, "    FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
-    }
+  }
+  if (this->supports_fan_only_) {
     ESP_LOGCONFIG(TAG,
-                  "  Supported FAN MODES:\n"
-                  "    ON: %s\n"
-                  "    OFF: %s\n"
-                  "    AUTO: %s\n"
-                  "    LOW: %s\n"
-                  "    MEDIUM: %s\n"
-                  "    HIGH: %s\n"
-                  "    MIDDLE: %s\n"
-                  "    FOCUS: %s\n"
-                  "    DIFFUSE: %s\n"
-                  "    QUIET: %s\n"
-                  "  Supported SWING MODES:\n"
-                  "    BOTH: %s\n"
-                  "    OFF: %s\n"
-                  "    HORIZONTAL: %s\n"
-                  "    VERTICAL: %s\n"
-                  "  Supports TWO SET POINTS: %s\n"
-                  "  Supported Humidity Parameters:\n"
-                  "    CURRENT: %s\n"
-                  "    TARGET: %s\n"
-                  "    DEHUMIDIFICATION: %s\n"
-                  "    HUMIDIFICATION: %s",
-                  YESNO(this->supports_fan_mode_on_), YESNO(this->supports_fan_mode_off_),
-                  YESNO(this->supports_fan_mode_auto_), YESNO(this->supports_fan_mode_low_),
-                  YESNO(this->supports_fan_mode_medium_), YESNO(this->supports_fan_mode_high_),
-                  YESNO(this->supports_fan_mode_middle_), YESNO(this->supports_fan_mode_focus_),
-                  YESNO(this->supports_fan_mode_diffuse_), YESNO(this->supports_fan_mode_quiet_),
-                  YESNO(this->supports_swing_mode_both_), YESNO(this->supports_swing_mode_off_),
-                  YESNO(this->supports_swing_mode_horizontal_), YESNO(this->supports_swing_mode_vertical_),
-                  YESNO(this->supports_two_points_),
-                  YESNO(this->get_traits().has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)),
-                  YESNO(this->supports_dehumidification_ || this->supports_humidification_),
-                  YESNO(this->supports_dehumidification_), YESNO(this->supports_humidification_));
+                  "  Fan Parameters:\n"
+                  "    Minimum Off Time: %" PRIu32 "s\n"
+                  "    Minimum Run Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_FANNING_OFF) / 1000,
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_FANNING_ON) / 1000);
+  }
+  if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
+      this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
+      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_ ||
+      this->supports_fan_mode_quiet_) {
+    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %" PRIu32 "s",
+                  this->timer_duration_(thermostat::THERMOSTAT_TIMER_FAN_MODE) / 1000);
+  }
+  ESP_LOGCONFIG(TAG,
+                "  Minimum Idle Time: %" PRIu32 "s\n"
+                "  Supported MODES:\n"
+                "    AUTO: %s\n"
+                "    HEAT/COOL: %s\n"
+                "    HEAT: %s\n"
+                "    COOL: %s\n"
+                "    DRY: %s\n"
+                "    FAN_ONLY: %s\n"
+                "    FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s\n"
+                "    FAN_ONLY_COOLING: %s",
+                this->timer_[thermostat::THERMOSTAT_TIMER_IDLE_ON].time / 1000, YESNO(this->supports_auto_),
+                YESNO(this->supports_heat_cool_), YESNO(this->supports_heat_), YESNO(this->supports_cool_),
+                YESNO(this->supports_dry_), YESNO(this->supports_fan_only_),
+                YESNO(this->supports_fan_only_action_uses_fan_mode_timer_), YESNO(this->supports_fan_only_cooling_));
+  if (this->supports_cool_) {
+    ESP_LOGCONFIG(TAG, "    FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
+  }
+  if (this->supports_heat_) {
+    ESP_LOGCONFIG(TAG, "    FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
+  }
+  ESP_LOGCONFIG(TAG,
+                "  Supported FAN MODES:\n"
+                "    ON: %s\n"
+                "    OFF: %s\n"
+                "    AUTO: %s\n"
+                "    LOW: %s\n"
+                "    MEDIUM: %s\n"
+                "    HIGH: %s\n"
+                "    MIDDLE: %s\n"
+                "    FOCUS: %s\n"
+                "    DIFFUSE: %s\n"
+                "    QUIET: %s\n"
+                "  Supported SWING MODES:\n"
+                "    BOTH: %s\n"
+                "    OFF: %s\n"
+                "    HORIZONTAL: %s\n"
+                "    VERTICAL: %s\n"
+                "  Supports TWO SET POINTS: %s\n"
+                "  Supported Humidity Parameters:\n"
+                "    CURRENT: %s\n"
+                "    TARGET: %s\n"
+                "    DEHUMIDIFICATION: %s\n"
+                "    HUMIDIFICATION: %s",
+                YESNO(this->supports_fan_mode_on_), YESNO(this->supports_fan_mode_off_),
+                YESNO(this->supports_fan_mode_auto_), YESNO(this->supports_fan_mode_low_),
+                YESNO(this->supports_fan_mode_medium_), YESNO(this->supports_fan_mode_high_),
+                YESNO(this->supports_fan_mode_middle_), YESNO(this->supports_fan_mode_focus_),
+                YESNO(this->supports_fan_mode_diffuse_), YESNO(this->supports_fan_mode_quiet_),
+                YESNO(this->supports_swing_mode_both_), YESNO(this->supports_swing_mode_off_),
+                YESNO(this->supports_swing_mode_horizontal_), YESNO(this->supports_swing_mode_vertical_),
+                YESNO(this->supports_two_points_),
+                YESNO(this->get_traits().has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)),
+                YESNO(this->supports_dehumidification_ || this->supports_humidification_),
+                YESNO(this->supports_dehumidification_), YESNO(this->supports_humidification_));
 
-    if (!this->preset_config_.empty()) {
-      ESP_LOGCONFIG(TAG, "  Supported PRESETS:");
-      for (auto &it : this->preset_config_) {
-        const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it.first));
-        ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, it.first == this->default_preset_ ? " (default)" : "");
-        this->dump_preset_config_(preset_name, it.second);
-      }
-    }
-
-    if (!this->custom_preset_config_.empty()) {
-      ESP_LOGCONFIG(TAG, "  Supported CUSTOM PRESETS:");
-      for (auto &it : this->custom_preset_config_) {
-        const auto *preset_name = it.first.c_str();
-        ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, it.first == this->default_custom_preset_ ? " (default)" : "");
-        this->dump_preset_config_(preset_name, it.second);
-      }
+  if (!this->preset_config_.empty()) {
+    ESP_LOGCONFIG(TAG, "  Supported PRESETS:");
+    for (auto &it : this->preset_config_) {
+      const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it.first));
+      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, it.first == this->default_preset_ ? " (default)" : "");
+      this->dump_preset_config_(preset_name, it.second);
     }
   }
 
-  ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
+  if (!this->custom_preset_config_.empty()) {
+    ESP_LOGCONFIG(TAG, "  Supported CUSTOM PRESETS:");
+    for (auto &it : this->custom_preset_config_) {
+      const auto *preset_name = it.first.c_str();
+      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, it.first == this->default_custom_preset_ ? " (default)" : "");
+      this->dump_preset_config_(preset_name, it.second);
+    }
+  }
+}
 
-  ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature)
-      : default_temperature(default_temperature) {}
+ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
 
-  ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature_low,
-                                                                       float default_temperature_high)
-      : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
+ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature)
+    : default_temperature(default_temperature) {}
+
+ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature_low,
+                                                                     float default_temperature_high)
+    : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
 }  // namespace thermostat
 }  // namespace esphome
