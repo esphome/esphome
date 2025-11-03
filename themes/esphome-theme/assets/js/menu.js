@@ -1,7 +1,9 @@
 
 const bodystyle = window.getComputedStyle(document.body);
 const mobileWidthStop = parseInt(bodystyle.getPropertyValue('--mobile-width-stop'));
-const isMobile = (window.innerWidth <= mobileWidthStop);
+function isMobileScreen() {
+    return (window.innerWidth <= mobileWidthStop);
+}
 
 function closeMenu() {
     const hamburger = document.querySelector('.hamburger-button');
@@ -20,7 +22,7 @@ function openMenu() {
 }
 function openTOC() {
     const tocToggle = document.getElementById('toc-toggle');
-    if (!isMobile || !tocToggle) return;
+    if (!isMobileScreen() || !tocToggle) return;
     const tocPanel = document.getElementsByClassName('sidebar-mobile')[0];
     const overlay = document.getElementById('overlay');
     tocToggle.classList.add('open');
@@ -30,7 +32,7 @@ function openTOC() {
 
 function closeTOC() {
     const tocToggle = document.getElementById('toc-toggle');
-    if (!isMobile || !tocToggle) return;
+    if (!isMobileScreen() || !tocToggle) return;
     const tocPanel = document.getElementsByClassName('sidebar-mobile')[0];
     const overlay = document.getElementById('overlay');
     tocToggle.classList.remove('open');
@@ -85,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebar.addEventListener("click", closeTOC);
     })
 
-    const dropdownButtons = document.querySelectorAll('.dropbtn button');
+    const dropdownButtons = document.querySelectorAll('.dropdown button');
 
     dropdownButtons.forEach(button => {
         // Handle Enter and Space key presses
@@ -98,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Handle click events
         button.addEventListener('click', function(e) {
-            if (!isMobile) return;
+            if (!isMobileScreen()) return;
             e.preventDefault();
             // Close others
             dropdownButtons.forEach(function(otherBtn) {
