@@ -7,12 +7,13 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
 )
-from esphome.components.zephyr.const import KEY_BOARD, KEY_ZEPHYR
+from esphome.components.zephyr.const import KEY_BOARD
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_FREQUENCY,
+    CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
     CONF_SCAN,
@@ -50,7 +51,7 @@ def _bus_declare_type(value):
         return cv.declare_id(ArduinoI2CBus)(value)
     if CORE.using_esp_idf:
         return cv.declare_id(IDFI2CBus)(value)
-    if CORE.target_framework == KEY_ZEPHYR:
+    if CORE.using_zephyr:
         return cv.declare_id(ZephyrI2CBus)(value)
     raise NotImplementedError
 
@@ -93,6 +94,15 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
     validate_config,
 )
+
+
+def _final_validate(config):
+    full_config = fv.full_config.get()[CONF_I2C]
+    if CORE.using_zephyr and len(full_config) > 1:
+        raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.BUS)
