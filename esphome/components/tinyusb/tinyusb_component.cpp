@@ -22,7 +22,10 @@ void TinyUSB::setup() {
       .external_phy = false,
   };
 
-  ESP_ERROR_CHECK(tinyusb_driver_install(&this->tusb_cfg_));
+  esp_err_t result = tinyusb_driver_install(&this->tusb_cfg_);
+  if (result != ESP_OK) {
+    this->mark_failed();
+  }
 }
 
 void TinyUSB::dump_config() {
