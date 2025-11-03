@@ -25,6 +25,10 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <lwip/sockets.h>
+#endif
+
 namespace esphome::esp32_ble {
 
 // Maximum size of the BLE event queue
@@ -161,6 +165,11 @@ class ESP32BLE : public Component {
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
+
+  // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop
+  // from BLE tasks. This enables low-latency (~12μs) event processing instead of
+  // waiting for select() timeout (0-16ms). The wake socket is shared with other
+  // components that need this functionality.
 
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);

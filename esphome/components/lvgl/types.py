@@ -4,6 +4,7 @@ from esphome import automation, codegen as cg
 from esphome.config_validation import Schema
 from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_types import esphome_ns
 
 from .defines import lvgl_ns
 from .lvcode import lv_expr
@@ -43,8 +44,11 @@ lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
 lv_key_t = cg.global_ns.enum("lv_key_t")
 FontEngine = lvgl_ns.class_("FontEngine")
+PlainTrigger = esphome_ns.class_("Trigger<>", automation.Trigger.template())
+DrawEndTrigger = esphome_ns.class_(
+    "Trigger<uint32_t, uint32_t>", automation.Trigger.template(cg.uint32, cg.uint32)
+)
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
-PauseTrigger = lvgl_ns.class_("PauseTrigger", automation.Trigger.template())
 ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
 LvglAction = lvgl_ns.class_("LvglAction", automation.Action)

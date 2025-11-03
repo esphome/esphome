@@ -350,7 +350,7 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(int(obj.total_seconds))
     if isinstance(obj, TimePeriodMinutes):
         return IntLiteral(int(obj.total_minutes))
-    if isinstance(obj, tuple | list):
+    if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     if obj is bool:
         return bool_

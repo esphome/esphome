@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
@@ -182,7 +182,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
-                raise cv.Invalid("Cannot have more than 1 automation for templates")
+                raise cv.Invalid("This trigger allows only a single automation")
             return value[0]
         return value
 
@@ -308,6 +308,30 @@ async def for_condition_to_code(
     templ = await cg.templatable(config[CONF_TIME], args, cg.uint32)
     cg.add(var.set_time(templ))
     return var
+
+
+@register_condition(
+    "component.is_idle",
+    LambdaCondition,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.Component),
+        }
+    ),
+)
+async def component_is_idle_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    comp = await cg.get_variable(config[CONF_ID])
+    lambda_ = await cg.process_lambda(
+        Lambda(f"return {comp}->is_idle();"), args, return_type=bool
+    )
+    return new_lambda_pvariable(
+        condition_id, lambda_, StatelessLambdaCondition, template_arg
+    )
 
 
 @register_action(
