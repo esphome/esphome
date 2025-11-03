@@ -1000,9 +1000,9 @@ message ListEntitiesClimateResponse {
   bool supports_action = 12; // Deprecated: use feature_flags
   repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer_no_template) = "climate::ClimateFanModeMask"];
   repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer_no_template) = "climate::ClimateSwingModeMask"];
-  repeated string supported_custom_fan_modes = 15 [(container_pointer) = "std::vector"];
+  repeated string supported_custom_fan_modes = 15 [(container_pointer_no_template) = "std::vector<const char *>"];
   repeated ClimatePreset supported_presets = 16 [(container_pointer_no_template) = "climate::ClimatePresetMask"];
-  repeated string supported_custom_presets = 17 [(container_pointer) = "std::vector"];
+  repeated string supported_custom_presets = 17 [(container_pointer_no_template) = "std::vector<const char *>"];
   bool disabled_by_default = 18;
   string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 20;
