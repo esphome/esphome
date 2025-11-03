@@ -103,7 +103,7 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
   bool check_internal() {
     bool cond = this->condition_->check();
     if (!cond)
-      this->last_inactive_ = millis();
+      this->last_inactive_ = App.get_loop_component_start_time();
     return cond;
   }
 
@@ -380,7 +380,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     if (this->num_running_ == 0)
       return;
 
-    auto now = millis();
+    auto now = App.get_loop_component_start_time();
 
     this->var_queue_.remove_if([&](auto &queued) {
       auto start = std::get<uint32_t>(queued);
