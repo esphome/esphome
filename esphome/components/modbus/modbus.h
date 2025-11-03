@@ -6,7 +6,7 @@
 #include "esphome/components/modbus/modbus_definitions.h"
 
 #include <vector>
-#include <queue>
+#include <deque>
 #include <optional>
 
 namespace esphome {
@@ -79,7 +79,7 @@ class ModbusClient : public Modbus {
   // std::queue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
-  std::queue<ModbusDeviceCommand> tx_buffer_;
+  std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
 class ModbusServer : public Modbus {

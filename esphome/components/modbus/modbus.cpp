@@ -457,7 +457,7 @@ void ModbusClient::send_next_frame_() {
 
   this->waiting_for_response_ = command;
 
-  this->tx_buffer_.pop();
+  this->tx_buffer_.pop_front();
 
   if (!this->tx_buffer_.empty()) {
     ESP_LOGV(TAG, "Write queue contains %d items.", this->tx_buffer_.size());
@@ -566,9 +566,16 @@ void ModbusClient::send_raw(ModbusClientDevice *device, const std::vector<uint8_
   }
   std::vector<uint8_t> frame = this->add_crc_to_payload_(payload);
 
+  for (auto item : this->tx_buffer_) {
+    if (item.frame == frame) {
+      ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty(frame).c_str());
+      return;
+    }
+  }
+
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty(frame).c_str());
-    this->tx_buffer_.push({device, frame});
+    this->tx_buffer_.push_back({device, frame});
   } else {
     ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(frame).c_str());
   }
