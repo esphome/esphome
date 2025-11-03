@@ -1,13 +1,4 @@
-i2c:
-  - id: i2c_ads1115
-    sda: P1.04
-    scl: P1.06
+packages:
+  i2c: !include ../../test_build_components/common/i2c/nrf52.yaml
 
-ads1115:
-  address: 0x48
-
-sensor:
-  - platform: ads1115
-    multiplexer: A0_A1
-    gain: 1.024
-    id: ads1115_sensor
+<<: !include common.yaml
