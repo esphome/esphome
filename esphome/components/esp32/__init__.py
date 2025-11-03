@@ -560,13 +560,6 @@ CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
 CONF_MAIN_LOOP_STACK_SIZE = "main_loop_stack_size"
 
-# The minimum working stack size for app_main loop task
-# DO NOT LOWER THIS VALUE as it may break the working main loop task on esp-idf platform
-# 32KB / 160 KB heap from 320 KB Data RAM out of total 520 KB SRAM
-MIN_MAIN_LOOP_TASK_STACK_SIZE = 8192
-# 128KB / 160KB heap from 320 KB Data RAM out of total 520 KB SRAM
-MAX_MAIN_LOOP_TASK_STACK_SIZE = 32768
-
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_select() or require_vfs_dir()
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
@@ -662,10 +655,8 @@ FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                    cv.Optional(
-                        CONF_MAIN_LOOP_STACK_SIZE, default=MIN_MAIN_LOOP_TASK_STACK_SIZE
-                    ): cv.int_range(
-                        MIN_MAIN_LOOP_TASK_STACK_SIZE, MAX_MAIN_LOOP_TASK_STACK_SIZE
+                    cv.Optional(CONF_MAIN_LOOP_STACK_SIZE, default=8192): cv.int_range(
+                        min=8192, max=32768
                     ),
                 }
             ),
@@ -1084,9 +1075,9 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
 
-    # Set main loop stack size
-    stack_size = advanced.get(CONF_MAIN_LOOP_STACK_SIZE, MIN_MAIN_LOOP_TASK_STACK_SIZE)
-    cg.add_define("ESPHOME_APP_MAIN_TASK_STACK_SIZE", stack_size)
+    cg.add_define(
+        "ESPHOME_APP_MAIN_TASK_STACK_SIZE", advanced.get(CONF_MAIN_LOOP_STACK_SIZE)
+    )
 
     cg.add_define(
         "USE_ESP_IDF_VERSION_CODE",
