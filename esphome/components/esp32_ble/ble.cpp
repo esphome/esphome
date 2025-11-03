@@ -27,9 +27,33 @@ extern "C" {
 #include <esp32-hal-bt.h>
 #endif
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#include <lwip/sockets.h>
+#endif
+
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
+
+// GAP event groups for deduplication across gap_event_handler and dispatch_gap_event_
+#define GAP_SCAN_COMPLETE_EVENTS \
+  case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT
+
+#define GAP_ADV_COMPLETE_EVENTS \
+  case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_START_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT
+
+#define GAP_SECURITY_EVENTS \
+  case ESP_GAP_BLE_AUTH_CMPL_EVT: \
+  case ESP_GAP_BLE_SEC_REQ_EVT: \
+  case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: \
+  case ESP_GAP_BLE_PASSKEY_REQ_EVT: \
+  case ESP_GAP_BLE_NC_REQ_EVT
 
 void ESP32BLE::setup() {
   global_ble = this;
@@ -273,10 +297,21 @@ bool ESP32BLE::ble_setup_() {
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
 
+  // Set up notification socket to wake main loop for BLE events
+  // This enables low-latency (~12μs) event processing instead of waiting for select() timeout
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  this->setup_event_notification_();
+#endif
+
   return true;
 }
 
 bool ESP32BLE::ble_dismantle_() {
+  // Clean up notification socket first before dismantling BLE stack
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  this->cleanup_event_notification_();
+#endif
+
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
@@ -374,6 +409,12 @@ void ESP32BLE::loop() {
       break;
   }
 
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  // Drain any notification socket events first
+  // This clears the socket so it doesn't stay "ready" in subsequent select() calls
+  this->drain_event_notifications_();
+#endif
+
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {
@@ -414,60 +455,48 @@ void ESP32BLE::loop() {
             break;
 
           // Scan complete events
-          case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-            // All three scan complete events have the same structure with just status
-            // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
-            // This is verified at compile-time by static_assert checks in ble_event.h
-            // The struct already contains our copy of the status (copied in BLEEvent constructor)
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
-            }
-#endif
-            break;
-
+          GAP_SCAN_COMPLETE_EVENTS:
           // Advertising complete events
-          case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
-            // All advertising complete events have the same structure with just status
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
-            }
-#endif
-            break;
-
+          GAP_ADV_COMPLETE_EVENTS:
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
-            }
-#endif
-            break;
-
           // Security events
-          case ESP_GAP_BLE_AUTH_CMPL_EVT:
-          case ESP_GAP_BLE_SEC_REQ_EVT:
-          case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-          case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-          case ESP_GAP_BLE_NC_REQ_EVT:
+          GAP_SECURITY_EVENTS:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
+            {
+              esp_ble_gap_cb_param_t *param;
+              // clang-format off
+              switch (gap_event) {
+                // All three scan complete events have the same structure with just status
+                // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
+                // This is verified at compile-time by static_assert checks in ble_event.h
+                // The struct already contains our copy of the status (copied in BLEEvent constructor)
+                GAP_SCAN_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete);
+                  break;
+
+                // All advertising complete events have the same structure with just status
+                GAP_ADV_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete);
+                  break;
+
+                case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete);
+                  break;
+
+                GAP_SECURITY_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security);
+                  break;
+
+                default:
+                  break;
+              }
+              // clang-format on
+              // Dispatch to all registered handlers
+              for (auto *gap_handler : this->gap_event_handlers_) {
+                gap_handler->gap_event_handler(gap_event, param);
+              }
             }
 #endif
             break;
@@ -547,23 +576,13 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Queue GAP events that components need to handle
     // Scanning events - used by esp32_ble_tracker
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
-    case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+    GAP_SCAN_COMPLETE_EVENTS:
     // Advertising events - used by esp32_ble_beacon and esp32_ble server
-    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+    GAP_ADV_COMPLETE_EVENTS:
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
     // Security events - used by ble_client and bluetooth_proxy
-    case ESP_GAP_BLE_AUTH_CMPL_EVT:
-    case ESP_GAP_BLE_SEC_REQ_EVT:
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-    case ESP_GAP_BLE_NC_REQ_EVT:
+    GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
       return;
 
@@ -584,6 +603,10 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
+  // Wake up main loop to process GATT event immediately
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  global_ble->notify_main_loop_();
+#endif
 }
 #endif
 
@@ -591,6 +614,10 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
+  // Wake up main loop to process GATT event immediately
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  global_ble->notify_main_loop_();
+#endif
 }
 #endif
 
@@ -629,6 +656,89 @@ void ESP32BLE::dump_config() {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
 }
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+void ESP32BLE::setup_event_notification_() {
+  // Create UDP socket for event notifications
+  this->notify_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (this->notify_fd_ < 0) {
+    ESP_LOGW(TAG, "Event socket create failed: %d", errno);
+    return;
+  }
+
+  // Bind to loopback with auto-assigned port
+  struct sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;  // Auto-assign port
+
+  if (lwip_bind(this->notify_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    ESP_LOGW(TAG, "Event socket bind failed: %d", errno);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  // Get the assigned address and connect to it
+  // Connecting a UDP socket allows using send() instead of sendto() for better performance
+  struct sockaddr_in notify_addr;
+  socklen_t len = sizeof(notify_addr);
+  if (lwip_getsockname(this->notify_fd_, (struct sockaddr *) &notify_addr, &len) < 0) {
+    ESP_LOGW(TAG, "Event socket address failed: %d", errno);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  // Connect to self (loopback) - allows using send() instead of sendto()
+  // After connect(), no need to store notify_addr - the socket remembers it
+  if (lwip_connect(this->notify_fd_, (struct sockaddr *) &notify_addr, sizeof(notify_addr)) < 0) {
+    ESP_LOGW(TAG, "Event socket connect failed: %d", errno);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  // Set non-blocking mode
+  int flags = lwip_fcntl(this->notify_fd_, F_GETFL, 0);
+  lwip_fcntl(this->notify_fd_, F_SETFL, flags | O_NONBLOCK);
+
+  // Register with application's select() loop
+  if (!App.register_socket_fd(this->notify_fd_)) {
+    ESP_LOGW(TAG, "Event socket register failed");
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    return;
+  }
+
+  ESP_LOGD(TAG, "Event socket ready");
+}
+
+void ESP32BLE::cleanup_event_notification_() {
+  if (this->notify_fd_ >= 0) {
+    App.unregister_socket_fd(this->notify_fd_);
+    lwip_close(this->notify_fd_);
+    this->notify_fd_ = -1;
+    ESP_LOGD(TAG, "Event socket closed");
+  }
+}
+
+void ESP32BLE::drain_event_notifications_() {
+  // Called from main loop to drain any pending notifications
+  // Must check is_socket_ready() to avoid blocking on empty socket
+  if (this->notify_fd_ >= 0 && App.is_socket_ready(this->notify_fd_)) {
+    char buffer[BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE];
+    // Drain all pending notifications with non-blocking reads
+    // Multiple BLE events may have triggered multiple writes, so drain until EWOULDBLOCK
+    // We control both ends of this loopback socket (always write 1 byte per event),
+    // so no error checking needed - any errors indicate catastrophic system failure
+    while (lwip_recvfrom(this->notify_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+      // Just draining, no action needed - actual BLE events are already queued
+    }
+  }
+}
+
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;

@@ -121,10 +121,13 @@ void FanRestoreState::apply(Fan &fan) {
   fan.speed = this->speed;
   fan.direction = this->direction;
 
-  // Use stored preset index to get preset name from traits
-  const auto &preset_modes = fan.get_traits().supported_preset_modes();
-  if (this->preset_mode < preset_modes.size()) {
-    fan.set_preset_mode_(preset_modes[this->preset_mode]);
+  auto traits = fan.get_traits();
+  if (traits.supports_preset_modes()) {
+    // Use stored preset index to get preset name from traits
+    const auto &preset_modes = traits.supported_preset_modes();
+    if (this->preset_mode < preset_modes.size()) {
+      fan.set_preset_mode_(preset_modes[this->preset_mode]);
+    }
   }
 
   fan.publish_state();
