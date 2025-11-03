@@ -15,6 +15,9 @@ class IDFUARTComponent : public UARTComponent, public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
+  void set_rx_full_threshold(size_t rx_full_threshold) override;
+  void set_rx_timeout(size_t rx_timeout) override;
+
   void write_array(const uint8_t *data, size_t len) override;
 
   bool peek_byte(uint8_t *data) override;

@@ -66,6 +66,9 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
 #endif
 
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  virtual void on_homeassistant_action_response(const HomeassistantActionResponse &value){};
+#endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
 #endif
@@ -477,6 +480,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
+  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 }  // namespace esphome::api

@@ -38,7 +38,6 @@ IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
-FanState = fan_ns.class_("Fan", Fan, cg.Component)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
@@ -189,10 +188,6 @@ def fan_schema(
 
     return _FAN_SCHEMA.extend(schema)
 
-
-# Remove before 2025.11.0
-FAN_SCHEMA = fan_schema(Fan)
-FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
 
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),

@@ -1,8 +1,0 @@
-substitutions:
-  i2s_lrclk_pin: GPIO6
-  i2s_bclk_pin: GPIO7
-  i2s_mclk_pin: GPIO5
-  i2s_din_pin: GPIO3
-  i2s_dout_pin: GPIO2
-
-<<: !include common.yaml

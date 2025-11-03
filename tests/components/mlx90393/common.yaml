@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_mlx90393
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mlx90393
+    i2c_id: i2c_bus
     oversampling: 3
     gain: 1X
     temperature_compensation: true
