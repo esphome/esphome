@@ -339,7 +339,6 @@ void DebugComponent::get_device_info_(std::string &device_info) {
   };
   ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
   ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
-  // ESP_LOGD(TAG, "CUSTOMER %s", uicr(NRF_UICR->CUSTOMER, 32).c_str());
 }
 
 void DebugComponent::update_platform_() {}
