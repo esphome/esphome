@@ -1093,6 +1093,11 @@ def test_parse_list_components_output(output: str, expected: list[str]) -> None:
         ("tests/components/", None),  # No component name
         ("esphome/components", None),  # No trailing slash
         ("tests/components", None),  # No trailing slash
+        # Files in component directories that are not components
+        ("tests/components/.gitignore", None),  # Hidden file
+        ("tests/components/README.md", None),  # Documentation file
+        ("esphome/components/__init__.py", None),  # Python init file
+        ("tests/components/main.cpp", None),  # File with extension
     ],
 )
 def test_get_component_from_path(

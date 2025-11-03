@@ -101,7 +101,11 @@ def get_component_from_path(file_path: str) -> str | None:
     ):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
-            return parts[2]
+            # Verify that parts[2] is actually a component directory, not a file
+            # like .gitignore or README.md in the components directory itself
+            component_name = parts[2]
+            if "." not in component_name:
+                return component_name
     return None
 
 
