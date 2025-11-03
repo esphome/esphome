@@ -166,12 +166,10 @@ class ESP32BLE : public Component {
   void advertising_init_();
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  void setup_event_notification_();    // Create notification socket
-  void cleanup_event_notification_();  // Close and unregister socket
-  inline void notify_main_loop_();     // Wake up select() from BLE thread (hot path - inlined)
-  void drain_event_notifications_();   // Read pending notifications in main loop
-#endif
+  // BLE uses the core wake_loop_threadsafe() mechanism to wake the main event loop
+  // from BLE tasks. This enables low-latency (~12μs) event processing instead of
+  // waiting for select() timeout (0-16ms). The wake socket is shared with other
+  // components that need this functionality.
 
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
@@ -207,13 +205,6 @@ class ESP32BLE : public Component {
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
   uint32_t advertising_cycle_time_{};         // 4 bytes
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  // Event notification socket for waking up main loop from BLE thread
-  // Uses connected UDP loopback socket to wake lwip_select() with ~12μs latency vs 0-16ms timeout
-  // Socket is connected during setup, allowing use of send() instead of sendto() for efficiency
-  int notify_fd_{-1};  // 4 bytes (file descriptor)
-#endif
-
   // 2-byte aligned members
   uint16_t appearance_{0};  // 2 bytes
 
@@ -224,29 +215,6 @@ class ESP32BLE : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
-
-#ifdef USE_SOCKET_SELECT_SUPPORT
-// Inline implementations for hot-path functions
-// These are called from BLE thread (notify) and main loop (drain) on every event
-
-// Small buffer for draining notification bytes (1 byte sent per BLE event)
-// Size allows draining multiple notifications per recvfrom() without wasting stack
-static constexpr size_t BLE_EVENT_NOTIFY_DRAIN_BUFFER_SIZE = 16;
-
-inline void ESP32BLE::notify_main_loop_() {
-  // Called from BLE thread context when events are queued
-  // Wakes up lwip_select() in main loop by writing to connected loopback socket
-  if (this->notify_fd_ >= 0) {
-    const char dummy = 1;
-    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
-    // No error checking needed: we control both ends of this loopback socket, and the
-    // BLE event is already queued. Notification is best-effort to reduce latency.
-    // This is safe to call from BLE thread - send() is thread-safe in lwip
-    // Socket is already connected to loopback address, so send() is faster than sendto()
-    lwip_send(this->notify_fd_, &dummy, 1, 0);
-  }
-}
-#endif  // USE_SOCKET_SELECT_SUPPORT
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
  public:
