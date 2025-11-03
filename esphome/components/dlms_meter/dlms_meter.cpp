@@ -13,16 +13,19 @@ namespace dlms_meter {
 void DlmsMeterComponent::setup() { ESP_LOGI(TAG, "DLMS smart meter component v%s started", DLMS_METER_VERSION); }
 
 void DlmsMeterComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "DLMS Meter:");
-  ESP_LOGCONFIG(TAG, "Meter Provider: %d", this->provider_);
+  ESP_LOGCONFIG(TAG,
+                "DLMS Meter:\n"
+                "Meter Provider: %d\n"
+                "read_timeout: %u\n"
+                "decryption_key_length: %d\n"
+                "Decryption key: (actual key only logged when log-level is VERY_VERBOSE)",
+                this->provider_,
+                this->read_timeout_,
+                this->decryption_key_length_);
 
   // Verbose level prints decryption key!
-  ESP_LOGCONFIG(TAG, "Decryption key: (actual key only logged when log-level is VERY_VERBOSE)");
-  ESP_LOGCONFIG(TAG, "decryption_key_length: %d", this->decryption_key_length_);
   ESP_LOGVV(TAG, "decryption_key: %s",
             format_hex_pretty(&this->decryption_key_[0], this->decryption_key_length_).c_str());
-
-  ESP_LOGCONFIG(TAG, "read_timeout: %u", this->read_timeout_);
 
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
