@@ -8,15 +8,15 @@ namespace bedjet {
 
 using namespace esphome::climate;
 
-static const std::string *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
+static const char *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
   if (fan_step < BEDJET_FAN_SPEED_COUNT)
-    return &BEDJET_FAN_STEP_NAME_STRINGS[fan_step];
+    return BEDJET_FAN_STEP_NAMES[fan_step];
   return nullptr;
 }
 
 static uint8_t bedjet_fan_speed_to_step(const char *fan_step_percent) {
   for (int i = 0; i < BEDJET_FAN_SPEED_COUNT; i++) {
-    if (BEDJET_FAN_STEP_NAME_STRINGS[i] == fan_step_percent) {
+    if (strcmp(BEDJET_FAN_STEP_NAMES[i], fan_step_percent) == 0) {
       return i;
     }
   }
@@ -240,7 +240,7 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
 
   const auto *fan_mode_name = bedjet_fan_step_to_fan_mode(data->fan_step);
   if (fan_mode_name != nullptr) {
-    this->set_custom_fan_mode_(fan_mode_name->c_str());
+    this->set_custom_fan_mode_(fan_mode_name);
   }
 
   // TODO: Get biorhythm data to determine which preset (M1-3) is running, if any.
