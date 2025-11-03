@@ -558,7 +558,7 @@ CONF_DISABLE_LIBC_LOCKS_IN_IRAM = "disable_libc_locks_in_iram"
 CONF_DISABLE_VFS_SUPPORT_TERMIOS = "disable_vfs_support_termios"
 CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
-CONF_MAIN_LOOP_STACK_SIZE = "main_loop_stack_size"
+CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_select() or require_vfs_dir()
@@ -655,7 +655,7 @@ FRAMEWORK_SCHEMA = cv.All(
                     ): cv.boolean,
                     cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                     cv.Optional(CONF_EXECUTE_FROM_PSRAM): cv.boolean,
-                    cv.Optional(CONF_MAIN_LOOP_STACK_SIZE, default=8192): cv.int_range(
+                    cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                         min=8192, max=32768
                     ),
                 }
@@ -932,7 +932,7 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option(
             "CONFIG_ARDUINO_LOOP_STACK_SIZE",
-            conf[CONF_ADVANCED][CONF_MAIN_LOOP_STACK_SIZE],
+            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
         )
         add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
@@ -1080,7 +1080,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_IDF_EXPERIMENTAL_FEATURES", True)
 
     cg.add_define(
-        "ESPHOME_APP_MAIN_TASK_STACK_SIZE", advanced.get(CONF_MAIN_LOOP_STACK_SIZE)
+        "ESPHOME_LOOP_TASK_STACK_SIZE", advanced.get(CONF_LOOP_TASK_STACK_SIZE)
     )
 
     cg.add_define(

@@ -155,7 +155,7 @@
 // IDF-specific feature flags
 #ifdef USE_ESP_IDF
 #define USE_MQTT_IDF_ENQUEUE
-#define ESPHOME_APP_MAIN_TASK_STACK_SIZE 8192
+#define ESPHOME_LOOP_TASK_STACK_SIZE 8192
 #endif
 
 // ESP32-specific feature flags
