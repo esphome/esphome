@@ -297,9 +297,6 @@ bool ESP32BLE::ble_setup_() {
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
 
-  // Wake mechanism is set up by core Application class (wake_loop_threadsafe)
-  // BLE tasks will call App.wake_loop_threadsafe() to wake main loop when events arrive
-
   return true;
 }
 
