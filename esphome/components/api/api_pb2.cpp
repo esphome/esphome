@@ -355,8 +355,8 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(10, this->icon_ref_);
 #endif
   buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
-  for (const auto &it : *this->supported_preset_modes) {
-    buffer.encode_string(12, it, true);
+  for (const char *it : *this->supported_preset_modes) {
+    buffer.encode_string(12, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(13, this->device_id);
@@ -376,8 +376,8 @@ void ListEntitiesFanResponse::calculate_size(ProtoSize &size) const {
 #endif
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
   if (!this->supported_preset_modes->empty()) {
-    for (const auto &it : *this->supported_preset_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_preset_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES
@@ -1179,14 +1179,14 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   for (const auto &it : *this->supported_swing_modes) {
     buffer.encode_uint32(14, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_fan_modes) {
-    buffer.encode_string(15, it, true);
+  for (const char *it : *this->supported_custom_fan_modes) {
+    buffer.encode_string(15, it, strlen(it), true);
   }
   for (const auto &it : *this->supported_presets) {
     buffer.encode_uint32(16, static_cast<uint32_t>(it), true);
   }
-  for (const auto &it : *this->supported_custom_presets) {
-    buffer.encode_string(17, it, true);
+  for (const char *it : *this->supported_custom_presets) {
+    buffer.encode_string(17, it, strlen(it), true);
   }
   buffer.encode_bool(18, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -1229,8 +1229,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_fan_modes->empty()) {
-    for (const auto &it : *this->supported_custom_fan_modes) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->supported_custom_fan_modes) {
+      size.add_length_force(1, strlen(it));
     }
   }
   if (!this->supported_presets->empty()) {
@@ -1239,8 +1239,8 @@ void ListEntitiesClimateResponse::calculate_size(ProtoSize &size) const {
     }
   }
   if (!this->supported_custom_presets->empty()) {
-    for (const auto &it : *this->supported_custom_presets) {
-      size.add_length_force(2, it.size());
+    for (const char *it : *this->supported_custom_presets) {
+      size.add_length_force(2, strlen(it));
     }
   }
   size.add_bool(2, this->disabled_by_default);
@@ -1475,8 +1475,8 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon_ref_);
 #endif
-  for (const auto &it : *this->options) {
-    buffer.encode_string(6, it, true);
+  for (const char *it : *this->options) {
+    buffer.encode_string(6, it, strlen(it), true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
   buffer.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
@@ -1492,8 +1492,8 @@ void ListEntitiesSelectResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   if (!this->options->empty()) {
-    for (const auto &it : *this->options) {
-      size.add_length_force(1, it.size());
+    for (const char *it : *this->options) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->disabled_by_default);

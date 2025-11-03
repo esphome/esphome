@@ -68,5 +68,13 @@ lvgl:
     enter_button: pushbutton
     group: general
     initial_focus: lv_roller
+  on_draw_start:
+    - logger.log: draw started
+  on_draw_end:
+    - logger.log: draw ended
+    - lvgl.pause:
+    - component.update: tft_display
+    - delay: 60s
+    - lvgl.resume:
 
 <<: !include common.yaml

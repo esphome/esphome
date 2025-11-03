@@ -188,9 +188,9 @@ void USBClient::setup() {
   }
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
-  for (size_t i = 0; i < MAX_REQUESTS; i++) {
-    usb_host_transfer_alloc(64, 0, &this->requests_[i].transfer);
-    this->requests_[i].client = this;  // Set once, never changes
+  for (auto &request : this->requests_) {
+    usb_host_transfer_alloc(64, 0, &request.transfer);
+    request.client = this;  // Set once, never changes
   }
 
   // Create and start USB task
@@ -210,8 +210,7 @@ void USBClient::usb_task_fn(void *arg) {
   auto *client = static_cast<USBClient *>(arg);
   client->usb_task_loop();
 }
-
-void USBClient::usb_task_loop() {
+void USBClient::usb_task_loop() const {
   while (true) {
     usb_host_client_handle_events(this->handle_, portMAX_DELAY);
   }
@@ -334,22 +333,23 @@ static void control_callback(const usb_transfer_t *xfer) {
 // This multi-threaded access is intentional for performance - USB task can
 // immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
-  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
+  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_acquire);
 
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
-  size_t i = 0;
-  while (i != MAX_REQUESTS) {
-    if (mask & (static_cast<trq_bitmask_t>(1) << i)) {
-      // Slot is in use, move to next slot
-      i++;
-      continue;
+  for (;;) {
+    if (mask == ALL_REQUESTS_IN_USE) {
+      ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
+      return nullptr;
     }
+    // find the least significant zero bit
+    trq_bitmask_t lsb = ~mask & (mask + 1);
 
     // Slot i appears available, try to claim it atomically
-    trq_bitmask_t desired = mask | (static_cast<trq_bitmask_t>(1) << i);  // Set bit i to mark as in-use
+    trq_bitmask_t desired = mask | lsb;
 
-    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order_acquire, std::memory_order_relaxed)) {
+    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order::acquire)) {
+      auto i = __builtin_ctz(lsb);  // count trailing zeroes
       // Successfully claimed slot i - prepare the TransferRequest
       auto *trq = &this->requests_[i];
       trq->transfer->context = trq;
@@ -358,13 +358,9 @@ TransferRequest *USBClient::get_trq_() {
     }
     // CAS failed - another thread modified the bitmask
     // mask was already updated by compare_exchange_weak with the current value
-    // No need to reload - the CAS already did that for us
-    i = 0;
   }
-
-  ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
-  return nullptr;
 }
+
 void USBClient::disconnect() {
   this->on_disconnected();
   auto err = usb_host_device_close(this->handle_, this->device_handle_);
@@ -446,11 +442,11 @@ static void transfer_callback(usb_transfer_t *xfer) {
  *
  * @throws None.
  */
-void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
+bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return false;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -460,7 +456,9 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return false;
   }
+  return true;
 }
 
 /**
@@ -476,11 +474,11 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
  *
  * @throws None.
  */
-void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
+bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return false;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -491,7 +489,9 @@ void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return false;
   }
+  return true;
 }
 void USBClient::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -505,7 +505,7 @@ void USBClient::dump_config() {
 // - Main loop: When transfer submission fails
 //
 // THREAD SAFETY: Lock-free using atomic AND to clear bit
-// Thread-safe atomic operation allows multi-threaded deallocation
+// Thread-safe atomic operation allows multithreaded deallocation
 void USBClient::release_trq(TransferRequest *trq) {
   if (trq == nullptr)
     return;
@@ -517,10 +517,10 @@ void USBClient::release_trq(TransferRequest *trq) {
     return;
   }
 
-  // Atomically clear bit i to mark slot as available
+  // Atomically clear the bit to mark slot as available
   // fetch_and with inverted bitmask clears the bit atomically
-  trq_bitmask_t bit = static_cast<trq_bitmask_t>(1) << index;
-  this->trq_in_use_.fetch_and(static_cast<trq_bitmask_t>(~bit), std::memory_order_release);
+  trq_bitmask_t mask = ~(static_cast<trq_bitmask_t>(1) << index);
+  this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
 }  // namespace usb_host

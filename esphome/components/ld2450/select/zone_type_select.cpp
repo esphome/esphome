@@ -3,9 +3,9 @@
 namespace esphome {
 namespace ld2450 {
 
-void ZoneTypeSelect::control(const std::string &value) {
-  this->publish_state(value);
-  this->parent_->set_zone_type(state);
+void ZoneTypeSelect::control(size_t index) {
+  this->publish_state(index);
+  this->parent_->set_zone_type(this->option_at(index));
 }
 
 }  // namespace ld2450
