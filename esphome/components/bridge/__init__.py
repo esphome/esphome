@@ -1,0 +1,3 @@
+CODEOWNERS = ["@kbx81"]
+
+IS_PLATFORM_COMPONENT = True
