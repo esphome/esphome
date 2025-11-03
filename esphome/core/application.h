@@ -21,15 +21,9 @@
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
-
 #ifdef USE_WAKE_LOOP_THREADSAFE
-// Inline function drain_wake_notifications_() needs lwip socket functions
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-#include <lwip/sockets.h>
-#elif defined(USE_SOCKET_IMPL_BSD_SOCKETS) && defined(USE_ESP32)
 #include <lwip/sockets.h>
 #endif
-#endif  // USE_WAKE_LOOP_THREADSAFE
 #endif  // USE_SOCKET_SELECT_SUPPORT
 
 #ifdef USE_BINARY_SENSOR
