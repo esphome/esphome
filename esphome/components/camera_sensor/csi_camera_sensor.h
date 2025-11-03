@@ -3,6 +3,7 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 
 #include "esphome/components/camera/buffer_pool.h"
+#include "esphome/components/camera/ram_allocator_cache_aligned.h"
 #include "esphome/components/camera/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -122,7 +123,7 @@ class CSICameraSensor : public camera::Sensor, public i2c::I2CDevice {
   esp_cam_sensor_xclk_handle_t xclk_handle_{};
   esp_cam_sensor_format_t *format_{};
   camera::BufferPool<InternalBuffer> pool_;
-  RAMAllocator<uint8_t> allocator_;
+  camera::RAMAllocatorCacheAligned<uint8_t> allocator_;
 };
 
 }  // namespace esphome::camera_sensor

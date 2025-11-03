@@ -3,6 +3,7 @@
 #include "buffer.h"
 #include "camera.h"
 #include "dynamic_buffer.h"
+#include "ram_allocator_cache_aligned.h"
 
 namespace esphome::camera {
 
@@ -23,7 +24,7 @@ class BufferImpl : public DynamicBuffer {
   ~BufferImpl() override;
 
  protected:
-  RAMAllocator<uint8_t> allocator_;
+  RAMAllocatorCacheAligned<uint8_t> allocator_;
   size_t capacity_{};
   size_t size_{};
   uint8_t *data_{};
