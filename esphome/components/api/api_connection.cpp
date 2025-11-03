@@ -423,7 +423,7 @@ uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *con
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
-  msg.supported_preset_modes = &traits.supported_preset_modes_for_api_();
+  msg.supported_preset_modes = &traits.supported_preset_modes();
   return fill_and_encode_entity_info(fan, msg, ListEntitiesFanResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -637,14 +637,14 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   }
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
-  if (!traits.get_supported_custom_fan_modes().empty() && climate->custom_fan_mode.has_value()) {
-    resp.set_custom_fan_mode(StringRef(climate->custom_fan_mode.value()));
+  if (!traits.get_supported_custom_fan_modes().empty() && climate->has_custom_fan_mode()) {
+    resp.set_custom_fan_mode(StringRef(climate->get_custom_fan_mode()));
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
-  if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value()) {
-    resp.set_custom_preset(StringRef(climate->custom_preset.value()));
+  if (!traits.get_supported_custom_presets().empty() && climate->has_custom_preset()) {
+    resp.set_custom_preset(StringRef(climate->get_custom_preset()));
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);

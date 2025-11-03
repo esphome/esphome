@@ -671,18 +671,33 @@ async def write_image(config, all_frames=False):
     resize = config.get(CONF_RESIZE)
     if is_svg_file(path):
         # Local import so use of non-SVG files needn't require cairosvg installed
+        from pyexpat import ExpatError
+        from xml.etree.ElementTree import ParseError
+
         from cairosvg import svg2png
+        from cairosvg.helpers import PointError
 
         if not resize:
             resize = (None, None)
-        with open(path, "rb") as file:
-            image = svg2png(
-                file_obj=file,
-                output_width=resize[0],
-                output_height=resize[1],
-            )
-        image = Image.open(io.BytesIO(image))
-        width, height = image.size
+        try:
+            with open(path, "rb") as file:
+                image = svg2png(
+                    file_obj=file,
+                    output_width=resize[0],
+                    output_height=resize[1],
+                )
+            image = Image.open(io.BytesIO(image))
+            width, height = image.size
+        except (
+            ValueError,
+            ParseError,
+            IndexError,
+            ExpatError,
+            AttributeError,
+            TypeError,
+            PointError,
+        ) as e:
+            raise core.EsphomeError(f"Could not load SVG image {path}: {e}") from e
     else:
         image = Image.open(path)
         width, height = image.size
