@@ -117,8 +117,8 @@ const char *Converters::to_custom_climate_fan_mode(MideaFanMode mode) {
   }
 }
 
-MideaFanMode Converters::to_midea_fan_mode(const std::string &mode) {
-  if (mode == Constants::SILENT)
+MideaFanMode Converters::to_midea_fan_mode(const char *mode) {
+  if (strcmp(mode, Constants::SILENT) == 0)
     return MideaFanMode::FAN_SILENT;
   return MideaFanMode::FAN_TURBO;
 }
@@ -153,7 +153,7 @@ bool Converters::is_custom_midea_preset(MideaPreset preset) { return preset == M
 
 const char *Converters::to_custom_climate_preset(MideaPreset preset) { return Constants::FREEZE_PROTECTION; }
 
-MideaPreset Converters::to_midea_preset(const std::string &preset) { return MideaPreset::PRESET_FREEZE_PROTECTION; }
+MideaPreset Converters::to_midea_preset(const char *preset) { return MideaPreset::PRESET_FREEZE_PROTECTION; }
 
 void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities) {
   if (capabilities.supportAutoMode())
