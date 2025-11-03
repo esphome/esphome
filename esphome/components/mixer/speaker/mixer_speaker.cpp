@@ -719,6 +719,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
       // Update source transfer buffer lengths and add new audio durations to the source speaker pending playbacks
       for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
+        speakers_with_data[i]->pending_playback_frames_ += frames_to_mix;
         transfer_buffers_with_data[i]->decrease_buffer_length(
             speakers_with_data[i]->get_audio_stream_info().frames_to_bytes(frames_to_mix));
       }
