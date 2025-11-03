@@ -175,8 +175,8 @@ def set_zephyr_config_options(config):
         if pan_id := int(config.get(CONF_PAN_ID)):
             zephyr_add_prj_conf("OPENTHREAD_PANID", pan_id)
 
-        if channel := config.get(CONF_CHANNEL):
-            zephyr_add_prj_conf("OPENTHREAD_CHANNEL", str(channel))
+        if channel := int(config.get(CONF_CHANNEL)):
+            zephyr_add_prj_conf("OPENTHREAD_CHANNEL", channel)
 
         if network_name := config.get(CONF_NETWORK_NAME):
             zephyr_add_prj_conf("OPENTHREAD_NETWORK_NAME", f'"{network_name}"')
